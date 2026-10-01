@@ -7,7 +7,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "shots": "node scripts/screenshot.mjs"
+    "shots": "node scripts/screenshot.mjs",
+    "preview": "vite preview",
+    "single": "vite build && node scripts/build-single.mjs"
   },
   "dependencies": {
     "three": "^0.186.1",

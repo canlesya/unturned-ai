@@ -1,5 +1,7 @@
 # unturned-ai
 
+> **Kurulum:** [`KURULUM.md`](KURULUM.md) · **Oyunun yapısı ve geliştirme rehberi:** [`OYUN.md`](OYUN.md)
+
 Three.js ile Unturned / BattleBit Remastered tarzı takım tabanlı FPS (3v3, 10v10 odalar, botlar, 3 harita).
 
 ## Durum
