@@ -3,7 +3,8 @@ import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment
 import { MAPS } from './maps/index.js';
 import { setupEnvironment } from './maps/environment.js';
 import { createCharacter } from './models/character.js';
-import { createWeapon } from './models/weapons.js';
+import { createWeapon, WEAPONS } from './models/weapons.js';
+import { createItem, ITEMS } from './models/items.js';
 
 // Menü arka planı: seçili haritanın canlı dönen kuş bakışı + sınıf/silah vitrini + silah ikonları.
 // Tek WebGL tuvali kullanır; oyun başlarken dispose() edilmelidir.
@@ -121,8 +122,9 @@ export class MenuScene {
     scene.add(dl, new THREE.HemisphereLight('#ffffff', '#778', 0.9));
     let url = '';
     try {
-      const w = createWeapon(id, optic);
-      w.rotation.y = -Math.PI / 2;           // namlu → ekranda sağa
+      const isItem = !WEAPONS[id] && ITEMS[id];     // ilk yardım gibi eşyalar silah tablosunda değil
+      const w = isItem ? createItem(id) : createWeapon(id, optic);
+      w.rotation.y = isItem ? -0.5 : -Math.PI / 2;  // namlu → ekranda sağa
       scene.add(w);
       w.updateMatrixWorld(true);
       const box = new THREE.Box3().setFromObject(w), c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());

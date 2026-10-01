@@ -178,7 +178,8 @@ export function showMenu(onStart) {
       return `<button class="wc ${sel === id ? 'on' : ''}" data-a="pick" data-v="${id}">${icon(id)}<b>${st.name || id}</b><div class="mini">${mini}</div></button>`;
     }).join('');
     const st = WSTATS[sel] || {}, b = weaponBars(sel);
-    const stats = ['dmg', 'range', 'rate', 'control', 'mobility'].map((k) => `<div class="stat"><span>${STAT_LABEL[k]}</span><div class="bar"><i style="width:${Math.max(3, Math.min(100, b[k] || 0))}%"></i></div><em>${Math.round(b[k] || 0)}</em></div>`).join('');
+    const utility = !(b.dmg || b.range);
+    const stats = utility ? '' : ['dmg', 'range', 'rate', 'control', 'mobility'].map((k) => `<div class="stat"><span>${STAT_LABEL[k]}</span><div class="bar"><i style="width:${Math.max(3, Math.min(100, b[k] || 0))}%"></i></div><em>${Math.round(b[k] || 0)}</em></div>`).join('');
     const optics = slot === 'primary' && !(WSTATS[sel] && WSTATS[sel].scope) ? `<div class="pan"><h3>Nişangâh <em>oyunda B ile değiştir</em></h3><div class="row">${OPTIC_ORDER.map((k) => `<button class="chip ${p.optic === k ? 'on' : ''}" data-a="optic" data-v="${k}">${OPTICS[k].label}</button>`).join('')}</div></div>` : '';
     return `<div class="tabs">${tabs}</div><div class="scroll"><div class="slots">${slotBtns}</div>
       <div class="pan"><h3>${SLOTS.find((s) => s[0] === slot)[1]} <em>${def.label}</em></h3><div class="wgrid">${grid}</div></div>
@@ -231,7 +232,7 @@ export function showMenu(onStart) {
     if (!next) return;
     iconTimer = setTimeout(() => {
       if (!scene) return;
-      const id = next.dataset.icon, url = scene.weaponIcon(id, p.optic);
+      const id = next.dataset.icon, url = scene.weaponIcon(id, p.optic) || 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
       stage.querySelectorAll(`img[data-icon="${id}"]`).forEach((im) => im.setAttribute('src', url));
       fillIcons();
     }, 20);
