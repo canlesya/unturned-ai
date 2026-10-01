@@ -373,14 +373,14 @@ export function buildVadi() {
 
   // ───────── Dekor: çimen tutamı, çiçek, çakıl, kamış (draw call artırmadan: renk başına birleşik) ─────────
   {
-    const tuft = (x, z, col, r, hgt) => {
-      const y = terrain.heightAt(x, z);
-      const g = V.tuftGeo(r, hgt);
-      dec.addGeo(g, col, dec._local(x, y - 0.03, z, (rngD() - 0.5) * 0.3, rngD() * 3, (rngD() - 0.5) * 0.3), undefined);
-    };
+    const tpl = (g) => { const t = g.index ? g.toNonIndexed() : g.clone(); t.deleteAttribute('uv'); return t; };
+    const TUFT = [[0.07, 0.26], [0.09, 0.34], [0.11, 0.42], [0.08, 0.52]].map(([r, h]) => tpl(V.tuftGeo(r, h)));
+    const FLOWER = tpl(new THREE.ConeGeometry(0.1, 0.26, 4, 1, true).translate(0, 0.38, 0)), STEM = tpl(new THREE.ConeGeometry(0.03, 0.4, 3, 1, true).translate(0, 0.2, 0));
+    const REED = tpl(new THREE.ConeGeometry(0.06, 1.2, 3, 1, true).translate(0, 0.6, 0)), PEB = tpl(new THREE.IcosahedronGeometry(0.2, 0));
+    const add = (g, col, x, y, z, rx, ry, rz, sc) => dec.addGeo(g.clone(), col, dec._local(x, y, z, rx, ry, rz, sc), undefined);
     const grassCols = ['#7ea23e', '#97b94c', '#628a35', '#a9b852'];
     let n = 0;
-    for (let i = 0; i < 9000 && n < 3000; i++) {
+    for (let i = 0; i < 7000 && n < 1700; i++) {
       const x = -92 + rngD() * 184, z = -62 + rngD() * 124;
       const h = terrain.heightAt(x, z);
       if (h < 0.15 || terrain.slopeAt(x, z, 0.8) > 0.5) continue;
@@ -388,7 +388,10 @@ export function buildVadi() {
       if (Math.abs(x) > 62 && Math.abs(z) < 17) continue;   // çanak avlusu çıplak
       const k = 3 + Math.floor(rngD() * 3);
       const col = grassCols[Math.floor(rngD() * grassCols.length)];
-      for (let j = 0; j < k; j++) tuft(x + (rngD() - 0.5) * 0.7, z + (rngD() - 0.5) * 0.7, col, 0.1 + rngD() * 0.08, 0.35 + rngD() * 0.35);
+      for (let j = 0; j < k; j++) {
+        const px = x + (rngD() - 0.5) * 0.7, pz = z + (rngD() - 0.5) * 0.7;
+        add(TUFT[Math.floor(rngD() * 4)], col, px, terrain.heightAt(px, pz) - 0.03, pz, (rngD() - 0.5) * 0.3, rngD() * 3, (rngD() - 0.5) * 0.3);
+      }
       n++;
     }
     const flowerCols = ['#f2e46a', '#ee6f9c', '#f6f2ea', '#a98be8', '#ff9b4a'];
@@ -403,19 +406,18 @@ export function buildVadi() {
         const x = cx + Math.cos(a) * d, z = cz + Math.sin(a) * d;
         if (trailD(x, z) < 0.3) continue;
         const y = terrain.heightAt(x, z);
-        dec.addGeo(new THREE.ConeGeometry(0.1, 0.26, 4, 1, true).translate(0, 0.38, 0), col, dec._local(x, y, z, 0, rngD() * 3, 0), undefined);
-        dec.addGeo(new THREE.ConeGeometry(0.03, 0.4, 3, 1, true).translate(0, 0.2, 0), '#4f7a33', dec._local(x, y, z, 0, 0, 0), undefined);
+        add(FLOWER, col, x, y, z, 0, rngD() * 3, 0); add(STEM, '#4f7a33', x, y, z, 0, 0, 0);
       }
     }
     // kıyı çakılı ve kamışlar
+    const one = new THREE.Vector3(1.3, 0.55, 1);
     for (let i = 0; i < 700; i++) {
       const z = -60 + rngD() * 120, side = rngD() > 0.5 ? 1 : -1;
       const x = riverX(z) + side * (4.2 + rngD() * 5);
       const h = terrain.heightAt(x, z);
       if (h < -0.2 || h > 0.9 || Math.abs(z) < 4.6 && Math.abs(x) < 12) continue;
-      const y = h;
-      if (rngD() > 0.55) dec.addGeo(new THREE.IcosahedronGeometry(0.12 + rngD() * 0.22, 0), rngD() > 0.5 ? '#8f8d85' : '#a5a296', dec._local(x, y + 0.04, z, 0, rngD() * 3, 0, new THREE.Vector3(1.3, 0.55, 1)), undefined);
-      else for (let j = 0; j < 3; j++) dec.addGeo(new THREE.ConeGeometry(0.06, 1.0 + rngD() * 0.5, 3, 1, true).translate(0, 0.55, 0), '#6f9a3c', dec._local(x + (rngD() - 0.5) * 0.4, y - 0.05, z + (rngD() - 0.5) * 0.4, (rngD() - 0.5) * 0.2, 0, (rngD() - 0.5) * 0.2), undefined);
+      if (rngD() > 0.55) add(PEB, rngD() > 0.5 ? '#8f8d85' : '#a5a296', x, h + 0.04, z, 0, rngD() * 3, 0, one);
+      else for (let j = 0; j < 3; j++) add(REED, '#6f9a3c', x + (rngD() - 0.5) * 0.4, h - 0.05, z + (rngD() - 0.5) * 0.4, (rngD() - 0.5) * 0.2, 0, (rngD() - 0.5) * 0.2, new THREE.Vector3(1, 0.8 + rngD() * 0.4, 1));
     }
   }
 

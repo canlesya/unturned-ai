@@ -110,9 +110,9 @@ export function buildKasaba() {
     const depot = V.yard === 'depot';
     const wc = depot ? '#8a8d90' : '#a39a82', cap = depot ? '#6a6d72' : '#847b64';
     const W = { h: 2.9, t: 0.5, color: wc, cap };
-    T.wallStone(b, rng, -83.25, -20.5, -83.25, 20.5, W);
-    T.wallStone(b, rng, -83.5, -20.25, -61.5, -20.25, { ...W, gaps: [{ at: -72, w: 4 }] });
-    T.wallStone(b, rng, -83.5, 20.25, -61.5, 20.25, { ...W, gaps: [{ at: -72, w: 4 }] });
+    T.wallStone(b, rng, -83.75, -20.5, -83.75, 20.5, W);
+    T.wallStone(b, rng, -84, -20.25, -61.5, -20.25, { ...W, gaps: [{ at: -72, w: 4 }] });
+    T.wallStone(b, rng, -84, 20.25, -61.5, 20.25, { ...W, gaps: [{ at: -72, w: 4 }] });
     T.wallStone(b, rng, -61.75, -20.5, -61.75, 20.5, { ...W, gaps: [{ at: 0, w: 6 }] });
     // kapı sancakları (takım rengi)
     const flag = depot ? '#d63a2b' : '#2b6fd6';
@@ -141,7 +141,7 @@ export function buildKasaba() {
       K.container(b, { x: -67.5, z: -13, ry: Math.PI / 2, color: '#4a7a4f' });
       K.truck(b, { x: -66.5, z: 15, ry: Math.PI / 2, color: '#a8281f', cargo: '#b9bec4' });
       K.sandbags(b, -66.5, -6.5, 4.0, Math.PI / 2); K.sandbags(b, -66.5, 7.5, 3.4, Math.PI / 2);
-      for (const [cx, cz, s, y] of [[-64, 14, 1.1, 0], [-62.9, 14.2, 1.0, 0], [-64, 15.2, 0.9, 1.1]]) K.crate(b, cx, cz, s, y);
+      for (const [cx, cz, s, y] of [[-64, 9.2, 1.1, 0], [-62.9, 9.4, 1.0, 0], [-64, 10.4, 0.9, 1.1]]) K.crate(b, cx, cz, s, y);
       K.barrel(b, -64, -17, '#c0392b'); K.barrel(b, -64.8, -17.5, '#d9a921'); K.barrel(b, -63.6, -16.3, '#c0392b');
       K.barrier(b, -69, -17.6, 0); K.barrier(b, -69, 17.6, 0);
       K.lamp(b, -64, -4, Math.PI); K.lamp(b, -64, 4, Math.PI); K.lamp(b, -69, -18.5, 0);
@@ -153,6 +153,7 @@ export function buildKasaba() {
     K.container(b, { x: -54, z: -2.0, ry: Math.PI / 2, color: '#3b6a9a' });
     K.container(b, { x: -46, z: 2.0, ry: Math.PI / 2, color: '#d9a921' });
     K.barrier(b, -58.5, 3.6, Math.PI / 2); K.barrier(b, -50, -3.8, 0); K.sandbags(b, -57, -3.4, 3.0, 0);
+    T.wallStone(b, rng, -54, -9.4, -54, -5.1, { h: 2.4, t: 0.5, color: '#9a968c' }); T.wallStone(b, rng, -46, 5.1, -46, 9.4, { h: 2.4, t: 0.5, color: '#9a968c' });
     T.streetSign(b, -60, 5.6, Math.PI, '#c0392b');
     K.lamp(b, -57, 6.2, 0); K.lamp(b, -48, -6.2, Math.PI);
   }
@@ -214,7 +215,7 @@ export function buildKasaba() {
     if (V.swB2 === 'church') {
       reg(K.church(b, rng, { x: -36, z: 19, w: 9, d: 14 }), 'kilise');
       for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) K.tombstone(b, -30.5 + c * 1.1 + (r % 2) * 0.1, 14 + r * 2.8, 0);
-      K.fence(b, -31.8, 12.2, -26, 12.2); K.fence(b, -26.2, 12.2, -26.2, 24.5); K.fence(b, -31.8, 24.5, -26, 24.5);
+      K.fence(b, -31.8, 12.2, -26, 12.2); K.fence(b, -26.2, 12.2, -26.2, 16.5); K.fence(b, -26.2, 19.5, -26.2, 24.5); K.fence(b, -31.8, 24.5, -26, 24.5);
       T.hedge(b, -45, 26, -41.5, 26); K.oak(b, rng, -43, 19, 1.0); K.oak(b, rng, -42, 12.8, 0.9); K.bush(b, rng, -31.3, 26, 1);
       K.bench(b, -42, 23, Math.PI / 2);
     } else {
@@ -263,6 +264,8 @@ export function buildKasaba() {
     // güney sokak (z 26…34)
     for (const [x, z, ry, ci, w] of [[-72, 31, 0, 3, 1], [-64, 28.6, 0.1, 1, 0], [-56, 31.4, Math.PI, 5, 1], [-47, 29, 0, 2, 0], [-38.5, 31.5, 0.05, 0, 1], [-30, 28.8, 0.1, 4, 0], [-21, 31.2, Math.PI, 1, 1], [-12, 28.8, 0, 5, 0]]) car(x, z, ry, palette[ci], !!w);
     K.barrier(b, -60, 31, 0); K.sandbags(b, -43, 29.4, 3.2, 0); K.barrier(b, -34, 31.4, 0); K.sandbags(b, -16.5, 31.2, 3, 0); K.barrier(b, -7.5, 29, 0);
+    // sokak kenarı (kaldırım/çim şeridi) siperleri: kenar boyunca uzun açık hat bırakma
+    for (let x = -70; x < -8; x += 11) { T.hedge(b, x, -35.2, x + 4.5, -35.2, { h: 1.2, t: 0.7 }); T.hedge(b, x + 5.5, 35.2, x + 10, 35.2, { h: 1.2, t: 0.7 }); }
     // lamba direkleri (cadde boyunca, geceyi aydınlatır)
     for (let x = -58; x < -8; x += 14) { K.lamp(b, x, -7.4, Math.PI * 0 + 0); K.lamp(b, x + 7, 7.4, Math.PI); }
     for (let x = -68; x < -8; x += 14) { K.lamp(b, x, -35, 0); K.lamp(b, x + 7, 35, Math.PI); }
@@ -290,7 +293,7 @@ export function buildKasaba() {
     reg(K.watchtower(b, { x: -17, z: 46, ry: Math.PI }), 'gozetleme');
     occ(-23, 40, -11, 50);
     for (let r = 0; r < 4; r++) for (let c = 0; c < 6; c++) K.tombstone(b, -50 + c * 1.5, 43 + r * 2.2, 0);
-    K.fence(b, -52, 41, -40, 41); K.fence(b, -52, 41, -52, 52); K.fence(b, -52, 52, -40, 52); K.fence(b, -40, 41, -40, 52);
+    K.fence(b, -52, 41, -40, 41); K.fence(b, -52, 41, -52, 45); K.fence(b, -52, 48, -52, 52); K.fence(b, -52, 52, -40, 52); K.fence(b, -40, 41, -40, 45); K.fence(b, -40, 48, -40, 52);
     occ(-53, 40, -39, 53, 0.5);
     reg(K.house(b, rng, { x: -33, z: 46, w: 6.5, d: 5.5, floors: 1, door: 'n', wall: '#8b7a5a', roof: '#4d5b3a' }), 'mezarlik-kulube'); occ(-36.5, 43, -29.5, 49);
     T.crops(b, rng, -82, 42, -66, 56, { along: 'z', color: '#a8b040' }); occ(-82, 42, -66, 56, 0.5);
