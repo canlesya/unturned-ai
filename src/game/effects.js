@@ -25,12 +25,33 @@ export class Effects {
     this._decalMat = new THREE.MeshBasicMaterial({ color: '#1a1a1a', transparent: true, opacity: 0.75, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
     this._scorchMat = new THREE.MeshBasicMaterial({ color: '#0d0d0d', transparent: true, opacity: 0.6, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
     this._tracerMat = new THREE.MeshBasicMaterial({ color: '#ffe9a0', transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
+    this._tracerMats = {};
+    this.slashes = [];
+    this._slashGeo = new THREE.RingGeometry(0.62, 1, 18, 1, -0.95, 1.9);   // yay şeklinde şerit (bıçak izi)
+    this._slashGeo.translate(-0.81, 0, 0);                                    // yayın ortası merkezden geçsin
   }
 
-  tracer(from, to) {
+  // Bıçak vuruş izi: gözün önünde, savurma eğimine göre yatık yay şeridi
+  slash(origin, dir, kind, reach, team) {
+    const col = kind === 'stab' ? '#ffffff' : '#dfeeff';
+    const m = new THREE.Mesh(this._slashGeo, new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide }));
+    const r = kind === 'stab' ? 0.3 : reach * 0.62;
+    m.position.copy(origin).addScaledVector(dir, reach * 0.7);
+    m.lookAt(origin);                                                    // düzlem normali gözlemciye bakar
+    const roll = { rl: 0.75, lr: -0.75, chop: 1.57, diag: 0.5, stab: 0 }[kind] ?? 0;
+    m.rotateZ(roll + (kind === 'stab' ? 0 : 0));
+    const flip = kind === 'lr' ? -1 : 1;
+    m.scale.set(kind === 'stab' ? r * 0.35 : r * flip, kind === 'stab' ? r * 2.2 : r, 1);
+    m.userData = { life: 0.16, max: 0.16, own: true, slash: true };
+    this.scene.add(m);
+    this.slashes.push(m);
+  }
+
+  // color: iz mermisi rengi (silaha göre); verilmezse sarı
+  tracer(from, to, color = null) {
     const len = from.distanceTo(to);
     if (len < 1) return;
-    const m = new THREE.Mesh(boxGeo, this._tracerMat);
+    const m = new THREE.Mesh(boxGeo, color ? this._tracerMats[color] ||= new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }) : this._tracerMat);
     m.position.copy(from).lerp(to, 0.5);
     const w = 0.014 + Math.min(len, 150) * 0.00035;
     m.scale.set(w, w, len);
@@ -86,6 +107,16 @@ export class Effects {
     this.flashes.push(m);
   }
 
+  // flaşbang patlaması: kısa, parlak beyaz küre + kıvılcım
+  flashBurst(p) {
+    const core = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false }));
+    core.position.copy(p);
+    core.userData = { life: 0.25, max: 0.25, r: 3.2, own: true };
+    this.scene.add(core);
+    this.explosions.push(core);
+    for (let i = 0; i < 14; i++) this._part(p, '#fff6d0', rand(0.05, 0.1), null, 7, rand(0.2, 0.5), 3);
+  }
+
   explosion(p, radius = 6) {
     const core = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshBasicMaterial({ color: '#ffb347', transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }));
     core.position.copy(p);
@@ -109,6 +140,11 @@ export class Effects {
 
   update(dt) {
     for (let i = this.tracers.length - 1; i >= 0; i--) { const m = this.tracers[i]; if ((m.userData.life -= dt) <= 0) this._remove(this.tracers, i); }
+    for (let i = this.slashes.length - 1; i >= 0; i--) {
+      const m = this.slashes[i], u = m.userData;
+      if ((u.life -= dt) <= 0) { this.scene.remove(m); m.material.dispose(); this.slashes.splice(i, 1); continue; }
+      m.material.opacity = 0.85 * (u.life / u.max);
+    }
     for (let i = this.flashes.length - 1; i >= 0; i--) { const m = this.flashes[i]; if ((m.userData.life -= dt) <= 0) this._remove(this.flashes, i); }
     for (let i = this.decals.length - 1; i >= 0; i--) {
       const m = this.decals[i];

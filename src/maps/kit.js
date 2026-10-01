@@ -31,119 +31,9 @@ function windows(len, center, door, step = 3.2, w = 1.2, b = 1.0, top = 2.1) {
 
 const DOOR = (at, w = 1.3, top = 2.3) => ({ at, w, b: 0, top });
 
-// ───────── Mobilya (siper görevi görür) ─────────
-function furnish(b, rng, x0, x1, z0, z1, y, doorLane) {
-  const spots = [];
-  const wx = x1 - x0, wz = z1 - z0;
-  spots.push({ x: x0 + 0.6, z: z0 + 0.7 + rng() * (wz - 2.4) });
-  spots.push({ x: x1 - 0.6, z: z0 + 0.7 + rng() * (wz - 2.4) });
-  spots.push({ x: x0 + 1.2 + rng() * (wx - 2.4), z: z0 + 0.6 });
-  spots.push({ x: x0 + 1.2 + rng() * (wx - 2.4), z: z1 - 0.6 });
-  spots.push({ x: x0 + wx / 2 + (rng() - 0.5) * 1.5, z: z0 + wz / 2 + (rng() - 0.5) * 1.5 });
-  const kinds = ['cabinet', 'bed', 'table', 'couch', 'crate'];
-  spots.forEach((s, i) => {
-    if (doorLane && Math.abs(s.x - doorLane.x) < 1.3 && Math.abs(s.z - doorLane.z) < 1.8) return;
-    const k = kinds[Math.floor(rng() * kinds.length)];
-    const ry = i === 0 || i === 1 ? Math.PI / 2 : 0;
-    b.with(s.x, y, s.z, ry, () => {
-      if (k === 'cabinet') b.box(0, 0, 0, 1.1, 1.9, 0.5, COL.woodDark);
-      else if (k === 'bed') { b.box(0, 0, 0, 2.0, 0.5, 1.1, '#6b7fa0'); b.box(-0.8, 0.5, 0, 0.4, 0.1, 0.9, COL.white, { collide: false }); }
-      else if (k === 'table') { b.box(0, 0.7, 0, 1.4, 0.08, 0.8, COL.woodLight); b.collide(0, 0, 0, 1.3, 0.8, 0.7); b.box(-0.6, 0, -0.3, 0.08, 0.7, 0.08, COL.woodDark, { collide: false }); b.box(0.6, 0, 0.3, 0.08, 0.7, 0.08, COL.woodDark, { collide: false }); }
-      else if (k === 'couch') { b.box(0, 0, 0, 2.0, 0.5, 0.85, '#8a4b3b'); b.box(0, 0.5, 0.35, 2.0, 0.45, 0.2, '#74392c', { collide: false }); }
-      else b.box(0, 0, 0, 0.9, 0.9, 0.9, COL.woodLight);
-    });
-  });
-}
-
 // ───────── Ev / bina ─────────
-export function house(b, rng, o) {
-  const {
-    x, z, w, d, floors = 1, wall = '#d9c79a', roof = '#a8432f', door = 's', doorAt = 0, backDoor = false,
-    floorH = 3.1, flat = false, floorColor = COL.floor, furnishing = true, extraWindows = true,
-  } = o;
-  const T = 0.3;
-  const x0 = x - w / 2, x1 = x + w / 2, z0 = z - d / 2, z1 = z + d / 2;
-  const H = floors * floorH;
-  const trimOpt = { trim: COL.trim };
-
-  for (const [px, pz, pw, pd] of [[x, z0 - 0.15, w + 0.3, 0.3], [x, z1 + 0.15, w + 0.3, 0.3], [x0 - 0.15, z, 0.3, d], [x1 + 0.15, z, 0.3, d]]) b.box(px, 0, pz, pw, 0.35, pd, COL.plinth, { collide: false });  // temel halkası
-  b.box(x, 0, z, w - 0.4, 0.06, d - 0.4, floorColor, { collide: false });             // zemin kaplaması
-
-  const doorSides = [door];
-  if (backDoor) doorSides.push({ n: 's', s: 'n', e: 'w', w: 'e' }[door]);
-  const dOps = {};
-  for (const sd of doorSides) {
-    const alongC = sd === 'n' || sd === 's' ? x : z;
-    dOps[sd] = DOOR(alongC + (sd === door ? doorAt : 0));
-  }
-
-  for (let f = 0; f < floors; f++) {
-    const y0 = f * floorH;
-    const op = (sd, len, c) => {
-      const dr = f === 0 ? dOps[sd] : null;
-      const ws = extraWindows || f > 0 ? windows(len, c, dr) : [];
-      return dr ? [dr, ...ws] : ws;
-    };
-    b.wall('x', x0, x1, z0, y0, floorH, T, wall, op('n', w, x), trimOpt);
-    b.wall('x', x0, x1, z1, y0, floorH, T, wall, op('s', w, x), trimOpt);
-    b.wall('z', z0 + T / 2, z1 - T / 2, x0, y0, floorH, T, wall, op('w', d, z), trimOpt);
-    b.wall('z', z0 + T / 2, z1 - T / 2, x1, y0, floorH, T, wall, op('e', d, z), trimOpt);
-  }
-  // köşe sütunları
-  const post = (px, pz) => b.box(px, 0, pz, 0.42, H, 0.42, COL.trim, { collide: false });
-  post(x0, z0); post(x1, z0); post(x0, z1); post(x1, z1);
-  // üst bant
-  b.box(x, H - 0.35, z, w + 0.2, 0.35, d + 0.2, COL.trim, { collide: false });
-
-  // kat döşemeleri (merdiven boşluklu)
-  const stairHole = floors > 1 ? { xa: x0 + T, xb: x0 + T + 1.4, za: z0 + T, zb: z0 + T + 4.8 } : null;
-  for (let f = 1; f < floors; f++) {
-    const y = f * floorH - 0.25;
-    const h = stairHole;
-    b.box(x, y, (h.zb + z1) / 2, w, 0.25, z1 - h.zb, '#b08a5a');
-    b.box((h.xb + x1) / 2, y, (h.za + h.zb) / 2, x1 - h.xb, 0.25, h.zb - h.za, '#b08a5a');
-    b.stairs((h.xa + h.xb) / 2, h.za, (f - 1) * floorH, '+z', 1.25, 15, floorH / 15, 0.31, COL.woodLight);
-  }
-  // tavan + çatı
-  b.box(x, H - 0.2, z, w, 0.2, d, '#d8cfba');
-  if (flat) {
-    b.box(x, H - 0.0, z, w + 0.5, 0.35, d + 0.5, roof, { collide: false });
-    b.box(x, H + 0.35, z, w + 0.5, 0.3, 0.2, roof, { collide: false });
-  } else {
-    const ridgeAlongX = w >= d;
-    const cross = (ridgeAlongX ? d : w) + 1.0;
-    const len = (ridgeAlongX ? w : d) + 1.0;
-    b.prism(x, H - 0.15, z, cross, cross * 0.3, len, roof, { ry: ridgeAlongX ? Math.PI / 2 : 0 });
-    // baca
-    b.box(x + (ridgeAlongX ? w * 0.25 : 0), H, z + (ridgeAlongX ? 0 : d * 0.25), 0.7, 2.2, 0.7, '#8a5a48', { collide: false });
-  }
-  // sundurma
-  const dpos = (sd) => {
-    if (sd === 'n') return [x + (sd === door ? doorAt : 0), z0 - 1.0, 0];
-    if (sd === 's') return [x + (sd === door ? doorAt : 0), z1 + 1.0, 0];
-    if (sd === 'w') return [x0 - 1.0, z + (sd === door ? doorAt : 0), Math.PI / 2];
-    return [x1 + 1.0, z + (sd === door ? doorAt : 0), Math.PI / 2];
-  };
-  for (const sd of doorSides) {
-    const [px, pz, ry] = dpos(sd);
-    b.with(px, 0, pz, ry, () => {
-      b.box(0, 0, 0, 2.6, 0.14, 1.6, COL.concrete, { collide: false });
-      b.box(0, 2.55, 0, 3.0, 0.15, 1.7, roof, { collide: false });
-      b.box(-1.3, 0, -0.7, 0.14, 2.55, 0.14, COL.trim, { collide: false });
-      b.box(1.3, 0, -0.7, 0.14, 2.55, 0.14, COL.trim, { collide: false });
-    });
-  }
-  // mobilya
-  if (furnishing) {
-    const lane = (() => {
-      const [px, pz] = dpos(door);
-      return { x: door === 'e' ? x1 - 1 : door === 'w' ? x0 + 1 : px, z: door === 's' ? z1 - 1 : door === 'n' ? z0 + 1 : pz };
-    })();
-    for (let f = 0; f < floors; f++) {
-      furnish(b, rng, x0 + T + 0.2, x1 - T - 0.2, z0 + T + 0.2, z1 - T - 0.2 - (f > 0 ? 0 : 0), f * floorH + 0.06, f === 0 ? lane : null);
-    }
-  }
-}
+// Gerçek gövde house.js'te (odalar, mobilya, merdiven kovası, çatı erişimi). Seçenekler: bkz. house.js başlığı.
+export { house } from './house.js';
 
 // ───────── Ambar ─────────
 export function barn(b, rng, { x, z, w = 12, d = 18, door = 's', color = '#9c3a2c', roof = '#6c7078' }) {
@@ -381,20 +271,70 @@ export function tombstone(b, x, z, ry = 0) {
 }
 
 // ───────── Gözetleme kulesi ─────────
-export function watchtower(b, { x, z, ry = 0, color = '#7a5a38' }) {
+// Yerel çerçeve: platform 4.2×4.2, üst yüzey y=h. Merdiven kulenin BATI yüzü boyunca (x=-3.3…-2.1), güneyden (+z) kuzeye (−z)
+// çıkar ve son basamak platformla aynı seviyede biter; batı korkuluğunda merdivenin geldiği yerde 1.7 m açıklık vardır.
+// Basamak 0.27 m (adım yükseltmesi 0.5 m'nin altında). Kule altı açıktır (yalnızca 4 ayak çarpışır). ry yalnızca 90° katları.
+// Korkuluk 1.1 m: ayakta nişan alınır, çömelince siper. Üstte gece için glow fener. Dönüş: { entry, targets:[{name,x,y,z}] }.
+export function watchtower(b, { x, z, ry = 0, color = '#7a5a38', h = 6.0 }) {
+  const H = h, dark = '#5e3c1d';
+  const info = { entry: null, targets: [], h: H };
+  const toWorld = (lx, lz) => [x + lx * Math.cos(ry) + lz * Math.sin(ry), z - lx * Math.sin(ry) + lz * Math.cos(ry)];
   b.with(x, 0, z, ry, () => {
-    const H = 6.0;
-    for (const sx of [-1.7, 1.7]) for (const sz of [-1.7, 1.7]) b.box(sx, 0, sz, 0.3, H, 0.3, color, { collide: false });
-    b.collide(0, 0, 0, 3.6, H, 3.6);
-    b.box(0, H, 0, 4.2, 0.25, 4.2, '#5e3c1d');
-    for (const [dx, dz, w, d] of [[0, -2.0, 4.2, 0.12], [0, 2.0, 4.2, 0.12], [-2.0, 0, 0.12, 4.2], [2.0, 0, 0.12, 4.2]]) b.box(dx, H + 0.25, dz, w, 1.0, d, color, { collide: false });
-    b.collide(0, H + 0.25, -2.0, 4.2, 1.0, 0.15); b.collide(0, H + 0.25, 2.0, 4.2, 1.0, 0.15);
-    b.collide(-2.0, H + 0.25, 0, 0.15, 1.0, 4.2); b.collide(2.0, H + 0.25, 0, 0.15, 1.0, 4.2);
-    b.box(0, H + 2.4, 0, 4.8, 0.2, 4.8, '#6a4a3a', { collide: false });
-    for (const sx of [-2.0, 2.0]) for (const sz of [-2.0, 2.0]) b.box(sx, H + 1.25, sz, 0.12, 1.15, 0.12, color, { collide: false });
-    b.stairs(-3.2, -1.2, 0, '+z', 1.1, 24, 0.25, 0.3, '#8b6a45');
+    const n = Math.round(H / 0.27), rise = H / n, run = 0.27, zt = -1.4, zb = zt + n * run;
+    // ayaklar + çapraz destekler
+    for (const sx of [-1.7, 1.7]) for (const sz of [-1.7, 1.7]) b.box(sx, 0, sz, 0.32, H + 2.4, 0.32, color);
+    for (const lv of [1.6, 3.6]) {
+      for (const sz of [-1.7, 1.7]) b.box(0, lv, sz, 3.4, 0.14, 0.12, dark, { collide: false });
+      for (const sx of [-1.7, 1.7]) b.box(sx, lv, 0, 0.12, 0.14, 3.4, dark, { collide: false });
+    }
+    const brace = (sx, sz, along) => {
+      const len = Math.hypot(3.4, 2.0), ang = Math.atan2(2.0, 3.4);
+      if (along === 'x') b.box(0, 1.6 + 1.0 - 0.06, sz, len, 0.12, 0.1, dark, { collide: false, rz: ang });
+      else b.box(sx, 1.6 + 1.0 - 0.06, 0, 0.1, 0.12, len, dark, { collide: false, rx: ang });
+    };
+    brace(0, -1.7, 'x'); brace(0, 1.7, 'x'); brace(-1.7, 0, 'z'); brace(1.7, 0, 'z');
+    // platform
+    b.box(0, H - 0.25, 0, 4.2, 0.25, 4.2, dark);
+    for (const sz of [-1.9, 1.9]) b.box(0, H - 0.5, sz, 4.2, 0.25, 0.2, color, { collide: false });
+    // korkuluk: kuzey, güney, doğu tam; batı yüzünde açıklık (zg0..zg1)
+    const rl = (cx, cz, w2, d2) => { b.box(cx, H, cz, w2, 1.1, d2, color); b.box(cx, H + 1.1, cz, w2 + 0.04, 0.08, d2 + 0.04, dark, { collide: false }); };
+    rl(0, -2.0, 4.2, 0.14); rl(0, 2.0, 4.2, 0.14); rl(2.0, 0, 0.14, 3.86);
+    const zg1 = -0.4;
+    rl(-2.0, (zg1 + 2.0) / 2, 0.14, 2.0 - zg1);
+    b.box(-2.0, H, -1.95, 0.2, 1.1, 0.2, dark, { collide: false });   // açıklığın kuzey direği
+    // çatı + 4 direk + glow fener
+    b.box(0, H + 2.4, 0, 5.0, 0.2, 5.0, '#6a4a3a');
+    b.prism(0, H + 2.6, 0, 5.2, 1.1, 5.2, '#5b4a45');
+    b.box(0, H + 1.7, 0, 0.05, 0.7, 0.05, dark, { collide: false });
+    b.box(0, H + 1.4, 0, 0.34, 0.32, 0.34, '#ffd98a', { collide: false, o: { glow: true } });
+    // platformdaki sandık (siper)
+    b.box(1.3, H, 1.3, 0.8, 0.8, 0.8, '#b58a57');
+    b.box(-1.2, H, 1.4, 0.5, 0.5, 0.5, '#8a6a3a');
+    // merdiven (batı yüzü): zb güney uç (alt), zt kuzey uç (üst)
+    b.stairs(-2.7, zb, 0, '-z', 1.2, n, rise, run, '#8b6a45');
+    for (const sx of [-3.35]) {
+      b.box(sx, 0, (zt + zb) / 2, 0.08, 0.15, zb - zt, dark, { collide: false });
+      // el tutamağı: eğimli kiriş + direkler
+      const L = Math.hypot(zb - zt, H), a = Math.atan2(H, zb - zt);
+      b.box(sx, (H + 1.0) / 2 - 0.04, (zt + zb) / 2, 0.07, 0.07, L, dark, { collide: false, rx: -a });
+      for (let i = 0; i <= 4; i++) { const t = i / 4, pz = zb + (zt - zb) * t, py = rise * Math.round(t * n); b.box(sx, py, pz, 0.07, 1.0, 0.07, color, { collide: false }); }
+    }
+    // alt fener (gece kuleyi gösterir)
+    b.box(-3.35, 1.7, zb + 0.2, 0.2, 0.28, 0.2, '#ffd98a', { collide: false, o: { glow: true } });
+    b.box(-3.35, 0, zb + 0.2, 0.08, 1.7, 0.08, dark, { collide: false });
+    // tabela
+    b.box(2.0, H + 0.45, -2.08, 1.0, 0.4, 0.04, '#3a2a18', { collide: false });
+    info.zt = zt; info.zb = zb;
   });
+  const [ex, ez] = toWorld(-2.7, zb0(H) + 0.9);
+  info.entry = { x: ex, z: ez };
+  const [px, pz] = toWorld(0, 0.4);
+  info.targets.push({ name: 'platform', x: px, y: H, z: pz });
+  const [tx, tz] = toWorld(1.0, -1.0);
+  info.targets.push({ name: 'platform-ne', x: tx, y: H, z: tz });
+  return info;
 }
+function zb0(H) { const n = Math.round(H / 0.27); return -1.4 + n * 0.27; }
 
 // ───────── Ağaçlar ─────────
 const PINES = ['#2f5a2c', '#2a4f28', '#34632f', '#27472a'];

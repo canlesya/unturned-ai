@@ -72,17 +72,33 @@ export class Sfx {
     o.start(t); o.stop(t + dur + 0.05);
   }
 
+  // Silah ailesine göre ayırt edilebilir sesler
   shot(kind, pos) {
+    const N = (o) => this._noise({ pos, ...o }), T = (o) => this._tone({ pos, ...o });
     switch (kind) {
-      case 'pistol': this._noise({ pos, gain: 0.5, dur: 0.12, f0: 5000, f1: 700 }); this._tone({ pos, gain: 0.3, dur: 0.1, f0: 200, f1: 60 }); break;
-      case 'smg': this._noise({ pos, gain: 0.42, dur: 0.1, f0: 6000, f1: 900 }); this._tone({ pos, gain: 0.22, dur: 0.08, f0: 220, f1: 80 }); break;
-      case 'shotgun': this._noise({ pos, gain: 0.9, dur: 0.3, f0: 4500, f1: 300 }); this._tone({ pos, gain: 0.6, dur: 0.25, f0: 120, f1: 35 }); break;
-      case 'sniper': this._noise({ pos, gain: 1.0, dur: 0.5, f0: 5000, f1: 200 }); this._tone({ pos, gain: 0.7, dur: 0.4, f0: 90, f1: 28 }); break;
-      case 'lmg': this._noise({ pos, gain: 0.6, dur: 0.16, f0: 3600, f1: 500 }); this._tone({ pos, gain: 0.45, dur: 0.14, f0: 100, f1: 40 }); break;
-      case 'rpg': this._noise({ pos, gain: 0.8, dur: 0.6, f0: 2500, f1: 200 }); this._tone({ pos, gain: 0.5, dur: 0.4, f0: 80, f1: 30 }); break;
-      case 'knife': this._noise({ pos, gain: 0.25, dur: 0.12, f0: 3000, f1: 1500, type: 'bandpass' }); break;
-      case 'throw': this._noise({ pos, gain: 0.2, dur: 0.15, f0: 1500, f1: 600, type: 'bandpass' }); break;
-      default: this._noise({ pos, gain: 0.6, dur: 0.14, f0: 4200, f1: 600 }); this._tone({ pos, gain: 0.35, dur: 0.12, f0: 150, f1: 50 });
+      case 'pistol': N({ gain: 0.5, dur: 0.12, f0: 5000, f1: 700 }); T({ gain: 0.3, dur: 0.1, f0: 200, f1: 60 }); break;
+      case 'pistol45': N({ gain: 0.6, dur: 0.14, f0: 3800, f1: 500 }); T({ gain: 0.4, dur: 0.12, f0: 160, f1: 55 }); break;
+      case 'magnum': N({ gain: 0.9, dur: 0.26, f0: 3200, f1: 280 }); T({ gain: 0.65, dur: 0.22, f0: 100, f1: 38 }); N({ gain: 0.25, dur: 0.3, f0: 1500, f1: 200, delay: 0.05 }); break;
+      case 'revolver': N({ gain: 0.75, dur: 0.22, f0: 3500, f1: 380 }); T({ gain: 0.55, dur: 0.2, f0: 120, f1: 42 }); break;
+      case 'smg': N({ gain: 0.42, dur: 0.1, f0: 6000, f1: 900 }); T({ gain: 0.22, dur: 0.08, f0: 220, f1: 80 }); break;
+      case 'vector': N({ gain: 0.34, dur: 0.07, f0: 7500, f1: 1400 }); T({ gain: 0.16, dur: 0.06, f0: 320, f1: 130, type: 'square' }); break;
+      case 'p90': N({ gain: 0.3, dur: 0.06, f0: 9000, f1: 2500, type: 'bandpass' }); T({ gain: 0.14, dur: 0.05, f0: 520, f1: 260, type: 'triangle' }); break;
+      case 'mac10': N({ gain: 0.42, dur: 0.08, f0: 6500, f1: 900 }); T({ gain: 0.22, dur: 0.07, f0: 260, f1: 110, type: 'sawtooth' }); break;
+      case 'carbine': N({ gain: 0.55, dur: 0.12, f0: 5000, f1: 700 }); T({ gain: 0.3, dur: 0.1, f0: 180, f1: 62 }); break;
+      case 'battle': N({ gain: 0.78, dur: 0.2, f0: 3800, f1: 380 }); T({ gain: 0.55, dur: 0.18, f0: 110, f1: 40 }); N({ gain: 0.3, dur: 0.1, f0: 8000, f1: 3000, type: 'highpass' }); break;
+      case 'shotgun': N({ gain: 0.9, dur: 0.3, f0: 4500, f1: 300 }); T({ gain: 0.6, dur: 0.25, f0: 120, f1: 35 }); this.pump(pos, 0.34); break;
+      case 'aa12': N({ gain: 0.85, dur: 0.22, f0: 4200, f1: 320 }); T({ gain: 0.55, dur: 0.2, f0: 100, f1: 36 }); break;
+      case 'dbl': N({ gain: 1.0, dur: 0.34, f0: 4500, f1: 260 }); T({ gain: 0.7, dur: 0.3, f0: 95, f1: 30 }); N({ gain: 0.7, dur: 0.3, f0: 4000, f1: 280, delay: 0.035 }); break;
+      case 'sniper': N({ gain: 1.0, dur: 0.5, f0: 5000, f1: 200 }); T({ gain: 0.7, dur: 0.4, f0: 90, f1: 28 }); this.bolt(pos, 0.55); break;
+      case 'dmr': N({ gain: 0.85, dur: 0.3, f0: 4200, f1: 300 }); T({ gain: 0.6, dur: 0.25, f0: 100, f1: 35 }); N({ gain: 0.25, dur: 0.4, f0: 1800, f1: 200, delay: 0.08 }); break;
+      case 'barrett': N({ gain: 1.2, dur: 0.7, f0: 3500, f1: 150 }); T({ gain: 0.95, dur: 0.6, f0: 70, f1: 24 }); N({ gain: 0.5, dur: 0.7, f0: 1200, f1: 120, delay: 0.1 }); break;
+      case 'lmg': N({ gain: 0.6, dur: 0.16, f0: 3600, f1: 500 }); T({ gain: 0.45, dur: 0.14, f0: 100, f1: 40 }); break;
+      case 'pkm': N({ gain: 0.7, dur: 0.17, f0: 3400, f1: 450 }); T({ gain: 0.5, dur: 0.15, f0: 88, f1: 36 }); break;
+      case 'rpg': N({ gain: 0.8, dur: 0.6, f0: 2500, f1: 200 }); T({ gain: 0.5, dur: 0.4, f0: 80, f1: 30 }); break;
+      case 'm79': T({ gain: 0.7, dur: 0.18, f0: 160, f1: 45 }); N({ gain: 0.4, dur: 0.22, f0: 1800, f1: 200 }); break;
+      case 'knife': N({ gain: 0.28, dur: 0.16, f0: 900, f1: 3200, type: 'bandpass', q: 1.2 }); break;
+      case 'throw': N({ gain: 0.2, dur: 0.15, f0: 1500, f1: 600, type: 'bandpass' }); break;
+      default: N({ gain: 0.6, dur: 0.14, f0: 4200, f1: 600 }); T({ gain: 0.35, dur: 0.12, f0: 150, f1: 50 });
     }
   }
 
@@ -94,7 +110,40 @@ export class Sfx {
   headshot() { this._tone({ gain: 0.4, dur: 0.1, f0: 2000, f1: 1500, type: 'square' }); }
   kill() { this._tone({ gain: 0.4, dur: 0.12, f0: 900, f1: 900, type: 'square' }); this._tone({ gain: 0.4, dur: 0.18, f0: 1350, f1: 1350, type: 'square', delay: 0.1 }); }
   hurt() { this._tone({ gain: 0.35, dur: 0.18, f0: 200, f1: 90, type: 'sawtooth' }); }
-  reload(pos) { this._noise({ pos, gain: 0.25, dur: 0.05, f0: 3000, f1: 1500, type: 'bandpass' }); this._noise({ pos, gain: 0.3, dur: 0.06, f0: 2500, f1: 1200, type: 'bandpass', delay: 0.55 }); }
+  // Yükleme sesleri: animasyonla aynı zaman çizelgesi (şarjör çıkar → yeni şarjör takılır → kol şarjı)
+  reload(pos, style = 'mag', total = 1.4, empty = true) {
+    const N = (o) => this._noise({ pos, type: 'bandpass', ...o }), T = (o) => this._tone({ pos, ...o });
+    if (style === 'shell') return;                         // mermi başına ayrı (shell)
+    const t = total;
+    N({ gain: 0.22, dur: 0.05, f0: 3000, f1: 1500, delay: t * 0.12 });                       // şarjör bırakma düğmesi
+    N({ gain: 0.18, dur: 0.1, f0: 1200, f1: 600, delay: t * 0.22 });                          // şarjör sıyrılır
+    N({ gain: 0.12, dur: 0.1, f0: 1600, f1: 900, delay: t * 0.36 });                          // kemerden yeni şarjör
+    N({ gain: 0.34, dur: 0.07, f0: 2500, f1: 1000, delay: t * 0.56 }); T({ gain: 0.18, dur: 0.06, f0: 300, f1: 160, delay: t * 0.56 });   // takılır
+    if (empty) {
+      N({ gain: 0.3, dur: 0.06, f0: 2200, f1: 1200, delay: t * 0.66 });                       // kol şarjı geri
+      N({ gain: 0.34, dur: 0.07, f0: 2800, f1: 1300, delay: t * 0.78 });                      // kol şarjı ileri
+    }
+    if (style === 'bolt') { this.bolt(pos, t * 0.66); this.bolt(pos, t * 0.82); }
+  }
+  dry(pos) { this._noise({ pos, gain: 0.22, dur: 0.04, f0: 3500, f1: 2500, type: 'bandpass' }); }
+  shell(pos) { this._noise({ pos, gain: 0.3, dur: 0.05, f0: 2600, f1: 1400, type: 'bandpass' }); this._tone({ pos, gain: 0.12, dur: 0.05, f0: 420, f1: 260, type: 'triangle', delay: 0.02 }); }
+  pump(pos, delay = 0.3) { this._noise({ pos, gain: 0.3, dur: 0.07, f0: 1800, f1: 900, type: 'bandpass', delay }); this._noise({ pos, gain: 0.34, dur: 0.07, f0: 2400, f1: 1100, type: 'bandpass', delay: delay + 0.14 }); }
+  bolt(pos, delay = 0.5) { this._noise({ pos, gain: 0.28, dur: 0.07, f0: 1500, f1: 800, type: 'bandpass', delay }); this._noise({ pos, gain: 0.3, dur: 0.07, f0: 2300, f1: 1100, type: 'bandpass', delay: delay + 0.18 }); }
+  knifeHit(pos, back) {
+    this._noise({ pos, gain: back ? 0.5 : 0.4, dur: 0.1, f0: 1800, f1: 300 });
+    this._tone({ pos, gain: back ? 0.45 : 0.3, dur: 0.09, f0: back ? 140 : 200, f1: 60 });
+    if (back) this._noise({ pos, gain: 0.25, dur: 0.15, f0: 5000, f1: 2500, type: 'bandpass', delay: 0.03 });
+  }
+  knifeWall(pos) { this._tone({ pos, gain: 0.25, dur: 0.12, f0: 2600, f1: 1800, type: 'square' }); this._noise({ pos, gain: 0.25, dur: 0.06, f0: 6000, f1: 2500, type: 'bandpass' }); }
+  deploy(pos) { this._noise({ pos, gain: 0.3, dur: 0.1, f0: 900, f1: 400 }); this._tone({ pos, gain: 0.2, dur: 0.06, f0: 240, f1: 120, delay: 0.08 }); }
+  beep(pos) { this._tone({ pos, gain: 0.25, dur: 0.06, f0: 1800, f1: 1800, type: 'square' }); }
+  smokeHiss(pos) { this._noise({ pos, gain: 0.5, dur: 1.4, f0: 6000, f1: 3000, type: 'highpass' }); this._tone({ pos, gain: 0.3, dur: 0.12, f0: 200, f1: 90 }); }
+  flashbang(pos) {
+    this._noise({ pos, gain: 1.3, dur: 0.35, f0: 6000, f1: 800 });
+    this._tone({ pos, gain: 0.7, dur: 0.3, f0: 120, f1: 40 });
+  }
+  // flaşbang yiyen oyuncunun kulak çınlaması
+  ring(dur = 3) { this._tone({ gain: 0.18, dur, f0: 3700, f1: 3500, type: 'sine', delay: 0.05 }); }
   step(pos) { this._noise({ pos, gain: 0.07, dur: 0.07, f0: 500, f1: 200 }); }
   impact(pos) { this._noise({ pos, gain: 0.18, dur: 0.08, f0: 3500, f1: 1200, type: 'bandpass' }); }
   capture() { this._tone({ gain: 0.35, dur: 0.25, f0: 520, f1: 520, type: 'triangle' }); this._tone({ gain: 0.35, dur: 0.3, f0: 780, f1: 780, type: 'triangle', delay: 0.15 }); }

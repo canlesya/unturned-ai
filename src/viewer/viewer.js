@@ -187,7 +187,12 @@ function viewCloseup() {
   setTitle(CLASSES[cls].label + ' · ' + TEAMS[team].name, 'Yakın plan');
   const angles = (q.get('angles') || '0.7,-0.7,3.4').split(',').map(Number);
   angles.forEach((a, i) => {
-    const ch = createCharacter({ team, cls, skinIndex: 0, weapon });
+    const ch = createCharacter({ team, cls, skinIndex: 0, weapon, optic: q.get('optic') || 'reddot' });
+    // poz sınaması: ?melee=rl&k=0.4 · ?reload=mag&k=0.3&empty=1 · ?sprint=1
+    const o = { sprint: +(q.get('sprint') || 0) };
+    if (q.get('melee')) o.melee = { kind: q.get('melee'), k: +(q.get('k') || 0.4) };
+    if (q.get('reload')) o.reload = { style: q.get('reload'), k: +(q.get('k') || 0.3), empty: q.get('empty') !== '0', ph: +(q.get('ph') || 0.3) };
+    if (o.sprint || o.melee || o.reload) ch.refreshHold(o);
     ch.root.position.x = (i - (angles.length - 1) / 2) * 2.2;
     ch.root.rotation.y = Math.PI + a;
     scene.add(ch.root);
@@ -209,21 +214,26 @@ function wall() {
 
 function viewWeapons() {
   wall();
-  setTitle('Silahlar', '10 silah · yan görünüş');
-  const ids = Object.keys(WEAPONS);
+  const all = Object.keys(WEAPONS);
+  const per = 12, cols = 4, pages = Math.ceil(all.length / per);
+  const page = Math.min(pages - 1, Math.max(0, +(q.get('page') || 0)));
+  const ids = all.slice(page * per, page * per + per);
+  setTitle('Silahlar', `${all.length} silah · sayfa ${page + 1}/${pages} · yan görünüş (?page=N)`);
   ids.forEach((id, i) => {
     const w = createWeapon(id);
-    const col = i % 5, row = Math.floor(i / 5);
+    const col = i % cols, row = Math.floor(i / cols);
     const g = new THREE.Group();
     g.add(w);
     w.rotation.y = -Math.PI / 2;
     const bb = new THREE.Box3().setFromObject(w);
     w.position.sub(bb.getCenter(new THREE.Vector3()));
-    g.position.set((col - 2) * 1.5, 0.78 - row * 1.4, 0);
+    const sz = bb.getSize(new THREE.Vector3());
+    g.scale.setScalar(Math.min(1.5, 2.1 / sz.x, 0.75 / sz.y));
+    g.position.set((col - (cols - 1) / 2) * 2.7, 1.5 - row * 1.5, 0);
     scene.add(g);
-    label(g, w.userData.name, WEAPON_INFO[id], new THREE.Vector3(0, -0.42, 0));
+    label(g, w.userData.name, WEAPON_INFO[id], new THREE.Vector3(0, -0.4, 0));
   });
-  setCam([0, 0.1, 7.6], [0, 0.1, 0]);
+  setCam([0, 0.0, 9.4], [0, 0.0, 0]);
 }
 
 function spotlight() {

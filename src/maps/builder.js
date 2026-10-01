@@ -107,9 +107,10 @@ export class MapBuilder {
       if (o.b > 0) piece(s, e, 0, o.b);
       piece(s, e, o.top, h);
       if (o.glass) {
-        const gl = o.glassColor || '#a9d6ee';
+        // o.glow: pencere geceleri sarı parlar (içeride ışık var)
+        const gl = o.glow ? (o.glassColor || '#ffd98a') : (o.glassColor || '#a9d6ee');
         const gh = o.top - o.b, mid = (s + e) / 2;
-        const go = { collide: false, o: { transparent: true, opacity: 0.32, roughness: 0.15 } };
+        const go = { collide: false, o: o.glow ? { glow: true, transparent: true, opacity: 0.62, roughness: 0.4 } : { transparent: true, opacity: 0.32, roughness: 0.15 } };
         if (axis === 'x') this.box(mid, y0 + o.b, c, o.w, gh, 0.05, gl, go);
         else this.box(c, y0 + o.b, mid, 0.05, gh, o.w, gl, go);
         const tr = opt.trim || '#e8e6df';
@@ -119,6 +120,15 @@ export class MapBuilder {
       cur = e;
     }
     piece(cur, a1, 0, h);
+  }
+
+  // Dikdörtgen bina kabuğu: dört dış duvar, köşeler tam örtüşür (T/2 çentik/boşluk kalmaz).
+  // ops = { n, s, e, w } her duvar için açıklık listesi; kuzey/güney duvarı (z0/z1) x ekseninde uzar ve köşeleri kapsar.
+  shell(x0, x1, z0, z1, y0, h, t, color, ops = {}, opt = {}) {
+    this.wall('x', x0 - t / 2, x1 + t / 2, z0, y0, h, t, color, ops.n || [], opt);
+    this.wall('x', x0 - t / 2, x1 + t / 2, z1, y0, h, t, color, ops.s || [], opt);
+    this.wall('z', z0 + t / 2, z1 - t / 2, x0, y0, h, t, color, ops.w || [], opt);
+    this.wall('z', z0 + t / 2, z1 - t / 2, x1, y0, h, t, color, ops.e || [], opt);
   }
 
   // Basamaklar: (x,z)=alt basamağın başlangıç kenarı ortası, dir yönünde yükselir.

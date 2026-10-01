@@ -2,30 +2,12 @@ import * as THREE from 'three';
 import { box, taperBox, cyl, cylY, ico, V, mergeStatic } from '../core/geo.js';
 import { C } from '../core/palette.js';
 import { mat } from '../core/geo.js';
-import { resolveOptic } from '../game/stats.js';
+import { resolveOptic, WSTATS } from '../game/stats.js';
+import { M, finish, railTicks, magGroup } from './weapon_util.js';
+import { MORE, MOUNT_MORE } from './weapons_more.js';
 
 // Her silah: origin = tabanca kabzası (sağ el), namlu -Z yönünde.
-// userData: name, hold (rifle|pistol|launcher|melee|grenade), gripR, gripL, muzzle, length
-const M = { metalness: 0.15, roughness: 0.6 }; // metal parçalar için
-
-function finish(g, meta) {
-  g.userData = {
-    ...meta,
-    gripR: V(...meta.gripR),
-    gripL: meta.gripL ? V(...meta.gripL) : null,
-    muzzle: V(...meta.muzzle),
-  };
-  return g;
-}
-
-function railTicks(g, z0, z1, y, n, color = C.black) {
-  for (let i = 0; i < n; i++) {
-    const z = z0 + ((z1 - z0) * i) / (n - 1);
-    box(g, [0.026, 0.008, 0.012], color, [0, y, z]);
-  }
-}
-
-
+// userData: name, hold (rifle|pistol|launcher|melee|grenade), gripR, gripL, muzzle, length, mag (şarjör grubu), bolt
 // ─────────────── Nişangâhlar ───────────────
 // Hepsi (g, x, yBase, z, s) alır; yBase = monte edildiği yüzeyin üstü. Pencere merkezi yüksekliğini (y) döndürür.
 const BLK = C.black;
@@ -93,6 +75,7 @@ function ironFront(g, x, z, base, h) {
 
 // Silaha göre montaj noktaları (z: nişangâh merkezi, y: üst yüzey, front: ön arpacık yüksekliği)
 const MOUNT = {
+  ...MOUNT_MORE,
   ak47: { z: -0.1, y: 0.09, front: 0.1, rearZ: -0.2, ownFront: true },
   m4a1: { z: -0.14, y: 0.0895, front: 0.125, rearZ: -0.12, ownFront: true },
   mp5: { z: -0.08, y: 0.0575, front: 0.0925, rearZ: -0.01, ownFront: true },
@@ -130,9 +113,10 @@ function ak47() {
   box(g, [0.012, 0.035, 0.012], C.steel, [0, -0.03, 0.005]);
   box(g, [0.042, 0.115, 0.052], '#3a281a', [0, -0.075, 0.05], [0.32, 0, 0]);   // kabza
   // kavisli şarjör
-  box(g, [0.04, 0.11, 0.075], C.steel, [0, -0.075, -0.13], [0.12, 0, 0], M);
-  box(g, [0.04, 0.1, 0.075], C.steel, [0, -0.165, -0.155], [0.36, 0, 0], M);
-  box(g, [0.04, 0.09, 0.07], C.steel, [0, -0.25, -0.2], [0.62, 0, 0], M);
+  const mg = magGroup(g);
+  box(mg, [0.04, 0.11, 0.075], C.steel, [0, -0.075, -0.13], [0.12, 0, 0], M);
+  box(mg, [0.04, 0.1, 0.075], C.steel, [0, -0.165, -0.155], [0.36, 0, 0], M);
+  box(mg, [0.04, 0.09, 0.07], C.steel, [0, -0.25, -0.2], [0.62, 0, 0], M);
   // ahşap tutamaçlar
   box(g, [0.06, 0.05, 0.2], C.wood, [0, -0.002, -0.35]);
   taperBox(g, [0.052, 0.03, 0.2], C.wood, [0, 0.04, -0.35], null, [0.9, 1]);
@@ -145,7 +129,7 @@ function ak47() {
   taperBox(g, [0.046, 0.115, 0.3], C.wood, [0, -0.015, 0.24], [0.1, 0, 0], [1, 1], [1, 1]);
   box(g, [0.05, 0.12, 0.014], C.black, [0, -0.03, 0.4], [0.1, 0, 0]);
   return finish(g, {
-    name: 'AK-47', hold: 'rifle', gripR: [0, -0.03, 0.045], gripL: [0, -0.03, -0.35], muzzle: [0, 0.015, -0.74], length: 1.14,
+    name: 'AK-47', mag: mg, hold: 'rifle', gripR: [0, -0.03, 0.045], gripL: [0, -0.03, -0.35], muzzle: [0, 0.015, -0.74], length: 1.14,
   });
 }
 
@@ -163,7 +147,8 @@ function m4a1() {
   cyl(g, 0.016, 0.016, 0.065, C.black, [0, 0.05, -0.66], 8, M);                // alev gizleyici
   box(g, [0.014, 0.04, 0.016], C.steel, [0, 0.105, -0.55]);                    // arpacık
   // şarjör, kabza, ön kabza
-  box(g, [0.038, 0.16, 0.062], C.steel, [0, -0.105, -0.115], [0.1, 0, 0], M);
+  const mg = magGroup(g);
+  box(mg, [0.038, 0.16, 0.062], C.steel, [0, -0.105, -0.115], [0.1, 0, 0], M);
   box(g, [0.042, 0.105, 0.05], C.black, [0, -0.075, 0.04], [0.3, 0, 0]);
   box(g, [0.03, 0.09, 0.036], C.black, [0, -0.04, -0.4], [-0.12, 0, 0]);
   // teleskopik dipçik
@@ -171,7 +156,7 @@ function m4a1() {
   taperBox(g, [0.046, 0.11, 0.16], C.gun, [0, 0.0, 0.26], [0.08, 0, 0], [1, 1], [1, 1], M);
   box(g, [0.05, 0.11, 0.014], C.black, [0, -0.005, 0.345], [0.08, 0, 0]);
   return finish(g, {
-    name: 'M4A1', hold: 'rifle', gripR: [0, -0.03, 0.04], gripL: [0, -0.035, -0.4], muzzle: [0, 0.05, -0.7], length: 1.0,
+    name: 'M4A1', mag: mg, hold: 'rifle', gripR: [0, -0.03, 0.04], gripL: [0, -0.035, -0.4], muzzle: [0, 0.05, -0.7], length: 1.0,
   });
 }
 
@@ -187,16 +172,17 @@ function mp5() {
   box(g, [0.012, 0.012, 0.1], C.steel, [0, -0.045, -0.04]);
   box(g, [0.04, 0.105, 0.05], C.black, [0, -0.07, 0.045], [0.3, 0, 0]);
   // kavisli şarjör
-  box(g, [0.034, 0.1, 0.05], C.steel, [0, -0.06, -0.12], [0.1, 0, 0], M);
-  box(g, [0.034, 0.1, 0.05], C.steel, [0, -0.155, -0.14], [0.3, 0, 0], M);
-  box(g, [0.034, 0.08, 0.05], C.steel, [0, -0.23, -0.175], [0.55, 0, 0], M);
+  const mg = magGroup(g);
+  box(mg, [0.034, 0.1, 0.05], C.steel, [0, -0.06, -0.12], [0.1, 0, 0], M);
+  box(mg, [0.034, 0.1, 0.05], C.steel, [0, -0.155, -0.14], [0.3, 0, 0], M);
+  box(mg, [0.034, 0.08, 0.05], C.steel, [0, -0.23, -0.175], [0.55, 0, 0], M);
   // tel dipçik
   box(g, [0.014, 0.014, 0.28], C.steel, [0, 0.03, 0.24], null, M);
   box(g, [0.014, 0.014, 0.28], C.steel, [0, -0.04, 0.24], [0.15, 0, 0], M);
   box(g, [0.012, 0.09, 0.012], C.steel, [0, -0.005, 0.38], null, M);
   box(g, [0.048, 0.1, 0.02], C.black, [0, -0.01, 0.395]);
   return finish(g, {
-    name: 'MP5', hold: 'rifle', gripR: [0, -0.03, 0.045], gripL: [0, -0.02, -0.32], muzzle: [0, 0.025, -0.53], length: 0.92,
+    name: 'MP5', mag: mg, hold: 'rifle', gripR: [0, -0.03, 0.045], gripL: [0, -0.02, -0.32], muzzle: [0, 0.025, -0.53], length: 0.92,
   });
 }
 
@@ -210,8 +196,10 @@ function pistol() {
   box(g, [0.01, 0.03, 0.01], C.black, [0, -0.005, -0.075]);
   cyl(g, 0.009, 0.009, 0.03, C.steel, [0, 0.05, -0.165], 8, M);
   for (let i = 0; i < 4; i++) box(g, [0.036, 0.03, 0.005], C.black, [0, 0.055, 0.025 + i * 0.012]); // sürgü tırtılı
+  const mg = magGroup(g);
+  box(mg, [0.03, 0.045, 0.048], C.steel, [0, -0.1, 0.036], [0.2, 0, 0], M);                   // şarjör ucu
   return finish(g, {
-    name: 'Glock 17', hold: 'pistol', gripR: [0, -0.03, 0.02], gripL: null, muzzle: [0, 0.05, -0.18], length: 0.28,
+    name: 'Glock 17', mag: mg, hold: 'pistol', gripR: [0, -0.03, 0.02], gripL: null, muzzle: [0, 0.05, -0.18], length: 0.28,
   });
 }
 
@@ -259,16 +247,20 @@ function sniper() {
   cylY(g, 0.011, 0.011, 0.03, C.gunLight, [0.04, 0.14, -0.05], 6, [0, 0, Math.PI / 2]);
   box(g, [0.03, 0.045, 0.03], C.steel, [0, 0.095, -0.17]);
   box(g, [0.03, 0.045, 0.03], C.steel, [0, 0.095, 0.0]);
-  // sürgü kolu
-  cylY(g, 0.006, 0.006, 0.07, C.steel, [0.05, 0.05, -0.0], 6, [0, 0, Math.PI / 2.4]);
-  ico(g, 0.014, C.black, [0.083, 0.035, 0.0], 0);
+  // sürgü kolu (alt grup: sürgü animasyonunda geri-ileri hareket eder, kalkar)
+  const bolt = new THREE.Group();
+  bolt.position.set(0.0, 0.055, 0.0);
+  g.add(bolt);
+  cylY(bolt, 0.006, 0.006, 0.07, C.steel, [0.05, -0.005, 0], 6, [0, 0, Math.PI / 2.4]);
+  ico(bolt, 0.014, C.black, [0.083, -0.02, 0.0], 0);
   // bipod (katlanmış)
   box(g, [0.01, 0.01, 0.2], C.steel, [-0.02, -0.065, -0.38], [0.05, 0, 0]);
   box(g, [0.01, 0.01, 0.2], C.steel, [0.02, -0.065, -0.38], [0.05, 0, 0]);
   box(g, [0.05, 0.03, 0.04], C.steel, [0, -0.055, -0.3]);
-  box(g, [0.034, 0.05, 0.06], C.steel, [0, -0.06, -0.06], [0.1, 0, 0]);                   // şarjör
+  const mg = magGroup(g);
+  box(mg, [0.034, 0.05, 0.06], C.steel, [0, -0.06, -0.06], [0.1, 0, 0]);                   // şarjör
   return finish(g, {
-    name: 'M24 Keskin', hold: 'rifle', gripR: [0, -0.03, 0.045], gripL: [0, -0.03, -0.36], muzzle: [0, 0.055, -0.92], length: 1.3,
+    name: 'M24 Keskin', mag: mg, bolt: { g: bolt, pivot: 0.055 }, hold: 'rifle', gripR: [0, -0.03, 0.045], gripL: [0, -0.03, -0.36], muzzle: [0, 0.055, -0.92], length: 1.3,
   });
 }
 
@@ -279,10 +271,11 @@ function lmg() {
   box(g, [0.06, 0.03, 0.2], C.black, [0, 0.085, -0.1]);                                 // besleme kapağı
   box(g, [0.035, 0.012, 0.3], C.black, [0, 0.105, -0.17]);                              // ray
   // fişek kutusu + kemer
-  box(g, [0.1, 0.12, 0.16], C.olive, [0, -0.115, -0.13]);
-  box(g, [0.104, 0.02, 0.164], C.oliveDark, [0, -0.06, -0.13]);
-  for (let i = 0; i < 6; i++) box(g, [0.06, 0.016, 0.012], C.brass, [0.0, -0.03, -0.2 + i * 0.022], [0, 0, 0], M);
-  box(g, [0.05, 0.05, 0.02], C.brass, [0, -0.01, -0.11], null, M);
+  const mg = magGroup(g);
+  box(mg, [0.1, 0.12, 0.16], C.olive, [0, -0.115, -0.13]);
+  box(mg, [0.104, 0.02, 0.164], C.oliveDark, [0, -0.06, -0.13]);
+  for (let i = 0; i < 6; i++) box(mg, [0.06, 0.016, 0.012], C.brass, [0.0, -0.03, -0.2 + i * 0.022], [0, 0, 0], M);
+  box(mg, [0.05, 0.05, 0.02], C.brass, [0, -0.01, -0.11], null, M);
   // namlu & ısı kalkanı
   box(g, [0.07, 0.06, 0.2], C.black, [0, 0.025, -0.45]);
   cyl(g, 0.016, 0.016, 0.28, C.steel, [0, 0.028, -0.65], 8, M);
@@ -299,7 +292,7 @@ function lmg() {
   box(g, [0.06, 0.13, 0.3], C.black, [0, -0.0, 0.27], [0.08, 0, 0]);
   box(g, [0.064, 0.14, 0.016], C.steel, [0, -0.02, 0.43], [0.08, 0, 0]);
   return finish(g, {
-    name: 'M249 LMG', hold: 'rifle', gripR: [0, -0.03, 0.06], gripL: [0, -0.01, -0.45], muzzle: [0, 0.028, -0.84], length: 1.28,
+    name: 'M249 LMG', mag: mg, hold: 'rifle', gripR: [0, -0.03, 0.06], gripL: [0, -0.01, -0.45], muzzle: [0, 0.028, -0.84], length: 1.28,
   });
 }
 
@@ -310,16 +303,17 @@ function rpg() {
   cyl(g, 0.036, 0.036, 0.3, C.wood, [0, 0.05, -0.12], 10);                         // ahşap koruma
   cyl(g, 0.03, 0.06, 0.14, C.oliveDark, [0, 0.05, 0.57], 10, M);                  // arka huni
   // mühimmat başlığı
-  cyl(g, 0.012, 0.05, 0.14, C.olive, [0, 0.05, -0.6], 10, M);                     // koni burun
-  cyl(g, 0.05, 0.05, 0.1, C.oliveDark, [0, 0.05, -0.48], 10, M);                  // gövde
-  cyl(g, 0.034, 0.034, 0.06, C.oliveDark, [0, 0.05, -0.41], 10, M);
+  const mg = magGroup(g);                                                          // roket başlığı (doldururken çıkar/girer)
+  cyl(mg, 0.012, 0.05, 0.14, C.olive, [0, 0.05, -0.6], 10, M);                    // koni burun
+  cyl(mg, 0.05, 0.05, 0.1, C.oliveDark, [0, 0.05, -0.48], 10, M);                 // gövde
+  cyl(mg, 0.034, 0.034, 0.06, C.oliveDark, [0, 0.05, -0.41], 10, M);
   box(g, [0.04, 0.115, 0.05], C.black, [0, -0.04, 0.04], [0.3, 0, 0]);             // kabza
   box(g, [0.012, 0.012, 0.09], C.steel, [0, -0.012, -0.01]);                       // tetik koruması
   box(g, [0.04, 0.09, 0.04], C.black, [0, -0.025, -0.2], [-0.1, 0, 0]);            // ön kabza
   box(g, [0.02, 0.05, 0.06], C.steel, [-0.045, 0.1, -0.05]);                       // nişangah
   box(g, [0.03, 0.01, 0.01], C.steel, [-0.06, 0.13, -0.05]);
   return finish(g, {
-    name: 'RPG-7', hold: 'launcher', gripR: [0, -0.03, 0.04], gripL: [0, -0.03, -0.2], muzzle: [0, 0.05, -0.68], length: 1.3,
+    name: 'RPG-7', mag: mg, magAxis: [0, 0, -1], hold: 'launcher', gripR: [0, -0.03, 0.04], gripL: [0, -0.03, -0.2], muzzle: [0, 0.05, -0.68], length: 1.3,
   });
 }
 
@@ -355,21 +349,11 @@ function grenade() {
 }
 
 export const WEAPONS = {
-  ak47, m4a1, mp5, pistol, shotgun, sniper, lmg, rpg, knife, grenade,
+  ak47, m4a1, mp5, pistol, shotgun, sniper, lmg, rpg, knife, grenade, ...MORE,
 };
 
-export const WEAPON_INFO = {
-  ak47: 'Tüfek · Yüksek hasar',
-  m4a1: 'Tüfek · Dengeli',
-  mp5: 'SMG · Hızlı atış',
-  pistol: 'Yan silah',
-  shotgun: 'Pompalı · Yakın mesafe',
-  sniper: 'Keskin nişancı · Tek atış',
-  lmg: 'LMG · Bastırma ateşi',
-  rpg: 'Roketatar · Patlayıcı',
-  knife: 'Yakın dövüş',
-  grenade: 'Atılabilir · Patlayıcı',
-};
+// Görüntüleyici alt yazısı: WSTATS açıklamasından
+export const WEAPON_INFO = new Proxy({}, { get: (_, id) => WSTATS[id]?.desc || '' });
 
 export function createWeapon(id, optic = 'reddot') {
   const fn = WEAPONS[id];
@@ -381,5 +365,9 @@ export function createWeapon(id, optic = 'reddot') {
   const sg = o && o !== 'scope' ? attachSight(g, id, o) : null;
   if (sg) { g.userData.sight = sg.sight; g.userData.dist = sg.dist; g.userData.overlay = sg.overlay; }
   mergeStatic(g);
+  if (g.userData.mag) {                         // şarjör merkezi (animasyonda sol elin hedefi)
+    g.updateMatrixWorld(true);
+    g.userData.magPos = new THREE.Box3().setFromObject(g.userData.mag).getCenter(new THREE.Vector3());
+  }
   return g;
 }

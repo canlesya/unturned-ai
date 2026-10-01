@@ -6,17 +6,21 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 
 const cache = new Map();
 
+// o.glow: gece/gün batımında kendiliğinden ışıyan malzeme (lamba, pencere). Şiddeti setupEnvironment ayarlar.
 export function mat(color, o = {}) {
   const key = color + '|' + JSON.stringify(o);
   let m = cache.get(key);
   if (!m) {
+    const { glow, ...rest } = o;
     m = new THREE.MeshStandardMaterial({
       color,
       flatShading: true,
       roughness: 0.82,
       metalness: 0.0,
-      ...o,
+      ...(glow ? { emissive: color, emissiveIntensity: 0 } : {}),
+      ...rest,
     });
+    if (glow) m.userData.glow = true;
     cache.set(key, m);
   }
   return m;

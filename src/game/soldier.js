@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createCharacter } from '../models/character.js';
-import { WSTATS, CLASS_DEFS, OPTICS, OPTIC_ORDER, OPTIC_ALLOWED, resolveOptic } from './stats.js';
+import { WSTATS, CLASS_DEFS, OPTICS, OPTIC_ORDER, OPTIC_ALLOWED, resolveOptic, makeLoadout, TAC_RELOAD, BACKSTAB_DMG } from './stats.js';
+import { SWING_HIT_K } from './anim.js';
 import { H_STAND, H_CROUCH, H_PRONE } from './collision.js';
 import { dirFromAngles, clamp, rand, lerp } from './util.js';
 
@@ -13,14 +14,9 @@ export const EYE_STAND = 1.62;
 export const EYE_CROUCH = 1.16;
 export const EYE_PRONE = 0.42;
 
-function gunItem(id) { const s = WSTATS[id]; return { id, mag: s.mag, reserve: s.reserve }; }
-
-export function buildLoadout(cls, team) {
-  const def = CLASS_DEFS[cls];
-  const [gid, gcount] = def.gadget;
-  const gadget = gid === 'rpg' ? { id: 'rpg', mag: 1, reserve: gcount - 1 } : { id: gid, mag: gcount, reserve: 0 };
-  return [gunItem(def.primary[team]), gunItem('pistol'), gadget, { id: 'knife', mag: 1, reserve: 0 }];
-}
+export { makeLoadout };
+// Eski ad: seçim yoksa sınıf varsayılanı
+export function buildLoadout(cls, team, choice = {}) { return makeLoadout(cls, team, choice); }
 
 export class Soldier {
   constructor(game, { id, name, team, cls, isPlayer = false }) {
@@ -43,6 +39,10 @@ export class Soldier {
     this.respawnT = 0; this.protT = 0;
     this.recoilP = 0; this.bloom = 0; this.sinceShot = 9;
     this.cd = 0; this.reloadT = 0; this.switchT = 0; this.useT = 0;
+    this.reloadTotal = 1; this.reloadStyle = 'mag'; this.reloadEmpty = true; this.shellT = 0;
+    this.swing = null; this.comboN = -1; this.comboT = 0; this.autoSwitchT = 0;
+    this.blindT = 0; this.blindMax = 1;
+    this.choice = isPlayer ? (game.opts?.loadout || {}) : { random: true };
     this.lastHit = null; this.lastDmgT = -99;
     this.walkPhase = 0; this.deadT = 0; this.deadDir = 1; this.flashT = 0;
     this.stepT = 0;
@@ -65,7 +65,7 @@ export class Soldier {
     this.def = def;
     this.maxHp = def.hp;
     this.hp = def.hp;
-    this.items = buildLoadout(cls, this.team);
+    this.items = makeLoadout(cls, this.team, this.choice);
     this.cur = 0;
     // görünüm: sınıf teçhizatı değişir → modeli yeniden kur
     if (this.model) this.game.scene.remove(this.model.root);
@@ -86,9 +86,9 @@ export class Soldier {
     this.yaw = point.ry; this.pitch = 0; this.recoilP = 0;
     this.alive = true; this.deadT = 0;
     this.hp = this.maxHp;
-    this.items = buildLoadout(this.cls, this.team);
+    this.items = makeLoadout(this.cls, this.team, this.choice);
     this.cur = 0;
-    this.cd = 0; this.reloadT = 0; this.switchT = 0; this.useT = 0;
+    this.cd = 0; this.reloadT = 0; this.switchT = 0; this.useT = 0; this.swing = null; this.comboT = 0; this.autoSwitchT = 0; this.blindT = 0;
     this.protT = protect;
     this.crouching = false; this.prone = false; this.proneT = 0; this.crouchT = 0; this.leanDir = 0; this.leanT = 0; this.leanOff.set(0, 0, 0);
     this.height = H_STAND; this.ads = false; this.adsT = 0;
@@ -108,20 +108,47 @@ export class Soldier {
 
   switchTo(i) {
     if (i === this.cur || !this.items[i] || !this.alive) return;
-    this.cur = i; this.switchT = 0.4; this.reloadT = 0; this.useT = 0; this.cd = Math.max(this.cd, 0.25);
+    const eq = Math.min(0.35, WSTATS[this.items[i].id].equip ?? 0.3);
+    this.cur = i; this.switchT = eq; this.reloadT = 0; this.useT = 0; this.swing = null; this.autoSwitchT = 0;
     this._syncWeaponModel();
     this.game.emit('switch', this);
   }
 
+  // R: hemen başlar (sprint iptal etmez). Şarjörde mermi varsa "taktik reload" daha hızlıdır.
   startReload() {
     const it = this.item, st = this.stat;
-    if (this.reloadT > 0 || !(st.kind === 'gun' || st.kind === 'launcher') || it.mag >= st.mag || it.reserve <= 0) return false;
-    this.reloadT = st.reload;
+    if (this.reloadT > 0 || this.swing || this.useT > 0 || !(st.kind === 'gun' || st.kind === 'launcher') || it.mag >= st.mag || it.reserve <= 0) return false;
+    const style = st.reloadStyle || 'mag';
+    this.reloadStyle = style;
+    this.reloadEmpty = it.mag <= 0;
     this.ads = false;
-    this.game.sfx.reload(this.pos);
+    if (style === 'shell') {
+      const n = Math.min(st.mag - it.mag, it.reserve);
+      this.shellT = st.shell * 0.8;                                       // ilk mermi biraz erken girer
+      this.reloadT = this.reloadTotal = this.shellT + (n - 1) * st.shell;
+    } else {
+      this.reloadT = this.reloadTotal = st.reload * (it.mag > 0 ? TAC_RELOAD : 1);
+    }
+    this.game.sfx.reload(this.pos, style, this.reloadTotal, this.reloadEmpty);
     this.game.emit('reload', this);
     return true;
   }
+
+  // pompalı/çift namlu doldururken ateşle iptal et
+  cancelShellReload() {
+    if (this.reloadT > 0 && this.reloadStyle === 'shell' && this.item.mag > 0) { this.reloadT = 0; return true; }
+    return false;
+  }
+
+  // yarı otomatik / otomatik geçişi (yalnızca otomatik silahlarda)
+  toggleFireMode() {
+    const it = this.item, st = this.stat;
+    if (st.kind !== 'gun' || !st.auto) return null;
+    it.semi = !it.semi;
+    this.game.emit('firemode', this);
+    return it.semi ? 'semi' : 'auto';
+  }
+  get fireAuto() { return !!this.stat.auto && !this.item.semi; }
 
   spreadNow(st) {
     const hipv = st.hip ?? 0.01, adsv = st.ads ?? 0.002;
@@ -129,6 +156,7 @@ export class Soldier {
     let s = lerp(hipv, adsv, this.adsT);
     s += Math.min(speed * 0.0007, 0.0045) * (1 - this.adsT * 0.65);   // hareket cezası
     if (!this.onGround) s += 0.012;
+    if (this.blindT > 0.5) s += 0.04;
     if (this.crouching) s *= 0.7;
     s += this.bloom;                                                   // seri atışta açılma
     // duran oyuncunun ilk atışı (kısa bir aradan sonra) isabetli olsun
@@ -137,15 +165,20 @@ export class Soldier {
   }
 
   tryFire() {
-    if (!this.alive || this.cd > 0 || this.switchT > 0 || this.reloadT > 0 || this.useT > 0) return false;
+    if (!this.alive || this.cd > 0 || this.switchT > 0 || this.useT > 0) return false;
+    if (this.reloadT > 0 && !this.cancelShellReload()) return false;
     const it = this.item, st = this.stat;
     if (st.kind === 'melee') return this._melee(st);
     if (st.kind === 'medkit') return this._medkit(it, st);
-    if (it.mag <= 0) { this.startReload(); return false; }
+    if (it.mag <= 0) {
+      if (!this.startReload()) { this.cd = 0.3; this.game.sfx.dry(this.pos); if (this.isPlayer) this.game.emit('dry', this); }
+      return false;
+    }
     this.cd = 60 / st.rpm;
     it.mag--;
+    if (st.kind === 'throwable') { this.sprinting = false; return this._throw(st); }
+    if (st.kind === 'mine' || st.kind === 'ammobox') { this.sprinting = false; return this._place(st, it); }
     this.sprinting = false;
-    if (st.kind === 'throwable') return this._throw(st);
     if (st.kind === 'launcher') return this._rocket(st);
     this._shoot(st);
     if (it.mag <= 0 && it.reserve > 0 && !this.isPlayer) this.startReload();
@@ -195,8 +228,9 @@ export class Soldier {
   _rocket(st) {
     const d = this.aimDir(new THREE.Vector3());
     const m = this.muzzleWorld(new THREE.Vector3());
-    this.game.spawnRocket(this, m, d, st);
-    this.game.sfx.shot('rpg', this.pos);
+    if (st.impact) this.game.spawnShell(this, m, d, st); else this.game.spawnRocket(this, m, d, st);
+    this.game.sfx.shot(st.sound, this.pos);
+    this.game.alertNear?.(this.pos, this.team, 40);
     if (this.isPlayer) { this.recoilP += st.kickV; this.game.emit('fire', this); }
     this.flashT = 0.1;
     return true;
@@ -211,22 +245,66 @@ export class Soldier {
     this.game.spawnGrenade(this, p, v, st);
     this.game.sfx.shot('throw', this.pos);
     if (this.isPlayer) this.game.emit('throw', this);
-    if (this.item.mag <= 0) {
-      // bomba bitti: birincil silaha dön
-      setTimeout(() => { if (this.alive && this.stat.kind === 'throwable' && this.item.mag <= 0) this.switchTo(0); }, 350);
-    }
+    if (this.item.mag <= 0) this.autoSwitchT = 0.35;     // bitti: birincil silaha dön
     return true;
   }
 
+  // Claymore / cephane kutusu: ayağının önüne kurulur
+  _place(st, it) {
+    const ok = this.game.placeDeployable?.(this, st);
+    if (!ok) { it.mag++; this.cd = 0.3; return false; }
+    this.game.sfx.deploy(this.pos);
+    if (this.isPlayer) this.game.emit('throw', this);
+    if (it.mag <= 0) this.autoSwitchT = 0.4;
+    return true;
+  }
+
+  // Yakın dövüş: savurma başlar; vuruş animasyonun orta anında (gecikmeli) uygulanır. Kombo: sağ→sol, sol→sağ, saplama
   _melee(st) {
-    this.cd = 60 / st.rpm;
-    const o = this.eye(new THREE.Vector3()), d = this.aimDir(new THREE.Vector3());
+    const idx = this.comboT > 0 ? (this.comboN + 1) % 3 : 0;
+    this.comboN = idx;
+    const kind = st.swings[idx];
+    const dur = kind === 'stab' ? st.stabT : st.swingT;
+    this.swing = { t: 0, dur, kind, idx, done: false };
+    this.comboT = dur + 0.38;
+    this.cd = dur * 0.8;                                   // %80'de yeni savurma zincirlenebilir (hızlı çekme)
+    this.sprinting = false;
     this.game.sfx.shot('knife', this.pos);
     this.game.emit('melee', this);
     this.flashT = 0;
-    const hit = this.game.meleeHit(this, o, d, st.reach);
-    if (hit) hit.victim.takeDamage(st.dmg * this.dmgMul, this, 'body', this.pos, st.name);
     return true;
+  }
+
+  // Savurmanın vuruş anı
+  _meleeStrike(sw) {
+    const st = this.stat, g = this.game;
+    if (st.kind !== 'melee') return;
+    const o = this.eye(new THREE.Vector3()), d = this.aimDir(new THREE.Vector3());
+    const hit = g.meleeHit(this, o, d, st.reach);
+    g.effects.slash(o, d, sw.kind, st.reach, this.team);
+    if (hit && hit.victim) {
+      const v = hit.victim;
+      const back = this.isBehind(v);
+      const mul = sw.kind === 'stab' ? st.stabMul : 1;
+      g.effects.blood(hit.point, back ? 14 : 8, d.clone().negate());
+      g.sfx.knifeHit(hit.point, back);
+      v.takeDamage((back ? BACKSTAB_DMG : st.dmg * mul) * this.dmgMul, this, 'body', this.pos, back ? st.name + ' · arkadan' : st.name);
+      if (this.isPlayer) { g.effects.shake = Math.max(g.effects.shake, back ? 0.9 : 0.55); g.emit('meleehit', { flesh: true, back }); }
+    } else if (hit && hit.wall) {
+      g.effects.spark(hit.point, 7, hit.normal, '#ffe9a0', 5);
+      g.effects.decal(hit.point, hit.normal);
+      g.sfx.knifeWall(hit.point);
+      if (this.isPlayer) { g.effects.shake = Math.max(g.effects.shake, 0.3); g.emit('meleehit', { flesh: false }); }
+    }
+    if (!this.isPlayer) g.alertNear?.(this.pos, this.team, 14);
+  }
+
+  // saldıran, kurbanın arkasında mı? (kurbanın baktığı yön ile saldırana olan yön)
+  isBehind(v) {
+    const fx = -Math.sin(v.yaw), fz = -Math.cos(v.yaw);
+    let dx = v.pos.x - this.pos.x, dz = v.pos.z - this.pos.z;
+    const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
+    return fx * dx + fz * dz > 0.55;
   }
 
   _medkit(it, st) {
@@ -245,7 +323,8 @@ export class Soldier {
     this.cur = 2;
     const ok = this.tryFire();
     this.cur = prev;
-    if (ok && id === 'rpg' && it.mag <= 0 && it.reserve > 0) { it.mag = 1; it.reserve--; this.cd = 3.5; }
+    this.autoSwitchT = 0;
+    if (ok && WSTATS[id].kind === 'launcher' && it.mag <= 0 && it.reserve > 0) { it.mag = 1; it.reserve--; this.cd = WSTATS[id].reload + 0.7; }
     return ok;
   }
 
@@ -294,8 +373,15 @@ export class Soldier {
       this.game.hud.damageFrom(fromPos, this);
       this.game.sfx.hurt();
     } else if (this.brain) this.brain.onDamaged(attacker, fromPos);
-    if (attacker && attacker !== this && attacker.isPlayer) this.game.emit('hitmark', { victim: this, zone, dead: this.hp <= 0 });
+    if (attacker && attacker !== this && attacker.isPlayer) this.game.emit('hitmark', { victim: this, zone, dead: this.hp <= 0, dmg: amount });
     if (this.hp <= 0) this.die(attacker, weaponName, zone === 'head');
+  }
+
+  // Flaşbang: kör/sağır
+  blind(t) {
+    if (!this.alive || t <= 0) return;
+    this.blindT = Math.max(this.blindT, t); this.blindMax = Math.max(this.blindT, 0.5);
+    if (this.brain) this.brain.onFlashed?.(t);
   }
 
   heal(n) { this.hp = Math.min(this.maxHp, this.hp + n); }
@@ -305,7 +391,7 @@ export class Soldier {
     this.alive = false; this.hp = 0;
     this.deaths++;
     this.deadT = 0; this.deadDir = Math.random() > 0.5 ? 1 : -1;
-    this.ads = false; this.reloadT = 0; this.useT = 0;
+    this.ads = false; this.reloadT = 0; this.useT = 0; this.swing = null; this.autoSwitchT = 0;
     this.vel.set(0, 0, 0);
     if (killer && killer !== this) { killer.kills++; killer.score += headshot ? 150 : 100; }
     this.game.onKill(killer, this, weaponName, headshot);
@@ -318,16 +404,37 @@ export class Soldier {
     this.switchT = Math.max(0, this.switchT - dt);
     this.protT = Math.max(0, this.protT - dt);
     this.flashT = Math.max(0, this.flashT - dt);
+    this.blindT = Math.max(0, this.blindT - dt);
+    this.comboT = Math.max(0, this.comboT - dt);
+    if (this.autoSwitchT > 0 && (this.autoSwitchT -= dt) <= 0 && this.alive && this.cur !== 0 && this.item.mag <= 0 && this.items[0]) this.switchTo(0);
+    if (this.swing) {
+      const sw = this.swing;
+      sw.t += dt;
+      if (!sw.done && sw.t >= sw.dur * SWING_HIT_K) { sw.done = true; this._meleeStrike(sw); }
+      if (sw.t >= sw.dur) this.swing = null;
+    }
     this.sinceShot += dt;
     this.bloom = Math.max(0, this.bloom - dt * 0.05);
     this.recoilP = Math.max(0, this.recoilP - dt * (0.06 + this.recoilP * 4.5));
     if (this.reloadT > 0) {
-      this.reloadT -= dt;
-      if (this.reloadT <= 0) {
-        const it = this.item, st = this.stat;
-        const need = st.mag - it.mag, take = Math.min(need, it.reserve);
-        it.mag += take; it.reserve -= take;
-        this.game.emit('reloaded', this);
+      const it = this.item, st = this.stat;
+      if (this.reloadStyle === 'shell') {
+        // mermi mermi: her mermi girdiğinde ses; dolunca biter
+        this.shellT -= dt;
+        while (this.shellT <= 0 && it.mag < st.mag && it.reserve > 0) {
+          it.mag++; it.reserve--; this.shellT += st.shell;
+          this.game.sfx.shell(this.pos);
+        }
+        const left = Math.min(st.mag - it.mag, it.reserve);
+        if (left <= 0) { this.reloadT = 0; this.game.emit('reloaded', this); }
+        else this.reloadT = Math.max(0.001, this.shellT + (left - 1) * st.shell);
+      } else {
+        this.reloadT -= dt;
+        if (this.reloadT <= 0) {
+          const need = st.mag - it.mag, take = Math.min(need, it.reserve);
+          it.mag += take; it.reserve -= take;
+          this.game.emit('reloaded', this);
+        }
       }
     }
     if (this.useT > 0) {
@@ -429,6 +536,13 @@ export class Soldier {
     root.position.y -= (0.018 + 0.035 * run) * moveAmt * Math.sin(ph) ** 2;    // adım sırasında hafif çökme
     const twist = Math.sin(ph) * (0.05 + 0.08 * run) * moveAmt;
     const swing = Math.sin(ph + Math.PI) * moveAmt * (0.5 + 0.5 * run);
-    m.refreshHold({ sprint: this.sprintT * (1 - pr), kick: clamp(this.flashT / 0.06, 0, 1), twist: twist * (1 - pr), swing, prone: pr, aimP: clamp(this.pitch + this.recoilP, -0.8, 0.8) });
+    let reload = null, melee = null;
+    if (this.reloadT > 0 && this.stat.kind !== 'medkit') {
+      const st = this.stat, shell = this.reloadStyle === 'shell';
+      const el = this.reloadTotal - this.reloadT;
+      reload = { style: this.reloadStyle, k: clamp(el / this.reloadTotal, 0, 1), empty: this.reloadEmpty, ph: shell ? ((el / st.shell) % 1 + 1) % 1 : 0 };
+    }
+    if (this.swing) melee = { kind: this.swing.kind, k: clamp(this.swing.t / this.swing.dur, 0, 1) };
+    m.refreshHold({ sprint: this.sprintT * (1 - pr), kick: clamp(this.flashT / 0.06, 0, 1), twist: twist * (1 - pr), swing, prone: pr, aimP: clamp(this.pitch + this.recoilP, -0.8, 0.8), reload, melee });
   }
 }

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { box, taperBox, cylY, ico, V, mergeStatic } from '../core/geo.js';
 import { C, TEAMS, SKINS } from '../core/palette.js';
 import { createWeapon } from './weapons.js';
+import { reloadAnim, meleePose } from '../game/anim.js';
 
 // Unturned/BattleBit tarzı kutu karakter. ~1.79 m boyunda, ileri = -Z.
 // Hiyerarşi: root > torso(> head, kollar, silah bağlantısı) + bacaklar. Kollar iki kemikli IK ile silaha kilitlenir.
@@ -289,26 +290,29 @@ const MOUNTS = {
   rifle: { pos: [0.13, 0.1, -0.27], rotX: 0.0 },
   pistol: { pos: [0.12, 0.12, -0.42], rotX: 0.0 },
   launcher: { pos: [0.2, 0.24, -0.12], rotX: 0.0 },
-  melee: { pos: [0.2, 0.0, -0.36], rotX: -0.5 },
+  melee: { pos: [0.2, 0.02, -0.36], rotX: 0.3, rotZ: -0.2 },
   grenade: { pos: [0.18, 0.12, -0.38], rotX: 0.0 },
 };
-// koşarken silah aşağıda, gövdeye yakın ("low ready")
+// koşarken silah aşağıda, gövdeye yakın ("low ready"); bıçak yukarıda tutulur
 const SPRINT = {
   rifle: { pos: [0.1, -0.04, -0.2], rotX: -0.8, yaw: 0.28 },
   pistol: { pos: [0.1, 0.0, -0.28], rotX: -0.9, yaw: 0.2 },
   launcher: { pos: [0.16, 0.12, -0.1], rotX: -0.3, yaw: 0.2 },
-  melee: { pos: [0.18, -0.06, -0.3], rotX: -0.6, yaw: 0.1 },
+  melee: { pos: [0.18, 0.1, -0.3], rotX: 1.0, yaw: 0.1, rotZ: -0.1 },
   grenade: { pos: [0.16, 0.02, -0.28], rotX: -0.5, yaw: 0.1 },
 };
 const mix = (a, b, t) => a + (b - a) * t;
+const POUCH = V(-0.13, -0.13, -0.2);   // yelek şarjör cebi (gövde yerelinde)
 
-// o: { sprint (0..1), kick (0..1), twist (rad), swing (-1..1) }
+// o: { sprint (0..1), kick (0..1), twist (rad), swing (-1..1), reload: {style,k,empty,ph}, melee: {kind,k} }
 function applyPose(api, w, o = {}) {
-  const { sprint = 0, kick = 0, twist = 0, swing = 0, prone = 0, aimP = 0 } = o;
+  const { sprint = 0, kick = 0, twist = 0, swing = 0, prone = 0, aimP = 0, reload = null, melee = null } = o;
   const { torso, head, mount, armR, armL } = api.parts;
   const blade = api.blade;
-  torso.rotation.y = -blade + twist;
-  head.rotation.y = blade * 0.92 - twist * 0.9;
+  const mp = melee ? meleePose(melee.kind, melee.k) : null;
+  const body = mp ? mp.body * 0.6 : 0;
+  torso.rotation.y = -blade + twist + body;
+  head.rotation.y = blade * 0.92 - twist * 0.9 - body * 0.9;
   if (!w) {
     // silahsız: kollar ters yönde sallanır
     const k = 0.6 + 0.12 * sprint;
@@ -316,17 +320,52 @@ function applyPose(api, w, o = {}) {
     poseArm(armL, armL.shoulder.clone().add(V(-0.03, -Math.cos(swing * 0.9) * k, 0.04 + swing * 0.32)));
     return;
   }
-  const hold = w.userData.hold;
+  const u = w.userData;
+  const hold = u.hold;
   const m = MOUNTS[hold] || MOUNTS.rifle, sp = SPRINT[hold] || SPRINT.rifle;
+  const ra = reload ? reloadAnim(reload.style, reload.k, reload.empty, reload.ph) : null;
+  const spr = sprint * (1 - (ra ? ra.tilt * 0.75 : 0)) * (mp ? 0.3 : 1);
   // yatarken gövde yerle paralel: silah gövde yerelinde +Y yönüne (dünyada ileri) uzanır
   const PR = { pos: [0.1, 0.62, 0.02], rotX: Math.PI / 2 };
-  mount.position.set(mix(mix(m.pos[0], sp.pos[0], sprint), PR.pos[0], prone), mix(mix(m.pos[1], sp.pos[1], sprint), PR.pos[1], prone), mix(mix(m.pos[2], sp.pos[2], sprint) + kick * 0.05, PR.pos[2], prone));
-  mount.rotation.set(mix(mix(m.rotX, sp.rotX, sprint) + kick * 0.07, PR.rotX + aimP + kick * 0.05, prone), mix(blade + sprint * sp.yaw, 0.12, prone), 0);
+  const mz = (m.rotZ || 0), sz = (sp.rotZ || 0);
+  mount.position.set(mix(mix(m.pos[0], sp.pos[0], spr), PR.pos[0], prone), mix(mix(m.pos[1], sp.pos[1], spr), PR.pos[1], prone), mix(mix(m.pos[2], sp.pos[2], spr) + kick * 0.05, PR.pos[2], prone));
+  mount.rotation.set(mix(mix(m.rotX, sp.rotX, spr) + kick * 0.07, PR.rotX + aimP + kick * 0.05, prone), mix(blade + spr * sp.yaw, 0.12, prone), mix(mz, sz, spr));
+  if (ra) {
+    mount.position.y += ra.lift * 0.03 - ra.slap * 0.015; mount.position.z += ra.slap * 0.02;
+    mount.rotation.x -= ra.tilt * 0.22;
+    mount.rotation.z -= ra.tilt * 0.55;                       // şarjör yuvası sola (sol ele) döner
+  }
+  if (mp) {
+    mount.position.x += mp.x * 0.85; mount.position.y += mp.y * 0.85; mount.position.z += mp.z * 0.85;
+    mount.rotation.x += mp.rx; mount.rotation.y += mp.ry; mount.rotation.z += mp.rz;
+  }
+  // şarjör / sürgü alt grupları
+  if (u.mag) {
+    const ax = u.magAxis || [0, -1, 0], off = ra ? ra.magOut * 0.24 : 0;
+    u.mag.visible = ra ? ra.magVis : true;
+    u.mag.position.set(ax[0] * off, ax[1] * off, ax[2] * off);
+    u.mag.rotation.x = ra ? -ra.magOut * 0.35 : 0;
+  }
+  if (u.bolt) {
+    const b = ra ? ra.bolt : 0;
+    u.bolt.g.position.set(0, u.bolt.pivot, b * 0.085);
+    u.bolt.g.rotation.z = b * 0.9;
+  }
   mount.updateMatrix();
   const toTorso = (v) => v.clone().applyMatrix4(mount.matrix);
-  poseArm(armR, toTorso(w.userData.gripR));
-  if (w.userData.gripL) poseArm(armL, toTorso(w.userData.gripL));
-  else poseArm(armL, armL.shoulder.clone().add(V(-0.03, -0.55, -0.05 + swing * 0.3)));
+  poseArm(armR, toTorso(u.gripR));
+  const restL = () => armL.shoulder.clone().add(V(-0.03, -0.55, -0.05 + swing * 0.3));
+  if (ra) {
+    const fg = u.gripL ? toTorso(u.gripL) : restL();
+    const mg = u.magPos ? u.magPos.clone().add(V(0, -0.03, 0)) : V(0.0, -0.03, -0.03);
+    if (u.mag && ra.magOut > 0 && ra.w.mag > 0.5) mg.addScaledVector(V(...(u.magAxis || [0, -1, 0])), ra.magOut * 0.24);
+    const magT = toTorso(mg);
+    const chT = toTorso(V(0, 0.075, 0.0));
+    const wt = ra.w;
+    const tgt = fg.multiplyScalar(wt.fg).add(magT.multiplyScalar(wt.mag)).add(POUCH.clone().multiplyScalar(wt.pouch)).add(chT.multiplyScalar(wt.charge));
+    poseArm(armL, tgt);
+  } else if (u.gripL) poseArm(armL, toTorso(u.gripL));
+  else poseArm(armL, restL());
 }
 
 function groundFeet(root) {

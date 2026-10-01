@@ -9,10 +9,13 @@ import { Hud } from './hud.js';
 import { Soldier } from './soldier.js';
 import { Player } from './player.js';
 import { BotBrain } from './bot.js';
-import { MODES, CLASS_DEFS, WSTATS, BOT_NAMES } from './stats.js';
+import { CLASS_DEFS, WSTATS, BOT_NAMES, makeLoadout } from './stats.js';
+import { makeMatch, PRESETS } from './match.js';
+import { Weather } from './weather.js';
 import { rand, pick, clamp } from './util.js';
 import { TEAMS } from '../core/palette.js';
 import { mat } from '../core/geo.js';
+import { initGadgets, updateGadgets, spawnSmoke, flashBang, smokeBlocks, smokeDensity, placeDeployable } from './gadgets.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -59,40 +62,55 @@ export class Game {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(this.settings.fov, innerWidth / innerHeight, 0.05, 700);
     this.scene.add(this.camera);
+    // fener (F): gece / gün batımında
+    this.torch = new THREE.SpotLight('#fff3d6', 0, 70, 0.52, 0.65, 1.1);
+    this.torch.position.set(0.12, -0.08, 0);
+    this.torch.target.position.set(0, 0, -6);
+    this.camera.add(this.torch, this.torch.target);
+    this.torchOn = false;
 
 
     // ── harita ──
     this.mapDef = MAPS[opts.map] || MAPS[DEFAULT_MAP];
     this.map = this.mapDef.build();
-    const sp = this.map.env?.sunPos || [55, 85, 40];
-    const env = setupEnvironment(this.scene, r, { shadowSize: 55, sunPos: sp, env: this.map.env });
+    this.tod = opts.tod || 'day';
+    const env = setupEnvironment(this.scene, r, { shadowSize: 55, sunPos: this.map.env?.sunPos || [55, 85, 40], env: this.map.env, tod: this.tod });
+    const sp = env.sunPos;
     this.sun = env.sun;
+    this.night = env.night;
     this.sun.shadow.mapSize.set(2048, 2048);
     this.sunOff = new THREE.Vector3(...sp);
     this.scene.add(this.map.group);
+    env.applyGlow(this.map.group);
     this.terrain = this.map.terrain || null;
     this.world = new World(this.map.colliders, this.map.bounds, this.terrain);
     this.nav = new NavGrid(this.map.colliders, this.map.bounds, this.terrain);
 
-    this.mode = { ...MODES[opts.mode] };
-    this.mode.objectives = this.map.objectives.filter((o) => this.mode.perTeam >= 10 || o.core).map((o) => ({ ...o, owner: null, p: 0 }));
+    // opts.match: özel maç ayarları; opts.mode: '3v3' | '10v10' hazır ayarı (test/uyumluluk)
+    this.mode = makeMatch(opts.match || PRESETS[opts.mode] || {});
+    this.mode.objectives = this.mode.type === 'tdm' ? [] : this.map.objectives.filter((o) => this.mode.allFlags || o.core).map((o) => ({ ...o, owner: null, p: 0 }));
     this.tickets = { blue: this.mode.tickets, red: this.mode.tickets };
-    this.timeLeft = this.mode.time;
+    this.timeLeft = this.mode.time || Infinity;
+    this.spawnChoice = 'base';
 
     this.effects = new Effects(this.scene);
+    this.visMul = 1;
+    initGadgets(this);
     this.sfx = new Sfx();
     this.sfx.setVolume(this.settings.volume);
     this.sfx.init();
+    this.weather = new Weather(this, opts.weather || 'clear');
 
     // ── savaşçılar ──
     const names = [...BOT_NAMES].sort(() => Math.random() - 0.5);
-    const order = ['assault', 'medic', 'assault', 'heavy', 'sniper', 'engineer', 'assault', 'medic', 'engineer', 'assault'];
+    const nameOf = (n) => names.length ? names.pop() : `Bot-${n}`;
+    const order = ['assault', 'medic', 'assault', 'heavy', 'sniper', 'engineer', 'assault', 'medic', 'engineer', 'assault', 'sniper', 'heavy'];
     let id = 0;
     for (const team of ['blue', 'red']) {
       for (let i = 0; i < this.mode.perTeam; i++) {
         const isPlayer = team === opts.team && i === 0;
         const s = new Soldier(this, {
-          id: id++, name: isPlayer ? 'Sen' : names.pop(), team,
+          id: id++, name: isPlayer ? (opts.playerName || 'Sen') : nameOf(id), team,
           cls: isPlayer ? opts.cls : order[(i + (team === 'red' ? 2 : 0)) % order.length], isPlayer,
         });
         this.soldiers.push(s);
@@ -101,6 +119,15 @@ export class Game {
       }
     }
     if (opts.autoplay) this.brains.push(new BotBrain(this, this.playerSoldier, opts.diff));
+    // mangallar: takım başına 4'lü gruplar
+    for (const team of ['blue', 'red']) {
+      let n = 0;
+      for (const s of this.soldiers) if (s.team === team) s.squad = Math.floor(n++ / 4);
+    }
+    this.squadGoals = { blue: [], red: [] };
+    this.perchCache = new Map();
+    this.squadT = 0;
+    this.assignSquads();
     this.hud = new Hud(this);
     this.player = new Player(this, this.playerSoldier, this.settings);
     this.player.locked = !!opts.nolock;
@@ -109,6 +136,13 @@ export class Game {
     this.on('hitmark', (e) => {
       this.hud.hitmarker(e.dead, e.zone === 'head');
       if (e.dead) this.sfx.kill(); else if (e.zone === 'head') this.sfx.headshot(); else this.sfx.hit();
+    });
+    document.addEventListener('keydown', this._kd = (e) => {
+      if (e.code !== 'KeyF' || e.repeat || !this.running || this.ended || !this.playerSoldier.alive) return;
+      this.torchOn = !this.torchOn;
+      this.torch.intensity = this.torchOn ? (this.night ? 140 : this.tod === 'sunset' ? 45 : 0) : 0;
+      this.playerSoldier.flashOn = this.torchOn && this.torch.intensity > 0;
+      this.hud.toast(this.torchOn ? (this.torch.intensity ? 'Fener açık' : 'Fener (gündüz gerekmez)') : 'Fener kapalı', '#ffe6a8');
     });
     document.addEventListener('pointerlockchange', this._plc = () => {
       const locked = document.pointerLockElement === this.canvas;
@@ -160,20 +194,129 @@ export class Game {
 
   respawnReady() { return !this.playerSoldier.alive && !this.ended; }
   requestClass(k) { this.pendingClass = k; this.hud.markClass(k); }
+  // Ölüm ekranında yükleme değiştir: { primary, secondary, gadget, melee } → bir sonraki doğuşta geçerli (sınıfa uymazsa varsayılan)
+  requestLoadout(choice) { this.pendingLoadout = { ...choice }; }
 
   // ───── doğma ─────
-  pickSpawn(team) {
+  // Oyuncu doğma noktası seçimi: 'base' ya da sahip olunan hedefin id'si
+  spawnOptions(team = this.playerSoldier.team) {
+    const out = [{ id: 'base', name: 'Üs', ok: true }];
+    for (const o of this.mode.objectives) out.push({ id: o.id, name: o.name, ok: this.canForwardSpawn(o, team), label: o.label || o.name[0] });
+    return out;
+  }
+  requestSpawn(id) { this.spawnChoice = id; this.hud.markSpawn?.(id); }
+
+  canForwardSpawn(o, team) {
+    if (o.owner !== team) return false;
+    for (const e of this.soldiers) if (e.alive && e.team !== team && Math.hypot(e.pos.x - o.x, e.pos.z - o.z) < o.r + 6) return false;
+    return true;
+  }
+
+  _free(x, z, s) {
+    if (!this.nav.isFree(x, z)) return false;
+    return !this.soldiers.some((e) => e !== s && e.alive && Math.hypot(e.pos.x - x, e.pos.z - z) < 1.1);
+  }
+
+  pickSpawn(team, s) {
+    // ileri doğma: seçilen / bot için ara sıra sahip olunan hedefin çevresi
+    let target = null;
+    if (s && s.isPlayer && this.spawnChoice !== 'base') target = this.mode.objectives.find((o) => o.id === this.spawnChoice);
+    else if (s && !s.isPlayer && Math.random() < 0.35) {
+      const own = this.mode.objectives.filter((o) => o.owner === team && this.canForwardSpawn(o, team));
+      if (own.length) target = pick(own);
+    }
+    if (target && this.canForwardSpawn(target, team)) {
+      for (let k = 0; k < 14; k++) {
+        const a = Math.random() * Math.PI * 2, rr = target.r * (0.25 + Math.random() * 0.6);
+        const x = target.x + Math.cos(a) * rr, z = target.z + Math.sin(a) * rr;
+        if (this._free(x, z, s)) return { x, z, ry: Math.atan2(-(target.x - x), -(target.z - z)) + (Math.random() - 0.5) * 3, forward: true };
+      }
+    }
     const pts = this.map.spawns[team];
-    const free = pts.filter((p) => !this.soldiers.some((s) => s.alive && Math.hypot(s.pos.x - p.x, s.pos.z - p.z) < 1.3));
-    return pick(free.length ? free : pts);
+    const free = pts.filter((p) => !this.soldiers.some((e) => e !== s && e.alive && Math.hypot(e.pos.x - p.x, e.pos.z - p.z) < 1.3));
+    if (free.length) return pick(free);
+    // noktalar dolu (kalabalık maç): rastgele bir noktanın çevresinde boş yer bul
+    const base = pick(pts);
+    for (let k = 0; k < 20; k++) {
+      const x = base.x + (Math.random() - 0.5) * 9, z = base.z + (Math.random() - 0.5) * 9;
+      if (this._free(x, z, s)) return { x, z, ry: base.ry };
+    }
+    return base;
   }
 
   respawn(s, first = false) {
+    if (s.isPlayer && this.pendingLoadout) { s.choice = this.pendingLoadout; this.pendingLoadout = null; s.items = makeLoadout(s.cls, s.team, s.choice); }
     if (s.isPlayer && this.pendingClass && this.pendingClass !== s.cls) s.setClass(this.pendingClass);
-    s.spawn(this.pickSpawn(s.team), first ? 1 : 2.5);
+    s.spawn(this.pickSpawn(s.team, s), first ? 1 : 3);
     this.world.settle(s);
+    s.zoneT = 0;
     if (s.brain) s.brain.reset();
-    if (s.isPlayer) this.pendingClass = null;
+    if (s.isPlayer) { this.pendingClass = null; this.hud.onPlayerSpawn?.(); }
+  }
+
+  // Düşman üssüne giren: uyarı + hasar (spawn baskınını engeller)
+  updateBaseZones(dt) {
+    const Z = this.map.baseZones;
+    if (!Z) return;
+    for (const s of this.soldiers) {
+      if (!s.alive) continue;
+      const z = Z[s.team === 'blue' ? 'red' : 'blue'];
+      const inside = z && s.pos.x > z.minX && s.pos.x < z.maxX && s.pos.z > z.minZ && s.pos.z < z.maxZ;
+      if (!inside) { if (s.zoneT > 0) s.zoneT = Math.max(0, s.zoneT - dt * 2); continue; }
+      s.zoneT = (s.zoneT || 0) + dt;
+      if (s.isPlayer) this.hud.zoneWarn?.(Math.max(0, 6 - s.zoneT));
+      if (s.zoneT > 6 && s.protT <= 0) { s.hp -= 30 * dt; if (s.hp <= 0) s.die(s, 'Düşman üssü', false); }
+    }
+  }
+
+  // ───── mangal görev dağıtımı: her mangal bir hedefe; takım dengesi + tehdit/ihtiyaç ─────
+  squadGoal(s) { return this.squadGoals[s.team][s.squad] || null; }
+
+  assignSquads() {
+    const objs = this.mode.objectives;
+    if (!objs.length) return;
+    for (const team of ['blue', 'red']) {
+      const nSq = Math.ceil(this.soldiers.filter((s) => s.team === team).length / 4);
+      const load = new Map(objs.map((o) => [o.id, 0]));
+      const home = this.map.spawns[team][0];
+      const need = (o) => {
+        const enemies = this.soldiers.filter((e) => e.alive && e.team !== team && Math.hypot(e.pos.x - o.x, e.pos.z - o.z) < o.r + 18).length;
+        if (o.owner === team) return enemies ? 1.5 : 0.18;
+        return o.owner ? 1.25 : 1.0;
+      };
+      const order = [...Array(nSq).keys()].sort(() => Math.random() - 0.5);
+      for (const sq of order) {
+        let best = null, bs = -1;
+        for (const o of objs) {
+          const d = Math.hypot(o.x - home.x, o.z - home.z);
+          const sc = need(o) / (1 + load.get(o.id) * 0.9) / (1 + d / 120) + Math.random() * 0.25;
+          if (sc > bs) { bs = sc; best = o; }
+        }
+        this.squadGoals[team][sq] = best;
+        load.set(best.id, load.get(best.id) + 1);
+      }
+    }
+  }
+
+  // Keskin nişancı gözetleme noktası: hedefi gören, yüksek/uzak, kendi tarafa yakın nokta
+  perch(o, team) {
+    const key = o.id + team;
+    if (this.perchCache.has(key)) return this.perchCache.get(key);
+    const home = this.map.spawns[team][0];
+    let best = null, bs = -1e9;
+    const oc = new THREE.Vector3(o.x, this.world.heightAt(o.x, o.z) + 1.3, o.z), pe = new THREE.Vector3();
+    for (let k = 0; k < 90; k++) {
+      const a = Math.random() * Math.PI * 2, d = 26 + Math.random() * 40;
+      const x = o.x + Math.cos(a) * d, z = o.z + Math.sin(a) * d;
+      if (!this.nav.isFree(x, z)) continue;
+      const y = this.world.heightAt(x, z);
+      pe.set(x, y + 1.0, z);
+      if (!this.world.clear(pe, oc)) continue;
+      const sc = (y - this.world.heightAt(o.x, o.z)) * 0.6 + d * 0.05 - Math.hypot(x - home.x, z - home.z) * 0.03 + Math.random();
+      if (sc > bs) { bs = sc; best = { x, z }; }
+    }
+    this.perchCache.set(key, best);
+    return best;
   }
 
   // ───── ana döngü ─────
@@ -196,7 +339,12 @@ export class Game {
     this.player.update(dt);
     for (const b of this.brains) b.update(dt);
     this.updateProjectiles(dt);
+    updateGadgets(this, dt, this.time);
+    this.squadT -= dt;
+    if (this.squadT <= 0) { this.squadT = 18; this.assignSquads(); }
+    this.weather.update(dt);
     this.updateMode(dt);
+    this.updateBaseZones(dt);
     for (const s of this.soldiers) {
       if (!s.alive && !this.ended) {
         s.respawnT -= dt;
@@ -272,31 +420,48 @@ export class Game {
       const f = bestT <= r0 ? 1 : lerpClamp(1, st.minMul, (bestT - r0) / (r1 - r0));
       const zm = bestZ === 'head' ? 2.1 : bestZ === 'legs' ? 0.8 : 1;
       this.effects.blood(pt, 7, dir.clone().negate());
-      if (Math.random() < 0.6 || (st.pellets || 1) === 1) this.effects.tracer(muzzle, pt);
+      if (Math.random() < 0.6 || (st.pellets || 1) === 1) this.effects.tracer(muzzle, pt, st.tracer);
       bestE.takeDamage(st.dmg * f * zm * (shooter.dmgMul || 1), shooter, bestZ, shooter.pos, st.name);
     } else if (wh) {
       const pt = wh.point.clone();
-      if (Math.random() < 0.7) this.effects.tracer(muzzle, pt);
+      if (Math.random() < 0.7) this.effects.tracer(muzzle, pt, st.tracer);
       this.effects.spark(pt, 4, wh.normal);
       if (wh.collider || wh.normal.y > 0.5) this.effects.dust(pt, wh.normal);
       this.effects.decal(pt, wh.normal);
       if (shooter.isPlayer || pt.distanceTo(this.camera.position) < 25) this.sfx.impact(pt);
     } else {
-      this.effects.tracer(muzzle, origin.clone().addScaledVector(dir, 120));
+      this.effects.tracer(muzzle, origin.clone().addScaledVector(dir, 120), st.tracer);
     }
   }
 
+  // Yakın dövüş vuruşu: önündeki koni (±34°) içinde, duvar engeli olmayan en yakın düşman. Yoksa duvar vuruşu döner.
   meleeHit(attacker, o, d, reach) {
-    let best = null, bt = reach;
-    const wh = this.world.raycast(o, d, reach, (this._mh ||= {}));
-    if (wh) bt = Math.min(bt, wh.t);
+    let best = null, bs = 1e9;
+    const c = new THREE.Vector3(), v = new THREE.Vector3();
     for (const e of this.soldiers) {
       if (e === attacker || !e.alive || e.team === attacker.team) continue;
-      const h = this.hitSoldier(e, o, d, bt);
-      if (h && h.t <= bt) { bt = h.t; best = { victim: e }; }
+      // vücut ve baş noktalarından biri yeterli
+      for (const fy of [0.55, 0.9]) {
+        c.set(e.pos.x, e.pos.y + e.height * fy, e.pos.z);
+        v.subVectors(c, o);
+        const dist = v.length();
+        if (dist > reach + 0.3 || dist < 1e-4) continue;
+        const dot = v.dot(d) / dist;
+        if (dot < 0.83) continue;
+        if (!this.world.clear(o, c)) continue;
+        const sc = dist * (2 - dot);
+        if (sc < bs) { bs = sc; best = { victim: e, point: c.clone() }; }
+      }
     }
-    return best;
+    if (best) return best;
+    const wh = this.world.raycast(o, d, reach, (this._mh ||= {}));
+    return wh ? { wall: true, point: wh.point.clone(), normal: wh.normal.clone() } : null;
   }
+
+  // Duman: iki nokta arası görüş çizgisi (dünya + duman). Botların algısı bunu kullanır.
+  losClear(a, b) { return this.world.clear(a, b) && !smokeBlocks(this, a, b); }
+  smokeDensity(p) { return smokeDensity(this, p); }
+  placeDeployable(s, st) { return placeDeployable(this, s, st); }
 
   alertNear(pos, team, radius) {
     for (const s of this.soldiers) {
@@ -320,11 +485,20 @@ export class Game {
   }
 
   spawnGrenade(owner, pos, vel, st) {
-    const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.06, 0), mat('#4d5b3a'));
+    const col = st.gtype === 'smoke' ? '#9aa0a6' : st.gtype === 'flash' ? '#33373d' : '#4d5b3a';
+    const m = new THREE.Mesh(st.gtype === 'frag' || !st.gtype ? new THREE.IcosahedronGeometry(0.06, 0) : new THREE.CylinderGeometry(0.035, 0.035, 0.12, 8), mat(col));
     m.position.copy(pos);
     m.castShadow = true;
     this.scene.add(m);
     this.projectiles.push({ type: 'grenade', mesh: m, pos: pos.clone(), vel: vel.clone(), owner, st, fuse: st.fuse, bounces: 0 });
+  }
+
+  // M79 tarzı bomba: yaylı yol, çarpınca patlar
+  spawnShell(owner, pos, dir, st) {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.14, 8), mat('#6a6f3a'));
+    m.position.copy(pos);
+    this.scene.add(m);
+    this.projectiles.push({ type: 'grenade', mesh: m, pos: pos.clone(), vel: dir.clone().multiplyScalar(st.speed), owner, st, fuse: 4, bounces: 0, shell: true });
   }
 
   updateProjectiles(dt) {
@@ -352,12 +526,13 @@ export class Game {
         }
       } else {
         p.fuse -= dt;
-        p.vel.y -= 14 * dt;
+        p.vel.y -= (p.shell ? 8 : 14) * dt;
         const step = p.vel.clone().multiplyScalar(dt), L = step.length();
         if (L > 1e-5) {
           const d = step.clone().normalize();
           const wh = this.world.raycast(p.pos, d, L + 0.05, (this._ph ||= {}));
-          if (wh) {
+          if (wh && p.shell) boom = wh.point.clone().addScaledVector(wh.normal, 0.15);
+          else if (wh) {
             p.pos.copy(wh.point).addScaledVector(wh.normal, 0.06);
             const n = wh.normal, vn = p.vel.dot(n);
             p.vel.addScaledVector(n, -2 * vn).multiplyScalar(0.45);
@@ -366,13 +541,23 @@ export class Game {
           } else p.pos.add(step);
         }
         p.mesh.position.copy(p.pos);
-        p.mesh.rotation.x += dt * 8; p.mesh.rotation.z += dt * 6;
-        if (p.fuse <= 0) boom = p.pos.clone();
+        if (p.shell) p.mesh.lookAt(p.pos.clone().add(p.vel)); else { p.mesh.rotation.x += dt * 8; p.mesh.rotation.z += dt * 6; }
+        if (p.shell && !boom) {
+          // doğrudan düşmana isabet
+          for (const e of this.soldiers) {
+            if (!e.alive || e === p.owner || e.team === p.owner.team) continue;
+            if (Math.hypot(e.pos.x - p.pos.x, e.pos.z - p.pos.z) < 0.7 && p.pos.y > e.pos.y && p.pos.y < e.pos.y + e.height) { boom = p.pos.clone(); break; }
+          }
+        }
+        if (p.fuse <= 0 && !boom) boom = p.pos.clone();
       }
       if (boom) {
         this.scene.remove(p.mesh);
         this.projectiles.splice(i, 1);
-        this.explode(boom, p.st.radius, p.st.dmg, p.owner, p.st.name);
+        const gt = p.st.gtype;
+        if (gt === 'smoke') spawnSmoke(this, boom, p.st, p.owner);
+        else if (gt === 'flash') flashBang(this, boom, p.owner, p.st);
+        else this.explode(boom, p.st.radius, p.st.dmg, p.owner, p.st.name);
       }
     }
   }
@@ -403,7 +588,7 @@ export class Game {
 
   // ───── Mod: hedef ele geçirme + bilet ─────
   updateMode(dt) {
-    this.timeLeft -= dt;
+    if (this.timeLeft !== Infinity) this.timeLeft -= dt;
     this.capT -= dt;
     if (this.capT <= 0) {
       const step = 0.1;
@@ -451,8 +636,9 @@ export class Game {
       this.resupplyT = 2;
       for (const s of this.soldiers) {
         if (!s.alive) continue;
+        const bz = this.map.baseZones && this.map.baseZones[s.team];
         const sp = this.map.spawns[s.team][0];
-        const home = Math.hypot(s.pos.x - sp.x, s.pos.z - sp.z) < 14;
+        const home = bz ? (s.pos.x > bz.minX - 3 && s.pos.x < bz.maxX + 3 && s.pos.z > bz.minZ - 3 && s.pos.z < bz.maxZ + 3) : Math.hypot(s.pos.x - sp.x, s.pos.z - sp.z) < 14;
         const own = this.mode.objectives.some((o) => o.owner === s.team && Math.hypot(s.pos.x - o.x, s.pos.z - o.z) < o.r);
         if (!home && !own) continue;
         for (const it of s.items) {
@@ -476,6 +662,7 @@ export class Game {
   onKill(killer, victim, weapon, hs) {
     this.tickets[victim.team] -= 1;
     this.hud.killFeed(killer, victim, weapon, hs);
+    if (killer && killer.isPlayer && killer !== victim) this.hud.popup(hs ? '+150 KAFA ATIŞI' : '+100 ÖLDÜRME', hs);
     victim.respawnT = victim.isPlayer ? 5 : rand(3.5, 6);
     if (victim.isPlayer) this.player.camPos.copy(victim.eye());
   }
@@ -493,7 +680,9 @@ export class Game {
     const me = this.playerSoldier;
     const win = w === me.team;
     const list = this.soldiers.filter((s) => s.team === me.team).sort((a, b) => b.score - a.score);
-    const rows = `<b>Senin istatistiklerin:</b> ${me.kills} öldürme · ${me.deaths} ölüm · ${me.score} puan<br><small>Mavi ${Math.max(0, Math.round(this.tickets.blue))} – ${Math.max(0, Math.round(this.tickets.red))} Kırmızı · En iyi: ${list[0].name} (${list[0].score})</small>`;
+    const xp = Math.round(me.score + (win ? 300 : 80));
+    const rows = `<div class="mvp"><div class="st"><b>${me.kills}</b><small>Öldürme</small></div><div class="st"><b>${me.deaths}</b><small>Ölüm</small></div><div class="st"><b>${me.score}</b><small>Puan</small></div><div class="st"><b>+${xp}</b><small>XP</small></div></div><small style="opacity:.75">Mavi ${Math.max(0, Math.round(this.tickets.blue))} – ${Math.max(0, Math.round(this.tickets.red))} Kırmızı · Takımın en iyisi: ${list[0].name} (${list[0].score})</small>`;
+    this.opts.onMatchEnd?.({ score: me.score, kills: me.kills, deaths: me.deaths, win });
     this.hud.showEnd(win, win ? 'ZAFER!' : 'YENİLGİ', `${why}. ${TEAMS[w].name} kazandı.`, rows);
   }
 
@@ -503,8 +692,10 @@ export class Game {
   dispose() {
     cancelAnimationFrame(this.raf);
     this.running = false;
+    this.weather?.dispose();
     document.exitPointerLock?.();
     document.removeEventListener('pointerlockchange', this._plc);
+    document.removeEventListener('keydown', this._kd);
     document.removeEventListener('pointerlockerror', this._ple);
     removeEventListener('resize', this._rs);
     this.player.dispose();

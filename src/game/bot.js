@@ -1,6 +1,11 @@
 import * as THREE from 'three';
-import { DIFFICULTY } from './stats.js';
+import { DIFFICULTY, WSTATS } from './stats.js';
 import { clamp, rand, angleDiff, yawFromDir, lerp, pick } from './util.js';
+
+// silah rolleri (bot davranışı)
+const SNIPERS = new Set(['sniper', 'svd', 'barrett']);
+const LMGS = new Set(['lmg', 'pkm']);
+const SHOTGUNS = new Set(['shotgun', 'aa12', 'dbl']);
 
 const tA = new THREE.Vector3(), tB = new THREE.Vector3(), tC = new THREE.Vector3();
 
@@ -28,7 +33,11 @@ export class BotBrain {
     this.gadgetT = rand(6, 14);
     this.aimFrac = rand(0.55, 0.82);
     this.holdT = 0;
+    this.via = null; this.perching = false;
   }
+
+  // flaşbang yedi: soldier.blind() çağırır; hedef unutulur
+  onFlashed(t) { this.target = null; this.reactT = 0.6; this.lostT = 0; }
 
   hear(pos) {
     this.alertT = this.game.time;
@@ -49,19 +58,58 @@ export class BotBrain {
     this.path = null; this.repathT = 0;
   }
 
+  // Mangal (squad) hedefi: Game.assignSquads belirler. Rol: keskin nişancı gözetleme noktası tutar, sıhhiye takım arkadaşını izler.
   pickGoal() {
     const g = this.game, s = this.s;
     const objs = g.mode.objectives;
-    let best = null, bs = -1;
-    for (const o of objs) {
-      const mine = o.owner === s.team;
-      const d = Math.hypot(o.x - s.pos.x, o.z - s.pos.z);
-      const sc = (mine ? 0.25 : 1) / (1 + d / 70) + Math.random() * 0.5;
-      if (sc > bs) { bs = sc; best = o; }
+    this.via = null;
+    if (!objs.length) { this.roam(); return; }       // takım çatışması: haritada dolaş, düşmana yönel
+    const sq = g.squadGoal(s);
+    let obj = sq || null;
+    if (!obj) {
+      let bs = -1;
+      for (const o of objs) {
+        const d = Math.hypot(o.x - s.pos.x, o.z - s.pos.z);
+        const sc = (o.owner === s.team ? 0.25 : 1) / (1 + d / 70) + Math.random() * 0.5;
+        if (sc > bs) { bs = sc; obj = o; }
+      }
     }
-    if (!best) return;
-    const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * best.r * 0.8;
-    this.setGoal(best.x + Math.cos(a) * r, best.z + Math.sin(a) * r, rand(12, 26));
+    if (!obj) return;
+    if (s.cls === 'sniper' && g.perch) {
+      const pp = g.perch(obj, s.team);
+      if (pp) { this.setGoal(pp.x, pp.z, rand(25, 45)); this.perching = true; return; }
+    }
+    this.perching = false;
+    if (s.cls === 'medic' && Math.random() < 0.5) {
+      let mate = null, md = 1e9;
+      for (const a of g.soldiers) {
+        if (a === s || !a.alive || a.team !== s.team || a.cls === 'medic') continue;
+        const d = Math.hypot(a.pos.x - s.pos.x, a.pos.z - s.pos.z);
+        if (d < md && d < 45) { md = d; mate = a; }
+      }
+      if (mate) { this.setGoal(mate.pos.x + rand(-3, 3), mate.pos.z + rand(-3, 3), rand(5, 9)); return; }
+    }
+    const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * obj.r * 0.8;
+    const gx = obj.x + Math.cos(a) * r, gz = obj.z + Math.sin(a) * r;
+    this.setGoal(gx, gz, rand(14, 28));
+    // yan kol: bazen ara nokta üzerinden dolan (kanat manevrası)
+    if (Math.hypot(gx - s.pos.x, gz - s.pos.z) > 40 && Math.random() < 0.45) {
+      const mx = (gx + s.pos.x) / 2, mz = (gz + s.pos.z) / 2;
+      const dx = gx - s.pos.x, dz = gz - s.pos.z, L = Math.hypot(dx, dz);
+      const side = Math.random() < 0.5 ? -1 : 1, off = rand(18, 34);
+      const vx = mx + (-dz / L) * off * side, vz = mz + (dx / L) * off * side;
+      const vi = g.nav.nearestFree(vx, vz, 10);
+      if (vi >= 0) this.via = new THREE.Vector3(g.nav.cx(vi), 0, g.nav.cz(vi));
+    }
+  }
+
+  roam() {
+    const g = this.game, s = this.s;
+    const foes = g.soldiers.filter((e) => e.alive && e.team !== s.team);
+    const t = foes.length && Math.random() < 0.7 ? pick(foes).pos : null;
+    const b = g.map.bounds;
+    const x = t ? t.x + rand(-12, 12) : rand(b.minX + 6, b.maxX - 6), z = t ? t.z + rand(-12, 12) : rand(b.minZ + 6, b.maxZ - 6);
+    this.setGoal(x, z, rand(10, 20));
   }
 
   sense() {
@@ -75,10 +123,11 @@ export class BotBrain {
       const tc = e.center(tC);
       const dx = tc.x - eye.x, dz = tc.z - eye.z;
       const dist = Math.hypot(dx, dz);
-      if (dist > 130) continue;
+      const vis = g.night ? (e.flashOn || e.flashT > 0 ? 130 : 62) : g.tod === 'sunset' ? 105 : 130;
+      if (dist > vis * (g.visMul || 1)) continue;
       if (!alerted && (fwd.x * dx + fwd.z * dz) / (dist + 1e-6) < 0.3) continue;
       if (dist > 22 && e.crouching) { if (Math.random() < 0.3) continue; }
-      if (!g.world.clear(eye, tc)) continue;
+      if (!g.losClear(eye, tc)) continue;                  // duman görüşü de keser
       if (dist < bd) { bd = dist; best = e; }
     }
     if (best) {
@@ -104,6 +153,14 @@ export class BotBrain {
     if (!this.goal || this.goalT <= 0) this.pickGoal();
     if (this.target && !this.target.alive) { this.target = null; this.lostT = 0; }
 
+    // flaşbang: kör, şaşkın; hedefsiz, kısa süre dönüp durur
+    if (s.blindT > 0) {
+      this.target = null; this.burstLeft = 0; s.ads = false; s.sprinting = false; s.botExtraSpread = 0.1;
+      s.yaw += Math.sin(this.t * 2.2 + s.id) * dt * 1.4;
+      s.vel.x *= 0.85; s.vel.z *= 0.85;
+      return;
+    }
+
     const st = s.stat;
     const eye = s.eye(tA);
     let moveX = 0, moveZ = 0, speed = 4.4 * s.def.speed * (st.move || 1);
@@ -126,8 +183,13 @@ export class BotBrain {
       const dx = tp.x - s.pos.x, dz = tp.z - s.pos.z;
       const dist = Math.hypot(dx, dz);
       // sniper yakında tabancaya geç
-      if (s.items[0].id === 'sniper' && dist < 12 && s.cur === 0) s.switchTo(1);
-      else if (s.cur === 1 && s.items[0].id === 'sniper' && dist > 25) s.switchTo(0);
+      const p0 = s.items[0].id;
+      if (SNIPERS.has(p0) && p0 !== 'svd' && dist < 12 && s.cur === 0) s.switchTo(1);
+      else if (s.cur === 1 && SNIPERS.has(p0) && dist > 25) s.switchTo(0);
+      // bıçak dövüşü: çok yakında ve silah işe yaramıyorsa (yükleniyor/boş/ağır) bıçağa geç, uzaklaşınca geri dön
+      const gunBusy = s.cur === 0 && (s.reloadT > 0.5 || s.item.mag <= 0 || LMGS.has(p0) || SNIPERS.has(p0));
+      if (dist < 2.1 && s.cur !== 3 && (gunBusy || dist < 1.4) && s.items[3] && Math.random() < 0.08) s.switchTo(3);
+      else if (s.cur === 3 && dist > 3.6) s.switchTo(0);
 
       const ty = tp.y + tg.height * this.aimFrac;
       const dy = ty - eye.y;
@@ -138,7 +200,7 @@ export class BotBrain {
       const dyaw = angleDiff(s.yaw, wantYaw);
       s.yaw += clamp(dyaw, -turn * dt, turn * dt);
       s.pitch += clamp(wantPitch - s.pitch, -turn * dt, turn * dt);
-      s.ads = dist > 28 || st.scope;
+      s.ads = (dist > 28 || st.scope) && st.kind !== 'melee';
 
       this.reactT -= dt;
       const aimed = Math.abs(dyaw) < 0.07 + 2 / (dist + 8);
@@ -158,8 +220,12 @@ export class BotBrain {
       this.gadgetT -= dt;
       if (this.gadgetT <= 0 && this.reactT <= 0) {
         const gid = s.items[2].id;
-        if (gid === 'grenade' && dist > 9 && dist < 30) { s.pitch = Math.max(s.pitch, 0.18 + dist * 0.004); if (s.useGadget('grenade')) this.gadgetT = rand(14, 25); }
-        else if (gid === 'rpg' && dist > 14 && dist < 70 && Math.random() < 0.5) { if (s.useGadget('rpg')) this.gadgetT = rand(10, 16); }
+        if ((gid === 'grenade' || gid === 'flash') && dist > (gid === 'flash' ? 6 : 9) && dist < 30) { s.pitch = Math.max(s.pitch, 0.18 + dist * 0.004); if (s.useGadget(gid)) this.gadgetT = rand(14, 25); }
+        else if (gid === 'smoke' && s.hp < s.maxHp * 0.55 && dist > 8 && dist < 40) { s.pitch = Math.max(s.pitch, 0.25); if (s.useGadget('smoke')) this.gadgetT = rand(18, 30); }
+        else if ((gid === 'rpg' || gid === 'm79') && dist > 14 && dist < (gid === 'rpg' ? 70 : 55) && Math.random() < 0.5) {
+          if (gid === 'm79') s.pitch = Math.max(s.pitch, 0.0044 * dist);
+          if (s.useGadget(gid)) this.gadgetT = rand(10, 16);
+        }
         else this.gadgetT = 2;
       }
 
@@ -168,15 +234,17 @@ export class BotBrain {
       if (this.strafeT <= 0) { this.strafeDir *= -1; this.strafeT = rand(0.7, 2.0); }
       const nx = dx / (dist + 1e-6), nz = dz / (dist + 1e-6);
       const pid = s.items[0].id;
-      const holdRange = pid === 'sniper' ? 150 : pid === 'lmg' ? 48 : 0;
+      const holdRange = pid === 'sniper' || pid === 'barrett' ? 150 : pid === 'svd' ? 110 : LMGS.has(pid) ? 48 : 0;
       this.holdBudget = (this.holdBudget ?? 6) - dt;
       const holdPos = holdRange > 0 && dist < holdRange && dist > 14 && this.holdBudget > 0;
       if (this.holdBudget < -4) this.holdBudget = rand(5, 9);
-      if (holdPos) { speed = 0; s.crouching = pid === 'sniper'; }
+      if (holdPos) { speed = 0; s.crouching = SNIPERS.has(pid); }
       else {
         s.crouching = false;
         let fwd = 0;
-        if (dist > (pid === 'lmg' ? 40 : 28)) fwd = 0.7; else if (dist < 7 && s.items[0].id !== 'shotgun') fwd = -0.6; else if (s.items[0].id === 'shotgun' && dist > 5) fwd = 0.9;
+        const shotty = SHOTGUNS.has(pid);
+        if (s.cur === 3) fwd = dist > 1.3 ? 0.95 : 0;           // bıçakla yaklaş
+        else if (dist > (LMGS.has(pid) ? 40 : 28)) fwd = 0.7; else if (dist < 7 && !shotty) fwd = -0.6; else if (shotty && dist > 5) fwd = 0.9;
         moveX = nx * fwd + (-nz) * this.strafeDir * 0.55;
         moveZ = nz * fwd + (nx) * this.strafeDir * 0.55;
         speed *= 0.62;
@@ -184,19 +252,29 @@ export class BotBrain {
     } else {
       s.ads = false; s.crouching = false; s.botExtraSpread = 0;
       this.burstLeft = 0;
+      // sakin anlarda mayın / cephane kutusu kur
+      this.gadgetT -= dt * 0.5;
+      if (this.gadgetT <= 0) {
+        const gi = s.items[2];
+        if (gi.id === 'claymore' && gi.mag > 0 && this.goal && Math.hypot(this.goal.x - s.pos.x, this.goal.z - s.pos.z) < 7) { if (s.useGadget('claymore')) this.gadgetT = rand(25, 50); else this.gadgetT = 3; }
+        else if (gi.id === 'ammobox' && gi.mag > 0 && s.items[0].reserve < WSTATS[s.items[0].id].reserve * 0.5) { if (s.useGadget('ammobox')) this.gadgetT = rand(30, 60); else this.gadgetT = 3; }
+        else this.gadgetT = 4;
+      }
       s.pitch += (0 - s.pitch) * Math.min(1, dt * 4);
       // yol takibi
       if (this.goal) {
+        if (this.via && Math.hypot(this.via.x - s.pos.x, this.via.z - s.pos.z) < 3.5) { this.via = null; this.path = null; this.repathT = 0; }
         const gd = Math.hypot(this.goal.x - s.pos.x, this.goal.z - s.pos.z);
-        if (gd < 1.8) { this.holdT -= dt; if (this.holdT <= -0.01 && this.holdT > -5) { /* bekle */ } speed = 0; if (this.holdT <= 0) { this.holdT = rand(2, 5); this.setGoal(this.goal.x + rand(-6, 6), this.goal.z + rand(-6, 6), 10); } }
+        if (gd < 1.8 && !this.via) { this.holdT -= dt; if (this.holdT <= -0.01 && this.holdT > -5) { /* bekle */ } speed = 0; if (this.perching) { s.crouching = true; if (this.holdT <= 0) this.holdT = 3; } else if (this.holdT <= 0) { this.holdT = rand(2, 5); this.setGoal(this.goal.x + rand(-6, 6), this.goal.z + rand(-6, 6), 10); } }
         else {
           this.repathT -= dt;
           if (!this.path || this.repathT <= 0) {
             if (g.pathBudget > 0) {
               g.pathBudget--;
-              this.path = g.nav.findPath(s.pos.x, s.pos.z, this.goal.x, this.goal.z);
+              const tgt = this.via || this.goal;
+              this.path = g.nav.findPath(s.pos.x, s.pos.z, tgt.x, tgt.z);
               this.repathT = rand(2.5, 4);
-              if (!this.path) { this.goal = null; }
+              if (!this.path) { this.goal = null; this.via = null; }
             }
           }
           if (this.path && this.path.length) {

@@ -8,9 +8,34 @@ const DEFAULT_ENV = {
   sun: ['#fff0d2', 2.5], hemi: ['#bcd9ff', '#7a6a48', 1.2], cloud: '#f4f6f8', clouds: 18,
 };
 
+// ── Günün saati: gündüz / gün batımı / gece ──
+export const TODS = { day: 'Gündüz', sunset: 'Gün batımı', night: 'Gece' };
+const TOD_PRESETS = {
+  sunset: {
+    sky: ['#2b3a73', '#e0794a', '#ffc47e'], fog: ['#d89c78', 0.55, 0.9], sun: ['#ff9c4e', 2.3], hemi: ['#ffb690', '#4a3a3e', 0.85],
+    cloud: '#ffb48c', sunPos: [-85, 26, 45], envI: 0.3, glow: 0.55,
+  },
+  night: {
+    sky: ['#050a18', '#10204a', '#233a68'], fog: ['#13203f', 0.35, 0.6], sun: ['#a9c2ff', 1.25], hemi: ['#6075b8', '#232a40', 1.0],
+    cloud: '#27304d', sunPos: [-45, 70, -35], envI: 0.2, glow: 1.5, stars: true,
+  },
+};
+
+export function todEnv(env = {}, sunPos, tod = 'day') {
+  const P = TOD_PRESETS[tod];
+  const E = { ...DEFAULT_ENV, ...env };
+  if (!P) return { E, sunPos, envI: 0.5, glow: 0, stars: false };
+  const fog = [P.fog[0], Math.max(12, E.fog[1] * P.fog[1]), Math.max(110, E.fog[2] * P.fog[2])];
+  return {
+    E: { ...E, sky: P.sky, fog, sun: P.sun, hemi: P.hemi, cloud: P.cloud },
+    sunPos: P.sunPos, envI: P.envI, glow: P.glow, stars: !!P.stars,
+  };
+}
+
 // env: harita bazlı atmosfer (gökyüzü renkleri, sis, güneş, bulut) — verilmeyen alan varsayılanı kullanır
-export function setupEnvironment(scene, renderer, { shadowSize = 85, sunPos = [60, 90, 40], env: envOpt = {} } = {}) {
-  const E = { ...DEFAULT_ENV, ...envOpt };
+export function setupEnvironment(scene, renderer, { shadowSize = 85, sunPos: sunPos0 = [60, 90, 40], env: envOpt = {}, tod = 'day' } = {}) {
+  const T = todEnv(envOpt, sunPos0, tod);
+  const E = T.E, sunPos = T.sunPos;
   const c = document.createElement('canvas');
   c.width = 4; c.height = 256;
   const g = c.getContext('2d');
@@ -27,7 +52,7 @@ export function setupEnvironment(scene, renderer, { shadowSize = 85, sunPos = [6
 
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-  scene.environmentIntensity = 0.5;
+  scene.environmentIntensity = T.envI;
 
   scene.add(new THREE.HemisphereLight(E.hemi[0], E.hemi[1], E.hemi[2]));
   const sun = new THREE.DirectionalLight(E.sun[0], E.sun[1]);
@@ -59,5 +84,23 @@ export function setupEnvironment(scene, renderer, { shadowSize = 85, sunPos = [6
     cl.rotation.y = rnd() * 6;
     scene.add(cl);
   }
-  return { sun };
+  if (T.stars) {
+    const n = 700, pos = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      const u = rnd() * 2 - 1, a = rnd() * Math.PI * 2, r = Math.sqrt(1 - u * u);
+      pos[i * 3] = Math.cos(a) * r * 480; pos[i * 3 + 1] = Math.abs(u) * 480 * 0.9 + 20; pos[i * 3 + 2] = Math.sin(a) * r * 480;
+    }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: '#dfe8ff', size: 2.2, sizeAttenuation: false, fog: false })));
+    const moon = new THREE.Mesh(new THREE.SphereGeometry(14, 14, 10), new THREE.MeshBasicMaterial({ color: '#f1f5ff', fog: false }));
+    moon.position.set(sunPos[0], sunPos[1], sunPos[2]).normalize().multiplyScalar(430);
+    scene.add(moon);
+  }
+  // ışıyan malzemeler (lamba / pencere): çağrıldığında sahnedekileri günün saatine göre ayarlar
+  const applyGlow = (root = scene) => root.traverse((o) => {
+    const ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
+    for (const m of ms) if (m.userData && m.userData.glow) m.emissiveIntensity = T.glow;
+  });
+  applyGlow();
+  return { sun, tod, night: tod === 'night', sunset: tod === 'sunset', sunPos, applyGlow };
 }

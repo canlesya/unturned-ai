@@ -21,8 +21,9 @@ const scene = new THREE.Scene();
 const t0 = performance.now();
 const map = MAPS[mapId].build();
 const sunPos = map.env?.sunPos || [60, 90, 40];
-setupEnvironment(scene, renderer, { env: map.env, sunPos });
+const envApi = setupEnvironment(scene, renderer, { env: map.env, sunPos, tod: q.get('tod') || 'day' });
 scene.add(map.group);
+envApi.applyGlow(map.group);
 console.log(`harita üretildi: ${map.name} ${(performance.now() - t0).toFixed(0)} ms, ${map.colliders.length} çarpışma kutusu`);
 
 const gh = (x, z) => (map.terrain ? map.terrain.heightAt(x, z) : 0);
@@ -101,20 +102,42 @@ const PRESETS = {
     ambar: { pos: [-20, 3, 12], target: [-32, 3.5, 22], fov: 60 },
   },
   us: {
-    aerial: { pos: [-95, 80, 100], target: [0, 0, 0], fov: 42 },
-    blue: { pos: [-62, 1.8, 0], target: [-20, 1.8, -2], fov: 64 },
-    red: { pos: [62, 1.8, 0], target: [20, 1.8, 2], fov: 64 },
-    street: { pos: [-40, 1.8, 2], target: [10, 3, -2], fov: 62 },
-    command: { pos: [-4, 2, 22], target: [0, 5, 0], fov: 62 },
-    commandin: { pos: [0, 1.7, 4.6], target: [0, 1.4, -4], fov: 74 },
-    hangar: { pos: [4, 1.8, -12], target: [0, 3, -33], fov: 64 },
-    hangarin: { pos: [0, 1.7, -27], target: [-3, 1.5, -38], fov: 74 },
-    radar: { pos: [-12, 2, 14], target: [0, 5, 34], fov: 62 },
-    radartop: { pos: [-2.5, 5.2, 41], target: [0, 4.5, 30], fov: 70 },
-    kisla: { pos: [-18, 1.8, 2], target: [-31, 2, 13], fov: 62 },
-    fuel: { pos: [14, 1.9, -8], target: [33, 3, -16], fov: 62 },
-    bunker: { pos: [-8, 1.8, -8], target: [-19, 1.4, -15], fov: 58 },
-    gate: { pos: [-56, 1.8, 0], target: [-44, 1.8, 0], fov: 70 },
+    aerial: { pos: [-118, 92, 124], target: [0, 0, 4], fov: 42 },
+    aerial2: { pos: [112, 80, -126], target: [0, 0, 0], fov: 44 },
+    blue: { pos: [-59, 2.0, 1], target: [-76, 1.4, -6], fov: 66 },
+    campaerial: { pos: [-50, 16, 24], target: [-70, 0, -2], fov: 56 },
+    red: { pos: [59, 2.0, -1], target: [76, 1.4, 6], fov: 66 },
+    gate: { pos: [-44, 1.8, 0], target: [-57, 1.8, 0], fov: 72 },
+    gateN: { pos: [-67, 1.8, -34], target: [-67, 1.8, -22], fov: 70 },
+    street: { pos: [-50, 1.8, -9], target: [20, 3, -2], fov: 62 },
+    avenue: { pos: [-30, 1.8, 2], target: [10, 3, -1], fov: 62 },
+    command: { pos: [-6, 2, 25], target: [0, 5, 0], fov: 62 },
+    commandin: { pos: [-3.4, 1.7, -6.2], target: [-3.4, 1.5, 5], fov: 76 },
+    commandin0: { pos: [4.2, 1.7, -6.2], target: [7.5, 1.3, -0.5], fov: 78 },
+    commandin1: { pos: [-3.4, 4.9, -6.2], target: [3.5, 4.3, 3], fov: 76 },
+    commandin2: { pos: [9.2, 8.1, 6.1], target: [-0.5, 7.4, -2.5], fov: 76 },
+    commandroof: { pos: [8, 11.2, 5.5], target: [-4, 10.4, -3], fov: 74 },
+    hangar: { pos: [-4, 2, -26], target: [0, 3, -45], fov: 64 },
+    hangarin: { pos: [0, 1.7, -37.5], target: [-3, 2.2, -50], fov: 76 },
+    hangarmezz: { pos: [-11, 4.7, -49.5], target: [8, 2.5, -42], fov: 76 },
+    radar: { pos: [-14, 2, 27], target: [0, 6, 44], fov: 62 },
+    radarin: { pos: [-1.6, 1.7, 48.2], target: [2, 1.4, 41], fov: 78 },
+    radartop: { pos: [-3.5, 11.6, 48], target: [2, 11.2, 40], fov: 74 },
+    tunnel: { pos: [-52.8, 1.7, -36], target: [-28, 1.7, -36], fov: 72 },
+    tunnelroof: { pos: [-46, 5.4, -40], target: [-28, 3.6, -36], fov: 66 },
+    tower: { pos: [-30, 7, -16], target: [-20, 5.5, -22], fov: 62 },
+    towertop: { pos: [-21, 8.4, -21], target: [-30, 7, -12], fov: 66 },
+    kisla: { pos: [-20, 1.8, 3], target: [-34, 2, 14], fov: 62 },
+    barracksin: { pos: [-36, 1.7, 8.5], target: [-40, 1.3, 14], fov: 76 },
+    mess: { pos: [-36, 1.7, -9.8], target: [-36, 1.4, -14], fov: 78 },
+    fuel: { pos: [14, 1.9, -8], target: [33, 3, -18], fov: 62 },
+    heli: { pos: [34, 2.5, -36], target: [36, 3, -47], fov: 62 },
+    ctower: { pos: [42, 1.8, -40], target: [51, 6, -44], fov: 62 },
+    maze: { pos: [-56, 1.8, 30], target: [-70, 2, 42], fov: 70 },
+    mazetop: { pos: [-60, 8, 30], target: [-70, 2, 44], fov: 70 },
+    garage: { pos: [-56, 2, -40], target: [-66, 2, -55], fov: 66 },
+    bunker: { pos: [-33, 1.8, -21], target: [-24, 1.4, -24], fov: 58 },
+    outside: { pos: [-120, 18, -40], target: [-60, 3, -30], fov: 56 },
   },
 };
 const PR = PRESETS[mapId] || PRESETS.kasaba;
@@ -142,6 +165,7 @@ if (q.get('target') && orbit) { orbit.target.set(...q.get('target').split(',').m
 
 document.getElementById('title').innerHTML = `Harita: ${map.name}<small>${shot}</small>`;
 document.getElementById('nav').style.display = 'none';
+if (q.get('clean') === '1') document.getElementById('title').style.display = 'none';
 
 const tmp = new THREE.Vector3();
 let frames = 0;

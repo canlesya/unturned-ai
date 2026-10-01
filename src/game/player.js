@@ -3,12 +3,19 @@ import { createWeapon } from '../models/weapons.js';
 import { createItem } from '../models/items.js';
 import { TEAMS } from '../core/palette.js';
 import { WSTATS } from './stats.js';
+import { reloadAnim, meleePose } from './anim.js';
 import { box } from '../core/geo.js';
 import { clamp, lerp, V3 } from './util.js';
 
 const VM_SCALE = 0.92;
 
 // ───────────── Birinci şahıs silah modeli ─────────────
+const Z = new THREE.Vector3(0, 0, 1);
+const REST_L = new THREE.Vector3(-0.2, -0.3, 0.2);      // sol el dinlenme (kullanılmıyorsa ekran dışı)
+const POUCH_VM = new THREE.Vector3(-0.3, -0.34, 0.3);   // yelek şarjör cebi (silah yerelinde)
+const MELEE_IDLE = { pos: [0.2, -0.2, -0.5], rx: 0.45, ry: 0.12, rz: -0.25 };
+const MELEE_SPRINT = { pos: [-0.04, 0.06, -0.06], rx: 0.65, ry: 0.3, rz: -0.1 };
+
 class ViewModel {
   constructor(game) {
     this.game = game;
@@ -24,17 +31,23 @@ class ViewModel {
     this.root = new THREE.Group();
     this.cam.add(this.root);
     this.model = null; this.id = null;
-    this.kick = 0; this.kickR = 0; this.bobT = 0; this.raise = 1; this.reloadMax = 1;
+    this.kick = 0; this.kickR = 0; this.bobT = 0; this.raise = 1; this.raiseRate = 3.5;
+    this.boltT = 0; this.hitKick = 0; this.throwT = 0; this.dryT = 0;
+    this.camRoll = 0; this.camPitch = 0;
     this.pos = new THREE.Vector3(0.2, -0.21, -0.66);
     this.flash = null; this.flashT = 0;
+    this.handL = null; this.handR = null;
   }
 
   setItem(id, team, kind, optic) {
     if (this.model) this.root.remove(this.model);
     this.id = id;
     this.raise = 1;
+    this.raiseRate = 1 / Math.max(0.15, Math.min(0.35, WSTATS[id]?.equip ?? 0.3));
+    this.boltT = 0;
     const c = TEAMS[team];
     const g = new THREE.Group();
+    this.flash = null;
     if (kind === 'medkit') {
       const m = createItem('medkit'); m.scale.setScalar(1.5); m.position.set(0, -0.08, 0); g.add(m);
       g.userData = { gripR: new THREE.Vector3(0.02, -0.02, 0.0), gripL: null, muzzle: new THREE.Vector3(), sight: [0, 0, 0], dist: 0.3, noAds: true };
@@ -43,27 +56,34 @@ class ViewModel {
       g.add(w);
       const st = WSTATS[id];
       g.userData = { ...w.userData, sight: w.userData.sight ?? st.sight, dist: w.userData.dist ?? st.dist };
-      // muzzle flash
-      const f = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 0.18), new THREE.MeshBasicMaterial({ color: '#ffd36a', transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }));
-      f.position.copy(w.userData.muzzle).add(new THREE.Vector3(0, 0, -0.08));
-      f.visible = false;
-      w.add(f);
-      this.flash = f;
+      if (kind === 'throwable' || kind === 'mine' || kind === 'ammobox' || kind === 'melee') g.userData.noAds = true;
+      if (kind === 'gun' || kind === 'launcher') {
+        // muzzle flash
+        const f = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 0.18), new THREE.MeshBasicMaterial({ color: '#ffd36a', transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }));
+        f.position.copy(w.userData.muzzle).add(new THREE.Vector3(0, 0, -0.08));
+        f.visible = false;
+        w.add(f);
+        this.flash = f;
+      }
     }
-    // eller + kollar (silaha bağlı)
+    // eller + kollar (silaha bağlı). Eller ayrı gruplardır: yükleme animasyonunda bağımsız hareket eder
     const hand = (p, side) => {
-      const gl = box(g, [0.1, 0.1, 0.12], c.gloves, [p.x, p.y, p.z]);
-      const from = new THREE.Vector3(p.x, p.y, p.z);
+      const grp = new THREE.Group();
+      grp.position.copy(p);
+      box(grp, [0.1, 0.1, 0.12], c.gloves, [0, 0, 0]);
       const dir = new THREE.Vector3(side * 0.12, -0.2, 0.42).normalize();
       const len = 0.5;
-      const sleeve = box(g, [0.11, 0.11, len], c.shirt, [0, 0, 0]);
-      sleeve.position.copy(from).addScaledVector(dir, len / 2 + 0.05);
-      sleeve.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir);
-      return gl;
+      const sleeve = box(grp, [0.11, 0.11, len], c.shirt, [0, 0, 0]);
+      sleeve.position.copy(dir).multiplyScalar(len / 2 + 0.05);
+      sleeve.quaternion.setFromUnitVectors(Z, dir);
+      g.add(grp);
+      return grp;
     };
     const u = g.userData;
-    if (u.gripR) hand(u.gripR.clone().add(new THREE.Vector3(0.0, -0.02, 0.0)), 1);
-    if (u.gripL) hand(u.gripL.clone().add(new THREE.Vector3(0, -0.03, 0)), -1);
+    this.handR = u.gripR ? hand(u.gripR.clone().add(new THREE.Vector3(0.0, -0.02, 0.0)), 1) : null;
+    this.hLfg = u.gripL ? u.gripL.clone().add(new THREE.Vector3(0, -0.03, 0)) : null;
+    this.handL = (kind === 'gun' || kind === 'launcher') ? hand(this.hLfg || REST_L, -1) : null;
+    if (this.handL && !this.hLfg) this.handL.visible = false;
     g.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
     this.model = g;
     this.root.add(g);
@@ -82,33 +102,95 @@ class ViewModel {
     const ads = u.noAds ? 0 : s.adsT;
     const tgt = this.adsTarget(u);
     const speed = Math.hypot(s.vel.x, s.vel.z);
+    const isMelee = st.kind === 'melee';
+    const isGun = st.kind === 'gun' || st.kind === 'launcher';
     this.bobT += dt * (speed > 0.5 && s.onGround ? 1 : 0) * (s.sprinting ? 12 : 8);
     const bobAmt = (1 - ads * 0.85) * clamp(speed / 5, 0, 1) * (s.sprinting ? 1.6 : 1);
     this.kick = Math.max(0, this.kick - dt * 6 * (0.2 + this.kick * 10));
     this.kickR = Math.max(0, this.kickR - dt * 5);
-    this.raise = Math.max(0, this.raise - dt * 3.2);
+    this.raise = Math.max(0, this.raise - dt * this.raiseRate);
+    this.hitKick = Math.max(0, this.hitKick - dt * 7);
+    this.throwT = Math.max(0, this.throwT - dt * 3);
+    this.dryT = Math.max(0, this.dryT - dt * 8);
+    this.boltT = Math.max(0, this.boltT - dt / 0.95);
+    const rz0 = this.raise * this.raise;
 
-    const pos = new THREE.Vector3().lerpVectors(hip, tgt, ads);
+    let pos = new THREE.Vector3().lerpVectors(hip, tgt, ads);
     pos.x += Math.sin(this.bobT) * 0.012 * bobAmt;
-    pos.y += Math.abs(Math.cos(this.bobT)) * 0.012 * bobAmt - this.raise * 0.35;
+    pos.y += Math.abs(Math.cos(this.bobT)) * 0.012 * bobAmt - rz0 * 0.38;
     pos.z += this.kick * (0.9 - ads * 0.6);
     let rx = this.kickR * (0.4 - ads * 0.3), ry = -0.04 * (1 - ads), rz = 0;
+    rx += this.dryT * 0.05 - rz0 * 0.5;
 
-    // sprint
+    // yeniden doldurma ilerlemesi
+    let ra = null;
+    if (s.reloadT > 0 && isGun) {
+      const el = s.reloadTotal - s.reloadT;
+      ra = reloadAnim(s.reloadStyle, clamp(el / s.reloadTotal, 0, 1), s.reloadEmpty, s.reloadStyle === 'shell' ? ((el / st.shell) % 1 + 1) % 1 : 0);
+    }
+
+    // sprint (bıçakta yukarıda tutulur; yüklerken sprint pozu azalır)
     const sp = s.sprinting ? 1 : 0;
     this.sprintT = lerp(this.sprintT || 0, sp, Math.min(1, dt * 9));
-    pos.x -= this.sprintT * 0.1; pos.y -= this.sprintT * 0.1; pos.z += this.sprintT * 0.05;
-    rx -= this.sprintT * 0.55; ry += this.sprintT * 0.7;
-
-    // yeniden doldurma / kullanım
-    const tot = this.reloadMax;
-    if (s.reloadT > 0 || s.useT > 0) {
-      const left = s.reloadT > 0 ? s.reloadT : s.useT;
-      const k = 1 - clamp(left / tot, 0, 1);
-      const b = Math.sin(k * Math.PI);
-      pos.y -= b * 0.18; pos.x -= b * 0.05;
-      rx -= b * 0.7; rz += b * 0.5;
+    const sprK = this.sprintT * (1 - (ra ? ra.tilt * 0.8 : 0));
+    if (isMelee) {
+      pos.x += MELEE_IDLE.pos[0] - hip.x; pos.y += MELEE_IDLE.pos[1] - hip.y; pos.z += MELEE_IDLE.pos[2] - hip.z;
+      rx += MELEE_IDLE.rx; ry += MELEE_IDLE.ry; rz += MELEE_IDLE.rz;
+      pos.x += MELEE_SPRINT.pos[0] * sprK; pos.y += MELEE_SPRINT.pos[1] * sprK; pos.z += MELEE_SPRINT.pos[2] * sprK;
+      rx += MELEE_SPRINT.rx * sprK; ry += MELEE_SPRINT.ry * sprK; rz += MELEE_SPRINT.rz * sprK;
+    } else {
+      pos.x -= sprK * 0.1; pos.y -= sprK * 0.1; pos.z += sprK * 0.05;
+      rx -= sprK * 0.55; ry += sprK * 0.7;
     }
+
+    // ── yükleme: silah yana yatar, sol el şarjöre/kemere gider, şarjör çıkar-takılır, kol şarjı ──
+    let camRoll = 0, camPitch = 0;
+    if (ra) {
+      pos.y -= ra.tilt * 0.07 + ra.slap * 0.012; pos.x -= ra.tilt * 0.05; pos.z += ra.slap * 0.035;
+      rx -= ra.tilt * 0.22 + ra.slap * 0.05; rz -= ra.tilt * 0.62; ry += ra.tilt * 0.3;
+    } else if (s.useT > 0) {
+      const tot = Math.max(0.5, st.useTime || 1.4);
+      const b = Math.sin(clamp(1 - s.useT / tot, 0, 1) * Math.PI);
+      pos.y -= b * 0.18; pos.x -= b * 0.05; rx -= b * 0.7; rz += b * 0.5;
+    }
+    // sürgülü: ateşten sonra sürgü çekilir (kısa el hareketi)
+    let boltK = 0;
+    if (u.bolt && !ra) { const b = 1 - this.boltT; boltK = this.boltT > 0 ? Math.sin(Math.PI * clamp((b - 0.22) / 0.55, 0, 1)) : 0; rz -= boltK * 0.35; pos.x -= boltK * 0.02; }
+    if (u.bolt) { const bb = ra ? ra.bolt : boltK; u.bolt.g.position.set(0, u.bolt.pivot, bb * 0.085); u.bolt.g.rotation.z = bb * 0.9; }
+    // şarjör alt grubu
+    if (u.mag) {
+      const ax = u.magAxis || [0, -1, 0], off = ra ? ra.magOut * 0.24 : 0;
+      u.mag.visible = ra ? ra.magVis : true;
+      u.mag.position.set(ax[0] * off, ax[1] * off, ax[2] * off);
+      u.mag.rotation.x = ra ? -ra.magOut * 0.35 : 0;
+    }
+    // sol el
+    if (this.handL) {
+      if (ra) {
+        this.handL.visible = true;
+        const fg = this.hLfg || REST_L;
+        const mg = u.magPos ? u.magPos.clone().add(new THREE.Vector3(0, -0.02, 0)) : new THREE.Vector3(0, -0.03, -0.03);
+        if (u.mag && ra.magOut > 0 && ra.w.mag > 0.4) mg.addScaledVector(new THREE.Vector3(...(u.magAxis || [0, -1, 0])), ra.magOut * 0.24);
+        const ch = new THREE.Vector3(0, 0.09, 0.02);
+        const w = ra.w;
+        this.handL.position.set(0, 0, 0).addScaledVector(fg, w.fg).addScaledVector(mg, w.mag).addScaledVector(POUCH_VM, w.pouch).addScaledVector(ch, w.charge);
+        this.handL.position.z += ra.charge * 0.1 * w.charge;    // kol şarjını geri çek
+      } else {
+        this.handL.visible = !!this.hLfg;
+        if (this.hLfg) this.handL.position.copy(this.hLfg);
+      }
+    }
+    // ── yakın dövüş savurması ──
+    if (isMelee && s.swing) {
+      const sw = s.swing;
+      const mpz = meleePose(sw.kind, clamp(sw.t / sw.dur, 0, 1));
+      pos.x += mpz.x * 1.25; pos.y += mpz.y * 1.25; pos.z += mpz.z * 1.25;
+      rx += mpz.rx; ry += mpz.ry; rz += mpz.rz;
+      camRoll = -mpz.ry * 0.025; camPitch = mpz.rx * 0.012;
+    }
+    // vuruş geri tepmesi ve fırlatma
+    pos.z += this.hitKick * 0.06; rx += this.hitKick * 0.18;
+    if (this.throwT > 0) { const t = 1 - this.throwT; pos.z += Math.sin(t * Math.PI) * 0.12; rx += Math.sin(Math.min(1, t * 1.4) * Math.PI) * -0.5; pos.y -= Math.sin(t * Math.PI) * 0.06; }
     // sallanma (mouse)
     this.sx = lerp(this.sx || 0, -p.lookDX * 0.0006, Math.min(1, dt * 12));
     this.sy = lerp(this.sy || 0, p.lookDY * 0.0006, Math.min(1, dt * 12));
@@ -118,6 +200,8 @@ class ViewModel {
     this.root.position.copy(pos);
     this.root.rotation.set(rx, ry, rz);
     this.root.scale.setScalar(VM_SCALE);
+    this.camRoll = lerp(this.camRoll, camRoll, Math.min(1, dt * 14));
+    this.camPitch = lerp(this.camPitch, camPitch, Math.min(1, dt * 14));
 
     if (this.flash) {
       this.flashT = Math.max(0, this.flashT - dt);
@@ -157,8 +241,17 @@ export class Player {
     game.on('spawn', (s) => { if (s === this.s) this.refreshWeapon(); });
     game.on('fire', (s) => { if (s === this.s) { this.vm.kick = Math.min(this.vm.kick + 0.045, 0.12); this.vm.kickR = Math.min(this.vm.kickR + 0.18, 0.5); this.vm.flashT = 0.045; } });
     game.on('bolt', (s) => { if (s === this.s) this.vm.kickR += 0.2; });
-    game.on('melee', (s) => { if (s === this.s) { this.vm.kick = 0.1; this.vm.kickR = 0.6; } });
-    game.on('reload', (s) => { if (s === this.s) this.vm.reloadMax = Math.max(0.5, s.reloadT || s.useT || 1); });
+    game.on('melee', (s) => { if (s === this.s) this.vm.kick = 0.02; });
+    game.on('meleehit', () => { this.vm.hitKick = 1; });
+    game.on('throw', (s) => { if (s === this.s) this.vm.throwT = 1; });
+    game.on('dry', (s) => { if (s === this.s) this.vm.dryT = 1; });
+    game.on('firemode', (s) => { if (s === this.s) { this.game.hud.toast('Atış modu: ' + (s.item.semi ? 'Yarı otomatik' : 'Otomatik'), '#cfe6ff'); this.vm.dryT = 1; } });
+    // flaşbang (beyaz) ve duman (gri) ekran örtüsü: HUD'dan bağımsız, kendi katmanı
+    const ov = (this.fx = document.createElement('div'));
+    ov.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:4;opacity:0;background:#fff';
+    const sm = (this.fxSmoke = document.createElement('div'));
+    sm.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:3;opacity:0;background:#9aa0a6';
+    document.body.append(sm, ov);
   }
 
   refreshWeapon() {
@@ -181,6 +274,7 @@ export class Player {
       if (s.alive && e.code === 'KeyB') { const o = s.cycleOptic(); if (o) this.game.hud.toast('Nişangâh: ' + o.label, '#cfe6ff'); }
       if (e.code.startsWith('Digit')) { const n = +e.code.slice(5) - 1; if (n >= 0 && n < 4) s.switchTo(n); }
       if (e.code === 'KeyV') s.switchTo(3);
+      if (e.code === 'KeyX' && s.alive) s.toggleFireMode();
       if (e.code === 'KeyG') s.switchTo(2);
       if (e.code === 'Tab') { e.preventDefault(); this.game.hud.showScoreboard(true); }
       if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
@@ -226,7 +320,7 @@ export class Player {
     s.pitch = clamp(s.pitch - dy, -1.5, 1.5);
   }
 
-  dispose() { for (const [t, ev, fn, opt] of this._bound) t.removeEventListener(ev, fn, opt); this._bound = []; }
+  dispose() { for (const [t, ev, fn, opt] of this._bound) t.removeEventListener(ev, fn, opt); this._bound = []; this.fx?.remove(); this.fxSmoke?.remove(); }
 
   update(dt) {
     const s = this.s, g = this.game;
@@ -246,7 +340,7 @@ export class Player {
       const lean = (k.has('KeyE') ? 1 : 0) - (k.has('KeyQ') ? 1 : 0);
       s.leanDir = lean;
       const wantSprint = k.has('ShiftLeft') && f > 0 && !s.ads && s.onGround && !s.prone && lean === 0;
-      s.sprinting = wantSprint && s.reloadT <= 0;
+      s.sprinting = wantSprint;                     // yüklerken de koşulabilir
       if (s.sprinting) { s.crouching = false; if (s.prone) s.prone = false; }
       let spd = 4.4 * s.def.speed * (st.move || 1);
       if (s.sprinting) spd *= 1.5;
@@ -266,7 +360,8 @@ export class Player {
 
       // ateş
       if (this.locked) {
-        if (st.auto) { if (this.fireHeld) s.tryFire(); }
+        if (st.kind === 'melee') { if (this.fireHeld || this.fireBuf > 0) { if (s.tryFire()) this.fireBuf = 0; } }
+        else if (s.fireAuto) { if (this.fireHeld) s.tryFire(); }
         else if (this.fireBuf > 0 && s.tryFire()) this.fireBuf = 0;
       }
       // adım sesi
@@ -290,9 +385,9 @@ export class Player {
       s.eye(cam.position);
       cam.rotation.order = 'YXZ';
       cam.rotation.set(
-        s.pitch + s.recoilP + (Math.random() - 0.5) * sh * 0.06,
+        s.pitch + s.recoilP + (Math.random() - 0.5) * sh * 0.06 + this.vm.camPitch,
         s.yaw + (Math.random() - 0.5) * sh * 0.06,
-        -s.leanT * 0.2,
+        -s.leanT * 0.2 + this.vm.camRoll + (Math.random() - 0.5) * sh * 0.03,
       );
       this.camPos.copy(cam.position);
     } else {
@@ -308,6 +403,11 @@ export class Player {
       cam.rotation.set(Math.max(-0.2, s.pitch * (1 - t) - t * 0.15), s.yaw, t * 0.5);
     }
     g.sfx.setListener(cam);
+    // ekran örtüleri
+    const bl = s.alive && s.blindT > 0 ? Math.min(1, s.blindT / (Math.max(0.5, s.blindMax) * 0.5)) : 0;
+    this.fx.style.opacity = bl.toFixed(2);
+    const sd = s.alive ? (g.smokeDensity?.(cam.position) || 0) : 0;
+    this.fxSmoke.style.opacity = (sd * 0.92).toFixed(2);
     this.vm.update(dt, this);
     this.lookDX *= 0.5; this.lookDY *= 0.5;
   }
