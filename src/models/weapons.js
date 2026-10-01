@@ -23,6 +23,18 @@ function railTicks(g, z0, z1, y, n, color = C.black) {
   }
 }
 
+
+// Kırmızı nokta (reflex) nişangâh: açık pencereli çerçeve + cam + parlayan kırmızı nokta.
+// yBase = monte edildiği yüzeyin üstü; pencere merkezi yBase + 0.032*s döner.
+function reflex(g, x, yBase, z, s = 1) {
+  const blk = C.black;
+  box(g, [0.036 * s, 0.008 * s, 0.06 * s], blk, [x, yBase + 0.004 * s, z]);                                   // taban
+  for (const sx of [-1, 1]) box(g, [0.005 * s, 0.038 * s, 0.05 * s], blk, [x + sx * 0.0165 * s, yBase + 0.027 * s, z]); // yan direkler
+  box(g, [0.036 * s, 0.005 * s, 0.05 * s], blk, [x, yBase + 0.0485 * s, z]);                                  // üst bant
+  box(g, [0.028 * s, 0.038 * s, 0.002 * s], '#a8d8ff', [x, yBase + 0.027 * s, z - 0.02 * s], null, { transparent: true, opacity: 0.14, roughness: 0.1, depthWrite: false, metalness: 0.3 });
+  return yBase + 0.027 * s;   // pencere merkezi
+}
+
 // ───────────────────────── AK-47 ─────────────────────────
 function ak47() {
   const g = new THREE.Group();
@@ -44,7 +56,7 @@ function ak47() {
   box(g, [0.018, 0.05, 0.022], C.steel, [0, 0.045, -0.66]);                    // arpacık kulesi
   box(g, [0.006, 0.03, 0.006], C.steel, [0, 0.085, -0.66]);
   cyl(g, 0.015, 0.015, 0.05, C.black, [0, 0.015, -0.7], 8, M);                 // namlu ucu
-  box(g, [0.028, 0.016, 0.05], C.steel, [0, 0.096, -0.21]);                    // arka gez
+  reflex(g, 0, 0.09, -0.1);                                                    // kırmızı nokta
   // ahşap dipçik
   taperBox(g, [0.046, 0.115, 0.3], C.wood, [0, -0.015, 0.24], [0.1, 0, 0], [1, 1], [1, 1]);
   box(g, [0.05, 0.12, 0.014], C.black, [0, -0.03, 0.4], [0.1, 0, 0]);
@@ -66,10 +78,7 @@ function m4a1() {
   cyl(g, 0.01, 0.01, 0.12, C.steel, [0, 0.05, -0.59], 8, M);
   cyl(g, 0.016, 0.016, 0.065, C.black, [0, 0.05, -0.66], 8, M);                // alev gizleyici
   box(g, [0.014, 0.04, 0.016], C.steel, [0, 0.105, -0.55]);                    // arpacık
-  // kırmızı nokta nişangah
-  box(g, [0.04, 0.012, 0.075], C.black, [0, 0.1, -0.14]);
-  box(g, [0.04, 0.05, 0.012], C.black, [0, 0.13, -0.105]);
-  box(g, [0.036, 0.036, 0.008], C.lens, [0, 0.135, -0.172], null, { emissive: C.lens, emissiveIntensity: 0.6, transparent: true, opacity: 0.8 });
+  reflex(g, 0, 0.0895, -0.14);                                                 // kırmızı nokta
   // şarjör, kabza, ön kabza
   box(g, [0.038, 0.16, 0.062], C.steel, [0, -0.105, -0.115], [0.1, 0, 0], M);
   box(g, [0.042, 0.105, 0.05], C.black, [0, -0.075, 0.04], [0.3, 0, 0]);
@@ -91,7 +100,7 @@ function mp5() {
   cyl(g, 0.016, 0.016, 0.07, C.steel, [0, 0.025, -0.44], 8, M);                // namlu manşonu
   cyl(g, 0.01, 0.01, 0.05, C.steel, [0, 0.025, -0.49], 8, M);
   box(g, [0.012, 0.035, 0.016], C.steel, [0, 0.075, -0.45]);                   // arpacık
-  box(g, [0.03, 0.03, 0.03], C.steel, [0, 0.07, -0.01]);                       // arka gez
+  reflex(g, 0, 0.0575, -0.08);                                                 // kırmızı nokta
   box(g, [0.04, 0.04, 0.05], C.black, [0, 0.0, -0.01]);
   box(g, [0.012, 0.012, 0.1], C.steel, [0, -0.045, -0.04]);
   box(g, [0.04, 0.105, 0.05], C.black, [0, -0.07, 0.045], [0.3, 0, 0]);
@@ -118,8 +127,7 @@ function pistol() {
   box(g, [0.01, 0.012, 0.07], C.black, [0, -0.012, -0.04]);                      // tetik koruması
   box(g, [0.01, 0.03, 0.01], C.black, [0, -0.005, -0.075]);
   cyl(g, 0.009, 0.009, 0.03, C.steel, [0, 0.05, -0.165], 8, M);
-  box(g, [0.01, 0.012, 0.014], C.steel, [0, 0.078, -0.14]);
-  box(g, [0.018, 0.012, 0.014], C.steel, [0, 0.078, 0.025]);
+  reflex(g, 0, 0.071, -0.02, 0.75);                                           // mini kırmızı nokta
   for (let i = 0; i < 4; i++) box(g, [0.036, 0.03, 0.005], C.black, [0, 0.055, 0.025 + i * 0.012]); // sürgü tırtılı
   return finish(g, {
     name: 'Glock 17', hold: 'pistol', gripR: [0, -0.03, 0.02], gripL: null, muzzle: [0, 0.05, -0.18], length: 0.28,
@@ -134,6 +142,7 @@ function shotgun() {
   cyl(g, 0.014, 0.014, 0.48, C.gun, [0, -0.0, -0.38], 8, M);                     // şarjör tüpü
   cyl(g, 0.018, 0.018, 0.02, C.steel, [0, -0.0, -0.63], 8, M);
   box(g, [0.008, 0.016, 0.008], C.brass, [0, 0.068, -0.65]);                     // arpacık
+  reflex(g, 0, 0.0575, -0.03);                                                  // kırmızı nokta
   box(g, [0.062, 0.05, 0.17], C.woodDark, [0, -0.01, -0.3]);                    // pompa
   for (let i = 0; i < 3; i++) box(g, [0.066, 0.052, 0.01], C.black, [0, -0.01, -0.36 + i * 0.05]);
   box(g, [0.012, 0.012, 0.09], C.steel, [0, -0.047, -0.01]);
@@ -198,6 +207,7 @@ function lmg() {
   box(g, [0.07, 0.06, 0.2], C.black, [0, 0.025, -0.45]);
   cyl(g, 0.016, 0.016, 0.28, C.steel, [0, 0.028, -0.65], 8, M);
   cyl(g, 0.022, 0.022, 0.07, C.black, [0, 0.028, -0.8], 8, M);
+  reflex(g, 0, 0.111, -0.1);                                                    // kırmızı nokta
   // taşıma sapı
   box(g, [0.012, 0.07, 0.012], C.steel, [0, 0.085, -0.58]);
   box(g, [0.012, 0.012, 0.1], C.steel, [0, 0.12, -0.58]);

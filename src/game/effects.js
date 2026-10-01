@@ -21,7 +21,7 @@ export class Effects {
     this.boom = new THREE.PointLight('#ff9a3c', 0, 40, 2);
     this.boom.userData = { life: 0, max: 0.35, peak: 80 };
     scene.add(this.boom);
-    this._decalGeo = new THREE.PlaneGeometry(0.14, 0.14);
+    this._decalGeo = new THREE.PlaneGeometry(0.2, 0.2);
     this._decalMat = new THREE.MeshBasicMaterial({ color: '#1a1a1a', transparent: true, opacity: 0.75, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
     this._scorchMat = new THREE.MeshBasicMaterial({ color: '#0d0d0d', transparent: true, opacity: 0.6, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 });
     this._tracerMat = new THREE.MeshBasicMaterial({ color: '#ffe9a0', transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
@@ -32,7 +32,8 @@ export class Effects {
     if (len < 1) return;
     const m = new THREE.Mesh(boxGeo, this._tracerMat);
     m.position.copy(from).lerp(to, 0.5);
-    m.scale.set(0.012, 0.012, len);
+    const w = 0.014 + Math.min(len, 150) * 0.00035;
+    m.scale.set(w, w, len);
     m.lookAt(to);
     m.userData.life = 0.07;
     this.scene.add(m);

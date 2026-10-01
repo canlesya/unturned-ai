@@ -266,16 +266,13 @@ export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0,
       if (api.weapon) mount.remove(api.weapon);
       const w = id ? createWeapon(id) : null;
       api.weapon = w;
-      if (w) {
-        mount.add(w);
-        applyPose(api, w);
-      } else {
-        poseArm(armR, armR.shoulder.clone().add(V(0.02, -0.6, 0.04)));
-        poseArm(armL, armL.shoulder.clone().add(V(-0.02, -0.6, 0.04)));
-      }
+      if (w) mount.add(w);
+      applyPose(api, w);
       if (api.groundOffset === undefined) { groundFeet(root); api.groundOffset = root.position.y; } else root.position.y = api.groundOffset;
       return w;
     },
+    // Her kare: koşu pozu, geri tepme, gövde bükülmesi, kol sallanması ile kolları yeniden çöz
+    refreshHold(o) { applyPose(api, api.weapon, o); },
   };
 
   const wid = weapon === undefined ? null : weapon || CLASSES[cls].weapon[team];
@@ -292,21 +289,39 @@ const MOUNTS = {
   melee: { pos: [0.2, 0.0, -0.36], rotX: -0.5 },
   grenade: { pos: [0.18, 0.12, -0.38], rotX: 0.0 },
 };
+// koşarken silah aşağıda, gövdeye yakın ("low ready")
+const SPRINT = {
+  rifle: { pos: [0.1, -0.04, -0.2], rotX: -0.8, yaw: 0.28 },
+  pistol: { pos: [0.1, 0.0, -0.28], rotX: -0.9, yaw: 0.2 },
+  launcher: { pos: [0.16, 0.12, -0.1], rotX: -0.3, yaw: 0.2 },
+  melee: { pos: [0.18, -0.06, -0.3], rotX: -0.6, yaw: 0.1 },
+  grenade: { pos: [0.16, 0.02, -0.28], rotX: -0.5, yaw: 0.1 },
+};
+const mix = (a, b, t) => a + (b - a) * t;
 
-function applyPose(api, w) {
+// o: { sprint (0..1), kick (0..1), twist (rad), swing (-1..1) }
+function applyPose(api, w, o = {}) {
+  const { sprint = 0, kick = 0, twist = 0, swing = 0 } = o;
   const { torso, head, mount, armR, armL } = api.parts;
-  const hold = w.userData.hold;
-  const m = MOUNTS[hold] || MOUNTS.rifle;
   const blade = api.blade;
-  torso.rotation.y = -blade;
-  head.rotation.y = blade * 0.92;
-  mount.position.set(...m.pos);
-  mount.rotation.set(m.rotX, blade, 0);
+  torso.rotation.y = -blade + twist;
+  head.rotation.y = blade * 0.92 - twist * 0.9;
+  if (!w) {
+    // silahsız: kollar ters yönde sallanır
+    const k = 0.6 + 0.12 * sprint;
+    poseArm(armR, armR.shoulder.clone().add(V(0.03, -Math.cos(swing * 0.9) * k, 0.04 - swing * 0.32)));
+    poseArm(armL, armL.shoulder.clone().add(V(-0.03, -Math.cos(swing * 0.9) * k, 0.04 + swing * 0.32)));
+    return;
+  }
+  const hold = w.userData.hold;
+  const m = MOUNTS[hold] || MOUNTS.rifle, sp = SPRINT[hold] || SPRINT.rifle;
+  mount.position.set(mix(m.pos[0], sp.pos[0], sprint), mix(m.pos[1], sp.pos[1], sprint), mix(m.pos[2], sp.pos[2], sprint) + kick * 0.05);
+  mount.rotation.set(mix(m.rotX, sp.rotX, sprint) + kick * 0.07, blade + sprint * sp.yaw, 0);
   mount.updateMatrix();
   const toTorso = (v) => v.clone().applyMatrix4(mount.matrix);
   poseArm(armR, toTorso(w.userData.gripR));
   if (w.userData.gripL) poseArm(armL, toTorso(w.userData.gripL));
-  else poseArm(armL, armL.shoulder.clone().add(V(-0.03, -0.58, -0.05)));
+  else poseArm(armL, armL.shoulder.clone().add(V(-0.03, -0.55, -0.05 + swing * 0.3)));
 }
 
 function groundFeet(root) {

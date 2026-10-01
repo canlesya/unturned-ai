@@ -37,7 +37,7 @@ export class Soldier {
     this.alive = false;
     this.kills = 0; this.deaths = 0; this.score = 0;
     this.respawnT = 0; this.protT = 0;
-    this.recoilP = 0; this.bloom = 0;
+    this.recoilP = 0; this.bloom = 0; this.sinceShot = 9;
     this.cd = 0; this.reloadT = 0; this.switchT = 0; this.useT = 0;
     this.lastHit = null; this.lastDmgT = -99;
     this.walkPhase = 0; this.deadT = 0; this.deadDir = 1; this.flashT = 0;
@@ -115,13 +115,15 @@ export class Soldier {
   }
 
   spreadNow(st) {
-    let hipv = st.hip ?? 0.02, adsv = st.ads ?? 0.005;
+    const hipv = st.hip ?? 0.01, adsv = st.ads ?? 0.002;
     const speed = Math.hypot(this.vel.x, this.vel.z);
     let s = lerp(hipv, adsv, this.adsT);
-    s += Math.min(speed * 0.0018, 0.012) * (1 - this.adsT * 0.7);
-    if (!this.onGround) s += 0.025;
-    if (this.crouching) s *= 0.75;
-    s += this.bloom;
+    s += Math.min(speed * 0.0007, 0.0045) * (1 - this.adsT * 0.65);   // hareket cezası
+    if (!this.onGround) s += 0.012;
+    if (this.crouching) s *= 0.7;
+    s += this.bloom;                                                   // seri atışta açılma
+    // duran oyuncunun ilk atışı (kısa bir aradan sonra) isabetli olsun
+    if (this.sinceShot > 0.3 && speed < 1.5 && this.onGround) s *= 0.2;
     return s + this.botExtraSpread;
   }
 
@@ -168,10 +170,12 @@ export class Soldier {
     g.effects.muzzle(muzzle, base);
     g.sfx.shot(st.sound, this.pos);
     this.flashT = 0.06;
-    this.bloom = Math.min(this.bloom + (st.kickV || 0.01) * 0.12, 0.02);
+    this.sinceShot = 0;
+    this.bloom = Math.min(this.bloom + (st.kickV || 0.01) * 0.07, 0.005);
     if (this.isPlayer) {
       const k = (st.kickV || 0.01) * (this.adsT > 0.5 ? 0.7 : 1);
-      this.recoilP += k;
+      this.pitch = Math.min(1.45, this.pitch + k * 0.55);   // kalıcı tırmanma: oyuncu aşağı çekerek telafi eder
+      this.recoilP += k * 0.45;
       this.yaw += rand(-1, 1) * (st.kickH || 0.004);
       this.game.emit('fire', this);
     } else if (this.model.weapon) this.game.noiseAlert?.(this);
@@ -270,7 +274,8 @@ export class Soldier {
     this.switchT = Math.max(0, this.switchT - dt);
     this.protT = Math.max(0, this.protT - dt);
     this.flashT = Math.max(0, this.flashT - dt);
-    this.bloom = Math.max(0, this.bloom - dt * 0.03);
+    this.sinceShot += dt;
+    this.bloom = Math.max(0, this.bloom - dt * 0.05);
     this.recoilP = Math.max(0, this.recoilP - dt * (0.06 + this.recoilP * 4.5));
     if (this.reloadT > 0) {
       this.reloadT -= dt;
@@ -297,7 +302,7 @@ export class Soldier {
     this.eyeY = lerp(EYE_STAND, EYE_CROUCH, this.crouchT);
   }
 
-  // Üçüncü şahıs model senkronu (oyuncu hariç)
+  // Üçüncü şahıs model senkronu (oyuncu hariç): hıza bağlı adım döngüsü, gövde eğimi, kol sallanması
   syncModel(dt) {
     const m = this.model, root = m.root, p = m.parts;
     if (this.isPlayer) { root.visible = false; return; }
@@ -311,18 +316,51 @@ export class Soldier {
       return;
     }
     root.rotation.x = 0;
-    p.torso.rotation.x = clamp(this.pitch + this.recoilP, -0.9, 0.9) * 0.7;
-    const sp = Math.hypot(this.vel.x, this.vel.z);
-    this.walkPhase += sp * dt * 2.4;
-    const amp = clamp(sp / 5.5, 0, 1) * 0.75 * (this.onGround ? 1 : 0.3);
-    const sw = Math.sin(this.walkPhase) * amp;
+    const T = this.game.time;
+    const vx = this.vel.x, vz = this.vel.z, spd = Math.hypot(vx, vz);
+    const fwdV = vx * -Math.sin(this.yaw) + vz * -Math.cos(this.yaw);
+    const sideV = vx * Math.cos(this.yaw) + vz * -Math.sin(this.yaw);
     const c = this.crouchT;
-    const L = p.legs.L, R = p.legs.R;
-    L.hip.rotation.x = lerp(0.22 + sw, 0.9, c);
-    R.hip.rotation.x = lerp(-0.2 - sw, 0.7, c);
-    L.knee.rotation.x = lerp(-0.18 - Math.max(0, -sw) * 1.0, -1.6, c);
-    R.knee.rotation.x = lerp(0.22 - Math.max(0, sw) * 1.0 * 1.0 - 0.2, -1.5, c);
-    L.hip.position.y = R.hip.position.y = 0.88 - 0.27 * c;
-    p.torso.position.y = 1.17 - 0.27 * c;
+    this.airT = lerp(this.airT || 0, this.onGround ? 0 : 1, Math.min(1, dt * 10));
+    this.sprintT = lerp(this.sprintT || 0, this.sprinting && fwdV > 2 ? 1 : 0, Math.min(1, dt * 8));
+    const moveAmt = clamp(spd / 1.3, 0, 1) * (1 - this.airT);
+    const run = clamp((spd - 3.4) / 3.0, 0, 1);
+    const sideBlend = spd > 0.3 ? Math.abs(sideV) / (Math.abs(fwdV) + Math.abs(sideV) + 1e-4) : 0;
+    const dir = fwdV < -0.4 && Math.abs(fwdV) > Math.abs(sideV) ? -1 : 1;
+    const stride = lerp(1.55, 2.3, run) * (1 - 0.15 * c);                 // bir tam adım döngüsü (m)
+    this.walkPhase += dir * (spd / stride) * Math.PI * 2 * dt * (this.onGround ? 1 : 0.2);
+    const ph = this.walkPhase;
+    const amp = lerp(0.46, 0.86, run) * (1 - 0.5 * c) * (1 - 0.55 * sideBlend) * (dir < 0 ? 0.75 : 1);
+    const flexMax = lerp(0.55, 1.4, run) * (1 - 0.4 * c);
+    const sideSign = Math.sign(sideV) || 0;
+
+    const legs = [[p.legs.L, ph, 0.22, -0.18, 0.9, -1.6, 0.65, -1.0], [p.legs.R, ph + Math.PI, -0.2, 0.22, 0.7, -1.5, -0.15, -0.5]];
+    for (const [lg, phi, idleHip, idleKnee, crHip, crKnee, airHip, airKnee] of legs) {
+      const sw = Math.sin(phi) * amp;
+      const flex = Math.max(0, Math.cos(phi)) * flexMax;
+      let hip = lerp(idleHip, 0.05 + sw, moveAmt);
+      let knee = lerp(idleKnee, -(0.14 + flex), moveAmt);
+      hip = lerp(hip, crHip + sw * 0.6 * moveAmt, c);
+      knee = lerp(knee, crKnee - flex * 0.4 * moveAmt, c);
+      hip = lerp(hip, airHip, this.airT);
+      knee = lerp(knee, airKnee, this.airT);
+      lg.hip.rotation.x = hip;
+      lg.knee.rotation.x = knee;
+      lg.hip.rotation.z = sideSign * 0.3 * Math.sin(phi) * sideBlend * moveAmt;   // yan adımda bacak açılması
+      lg.hip.position.y = 0.88 - 0.27 * c;
+    }
+
+    // gövde: öne eğim, hafif burulma, ağırlık aktarımı, nefes
+    const breathe = Math.sin(T * 1.7 + this.id) * 0.004 * (1 - moveAmt);
+    const lean = -(0.03 * moveAmt + 0.17 * run * moveAmt) - 0.09 * c;
+    const aimP = clamp(this.pitch + this.recoilP, -0.9, 0.9) * 0.7;
+    p.torso.rotation.x = aimP + lean;
+    p.torso.rotation.z = Math.sin(ph) * 0.035 * moveAmt * (1 + run);
+    p.torso.position.y = 1.17 - 0.27 * c + breathe;
+    p.head.rotation.x = -lean * 0.7 - aimP * 0.25;
+    root.position.y -= (0.018 + 0.035 * run) * moveAmt * Math.sin(ph) ** 2;    // adım sırasında hafif çökme
+    const twist = Math.sin(ph) * (0.05 + 0.08 * run) * moveAmt;
+    const swing = Math.sin(ph + Math.PI) * moveAmt * (0.5 + 0.5 * run);
+    m.refreshHold({ sprint: this.sprintT, kick: clamp(this.flashT / 0.06, 0, 1), twist, swing });
   }
 }

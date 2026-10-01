@@ -6,6 +6,8 @@ import { WSTATS } from './stats.js';
 import { box } from '../core/geo.js';
 import { clamp, lerp, V3 } from './util.js';
 
+const VM_SCALE = 0.92;
+
 // ───────────── Birinci şahıs silah modeli ─────────────
 class ViewModel {
   constructor(game) {
@@ -39,7 +41,8 @@ class ViewModel {
     } else {
       const w = createWeapon(id);
       g.add(w);
-      g.userData = w.userData;
+      const st = WSTATS[id];
+      g.userData = { ...w.userData, sight: st.sight, dist: st.dist };
       // muzzle flash
       const f = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 0.18), new THREE.MeshBasicMaterial({ color: '#ffd36a', transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }));
       f.position.copy(w.userData.muzzle).add(new THREE.Vector3(0, 0, -0.08));
@@ -68,7 +71,8 @@ class ViewModel {
 
   adsTarget(u) {
     const [sx, sy, sz] = u.sight || [0, 0.1, -0.1];
-    return new THREE.Vector3(-sx, -sy, -(u.dist ?? 0.3) - sz);
+    const k = VM_SCALE;   // model ölçeklendiği için nişan noktası da ölçeklenir
+    return new THREE.Vector3(-sx * k, -sy * k, -(u.dist ?? 0.3) - sz * k);
   }
 
   update(dt, p) {
@@ -113,7 +117,7 @@ class ViewModel {
 
     this.root.position.copy(pos);
     this.root.rotation.set(rx, ry, rz);
-    this.root.scale.setScalar(0.92);
+    this.root.scale.setScalar(VM_SCALE);
 
     if (this.flash) {
       this.flashT = Math.max(0, this.flashT - dt);

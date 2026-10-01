@@ -27,6 +27,7 @@ const CSS = `
 #cross .l{left:calc(-8px - var(--g,6px))}#cross .r{left:var(--g,6px)}#cross .t{top:calc(-8px - var(--g,6px))}#cross .b{top:var(--g,6px)}
 #cross .dot{width:3px;height:3px;left:-1.5px;top:-1.5px;border-radius:50%}
 #cross.ads span:not(.dot){display:none}
+#rdot{position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:#ff2a1a;box-shadow:0 0 6px 2px #ff2a1acc,0 0 14px 5px #ff2a1a55;display:none}
 #hitm{position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;opacity:0;transition:opacity .25s}
 #hitm::before,#hitm::after{content:'';position:absolute;left:12px;top:-2px;width:2px;height:30px;background:#fff;transform:rotate(45deg)}
 #hitm::after{transform:rotate(-45deg)}
@@ -89,7 +90,7 @@ export class Hud {
       <div id="vig"></div><div id="arrows"></div>
       <div id="scope"></div>
       <div id="cross"><span class="h l"></span><span class="h r"></span><span class="v t"></span><span class="v b"></span><span class="dot"></span></div>
-      <div id="hitm"></div>
+      <div id="rdot"></div><div id="hitm"></div>
       <div id="msg"></div>
       <div id="vitals"><div class="cls" id="clsname"></div><div id="hpnum">100</div><div id="hpbar"><div id="hpfill"></div></div></div>
       <div id="ammo"><div class="nm" id="wname"></div><div class="n"><span id="mag">0</span> <small id="res">/ 0</small></div><div id="slots"></div></div>
@@ -261,6 +262,9 @@ export class Hud {
     const showCross = p.alive && !(st.scope && p.adsT > 0.5);
     cross.style.display = showCross ? 'block' : 'none';
     cross.classList.toggle('ads', p.adsT > 0.5);
+    const dotOn = p.alive && st.dot && p.adsT > 0.6;
+    $('rdot').style.display = dotOn ? 'block' : 'none';
+    if (dotOn) cross.style.display = 'none';
     const spread = p.spreadNow(st) * 900;
     cross.style.setProperty('--g', clamp(3 + spread, 3, 60) + 'px');
     $('scope').style.display = st.scope && p.adsT > 0.9 && p.alive ? 'block' : 'none';

@@ -4,38 +4,38 @@
 export const WSTATS = {
   ak47: {
     name: 'AK-47', kind: 'gun', auto: true, dmg: 34, rpm: 600, mag: 30, reserve: 120, reload: 2.5,
-    hip: 0.024, ads: 0.004, kickV: 0.017, kickH: 0.006, range: [35, 110], minMul: 0.6, zoom: 1.25, move: 0.95,
-    sight: [0, 0.118, -0.21], dist: 0.34, sound: 'rifle',
+    hip: 0.0085, ads: 0.0012, kickV: 0.017, kickH: 0.006, range: [35, 110], minMul: 0.6, zoom: 1.25, move: 0.95,
+    sight: [0, 0.117, -0.1], dist: 0.28, dot: true, sound: 'rifle',
   },
   m4a1: {
     name: 'M4A1', kind: 'gun', auto: true, dmg: 28, rpm: 750, mag: 30, reserve: 150, reload: 2.2,
-    hip: 0.02, ads: 0.0035, kickV: 0.012, kickH: 0.0045, range: [40, 120], minMul: 0.62, zoom: 1.5, move: 1.0,
-    sight: [0, 0.172, -0.14], dist: 0.34, sound: 'rifle',
+    hip: 0.007, ads: 0.0008, kickV: 0.012, kickH: 0.0045, range: [40, 120], minMul: 0.62, zoom: 1.5, move: 1.0,
+    sight: [0, 0.1165, -0.14], dist: 0.28, dot: true, sound: 'rifle',
   },
   mp5: {
     name: 'MP5', kind: 'gun', auto: true, dmg: 22, rpm: 820, mag: 30, reserve: 150, reload: 2.0,
-    hip: 0.022, ads: 0.0045, kickV: 0.009, kickH: 0.0045, range: [20, 70], minMul: 0.5, zoom: 1.25, move: 1.05,
-    sight: [0, 0.106, -0.01], dist: 0.34, sound: 'smg',
+    hip: 0.0085, ads: 0.0014, kickV: 0.009, kickH: 0.0045, range: [20, 70], minMul: 0.5, zoom: 1.25, move: 1.05,
+    sight: [0, 0.0845, -0.08], dist: 0.28, dot: true, sound: 'smg',
   },
   pistol: {
     name: 'Glock 17', kind: 'gun', auto: false, dmg: 24, rpm: 420, mag: 15, reserve: 60, reload: 1.5,
-    hip: 0.018, ads: 0.006, kickV: 0.018, kickH: 0.004, range: [15, 55], minMul: 0.5, zoom: 1.2, move: 1.05,
-    sight: [0, 0.1, 0.025], dist: 0.34, sound: 'pistol',
+    hip: 0.006, ads: 0.0016, kickV: 0.018, kickH: 0.004, range: [15, 55], minMul: 0.5, zoom: 1.2, move: 1.05,
+    sight: [0, 0.0913, -0.02], dist: 0.28, dot: true, sound: 'pistol',
   },
   shotgun: {
     name: 'Pompalı', kind: 'gun', auto: false, dmg: 11, pellets: 9, rpm: 70, mag: 6, reserve: 30, reload: 3.0,
-    hip: 0.055, ads: 0.04, kickV: 0.04, kickH: 0.01, range: [12, 32], minMul: 0.15, zoom: 1.15, move: 0.97,
-    sight: [0, 0.092, -0.1], dist: 0.34, sound: 'shotgun',
+    hip: 0.05, ads: 0.032, kickV: 0.04, kickH: 0.01, range: [12, 32], minMul: 0.15, zoom: 1.15, move: 0.97,
+    sight: [0, 0.0845, -0.03], dist: 0.28, dot: true, sound: 'shotgun',
   },
   sniper: {
     name: 'M24 Keskin', kind: 'gun', auto: false, bolt: true, dmg: 105, rpm: 48, mag: 5, reserve: 25, reload: 3.4,
-    hip: 0.05, ads: 0.0004, kickV: 0.05, kickH: 0.006, range: [150, 300], minMul: 0.85, zoom: 4, move: 0.9,
+    hip: 0.03, ads: 0.0002, kickV: 0.05, kickH: 0.006, range: [150, 300], minMul: 0.85, zoom: 4, move: 0.9,
     sight: [0, 0.14, 0.12], dist: 0.06, sound: 'sniper', scope: true,
   },
   lmg: {
     name: 'M249 LMG', kind: 'gun', auto: true, dmg: 25, rpm: 720, mag: 100, reserve: 200, reload: 5.2,
-    hip: 0.03, ads: 0.007, kickV: 0.011, kickH: 0.008, range: [35, 100], minMul: 0.55, zoom: 1.3, move: 0.85,
-    sight: [0, 0.134, -0.05], dist: 0.34, sound: 'lmg',
+    hip: 0.011, ads: 0.0028, kickV: 0.011, kickH: 0.008, range: [35, 100], minMul: 0.55, zoom: 1.3, move: 0.85,
+    sight: [0, 0.138, -0.1], dist: 0.28, dot: true, sound: 'lmg',
   },
   rpg: {
     name: 'RPG-7', kind: 'launcher', auto: false, dmg: 160, radius: 6.5, speed: 38, rpm: 30, mag: 1, reserve: 2, reload: 3.4,
