@@ -46,14 +46,14 @@ export class Game {
     // ── renderer ──
     const r = (this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' }));
     r.setPixelRatio(Math.min(devicePixelRatio, this.settings.pixelRatio || 1.5));
-    r.setSize(innerWidth, innerHeight);
+    r.setSize(innerWidth, innerHeight, false);   // CSS boyutunu biz belirleriz (yüksek DPI'da tuval taşmasın)
     r.autoClear = false;
     r.shadowMap.enabled = this.settings.shadows !== false;
     r.shadowMap.type = THREE.PCFShadowMap;
     r.toneMapping = THREE.NeutralToneMapping;
     r.outputColorSpace = THREE.SRGBColorSpace;
     this.canvas = r.domElement;
-    this.canvas.style.cssText = 'position:fixed;inset:0;display:block;';
+    this.canvas.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:100%;display:block;';
     container.appendChild(this.canvas);
 
     this.scene = new THREE.Scene();
@@ -115,7 +115,7 @@ export class Game {
     document.addEventListener('pointerlockerror', this._ple = () => this.fallbackLock());
     addEventListener('resize', this._rs = () => {
       this.camera.aspect = innerWidth / innerHeight; this.camera.updateProjectionMatrix();
-      this.renderer.setSize(innerWidth, innerHeight);
+      this.renderer.setSize(innerWidth, innerHeight, false);
     });
 
     for (const s of this.soldiers) this.respawn(s, true);

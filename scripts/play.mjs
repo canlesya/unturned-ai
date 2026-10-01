@@ -4,7 +4,7 @@ import { chromium } from 'playwright';
 const [query = 'autostart=3v3&debug=1&nolock=1', out = 'screenshots/tmp-play', wait = '3', code = ''] = process.argv.slice(2);
 const base = process.env.BASE || 'http://127.0.0.1:5173';
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--enable-webgl', '--autoplay-policy=no-user-gesture-required'] });
-const page = await browser.newPage({ viewport: { width: +(process.env.W || 1280), height: +(process.env.H || 720) } });
+const page = await browser.newPage({ deviceScaleFactor: +(process.env.DSF || 1), viewport: { width: +(process.env.W || 1280), height: +(process.env.H || 720) } });
 const errs = [];
 page.on('console', (m) => { if (['error', 'warning'].includes(m.type())) errs.push(`[${m.type()}] ${m.text()}`); });
 page.on('pageerror', (e) => errs.push('[pageerror] ' + e.message + '\n' + (e.stack || '').split('\n').slice(0, 4).join('\n')));
