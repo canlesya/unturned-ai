@@ -39,10 +39,13 @@ export function buildKasaba() {
   for (let i = 0; i < 120; i++) b.box(-82 + rng() * 164, 0, -56 + rng() * 112, 4 + rng() * 9, 0.025, 4 + rng() * 9, patchCols[i % 4], { collide: false });
 
   const roads = [];
+  let rotated = false;
   const car = (x, z, ry, color, wreck = false) => K.car(b, { x, z, ry, color, wreck });
   const palette = ['#b33a2a', '#2c5aa0', '#e8e8e4', '#4a7a4f', '#d9a921', '#6a6d73'];
   half(VA, false);
+  rotated = true;
   b.with(0, 0, 0, Math.PI, () => half(VB, true));
+  rotated = false;
   center();
   surround();
 
@@ -52,11 +55,11 @@ export function buildKasaba() {
     red: pickSpawns(RED_ZONE, Math.PI / 2, 20, -1),
   };
   const objectives = [
-    { id: 'evler', core: true, name: 'Evler', x: -35, z: -17, r: 9 },
-    { id: 'kilise', name: 'Kilise', x: -36, z: 14, r: 9 },
-    { id: 'kavsak', core: true, name: 'Kavşak', x: 0, z: 0, r: 9 },
-    { id: 'benzinlik', name: 'Benzinlik', x: 36, z: -14, r: 9 },
-    { id: 'pazar', core: true, name: 'Pazar', x: 35, z: 17, r: 9 },
+    { id: 'evler', core: true, name: 'Evler', x: -35.5, z: -12, r: 9 },       // iki ev + ön bahçe: bina içi / cadde / çatı
+    { id: 'kilise', name: 'Kilise', x: -36, z: 19, r: 9 },                    // nef (orta koridor) + çan kulesi + mezarlık
+    { id: 'kavsak', core: true, name: 'Kavşak', x: 0, z: 0, r: 9 },           // çeşmeli meydan
+    { id: 'benzinlik', name: 'Benzinlik', x: 33, z: -17, r: 9 },              // saçak altı + market (çatısı açık)
+    { id: 'pazar', core: true, name: 'Pazar', x: 35.5, z: 12, r: 9 },         // pazar hali + tezgâhlar
   ];
 
   return {
@@ -76,7 +79,7 @@ export function buildKasaba() {
   // ═════════ yardımcılar ═════════
   function road(x0, z0, x1, z1, color = COL.asphalt, mini = true) {
     b.box((x0 + x1) / 2, 0, (z0 + z1) / 2, x1 - x0, 0.06, z1 - z0, color, { collide: false });
-    if (mini && color === COL.asphalt) roads.push({ x0, z0, x1, z1 });
+    if (mini && color === COL.asphalt) roads.push(rotated ? { x0: -x1, z0: -z1, x1: -x0, z1: -z0 } : { x0, z0, x1, z1 });   // minimap: dönmüş yarıda dünya koordinatı
   }
   function walk(x0, z0, x1, z1) { b.box((x0 + x1) / 2, 0, (z0 + z1) / 2, x1 - x0, 0.16, z1 - z0, COL.curb); }
   function dashX(x0, x1, z, step = 4) { for (let x = x0; x <= x1; x += step) b.box(x, 0.06, z, 2, 0.02, 0.2, COL.yellow, { collide: false }); }
@@ -182,7 +185,7 @@ export function buildKasaba() {
     // B2: evler / pazar (x -45…-26)
     if (V.nwB2 === 'houses') {
       reg(K.house(b, rng, { x: -41, z: -17.5, w: 10, d: 9, floors: 2, door: 's', wall: '#d9c79a', roof: '#a8432f' }), 'ev-1');
-      reg(K.house(b, rng, { x: -30.5, z: -16.5, w: 8, d: 8, floors: 1, door: 's', wall: '#c9d6c0', roof: '#5b6470' }), 'ev-2');
+      reg(K.house(b, rng, { x: -30.5, z: -16.5, w: 8, d: 8, floors: 3, door: 's', wall: '#c9d6c0', roof: '#5b6470' }), 'ev-2');
       T.hedge(b, -45, -9.8, -42.4, -9.8); T.hedge(b, -39.6, -9.8, -31.8, -9.8); T.hedge(b, -29.2, -9.8, -26, -9.8);
       K.fence(b, -45, -25.4, -26, -25.4);
       car(-36.5, -10.6, Math.PI / 2, '#2c5aa0'); K.crate(b, -26.8, -24, 1.0); T.planter(b, -43.5, -10.9);
@@ -201,7 +204,7 @@ export function buildKasaba() {
       b.box(-14, 3.4, -11.6, 7.5, 0.3, 0.9, '#d8d4c8', { collide: false });
       b.box(-14, 0, -8.6, 0.12, 5.0, 0.12, '#4a4d52', { collide: false }); b.box(-13.5, 4.3, -8.6, 1.0, 0.6, 0.04, '#d63a2b', { collide: false });
     } else {
-      reg(K.house(b, rng, { x: -14, z: -17.5, w: 13, d: 9, floors: 2, door: 's', theme: 'office', flat: true, roofAccess: true, wall: '#b9cbd9', roof: '#4a5360' }), 'banka');
+      reg(K.house(b, rng, { x: -14, z: -17.5, w: 13, d: 9, floors: 3, door: 's', theme: 'office', flat: true, roofAccess: true, wall: '#b9cbd9', roof: '#4a5360' }), 'banka');
       K.sandbags(b, -19, -11.2, 2.6, 0); car(-9, -10.2, Math.PI / 2, '#6a6d73', true);
     }
     occ(-22, -23, -6, -12);

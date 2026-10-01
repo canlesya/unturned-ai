@@ -25,13 +25,16 @@ export function buildVadi() {
   // fn({side, gy}) yerel çerçevede (orijin = zemin) çizer; side +1 = mavi yarı, −1 = kırmızı yarı.
   const plan = (S) => {
     const TEAM = (sd) => (sd > 0 ? { main: '#2c5aa0', wall: '#35577f', roofA: '#5b6f8a' } : { main: '#b0332a', wall: '#9a3a2e', roofA: '#8a4b3f' });
+    // bina + taş temel (yamaçta zemin düştüğünde bina havada kalmasın)
+    const house = (o) => { b.box(o.x, -2.4, o.z, o.w + 0.5, 2.4, o.d + 0.5, '#86817a', { collide: false }); K.house(b, rng, o); };
+    const barn = (o) => { b.box(o.x, -2.4, o.z, (o.w || 12) + 0.5, 2.4, (o.d || 18) + 0.5, '#86817a', { collide: false }); K.barn(b, rng, o); };
     const cover = (x, z, kind = 'rock', s = 1.2) => S(x, z, 0, [0, 0], () => (kind === 'rock' ? V.rock(b, rng, 0, 0, s) : V.fallenLog(b, 0, 0, 3.4, s)));
 
     // ═════════ DOĞUŞ ÇANAĞI (çiftlik): ahır, silolar, çiftlik evi, traktör, saman ═════════
-    S(-80, -8, 0, [8, 8.5], (g) => K.barn(b, rng, { x: 0, z: 0, w: 10, d: 12, color: TEAM(g.side).wall, roof: '#5f646c' }));
+    S(-80, -8, 0, [8, 8.5], (g) => barn({ x: 0, z: 0, w: 10, d: 12, color: TEAM(g.side).wall, roof: '#5f646c' }));
     S(-84.5, 4, 0, [3.2, 3.2], () => K.silo(b, 0, 0));
     S(-85.8, 10, 0, [2.6, 2.6], () => K.silo(b, 0, 0, 1.7, 8));
-    S(-77.5, 11.5, 0, [6.5, 5.8], (g) => K.house(b, rng, { x: 0, z: 0, w: 9, d: 7, wall: g.side > 0 ? '#d6cfb4' : '#d9c79a', roof: TEAM(g.side).roofA, door: 'n', floors: 1 }));
+    S(-77.5, 11.5, 0, [6.5, 5.8], (g) => house({ x: 0, z: 0, w: 9, d: 7, wall: g.side > 0 ? '#d6cfb4' : '#d9c79a', roof: TEAM(g.side).roofA, door: 'n', floors: 1 }));
     S(-70, -9.5, PI / 2, [0, 0], (g) => V.tractor(b, { color: g.side > 0 ? '#3a6aa8' : '#a8402f' }));
     S(-71.5, 13, 0, [0, 0], () => V.haystack(b, 0, 0, 1));
     S(-68, 14, 0, [0, 0], () => V.haystack(b, 0, 0, 0.8));
@@ -49,9 +52,9 @@ export function buildVadi() {
     S(-87, 14, 0, [0, 0], () => K.fence(b, 0, -3, 0, 3));
 
     // ═════════ KÖPRÜBAŞI MEZRASI ═════════
-    S(-17.5, -11, 0, [5.5, 4.8], () => K.house(b, rng, { x: 0, z: 0, w: 8, d: 6.5, wall: '#d6cfb4', roof: '#7a3b2e', door: 's', floors: 1 }));
-    S(-17.5, 11, 0, [5.5, 4.8], () => K.house(b, rng, { x: 0, z: 0, w: 8, d: 6.5, wall: '#c9c1a4', roof: '#5d6a4a', door: 'n', floors: 1 }));
-    S(-10.4, -8.6, 0, [4.0, 3.6], () => K.house(b, rng, { x: 0, z: 0, w: 5.4, d: 4.6, wall: '#9a948a', roof: '#6a6560', door: 's', floors: 1, flat: true }));   // taş karakol
+    S(-17.5, -11, 0, [5.5, 4.8], () => house({ x: 0, z: 0, w: 8, d: 6.5, wall: '#d6cfb4', roof: '#7a3b2e', door: 's', floors: 1 }));
+    S(-17.5, 11, 0, [5.5, 4.8], () => house({ x: 0, z: 0, w: 8, d: 6.5, wall: '#c9c1a4', roof: '#5d6a4a', door: 'n', floors: 1 }));
+    S(-10.4, -8.6, 0, [4.0, 3.6], () => house({ x: 0, z: 0, w: 5.4, d: 4.6, wall: '#9a948a', roof: '#6a6560', door: 's', floors: 1, flat: true }));   // taş karakol
     S(-10.6, 13.8, 0, [3.6, 6.8], () => b.with(0, 0, -3.6, 0, () => V.tower(b, {})));   // köprübaşı kulesi (merdiven +z yönünde)
     S(-17.5, -3.6, 0, [3, 1.6], () => K.car(b, { x: 0, z: 0, ry: 0, color: '#b33a2a', wreck: true }));
     S(-16, 4.6, 0, [2, 2], () => K.car(b, { x: 0, z: 0, ry: PI, color: '#4a7a4f' }));
@@ -65,14 +68,14 @@ export function buildVadi() {
     S(-10.5, -1.6, 0, [0, 0], () => V.lantern(b, 3.2));
 
     // ═════════ KUZEY MEZRA (kulübeler, avlu duvarları, yıkık yapı, kamyon) ═════════
-    S(-33, -17, 0, [4.6, 4.2], () => K.house(b, rng, { x: 0, z: 0, w: 6, d: 5, wall: '#8b5a2b', roof: '#4d5b3a', door: 'e', floors: 1 }));
-    S(-39, -22, 0, [4.6, 4.2], () => K.house(b, rng, { x: 0, z: 0, w: 6, d: 5, wall: '#7d5126', roof: '#3f4a30', door: 's', floors: 1 }));
+    S(-33, -17, 0, [4.6, 4.2], () => house({ x: 0, z: 0, w: 6, d: 5, wall: '#8b5a2b', roof: '#4d5b3a', door: 'e', floors: 1 }));
+    S(-39, -22, 0, [4.6, 4.2], () => house({ x: 0, z: 0, w: 6, d: 5, wall: '#7d5126', roof: '#3f4a30', door: 's', floors: 1 }));
     S(-30, -23.5, 0, [0, 0], () => V.haystack(b, 0, 0, 1));
     S(-31.5, -11.5, 0, [0, 0], (g) => V.stoneWall(b, g.gy, -3, 0, 3, 0, { h: 0.9 }));
     S(-8, 41, 0, [4.6, 3.6], (g) => V.ruin(b, rng, g.gy, { w: 6.4, d: 4.4 }));
 
     // güney/kuzey çiftlik kulübesi (çanak çıkışı ile Ambar arasında, ara kademe yerleşim)
-    S(-47, 26.5, 0, [4.6, 4.2], () => K.house(b, rng, { x: 0, z: 0, w: 6, d: 5, wall: '#a6845a', roof: '#6b3f33', door: 'n', floors: 1 }));
+    S(-47, 26.5, 0, [4.6, 4.2], () => house({ x: 0, z: 0, w: 6, d: 5, wall: '#a6845a', roof: '#6b3f33', door: 'n', floors: 1 }));
     S(-52, 28.6, 0, [0, 0], () => V.haystack(b, 0, 0, 0.9));
     S(-41.6, 28, 0, [0, 0], () => K.fence(b, 0, -2.4, 0, 2.4));
 
@@ -84,14 +87,14 @@ export function buildVadi() {
       V.stoneWall(b, g.gy, x0, z0, x0, z1, { gaps: [{ at: -2.5, w: 4.6 }] });     // batı duvar + kapı (güney geçit)
       V.stoneWall(b, g.gy, x1, z0, x1, z1, { gaps: [{ at: 1, w: 5 }] });          // doğu duvar + kapı (geçide)
       if (g.side > 0) {
-        K.barn(b, rng, { x: 0, z: 0.5, w: 10, d: 14, color: '#7a5a38', roof: '#6a5a4a' });
+        barn({ x: 0, z: 0.5, w: 10, d: 14, color: '#7a5a38', roof: '#6a5a4a' });
         for (let i = 0; i < 5; i++) K.hayBale(b, -8 + (i % 3) * 1.3, 8.2 + Math.floor(i / 3) * 1.3);
         b.with(-7.2, 0, -6.5, 0, () => V.tractor(b, { color: '#b7392d' }));
         V.haystack(b, 7.4, -7, 1); V.haystack(b, 7.6, 9, 0.85);
         K.crate(b, 7.6, 6.2, 1.1); K.crate(b, 8.1, 7.4, 1.0);
         b.with(-7.4, 0, 3.5, 0, () => V.cart(b, {}));
       } else {
-        K.house(b, rng, { x: 4.6, z: -3.6, w: 7, d: 6.5, wall: '#c2bba9', roof: '#6b4a3a', door: 's', floors: 2, floorColor: '#a58a68' });   // değirmen (hedef merkezi avluda açık kalır)
+        house({ x: 4.6, z: -3.6, w: 7, d: 6.5, wall: '#c2bba9', roof: '#6b4a3a', door: 's', floors: 2, floorColor: '#a58a68' });   // değirmen (hedef merkezi avluda açık kalır)
         b.cyl(0.75, 3.0, -3.6, 2.4, 2.4, 0.7, '#6e4a2a', { rz: PI / 2, center: true, seg: 12, collide: false });                    // su çarkı (dekor)
         b.cyl(0.75, 3.0, -3.6, 0.4, 0.4, 1.0, '#4a3220', { rz: PI / 2, center: true, seg: 8, collide: false });
         for (let i = 0; i < 4; i++) b.box(-8 + i * 1.1, 0, -6, 0.9, 0.55 + (i % 2) * 0.2, 0.7, '#cfc4a1');                          // çuvallar
@@ -117,7 +120,7 @@ export function buildVadi() {
         b.with(-6.2, 0, -5.8, 0, () => V.tent(b, { color: '#c7b98a' }));
         b.with(-8.6, 0, -2.2, PI / 2, () => V.tent(b, { color: '#b9b184', w: 3.0, len: 3.6 }));
         b.with(-3.4, 0, -4.6, 0, () => V.campfire(b));
-        K.house(b, rng, { x: 7.5, z: 6.2, w: 6, d: 5, wall: '#8b5a2b', roof: '#4d5b3a', door: 'w', floors: 1 });
+        house({ x: 7.5, z: 6.2, w: 6, d: 5, wall: '#8b5a2b', roof: '#4d5b3a', door: 'w', floors: 1 });
         b.with(6, 0, -3.8, PI / 2, () => V.bunker(b, { w: 6, d: 4.4, ramp: false }));    // mazgal doğuya (vadiye) bakar, giriş batıdan
         b.with(3.8, 0, -7.4, PI / 2, () => V.logPile(b, 0, 2.6));
         b.with(-5.4, 0, 1.4, 0, () => V.fallenLog(b, 0, 0, 3.0, 1.57));

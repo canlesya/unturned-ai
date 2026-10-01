@@ -55,6 +55,7 @@ export function rockRun(b, rng, gy, x0, z0, x1, z1, o = {}) {
 }
 
 export function rock(b, rng, x, z, s = 1, y = 0) {
+  s *= 0.82;
   const dark = rng() > 0.5;
   b.ico(x, y + 0.42 * s, z, 1.0 * s, dark ? '#7f7e77' : '#8f8d85', { scale: [1.3, 0.85 + rng() * 0.3, 1.05], detail: 0, ry: rng() * 3 });
   if (rng() > 0.5) b.ico(x + 0.7 * s, y + 0.25 * s, z + 0.5 * s, 0.55 * s, '#76756e', { scale: [1.2, 0.8, 1], detail: 0, ry: rng() * 3 });
@@ -133,8 +134,8 @@ export function campfire(b, y = 0) {
   for (let i = 0; i < 7; i++) { const a = i / 7 * 6.28; b.ico(Math.cos(a) * 0.62, y + 0.1, Math.sin(a) * 0.62, 0.2, '#76756e', { scale: [1, 0.7, 1], detail: 0 }); }
   b.cyl(0.15, y + 0.12, 0, 0.08, 0.1, 0.8, '#4a3220', { rx: 0.9, center: true, seg: 5, collide: false });
   b.cyl(-0.15, y + 0.12, 0.1, 0.08, 0.1, 0.8, '#4a3220', { rz: 0.9, center: true, seg: 5, collide: false });
-  b.cyl(0, y + 0.1, 0, 0.02, 0.3, 0.75, '#ff8a2a', { seg: 5, collide: false, o: { glow: true } });
-  b.cyl(0, y + 0.1, 0, 0.01, 0.16, 1.05, '#ffd24a', { seg: 4, collide: false, o: { glow: true } });
+  b.cyl(0, y + 0.1, 0, 0.02, 0.42, 1.0, '#ff8a2a', { seg: 6, collide: false, o: { glow: true } });
+  b.cyl(0, y + 0.1, 0, 0.01, 0.22, 1.4, '#ffd24a', { seg: 5, collide: false, o: { glow: true } });
   b.collide(0, y, 0, 1.2, 0.4, 1.2);
 }
 

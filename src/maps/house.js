@@ -54,8 +54,10 @@ export function house(b, rng, o) {
     const I = T / 2;
     const ix0 = x0 + I, ix1 = x1 - I, iz0 = z0 + I, iz1 = z1 - I;
     const id = iz1 - iz0;
-    const F = floors, H = F * floorH;
-    const hasRoofAccess = roofAccess && flat;
+    // çok sığ binada merdiven sığmaz: kat sayısı 1'e, çatı erişimi iptal
+    const stairOk = id >= 5.8;
+    const F = stairOk ? floors : 1, H = F * floorH;
+    const hasRoofAccess = roofAccess && flat && stairOk;
     const Lv = F + (hasRoofAccess ? 1 : 0);
     const inner = pick(rng, INNER);
     const floorCol = floorColor || pick(rng, FLOORC);
@@ -64,8 +66,9 @@ export function house(b, rng, o) {
     // ───── merdiven kolları ─────
     const fl = [];
     if (Lv > 1) {
-      const n = Math.ceil((floorH - 0.001) / 0.21);
-      const LD = 1.7, lobby = 1.4;
+      const compact = id < 6.9;                         // sığ bina: daha dik (≤0.24 m basamak), kısa sahanlık/lobi
+      const n = Math.ceil((floorH - 0.001) / (compact ? 0.24 : 0.21));
+      const LD = compact ? 1.5 : 1.7, lobby = compact ? 1.0 : 1.4;
       const run = clamp((id - LD - lobby) / n, 0.25, 0.3);
       for (let k = 0; k < Lv - 1; k++) {
         const side = k % 2 === 0 ? 'w' : 'e';
@@ -105,9 +108,9 @@ export function house(b, rng, o) {
         P.doors.push(dd);
         P.parts.push({ type: 'door', ...dd });
         // kapı önü boş şeridi (iki yan) + her odanın girişi için port
-        const half = DW / 2 + 0.2;
-        if (axis === 'x') P.keeps.push({ x0: at - half, x1: at + half, z0: c - 1.5, z1: c + 1.5 });
-        else P.keeps.push({ x0: c - 1.5, x1: c + 1.5, z0: at - half, z1: at + half });
+        const half = DW / 2 + 0.1;
+        if (axis === 'x') P.keeps.push({ x0: at - half, x1: at + half, z0: c - 1.25, z1: c + 1.25 });
+        else P.keeps.push({ x0: c - 1.25, x1: c + 1.25, z0: at - half, z1: at + half });
         return dd;
       };
       // oda dikdörtgenleri (iç yüzler)
@@ -494,52 +497,72 @@ export function house(b, rng, o) {
       }
       for (const pt of P.parts) if (pt.type === 'door' && pt.landing) feats.push({ x0: pt.c - 0.3, x1: pt.c + 0.3, z0: pt.at - pt.w / 2 - 0.1, z1: pt.at + pt.w / 2 + 0.1 });
 
-      const INF = 0.38;
-      const connected = (R) => {
+      const INF = 0.6;     // bot (nav: 0.5 m hücre + 0.35 şişirme) ile uyum için geniş marj: <1.2 m geçit bırakma
+      // Odadaki serbest hücreler (0.2 m ızgara, eşyalar inf kadar şişirilir) → bağlı bileşenler
+      const gridFlood = (R, inf) => {
         const cs = 0.2;
         const nx = Math.ceil((R.x1 - R.x0) / cs), nz = Math.ceil((R.z1 - R.z0) / cs);
-        if (nx < 4 || nz < 4) return true;
         const free = new Uint8Array(nx * nz);
         const solids = occ.filter((q) => q.solid && !q.flat && ov(q, R, 0));
         let nfree = 0;
         for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
           const px = R.x0 + (i + 0.5) * cs, pz = R.z0 + (j + 0.5) * cs;
-          if (px < R.x0 + INF || px > R.x1 - INF || pz < R.z0 + INF || pz > R.z1 - INF) continue;
+          if (px < R.x0 + inf || px > R.x1 - inf || pz < R.z0 + inf || pz > R.z1 - inf) continue;
           let bl = false;
           for (const q of solids) {
             const r = q.pure || q;
-            if (px > r.x0 - INF && px < r.x1 + INF && pz > r.z0 - INF && pz < r.z1 + INF) { bl = true; break; }
+            if (px > r.x0 - inf && px < r.x1 + inf && pz > r.z0 - inf && pz < r.z1 + inf) { bl = true; break; }
           }
           if (!bl) { free[j * nx + i] = 1; nfree++; }
         }
-        if (!nfree) return !R.ports.length;
+        return { cs, nx, nz, free, nfree };
+      };
+      const connected = (R) => {
+        if (R.x1 - R.x0 < 0.8 || R.z1 - R.z0 < 0.8) return true;
+        const G = gridFlood(R, INF);
+        const { cs, nx, nz, free } = G;
+        if (!G.nfree) return !R.ports.length;
         const seen = new Uint8Array(nx * nz);
-        const stack = [];
-        const cellOf = (pt) => {
+        const cellOf = (pt, fr) => {
           const ci = clamp(Math.floor((pt.x - R.x0) / cs), 0, nx - 1), cj = clamp(Math.floor((pt.z - R.z0) / cs), 0, nz - 1);
-          for (let rr = 0; rr < 4; rr++) for (let dj = -rr; dj <= rr; dj++) for (let di = -rr; di <= rr; di++) {
+          for (let rr = 0; rr < 8; rr++) for (let dj = -rr; dj <= rr; dj++) for (let di = -rr; di <= rr; di++) {
             const ii = ci + di, jj = cj + dj;
-            if (ii >= 0 && jj >= 0 && ii < nx && jj < nz && free[jj * nx + ii]) return jj * nx + ii;
+            if (ii >= 0 && jj >= 0 && ii < nx && jj < nz && fr[jj * nx + ii]) return jj * nx + ii;
           }
           return -1;
         };
-        const ports = R.ports.map(cellOf);
+        const fillFrom = (starts, fr, mark) => {
+          const stack = [...starts]; let cnt = 0;
+          for (const s0 of starts) mark[s0] = 1;
+          while (stack.length) {
+            const c = stack.pop(); cnt++;
+            const ci = c % nx, cj = (c / nx) | 0;
+            for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+              const ii = ci + di, jj = cj + dj;
+              if (ii < 0 || jj < 0 || ii >= nx || jj >= nz) continue;
+              const n2 = jj * nx + ii;
+              if (fr[n2] && !mark[n2]) { mark[n2] = 1; stack.push(n2); }
+            }
+          }
+          return cnt;
+        };
+        const ports = R.ports.map((p) => cellOf(p, free));
         if (ports.some((p) => p < 0)) return false;
         const start = ports.length ? ports[0] : free.indexOf(1);
-        stack.push(start); seen[start] = 1;
-        let cnt = 0;
-        while (stack.length) {
-          const c = stack.pop(); cnt++;
-          const ci = c % nx, cj = (c / nx) | 0;
-          for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-            const ii = ci + di, jj = cj + dj;
-            if (ii < 0 || jj < 0 || ii >= nx || jj >= nz) continue;
-            const n2 = jj * nx + ii;
-            if (free[n2] && !seen[n2]) { seen[n2] = 1; stack.push(n2); }
-          }
-        }
+        const cnt = fillFrom([start], free, seen);
         if (ports.some((p) => !seen[p])) return false;
-        return nfree - cnt <= 10;
+        if (G.nfree - cnt > 10) return false;
+        // bot nav'ı (0.35 şişirme) için de cep denetimi: portlardan ulaşılamayan ≥ 0.4 m² serbest küme olmasın
+        const G2 = gridFlood(R, 0.5);
+        if (G2.nfree) {
+          const seen2 = new Uint8Array(nx * nz);
+          const st2 = ports.length ? R.ports.map((p) => cellOf(p, G2.free)).filter((c) => c >= 0) : [G2.free.indexOf(1)];
+          if (st2.length) fillFrom(st2, G2.free, seen2);
+          let un = 0;
+          for (let i = 0; i < nx * nz; i++) if (G2.free[i] && !seen2[i]) un++;
+          if (un * cs * cs > 0.4) return false;
+        }
+        return true;
       };
 
       const tryAdd = (R, name, cx, cz, rr, opt = {}) => {
@@ -566,7 +589,9 @@ export function house(b, rng, o) {
         if (wl === 'w') return { x: R.x0 + it.d / 2 + gap, z: R.z0 + it.w / 2 + t * Math.max(0, R.z1 - R.z0 - it.w), ry: Math.PI / 2 };
         return { x: R.x1 - it.d / 2 - gap, z: R.z0 + it.w / 2 + t * Math.max(0, R.z1 - R.z0 - it.w), ry: -Math.PI / 2 };
       };
-      const place = (R, name, walls, ts = [0.5, 0.2, 0.8, 0.0, 1.0, 0.35, 0.65], opt = {}) => {
+      const FINE = Array.from({ length: 19 }, (_, i) => 0.05 + i * 0.05);
+      const place = (R, name, walls, ts0 = [0.5, 0.2, 0.8, 0.0, 1.0, 0.35, 0.65], opt = {}) => {
+        const ts = [...ts0, ...FINE.filter((t) => !ts0.includes(t))];        // tercih edilen konumlar önce, sonra ince tarama
         const ws = Array.isArray(walls) ? walls : [walls];
         for (const wl of ws) for (const t of ts) {
           const pp = wallPose(R, wl, name, t);
@@ -632,7 +657,7 @@ export function house(b, rng, o) {
             const fx = Math.sin(bw.ry), fz = Math.cos(bw.ry);
             tryAdd(R, 'rug', bw.x + fx * 1.4, bw.z + fz * 1.4, bw.ry + Math.PI / 2);
             beside(R, bw, 'chest', 0, 1.35);
-          } else free(R, 'bedSingle');
+          } else (place(R, 'bedSingle', shuffle(['n', 'e', 'w', 's'])) || free(R, 'bedSingle'));
           place(R, 'wardrobe', shuffle(['n', 'e', 'w', 's']), [0.1, 0.9, 0.5]);
           place(R, 'dresser', shuffle(['n', 'e', 'w', 's']), [0.9, 0.1, 0.5]);
           if (rng() < 0.6) { const dk = place(R, 'desk', shuffle(['n', 'e', 'w']), [0.9, 0.1, 0.5]); if (dk) beside(R, dk, 'chair', 0, 0.75); }

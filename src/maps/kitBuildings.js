@@ -171,9 +171,11 @@ export function warehouse(b, rng, { x, z, w = 22, d = 14, ry = 0, mezzanine = tr
       put(b, rng, 'rack', rx, 0.06, rackZ, 0);
     }
     for (let i = 0; i < 3; i++) put(b, rng, 'rack', x1 - 0.6 - 0, 0.06, z0 + 3.6 + i * 3.0, -Math.PI / 2);
-    put(b, rng, 'forklift', -w * 0.15, 0.06, d * 0.12, 0.4 * 0 + Math.PI / 2);
-    for (const [px, pz] of [[w * 0.18, d * 0.18], [w * 0.28, -d * 0.05], [-w * 0.32, d * 0.27], [w * 0.05, -d * 0.2]]) put(b, rng, 'pallet', px, 0.06, pz, rng() < 0.5 ? 0 : Math.PI / 2);
-    for (let i = 0; i < 4; i++) b.box(-w * 0.18 - rng() * 3, 0, z1 - 1.2 - rng() * 3.0, 1.1, 0.9 + rng() * 0.9, 1.1, COL.woodLight);
+    // asma kat merdiveninin alt girişi (batı uç, güney) boş kalsın
+    const lob = (px, pz, m = 1.2) => mezzanine && d >= 12 && w >= 14 && px < x0 + 3.6 + m && pz > z0 + 5.0 + 17 * 0.28 - 3.2 - m;
+    if (!lob(-w * 0.15, d * 0.12, 1.5)) put(b, rng, 'forklift', -w * 0.15, 0.06, d * 0.12, Math.PI / 2);
+    for (const [px, pz] of [[w * 0.18, d * 0.18], [w * 0.28, -d * 0.05], [-w * 0.32, d * 0.27], [w * 0.05, -d * 0.2]]) if (!lob(px, pz)) put(b, rng, 'pallet', px, 0.06, pz, rng() < 0.5 ? 0 : Math.PI / 2);
+    for (let i = 0; i < 4; i++) { const cx = -w * 0.18 - rng() * 3, cz = z1 - 1.2 - rng() * 3.0; if (!lob(cx, cz)) b.box(cx, 0, cz, 1.1, 0.9 + rng() * 0.9, 1.1, COL.woodLight); }
     for (const lx of [-w * 0.25, w * 0.1]) b.box(lx, H - 1.4, 0, 0.4, 0.3, 0.4, '#ffd98a', { collide: false, o: { glow: true } });
     for (const lx of [-w * 0.25, w * 0.1]) b.box(lx, H - 1.1, 0, 0.04, 0.9, 0.04, '#2a2d30', NC);
   });

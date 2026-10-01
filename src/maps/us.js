@@ -31,8 +31,8 @@ function ground(b, rng) {
   for (let x = -76; x <= 76; x += 4) if (Math.abs(x) > 17) b.box(x, 0.07, 0, 2, 0.015, 0.2, COL.yellow, { collide: false });
   for (let z = -58; z <= 58; z += 4) if (Math.abs(z) > 14) b.box(0, 0.07, z, 0.2, 0.015, 2, COL.yellow, { collide: false });
   // yol kenarı pist ışıkları (gece parlar)
-  for (let x = -50; x <= 50; x += 6) if (Math.abs(x) > 16) for (const sz of [-5.3, 5.3]) b.box(x, 0.0, sz, 0.3, 0.1, 0.3, Math.abs(x) % 12 < 6 ? '#7dd0ff' : '#ffd98a', { collide: false, o: { glow: true } });
-  for (let z = -52; z <= 52; z += 6) if (Math.abs(z) > 14) for (const sx of [-4.3, 4.3]) b.box(sx, 0.0, z, 0.3, 0.1, 0.3, Math.abs(z) % 12 < 6 ? '#7dd0ff' : '#ffd98a', { collide: false, o: { glow: true } });
+  for (let x = -50; x <= 50; x += 6) if (Math.abs(x) > 16) for (const sz of [-5.3, 5.3]) b.box(x, 0.0, sz, 0.5, 0.14, 0.5, Math.abs(x) % 12 < 6 ? '#7dd0ff' : '#ffd98a', { collide: false, o: { glow: true } });
+  for (let z = -52; z <= 52; z += 6) if (Math.abs(z) > 14) for (const sx of [-4.3, 4.3]) b.box(sx, 0.0, z, 0.5, 0.14, 0.5, Math.abs(z) % 12 < 6 ? '#7dd0ff' : '#ffd98a', { collide: false, o: { glow: true } });
   // aprona / servis şeritleri
   b.box(0, 0.052, -33, 36, 0.02, 6, '#5d6165', { collide: false });
   b.box(0, 0.052, 33, 36, 0.02, 6, '#5d6165', { collide: false });
@@ -78,6 +78,8 @@ function camp(b, rng, pal) {
   for (const sz of [-1, 1]) { post(-68.6 - 0.5, sz * 24); post(-65.4 + 0.5, sz * 24); b.box(-67, 3.0, sz * 24, 3.2, 1.8, 0.8, CONC); b.box(-67, 3.5, sz * 24, 3.4, 0.45, 0.86, pal.stripe, { collide: false }); b.box(-67, 3.1, sz * 24, 3.4, 0.1, 0.86, '#e8e8e4', { collide: false }); }
   // kapı lambaları
   for (const [a, c] of gates) for (const zz of [a - 0.5, c + 0.5]) b.box(-56 + 0.6, 2.8, zz, 0.2, 0.2, 0.4, '#ffe2a0', { collide: false, o: { glow: true } });
+  for (const [a, c] of gates) { M.lightPool(b, -53.9, (a + c) / 2, 2.8, pal.glow, 0.09, 0.5); M.lightPool(b, -58.2, (a + c) / 2, 3.0, pal.glow, 0.09, 0.5); }
+  for (const sz of [-1, 1]) { M.lightPool(b, -67, sz * 24 - sz * 2.6, 2.8, pal.glow, 0.09, 0.5); M.lightPool(b, -67, sz * 24 + sz * 2.6, 2.8, pal.glow, 0.09, 0.5); }
   // kapı önü siper duvarları (düşman görüşünü keser, kamp içinden/dışından)
   // tek sıra şikan perdesi (x=-52.8): kapıların önünde, aralarda 2 m'lik geçit (arkada kamp duvarı var → içeri görüş yok)
   M.blastWall(b, -52.8, 0, 15, PI / 2);                 // orta kapı
@@ -189,12 +191,12 @@ function radarComplex(b, rng) {
   });
   b.box(15, 3.2, 45, 9.4, 0.3, 7.4, STEEL, { collide: false });
   M.pipeRack(b, 5.6, 40, 11, 40, { y: 2.7 }); M.pipeRack(b, 19.5, 41, 30, 41, { y: 2.7 });
-  K.truck(b, { x: -14, z: 57.2, ry: 0, color: '#6a7a5a' });
+  
   M.hesco(b, -8, 36, 4, 0); M.hesco(b, 8, 36, 4, 0); K.sandbags(b, 0, 35.5, 4, 0);
   M.blastWall(b, -11, 44, 6, PI / 2); M.blastWall(b, 21, 36, 5, PI / 2, 1.6, 0.6);
   K.container(b, { x: -10, z: 54, ry: 0, color: '#556b2f' }); K.container(b, { x: 10, z: 55, ry: 0, color: '#2d5a8a' });
   K.crate(b, 7, 52, 1.2); K.crate(b, 8.3, 52.2, 1.0); K.barrel(b, 6, 53, '#556b2f'); K.barrel(b, 6.9, 53.3, '#c0392b');
-  M.fenceRow(b, 3, 57, 25, 57, { h: 2.4 });
+  M.fenceRow(b, 3, 58.2, 25, 58.2, { h: 2.4 });
   M.pool(b, -22, 56.5, 8, 3.4);   // yangın havuzu
   for (const [x, z] of [[-6, 36], [6, 36], [-9, 53], [10, 49]]) M.lampPost(b, x, z, { ry: x < 0 ? 0 : PI });
   M.fireBarrel(b, 4.8, 50.5);
@@ -228,10 +230,10 @@ function midNW(b, rng, v) {
   // bunkerler + siper
   M.bunker(b, { x: -29, z: -26, ry: PI / 2 });
   M.bunker(b, { x: -49, z: -24, ry: -PI / 2 });
-  K.sandbags(b, -34, -27.5, 4, 0); K.sandbags(b, -43, -29, 4, 0);
+  K.sandbags(b, -35.5, -27.5, 4, 0); K.sandbags(b, -43, -29, 4, 0);
   M.blastWall(b, -14, -29, 5, PI / 2); M.blastWall(b, -54, -30, 5, PI / 2);
-  M.hesco(b, -44, -21, 4, 0); M.hesco(b, -24, -16.5, 3.6, 0);
-  K.crate(b, -31, -19.8, 1.2); K.crate(b, -32.3, -19.9, 1.0); K.barrel(b, -30, -19.2, '#556b2f');
+  M.hesco(b, -42.5, -21, 4, 0); M.hesco(b, -24, -16.5, 3.6, 0);
+  K.crate(b, -31, -21.8, 1.2); K.crate(b, -32.3, -21.9, 1.0); K.barrel(b, -30, -21.2, '#556b2f');
   // gözetleme kulesi (yüksek zemin)
   M.guardTower(b, rng, { x: -19, z: -23, ry: -PI / 2, wall: '#7d8a74' });
   // dekor: tank hurdası, yangın varili, lambalar
@@ -246,16 +248,16 @@ function midNE(b, rng) {
   K.gasStation(b, rng, { x: 34, z: -12 });
   // pompa dairesi
   M.milBuilding(b, rng, {
-    x: 51, z: -12, w: 8, d: 6, floors: 1, fh: 3.2, wall: '#9a9f95', roof: '#4c5156', floorColor: '#65696a', roofAccess: false, parapet: 0, dw: 1.8,
+    x: 47, z: -12, w: 8, d: 6, floors: 1, fh: 3.2, wall: '#9a9f95', roof: '#4c5156', floorColor: '#65696a', roofAccess: false, parapet: 0, dw: 1.8,
     doors: { w: [0], s: [2] }, rooms: [{ f: 0, kind: 'office', x0: -3.65, x1: 3.65, z0: -2.65, z1: 2.65 }],
   });
-  b.box(51, 3.2, -12, 8.4, 0.3, 6.4, '#c0392b', { collide: false });
+  b.box(47, 3.2, -12, 8.4, 0.3, 6.4, '#c0392b', { collide: false });
   // tank çiftliği + havuz + borular
   for (const tx of [27, 33, 39]) M.fuelTank(b, { x: tx, z: -27, r: 2.8, h: 5 });
   M.pool(b, 47, -29, 6, 5, '#4a7a96');
-  M.pipeRack(b, 24.5, -22, 42, -22, { y: 2.7, color: '#d9a921' }); M.pipeLow(b, 30, -24.6, 30, -22, {});
+  M.pipeRack(b, 24.5, -22, 40, -22, { y: 2.7, color: '#d9a921' }); M.pipeLow(b, 30, -24.6, 30, -22, {});
   M.pipeLow(b, 24, -17.6, 44, -17.6, { color: '#c0392b', gaps: [[29, 31.5], [37, 39.5]] });
-  M.tanker(b, { x: 51, z: -22, ry: PI }); M.tanker(b, { x: 51, z: -18.5, ry: PI, color: '#b9b4a8', cab: '#7a3a2f' });
+  M.tanker(b, { x: 46, z: -22.5, ry: PI }); M.tanker(b, { x: 46, z: -18.8, ry: PI, color: '#b9b4a8', cab: '#7a3a2f' });
   K.barrel(b, 24.4, -12, '#c0392b'); K.barrel(b, 24.4, -13.1, '#c0392b'); K.barrel(b, 25.6, -12.5, '#d9a921');
   K.sandbags(b, 24, -6.5, 3.6, PI / 2);
   // jeneratör odası
@@ -267,8 +269,8 @@ function midNE(b, rng) {
   // helipad + kontrol kulesi + kamuflaj
   M.helipad(b, { x: 33, z: -47, r: 6.5 }); M.helicopter(b, { x: 33, z: -47, ry: PI / 2, color: '#3f4a5e' });
   M.controlTower(b, rng, { x: 22, z: -50, door: 's' });
-  M.camoNet(b, rng, { x: 47, z: -50, w: 9, d: 8, h: 3.4 });
-  K.truck(b, { x: 47, z: -50, ry: PI / 2, color: '#5e6b4a' });
+  M.camoNet(b, rng, { x: 45, z: -51, w: 9, d: 8, h: 3.4 });
+  K.truck(b, { x: 45, z: -51, ry: PI / 2, color: '#5e6b4a' });
   M.blastWall(b, 27, -39.5, 5, 0); M.blastWall(b, 18, -34, 5, PI / 2);
   K.container(b, { x: 54, z: -55, ry: 0, color: '#2d5a8a' }); K.container(b, { x: 40, z: -57, ry: 0, color: '#8a3a2d' });
   M.tank(b, { x: 22.5, z: -41.5, ry: PI, wreck: true });
@@ -354,6 +356,18 @@ function yardMaze(b, rng, v) {
   M.pipeRack(b, -79, 51, -57, 51, { y: 2.8, color: '#d9a921', spacing: 7 });
 }
 
+// ───────────────────────── Ana cadde siperleri (batı yarısı; doğu yarısı 180° döndürülmüş) ─────────────────────────
+// Caddeyi uzun bir atış koridoru olmaktan çıkarır: şikanlı bariyerler, hurda araçlar, kum torbası kümeleri (≥3 m geçit kalır).
+function avenueCover(b, rng) {
+  K.barrier(b, -47, -2.4, PI / 2); K.barrier(b, -44, 2.6, PI / 2);
+  K.car(b, { x: -38.5, z: -3.3, ry: 0, wreck: true });
+  K.sandbags(b, -33, 3.4, 4, 0);
+  K.barrier(b, -28, -2.6, PI / 2); K.crate(b, -27.9, 1.6, 1.1); K.crate(b, -27.9, 2.8, 0.9);
+  K.barrier(b, -22, 2.4, PI / 2); K.sandbags(b, -21, -3.6, 3.6, 0);
+  K.car(b, { x: -17, z: 3.4, ry: PI, wreck: true });
+  M.fireBarrel(b, -41, 0.2); M.fireBarrel(b, -24.5, -0.3);
+}
+
 // ───────────────────────── Dış çevre ─────────────────────────
 function outside(b, rng) {
   // dış yol + güvenlik çiti + gözetleme ışıkları
@@ -398,9 +412,11 @@ export function buildUs() {
   perimeter(b, rng);
 
   // kamplar
-  camp(b, rng, { stripe: '#2b6fd6', tent: '#6f7d62', tentCmd: '#55688a', flag: '#2b6fd6' });
-  rot(b, () => camp(b, rng, { stripe: '#d63a2b', tent: '#857b62', tentCmd: '#8a5648', flag: '#d63a2b' }));
+  camp(b, rng, { stripe: '#2b6fd6', tent: '#6f7d62', tentCmd: '#55688a', flag: '#2b6fd6', glow: '#7fb4ff' });
+  rot(b, () => camp(b, rng, { stripe: '#d63a2b', tent: '#857b62', tentCmd: '#8a5648', flag: '#d63a2b', glow: '#ff8a6b' }));
 
+  avenueCover(b, rng);
+  rot(b, () => avenueCover(b, rng));
   komuta(b, rng);
   hangarComplex(b, rng);
   radarComplex(b, rng);

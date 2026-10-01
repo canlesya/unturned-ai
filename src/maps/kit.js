@@ -1,5 +1,14 @@
 // Harita yapı kiti: bina, araç, prop ve ağaçlar. Hepsi MapBuilder (b) üzerine çizilir.
-
+//
+// Dosyalar: kitBase.js (COL, hayBale) · house.js (ev/bina üreteci) · furn.js (mobilya) · kitBuildings.js (ambar, depo, kilise, benzinlik, silo)
+//           · kitTown.js (taş duvar, çit, su kulesi, çeşme, büfe, tezgâh, durak, pano, çardak, ekin).
+// Geriye uyumlu: eski çağrı imzaları aynen çalışır; yeni özellikler opsiyonel parametredir.
+//   house(...)        + theme, roofAccess, glow (bkz. house.js başlığı); artık { targets, entry, ... } döner.
+//   watchtower(...)   merdiven platforma bağlanır (batı yüzü), 1.1 m korkuluk, glow fener; { entry, targets } döner. h opsiyonel.
+//   barn(...)         + ry, doors:'both'|'front'|'back', loft (samanlık: merdivenle çıkılır).
+//   warehouse(...)    + ry, mezzanine (asma kat), wall. church(...) + ry (çan kulesine içten merdiven). gasStation(...) + store:'n'|'s'|'e'|'w', storeRoof, ry.
+//   pine/oak(...)     + son parametre collide=true (çevre ormanı için false).
+//   Binalar köşelerde b.shell ile tam kapalıdır (T/2 çentik/boşluk yok).
 import { COL, windows, DOOR } from './kitBase.js';
 export { COL };
 

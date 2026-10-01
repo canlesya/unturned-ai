@@ -1,5 +1,5 @@
 import { COL } from './kit.js';
-import { wallRun, placeItem, fillRoom, ITEMS, IC } from './kitMilInterior.js';
+import { wallRun, placeItem, fillRoom, ITEMS, IC, poolMat, poolDisc } from './kitMilInterior.js';
 import { milBuilding, guardTower, garageRow, tunnel, tent, camoNet, radarDish } from './kitMilBuild.js';
 
 // Askeri üs parçaları: hangar, bunker, yakıt tankı, radar, helikopter, helipad, kuleler, tünel, çadır, siper, araçlar, aydınlatma.
@@ -28,14 +28,20 @@ const GL = { glow: true };
 const WIN = { glow: true, emissive: '#ffdf9a', roughness: 0.25 };
 
 // ───────── Aydınlatma ─────────
-export function lampPost(b, x, z, { ry = 0, h = 6.2, color = '#ffe2a0', double = false } = {}) {
+// Işık havuzu: gece parlayan, gündüz zeminle kaynaşan yarı saydam disk (lamba/ateş altında)
+export function lightPool(b, x, z, r = 3.2, color = '#ffc66b', y = 0.09, opacity = 0.5) {
+  poolDisc(b, x, y, z, r, color, opacity);
+}
+export function lampPost(b, x, z, { ry = 0, h = 6.2, color = '#ffe2a0', double = false, pool = 3.6 } = {}) {
   b.with(x, 0, z, ry, () => {
     b.cyl(0, 0, 0, 0.09, 0.14, h, '#3f4348', { seg: 6 });
     b.box(0.55, h - 0.2, 0, 1.2, 0.1, 0.14, '#3f4348', { collide: false });
-    b.box(1.1, h - 0.28, 0, 0.7, 0.14, 0.36, color, { collide: false, o: GL });
+    b.box(1.1, h - 0.3, 0, 0.95, 0.16, 0.5, color, { collide: false, o: GL });
+    if (pool) lightPool(b, 1.1, 0, pool);
     if (double) {
       b.box(-0.55, h - 0.2, 0, 1.2, 0.1, 0.14, '#3f4348', { collide: false });
-      b.box(-1.1, h - 0.28, 0, 0.7, 0.14, 0.36, color, { collide: false, o: GL });
+      b.box(-1.1, h - 0.3, 0, 0.95, 0.16, 0.5, color, { collide: false, o: GL });
+      if (pool) lightPool(b, -1.1, 0, pool);
     }
   });
 }
@@ -44,6 +50,7 @@ export function floodLight(b, x, y, z, ry = 0, color = '#fff6d6') {
     b.box(0, 0, 0, 0.1, 0.5, 0.1, '#3f4348', { collide: false });
     b.box(0.2, 0.5, 0, 0.5, 0.35, 0.7, '#2a2d30', { collide: false });
     b.box(0.46, 0.55, 0, 0.05, 0.25, 0.6, color, { collide: false, o: GL });
+    if (y > 1) lightPool(b, 3.4, 0, 3.2, '#ffe2a0', 0.09 - y, 0.4);
   });
 }
 export function bollardLight(b, x, z, color = '#ffd98a') {
@@ -197,6 +204,7 @@ export function hangar(b, rng, { x, z, ry = 0, w = 30, d = 18, openW = 14, color
     b.box(-3, 4.8, -1.5, 0.08, 0.4, 0.08, '#2a2d30', { collide: false });
     // tavan lambaları
     for (const lx of [-10, -3.5, 3.5, 10]) for (const lz of [-3.5, 3.5]) b.box(lx, H - 0.8, lz, 1.4, 0.12, 0.5, '#fff3c4', { collide: false, o: GL });
+    for (const lx of [-10, -3.5, 3.5, 10]) for (const lz of [-3.5, 3.5]) lightPool(b, lx, lz, 3.4, '#ffe9b0', 0.09, 0.4);
     // asma kat (mezzanine): arka duvar boyunca, doğu uçtan merdivenli
     if (mezz) {
       const mx0 = -w / 2 + 2, mx1 = mx0 + (mezzLen ?? (w - 11.6)), mz0 = z0 + T, mz1 = z0 + T + 3.0, my = 3.0;
@@ -260,7 +268,7 @@ export function helipad(b, { x, z, r = 7, lights = true }) {
   b.box(x, 0.1, z, 2.9, 0.02, 0.5, '#e8e8e4', { collide: false });
   if (lights) for (let i = 0; i < 12; i++) {
     const a = (i / 12) * Math.PI * 2;
-    b.box(x + Math.cos(a) * (r + 0.3), 0, z + Math.sin(a) * (r + 0.3), 0.3, 0.2, 0.3, i % 3 === 0 ? '#ff5a43' : '#7dd0ff', { collide: false, o: GL });
+    b.box(x + Math.cos(a) * (r + 0.3), 0, z + Math.sin(a) * (r + 0.3), 0.4, 0.22, 0.4, i % 3 === 0 ? '#ff5a43' : '#7dd0ff', { collide: false, o: GL });
   }
 }
 

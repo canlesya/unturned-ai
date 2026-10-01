@@ -5,6 +5,7 @@ import { MapBuilder, makeRng } from '../../src/maps/builder.js';
 import * as K from '../../src/maps/kit.js';
 import * as T from '../../src/maps/kitTown.js';
 import { Walk } from './nav3d.mjs';
+import { NavGrid } from '../../src/game/nav.js';
 
 const filter = process.argv[2] || '';
 const NSEED = +(process.env.SEEDS || 1);
@@ -22,7 +23,7 @@ function runScene(name, build) {
   const bounds = { minX: -40, maxX: 40, minZ: -40, maxZ: 40 };
   const w = new Walk(b.colliders, bounds, { region: { minX: -30, maxX: 30, minZ: -30, maxZ: 30 } });
   const r = w.reach({ x: start.x, y: 0, z: start.z }, { maxDrop: 0.6 });
-  if (r && islandSpec) checkIslands(w, r, name, islandSpec);
+  if (r && islandSpec) { checkIslands(w, r, name, islandSpec); navIslands(b.colliders, bounds, name, islandSpec, start); }
   for (const t of targets) {
     const path = r ? w.pathTo(r, t.x, t.y, t.z, 0.12, t.radius ?? 2.0) : null;
     if (!path) { results.push({ name, target: t.name, graph: false, walk: false }); continue; }
@@ -51,8 +52,32 @@ function checkIslands(w, r, name, sp) {
         const q = st.pop(); n++; const qi = q % w.nx, qj = (q / w.nx) | 0; sx += w.cx(qi); sz += w.cz(qj);
         for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nq = (qj + dj) * w.nx + qi + di; if (un.has(nq) && !seen.has(nq)) { seen.add(nq); st.push(nq); } }
       }
-      if (n * SQ >= 1.0) results.push({ name, target: `ADA@${y.toFixed(1)} (${(sx / n).toFixed(1)},${(sz / n).toFixed(1)}) ${(n * SQ).toFixed(1)}m2`, graph: false, walk: false });
+      if (n * SQ >= 1.5) results.push({ name, target: `ADA@${y.toFixed(1)} (${(sx / n).toFixed(1)},${(sz / n).toFixed(1)}) ${(n * SQ).toFixed(1)}m2`, graph: false, walk: false });
     }
+  }
+}
+
+// Botların kullandığı NavGrid (0.5 m hücre, 0.35 şişirme) ile zemin kat: ulaşılamayan serbest küme ≥ 1 m² ise HATA
+function navIslands(colliders, bounds, name, sp, start) {
+  const nav = new NavGrid(colliders, bounds, null);
+  const W = nav.w, Hh = nav.h;
+  const s0 = nav.nearestFree(start.x, start.z);
+  const seen = new Uint8Array(W * Hh); const q = [s0]; seen[s0] = 1;
+  while (q.length) {
+    const c = q.pop(); const cx = c % W, cz = (c / W) | 0;
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const x = cx + dx, z = cz + dz; if (x < 0 || z < 0 || x >= W || z >= Hh) continue; const i = z * W + x; if (seen[i] || nav.blocked[i]) continue; seen[i] = 1; q.push(i); }
+  }
+  const comp = new Uint8Array(W * Hh);
+  for (let i = 0; i < W * Hh; i++) {
+    if (nav.blocked[i] || seen[i] || comp[i]) continue;
+    const st = [i]; comp[i] = 1; let n = 0, sx = 0, sz = 0, inside = 0;
+    while (st.length) {
+      const c = st.pop(); n++; const x = nav.cx(c), z = nav.cz(c); sx += x; sz += z;
+      if (Math.abs(x - sp.x) < sp.hw + 0.4 && Math.abs(z - sp.z) < sp.hd + 0.4) inside++;
+      const cx = c % W, cz = (c / W) | 0;
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const xx = cx + dx, zz = cz + dz; if (xx < 0 || zz < 0 || xx >= W || zz >= Hh) continue; const j = zz * W + xx; if (nav.blocked[j] || seen[j] || comp[j]) continue; comp[j] = 1; st.push(j); }
+    }
+    if (inside && n * 0.25 >= 1.5) results.push({ name, target: `NAV-ADA (${(sx / n).toFixed(1)},${(sz / n).toFixed(1)}) ${(n * 0.25).toFixed(1)}m2`, graph: false, walk: false });
   }
 }
 
@@ -97,6 +122,7 @@ const SPECIAL = [
   ['ambar', (b, rng) => K.barn(b, rng, { x: 0, z: 0, w: 12, d: 18 })],
   ['ambar-ry90', (b, rng) => K.barn(b, rng, { x: 0, z: 0, w: 10, d: 14, ry: Math.PI / 2, doors: 'front' })],
   ['depo', (b, rng) => K.warehouse(b, rng, { x: 0, z: 0 })],
+  ['depo-kucuk', (b, rng) => K.warehouse(b, rng, { x: 0, z: 0, w: 14, d: 12, ry: Math.PI / 2 })],
   ['depo-ry180', (b, rng) => K.warehouse(b, rng, { x: 0, z: 0, ry: Math.PI })],
   ['kilise', (b, rng) => K.church(b, rng, { x: 0, z: 0 })],
   ['kilise-ry90', (b, rng) => K.church(b, rng, { x: 0, z: 0, ry: Math.PI / 2 })],
@@ -105,7 +131,9 @@ const SPECIAL = [
   ['su-kulesi-ry180', (b, rng) => T.waterTower(b, { x: 0, z: 0, ry: Math.PI })],
   ['benzinlik', (b, rng) => K.gasStation(b, rng, { x: 0, z: 0, store: 'n' })],
 ];
-for (const [name, fn] of SPECIAL) {
+for (let sd = 0; sd < NSEED; sd++) for (const [name0, fn] of SPECIAL) {
+  SEED = 11 + sd * 977;
+  const name = NSEED > 1 ? `${name0}#${sd}` : name0;
   runScene(name, (b, rng, targets) => {
     const info = fn(b, rng);
     for (const t of info.targets) targets.push({ name: t.name || t.room || 'hedef', x: t.x, y: t.y, z: t.z });

@@ -10,6 +10,8 @@ for (const p of pairs) {
   for (let attempt = 0; attempt < 4; attempt++) {
     const page = await browser.newPage({ viewport: { width: +w, height: +h } });
     page.on('pageerror', (e) => console.log('[pageerror]', e.message));
+    // vite HMR websocket'ini kapat: başka ajanların dosya değişiklikleri sayfayı yeniden yüklemesin
+    await page.addInitScript(() => { window.WebSocket = class { constructor() { this.readyState = 3; } send() {} close() {} addEventListener() {} removeEventListener() {} }; });
     try {
       await page.goto(`http://127.0.0.1:5173/${page_}?${q}`);
       await page.waitForFunction('window.__ready === true', null, { timeout: 120000 });

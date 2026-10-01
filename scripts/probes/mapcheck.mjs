@@ -1,6 +1,6 @@
 // Harita denetimi (Node, tarayıcı gerekmez): node scripts/probes/mapcheck.mjs [harita-id=kasaba]
 //  1) her doğuş noktası → her hedef: A* ulaşılabilirlik (NavGrid)
-//  2) ada/flood: doğuştan ulaşılamayan serbest hücre kümeleri (≥ 2 m²) — kapalı oda/ada
+//  2) ada/flood: doğuştan ulaşılamayan serbest hücre kümeleri (≥ 1.5 m²) — kapalı oda/ada
 //  3) doğuş noktaları: canStand + nav serbest + baseZones içinde
 //  4) görüş hattı: mavi↔kırmızı doğuş çiftleri (göz hizası), doğuştan 360° tarama (en uzun açık hat), ana cadde ekseni ilk 35 m
 //  5) çarpışma kutusu sayısı, uzun görüş koridorları istatistiği
@@ -71,11 +71,11 @@ reachBad ? bad('hedef ulaşılabilirlik: bazı doğuş noktalarından ulaşılam
         const j = z * W + x; if (nav.blocked[j] || seen[j] || comp[j]) continue; comp[j] = 1; st.push(j);
       }
     }
-    if (n * 0.25 >= 2.0) islands.push({ area: +(n * 0.25).toFixed(1), x: +(sx / n).toFixed(1), z: +(sz / n).toFixed(1) });
+    if (n * 0.25 >= 1.5) islands.push({ area: +(n * 0.25).toFixed(1), x: +(sx / n).toFixed(1), z: +(sz / n).toFixed(1) });
   }
   const objAda = map.objectives.filter((o) => !seen[nav.nearestFree(o.x, o.z)]);
   if (objAda.length) bad('hedef adada: ' + objAda.map((o) => o.name).join(','));
-  islands.length ? bad(`ulaşılamayan serbest bölge (≥2 m²) ${islands.length} adet: ` + islands.slice(0, 12).map((s) => `(${s.x},${s.z}) ${s.area}m²`).join(' ')) : ok('ada yok (≥2 m² ulaşılamayan serbest bölge yok)');
+  islands.length ? bad(`ulaşılamayan serbest bölge (≥2 m²) ${islands.length} adet: ` + islands.slice(0, 12).map((s) => `(${s.x},${s.z}) ${s.area}m²`).join(' ')) : ok('ada yok (≥1.5 m² ulaşılamayan serbest bölge yok)');
 }
 
 // 3) doğuş noktaları
@@ -143,6 +143,21 @@ reachBad ? bad('hedef ulaşılabilirlik: bazı doğuş noktalarından ulaşılam
       const d = Math.min(h ? h.t : 200, toBounds(o, dir));
       rays++; if (d > 40) long++; if (d > 70) { longer++; worst.push({ x, z, a: Math.round((a / 16) * 360), d }); }
     }
+  }
+  if (process.argv.includes('--map')) {
+    // uzun (>40 m) ışın yoğunluğu haritası: her 6×6 m için 16 yönün kaçı >40 m
+    const rows = [];
+    for (let z = map.bounds.minZ + 3; z < map.bounds.maxZ; z += 6) {
+      let r = '';
+      for (let x = map.bounds.minX + 3; x < map.bounds.maxX; x += 6) {
+        if (!nav.isFree(x, z)) { r += '#'; continue; }
+        o.set(x, gh(x, z) + eye, z); let c = 0;
+        for (let a = 0; a < 16; a++) { const rr = (a / 16) * Math.PI * 2; dir.set(Math.sin(rr), 0, -Math.cos(rr)); const h = world.raycast(o, dir, 200, {}); const d = Math.min(h ? h.t : 200, toBounds(o, dir)); if (d > 40) c++; }
+        r += c === 0 ? '.' : c < 3 ? '1' : c < 5 ? '2' : c < 8 ? '3' : '4';
+      }
+      rows.push(r);
+    }
+    console.log(rows.join('\n'));
   }
   console.log(`  görüş: ${rays} ışın, >40 m: %${(100 * long / rays).toFixed(1)}, >70 m: %${(100 * longer / rays).toFixed(1)}`);
   worst.sort((p, q) => q.d - p.d);

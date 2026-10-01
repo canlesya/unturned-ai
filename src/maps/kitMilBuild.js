@@ -1,4 +1,6 @@
-import { fillRoom } from './kitMilInterior.js';
+import { fillRoom, poolDisc, poolRect } from './kitMilInterior.js';
+
+const SPILL = (b, x, z, w, d, op = 0.4) => poolRect(b, x, 0.09, z, w, d, '#ffdf9a', op);
 
 // Askeri üs yapı üreticileri: çok katlı bina (iç bölmeler + merdiven + çatı erişimi), kule, tünel, garaj sırası, çadır.
 // Hepsi MapBuilder (b) üzerine çizilir; iç mekân `rooms` ile doldurulur (kitMilInterior.js).
@@ -29,7 +31,7 @@ function winList(len, c, doors, abuts, st) {
 export function milBuilding(b, rng, o) {
   const {
     x, z, w, d, floors = 1, fh = 3.2, wall = '#8a9189', roof = '#585d62', trim = '#d7d6cc', floorColor = '#7a7e78',
-    slabColor = '#a9aba3', parapet = 1.1, lit = 0.55, dw = 2.0, partColor = '#b4b5ac',
+    slabColor = '#a9aba3', parapet = 1.1, lit = 0.65, dw = 2.0, partColor = '#b4b5ac',
   } = o;
   const roofAccess = o.roofAccess !== false;
   const T = 0.35;
@@ -104,6 +106,10 @@ export function milBuilding(b, rng, o) {
     const col = litNow ? '#2c3d49' : '#22333f';
     const op = litNow ? { glow: true, emissive: '#ffdf9a', roughness: 0.25 } : { transparent: true, opacity: 0.5, roughness: 0.2 };
     const ph = st.top - st.b0;
+    if (litNow && y0 === 0) {   // pencereden dışarı sızan ışık (yalnız zemin kat)
+      if (axis === 'x') SPILL(b, at, cc + (cc < z ? -1 : 1) * 1.1, st.ww + 0.5, 1.8);
+      else SPILL(b, cc + (cc < x ? -1 : 1) * 1.1, at, 1.8, st.ww + 0.5);
+    }
     if (axis === 'x') {
       b.box(at, y0 + st.b0, cc, st.ww, ph, 0.07, col, { collide: false, o: op });
       b.box(at, y0 + st.b0 - 0.07, cc, st.ww + 0.3, 0.08, T + 0.16, trim, { collide: false });
@@ -133,6 +139,7 @@ export function milBuilding(b, rng, o) {
       const px = horiz ? x + dr.at : (side === 'w' ? x0 : x1) + sgn * 0.5, pz = horiz ? (side === 'n' ? z0 : z1) + sgn * 0.5 : z + dr.at;
       b.box(px, 2.55, pz, horiz ? dr.w + 0.8 : 1.2, 0.14, horiz ? 1.2 : dr.w + 0.8, roof, { collide: false });
       b.box(px, 2.4, pz, horiz ? 0.5 : 0.16, 0.12, horiz ? 0.16 : 0.5, '#fff1c0', { collide: false, o: { glow: true } });       // kapı üstü lamba
+      poolDisc(b, px + (horiz ? 0 : sgn * 0.9), 0.09, pz + (horiz ? sgn * 0.9 : 0), 1.8, '#ffe2a0', 0.45, 12);
       b.box(px, 0, pz, horiz ? dr.w + 1.2 : 1.6, 0.1, horiz ? 1.6 : dr.w + 1.2, '#9a9c94', { collide: false });
     }
   }
@@ -191,6 +198,8 @@ export function milBuilding(b, rng, o) {
     for (let i = 0; i < nL; i++) {
       const lx = nL === 1 ? cx : R.x0 + (R.x1 - R.x0) * (i === 0 ? 0.3 : 0.7);
       b.box(lx, yy + fh - 0.34, cz, 0.9, 0.09, 0.32, '#fff3c4', { collide: false, o: { glow: true } });
+      const pr = Math.min(2.0, Math.min(R.x1 - R.x0, R.z1 - R.z0) / 2 - 0.1);                    // zemine ışık havuzu
+      if (pr > 0.8) poolDisc(b, lx, yy + 0.05, cz, pr, '#ffe9b0', 0.4, 12);
     }
   }
   // zemin kat dışı kat zemin rengi
@@ -245,6 +254,7 @@ export function garageRow(b, rng, { x, z, ry = 0, bays = 4, bw = 5.6, d = 8, h =
       b.box(cx, h - 1.3, d / 2 + 0.2, bw - 0.9, 0.9, 0.12, '#9aa0a8', { collide: false });
       // tavan lambası
       b.box(cx, h - 0.38, 0, 1.4, 0.08, 0.35, '#fff3c4', { collide: false, o: { glow: true } });
+      poolDisc(b, cx, 0.09, 0.4, 2.4, '#ffe9b0', 0.4, 12);
       // arka duvarda alet panosu + raf
       b.box(cx - 1.4, 0, -d / 2 + 0.7, 1.2, 1.0, 0.5, '#4a5058');
       b.box(cx + 1.6, 0, -d / 2 + 0.55, 0.9, 0.9, 0.5, '#d9a921');
@@ -282,6 +292,7 @@ export function tunnel(b, rng, { x, z, ry = 0, len = 30, iw = 3.6, ih = 3.0, col
     for (let i = 0; i < nL; i++) {
       const lx = -len / 2 + (i + 0.5) * (len / nL);
       b.box(lx, ih - 0.14, 0, 0.9, 0.1, 0.4, glowColor, { collide: false, o: { glow: true } });
+      poolDisc(b, lx, 0.06, 0, 1.7, glowColor, 0.4, 10);
       b.box(lx, ih - 0.05, iw / 2 - 0.1, 0.1, 0.05, 0.1, '#222', { collide: false });
     }
     b.box(0, 2.45, -iw / 2 + 0.12, len - 0.4, 0.22, 0.22, '#7a6a52', { collide: false });
@@ -325,6 +336,8 @@ export function tent(b, rng, { x, z, ry = 0, w = 5, d = 4, color = '#7b8260', ki
     for (const sx of [-1, 1]) b.box(sx * (w / 2 + 0.2), 0, d / 2 + 0.1, 0.08, wh, 0.08, '#5a4a30', { collide: false });
     if (kind) fillRoom(b, rng, kind, { x0: -w / 2 + 0.25, x1: w / 2 - 0.25, z0: -d / 2 + 0.25, z1: d / 2 - 0.1 }, 0, [{ x0: -0.85, x1: 0.85, z0: d / 2 - 1.3, z1: d / 2 + 1 }]);
     b.box(0, wh + ph - 0.45, 0, 0.5, 0.08, 0.3, '#fff3c4', { collide: false, o: { glow: true } });
+    b.box(w / 2 + 0.2, 1.9, d / 2 + 0.1, 0.2, 0.28, 0.2, '#ffd98a', { collide: false, o: { glow: true } });                  // giriş feneri
+    poolDisc(b, 0, 0.09, d / 2 + 1.0, 2.3, '#ffd27a', 0.45, 12);
   });
 }
 

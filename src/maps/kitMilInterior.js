@@ -9,6 +9,17 @@ export const IC = {
 };
 const GL = { glow: true };
 
+// Gece ışık havuzu malzemesi: siyah gövde + toplamalı karışım → gündüz görünmez, gece (emissive açılınca) parlar
+export const poolMat = (emissive = '#ffc66b', opacity = 0.5) => ({ glow: true, emissive, transparent: true, opacity, blending: 2, depthWrite: false, roughness: 1 });
+// Kademeli (merkezi parlak) ışık havuzu: 3 iç içe disk (toplamalı karışım) → alçak poligon "gradyan"
+export function poolDisc(b, x, y, z, r, color = '#ffc66b', opacity = 0.4, seg = 14) {
+  for (let i = 0; i < 3; i++) b.cyl(x, y + i * 0.003, z, r * [1, 0.68, 0.38][i], r * [1, 0.68, 0.38][i], 0.01, '#000000', { seg, collide: false, o: poolMat(color, opacity * 0.5) });
+}
+export function poolRect(b, x, y, z, w, d, color = '#ffdf9a', opacity = 0.4) {
+  b.box(x, y, z, w, 0.01, d, '#000000', { collide: false, o: poolMat(color, opacity * 0.55) });
+  b.box(x, y + 0.003, z, w * 0.62, 0.01, d * 0.62, '#000000', { collide: false, o: poolMat(color, opacity * 0.55) });
+}
+
 // ───────── Parçalar ─────────
 export const ITEMS = {
   locker: { w: 0.55, d: 0.5, draw(b) {
