@@ -1,8 +1,9 @@
 import * as THREE from 'three';
+import { DEEP_WATER } from '../maps/terrain.js';
 
 // Zemin kat yürüme ızgarası + A* (botlar için). Hücre 0.5 m.
 const CELL = 0.5;
-const INFL = 0.4;
+const INFL = 0.35;
 
 class Heap {
   constructor() { this.a = []; }
@@ -29,17 +30,32 @@ class Heap {
 }
 
 export class NavGrid {
-  constructor(colliders, bounds) {
+  constructor(colliders, bounds, terrain = null) {
     this.minX = bounds.minX - 1; this.minZ = bounds.minZ - 1;
     this.w = Math.ceil((bounds.maxX - bounds.minX + 2) / CELL);
     this.h = Math.ceil((bounds.maxZ - bounds.minZ + 2) / CELL);
     this.blocked = new Uint8Array(this.w * this.h);
+    if (terrain) {
+      for (let z = 0; z < this.h; z++) for (let x = 0; x < this.w; x++) {
+        const wx = this.minX + (x + 0.5) * CELL, wz = this.minZ + (z + 0.5) * CELL;
+        if (terrain.heightAt(wx, wz) < DEEP_WATER + 0.05 || terrain.slopeAt(wx, wz, 0.6) > 0.95) this.blocked[z * this.w + x] = 1;
+      }
+    }
+    // köprü tabliyesi vb.: araziden bağımsız yürünebilir
+    const cellRange = (lo, hi, min, n) => [Math.max(0, Math.ceil((lo - min) / CELL - 0.5)), Math.min(n - 1, Math.floor((hi - min) / CELL - 0.5))];
     for (const c of colliders) {
-      if (c.min[1] > 1.6 || c.max[1] < 0.45) continue;
-      const x0 = Math.floor((c.min[0] - INFL - this.minX) / CELL), x1 = Math.floor((c.max[0] + INFL - this.minX) / CELL);
-      const z0 = Math.floor((c.min[2] - INFL - this.minZ) / CELL), z1 = Math.floor((c.max[2] + INFL - this.minZ) / CELL);
-      for (let z = Math.max(0, z0); z <= Math.min(this.h - 1, z1); z++)
-        for (let x = Math.max(0, x0); x <= Math.min(this.w - 1, x1); x++) this.blocked[z * this.w + x] = 1;
+      if (c.tag !== 'deck') continue;
+      const [x0, x1] = cellRange(c.min[0] + INFL, c.max[0] - INFL, this.minX, this.w);
+      const [z0, z1] = cellRange(c.min[2] + INFL, c.max[2] - INFL, this.minZ, this.h);
+      for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) this.blocked[z * this.w + x] = 0;
+    }
+    for (const c of colliders) {
+      if (c.tag === 'deck') continue;
+      const gy = c.tag === 'rail' ? c.min[1] : terrain ? terrain.heightAt((c.min[0] + c.max[0]) / 2, (c.min[2] + c.max[2]) / 2) : 0;
+      if (c.min[1] - gy > 1.6 || c.max[1] - gy < 0.45) continue;
+      const [x0, x1] = cellRange(c.min[0] - INFL, c.max[0] + INFL, this.minX, this.w);
+      const [z0, z1] = cellRange(c.min[2] - INFL, c.max[2] + INFL, this.minZ, this.h);
+      for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) this.blocked[z * this.w + x] = 1;
     }
     // dış kenar
     for (let x = 0; x < this.w; x++) { this.blocked[x] = 1; this.blocked[(this.h - 1) * this.w + x] = 1; }
@@ -105,7 +121,7 @@ export class NavGrid {
     };
     open.push(s, hf(s));
     let expanded = 0, found = false;
-    while (open.size && expanded++ < 24000) {
+    while (open.size && expanded++ < this.w * this.h) {
       const cur = open.pop();
       if (cur === g) { found = true; break; }
       if (this.closedMark[cur] === st) continue;

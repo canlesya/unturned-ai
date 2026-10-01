@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { DEEP_WATER } from '../maps/terrain.js';
 
 // AABB tabanlı dünya: oyuncu/bot hareketi (adım çıkma, zıplama), ışın testi.
 export const R = 0.32;           // karakter yarıçapı
@@ -9,9 +10,10 @@ const STEP = 0.5;
 const GRAV = 15;
 
 export class World {
-  constructor(colliders, bounds) {
+  constructor(colliders, bounds, terrain = null) {
     this.colliders = colliders;
     this.bounds = bounds;
+    this.terrain = terrain;
     this.cell = 8;
     this.grid = new Map();
     this.stamp = 0;
@@ -50,8 +52,11 @@ export class World {
   }
 
   // Hareket: s.vel (x,z yatay istenen hız, y dikey) → s.pos güncellenir; s.onGround, s.height kullanılır.
+  heightAt(x, z) { return this.terrain ? this.terrain.heightAt(x, z) : 0; }
+
   move(s, dt) {
-    const p = s.pos, v = s.vel, h = s.height;
+    const p = s.pos, v = s.vel, h = s.height, T = this.terrain;
+    const wasOnGround = s.onGround;
     const list = this.query(p.x - 2, p.z - 2, p.x + 2, p.z + 2, (this._tmp ||= []));
     v.y -= GRAV * dt;
     if (v.y < -40) v.y = -40;
@@ -59,7 +64,13 @@ export class World {
     for (const axis of ['x', 'z']) {
       const d = v[axis] * dt;
       if (d === 0) continue;
+      const g0 = T ? T.heightAt(p.x, p.z) : 0;
       p[axis] += d;
+      if (T) {
+        // çok dik yamaç ya da derin suya yürüme engellenir
+        const g1 = T.heightAt(p.x, p.z);
+        if (p.y <= g0 + 0.08 && (g1 > g0 + 1.2 * Math.abs(d) || (g1 < DEEP_WATER && g0 >= DEEP_WATER))) { p[axis] -= d; v[axis] = 0; continue; }
+      }
       let guard = 0;
       let c;
       while ((c = this._hits(list, p.x, p.y, p.z, h)) && guard++ < 6) {
@@ -73,13 +84,15 @@ export class World {
       }
     }
 
+    const gh = T ? T.heightAt(p.x, p.z) : 0;
+    if (T && wasOnGround && !s.onCollider && v.y <= 0 && p.y > gh && p.y - gh < 0.5) p.y = gh;   // yokuş aşağı yere yapış
     const prevY = p.y;
     p.y += v.y * dt;
-    s.onGround = false;
-    if (p.y <= 0) { p.y = 0; if (v.y < 0) v.y = 0; s.onGround = true; }
+    s.onGround = false; s.onCollider = false;
+    if (p.y <= gh) { p.y = gh; if (v.y < 0) v.y = 0; s.onGround = true; }
     const c = this._hits(list, p.x, p.y, p.z, h);
     if (c) {
-      if (v.y <= 0 && prevY >= c.max[1] - 0.05) { p.y = c.max[1]; v.y = 0; s.onGround = true; }
+      if (v.y <= 0 && prevY >= c.max[1] - 0.05) { p.y = c.max[1]; v.y = 0; s.onGround = true; s.onCollider = true; }
       else if (v.y > 0) { p.y = c.min[1] - h - 1e-3; v.y = 0; }
       else { p.y = prevY; v.y = 0; }
     }
@@ -92,10 +105,11 @@ export class World {
   // Doğma/ışınlanma sonrası: alçak engellerin (bordür vb.) içindeyse üstüne oturt
   settle(s) {
     const p = s.pos;
+    if (this.terrain) p.y = this.terrain.heightAt(p.x, p.z);
     for (let i = 0; i < 4; i++) {
       const list = this.query(p.x - 1, p.z - 1, p.x + 1, p.z + 1, (this._tmp4 ||= []));
       const c = this._hits(list, p.x, p.y, p.z, 0.3);
-      if (!c || c.max[1] > STEP + 0.1) break;
+      if (!c || c.max[1] - (this.terrain ? this.terrain.heightAt(p.x, p.z) : 0) > STEP + 0.1) break;
       p.y = c.max[1] + 0.002;
     }
   }
@@ -124,7 +138,11 @@ export class World {
       }
       if (t0 <= t1 && t0 < best && t1 > 0) { best = t0; bc = c; bn = axisHit >= 0 ? [axisHit, sgn] : null; }
     }
-    if (d.y < -1e-6) {
+    let tnorm = null;
+    if (this.terrain) {
+      const th = this.terrain.raycast(o, d, best, (this._tr ||= {}));
+      if (th && th.t < best) { best = th.t; bc = null; bn = null; tnorm = th.normal; }
+    } else if (d.y < -1e-6) {
       const tg = -o.y / d.y;
       if (tg > 0 && tg < best) { best = tg; bc = null; bn = [1, 1]; }
     }
@@ -133,7 +151,8 @@ export class World {
     out.collider = bc;
     out.normal = out.normal || new THREE.Vector3();
     out.normal.set(0, 0, 0);
-    if (bn) out.normal.setComponent(bn[0], bn[1]);
+    if (tnorm) out.normal.copy(tnorm);
+    else if (bn) out.normal.setComponent(bn[0], bn[1]);
     out.point = (out.point || new THREE.Vector3()).copy(o).addScaledVector(d, best);
     return out;
   }

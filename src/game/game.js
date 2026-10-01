@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { setupEnvironment } from '../maps/environment.js';
-import { buildKasaba } from '../maps/kasaba.js';
+import { MAPS, DEFAULT_MAP } from '../maps/index.js';
 import { World } from './collision.js';
 import { NavGrid } from './nav.js';
 import { Effects } from './effects.js';
@@ -59,19 +59,23 @@ export class Game {
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(this.settings.fov, innerWidth / innerHeight, 0.05, 700);
     this.scene.add(this.camera);
-    const env = setupEnvironment(this.scene, r, { shadowSize: 55, sunPos: [55, 85, 40] });
-    this.sun = env.sun;
-    this.sun.shadow.mapSize.set(2048, 2048);
-    this.sunOff = new THREE.Vector3(55, 85, 40);
+
 
     // ── harita ──
-    this.map = buildKasaba();
+    this.mapDef = MAPS[opts.map] || MAPS[DEFAULT_MAP];
+    this.map = this.mapDef.build();
+    const sp = this.map.env?.sunPos || [55, 85, 40];
+    const env = setupEnvironment(this.scene, r, { shadowSize: 55, sunPos: sp, env: this.map.env });
+    this.sun = env.sun;
+    this.sun.shadow.mapSize.set(2048, 2048);
+    this.sunOff = new THREE.Vector3(...sp);
     this.scene.add(this.map.group);
-    this.world = new World(this.map.colliders, this.map.bounds);
-    this.nav = new NavGrid(this.map.colliders, this.map.bounds);
+    this.terrain = this.map.terrain || null;
+    this.world = new World(this.map.colliders, this.map.bounds, this.terrain);
+    this.nav = new NavGrid(this.map.colliders, this.map.bounds, this.terrain);
 
     this.mode = { ...MODES[opts.mode] };
-    this.mode.objectives = this.map.objectives.filter((o) => this.mode.objectives.includes(o.id)).map((o) => ({ ...o, owner: null, p: 0 }));
+    this.mode.objectives = this.map.objectives.filter((o) => this.mode.perTeam >= 10 || o.core).map((o) => ({ ...o, owner: null, p: 0 }));
     this.tickets = { blue: this.mode.tickets, red: this.mode.tickets };
     this.timeLeft = this.mode.time;
 
@@ -210,8 +214,9 @@ export class Game {
     const p = this.playerSoldier.pos;
     const q = (2 * 55) / 2048;
     const tx = Math.round(p.x / q) * q, tz = Math.round(p.z / q) * q;
-    this.sun.target.position.set(tx, 0, tz);
-    this.sun.position.set(tx + this.sunOff.x, this.sunOff.y, tz + this.sunOff.z);
+    const ty = p.y;
+    this.sun.target.position.set(tx, ty, tz);
+    this.sun.position.set(tx + this.sunOff.x, ty + this.sunOff.y, tz + this.sunOff.z);
     r.clear();
     r.render(this.scene, this.camera);
     if (this.playerSoldier.alive) this.player.vm.render(r, innerWidth, innerHeight);
@@ -407,7 +412,7 @@ export class Game {
         let b = 0, r = 0;
         for (const s of this.soldiers) {
           if (!s.alive) continue;
-          if (Math.hypot(s.pos.x - o.x, s.pos.z - o.z) < o.r && s.pos.y < 8) (s.team === 'blue' ? b++ : r++);
+          if (Math.hypot(s.pos.x - o.x, s.pos.z - o.z) < o.r && Math.abs(s.pos.y - this.world.heightAt(o.x, o.z)) < 8) (s.team === 'blue' ? b++ : r++);
         }
         const net = clamp(b - r, -3, 3);
         if (net !== 0) {

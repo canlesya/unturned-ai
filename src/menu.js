@@ -1,7 +1,8 @@
+import { MAPS, DEFAULT_MAP } from './maps/index.js';
 import { CLASS_DEFS, MODES, DIFFICULTY, OPTICS, OPTIC_ORDER } from './game/stats.js';
 
 const KEY = 'blockfront.v1';
-export const DEFAULTS = { mode: '10v10', team: 'blue', cls: 'assault', diff: 'normal', optic: 'reddot', sens: 0.0022, fov: 75, volume: 0.6, shadows: true };
+export const DEFAULTS = { map: DEFAULT_MAP, mode: '10v10', team: 'blue', cls: 'assault', diff: 'normal', optic: 'reddot', sens: 0.0022, fov: 75, volume: 0.6, shadows: true };
 
 export function loadPrefs() {
   try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) || '{}') }; } catch (e) { return { ...DEFAULTS }; }
@@ -11,24 +12,25 @@ function savePrefs(p) { try { localStorage.setItem(KEY, JSON.stringify(p)); } ca
 export function showMenu(onStart) {
   const el = document.getElementById('menu');
   const p = loadPrefs();
+  if (!MAPS[p.map]) p.map = DEFAULT_MAP;
   el.style.display = 'block';
   const opts = (items, cur, cls = '') => items.map(([k, t, s]) => `<div class="opt ${cls || k} ${cur === k ? 'on' : ''}" data-k="${k}"><b>${t}</b><small>${s || ''}</small></div>`).join('');
   el.innerHTML = `<div class="wrap">
     <h1><span>BLOCK</span><b>FRONT</b></h1>
-    <div class="sub">Unturned tarzı kutu karakterlerle BattleBit usulü takım savaşı · Kasaba haritası</div>
+    <div class="sub">Unturned tarzı kutu karakterlerle BattleBit usulü takım savaşı · 3 harita</div>
     <div class="grid">
       <div>
-        <div class="card"><h3>1 · Oyun modu</h3><div class="row" id="gMode">${opts(Object.entries(MODES).map(([k, m]) => [k, m.label, `${m.perTeam} + ${m.perTeam} oyuncu · ${m.objectives.length} hedef · ${m.tickets} bilet`]), p.mode, 'neutral')}</div></div>
-        <div class="card"><h3>2 · Takım</h3><div class="row" id="gTeam">${opts([['blue', 'Mavi Takım', 'Batıdaki çiftlikte doğarsın'], ['red', 'Kırmızı Takım', 'Doğudaki depoda doğarsın']], p.team)}</div></div>
+        <div class="card"><h3>1 · Oyun modu</h3><div class="row" id="gMode">${opts(Object.entries(MODES).map(([k, m]) => [k, m.label, `${m.perTeam} + ${m.perTeam} oyuncu · ${m.perTeam >= 10 ? 5 : 3} hedef · ${m.tickets} bilet`]), p.mode, 'neutral')}</div></div>
+        <div class="card"><h3>2 · Takım</h3><div class="row" id="gTeam">${opts([['blue', 'Mavi Takım', 'Batıdaki kampta doğarsın'], ['red', 'Kırmızı Takım', 'Doğudaki kampta doğarsın']], p.team)}</div></div>
         <div class="card"><h3>3 · Sınıf</h3><div class="row" id="gCls">${opts(Object.entries(CLASS_DEFS).map(([k, d]) => [k, d.label, d.desc]), p.cls, 'neutral')}</div></div>
         <div class="card"><h3>4 · Nişangâh</h3><div class="row" id="gOptic">${opts(OPTIC_ORDER.map((k) => [k, OPTICS[k].label, k === 'iron' ? 'Arpacık + gez' : k === 'reddot' ? 'Kompakt, hızlı' : k === 'holo' ? 'Geniş pencere, halkalı' : '3x yakınlaştırma']), p.optic, 'neutral')}</div><div class="foot">Oyunda <kbd>B</kbd> ile değiştir. Keskin nişancı tüfeği her zaman 4x dürbün kullanır.</div></div>
         <div class="card"><h3>5 · Bot zorluğu</h3><div class="row" id="gDiff">${opts(Object.entries(DIFFICULTY).map(([k, d]) => [k, d.label, '']), p.diff, 'neutral')}</div></div>
       </div>
       <div>
-        <div class="card"><h3>Oda</h3>
-          <div class="room"><img src="/img/kasaba.png" alt="Kasaba"/>
-            <div><h4>Kasaba</h4><p><span class="tag">YEREL</span><span class="tag">BOTLU</span></p><p>Mavi çiftlik ↔ Kırmızı depo, ortada benzinlik, pazar ve kilise.</p>
-            <p><span class="tag soon">YAKINDA</span>Çok oyunculu odalar</p></div></div></div>
+        <div class="card"><h3>Harita</h3>
+          <div class="maps" id="gMap">${Object.values(MAPS).map((m) => `<div class="mapc ${p.map === m.id ? 'on' : ''}" data-k="${m.id}"><img src="${m.thumb}" alt="${m.name}"/><b>${m.name}</b><small>${m.tag}</small></div>`).join('')}</div>
+          <div class="mapdesc" id="mapDesc"></div>
+          <p style="margin:8px 0 0"><span class="tag">YEREL</span><span class="tag">BOTLU</span><span class="tag soon">YAKINDA</span> Çok oyunculu odalar</p></div>
         <button class="play" id="bPlay">OYUNA GİR</button>
         <div style="height:16px"></div>
         <div class="card"><h3>Ayarlar</h3>
@@ -58,6 +60,12 @@ export function showMenu(onStart) {
       savePrefs(p);
     }));
   };
+  const mapDesc = () => { q('#mapDesc').textContent = MAPS[p.map].desc; };
+  mapDesc();
+  q('#gMap').querySelectorAll('.mapc').forEach((o) => o.addEventListener('click', () => {
+    p.map = o.dataset.k; mapDesc(); savePrefs(p);
+    q('#gMap').querySelectorAll('.mapc').forEach((x) => x.classList.toggle('on', x === o));
+  }));
   bindGroup('#gMode', 'mode'); bindGroup('#gTeam', 'team'); bindGroup('#gCls', 'cls'); bindGroup('#gDiff', 'diff'); bindGroup('#gOptic', 'optic');
   const slider = (id, vid, key, fmt) => {
     const s = q(id), v = q(vid);
@@ -68,5 +76,5 @@ export function showMenu(onStart) {
   slider('#sFov', '#vFov', 'fov', (x) => x + '°');
   slider('#sVol', '#vVol', 'volume', (x) => Math.round(x * 100) + '%');
   q('#sSh').addEventListener('change', (e) => { p.shadows = e.target.checked; savePrefs(p); });
-  q('#bPlay').addEventListener('click', () => { el.style.display = 'none'; onStart({ mode: p.mode, team: p.team, cls: p.cls, diff: p.diff, optic: p.optic, settings: { sens: p.sens, fov: p.fov, volume: p.volume, shadows: p.shadows, pixelRatio: 1.5 } }); });
+  q('#bPlay').addEventListener('click', () => { el.style.display = 'none'; onStart({ map: p.map, mode: p.mode, team: p.team, cls: p.cls, diff: p.diff, optic: p.optic, settings: { sens: p.sens, fov: p.fov, volume: p.volume, shadows: p.shadows, pixelRatio: 1.5 } }); });
 }

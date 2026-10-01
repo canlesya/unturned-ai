@@ -122,7 +122,7 @@ export class Hud {
     this.flagEls = [];
     for (const o of game.mode.objectives) {
       const f = document.createElement('div');
-      f.className = 'flag'; f.innerHTML = `<i></i><span>${o.name[0]}</span>`; f.title = o.name;
+      f.className = 'flag'; f.innerHTML = `<i></i><span>${o.label || o.name[0]}</span>`; f.title = o.name;
       this.$('flags').appendChild(f);
       this.flagEls.push(f);
     }
@@ -164,9 +164,25 @@ export class Hud {
     const c = document.createElement('canvas'); c.width = W; c.height = H;
     const x = c.getContext('2d');
     x.fillStyle = '#6d8a45'; x.fillRect(0, 0, W, H);
+    if (g.terrain) {
+      // arazi: yükseklik rengi + gölgelendirme, su mavi
+      const T = g.terrain, img = x.createImageData(W, H);
+      for (let py = 0; py < H; py++) for (let px = 0; px < W; px++) {
+        const wx = (px - W / 2) / this.mmS, wz = (py - H / 2) / this.mmS;
+        const h = T.heightAt(wx, wz);
+        const dx = T.heightAt(wx + 1.2, wz) - T.heightAt(wx - 1.2, wz), dz = T.heightAt(wx, wz + 1.2) - T.heightAt(wx, wz - 1.2);
+        const sh = clamp(0.95 + (-dx - dz) * 0.09, 0.55, 1.3);
+        let r, gg, b;
+        if (h < -0.25) { r = 74; gg = 144; b = 184; }
+        else { const t = clamp(h / 14, 0, 1); r = (109 + 50 * t) * sh; gg = (138 + 6 * t) * sh; b = (69 + 30 * t) * sh; }
+        const k = (py * W + px) * 4;
+        img.data[k] = r; img.data[k + 1] = gg; img.data[k + 2] = b; img.data[k + 3] = 255;
+      }
+      x.putImageData(img, 0, 0);
+    }
     x.fillStyle = '#58703a';
     x.strokeStyle = '#2a3a1f'; x.lineWidth = 2; x.strokeRect(this.mmX(b.minX), this.mmY(b.minZ), (b.maxX - b.minX) * this.mmS, (b.maxZ - b.minZ) * this.mmS);
-    x.fillStyle = '#4b4f57';
+    x.fillStyle = g.map.roadColor || '#4b4f57';
     for (const r of g.map.roads || []) x.fillRect(this.mmX(r.x0), this.mmY(r.z0), (r.x1 - r.x0) * this.mmS, (r.z1 - r.z0) * this.mmS);
     for (const cl of g.map.colliders) {
       const w = cl.max[0] - cl.min[0], d = cl.max[2] - cl.min[2], h = cl.max[1] - cl.min[1];
@@ -326,7 +342,7 @@ export class Hud {
       x.fillStyle = o.owner === 'blue' ? '#4aa3ffaa' : o.owner === 'red' ? '#ff5a43aa' : '#ffffff66';
       x.fill(); x.strokeStyle = '#fff'; x.lineWidth = 1.5; x.stroke();
       x.fillStyle = '#fff'; x.font = 'bold 10px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
-      x.fillText(o.name[0], this.mmX(o.x), this.mmY(o.z) + 0.5);
+      x.fillText(o.label || o.name[0], this.mmX(o.x), this.mmY(o.z) + 0.5);
     }
     for (const s of g.soldiers) {
       if (!s.alive) continue;

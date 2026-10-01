@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>BlockFront · Kasaba Harbi</title>
+  <title>BlockFront</title>
   <style>
     html,body{margin:0;height:100%;background:#0d1117;overflow:hidden;font-family:system-ui,Segoe UI,Roboto,sans-serif;color:#fff}
     #loading{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:#0d1117;z-index:50;font-size:22px;font-weight:700}
@@ -22,6 +22,12 @@
     .opt:hover{border-color:#4a5d80}.opt.on{border-color:#4aa3ff;background:#1f3150}
     .opt b{display:block;font-size:15px}.opt small{opacity:.7;font-size:12px}
     .opt.red.on{border-color:#ff5a43;background:#4a2a26}.opt.blue.on{border-color:#4aa3ff}
+    .maps{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+    .mapc{border:2px solid #2b374d;border-radius:10px;padding:6px;cursor:pointer;background:#141b28;transition:.15s}
+    .mapc:hover{border-color:#4d6a96}.mapc.on{border-color:#7fc4ff;background:#1a2638;box-shadow:0 0 0 2px #7fc4ff44}
+    .mapc img{width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:6px;display:block}
+    .mapc b{display:block;margin-top:6px;font-size:15px}.mapc small{display:block;opacity:.65;font-size:11px}
+    .mapdesc{margin-top:10px;font-size:13px;opacity:.8;line-height:1.45;min-height:56px}
     .room{display:flex;gap:14px;align-items:center}
     .room img{width:230px;border-radius:8px;border:1px solid #2b374d}
     .room h4{margin:0 0 4px;font-size:18px}.room p{margin:2px 0;font-size:13px;opacity:.75}

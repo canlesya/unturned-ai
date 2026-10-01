@@ -146,8 +146,8 @@ export function house(b, rng, o) {
 }
 
 // ───────── Ambar ─────────
-export function barn(b, rng, { x, z, w = 12, d = 18, door = 's' }) {
-  const red = '#9c3a2c', H = 5.2, T = 0.3;
+export function barn(b, rng, { x, z, w = 12, d = 18, door = 's', color = '#9c3a2c', roof = '#6c7078' }) {
+  const red = color, H = 5.2, T = 0.3;
   const x0 = x - w / 2, x1 = x + w / 2, z0 = z - d / 2, z1 = z + d / 2;
   b.box(x, 0, z, w - 0.4, 0.06, d - 0.4, '#8a7048', { collide: false });
   const big = { at: x, w: 4.4, b: 0, top: 4.2 };
@@ -165,7 +165,7 @@ export function barn(b, rng, { x, z, w = 12, d = 18, door = 's' }) {
   }
   b.box(x, H - 0.3, z, w + 0.2, 0.3, d + 0.2, COL.white, { collide: false });
   b.box(x, H - 0.2, z, w, 0.2, d, '#a58a68');
-  b.prism(x, H - 0.1, z, w + 1.4, 4.6, d + 1.2, '#6c7078', {});
+  b.prism(x, H - 0.1, z, w + 1.4, 4.6, d + 1.2, roof, {});
   // samanlık balyaları + sandıklar
   for (let i = 0; i < 6; i++) hayBale(b, x0 + 1.4 + (i % 3) * 1.5, z0 + 1.3 + Math.floor(i / 3) * 1.3);
   b.box(x1 - 1.2, 0, z - 2, 1.0, 1.0, 1.0, COL.woodLight);

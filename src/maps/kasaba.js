@@ -193,11 +193,11 @@ export function buildKasaba() {
     spawns.red.push({ x: 60 - row * 3.5, z: -9 + col * 3.6, ry: Math.PI / 2 });      // batıya (−X) bakar
   }
   const objectives = [
-    { id: 'evler', name: 'Evler', x: -20, z: -18, r: 9 },
+    { id: 'evler', core: true, name: 'Evler', x: -20, z: -18, r: 9 },
     { id: 'kilise', name: 'Kilise', x: -21, z: 24, r: 9 },
-    { id: 'kavsak', name: 'Kavşak', x: 0, z: 0, r: 9 },
+    { id: 'kavsak', core: true, name: 'Kavşak', x: 0, z: 0, r: 9 },
     { id: 'benzinlik', name: 'Benzinlik', x: 20, z: -13, r: 9 },
-    { id: 'pazar', name: 'Pazar', x: 21, z: 20, r: 9 },
+    { id: 'pazar', core: true, name: 'Pazar', x: 21, z: 20, r: 9 },
   ];
 
   return {

@@ -13,6 +13,13 @@ düz renkli / flat-shaded, düşük poligonlu modeller.
 - `viewer.html` – model önizleme sayfası (`?view=characters|closeup|weapons|weapon|items`)
 - `screenshots/` – tasarım ekran görüntüleri
 
+**Aşama 3 – Harita 2 ve 3 (onay bekliyor):**
+- `src/maps/terrain.js` – yükseklik haritalı arazi (fizik, mermi, yol bulma, minimap gölgelemesi)
+- `src/maps/vadi.js` – **Vadi**: nehirli kanyon, tek taş köprü + iki sığ geçit, ormanlı sırtlar, Ambar / Değirmen / Gözetleme Tepesi / Orman Kampı / Köprü
+- `src/maps/us.js` + `src/maps/kitMil.js` – **Askeri Üs**: duvarlı üs, 3 katlı komuta binası, hangar, radar kulesi, kışla, akaryakıt deposu, bunkerler
+- `src/maps/index.js` – harita kaydı; menüde harita seçici, `?autostart=10v10&map=vadi|us|kasaba`
+- `map.html?map=vadi&shot=aerial|top|bridge|…` – harita önizleme; `screenshots/harita-vadi/`, `screenshots/harita-us/`, `screenshots/oyun-haritalar/`
+
 **Aşama 2 – Harita 1: Kasaba (onay bekliyor):**
 
 - `src/maps/builder.js` – harita üreticisi: parçaları materyal başına birleştirir (az draw call) ve her katı parça için AABB çarpışma kutusu üretir
