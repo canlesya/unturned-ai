@@ -13,6 +13,14 @@ düz renkli / flat-shaded, düşük poligonlu modeller.
 - `viewer.html` – model önizleme sayfası (`?view=characters|closeup|weapons|weapon|items`)
 - `screenshots/` – tasarım ekran görüntüleri
 
+**Aşama 4 – Büyük güncelleme (v2):**
+- Yeni menü (`src/menu.js`, `menuScene.js`, `menuStyle.js`): canlı 3D arka plan, hızlı/rastgele/özel oyun, sınıf ve silah vitrini, seviye/XP
+- Özel maç: takım başına 1–32 oyuncu, Ele Geçirme / Takım Çatışması, bilet, süre; gündüz/gün batımı/gece, yağmur/sis (`src/game/match.js`, `weather.js`)
+- Silahlar: 32 model, loadout seçimi, hızlı şarjör, yeni bıçak, duman/flaşbang/claymore (`weapons*.js`, `gadgets.js`, `anim.js`)
+- Haritalar yeniden tasarlandı (spawn'lar birbirini görmez, tırmanılabilir kuleler, dolu iç mekânlar): `kasaba.js`, `vadi.js`, `us.js`; kit: `house.js`, `furn.js`, `kitTown.js`, `kitVadi.js`, `kitMil*.js`
+- Bot stratejisi: mangallar, kanat manevrası, gözetleme noktası, canlandırma; ileri doğma, üs bölgesi cezası
+- Test araçları: `scripts/probes/*` (reach, flood, sim, climb, walls, mapcheck), `scripts/menushot.mjs`, `vite.test.config.js` (HMR'siz test sunucusu: `npx vite --config vite.test.config.js --port 5180`)
+
 **Aşama 3 – Harita 2 ve 3 (onay bekliyor):**
 - `src/maps/terrain.js` – yükseklik haritalı arazi (fizik, mermi, yol bulma, minimap gölgelemesi)
 - `src/maps/vadi.js` – **Vadi**: nehirli kanyon, tek taş köprü + iki sığ geçit, ormanlı sırtlar, Ambar / Değirmen / Gözetleme Tepesi / Orman Kampı / Köprü

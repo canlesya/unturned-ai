@@ -105,6 +105,7 @@ export const MENU_CSS = `
 #menu .wc:hover{background:#ffffff1a;transform:translateY(-2px)}
 #menu .wc.on{border-color:var(--acc);background:rgba(255,138,31,.17);box-shadow:inset 0 0 0 1px var(--acc)}
 #menu .wc img{width:100%;height:68px;object-fit:contain;display:block}
+#menu img:not([src]){visibility:hidden}
 #menu .wc b{display:block;font-size:15px;letter-spacing:1px;text-transform:uppercase}
 #menu .wc .mini{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;margin-top:5px;font-size:10px;letter-spacing:1px;color:var(--dim);text-transform:uppercase;align-items:center}
 #menu .bar{height:4px;background:#ffffff1c;position:relative}

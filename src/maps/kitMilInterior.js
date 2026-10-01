@@ -188,7 +188,7 @@ export const ITEMS = {
   bin: { w: 0.5, d: 0.5, draw(b) { b.cyl(0, 0, 0.25, 0.22, 0.2, 0.7, '#3f4a3f', { seg: 8 }); } },
   plant: { w: 0.55, d: 0.55, draw(b) {
     b.cyl(0, 0, 0.275, 0.2, 0.16, 0.4, '#8a5a3a', { seg: 8 });
-    b.ico(0, 0.8, 0.275, 0.4, '#4f7a3a', { scale: [1, 1.3, 1], detail: 0, collide: false });
+    b.ico(0, 0.8, 0.275, 0.3, '#4f7a3a', { scale: [1, 1.3, 1], detail: 0, collide: false });
     b.collide(0, 0, 0.275, 0.45, 1.2, 0.45);
   } },
   cooler: { w: 0.45, d: 0.45, draw(b) {

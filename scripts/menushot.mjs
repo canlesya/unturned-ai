@@ -5,7 +5,7 @@ const b = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-un
 const p = await b.newPage({ viewport: { width: +(process.env.W || 1600), height: +(process.env.H || 900) } });
 const errs = [];
 p.on('pageerror', (e) => errs.push(e.message)); p.on('console', (m) => ['error', 'warning'].includes(m.type()) && errs.push(m.text()));
-await p.goto(`http://127.0.0.1:5173/?${process.env.Q || ''}`);
+await p.goto(`${process.env.BASE || 'http://127.0.0.1:5180'}/?${process.env.Q || ''}`);
 await p.waitForSelector('.mn-nav', { timeout: 30000 });
 await p.waitForTimeout(2500);
 for (const s of list.split(',')) {

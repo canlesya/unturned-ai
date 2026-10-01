@@ -5,7 +5,7 @@ const page = await browser.newPage({ viewport: { width: 800, height: 450 } });
 const errs = [];
 page.on('pageerror', (e) => errs.push(e.message));
 page.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
-await page.goto('http://127.0.0.1:5173/?autostart=3v3&debug=1&nolock=1');
+await page.goto(`${process.env.BASE || 'http://127.0.0.1:5180'}/?autostart=3v3&debug=1&nolock=1`);
 await page.waitForFunction('window.__game && window.__game.running', null, { timeout: 60000 });
 const st = () => page.evaluate(() => { const g = window.__game, s = g.playerSoldier; for (let i = 0; i < 20; i++) g.step(1 / 30); return { prone: s.prone, crouch: s.crouching, lean: +s.leanT.toFixed(2), eye: +s.eyeY.toFixed(2), h: s.height, optic: s.opticId, off: s.leanOff.toArray().map((v) => +v.toFixed(2)) }; });
 const log = async (n) => console.log(n.padEnd(28), JSON.stringify(await st()));
