@@ -31,7 +31,7 @@ if (q.get('autostart')) {
   const p = loadPrefs();
   document.getElementById('menu').style.display = 'none';
   start({
-    mode: q.get('autostart'), team: q.get('team') || 'blue', cls: q.get('cls') || 'assault', diff: q.get('diff') || 'normal',
+    mode: q.get('autostart'), optic: q.get('optic') || 'reddot', team: q.get('team') || 'blue', cls: q.get('cls') || 'assault', diff: q.get('diff') || 'normal',
     settings: { sens: p.sens, fov: p.fov, volume: 0, shadows: q.get('shadows') !== '0', pixelRatio: +(q.get('pr') || 1) },
   });
 } else showMenu(start);

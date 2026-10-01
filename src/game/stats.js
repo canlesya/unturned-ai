@@ -69,3 +69,35 @@ export const DIFFICULTY = {
 
 export const BOT_NAMES = ['Kaan', 'Efe', 'Deniz', 'Mert', 'Ada', 'Ege', 'Can', 'Selin', 'Arda', 'Yağız', 'Barış', 'Ceren', 'Emre', 'Zeynep', 'Onur',
   'Tuna', 'Berk', 'Defne', 'Kerem', 'Ilgaz', 'Sarp', 'Duru', 'Alp', 'Ozan', 'Mina', 'Rüzgar', 'Çınar', 'Toprak', 'Bora', 'Aylin'];
+
+// Nişangâhlar: zoom çarpanı, ADS arayüz örtüsü (none | dot | holo | scope)
+export const OPTICS = {
+  iron: { label: 'Demir Nişan', zoom: 1.15, overlay: 'none' },
+  reddot: { label: 'Red Dot', zoom: 1.3, overlay: 'dot' },
+  holo: { label: 'Holografik', zoom: 1.3, overlay: 'holo' },
+  acog: { label: 'ACOG 3x', zoom: 3, overlay: 'scope', reticle: 'chevron' },
+  scope: { label: '4x Dürbün', zoom: 4, overlay: 'scope', reticle: 'mil' },
+};
+export const OPTIC_ORDER = ['iron', 'reddot', 'holo', 'acog'];
+export const OPTIC_ALLOWED = {
+  ak47: ['iron', 'reddot', 'holo', 'acog'],
+  m4a1: ['iron', 'reddot', 'holo', 'acog'],
+  mp5: ['iron', 'reddot', 'holo', 'acog'],
+  lmg: ['iron', 'reddot', 'holo', 'acog'],
+  shotgun: ['iron', 'reddot', 'holo'],
+  pistol: ['iron', 'reddot'],
+  sniper: ['scope'],
+  rpg: ['iron'],
+};
+// Tercih edilen nişangâh o silahta yoksa en yakın uygun olana düşer
+export function resolveOptic(id, pref = 'reddot') {
+  const allowed = OPTIC_ALLOWED[id];
+  if (!allowed) return null;
+  if (allowed.includes(pref)) return pref;
+  if (allowed.length === 1) return allowed[0];
+  const i = OPTIC_ORDER.indexOf(pref);
+  for (let d = 1; d < OPTIC_ORDER.length; d++) {
+    for (const j of [i - d, i + d]) { const o = OPTIC_ORDER[j]; if (o && allowed.includes(o)) return o; }
+  }
+  return allowed[0];
+}

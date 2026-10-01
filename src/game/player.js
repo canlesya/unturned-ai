@@ -29,7 +29,7 @@ class ViewModel {
     this.flash = null; this.flashT = 0;
   }
 
-  setItem(id, team, kind) {
+  setItem(id, team, kind, optic) {
     if (this.model) this.root.remove(this.model);
     this.id = id;
     this.raise = 1;
@@ -39,10 +39,10 @@ class ViewModel {
       const m = createItem('medkit'); m.scale.setScalar(1.5); m.position.set(0, -0.08, 0); g.add(m);
       g.userData = { gripR: new THREE.Vector3(0.02, -0.02, 0.0), gripL: null, muzzle: new THREE.Vector3(), sight: [0, 0, 0], dist: 0.3, noAds: true };
     } else {
-      const w = createWeapon(id);
+      const w = createWeapon(id, optic);
       g.add(w);
       const st = WSTATS[id];
-      g.userData = { ...w.userData, sight: st.sight, dist: st.dist };
+      g.userData = { ...w.userData, sight: w.userData.sight ?? st.sight, dist: w.userData.dist ?? st.dist };
       // muzzle flash
       const f = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 0.18), new THREE.MeshBasicMaterial({ color: '#ffd36a', transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }));
       f.position.copy(w.userData.muzzle).add(new THREE.Vector3(0, 0, -0.08));
@@ -124,7 +124,8 @@ class ViewModel {
       this.flash.visible = this.flashT > 0;
     }
     // dürbünlü silahta tam nişanda modeli gizle
-    this.root.visible = !(st.scope && s.adsT > 0.9);
+    this.root.visible = !(s.overlay === 'scope' && s.adsT > 0.9);
+    this.cam.rotation.z = -s.leanT * 0.2;   // yana eğilirken silah da kafayla birlikte yatar
   }
 
   render(renderer, w, h) {
@@ -162,7 +163,7 @@ export class Player {
 
   refreshWeapon() {
     const s = this.s;
-    this.vm.setItem(s.item.id, s.team, s.stat.kind);
+    this.vm.setItem(s.item.id, s.team, s.stat.kind, s.optic);
   }
 
   on(target, ev, fn, opt) { target.addEventListener(ev, fn, opt); this._bound.push([target, ev, fn, opt]); }
@@ -175,12 +176,15 @@ export class Player {
       const s = this.s;
       if (!this.game.running) return;
       if (e.code === 'KeyR') s.startReload();
-      if (e.code === 'KeyC') { if (!s.crouching || this.game.world.canStand(s)) s.crouching = !s.crouching; }
+      if (s.alive && (e.code === 'KeyC' || e.code === 'ControlLeft' || e.code === 'ControlRight')) s.toggleCrouch();
+      if (s.alive && e.code === 'KeyZ') s.toggleProne();
+      if (s.alive && e.code === 'KeyB') { const o = s.cycleOptic(); if (o) this.game.hud.toast('Nişangâh: ' + o.label, '#cfe6ff'); }
       if (e.code.startsWith('Digit')) { const n = +e.code.slice(5) - 1; if (n >= 0 && n < 4) s.switchTo(n); }
       if (e.code === 'KeyV') s.switchTo(3);
       if (e.code === 'KeyG') s.switchTo(2);
       if (e.code === 'Tab') { e.preventDefault(); this.game.hud.showScoreboard(true); }
       if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
+      if (e.code === 'Space' && s.alive && (s.prone || s.crouching)) { s.standUp(); this.spaceLatch = true; }   // yatarken/çömelirken Boşluk = kalk
       if (e.code === 'Escape' && this.game.noPointerLock) this.game.togglePause();
       if (!s.alive && this.game.respawnReady() && e.code.startsWith('Digit')) {
         const keys = Object.keys(this.game.classDefs);
@@ -190,11 +194,12 @@ export class Player {
     });
     this.on(window, 'keyup', (e) => {
       this.keys.delete(e.code);
+      if (e.code === 'Space') this.spaceLatch = false;
       if (e.code === 'Tab') this.game.hud.showScoreboard(false);
     });
     this.on(document, 'mousemove', (e) => {
       if (!this.locked) return;
-      const k = this.set.sens * (this.s.stat.zoom && this.s.adsT > 0.5 ? 1 / Math.pow(this.s.stat.zoom, 0.8) : 1);
+      const k = this.set.sens * (this.s.zoomNow && this.s.adsT > 0.5 ? 1 / Math.pow(this.s.zoomNow, 0.8) : 1);
       this.look(e.movementX * k, e.movementY * k);
       this.lookDX += e.movementX; this.lookDY += e.movementY;
     });
@@ -227,7 +232,7 @@ export class Player {
     const s = this.s, g = this.game;
     this.fireBuf = Math.max(0, this.fireBuf - dt);
     if (s.alive && this.locked && !g.opts.autoplay) {
-      const kk = this.keys, sp = 1.9 * dt / Math.pow(Math.max(1, s.stat.zoom && s.adsT > 0.5 ? s.stat.zoom : 1), 0.7);
+      const kk = this.keys, sp = 1.9 * dt / Math.pow(Math.max(1, s.zoomNow && s.adsT > 0.5 ? s.zoomNow : 1), 0.7);
       if (kk.has('ArrowLeft')) s.yaw += sp;
       if (kk.has('ArrowRight')) s.yaw -= sp;
       if (kk.has('ArrowUp')) s.pitch = clamp(s.pitch + sp, -1.5, 1.5);
@@ -238,12 +243,15 @@ export class Player {
       const f = (k.has('KeyW') ? 1 : 0) - (k.has('KeyS') ? 1 : 0);
       const r = (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0);
       const st = s.stat;
-      const wantSprint = k.has('ShiftLeft') && f > 0 && !s.ads && s.onGround;
+      const lean = (k.has('KeyE') ? 1 : 0) - (k.has('KeyQ') ? 1 : 0);
+      s.leanDir = lean;
+      const wantSprint = k.has('ShiftLeft') && f > 0 && !s.ads && s.onGround && !s.prone && lean === 0;
       s.sprinting = wantSprint && s.reloadT <= 0;
-      if (s.sprinting && s.crouching) s.crouching = false;
+      if (s.sprinting) { s.crouching = false; if (s.prone) s.prone = false; }
       let spd = 4.4 * s.def.speed * (st.move || 1);
       if (s.sprinting) spd *= 1.5;
       if (s.crouching) spd *= 0.52;
+      if (s.prone) spd *= 0.27;
       if (s.adsT > 0.1) spd *= 1 - 0.4 * s.adsT;
       const fx = -Math.sin(s.yaw), fz = -Math.cos(s.yaw), rx = Math.cos(s.yaw), rz = -Math.sin(s.yaw);
       let wx = fx * f + rx * r, wz = fz * f + rz * r;
@@ -253,7 +261,8 @@ export class Player {
       const a = 1 - Math.exp(-acc * dt);
       s.vel.x += (wx - s.vel.x) * a;
       s.vel.z += (wz - s.vel.z) * a;
-      if (k.has('Space') && s.onGround && !s.crouching) { s.vel.y = 5.4; s.onGround = false; }
+      if (k.has('Space') && s.onGround && !s.prone && !s.crouching && !this.spaceLatch) { s.vel.y = 5.4; s.onGround = false; }
+      if (!k.has('Space')) this.spaceLatch = false;
 
       // ateş
       if (this.locked) {
@@ -262,7 +271,7 @@ export class Player {
       }
       // adım sesi
       const sp = Math.hypot(s.vel.x, s.vel.z);
-      if (s.onGround && sp > 1.5 && !s.crouching) {
+      if (s.onGround && sp > 1.5 && !s.crouching && !s.prone) {
         s.stepT -= dt * (sp / 4.4);
         if (s.stepT <= 0) { s.stepT = 0.42; g.sfx.step(null); }
       }
@@ -271,7 +280,7 @@ export class Player {
     // ── kamera ──
     const cam = g.camera;
     const baseFov = this.set.fov;
-    const zoom = s.stat.zoom && !this.vm.model?.userData.noAds ? lerp(1, s.stat.zoom, s.adsT) : 1;
+    const zoom = s.zoomNow && !this.vm.model?.userData.noAds ? lerp(1, s.zoomNow, s.adsT) : 1;
     const targetFov = baseFov / zoom;
     cam.fov += (targetFov - cam.fov) * Math.min(1, dt * 18);
     cam.updateProjectionMatrix();
@@ -283,7 +292,7 @@ export class Player {
       cam.rotation.set(
         s.pitch + s.recoilP + (Math.random() - 0.5) * sh * 0.06,
         s.yaw + (Math.random() - 0.5) * sh * 0.06,
-        0,
+        -s.leanT * 0.2,
       );
       this.camPos.copy(cam.position);
     } else {

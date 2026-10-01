@@ -53,9 +53,21 @@ const CSS = `
 .arrow{position:absolute;left:-14px;top:-130px;width:28px;height:40px;transform-origin:14px 130px;opacity:.9;animation:ar 1.4s forwards}
 .arrow::before{content:'';position:absolute;left:0;top:0;border:14px solid transparent;border-bottom:26px solid #ff3b2f;border-top:0}
 @keyframes ar{to{opacity:0}}
-#scope{position:absolute;inset:0;display:none;background:radial-gradient(circle at center,transparent 0,transparent 33vh,#000 33.3vh)}
-#scope::before{content:'';position:absolute;left:0;right:0;top:50%;height:1px;background:#000}
-#scope::after{content:'';position:absolute;top:0;bottom:0;left:50%;width:1px;background:#000}
+#holo{position:absolute;left:50%;top:50%;width:70px;height:70px;margin:-35px 0 0 -35px;border-radius:50%;border:2px solid #ff3326;box-shadow:0 0 6px 1px #ff3326aa,inset 0 0 5px #ff332655;display:none}
+#holo::before{content:'';position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:50%;background:#ff3326;box-shadow:0 0 6px 2px #ff3326cc}
+#holo i{position:absolute;background:#ff3326;box-shadow:0 0 4px #ff3326aa}
+#holo i:nth-child(1){left:50%;top:-12px;width:2px;height:10px;margin-left:-1px}
+#holo i:nth-child(2){left:50%;bottom:-12px;width:2px;height:10px;margin-left:-1px}
+#holo i:nth-child(3){top:50%;left:-12px;height:2px;width:10px;margin-top:-1px}
+#holo i:nth-child(4){top:50%;right:-12px;height:2px;width:10px;margin-top:-1px}
+#advig{position:absolute;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,transparent 45%,rgba(0,0,0,.55) 100%)}
+#scope{position:absolute;inset:0;display:none}
+#scope .bl{position:absolute;inset:0;backdrop-filter:blur(9px) brightness(.5);-webkit-backdrop-filter:blur(9px) brightness(.5);
+  -webkit-mask-image:radial-gradient(circle at center,transparent 36vh,#000 36.3vh);mask-image:radial-gradient(circle at center,transparent 36vh,#000 36.3vh)}
+#scope .rg{position:absolute;left:50%;top:50%;width:72vh;height:72vh;margin:-36vh 0 0 -36vh;border-radius:50%;border:3.4vh solid #1c1e21;box-sizing:border-box;box-shadow:inset 0 0 1.2vh #000a}
+#scope svg{position:absolute;left:50%;top:50%;width:65.2vh;height:65.2vh;margin:-32.6vh 0 0 -32.6vh}
+#scope.chev .mil,#scope.mil .chev{display:none}
+#stance{margin-top:3px;font-size:12px;opacity:.85;text-shadow:0 1px 3px #000;min-height:15px}
 .overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;background:rgba(5,8,12,.62);pointer-events:auto}
 .panel{background:rgba(14,20,30,.92);border:1px solid rgba(255,255,255,.18);border-radius:12px;padding:22px 28px;min-width:380px;max-width:92vw;box-shadow:0 10px 40px rgba(0,0,0,.6)}
 .panel h2{margin:0 0 6px;font-size:28px}.panel p{margin:4px 0;opacity:.85}
@@ -80,6 +92,9 @@ export class Hud {
     const el = (this.root = document.createElement('div'));
     el.id = 'hud';
     el.innerHTML = `
+      <div id="scope"><div class="bl"></div><div class="rg"></div>
+        <svg viewBox="-100 -100 200 200" class="mil"><g stroke="#000" fill="none"><path d="M-100 0H-12M12 0H100M0 -100V-12M0 12V100" stroke-width=".35"/><path d="M-100 0H-62M62 0H100M0 -100V-62M0 62V100" stroke-width="2.6"/><path d="M-40 0V3M-30 0V3M-20 0V3M20 0V3M30 0V3M40 0V3M0 20H3M0 30H3M0 40H3M0 -20H3M0 -30H3M0 -40H3" stroke-width=".5"/></g><circle r=".9" fill="#ff3b2a"/></svg>
+        <svg viewBox="-100 -100 200 200" class="chev"><g fill="none" stroke="#ff2e1f" stroke-linecap="round"><path d="M-14 16L0 -2L14 16" stroke-width="2.2"/><path d="M0 -2V-100M-100 0H-30M30 0H100M0 28V100" stroke-width=".3" stroke="#000"/><path d="M-10 36H10M-14 56H14M-18 76H18" stroke-width=".8" stroke="#ff2e1f"/></g><circle r=".8" fill="#ff2e1f"/></svg></div>
       <canvas id="minimap" width="220" height="158"></canvas>
       <div id="topbar">
         <div id="score"><div class="tk blue"><small>MAVİ</small><span id="tkB">0</span></div><div id="timer">0:00</div><div class="tk red"><small>KIRMIZI</small><span id="tkR">0</span></div></div>
@@ -88,11 +103,12 @@ export class Hud {
       <div id="killfeed"></div>
       <div id="toasts"></div>
       <div id="vig"></div><div id="arrows"></div>
-      <div id="scope"></div>
+      <div id="advig"></div>
+
       <div id="cross"><span class="h l"></span><span class="h r"></span><span class="v t"></span><span class="v b"></span><span class="dot"></span></div>
-      <div id="rdot"></div><div id="hitm"></div>
+      <div id="rdot"></div><div id="holo"><i></i><i></i><i></i><i></i></div><div id="hitm"></div>
       <div id="msg"></div>
-      <div id="vitals"><div class="cls" id="clsname"></div><div id="hpnum">100</div><div id="hpbar"><div id="hpfill"></div></div></div>
+      <div id="vitals"><div class="cls" id="clsname"></div><div id="stance"></div><div id="hpnum">100</div><div id="hpbar"><div id="hpfill"></div></div></div>
       <div id="ammo"><div class="nm" id="wname"></div><div class="n"><span id="mag">0</span> <small id="res">/ 0</small></div><div id="slots"></div></div>
       <div id="respawn" class="overlay"><div class="panel"><h2 id="rtitle">Öldün</h2><p id="rinfo"></p><p id="rcount" style="font-size:20px;font-weight:700"></p>
         <p style="opacity:.7;font-size:13px">Sınıf seç (1-5) · doğmak için bekle</p><div class="clsrow" id="clsrow"></div></div></div>
@@ -257,17 +273,23 @@ export class Hud {
     $('mag').textContent = it.mag;
     $('res').textContent = st.kind === 'throwable' || st.kind === 'medkit' || st.kind === 'melee' ? '' : '/ ' + it.reserve;
     $('slots').innerHTML = p.items.map((x, i) => `<div class="slot ${i === p.cur ? 'on' : ''}">${i + 1} ${WSTATS[x.id].name}</div>`).join('');
-    // nişangâh
+    // nişangâh / örtüler
     const cross = $('cross');
-    const showCross = p.alive && !(st.scope && p.adsT > 0.5);
+    const ov = p.overlay, ads = p.adsT;
+    const scopeOn = p.alive && ov === 'scope' && ads > 0.9;
+    const showCross = p.alive && ads < 0.6;
     cross.style.display = showCross ? 'block' : 'none';
-    cross.classList.toggle('ads', p.adsT > 0.5);
-    const dotOn = p.alive && st.dot && p.adsT > 0.6;
-    $('rdot').style.display = dotOn ? 'block' : 'none';
-    if (dotOn) cross.style.display = 'none';
+    cross.classList.toggle('ads', ads > 0.5);
     const spread = p.spreadNow(st) * 900;
     cross.style.setProperty('--g', clamp(3 + spread, 3, 60) + 'px');
-    $('scope').style.display = st.scope && p.adsT > 0.9 && p.alive ? 'block' : 'none';
+    $('rdot').style.display = p.alive && ov === 'dot' && ads > 0.6 ? 'block' : 'none';
+    $('holo').style.display = p.alive && ov === 'holo' && ads > 0.6 ? 'block' : 'none';
+    const sc = $('scope');
+    sc.style.display = scopeOn ? 'block' : 'none';
+    if (scopeOn) sc.className = (p.opticDef.reticle === 'chevron') ? 'chev' : 'mil';
+    $('advig').style.opacity = p.alive && ov !== 'scope' ? (ads * 0.55).toFixed(2) : 0;
+    const stTxt = [p.prone ? 'Yatıyor' : p.crouching ? 'Çömelmiş' : '', p.leanT > 0.3 ? 'Sağa eğik' : p.leanT < -0.3 ? 'Sola eğik' : '', p.opticDef && st.kind === 'gun' ? p.opticDef.label : ''].filter(Boolean).join(' · ');
+    $('stance').textContent = stTxt;
     if (this.hitT > 0) { this.hitT -= dt; if (this.hitT <= 0) $('hitm').style.opacity = 0; }
     if (this.vigT > 0) { this.vigT -= dt; if (this.vigT <= 0) $('vig').style.opacity = 0; }
     $('vig').style.opacity = p.alive && p.hp < 30 ? 0.55 : $('vig').style.opacity;

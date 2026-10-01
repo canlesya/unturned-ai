@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { box, taperBox, cyl, cylY, ico, V, mergeStatic } from '../core/geo.js';
 import { C } from '../core/palette.js';
+import { mat } from '../core/geo.js';
+import { resolveOptic } from '../game/stats.js';
 
 // Her silah: origin = tabanca kabzası (sağ el), namlu -Z yönünde.
 // userData: name, hold (rifle|pistol|launcher|melee|grenade), gripR, gripL, muzzle, length
@@ -24,15 +26,98 @@ function railTicks(g, z0, z1, y, n, color = C.black) {
 }
 
 
-// Kırmızı nokta (reflex) nişangâh: açık pencereli çerçeve + cam + parlayan kırmızı nokta.
-// yBase = monte edildiği yüzeyin üstü; pencere merkezi yBase + 0.032*s döner.
-function reflex(g, x, yBase, z, s = 1) {
-  const blk = C.black;
-  box(g, [0.036 * s, 0.008 * s, 0.06 * s], blk, [x, yBase + 0.004 * s, z]);                                   // taban
-  for (const sx of [-1, 1]) box(g, [0.005 * s, 0.038 * s, 0.05 * s], blk, [x + sx * 0.0165 * s, yBase + 0.027 * s, z]); // yan direkler
-  box(g, [0.036 * s, 0.005 * s, 0.05 * s], blk, [x, yBase + 0.0485 * s, z]);                                  // üst bant
-  box(g, [0.028 * s, 0.038 * s, 0.002 * s], '#a8d8ff', [x, yBase + 0.027 * s, z - 0.02 * s], null, { transparent: true, opacity: 0.14, roughness: 0.1, depthWrite: false, metalness: 0.3 });
-  return yBase + 0.027 * s;   // pencere merkezi
+// ─────────────── Nişangâhlar ───────────────
+// Hepsi (g, x, yBase, z, s) alır; yBase = monte edildiği yüzeyin üstü. Pencere merkezi yüksekliğini (y) döndürür.
+const BLK = C.black;
+const GLASS = { transparent: true, opacity: 0.13, roughness: 0.08, depthWrite: false, metalness: 0.3 };
+
+function ring(g, R, r, color, pos, seg = 14) {
+  const m = new THREE.Mesh(new THREE.TorusGeometry(R, r, 5, seg), mat(color));
+  m.position.set(pos[0], pos[1], pos[2]);
+  m.castShadow = m.receiveShadow = true;
+  g.add(m);
+}
+
+// Kompakt red dot: tüp şeklinde halka, yuvarlak cam
+function opticRedDot(g, x, yb, z, s = 1) {
+  const R = 0.0175 * s, r = 0.0042 * s, cy = yb + 0.012 * s + R + r;
+  box(g, [0.03 * s, 0.012 * s, 0.05 * s], BLK, [x, yb + 0.006 * s, z]);                       // taban
+  box(g, [0.012 * s, 0.014 * s, 0.032 * s], BLK, [x, yb + 0.017 * s, z]);                     // halka altı destek
+  for (const dz of [-0.012, 0, 0.012]) ring(g, R + (dz === 0 ? 0 : 0.0008 * s), r, dz === 0 ? '#2b2d31' : BLK, [x, cy, z + dz * s]);
+  cyl(g, R, R, 0.002 * s, '#a8d8ff', [x, cy, z - 0.014 * s], 14, GLASS);                      // cam
+  box(g, [0.004 * s, R * 1.5, 0.002 * s], '#ffffff', [x + R * 0.35, cy + R * 0.2, z - 0.0145 * s], [0, 0, 0.6], { transparent: true, opacity: 0.16, depthWrite: false }); // yansıma çizgisi
+  box(g, [0.008 * s, 0.006 * s, 0.01 * s], '#2b2d31', [x, cy + R + r + 0.003 * s, z]);        // ayar topuzu
+  return cy;
+}
+
+// Holografik (EOTech/PUBG tarzı): geniş dikdörtgen siyah gövde, büyük pencere
+function opticHolo(g, x, yb, z, s = 1) {
+  const cy = yb + 0.029 * s;
+  box(g, [0.052 * s, 0.007 * s, 0.078 * s], BLK, [x, yb + 0.0035 * s, z]);                    // taban
+  for (const sx of [-1, 1]) {
+    box(g, [0.006 * s, 0.046 * s, 0.07 * s], BLK, [x + sx * 0.0235 * s, yb + 0.03 * s, z]);   // ince yan duvarlar
+    box(g, [0.0025 * s, 0.03 * s, 0.05 * s], '#3b3e44', [x + sx * 0.0265 * s, yb + 0.03 * s, z]); // yan vurgu
+  }
+  box(g, [0.053 * s, 0.007 * s, 0.07 * s], BLK, [x, yb + 0.0555 * s, z]);                     // tavan
+  box(g, [0.042 * s, 0.0025 * s, 0.05 * s], '#3b3e44', [x, yb + 0.0605 * s, z]);              // tavan vurgusu
+  box(g, [0.041 * s, 0.047 * s, 0.002 * s], '#a8d8ff', [x, cy + 0.001 * s, z - 0.02 * s], null, GLASS); // geniş cam
+  box(g, [0.004 * s, 0.032 * s, 0.002 * s], '#ffffff', [x + 0.009 * s, cy + 0.003 * s, z - 0.0215 * s], [0, 0, 0.35], { transparent: true, opacity: 0.14, depthWrite: false });
+  box(g, [0.05 * s, 0.01 * s, 0.01 * s], '#2b2d31', [x, yb + 0.005 * s, z + 0.04 * s]);       // arka ayak
+  return cy;
+}
+
+// ACOG 3x: kısa dürbün; göz tarafı (arka uç) z + 0.07 m
+function opticAcog(g, x, yb, z) {
+  const cy = yb + 0.034;
+  box(g, [0.034, 0.012, 0.09], BLK, [x, yb + 0.006, z]);
+  box(g, [0.014, 0.012, 0.05], BLK, [x, yb + 0.018, z]);
+  cyl(g, 0.0215, 0.019, 0.1, '#2a2c30', [x, cy, z], 12);                                          // gövde
+  cyl(g, 0.026, 0.0215, 0.028, BLK, [x, cy, z - 0.062], 12);                                      // objektif
+  cyl(g, 0.0235, 0.0235, 0.002, '#3fb7ff', [x, cy, z - 0.077], 12, { emissive: '#3fb7ff', emissiveIntensity: 0.5, transparent: true, opacity: 0.8 });
+  cyl(g, 0.02, 0.025, 0.026, BLK, [x, cy, z + 0.062], 12);                                        // göz kapağı
+  box(g, [0.01, 0.012, 0.06], '#2a2c30', [x, cy + 0.027, z - 0.005]);                             // taşıma kolu
+  return cy;
+}
+
+// Demir nişan: arka peep (delikli) nişangâh. h = ön arpacık tepe yüksekliği = nişan çizgisi
+function ironRear(g, x, yb, z, h, s = 1) {
+  const bot = h - 0.014 * s;
+  if (bot > yb) box(g, [0.03 * s, bot - yb, 0.012 * s], C.steel, [x, (yb + bot) / 2, z]);
+  for (const sx of [-1, 1]) box(g, [0.007 * s, 0.028 * s, 0.012 * s], C.steel, [x + sx * 0.0105 * s, h, z]);
+  box(g, [0.028 * s, 0.006 * s, 0.012 * s], C.steel, [x, h + 0.017 * s, z]);
+}
+function ironFront(g, x, z, base, h) {
+  box(g, [0.006, h - base, 0.006], C.steel, [x, (base + h) / 2, z]);
+  for (const sx of [-1, 1]) box(g, [0.004, 0.02, 0.01], C.steel, [x + sx * 0.011, h - 0.006, z]);   // koruyucu kulaklar
+}
+
+// Silaha göre montaj noktaları (z: nişangâh merkezi, y: üst yüzey, front: ön arpacık yüksekliği)
+const MOUNT = {
+  ak47: { z: -0.1, y: 0.09, front: 0.1, rearZ: -0.2, ownFront: true },
+  m4a1: { z: -0.14, y: 0.0895, front: 0.125, rearZ: -0.12, ownFront: true },
+  mp5: { z: -0.08, y: 0.0575, front: 0.0925, rearZ: -0.01, ownFront: true },
+  shotgun: { z: -0.03, y: 0.0575, front: 0.076, rearZ: 0.0, ownFront: true },
+  lmg: { z: -0.1, y: 0.111, front: 0.126, rearZ: -0.12, frontZ: -0.62, frontBase: 0.055 },
+  pistol: { z: -0.02, y: 0.071, front: 0.086, rearZ: 0.035, frontZ: -0.16, frontBase: 0.07, scale: 0.75 },
+};
+
+// Silaha seçilen nişangâhı ekler; ADS nişan noktası, uzaklık ve örtü türünü döndürür
+function attachSight(g, id, optic) {
+  const m = MOUNT[id];
+  if (!m) return null;
+  const sc = m.scale || 1;
+  let cy, sz, dist, overlay = 'none';
+  if (optic === 'iron') {
+    ironRear(g, 0, m.y, m.rearZ, m.front, sc);
+    if (!m.ownFront) ironFront(g, 0, m.frontZ, m.frontBase, m.front);
+    cy = m.front; sz = m.rearZ; dist = 0.22;
+  } else {
+    if (!m.ownFront && m.frontZ) ironFront(g, 0, m.frontZ, m.frontBase, m.front);   // ön arpacık hep görünsün
+    if (optic === 'holo') { cy = opticHolo(g, 0, m.y, m.z, sc); sz = m.z; dist = 0.3; overlay = 'holo'; }
+    else if (optic === 'acog') { cy = opticAcog(g, 0, m.y, m.z); sz = m.z + 0.075; dist = 0.05; overlay = 'scope'; }
+    else { cy = opticRedDot(g, 0, m.y, m.z, sc); sz = m.z; dist = 0.28; overlay = 'dot'; }
+  }
+  return { sight: [0, cy, sz], dist, overlay };
 }
 
 // ───────────────────────── AK-47 ─────────────────────────
@@ -56,7 +141,6 @@ function ak47() {
   box(g, [0.018, 0.05, 0.022], C.steel, [0, 0.045, -0.66]);                    // arpacık kulesi
   box(g, [0.006, 0.03, 0.006], C.steel, [0, 0.085, -0.66]);
   cyl(g, 0.015, 0.015, 0.05, C.black, [0, 0.015, -0.7], 8, M);                 // namlu ucu
-  reflex(g, 0, 0.09, -0.1);                                                    // kırmızı nokta
   // ahşap dipçik
   taperBox(g, [0.046, 0.115, 0.3], C.wood, [0, -0.015, 0.24], [0.1, 0, 0], [1, 1], [1, 1]);
   box(g, [0.05, 0.12, 0.014], C.black, [0, -0.03, 0.4], [0.1, 0, 0]);
@@ -78,7 +162,6 @@ function m4a1() {
   cyl(g, 0.01, 0.01, 0.12, C.steel, [0, 0.05, -0.59], 8, M);
   cyl(g, 0.016, 0.016, 0.065, C.black, [0, 0.05, -0.66], 8, M);                // alev gizleyici
   box(g, [0.014, 0.04, 0.016], C.steel, [0, 0.105, -0.55]);                    // arpacık
-  reflex(g, 0, 0.0895, -0.14);                                                 // kırmızı nokta
   // şarjör, kabza, ön kabza
   box(g, [0.038, 0.16, 0.062], C.steel, [0, -0.105, -0.115], [0.1, 0, 0], M);
   box(g, [0.042, 0.105, 0.05], C.black, [0, -0.075, 0.04], [0.3, 0, 0]);
@@ -100,7 +183,6 @@ function mp5() {
   cyl(g, 0.016, 0.016, 0.07, C.steel, [0, 0.025, -0.44], 8, M);                // namlu manşonu
   cyl(g, 0.01, 0.01, 0.05, C.steel, [0, 0.025, -0.49], 8, M);
   box(g, [0.012, 0.035, 0.016], C.steel, [0, 0.075, -0.45]);                   // arpacık
-  reflex(g, 0, 0.0575, -0.08);                                                 // kırmızı nokta
   box(g, [0.04, 0.04, 0.05], C.black, [0, 0.0, -0.01]);
   box(g, [0.012, 0.012, 0.1], C.steel, [0, -0.045, -0.04]);
   box(g, [0.04, 0.105, 0.05], C.black, [0, -0.07, 0.045], [0.3, 0, 0]);
@@ -127,7 +209,6 @@ function pistol() {
   box(g, [0.01, 0.012, 0.07], C.black, [0, -0.012, -0.04]);                      // tetik koruması
   box(g, [0.01, 0.03, 0.01], C.black, [0, -0.005, -0.075]);
   cyl(g, 0.009, 0.009, 0.03, C.steel, [0, 0.05, -0.165], 8, M);
-  reflex(g, 0, 0.071, -0.02, 0.75);                                           // mini kırmızı nokta
   for (let i = 0; i < 4; i++) box(g, [0.036, 0.03, 0.005], C.black, [0, 0.055, 0.025 + i * 0.012]); // sürgü tırtılı
   return finish(g, {
     name: 'Glock 17', hold: 'pistol', gripR: [0, -0.03, 0.02], gripL: null, muzzle: [0, 0.05, -0.18], length: 0.28,
@@ -142,7 +223,6 @@ function shotgun() {
   cyl(g, 0.014, 0.014, 0.48, C.gun, [0, -0.0, -0.38], 8, M);                     // şarjör tüpü
   cyl(g, 0.018, 0.018, 0.02, C.steel, [0, -0.0, -0.63], 8, M);
   box(g, [0.008, 0.016, 0.008], C.brass, [0, 0.068, -0.65]);                     // arpacık
-  reflex(g, 0, 0.0575, -0.03);                                                  // kırmızı nokta
   box(g, [0.062, 0.05, 0.17], C.woodDark, [0, -0.01, -0.3]);                    // pompa
   for (let i = 0; i < 3; i++) box(g, [0.066, 0.052, 0.01], C.black, [0, -0.01, -0.36 + i * 0.05]);
   box(g, [0.012, 0.012, 0.09], C.steel, [0, -0.047, -0.01]);
@@ -207,7 +287,6 @@ function lmg() {
   box(g, [0.07, 0.06, 0.2], C.black, [0, 0.025, -0.45]);
   cyl(g, 0.016, 0.016, 0.28, C.steel, [0, 0.028, -0.65], 8, M);
   cyl(g, 0.022, 0.022, 0.07, C.black, [0, 0.028, -0.8], 8, M);
-  reflex(g, 0, 0.111, -0.1);                                                    // kırmızı nokta
   // taşıma sapı
   box(g, [0.012, 0.07, 0.012], C.steel, [0, 0.085, -0.58]);
   box(g, [0.012, 0.012, 0.1], C.steel, [0, 0.12, -0.58]);
@@ -292,11 +371,15 @@ export const WEAPON_INFO = {
   grenade: 'Atılabilir · Patlayıcı',
 };
 
-export function createWeapon(id) {
+export function createWeapon(id, optic = 'reddot') {
   const fn = WEAPONS[id];
   if (!fn) throw new Error('Bilinmeyen silah: ' + id);
   const g = fn();
   g.userData.id = id;
+  const o = resolveOptic(id, optic);
+  g.userData.optic = o;
+  const sg = o && o !== 'scope' ? attachSight(g, id, o) : null;
+  if (sg) { g.userData.sight = sg.sight; g.userData.dist = sg.dist; g.userData.overlay = sg.overlay; }
   mergeStatic(g);
   return g;
 }

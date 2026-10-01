@@ -4,6 +4,7 @@ import * as THREE from 'three';
 export const R = 0.32;           // karakter yarıçapı
 export const H_STAND = 1.78;
 export const H_CROUCH = 1.3;
+export const H_PRONE = 0.55;
 const STEP = 0.5;
 const GRAV = 15;
 
@@ -88,9 +89,21 @@ export class World {
     p.z = Math.max(b.minZ, Math.min(b.maxZ, p.z));
   }
 
-  canStand(s) {
+  // Doğma/ışınlanma sonrası: alçak engellerin (bordür vb.) içindeyse üstüne oturt
+  settle(s) {
+    const p = s.pos;
+    for (let i = 0; i < 4; i++) {
+      const list = this.query(p.x - 1, p.z - 1, p.x + 1, p.z + 1, (this._tmp4 ||= []));
+      const c = this._hits(list, p.x, p.y, p.z, 0.3);
+      if (!c || c.max[1] > STEP + 0.1) break;
+      p.y = c.max[1] + 0.002;
+    }
+  }
+
+  // Verilen yükseklikte (ayakta/çömelmiş) sığıyor mu
+  canStand(s, h = H_STAND) {
     const list = this.query(s.pos.x - 1, s.pos.z - 1, s.pos.x + 1, s.pos.z + 1, (this._tmp2 ||= []));
-    return !this._hits(list, s.pos.x, s.pos.y, s.pos.z, H_STAND);
+    return !this._hits(list, s.pos.x, s.pos.y, s.pos.z, h);
   }
 
   // Işın: en yakın çarpışma kutusu ya da zemin. d normalize olmalı.

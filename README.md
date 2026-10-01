@@ -34,6 +34,8 @@ düz renkli / flat-shaded, düşük poligonlu modeller.
 - `scripts/play.mjs` – oyunu headless tarayıcıda test eder (`autoplay=1`, `nolock=1`, `debug=1`)
 - `scripts/build-single.mjs` – `npm run build` sonrası tek dosyalık HTML üretir
 
+**Kontroller:** W A S D hareket · Shift koş · Boşluk zıpla/kalk · Ctrl veya C çömel · Z yat · Q/E yana eğil · sağ tık nişan · R şarjör · 1-4 silah · B nişangâh değiştir (demir / red dot / holografik / ACOG 3x) · Tab skor tablosu.
+
 ## Çalıştırma
 
 ```bash

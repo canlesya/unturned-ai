@@ -167,6 +167,7 @@ export class Game {
   respawn(s, first = false) {
     if (s.isPlayer && this.pendingClass && this.pendingClass !== s.cls) s.setClass(this.pendingClass);
     s.spawn(this.pickSpawn(s.team), first ? 1 : 2.5);
+    this.world.settle(s);
     if (s.brain) s.brain.reset();
     if (s.isPlayer) this.pendingClass = null;
   }
@@ -222,12 +223,25 @@ export class Game {
     // kaba küre testi
     const cx = px - o.x, cy = py + H * 0.5 - o.y, cz = pz - o.z;
     const proj = cx * d.x + cy * d.y + cz * d.z;
-    if (proj < -1 || proj > maxT + 1) return null;
+    if (proj < -1.2 || proj > maxT + 1.2) return null;
     const dist2 = cx * cx + cy * cy + cz * cz - proj * proj;
-    if (dist2 > 1.2 * 1.2) return null;
+    const rad = e.proneT > 0.5 ? 1.35 : 1.2;
+    if (dist2 > rad * rad) return null;
+    if (e.proneT > 0.5) {
+      // yatan oyuncu: gövde yaw boyunca uzanır (eksen hizalı kutu), kafa önde
+      const fx = -Math.sin(e.yaw), fz = -Math.cos(e.yaw), ax = Math.abs(fx), az = Math.abs(fz);
+      const hx = ax * 0.82 + az * 0.27, hz = az * 0.82 + ax * 0.27;
+      const hxp = px + fx * 0.72, hzp = pz + fz * 0.72;
+      const th = rayBox(o, d, [hxp - 0.17, py + 0.1, hzp - 0.17], [hxp + 0.17, py + 0.5, hzp + 0.17], maxT);
+      const tb = rayBox(o, d, [px - hx, py, pz - hz], [px + hx, py + 0.45, pz + hz], maxT);
+      if (th >= 0 && (tb < 0 || th <= tb)) return { t: th, zone: 'head' };
+      if (tb >= 0) return { t: tb, zone: 'body' };
+      return null;
+    }
+    const lx = e.leanOff.x, lz = e.leanOff.z;       // eğilen oyuncunun kafası yana kayar
     const hh = H - 0.36;
-    const th = rayBox(o, d, [px - 0.2, py + hh, pz - 0.2], [px + 0.2, py + H, pz + 0.2], maxT);
-    const tb = rayBox(o, d, [px - 0.29, py, pz - 0.29], [px + 0.29, py + hh, pz + 0.29], maxT);
+    const th = rayBox(o, d, [px + lx - 0.2, py + hh + e.leanOff.y, pz + lz - 0.2], [px + lx + 0.2, py + H + e.leanOff.y, pz + lz + 0.2], maxT);
+    const tb = rayBox(o, d, [px + lx * 0.45 - 0.29, py, pz + lz * 0.45 - 0.29], [px + lx * 0.45 + 0.29, py + hh, pz + lz * 0.45 + 0.29], maxT);
     if (th >= 0 && (tb < 0 || th <= tb)) return { t: th, zone: 'head' };
     if (tb >= 0) {
       const y = o.y + d.y * tb - py;

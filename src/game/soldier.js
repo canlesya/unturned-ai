@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { createCharacter } from '../models/character.js';
-import { WSTATS, CLASS_DEFS } from './stats.js';
-import { H_STAND, H_CROUCH } from './collision.js';
+import { WSTATS, CLASS_DEFS, OPTICS, OPTIC_ORDER, OPTIC_ALLOWED, resolveOptic } from './stats.js';
+import { H_STAND, H_CROUCH, H_PRONE } from './collision.js';
 import { dirFromAngles, clamp, rand, lerp } from './util.js';
 
 const _v = new THREE.Vector3();
@@ -11,6 +11,7 @@ const UP = new THREE.Vector3(0, 1, 0);
 
 export const EYE_STAND = 1.62;
 export const EYE_CROUCH = 1.16;
+export const EYE_PRONE = 0.42;
 
 function gunItem(id) { const s = WSTATS[id]; return { id, mag: s.mag, reserve: s.reserve }; }
 
@@ -32,6 +33,9 @@ export class Soldier {
     this.height = H_STAND;
     this.onGround = true;
     this.crouching = false; this.crouchT = 0;
+    this.prone = false; this.proneT = 0;
+    this.leanDir = 0; this.leanT = 0; this.leanOff = new THREE.Vector3();
+    this.optic = isPlayer ? (game.opts?.optic || 'reddot') : OPTIC_ORDER[Math.floor(Math.random() * OPTIC_ORDER.length)];
     this.sprinting = false; this.ads = false; this.adsT = 0;
     this.eyeY = EYE_STAND;
     this.alive = false;
@@ -50,6 +54,10 @@ export class Soldier {
 
   get item() { return this.items[this.cur]; }
   get stat() { return WSTATS[this.item.id]; }
+  get opticId() { return resolveOptic(this.item.id, this.optic); }
+  get opticDef() { const o = this.opticId; return o ? OPTICS[o] : null; }
+  get zoomNow() { const st = this.stat; if (!st.zoom) return 0; return this.opticDef ? this.opticDef.zoom : st.zoom; }
+  get overlay() { return this.opticDef ? this.opticDef.overlay : 'none'; }
 
   setClass(cls) {
     this.cls = cls;
@@ -61,13 +69,13 @@ export class Soldier {
     this.cur = 0;
     // görünüm: sınıf teçhizatı değişir → modeli yeniden kur
     if (this.model) this.game.scene.remove(this.model.root);
-    this.model = createCharacter({ team: this.team, cls, skinIndex: this.id, weapon: this.items[0].id });
+    this.model = createCharacter({ team: this.team, cls, skinIndex: this.id, weapon: this.items[0].id, optic: this.optic });
     this.model.root.visible = this.alive;
     this.game.scene.add(this.model.root);
     this._modelWeapon = this.items[0].id;
   }
 
-  eye(out = new THREE.Vector3()) { return out.set(this.pos.x, this.pos.y + this.eyeY, this.pos.z); }
+  eye(out = new THREE.Vector3()) { return out.set(this.pos.x + this.leanOff.x, this.pos.y + this.eyeY + this.leanOff.y, this.pos.z + this.leanOff.z); }
   aimDir(out = new THREE.Vector3()) { return dirFromAngles(this.yaw, this.pitch + this.recoilP, out); }
   right(out = new THREE.Vector3()) { return out.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw)); }
   center(out = new THREE.Vector3()) { return out.set(this.pos.x, this.pos.y + this.height * 0.6, this.pos.z); }
@@ -82,7 +90,8 @@ export class Soldier {
     this.cur = 0;
     this.cd = 0; this.reloadT = 0; this.switchT = 0; this.useT = 0;
     this.protT = protect;
-    this.crouching = false; this.height = H_STAND; this.ads = false; this.adsT = 0;
+    this.crouching = false; this.prone = false; this.proneT = 0; this.crouchT = 0; this.leanDir = 0; this.leanT = 0; this.leanOff.set(0, 0, 0);
+    this.height = H_STAND; this.ads = false; this.adsT = 0;
     this.model.root.visible = !this.isPlayer;
     this.model.root.rotation.x = 0;
     this._syncWeaponModel(true);
@@ -94,7 +103,7 @@ export class Soldier {
     const id = this.stat.kind === 'medkit' ? null : this.item.id;
     if (!force && id === this._modelWeapon) return;
     this._modelWeapon = id;
-    this.model.setWeapon(id);
+    this.model.setWeapon(id, this.optic);
   }
 
   switchTo(i) {
@@ -240,6 +249,41 @@ export class Soldier {
     return ok;
   }
 
+  // ── duruş değiştirme (ayakta ↔ çömel ↔ yat); yer yoksa reddedilir ──
+  toggleCrouch() {
+    const w = this.game.world;
+    if (this.prone) { if (w.canStand(this, H_CROUCH)) { this.prone = false; this.crouching = true; } }
+    else if (this.crouching) { if (w.canStand(this, H_STAND)) this.crouching = false; }
+    else this.crouching = true;
+  }
+  toggleProne() {
+    const w = this.game.world;
+    if (!this.prone) { this.prone = true; this.crouching = false; this.sprinting = false; }
+    else if (w.canStand(this, H_STAND)) this.prone = false;
+    else if (w.canStand(this, H_CROUCH)) { this.prone = false; this.crouching = true; }
+  }
+  standUp() {
+    const w = this.game.world;
+    if (this.prone) {
+      if (w.canStand(this, H_STAND)) { this.prone = false; return true; }
+      if (w.canStand(this, H_CROUCH)) { this.prone = false; this.crouching = true; return true; }
+      return false;
+    }
+    if (this.crouching && w.canStand(this, H_STAND)) { this.crouching = false; return true; }
+    return !this.crouching;
+  }
+  // Nişangâh değiştir (B): silaha uygun olanlar arasında döner
+  cycleOptic() {
+    const allowed = OPTIC_ALLOWED[this.item.id] || [];
+    const list = OPTIC_ORDER.filter((o) => allowed.includes(o));
+    if (list.length < 2) return null;
+    this.optic = list[(list.indexOf(this.opticId) + 1) % list.length];
+    this.model.optic = this.optic;
+    this._syncWeaponModel(true);
+    this.game.emit('switch', this);
+    return OPTICS[this.optic];
+  }
+
   takeDamage(amount, attacker, zone, fromPos, weaponName) {
     if (!this.alive || this.protT > 0) return;
     this.hp -= amount;
@@ -294,12 +338,26 @@ export class Soldier {
       }
     }
     // hedef nişan geçişi
-    const wantAds = this.ads && this.reloadT <= 0 && this.switchT <= 0 && this.stat.zoom && !this.sprinting;
-    this.adsT = clamp(this.adsT + (wantAds ? 1 : -1) * dt * (this.stat.scope ? 6 : 9), 0, 1);
-    const wantH = this.crouching ? H_CROUCH : H_STAND;
-    this.height = wantH;
+    const wantAds = this.ads && this.reloadT <= 0 && this.switchT <= 0 && this.zoomNow && !this.sprinting;
+    this.adsT = clamp(this.adsT + (wantAds ? 1 : -1) * dt * (this.overlay === 'scope' ? 6 : 9), 0, 1);
+    if (this.prone) this.crouching = false;
+    this.height = this.prone ? H_PRONE : this.crouching ? H_CROUCH : H_STAND;
     this.crouchT = clamp(this.crouchT + (this.crouching ? 1 : -1) * dt * 7, 0, 1);
-    this.eyeY = lerp(EYE_STAND, EYE_CROUCH, this.crouchT);
+    this.proneT = clamp(this.proneT + (this.prone ? 1 : -1) * dt * 4.5, 0, 1);
+    this.eyeY = lerp(lerp(EYE_STAND, EYE_CROUCH, this.crouchT), EYE_PRONE, this.proneT);
+    // yana eğilme (Q/E): kafa yana kayar, duvara girmesin diye ışınla sınırlanır
+    const canLean = this.onGround && !this.sprinting && this.proneT < 0.3;
+    this.leanT = lerp(this.leanT, canLean ? this.leanDir : 0, Math.min(1, dt * 10));
+    if (Math.abs(this.leanT) > 0.01) {
+      const sg = Math.sign(this.leanT);
+      const r = this.right(_v);
+      const from = _o.set(this.pos.x, this.pos.y + this.eyeY, this.pos.z);
+      const hit = this.game.world.raycast(from, r.multiplyScalar(sg), 0.55, (this._lr ||= {}));
+      const room = hit ? Math.max(0, hit.t - 0.17) : 0.55;
+      const off = Math.min(Math.abs(this.leanT) * 0.36, room);
+      const rr = this.right(_v);
+      this.leanOff.set(rr.x * sg * off, -Math.abs(this.leanT) * 0.07, rr.z * sg * off);
+    } else this.leanOff.set(0, 0, 0);
   }
 
   // Üçüncü şahıs model senkronu (oyuncu hariç): hıza bağlı adım döngüsü, gövde eğimi, kol sallanması
@@ -315,7 +373,12 @@ export class Soldier {
       root.position.y += k * 0.14;
       return;
     }
-    root.rotation.x = 0;
+    const pr = this.proneT;
+    root.rotation.x = -(Math.PI / 2) * pr;
+    if (pr > 0.001) {
+      const fx0 = -Math.sin(this.yaw), fz0 = -Math.cos(this.yaw);
+      root.position.x -= fx0 * 0.82 * pr; root.position.z -= fz0 * 0.82 * pr; root.position.y += 0.17 * pr;
+    }
     const T = this.game.time;
     const vx = this.vel.x, vz = this.vel.z, spd = Math.hypot(vx, vz);
     const fwdV = vx * -Math.sin(this.yaw) + vz * -Math.cos(this.yaw);
@@ -344,6 +407,9 @@ export class Soldier {
       knee = lerp(knee, crKnee - flex * 0.4 * moveAmt, c);
       hip = lerp(hip, airHip, this.airT);
       knee = lerp(knee, airKnee, this.airT);
+      const crawlAmt = clamp(spd / 0.8, 0, 1);
+      hip = lerp(hip, Math.sin(phi) * 0.2 * crawlAmt, pr);
+      knee = lerp(knee, -Math.max(0, Math.cos(phi)) * 0.35 * crawlAmt, pr);
       lg.hip.rotation.x = hip;
       lg.knee.rotation.x = knee;
       lg.hip.rotation.z = sideSign * 0.3 * Math.sin(phi) * sideBlend * moveAmt;   // yan adımda bacak açılması
@@ -354,13 +420,15 @@ export class Soldier {
     const breathe = Math.sin(T * 1.7 + this.id) * 0.004 * (1 - moveAmt);
     const lean = -(0.03 * moveAmt + 0.17 * run * moveAmt) - 0.09 * c;
     const aimP = clamp(this.pitch + this.recoilP, -0.9, 0.9) * 0.7;
-    p.torso.rotation.x = aimP + lean;
-    p.torso.rotation.z = Math.sin(ph) * 0.035 * moveAmt * (1 + run);
+    p.torso.rotation.x = (aimP + lean) * (1 - pr);
+    p.torso.rotation.z = Math.sin(ph) * 0.035 * moveAmt * (1 + run) * (1 - pr) - this.leanT * 0.32;
+    p.torso.position.x = this.leanT * 0.12;
     p.torso.position.y = 1.17 - 0.27 * c + breathe;
-    p.head.rotation.x = -lean * 0.7 - aimP * 0.25;
+    p.head.rotation.x = (-lean * 0.7 - aimP * 0.25) * (1 - pr);
+    p.head.rotation.z = this.leanT * 0.18;
     root.position.y -= (0.018 + 0.035 * run) * moveAmt * Math.sin(ph) ** 2;    // adım sırasında hafif çökme
     const twist = Math.sin(ph) * (0.05 + 0.08 * run) * moveAmt;
     const swing = Math.sin(ph + Math.PI) * moveAmt * (0.5 + 0.5 * run);
-    m.refreshHold({ sprint: this.sprintT, kick: clamp(this.flashT / 0.06, 0, 1), twist, swing });
+    m.refreshHold({ sprint: this.sprintT * (1 - pr), kick: clamp(this.flashT / 0.06, 0, 1), twist: twist * (1 - pr), swing, prone: pr, aimP: clamp(this.pitch + this.recoilP, -0.8, 0.8) });
   }
 }

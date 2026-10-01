@@ -1,0 +1,28 @@
+// Gerçek klavye olaylarıyla duruş/eğilme/nişangâh tuşlarını sınar (headless).
+import { chromium } from 'playwright';
+const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const page = await browser.newPage({ viewport: { width: 800, height: 450 } });
+const errs = [];
+page.on('pageerror', (e) => errs.push(e.message));
+page.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+await page.goto('http://127.0.0.1:5173/?autostart=3v3&debug=1&nolock=1');
+await page.waitForFunction('window.__game && window.__game.running', null, { timeout: 60000 });
+const st = () => page.evaluate(() => { const g = window.__game, s = g.playerSoldier; for (let i = 0; i < 20; i++) g.step(1 / 30); return { prone: s.prone, crouch: s.crouching, lean: +s.leanT.toFixed(2), eye: +s.eyeY.toFixed(2), h: s.height, optic: s.opticId, off: s.leanOff.toArray().map((v) => +v.toFixed(2)) }; });
+const log = async (n) => console.log(n.padEnd(28), JSON.stringify(await st()));
+await page.evaluate(() => { const g = window.__game; g.brains.forEach((b) => (b.update = () => {})); g.simulate = false; });
+await log('başlangıç');
+await page.keyboard.down('KeyE'); await log('E basılı (sağa eğil)');
+await page.keyboard.up('KeyE'); await log('E bırakıldı');
+await page.keyboard.down('KeyQ'); await log('Q basılı (sola eğil)');
+await page.keyboard.up('KeyQ'); await log('Q bırakıldı');
+await page.keyboard.press('ControlLeft'); await log('Ctrl (çömel)');
+await page.keyboard.press('ControlLeft'); await log('Ctrl tekrar (kalk)');
+await page.keyboard.press('KeyZ'); await log('Z (yat)');
+await page.keyboard.press('Space'); await page.keyboard.up('Space'); await log('Boşluk (kalk)');
+await page.keyboard.press('KeyZ'); await page.keyboard.press('KeyZ'); await log('Z, Z (yat sonra kalk)');
+await page.keyboard.press('KeyB'); await log('B (nişangâh 1)');
+await page.keyboard.press('KeyB'); await log('B (nişangâh 2)');
+await page.keyboard.press('KeyB'); await log('B (nişangâh 3)');
+await page.keyboard.press('KeyB'); await log('B (nişangâh 4)');
+console.log('hata:', errs.length, errs.slice(0, 3));
+await browser.close();

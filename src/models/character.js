@@ -206,10 +206,11 @@ function addGear(cls, team, c, parts, skin) {
 }
 
 // ── Karakter oluşturucu ──
-export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0, weapon = null, blade = 0.38 } = {}) {
+export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0, weapon = null, blade = 0.38, optic = 'reddot' } = {}) {
   const c = TEAMS[team];
   const skin = SKINS[skinIndex % SKINS.length];
   const root = new THREE.Group();
+  root.rotation.order = 'YXZ';   // önce yön (yaw), sonra gövde eğimi/yatma: baktığı yöne göre devrilir
 
   // gövde
   const torso = new THREE.Group();
@@ -262,9 +263,10 @@ export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0,
     team,
     cls,
     weapon: null,
-    setWeapon(id) {
+    setWeapon(id, opt) {
+      if (opt) api.optic = opt;
       if (api.weapon) mount.remove(api.weapon);
-      const w = id ? createWeapon(id) : null;
+      const w = id ? createWeapon(id, api.optic) : null;
       api.weapon = w;
       if (w) mount.add(w);
       applyPose(api, w);
@@ -277,6 +279,7 @@ export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0,
 
   const wid = weapon === undefined ? null : weapon || CLASSES[cls].weapon[team];
   api.blade = blade;
+  api.optic = optic;
   api.setWeapon(wid);
   root.userData.character = api;
   return api;
@@ -301,7 +304,7 @@ const mix = (a, b, t) => a + (b - a) * t;
 
 // o: { sprint (0..1), kick (0..1), twist (rad), swing (-1..1) }
 function applyPose(api, w, o = {}) {
-  const { sprint = 0, kick = 0, twist = 0, swing = 0 } = o;
+  const { sprint = 0, kick = 0, twist = 0, swing = 0, prone = 0, aimP = 0 } = o;
   const { torso, head, mount, armR, armL } = api.parts;
   const blade = api.blade;
   torso.rotation.y = -blade + twist;
@@ -315,8 +318,10 @@ function applyPose(api, w, o = {}) {
   }
   const hold = w.userData.hold;
   const m = MOUNTS[hold] || MOUNTS.rifle, sp = SPRINT[hold] || SPRINT.rifle;
-  mount.position.set(mix(m.pos[0], sp.pos[0], sprint), mix(m.pos[1], sp.pos[1], sprint), mix(m.pos[2], sp.pos[2], sprint) + kick * 0.05);
-  mount.rotation.set(mix(m.rotX, sp.rotX, sprint) + kick * 0.07, blade + sprint * sp.yaw, 0);
+  // yatarken gövde yerle paralel: silah gövde yerelinde +Y yönüne (dünyada ileri) uzanır
+  const PR = { pos: [0.1, 0.62, 0.02], rotX: Math.PI / 2 };
+  mount.position.set(mix(mix(m.pos[0], sp.pos[0], sprint), PR.pos[0], prone), mix(mix(m.pos[1], sp.pos[1], sprint), PR.pos[1], prone), mix(mix(m.pos[2], sp.pos[2], sprint) + kick * 0.05, PR.pos[2], prone));
+  mount.rotation.set(mix(mix(m.rotX, sp.rotX, sprint) + kick * 0.07, PR.rotX + aimP + kick * 0.05, prone), mix(blade + sprint * sp.yaw, 0.12, prone), 0);
   mount.updateMatrix();
   const toTorso = (v) => v.clone().applyMatrix4(mount.matrix);
   poseArm(armR, toTorso(w.userData.gripR));
