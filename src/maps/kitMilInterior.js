@@ -10,7 +10,7 @@ export const IC = {
 const GL = { glow: true };
 
 // Gece ışık havuzu malzemesi: siyah gövde + toplamalı karışım → gündüz görünmez, gece (emissive açılınca) parlar
-export const poolMat = (emissive = '#ffc66b', opacity = 0.5) => ({ glow: true, emissive, transparent: true, opacity, blending: 2, depthWrite: false, roughness: 1 });
+export const poolMat = (emissive = '#ffc66b', opacity = 0.5) => ({ glow: true, emissive, transparent: true, opacity, blending: 2, depthWrite: false, roughness: 1, fog: false });
 // Kademeli (merkezi parlak) ışık havuzu: 3 iç içe disk (toplamalı karışım) → alçak poligon "gradyan"
 export function poolDisc(b, x, y, z, r, color = '#ffc66b', opacity = 0.4, seg = 14) {
   for (let i = 0; i < 3; i++) b.cyl(x, y + i * 0.003, z, r * [1, 0.68, 0.38][i], r * [1, 0.68, 0.38][i], 0.01, '#000000', { seg, collide: false, o: poolMat(color, opacity * 0.5) });
@@ -186,6 +186,23 @@ export const ITEMS = {
   } },
   pillar: { w: 0.7, d: 0.7, draw(b) { b.box(0, 0, 0.35, 0.7, 3.0, 0.7, '#8d9389'); b.box(0, 0, 0.35, 0.8, 0.2, 0.8, '#6f756d', { collide: false }); } },
   bin: { w: 0.5, d: 0.5, draw(b) { b.cyl(0, 0, 0.25, 0.22, 0.2, 0.7, '#3f4a3f', { seg: 8 }); } },
+  plant: { w: 0.55, d: 0.55, draw(b) {
+    b.cyl(0, 0, 0.275, 0.2, 0.16, 0.4, '#8a5a3a', { seg: 8 });
+    b.ico(0, 0.8, 0.275, 0.4, '#4f7a3a', { scale: [1, 1.3, 1], detail: 0, collide: false });
+    b.collide(0, 0, 0.275, 0.45, 1.2, 0.45);
+  } },
+  cooler: { w: 0.45, d: 0.45, draw(b) {
+    b.box(0, 0, 0.225, 0.4, 1.0, 0.4, '#d8dde0'); b.cyl(0, 1.0, 0.225, 0.14, 0.14, 0.4, '#8fc8e8', { seg: 8, collide: false, o: { transparent: true, opacity: 0.7 } });
+    b.box(0, 0.7, 0.43, 0.1, 0.05, 0.04, '#3a6ac0', { collide: false });
+  } },
+  files: { w: 0.9, d: 0.6, draw(b) {
+    b.box(0, 0, 0.3, 0.9, 0.5, 0.6, '#9a8a64');
+    for (let i = 0; i < 3; i++) b.box(-0.3 + i * 0.3, 0.5, 0.3, 0.26, 0.28, 0.5, ['#c9c4aa', '#b8b290', '#d4cfb6'][i], { collide: false });
+    b.box(0, 0.78, 0.3, 0.8, 0.04, 0.5, '#e4e0cf', { collide: false });
+  } },
+  extinguisher: { w: 0.3, d: 0.15, draw(b) {
+    b.cyl(0, 0.9, 0.08, 0.09, 0.09, 0.5, '#c0392b', { seg: 8, collide: false }); b.box(0, 1.4, 0.08, 0.08, 0.1, 0.08, '#2a2d30', { collide: false });
+  } },
   trunk: { w: 1.1, d: 0.6, draw(b) {   // ayak sandığı
     b.box(0, 0, 0.3, 1.1, 0.42, 0.6, IC.olive); b.box(0, 0.42, 0.3, 1.14, 0.06, 0.64, IC.steel, { collide: false });
   } },
@@ -252,7 +269,7 @@ export const ROOM_KINDS = {
   ops(b, ctx, R, rng) {
     const W = R.x1 - R.x0, Dd = R.z1 - R.z0;
     wallRun(b, ctx, R, 'n', ['board', 'screens', 'board'], rng, { start: 0.3 });
-    if (W >= 5.5 && Dd >= 4.5) putAt(b, ctx, 'mapTable', (R.x0 + R.x1) / 2, (R.z0 + R.z1) / 2 - 0.5, 0, rng);
+    if (W >= 5.2 && Dd >= 4.5) putAt(b, ctx, 'mapTable', (R.x0 + R.x1) / 2, (R.z0 + R.z1) / 2 - 0.5, 0, rng);
     wallRun(b, ctx, R, 's', ['radioDesk', 'cabinet', 'radioDesk', 'cabinet'], rng, { start: 0.3 });
     wallRun(b, ctx, R, 'w', ['cabinet', 'panel'], rng, { start: 0.5 });
     wallRun(b, ctx, R, 'e', ['cabinet', 'panel', 'bin'], rng, { start: 0.5 });
@@ -360,4 +377,9 @@ export function fillRoom(b, rng, kind, R, y, keeps = []) {
   if (!fn) return;
   const ctx = { y, rects: keeps.map((k) => ({ ...k })), bounds: R };
   fn(b, ctx, R, rng);
+  // boşlukları küçük eşyalarla doldur (bitki, dosya kolisi, sebil, çöp kovası, ayak sandığı...): kapı/merdiven şeritleri korunur
+  if (kind !== 'empty' && kind !== 'hallway') {
+    const small = ['plant', 'files', 'bin', 'cooler', 'trunk', 'files', 'plant', 'extinguisher', 'bin'];
+    for (const side of ['n', 'e', 's', 'w']) wallRun(b, ctx, R, side, small, rng, { start: 0.15, gap: 0.3, cycle: true });
+  }
 }

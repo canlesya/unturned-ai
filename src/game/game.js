@@ -269,6 +269,43 @@ export class Game {
     }
   }
 
+  // ───── canlandırma (ilk yardım çantasıyla yakındaki dost cesedi) ─────
+  canRevive(v, medic) {
+    return !v.alive && v.revivable && v.deadT < 14 && v.team === medic.team && !this.ended
+      && Math.hypot(v.pos.x - medic.pos.x, v.pos.z - medic.pos.z) < 3.4;
+  }
+  findRevivable(medic) {
+    let best = null, bd = 2.8;
+    for (const v of this.soldiers) {
+      if (v.alive || !v.revivable || v.deadT >= 14 || v.team !== medic.team) continue;
+      const d = Math.hypot(v.pos.x - medic.pos.x, v.pos.z - medic.pos.z);
+      if (d < bd && Math.abs(v.pos.y - medic.pos.y) < 2.2) { bd = d; best = v; }
+    }
+    return best;
+  }
+  nearestCorpse(medic, range) {
+    let best = null, bd = range;
+    for (const v of this.soldiers) {
+      if (v.alive || !v.revivable || v.deadT >= 9 || v.team !== medic.team) continue;
+      const d = Math.hypot(v.pos.x - medic.pos.x, v.pos.z - medic.pos.z);
+      if (d < bd) { bd = d; best = v; }
+    }
+    return best;
+  }
+  revive(v, medic) {
+    const at = { x: v.pos.x, z: v.pos.z, ry: v.yaw };
+    v.spawn(at, 2.5);
+    this.world.settle(v);
+    v.hp = v.maxHp * 0.55;
+    v.revivable = false;
+    this.tickets[v.team] += 1;
+    if (v.brain) v.brain.reset();
+    medic.score += 80;
+    if (v.isPlayer) { this.pendingClass = null; this.hud.onPlayerSpawn?.(); this.hud.toast(`${medic.name} seni canlandırdı`, '#9be07f'); }
+    if (medic.isPlayer) { this.hud.popup('+80 CANLANDIRMA'); this.hud.toast(`${v.name} canlandırıldı`, '#9be07f'); }
+    this.effects.spark?.(v.pos.clone().setY(v.pos.y + 1), 6, new THREE.Vector3(0, 1, 0));
+  }
+
   // ───── mangal görev dağıtımı: her mangal bir hedefe; takım dengesi + tehdit/ihtiyaç ─────
   squadGoal(s) { return this.squadGoals[s.team][s.squad] || null; }
 
@@ -289,7 +326,7 @@ export class Game {
         let best = null, bs = -1;
         for (const o of objs) {
           const d = Math.hypot(o.x - home.x, o.z - home.z);
-          const sc = need(o) / (1 + load.get(o.id) * 0.9) / (1 + d / 120) + Math.random() * 0.25;
+          const sc = need(o) / (1 + load.get(o.id) * 1.7) / (1 + d / 260) + Math.random() * 0.2;
           if (sc > bs) { bs = sc; best = o; }
         }
         this.squadGoals[team][sq] = best;

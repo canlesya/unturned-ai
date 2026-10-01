@@ -447,6 +447,7 @@ export class Hud {
       for (const o of g.mode.objectives) {
         if (Math.hypot(o.x - p.pos.x, o.z - p.pos.z) < o.r) { msg = o.owner === p.team && Math.abs(o.p) >= 1 ? `${o.name} · senin` : `${o.name} · ele geçiriliyor`; break; }
       }
+      if (!msg && p.stat.kind === 'medkit' && p.item.mag > 0 && g.findRevivable(p)) msg = 'Canlandır · sol tık';
       if (!msg && p.item.mag <= 0 && p.stat.kind === 'gun') msg = p.item.reserve > 0 ? 'ŞARJÖR BOŞ · R ile doldur' : 'ŞARJÖR BOŞ · mermi kalmadı!';
     }
     $('msg').textContent = msg;

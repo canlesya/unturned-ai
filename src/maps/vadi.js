@@ -110,23 +110,23 @@ export function buildVadi() {
     // Zirveye 4 yol girer: batı (kuzey patika), güney (rampa), doğu (nehir geçidi), kuzey (ledge). Merkez ve koridorlar açık kalır.
     S(-20, -40, 0, [11.5, 9], (g) => {
       if (g.side > 0) {
-        b.with(1.5, 0, 8.4, 0, () => V.rock(b, rng, 0, 0, 1.0)); K.crate(b, 8.6, 1.4, 1.1); K.crate(b, 8.6, 2.6, 1.0);
+        g.at(1.5, 8.4, () => V.rock(b, rng, 0, 0, 1.0)); g.at(8.6, 1.4, () => K.crate(b, 0, 0, 1.1)); g.at(8.6, 2.6, () => K.crate(b, 0, 0, 1.0));
         b.with(6, 0, -3.8, PI / 2, () => V.bunker(b, { w: 6, d: 4.4, ramp: false }));    // mazgal doğuya (vadiye) bakar, giriş batıdan
-        K.crate(b, -5.5, -3.8, 1.1); K.crate(b, -4.4, -3.6, 1.0); K.barrel(b, -6.6, -4.6, '#4d5b3a');
-        V.rock(b, rng, -9.2, 6.4, 1.3); V.rock(b, rng, 9.4, 6.6, 1.2); V.rock(b, rng, 2.5, 7.6, 1.4);
+        g.at(-5.5, -3.8, () => K.crate(b, 0, 0, 1.1)); g.at(-4.4, -3.6, () => K.crate(b, 0, 0, 1.0)); g.at(-6.6, -4.6, () => K.barrel(b, 0, 0, '#4d5b3a'));
+        g.at(-9.2, 6.4, () => V.rock(b, rng, 0, 0, 1.3)); g.at(9.4, 6.6, () => V.rock(b, rng, 0, 0, 1.2)); g.at(2.5, 7.6, () => V.rock(b, rng, 0, 0, 1.4));
         b.with(-3.2, 0, 1.2, 0, () => V.lantern(b, 3.4));
       } else {
         // Orman Kampı: çadırlar, ateş, kütük ev, bunker (ağaçlı sırt; gece ateşler yol gösterir)
         b.with(-6.2, 0, -5.8, 0, () => V.tent(b, { color: '#c7b98a' }));
         b.with(-8.6, 0, -2.2, PI / 2, () => V.tent(b, { color: '#b9b184', w: 3.0, len: 3.6 }));
         b.with(-3.4, 0, -4.6, 0, () => V.campfire(b));
-        house({ x: 7.5, z: 6.2, w: 6, d: 5, wall: '#8b5a2b', roof: '#4d5b3a', door: 'w', floors: 1 });
+        b.with(-8.8, 0, -7.4, 0, () => V.tent(b, { color: '#a7b38a', w: 3.0, len: 3.8 }));
         b.with(6, 0, -3.8, PI / 2, () => V.bunker(b, { w: 6, d: 4.4, ramp: false }));    // mazgal doğuya (vadiye) bakar, giriş batıdan
         b.with(3.8, 0, -7.4, PI / 2, () => V.logPile(b, 0, 2.6));
         b.with(-5.4, 0, 1.4, 0, () => V.fallenLog(b, 0, 0, 3.0, 1.57));
         b.with(-1.2, 0, -7.6, 0, () => V.fallenLog(b, 0, 0, 3.0, 0.2));
-        K.crate(b, -9.6, -5.6, 1.1); K.crate(b, -9.7, -6.8, 1.0);
-        V.rock(b, rng, 2.5, 7.8, 1.5); V.rock(b, rng, -9.4, 6.8, 1.3);
+        g.at(-9.6, -5.6, () => K.crate(b, 0, 0, 1.1)); g.at(-9.7, -6.8, () => K.crate(b, 0, 0, 1.0));
+        g.at(2.5, 7.8, () => V.rock(b, rng, 0, 0, 1.5)); g.at(-9.4, 6.8, () => V.rock(b, rng, 0, 0, 1.3));
         b.with(-3.0, 0, -2.2, 0, () => V.lantern(b, 3.0));
       }
     });
@@ -308,12 +308,21 @@ export function buildVadi() {
   plan((x, z, ry, pad, fn, o = {}) => {
     for (const side of o.sides || [1, -1]) {
       const wx = side * x, wz = side * z, wry = side > 0 ? ry : ry + PI;
-      const y0 = terrain.heightAt(wx, wz);
+      const y0 = terrain.heightAt(wx, wz), n0 = b.colliders.length;
       b.with(wx, y0, wz, wry, () => {
         const M = b.M;
         const gy = (lx, lz) => { const v = new THREE.Vector3(lx, 0, lz).applyMatrix4(M); return terrain.heightAt(v.x, v.z) - y0; };
-        fn({ side, gy });
+        fn({ side, gy, at: (lx, lz, f) => b.with(lx, gy(lx, lz), lz, 0, f) });     // at: nesneyi kendi zemin yüksekliğine oturt
       });
+      // zemine dayanan alçak çarpışmaları (sandık, kaya, duvar parçası) eğimde altı boş kalıyorsa yere kadar uzat:
+      // havada asılı kutu, altından geçen oyuncuyu araziye gömüp sıkıştırmasın
+      for (let i = n0; i < b.colliders.length; i++) {
+        const c = b.colliders[i];
+        if (c.tag || c.max[1] - c.min[1] >= 2.4 || c.min[1] - y0 > 0.35) continue;
+        const cx = (c.min[0] + c.max[0]) / 2, cz = (c.min[2] + c.max[2]) / 2;
+        const lo = Math.min(terrain.heightAt(cx, cz), terrain.heightAt(c.min[0], c.min[2]), terrain.heightAt(c.max[0], c.min[2]), terrain.heightAt(c.min[0], c.max[2]), terrain.heightAt(c.max[0], c.max[2]));
+        if (c.min[1] > lo + 0.12) c.min[1] = lo - 0.1;
+      }
       if (pad[0] < 3.2 && pad[1] < 3.2) reg(wx, wz);      // küçük nesneler (kaya, fener, sandık): ağaç aralığı bırak
     }
   });

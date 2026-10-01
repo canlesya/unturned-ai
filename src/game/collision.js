@@ -112,6 +112,9 @@ export class World {
   settle(s) {
     const p = s.pos;
     if (this.terrain) p.y = this.terrain.heightAt(p.x, p.z);
+    // köprü tabliyesi ('deck') üstüne doğan: arazi yerine tabliyeye çık (yoksa köprünün altındaki nehir yatağında kalır)
+    const dk = this.query(p.x - 0.5, p.z - 0.5, p.x + 0.5, p.z + 0.5, (this._tmp5 ||= []));
+    for (const c of dk) if (c.tag === 'deck' && p.x > c.min[0] && p.x < c.max[0] && p.z > c.min[2] && p.z < c.max[2] && c.max[1] > p.y) p.y = c.max[1];
     for (let i = 0; i < 4; i++) {
       const list = this.query(p.x - 1, p.z - 1, p.x + 1, p.z + 1, (this._tmp4 ||= []));
       const c = this._hits(list, p.x, p.y, p.z, 0.3);

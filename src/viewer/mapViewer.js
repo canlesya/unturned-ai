@@ -107,7 +107,7 @@ const PRESETS = {
     ridge: { pos: [-40, 16.6, -52], target: [-8, 4, -22], fov: 56 },
     sniper: { pos: [-30, 14.4, -52], target: [30, 2, 20], fov: 34 },
     tepe: { pos: [-10, 14.5, -26], target: [-20, 8.5, -41], fov: 52 },
-    camp: { pos: [22, 13.2, 52], target: [24, 8.2, 44], fov: 58 },
+    camp: { pos: [34, 10.6, 33], target: [23, 8.8, 44.5], fov: 55 },
     mill: { pos: [44, 8.8, -13], target: [24, 3.2, -25], fov: 50 },
     ambar: { pos: [-24.5, 3.6, 12], target: [-24, 3.0, 26], fov: 62 },
     village: { pos: [-27, 3.1, -4], target: [-9, 2.2, 3], fov: 62 },

@@ -80,6 +80,10 @@ export class BotBrain {
       if (pp) { this.setGoal(pp.x, pp.z, rand(25, 45)); this.perching = true; return; }
     }
     this.perching = false;
+    if (s.cls === 'medic') {
+      const c = g.nearestCorpse(s, 45);
+      if (c) { this.setGoal(c.pos.x, c.pos.z, 7); return; }
+    }
     if (s.cls === 'medic' && Math.random() < 0.5) {
       let mate = null, md = 1e9;
       for (const a of g.soldiers) {
@@ -174,6 +178,10 @@ export class BotBrain {
     }
     if (!this.target && (st.kind === 'gun') && it.mag < st.mag * 0.4 && it.reserve > 0 && s.reloadT <= 0) s.startReload();
     if (!this.target && s.cur !== 0 && s.items[0].mag + s.items[0].reserve > 0) s.switchTo(0);
+    if (!this.target && s.items[2].id === 'medkit' && s.items[2].mag > 0 && s.useT <= 0 && s.cd <= 0) {
+      const body = g.findRevivable(s);
+      if (body) { s.useGadget('medkit'); }
+    }
     if (!this.target && s.hp < 45 && s.items[2].id === 'medkit' && s.items[2].mag > 0) s.useGadget('medkit');
 
     if (this.target) {
@@ -316,6 +324,7 @@ export class BotBrain {
 
     const ml = Math.hypot(moveX, moveZ);
     const k = ml > 1 ? 1 / ml : 1;
+    if (s.useT > 0) speed = 0;
     const wx = moveX * k * speed, wz = moveZ * k * speed;
     const a = Math.min(1, dt * 10);
     s.vel.x = lerp(s.vel.x, wx, a);

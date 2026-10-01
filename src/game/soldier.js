@@ -308,7 +308,16 @@ export class Soldier {
   }
 
   _medkit(it, st) {
-    if (it.mag <= 0 || this.hp >= this.maxHp) return false;
+    if (it.mag <= 0) return false;
+    // yakında canlandırılabilir bir dost cesedi varsa: canlandırma (3 sn)
+    const body = this.game.findRevivable(this);
+    if (body) {
+      this.useT = 2.8; this.useItem = null; this.reviveTarget = body; this.cd = 3.0;
+      this.game.sfx.reload(this.pos);
+      this.game.emit('reload', this);
+      return true;
+    }
+    if (this.hp >= this.maxHp) return false;
     this.useT = st.useTime; this.useItem = it; this.cd = st.useTime + 0.2;
     this.game.sfx.reload(this.pos);
     this.game.emit('reload', this);
@@ -393,6 +402,7 @@ export class Soldier {
     this.deadT = 0; this.deadDir = Math.random() > 0.5 ? 1 : -1;
     this.ads = false; this.reloadT = 0; this.useT = 0; this.swing = null; this.autoSwitchT = 0;
     this.vel.set(0, 0, 0);
+    this.revivable = !/RPG|Bomba|Claymore|M79|üssü/i.test(weaponName || '');
     if (killer && killer !== this) { killer.kills++; killer.score += headshot ? 150 : 100; }
     this.game.onKill(killer, this, weaponName, headshot);
   }
@@ -441,7 +451,11 @@ export class Soldier {
       this.useT -= dt;
       if (this.useT <= 0) {
         const it = this.useItem;
-        if (it && it.mag > 0) { it.mag--; this.heal(WSTATS.medkit.heal); if (it.mag <= 0 && this.cur === 2) this.switchTo(0); }
+        if (this.reviveTarget) {
+          const bt = this.reviveTarget; this.reviveTarget = null;
+          const mk = this.items[2];
+          if (this.game.canRevive(bt, this)) { if (mk && mk.id === 'medkit' && mk.mag > 0) mk.mag--; this.game.revive(bt, this); }
+        } else if (it && it.mag > 0) { it.mag--; this.heal(WSTATS.medkit.heal); if (it.mag <= 0 && this.cur === 2) this.switchTo(0); }
       }
     }
     // hedef nişan geçişi
