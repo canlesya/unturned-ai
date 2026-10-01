@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { MapBuilder, makeRng } from './builder.js';
 import * as K from './kit.js';
 import * as T from './kitTown.js';
@@ -21,9 +22,15 @@ export function buildKasaba() {
   const b = new MapBuilder();
   const rng = makeRng(1337);
   const climb = [];     // tırmanma probu için hedefler ({name,x,y,z,entry})
+  const infos = {};
+  const _v = new THREE.Vector3();
+  // bina bilgisi (hedefler) dönüş uygulandığı için o anki çizim matrisiyle DÜNYA koordinatına çevrilir
+  const toW = (x, y, z) => { _v.set(x, y, z).applyMatrix4(b.M); return [_v.x, _v.y, _v.z]; };
   const reg = (info, name) => {
     if (!info) return;
-    for (const t of info.targets || []) climb.push({ name: `${name}:${t.name || t.room}`, x: t.x, y: t.y, z: t.z, entry: info.entry });
+    infos[name] = info;
+    const e = info.entry ? toW(info.entry.x, 0, info.entry.z) : null;
+    for (const t of info.targets || []) { const [wx, wy, wz] = toW(t.x, t.y, t.z); climb.push({ name: `${name}:${t.name || t.room}`, x: wx, y: wy, z: wz, entry: e ? { x: e[0], z: e[2] } : null }); }
   };
 
   // ───────── Zemin ─────────
@@ -63,6 +70,7 @@ export function buildKasaba() {
     spawns,
     objectives,
     climb,
+    infos,     // geliştirme/probe: bina üreteç bilgileri
   };
 
   // ═════════ yardımcılar ═════════
@@ -141,7 +149,7 @@ export function buildKasaba() {
       K.container(b, { x: -67.5, z: -13, ry: Math.PI / 2, color: '#4a7a4f' });
       K.truck(b, { x: -66.5, z: 15, ry: Math.PI / 2, color: '#a8281f', cargo: '#b9bec4' });
       K.sandbags(b, -66.5, -6.5, 4.0, Math.PI / 2); K.sandbags(b, -66.5, 7.5, 3.4, Math.PI / 2);
-      for (const [cx, cz, s, y] of [[-64, 9.2, 1.1, 0], [-62.9, 9.4, 1.0, 0], [-64, 10.4, 0.9, 1.1]]) K.crate(b, cx, cz, s, y);
+      for (const [cx, cz, s, y] of [[-72, -4.4, 1.1, 0], [-70.9, -4.2, 1.0, 0], [-72, -3.2, 0.9, 1.1]]) K.crate(b, cx, cz, s, y);
       K.barrel(b, -64, -17, '#c0392b'); K.barrel(b, -64.8, -17.5, '#d9a921'); K.barrel(b, -63.6, -16.3, '#c0392b');
       K.barrier(b, -69, -17.6, 0); K.barrier(b, -69, 17.6, 0);
       K.lamp(b, -64, -4, Math.PI); K.lamp(b, -64, 4, Math.PI); K.lamp(b, -69, -18.5, 0);
@@ -214,8 +222,8 @@ export function buildKasaba() {
     // B2': kilise / benzinlik (x -45…-26)
     if (V.swB2 === 'church') {
       reg(K.church(b, rng, { x: -36, z: 19, w: 9, d: 14 }), 'kilise');
-      for (let r = 0; r < 3; r++) for (let c = 0; c < 4; c++) K.tombstone(b, -30.5 + c * 1.1 + (r % 2) * 0.1, 14 + r * 2.8, 0);
-      K.fence(b, -31.8, 12.2, -26, 12.2); K.fence(b, -26.2, 12.2, -26.2, 16.5); K.fence(b, -26.2, 19.5, -26.2, 24.5); K.fence(b, -31.8, 24.5, -26, 24.5);
+      for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) K.tombstone(b, -30.2 + c * 1.9, 14.6 + r * 3.2, 0);
+      K.fence(b, -26.2, 12.2, -26.2, 16.4); K.fence(b, -26.2, 19.4, -26.2, 24.5);
       T.hedge(b, -45, 26, -41.5, 26); K.oak(b, rng, -43, 19, 1.0); K.oak(b, rng, -42, 12.8, 0.9); K.bush(b, rng, -31.3, 26, 1);
       K.bench(b, -42, 23, Math.PI / 2);
     } else {
@@ -264,8 +272,10 @@ export function buildKasaba() {
     // güney sokak (z 26…34)
     for (const [x, z, ry, ci, w] of [[-72, 31, 0, 3, 1], [-64, 28.6, 0.1, 1, 0], [-56, 31.4, Math.PI, 5, 1], [-47, 29, 0, 2, 0], [-38.5, 31.5, 0.05, 0, 1], [-30, 28.8, 0.1, 4, 0], [-21, 31.2, Math.PI, 1, 1], [-12, 28.8, 0, 5, 0]]) car(x, z, ry, palette[ci], !!w);
     K.barrier(b, -60, 31, 0); K.sandbags(b, -43, 29.4, 3.2, 0); K.barrier(b, -34, 31.4, 0); K.sandbags(b, -16.5, 31.2, 3, 0); K.barrier(b, -7.5, 29, 0);
+    // kaldırıma park etmiş araçlar (cadde kenarındaki uzun görüş şeritlerini keser)
+    for (const [x, z, ry, ci, w] of [[-5.4, -14, Math.PI / 2, 1, 0], [-5.4, -41, Math.PI / 2, 4, 1], [-5.4, 15, Math.PI / 2, 2, 1], [-5.4, 42, Math.PI / 2, 0, 0], [-38, -6.4, 0, 3, 0], [-16.5, -6.4, 0.02, 5, 1], [-29, 6.4, Math.PI, 2, 0], [-11, 6.4, Math.PI, 0, 1], [-56, 6.3, Math.PI, 4, 1]]) car(x, z, ry, palette[ci], !!w);
     // sokak kenarı (kaldırım/çim şeridi) siperleri: kenar boyunca uzun açık hat bırakma
-    for (let x = -70; x < -8; x += 11) { T.hedge(b, x, -35.2, x + 4.5, -35.2, { h: 1.2, t: 0.7 }); T.hedge(b, x + 5.5, 35.2, x + 10, 35.2, { h: 1.2, t: 0.7 }); }
+    for (let x = -70; x < -8; x += 11) { T.hedge(b, x, -33.9, x + 4.5, -33.9, { h: 1.9, t: 0.8 }); T.hedge(b, x + 5.5, 33.9, x + 10, 33.9, { h: 1.9, t: 0.8 }); }
     // lamba direkleri (cadde boyunca, geceyi aydınlatır)
     for (let x = -58; x < -8; x += 14) { K.lamp(b, x, -7.4, Math.PI * 0 + 0); K.lamp(b, x + 7, 7.4, Math.PI); }
     for (let x = -68; x < -8; x += 14) { K.lamp(b, x, -35, 0); K.lamp(b, x + 7, 35, Math.PI); }

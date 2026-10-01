@@ -146,7 +146,15 @@ reachBad ? bad('hedef ulaşılabilirlik: bazı doğuş noktalarından ulaşılam
   }
   console.log(`  görüş: ${rays} ışın, >40 m: %${(100 * long / rays).toFixed(1)}, >70 m: %${(100 * longer / rays).toFixed(1)}`);
   worst.sort((p, q) => q.d - p.d);
-  for (const w of worst.slice(0, 6)) console.log(`    uzun hat (${w.x},${w.z}) ${w.a}° → ${w.d.toFixed(0)} m`);
+  // satır/sütun bazında özetle (aynı koridoru tekrar etme)
+  const seenLine = new Set(); let shown = 0;
+  for (const w of worst) {
+    const horiz = (w.a % 180) === 90;
+    const key = (horiz ? 'z' + Math.round(w.z / 4) : (w.a % 180) === 0 ? 'x' + Math.round(w.x / 4) : 'd' + Math.round(w.x / 8) + ',' + Math.round(w.z / 8) + w.a);
+    if (seenLine.has(key)) continue; seenLine.add(key);
+    console.log(`    uzun hat (${w.x},${w.z}) ${w.a}° → ${w.d.toFixed(0)} m`);
+    if (++shown >= 10) break;
+  }
 }
 
 console.log(fail ? `\n${fail} HATA` : '\nTümü OK');

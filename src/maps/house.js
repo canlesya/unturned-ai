@@ -1,7 +1,16 @@
 // Ev / bina üreticisi (kit.house'un gerçek gövdesi).
 // Yerel çerçevede çalışır: ön kapı +Z (güney) yüzündedir; kapı hangi yöndeyse bina o yönde döndürülür (90° katları).
-// Her katta: iç bölme duvarları (≥1.5 m kapılar), oda tipine göre mobilya, kat döşemeleri (merdiven boşluklu),
+// Her katta: iç bölme duvarları (1.5 m kapılar), oda tipine göre mobilya (siper olanlar çarpışmalı), kat döşemeleri (merdiven boşluklu),
 // duvar boyunca çıkan merdiven kovası (kat başına tek kol; kollar değişimli sol/sağ), düz çatıda isteğe bağlı çatı erişimi.
+//
+// house(b, rng, o):  o = {
+//   x, z, w, d, floors=1, wall, roof, door='s'|'n'|'e'|'w', doorAt=0, backDoor=false, floorH=3.1, flat=false,
+//   floorColor, furnishing=true (false → boş kabuk), extraWindows=true,
+//   YENİ opsiyoneller:
+//   roofAccess=false  düz çatıda iç merdivenle çatıya çıkış + 1.05 m çarpışmalı korkuluk (yalnız flat:true),
+//   theme: 'house' | 'shop' | 'office' | 'school' | 'garage' | 'barracks' (varsayılan: flat ? 'office' : 'house'),
+//   glow=0.4  pencerelerin gece sarı parlama olasılığı, trim, porch=true }
+// Dönüş: { targets:[{x,y,z,room}] (oda merkezleri/çatı, dünya koordinatı), entry:{x,z}, fl, plans, toWorld, W, D, ry }.
 import { put, footprint, ITEMS, PAL, TALL } from './furn.js';
 
 const T = 0.3;        // dış duvar kalınlığı
@@ -124,6 +133,13 @@ export function house(b, rng, o) {
       if (k === 0) {
         front.ports.push({ x: doorX, z: iz1 - 0.05 });
         P.keeps.push({ x0: doorX - 1.0, x1: doorX + 1.0, z0: iz1 - 1.8, z1: iz1 });
+        if (theme === 'garage') {
+          // geniş sürgülü garaj kapısı (3.4 m açık): araç/oyuncu girişi, önü boş şerit
+          const sd = doorX > 0 ? -1 : 1;
+          P.rollAt = clamp(doorX + sd * (DW / 2 + 1.7 + 0.4), ix0 + 2.0, ix1 - 2.0);
+          P.keeps.push({ x0: P.rollAt - 1.9, x1: P.rollAt + 1.9, z0: iz1 - 2.2, z1: iz1 });
+          front.ports.push({ x: P.rollAt, z: iz1 - 0.05 });
+        }
         if (backDoor) {
           const br = P.rooms.find((r) => r.id === 'bw') || front;
           const bx = zp !== null ? clamp((br.x0 + br.x1) / 2, br.x0 + 1.0, br.x1 - 1.0) : 0;
@@ -224,6 +240,7 @@ export function house(b, rng, o) {
           ops.e.push(...winSpec(R, 'e', lo, zhi, P));
         }
       }
+      if (P.rollAt !== undefined) { ops.s = ops.s.filter((q) => Math.abs(q.at - P.rollAt) > 1.7 + q.w / 2 + 0.3); ops.s.push({ at: P.rollAt, w: 3.4, b: 0, top: 2.7 }); }
       if (P.k === 0) ops.s.push({ at: doorX, w: DW, b: 0, top: 2.3 });
       if (P.k === 0 && backDoor) ops.n.push({ at: P.backDoorX ?? 0, w: DW, b: 0, top: 2.3 });
       return ops;
@@ -251,6 +268,40 @@ export function house(b, rng, o) {
         doorFrame(doorX, z1, 'x');
         if (backDoor) doorFrame(P.backDoorX ?? 0, z0, 'x');
       }
+    }
+    // pencere süsleri (yalnız dekor): panjur + çiçeklik (ev), tente (dükkân/ofis)
+    if (theme === 'house' || theme === 'shop') {
+      const shut = pick(rng, ['#4f6a3a', '#2f4a5f', '#7a2f2a', '#e8e6df', '#6e3b22']);
+      const useShut = rng() < 0.6, useBox = rng() < 0.5;
+      for (let k = 0; k < F; k++) {
+        if (theme === 'shop' && k === 0) continue;
+        const ops = wallInfo[k];
+        for (const sd of ['n', 's', 'e', 'w']) for (const q of ops[sd]) {
+          if (!q.glass || q.w > 1.5) continue;
+          const y = k * floorH;
+          const alongX = sd === 'n' || sd === 's';
+          const off = (sd === 'n' || sd === 'w' ? -1 : 1) * (T / 2 + 0.03);
+          const px = alongX ? q.at : (sd === 'w' ? x0 : x1) + off, pz = alongX ? (sd === 'n' ? z0 : z1) + off : q.at;
+          for (const sg of [-1, 1]) {
+            if (!useShut) break;
+            if (alongX) b.box(px + sg * (q.w / 2 + 0.22), y + q.b, pz, 0.4, q.top - q.b, 0.06, shut, NC);
+            else b.box(px, y + q.b, pz + sg * (q.w / 2 + 0.22), 0.06, q.top - q.b, 0.4, shut, NC);
+          }
+          if (useBox && k === 0 && q.b > 0.8) {
+            if (alongX) { b.box(px, y + q.b - 0.32, pz + (sd === 'n' ? -0.12 : 0.12), q.w + 0.1, 0.22, 0.3, '#6e4a2a', NC); b.box(px, y + q.b - 0.1, pz + (sd === 'n' ? -0.12 : 0.12), q.w, 0.1, 0.26, '#4f8a3a', NC); }
+            else { b.box(px + (sd === 'w' ? -0.12 : 0.12), y + q.b - 0.32, pz, 0.3, 0.22, q.w + 0.1, '#6e4a2a', NC); b.box(px + (sd === 'w' ? -0.12 : 0.12), y + q.b - 0.1, pz, 0.26, 0.1, q.w, '#4f8a3a', NC); }
+          }
+        }
+      }
+    }
+    if (theme === 'shop' || theme === 'office' && rng() < 0.5) {
+      // şeritli tente (ön cephe, zemin kat pencerelerinin üstü)
+      const aw = [pick(rng, ['#c0392b', '#2c5aa0', '#2c7a4a', '#d9a921']), '#e8e8e4'];
+      const n = Math.max(4, Math.round((W - 2.4) / 1.0));
+      const aw0 = -W / 2 + 1.0, len = W - 2.0;
+      for (let i = 0; i < n; i++) b.box(aw0 + (i + 0.5) * len / n, 2.55, z1 + 0.65, len / n, 0.1, 1.3, aw[i % 2], { collide: false, rx: -0.18 });
+      b.box(0, 3.0, z1 + 0.18, len, 0.5, 0.06, pick(rng, ['#3a2a18', '#2a2d30']), NC);
+      b.box(0, 3.55, z1 + 0.15, len * 0.4, 0.4, 0.05, '#ffd98a', { collide: false, o: { glow: true } });
     }
     // köşe sütunları, üst bant, kat kuşağı
     for (const [px, pz] of [[x0, z0], [x1, z0], [x0, z1], [x1, z1]]) b.box(px, 0, pz, 0.42, H, 0.42, trim, NC);

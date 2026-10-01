@@ -9,8 +9,8 @@ import { clamp, rand } from './util.js';
 
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3();
 const puffGeo = new THREE.IcosahedronGeometry(1, 1);
-const smokeMats = [new THREE.MeshLambertMaterial({ color: '#c9cdd1', transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide }),
-  new THREE.MeshLambertMaterial({ color: '#aeb3b8', transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide })];
+// Işıklandırmasız (Basic) malzeme: gölge/ışık hesabı olmadan çok katmanlı saydamlık ucuz kalır
+const smokeMats = ['#d4d8dc', '#b9bec4', '#c4c9ce'].map((c) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide }));
 
 export function initGadgets(game) {
   game.smokes = [];
@@ -25,7 +25,7 @@ export function spawnSmoke(game, pos, st, owner) {
   group.position.copy(center);
   const puffs = [];
   for (let i = 0; i < 16; i++) {
-    const m = new THREE.Mesh(puffGeo, smokeMats[i % 2]);
+    const m = new THREE.Mesh(puffGeo, smokeMats[i % 3]);
     const dir = new THREE.Vector3(rand(-1, 1), rand(-0.45, 0.8), rand(-1, 1)).normalize();
     const off = dir.multiplyScalar(rand(0.2, 0.7) * rMax);
     m.userData = { off, s: rand(0.45, 0.75) * rMax, ph: Math.random() * 6 };
@@ -138,8 +138,8 @@ export function placeDeployable(game, s, st) {
     const mine = game.deployables.filter((d) => d.type === 'claymore' && d.owner === s);
     if (mine.length >= 3) removeDeployable(game, mine[0]);
     const mesh = createWeapon('claymore');
-    mesh.scale.setScalar(1.5);
-    mesh.position.set(x, y + 0.1, z);
+    mesh.scale.setScalar(2.2);
+    mesh.position.set(x, y + 0.15, z);
     mesh.rotation.y = s.yaw;
     game.scene.add(mesh);
     game.deployables.push({ type: 'claymore', owner: s, team: s.team, pos: new THREE.Vector3(x, y + 0.18, z), fx, fz, arm: 1.2, mesh, st, beep: 0 });

@@ -71,6 +71,11 @@ export function buildVadi() {
     S(-31.5, -11.5, 0, [0, 0], (g) => V.stoneWall(b, g.gy, -3, 0, 3, 0, { h: 0.9 }));
     S(-8, 41, 0, [4.6, 3.6], (g) => V.ruin(b, rng, g.gy, { w: 6.4, d: 4.4 }));
 
+    // güney/kuzey çiftlik kulübesi (çanak çıkışı ile Ambar arasında, ara kademe yerleşim)
+    S(-47, 26.5, 0, [4.6, 4.2], () => K.house(b, rng, { x: 0, z: 0, w: 6, d: 5, wall: '#a6845a', roof: '#6b3f33', door: 'n', floors: 1 }));
+    S(-52, 28.6, 0, [0, 0], () => V.haystack(b, 0, 0, 0.9));
+    S(-41.6, 28, 0, [0, 0], () => K.fence(b, 0, -2.4, 0, 2.4));
+
     // ═════════ AMBAR (mavi) / DEĞİRMEN (kırmızı) — aynı avlu duvarı, farklı yapı ═════════
     S(-24, 25.5, 0, [10.9, 11], (g) => {
       const x0 = -10, x1 = 10, z0 = -10, z1 = 11;
@@ -103,8 +108,8 @@ export function buildVadi() {
     S(-20, -40, 0, [11.5, 9], (g) => {
       if (g.side > 0) {
         b.with(1.5, 0, 8.4, 0, () => V.rock(b, rng, 0, 0, 1.0)); K.crate(b, 8.6, 1.4, 1.1); K.crate(b, 8.6, 2.6, 1.0);
-        b.with(8, 0, -5.5, 0, () => V.bunker(b, { w: 6, d: 4.4 }));
-        K.crate(b, -5.5, -3.8, 1.1); K.crate(b, -4.4, -3.6, 1.0); K.barrel(b, 4.4, -4.4, '#4d5b3a');
+        b.with(6, 0, -3.8, PI / 2, () => V.bunker(b, { w: 6, d: 4.4, ramp: false }));    // mazgal doğuya (vadiye) bakar, giriş batıdan
+        K.crate(b, -5.5, -3.8, 1.1); K.crate(b, -4.4, -3.6, 1.0); K.barrel(b, -6.6, -4.6, '#4d5b3a');
         V.rock(b, rng, -9.2, 6.4, 1.3); V.rock(b, rng, 9.4, 6.6, 1.2); V.rock(b, rng, 2.5, 7.6, 1.4);
         b.with(-3.2, 0, 1.2, 0, () => V.lantern(b, 3.4));
       } else {
@@ -113,8 +118,8 @@ export function buildVadi() {
         b.with(-8.6, 0, -2.2, PI / 2, () => V.tent(b, { color: '#b9b184', w: 3.0, len: 3.6 }));
         b.with(-3.4, 0, -4.6, 0, () => V.campfire(b));
         K.house(b, rng, { x: 7.5, z: 6.2, w: 6, d: 5, wall: '#8b5a2b', roof: '#4d5b3a', door: 'w', floors: 1 });
-        b.with(8, 0, -5.5, 0, () => V.bunker(b, { w: 6, d: 4.4 }));
-        b.with(4.6, 0, -3.4, PI / 2, () => V.logPile(b, 0, 2.6));
+        b.with(6, 0, -3.8, PI / 2, () => V.bunker(b, { w: 6, d: 4.4, ramp: false }));    // mazgal doğuya (vadiye) bakar, giriş batıdan
+        b.with(3.8, 0, -7.4, PI / 2, () => V.logPile(b, 0, 2.6));
         b.with(-5.4, 0, 1.4, 0, () => V.fallenLog(b, 0, 0, 3.0, 1.57));
         b.with(-1.2, 0, -7.6, 0, () => V.fallenLog(b, 0, 0, 3.0, 0.2));
         K.crate(b, -9.6, -5.6, 1.1); K.crate(b, -9.7, -6.8, 1.0);
@@ -145,8 +150,8 @@ export function buildVadi() {
     S(-7.5, -28.6, 0, [0, 0], () => K.sandbags(b, 0, 0, 3.0, 0));
     S(-13, -28, 0, [0, 0], () => V.fallenLog(b, 0, 0, 4, 0.5));
     cover(-14, -26, 'rock', 1.2);
-    S(-12.5, 22.4, 0, [0, 0], () => K.sandbags(b, 0, 0, 3.4, 0));    // güney geçit (dönmüşü kuzeydeki doğu yakası)
-    cover(-8, 30.5, 'rock', 1.3);
+    S(-12.5, 21.4, 0, [0, 0], () => K.sandbags(b, 0, 0, 3.4, 0));    // güney geçit (dönmüşü kuzeydeki doğu yakası)
+    cover(-8, 31.6, 'rock', 1.3);
     S(-11, 31.5, 0, [0, 0], () => V.fallenLog(b, 0, 0, 3.6, 0.3));
 
     // ═════════ SIRT LEDGE'LERİ: keskin nişancı mevzileri + kaya tünelleri ═════════
@@ -210,7 +215,7 @@ export function buildVadi() {
     return false;
   };
 
-  const grassA = new THREE.Color('#8fae52'), grassB = new THREE.Color('#6f9040'), grassC = new THREE.Color('#9db35a'), dry = new THREE.Color('#b2ad62');
+  const grassA = new THREE.Color('#8aab50'), grassB = new THREE.Color('#6f9040'), grassC = new THREE.Color('#93ab58'), dry = new THREE.Color('#aaa65f');
   const forest = new THREE.Color('#587a36'), forestD = new THREE.Color('#47662d'), needle = new THREE.Color('#6e6a3e');
   const dirt = new THREE.Color('#b69364'), dirtWet = new THREE.Color('#8a6f48'), yard = new THREE.Color('#a58f5e');
   const rockA = new THREE.Color('#8b877d'), rockB = new THREE.Color('#77746b'), rockC = new THREE.Color('#9b9486'), snow = new THREE.Color('#d9dbd8');
@@ -223,18 +228,20 @@ export function buildVadi() {
     if (n2 > 0.62) c.lerp(grassC, (n2 - 0.62) * 2.2);
     if (n3 > 0.58) c.lerp(dry, Math.min(0.7, (n3 - 0.58) * 3.0));
     if (az > 7 && az < 30 && Math.abs(x) < 70 && n1 > 0.6 && h < 3 && Math.abs(dx) > 9) c.lerp(field, 0.55);     // tarla yamaları
-    const fo = smoothstep(24, 46, az);
+    const out = smoothstep(84, 98, Math.abs(x)) + smoothstep(58, 70, az);     // sınır dışı dağlar: ormanlı yamaç
+    const fo = Math.min(1, Math.max(smoothstep(24, 46, az), out));
     c.lerp(forest, fo * 0.75);
     if (fo > 0.2 && n2 > 0.5) c.lerp(forestD, 0.35 * fo);
     if (fo > 0.4 && n2 < 0.28) c.lerp(needle, 0.5);
-    if (slope > 0.55) { tmp.copy(n2 > 0.5 ? rockA : rockB); if (n1 > 0.62) tmp.lerp(rockC, 0.5); c.lerp(tmp, Math.min(1, (slope - 0.55) * 2.4)); }
+    const rk = 0.55 + 0.3 * Math.min(1, out);
+    if (slope > rk) { tmp.copy(n2 > 0.5 ? rockA : rockB); if (n1 > 0.62) tmp.lerp(rockC, 0.5); c.lerp(tmp, Math.min(1, (slope - rk) * 2.4)); }
     if (h > 24) c.lerp(rockA, smoothstep(24, 34, h));
-    if (h > 44) c.lerp(snow, smoothstep(44, 58, h));
+    if (h > 52) c.lerp(snow, smoothstep(52, 66, h));
     for (const sg of [1, -1]) {   // çanak: çiftlik avlusu toprağı
       const bd = Math.max(0, Math.abs(x - sg * BOWL.cx) - BOWL.hx, Math.abs(z - sg * BOWL.cz) - BOWL.hz);
-      if (bd < 6) c.lerp(yard, 0.7 * (1 - bd / 6));
+      if (bd < 6) c.lerp(yard, 0.55 * (1 - bd / 6));
     }
-    if (padD(x, z, 0.5)) c.lerp(yard, 0.45);
+    if (padD(x, z, 0.5)) c.lerp(yard, 0.3);
     const td = trailD(x, z);                                         // patikalar
     if (td < 0.9) {
       const road = _tw >= 4.3;
@@ -247,7 +254,7 @@ export function buildVadi() {
     else if (h < WATER_LEVEL + 0.55 && slope < 0.6) c.lerp(wet, 0.55 * (1 - (h - WATER_LEVEL - 0.18) / 0.37));            // ıslak toprak
     const fr = (((Math.sin(x * 12.9898 + z * 78.233) * 43758.5453) % 1) + 1) % 1;
     c.multiplyScalar(0.93 + 0.14 * fr);
-  }, { smooth: true, jitter: 0.04, detail: { block: 0.55, amp: 0.11, patch: 0.08 } });
+  }, { smooth: true, jitter: 0.04, detail: { block: 0.5, amp: 0.09, patch: 0.08 } });
 
   // ───────── Nehir (su şeridi) ─────────
   const wpos = [], widx = [];
@@ -328,7 +335,7 @@ export function buildVadi() {
   const okTree = (x, z, trailM = 1.9) => {
     const h = terrain.heightAt(x, z);
     if (h < 0.3 || h > 42) return false;
-    if (terrain.slopeAt(x, z, 1) > 0.72) return false;
+    if (terrain.slopeAt(x, z, 1) > 0.95) return false;
     if (Math.abs(x - riverX(z)) < 7.5 && Math.abs(z) < 36) return false;
     if (Math.abs(x) < 88 && Math.abs(z) < 61) {
       if (padD(x, z, 2.2)) return false;
@@ -339,7 +346,7 @@ export function buildVadi() {
     return true;
   };
   let nTrees = 0;
-  for (let i = 0; i < 14000 && nTrees < 1150; i++) {
+  for (let i = 0; i < 40000 && nTrees < 1150; i++) {
     const x = -125 + rng() * 250, z = -105 + rng() * 210;
     const az = Math.abs(z), ax = Math.abs(x);
     // yoğunluk: sırtlarda sık, vadi tabanında seyrek (köprü ekseni açık)
@@ -348,7 +355,7 @@ export function buildVadi() {
     if (ax > 88 || az > 62) dens *= 0.55;
     if (rng() > dens) continue;
     if (!okTree(x, z)) continue;
-    if (near(x, z, 2.9)) continue;
+    if (near(x, z, 2.7)) continue;
     const h = terrain.heightAt(x, z);
     const s = 0.9 + rng() * 0.8;
     if (rng() > (az > 26 ? 0.14 : 0.55)) K.pine(b, rng, x, z, s, h); else K.oak(b, rng, x, z, s * 0.95, h);

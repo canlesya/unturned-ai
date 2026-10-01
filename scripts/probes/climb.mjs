@@ -51,7 +51,7 @@ function checkIslands(w, r, name, sp) {
         const q = st.pop(); n++; const qi = q % w.nx, qj = (q / w.nx) | 0; sx += w.cx(qi); sz += w.cz(qj);
         for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nq = (qj + dj) * w.nx + qi + di; if (un.has(nq) && !seen.has(nq)) { seen.add(nq); st.push(nq); } }
       }
-      if (n * SQ >= 0.8) results.push({ name, target: `ADA@${y.toFixed(1)} (${(sx / n).toFixed(1)},${(sz / n).toFixed(1)}) ${(n * SQ).toFixed(1)}m2`, graph: false, walk: false });
+      if (n * SQ >= 1.0) results.push({ name, target: `ADA@${y.toFixed(1)} (${(sx / n).toFixed(1)},${(sz / n).toFixed(1)}) ${(n * SQ).toFixed(1)}m2`, graph: false, walk: false });
     }
   }
 }
@@ -64,6 +64,10 @@ const HOUSES = [
   ['ev-3kat-duz', { x: 0, z: 0, w: 12, d: 9, floors: 3, door: 's', flat: true, roofAccess: true }],
   ['ev-3kat-us', { x: 0, z: 0, w: 16, d: 12, floors: 3, door: 's', backDoor: true, flat: true }],
   ['dukkan-2kat', { x: 0, z: 0, w: 14, d: 10, floors: 2, door: 's', theme: 'shop', flat: true, roofAccess: true }],
+  ['garaj', { x: 0, z: 0, w: 11, d: 9, floors: 1, door: 'n', theme: 'garage', flat: true, roofAccess: true }],
+  ['okul', { x: 0, z: 0, w: 11, d: 9, floors: 2, door: 's', theme: 'school', flat: true, roofAccess: true }],
+  ['belediye', { x: 0, z: 0, w: 15, d: 10, floors: 2, door: 's', theme: 'office', flat: true, roofAccess: true }],
+  ['karakol', { x: 0, z: 0, w: 10, d: 9, floors: 2, door: 'w', theme: 'office', flat: true, roofAccess: true }],
   ['ev-1kat-cati', { x: 0, z: 0, w: 10, d: 8, floors: 1, door: 's', flat: true, roofAccess: true }],
   ['ev-1kat', { x: 0, z: 0, w: 9, d: 8, floors: 1, door: 's' }],
   ['kulube', { x: 0, z: 0, w: 6.5, d: 5.5, floors: 1, door: 'n' }],

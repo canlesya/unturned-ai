@@ -64,7 +64,7 @@ function perimeter(b, rng) {
 // ───────────────────────── Kamp (mavi yerel çerçeve: x<0) ─────────────────────────
 // Kırmızı kamp aynı yerleşimin 180° döndürülmüş hâli. pal: renkler
 function camp(b, rng, pal) {
-  const WH = 3.2, T = 0.8;
+  const WH = 5.4, T = 0.8;
   const wallBox = (x, z, w, d) => { b.box(x, 0, z, w, WH, d, CONC); b.box(x, WH, z, w + (w > d ? 0 : 0.3), 0.18, d + (w > d ? 0.3 : 0), CONC_D, { collide: false }); };
   // doğu duvarı (x=-56): kapılar z=0 (geniş), ±15
   const gates = [[-3, 3], [-16.6, -13.4], [13.4, 16.6]];
@@ -73,11 +73,11 @@ function camp(b, rng, pal) {
   // kuzey/güney duvarı (z=±24): kapı x=-67 (3.2 m)
   for (const sz of [-1, 1]) for (const [a, c] of [[-80, -68.6], [-65.4, -56]]) wallBox((a + c) / 2, sz * 24, c - a, T);
   // kapı sütunları + üst kirişler (bayrak şeridi)
-  const post = (x, z) => { b.box(x, 0, z, 1.0, 3.9, 1.0, STEEL); b.box(x, 3.9, z, 1.2, 0.15, 1.2, '#3f444b', { collide: false }); };
-  for (const [a, c] of gates) { post(-56, a - 0.5); post(-56, c + 0.5); b.box(-56, 3.5, (a + c) / 2, 0.5, 0.4, c - a + 2, pal.stripe, { collide: false }); b.box(-56, 3.3, (a + c) / 2, 0.55, 0.12, c - a + 2, '#e8e8e4', { collide: false }); }
-  for (const sz of [-1, 1]) { post(-68.6 - 0.5, sz * 24); post(-65.4 + 0.5, sz * 24); b.box(-67, 3.5, sz * 24, 3.2 + 2, 0.4, 0.5, pal.stripe, { collide: false }); }
+  const post = (x, z) => { b.box(x, 0, z, 1.0, 5.4, 1.0, STEEL); b.box(x, 5.4, z, 1.2, 0.15, 1.2, '#3f444b', { collide: false }); };
+  for (const [a, c] of gates) { post(-56, a - 0.5); post(-56, c + 0.5); b.box(-56, 3.0, (a + c) / 2, 0.8, 1.8, c - a, CONC); b.box(-56, 3.5, (a + c) / 2, 0.86, 0.45, c - a + 0.2, pal.stripe, { collide: false }); b.box(-56, 3.1, (a + c) / 2, 0.86, 0.1, c - a + 0.2, '#e8e8e4', { collide: false }); }
+  for (const sz of [-1, 1]) { post(-68.6 - 0.5, sz * 24); post(-65.4 + 0.5, sz * 24); b.box(-67, 3.0, sz * 24, 3.2, 1.8, 0.8, CONC); b.box(-67, 3.5, sz * 24, 3.4, 0.45, 0.86, pal.stripe, { collide: false }); b.box(-67, 3.1, sz * 24, 3.4, 0.1, 0.86, '#e8e8e4', { collide: false }); }
   // kapı lambaları
-  for (const [a, c] of gates) for (const zz of [a - 0.5, c + 0.5]) b.box(-56 + 0.6, 3.1, zz, 0.2, 0.2, 0.4, '#ffe2a0', { collide: false, o: { glow: true } });
+  for (const [a, c] of gates) for (const zz of [a - 0.5, c + 0.5]) b.box(-56 + 0.6, 2.8, zz, 0.2, 0.2, 0.4, '#ffe2a0', { collide: false, o: { glow: true } });
   // kapı önü siper duvarları (düşman görüşünü keser, kamp içinden/dışından)
   // tek sıra şikan perdesi (x=-52.8): kapıların önünde, aralarda 2 m'lik geçit (arkada kamp duvarı var → içeri görüş yok)
   M.blastWall(b, -52.8, 0, 15, PI / 2);                 // orta kapı
@@ -172,7 +172,7 @@ function hangarComplex(b, rng) {
   M.tanker(b, { x: -24, z: -29.5, ry: 0 });
   M.blastWall(b, -10, -31, 5, 0, 1.6, 0.6); M.blastWall(b, 10, -31, 5, 0, 1.6, 0.6);
   K.sandbags(b, 0, -29, 5, 0);
-  M.blastWall(b, -19, -52, 5, PI / 2); M.blastWall(b, 19, -52, 5, PI / 2);          // arka kapı gölgeliği
+  M.blastWall(b, -19, -52, 5, PI / 2);          // arka kapı gölgeliği
   K.container(b, { x: 0, z: -57, ry: 0, color: '#2d5a8a' }); K.container(b, { x: 0, z: -57, y: 2.6, ry: 0, color: '#8a6a2d' });
   for (const [x, z] of [[-17, -36], [17, -36], [-5, -34], [5, -34]]) M.lampPost(b, x, z, { ry: x < 0 ? 0 : PI });
   for (const [x, z] of [[-17, -57], [17, -57]]) M.lampPost(b, x, z, { ry: -PI / 2 });
@@ -230,7 +230,7 @@ function midNW(b, rng, v) {
   M.bunker(b, { x: -49, z: -24, ry: -PI / 2 });
   K.sandbags(b, -34, -27.5, 4, 0); K.sandbags(b, -43, -29, 4, 0);
   M.blastWall(b, -14, -29, 5, PI / 2); M.blastWall(b, -54, -30, 5, PI / 2);
-  M.hesco(b, -44, -21, 4, 0); M.hesco(b, -29, -21, 4, 0);
+  M.hesco(b, -44, -21, 4, 0); M.hesco(b, -24, -16.5, 3.6, 0);
   K.crate(b, -31, -19.8, 1.2); K.crate(b, -32.3, -19.9, 1.0); K.barrel(b, -30, -19.2, '#556b2f');
   // gözetleme kulesi (yüksek zemin)
   M.guardTower(b, rng, { x: -19, z: -23, ry: -PI / 2, wall: '#7d8a74' });
@@ -265,19 +265,19 @@ function midNE(b, rng) {
   });
   b.box(18, 3.2, -21.5, 9.4, 0.3, 7.4, STEEL, { collide: false });
   // helipad + kontrol kulesi + kamuflaj
-  M.helipad(b, { x: 34, z: -47, r: 6.5 }); M.helicopter(b, { x: 34, z: -47, ry: -0.0 + PI / 2, color: '#3f4a5e' });
-  M.controlTower(b, rng, { x: 51, z: -44, door: 's' });
-  M.camoNet(b, rng, { x: 21, z: -50, w: 9, d: 8, h: 3.4 });
-  K.truck(b, { x: 21, z: -50, ry: PI / 2, color: '#5e6b4a' });
-  M.blastWall(b, 42, -39, 6, 0); M.blastWall(b, 25, -39, 5, 0); M.blastWall(b, 18, -34, 5, PI / 2);
-  K.container(b, { x: 49, z: -54, ry: 0, color: '#2d5a8a' }); K.container(b, { x: 40, z: -57, ry: 0, color: '#8a3a2d' });
+  M.helipad(b, { x: 33, z: -47, r: 6.5 }); M.helicopter(b, { x: 33, z: -47, ry: PI / 2, color: '#3f4a5e' });
+  M.controlTower(b, rng, { x: 22, z: -50, door: 's' });
+  M.camoNet(b, rng, { x: 47, z: -50, w: 9, d: 8, h: 3.4 });
+  K.truck(b, { x: 47, z: -50, ry: PI / 2, color: '#5e6b4a' });
+  M.blastWall(b, 27, -39.5, 5, 0); M.blastWall(b, 18, -34, 5, PI / 2);
+  K.container(b, { x: 54, z: -55, ry: 0, color: '#2d5a8a' }); K.container(b, { x: 40, z: -57, ry: 0, color: '#8a3a2d' });
   M.tank(b, { x: 22.5, z: -41.5, ry: PI, wreck: true });
   // hendek: helipad ile benzin istasyonu arası
-  M.trench(b, 23, -33, 45, -33, 2.6);
-  M.mgNest(b, 28, -37.2, PI); M.mgNest(b, 40, -37.2, PI);
+  M.trench(b, 23, -33, 39, -33, 2.6);
+  M.mgNest(b, 26, -36.5, PI); M.mgNest(b, 35, -37.2, PI);
   // kule (yüksek zemin)
-  M.guardTower(b, rng, { x: 52, z: -34, ry: -PI / 2, wall: '#7d8a74' });
-  for (const [x, z] of [[28, -4.5], [45, -5], [29, -37.5], [44, -50], [25, -44], [22, -15]]) M.lampPost(b, x, z, { ry: x < 36 ? 0 : PI });
+  M.guardTower(b, rng, { x: 45, z: -38, ry: -PI / 2, wall: '#7d8a74' });
+  for (const [x, z] of [[28, -4.5], [45, -5], [30, -37.5], [40, -45], [29, -44], [22, -15]]) M.lampPost(b, x, z, { ry: x < 36 ? 0 : PI });
 }
 
 // ───────────────────────── Güneybatı: Kışla kompleksi ─────────────────────────

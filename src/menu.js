@@ -45,6 +45,8 @@ const NEWS = [
   'Gece, gün batımı ve gündüz seçenekleri',
   'Sınıf başına silah ve gadget seçimi',
   'Yeni haritalar: Vadi ve Askeri Üs',
+  '32 silah: yeni tüfekler, SMG, DMR, .50, mayın, duman, flaşbang',
+  'Daha hızlı şarjör değiştirme, yeni bıçak kombosu',
   'Mangal tabanlı bot stratejisi, ileri doğma noktaları',
 ];
 const SIZE_PRESETS = [[1, '1v1'], [3, '3v3'], [5, '5v5'], [10, '10v10'], [16, '16v16'], [24, '24v24'], [32, '32v32']];
@@ -202,8 +204,8 @@ export function showMenu(onStart) {
       ['Eğilme', 'sola <kbd>Q</kbd> · sağa <kbd>E</kbd> (eğilerek ateş edilir)'],
       ['Ateş / Nişan', 'Sol tık / Sağ tık (basılı tut)'],
       ['Şarjör', '<kbd>R</kbd> (şarjör doluyken taktik yükleme daha hızlıdır)'],
-      ['Silah', '<kbd>1</kbd> ana · <kbd>2</kbd> yedek · <kbd>3</kbd> gadget · <kbd>4</kbd> bıçak · fare tekeri'],
-      ['Nişangâh', '<kbd>B</kbd> demir / red dot / holografik / ACOG · ateş modu <kbd>V</kbd>'],
+      ['Silah', '<kbd>1</kbd> ana · <kbd>2</kbd> yedek · <kbd>3</kbd>/<kbd>G</kbd> gadget · <kbd>4</kbd>/<kbd>V</kbd> bıçak · fare tekeri'],
+      ['Nişangâh', '<kbd>B</kbd> demir / red dot / holografik / ACOG · ateş modu <kbd>X</kbd>'],
       ['Fener', '<kbd>F</kbd> (gece ve gün batımında)'],
       ['Bakış (yedek)', 'Fare kilitlenmezse ok tuşları'],
       ['Skor tablosu', '<kbd>Tab</kbd> · duraklat <kbd>Esc</kbd>'],

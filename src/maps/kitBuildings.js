@@ -261,12 +261,10 @@ export function church(b, rng, { x, z, w = 9, d = 16, ry = 0 }) {
     // giriş basamağı (görsel)
     b.box(0, 0, zn - 0.5, 3.0, 0.14, 1.0, stone, NC);
     // ── iç dizilim: pewler, sunak, mumluklar, lambalar ──
-    const rows = [-2.6, -0.4, 1.8, 4.0];
+    const rows = [-3.2, -1.0, 1.2, 3.4];
     for (const rz of rows) for (const sx of [-2.5, 2.5]) put(b, rng, 'pew', sx, 0.06, rz, 0);
     put(b, rng, 'altar', 0, 0.06, z1 - 1.5, Math.PI);
-    put(b, rng, 'pulpit', -3.3, 0.06, z1 - 3.2, Math.PI / 2);
     put(b, rng, 'candles', -2.4, 0.06, z1 - 0.9, 0); put(b, rng, 'candles', 2.4, 0.06, z1 - 0.9, 0);
-    put(b, rng, 'chest', 3.6, 0.06, z1 - 3.0, -Math.PI / 2);
     for (const lz of [-4.5, 0, 4.5]) { b.box(0, H - 0.9, lz, 0.04, 0.9, 0.04, '#2a2d30', NC); b.box(0, H - 1.2, lz, 0.6, 0.18, 0.6, '#ffd98a', { collide: false, o: { glow: true } }); }
     // nefin kenar mumları / çiçek
     for (const sz of [-3.6, 5.4]) put(b, rng, 'plant', -3.9, 0.06, sz, 0);
@@ -309,17 +307,16 @@ export function gasStation(b, rng, { x, z, store = false, storeRoof = true, ry =
     b.cyl(-9.8, 0, 3.8, 0.12, 0.14, 1.2, '#2a6ab0', { seg: 6 });
   });
   if (store) {
-    const dir = { n: [0, -1], s: [0, 1], e: [1, 0], w: [-1, 0] }[store];
-    const sw = 12, sd = 6.5;
-    // saçak 18×9 → market saçağın o yanında; kapı pompalara bakar
-    const horiz = store === 'n' || store === 's';
-    const off = (horiz ? 4.5 : 9.0) + 1.8 + (horiz ? sd : sw) / 2;
-    const door = { n: 's', s: 'n', e: 'w', w: 'e' }[store];
+    // market, saçağın yerel `store` yönünde; dünya yönü ry ile döner. Kapı pompalara (saçağa) bakar.
+    const dirL = { n: [0, -1], s: [0, 1], e: [1, 0], w: [-1, 0] }[store];
     const c = Math.cos(ry), s = Math.sin(ry);
-    const lx = dir[0] * off, lz = dir[1] * off;
-    const hx = x + lx * c + lz * s, hz = z - lx * s + lz * c;
-    // dönüş uygulandığında kapı yönü de döner; kullanıcı ry=0 dışı kullanırsa kapı yönünü kendi ayarlamalı
-    const h = house(b, rng, { x: hx, z: hz, w: horiz ? sw : sd, d: horiz ? sd : sw, floors: 1, flat: true, theme: 'shop', door, wall: '#e8e4d8', roof: '#c0392b', roofAccess: storeRoof, floorColor: '#b9b9b0' });
+    const dx = Math.round(dirL[0] * c + dirL[1] * s), dz = Math.round(-dirL[0] * s + dirL[1] * c);   // dünya yönü (eksen hizalı)
+    const sw = 12, sd = 6.5;
+    const alongX = dx !== 0;                      // market saçağın doğusunda/batısında
+    const off = (store === 'n' || store === 's' ? 4.5 : 9.0) + 1.8 + sd / 2;
+    const door = alongX ? (dx < 0 ? 'e' : 'w') : (dz < 0 ? 's' : 'n');
+    const hx = x + dx * off, hz = z + dz * off;
+    const h = house(b, rng, { x: hx, z: hz, w: alongX ? sd : sw, d: alongX ? sw : sd, floors: 1, flat: true, theme: 'shop', door, wall: '#e8e4d8', roof: '#c0392b', roofAccess: storeRoof, floorColor: '#b9b9b0' });
     info.store = h;
     info.targets.push(...h.targets);
   }

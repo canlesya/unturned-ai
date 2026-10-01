@@ -90,7 +90,7 @@ function baseH(x, z) {
 function mountain(x, z) {
   const ox = Math.max(0, Math.abs(x) - 87), oz = Math.max(0, Math.abs(z) - 62);
   const d = ox + oz;
-  return Math.min(80, d * 1.05 + (fbm(x * 0.03, z * 0.03, 9, 3) - 0.4) * Math.min(1, d / 30) * 14);
+  return Math.min(80, d * 0.92 + (fbm(x * 0.03, z * 0.03, 9, 3) - 0.4) * Math.min(1, d / 30) * 14);
 }
 
 // alan çarpıtma: düz kapsül/dikdörtgen kenarlarını doğal dalgalandırır
@@ -154,8 +154,9 @@ function trailsH(x, z, h, upto, o = _scr) {
 
 function riverH(x, z, h) {
   const dx = x - riverX(z);
-  // sığ geçitler (yürünebilir, üstünden su akar)
-  const wr = Math.exp(-(dx * dx) / (2 * RIVER_W * RIVER_W));
+  // kanyon sırtlara doğru daralır (asma köprü yarığında iki yaka aynı seviyede kalır)
+  const sg = RIVER_W * (1 - 0.5 * smoothstep(36, 48, Math.abs(z)));
+  const wr = Math.exp(-(dx * dx) / (2 * sg * sg));
   const bed = -2.8 + 0.17 * Math.max(0, Math.abs(z) - 30);
   h = mixf(h, Math.min(h, bed), Math.min(1, wr * 1.15));
   for (const fz of [-26, 26]) {
