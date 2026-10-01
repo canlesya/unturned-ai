@@ -206,6 +206,7 @@ export function buildKasaba() {
     group: b.build(),
     colliders: b.colliders,
     bounds: KASABA_BOUNDS,
+    roads: [{ x0: -75, z0: -5, x1: 75, z1: 5 }, { x0: -4, z0: -50, x1: 4, z1: 50 }],
     spawns,
     objectives,
   };

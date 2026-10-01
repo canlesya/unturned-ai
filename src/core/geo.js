@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 // Unturned tarzı: düz renk, flat-shaded, düşük poligon. Tüm modeller bu yardımcılarla kurulur.
 // Konvansiyon: ileri = -Z, yukarı = +Y, sağ = +X.
@@ -68,3 +69,30 @@ export function ico(p, r, color, pos, detail = 0, scale = [1, 1, 1], o) {
 }
 
 export const V = (x, y, z) => new THREE.Vector3(x, y, z);
+
+// Bir grubun doğrudan Mesh çocuklarını materyal başına tek mesh'te birleştirir (çizim çağrısı azaltır).
+// Alt gruplar kendi dönüşümlerini korur ve ayrı ayrı birleştirilir (kemik/uzuv hiyerarşisi bozulmaz).
+export function mergeStatic(group) {
+  const buckets = new Map();
+  const rm = [];
+  for (const ch of group.children) {
+    if (!ch.isMesh || Array.isArray(ch.material)) continue;
+    ch.updateMatrix();
+    const g = ch.geometry.index ? ch.geometry.toNonIndexed() : ch.geometry.clone();
+    g.applyMatrix4(ch.matrix);
+    g.deleteAttribute('uv');
+    let b = buckets.get(ch.material);
+    if (!b) buckets.set(ch.material, (b = { geos: [] }));
+    b.geos.push(g);
+    rm.push(ch);
+  }
+  for (const m of rm) { group.remove(m); m.geometry.dispose(); }
+  for (const [material, b] of buckets) {
+    const mesh = new THREE.Mesh(mergeGeometries(b.geos, false), material);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    group.add(mesh);
+  }
+  for (const ch of [...group.children]) if (ch.isGroup) mergeStatic(ch);
+  return group;
+}

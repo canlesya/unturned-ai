@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { box, taperBox, cylY, ico, V } from '../core/geo.js';
+import { box, taperBox, cylY, ico, V, mergeStatic } from '../core/geo.js';
 import { C, TEAMS, SKINS } from '../core/palette.js';
 import { createWeapon } from './weapons.js';
 
@@ -254,6 +254,8 @@ export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0,
   const mount = new THREE.Group();
   torso.add(mount);
 
+  mergeStatic(root);
+
   const api = {
     root,
     parts: { torso, head, legs, armR, armL, mount },
@@ -271,7 +273,7 @@ export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0,
         poseArm(armR, armR.shoulder.clone().add(V(0.02, -0.6, 0.04)));
         poseArm(armL, armL.shoulder.clone().add(V(-0.02, -0.6, 0.04)));
       }
-      groundFeet(root);
+      if (api.groundOffset === undefined) { groundFeet(root); api.groundOffset = root.position.y; } else root.position.y = api.groundOffset;
       return w;
     },
   };

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BlockFront · Kasaba Harbi</title>
+  <style>
+    html,body{margin:0;height:100%;background:#0d1117;overflow:hidden;font-family:system-ui,Segoe UI,Roboto,sans-serif;color:#fff}
+    #loading{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:#0d1117;z-index:50;font-size:22px;font-weight:700}
+    #menu{position:fixed;inset:0;overflow:auto;z-index:20;background:
+      radial-gradient(1200px 600px at 80% -10%,#2a4a7a55,transparent),radial-gradient(900px 500px at -10% 110%,#7a3a2a44,transparent),#0d1117}
+    .wrap{max-width:1180px;margin:0 auto;padding:28px 24px 40px}
+    h1{margin:0;font-size:44px;letter-spacing:1px;font-weight:900}
+    h1 span{color:#4aa3ff}h1 b{color:#ff5a43}
+    .sub{opacity:.7;margin:4px 0 22px}
+    .grid{display:grid;grid-template-columns:1.25fr 1fr;gap:22px}
+    @media(max-width:900px){.grid{grid-template-columns:1fr}}
+    .card{background:#141b27;border:1px solid #263245;border-radius:12px;padding:16px 18px;margin-bottom:16px}
+    .card h3{margin:0 0 10px;font-size:13px;letter-spacing:1.2px;text-transform:uppercase;opacity:.65}
+    .row{display:flex;gap:10px;flex-wrap:wrap}
+    .opt{flex:1;min-width:140px;background:#1b2434;border:2px solid #2b374d;border-radius:10px;padding:10px 12px;cursor:pointer;transition:.12s}
+    .opt:hover{border-color:#4a5d80}.opt.on{border-color:#4aa3ff;background:#1f3150}
+    .opt b{display:block;font-size:15px}.opt small{opacity:.7;font-size:12px}
+    .opt.red.on{border-color:#ff5a43;background:#4a2a26}.opt.blue.on{border-color:#4aa3ff}
+    .room{display:flex;gap:14px;align-items:center}
+    .room img{width:230px;border-radius:8px;border:1px solid #2b374d}
+    .room h4{margin:0 0 4px;font-size:18px}.room p{margin:2px 0;font-size:13px;opacity:.75}
+    .tag{display:inline-block;background:#2a3a24;color:#9be07f;border-radius:5px;font-size:11px;padding:1px 7px;margin-right:5px;font-weight:700}
+    .tag.soon{background:#3a3524;color:#e0c47f}
+    label{display:flex;align-items:center;gap:10px;margin:8px 0;font-size:14px}
+    label span{min-width:96px;opacity:.85}label em{min-width:42px;text-align:right;opacity:.7;font-style:normal;font-size:12px}
+    input[type=range]{flex:1}
+    .play{width:100%;padding:16px;font-size:20px;font-weight:900;border:0;border-radius:12px;cursor:pointer;color:#fff;
+      background:linear-gradient(90deg,#2f6fdb,#4aa3ff);box-shadow:0 6px 24px #2f6fdb66;letter-spacing:1px}
+    .play:hover{filter:brightness(1.12)}
+    table.keys{width:100%;font-size:13px;border-collapse:collapse}
+    table.keys td{padding:3px 0;opacity:.9}table.keys td:first-child{opacity:.6;width:42%}
+    kbd{background:#263245;border-radius:4px;padding:1px 6px;font-size:12px}
+    .foot{opacity:.5;font-size:12px;margin-top:6px}
+  </style>
+</head>
+<body>
+  <div id="loading">Harita yükleniyor…</div>
+  <div id="menu"></div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

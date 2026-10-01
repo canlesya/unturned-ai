@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { box, taperBox, cyl, cylY, ico, V } from '../core/geo.js';
+import { box, taperBox, cyl, cylY, ico, V, mergeStatic } from '../core/geo.js';
 import { C } from '../core/palette.js';
 
 // Her silah: origin = tabanca kabzası (sağ el), namlu -Z yönünde.
@@ -287,5 +287,6 @@ export function createWeapon(id) {
   if (!fn) throw new Error('Bilinmeyen silah: ' + id);
   const g = fn();
   g.userData.id = id;
+  mergeStatic(g);
   return g;
 }

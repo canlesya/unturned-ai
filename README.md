@@ -22,10 +22,23 @@ düz renkli / flat-shaded, düşük poligonlu modeller.
 - `map.html` – harita önizleme (`?shot=aerial|top|street|blue|red|farm|depot|gas|upstairs|churchin|interior|tower`)
 - `screenshots/harita-kasaba/` – ekran görüntüleri
 
+**Aşama 3 – Oynanabilir çekirdek (onay bekliyor):** menü, FPS hareketi, 8 silah + gadget, botlar, hedef ele geçirme modu.
+
+- `index.html` + `src/main.js` + `src/menu.js` – ana menü (mod, takım, sınıf, zorluk, ayarlar)
+- `src/game/game.js` – orkestratör: mermi/patlama fiziği, hedef ele geçirme, bilet, doğma, maç sonu
+- `src/game/player.js` – klavye/fare girişi, kamera, birinci şahıs silah modeli (ADS, geri tepme, şarjör animasyonu)
+- `src/game/soldier.js` – oyuncu ve botların ortak mantığı (ateş, reload, hasar, ölüm, animasyon)
+- `src/game/bot.js` + `nav.js` – bot yapay zekâsı (görüş, hedef, nişan, yol takibi) ve A* yol bulma
+- `src/game/collision.js` – AABB fizik (adım çıkma, zıplama), ışın testi
+- `src/game/hud.js`, `audio.js`, `effects.js` – arayüz, sentezlenmiş sesler, izler/patlama/kan
+- `scripts/play.mjs` – oyunu headless tarayıcıda test eder (`autoplay=1`, `nolock=1`, `debug=1`)
+- `scripts/build-single.mjs` – `npm run build` sonrası tek dosyalık HTML üretir
+
 ## Çalıştırma
 
 ```bash
 npm install
 npm run dev           # http://127.0.0.1:5173/viewer.html  (modeller)  ·  /map.html  (harita)
+npm run build && node scripts/build-single.mjs   # dist/single/index.html (tek dosya)
 npm run shots -- screenshots/x.png "view=weapons&hud=0"   # headless ekran görüntüsü (playwright gerekir)
 ```
