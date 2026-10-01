@@ -13,10 +13,19 @@ düz renkli / flat-shaded, düşük poligonlu modeller.
 - `viewer.html` – model önizleme sayfası (`?view=characters|closeup|weapons|weapon|items`)
 - `screenshots/` – tasarım ekran görüntüleri
 
+**Aşama 2 – Harita 1: Kasaba (onay bekliyor):**
+
+- `src/maps/builder.js` – harita üreticisi: parçaları materyal başına birleştirir (az draw call) ve her katı parça için AABB çarpışma kutusu üretir
+- `src/maps/kit.js` – ev, ambar, depo, kilise, benzinlik, araçlar, siperler, gözetleme kulesi, ağaçlar
+- `src/maps/kasaba.js` – harita yerleşimi; `{ group, colliders, bounds, spawns, objectives }` döner
+- `src/maps/environment.js` – gökyüzü, güneş/gölge, sis, bulutlar
+- `map.html` – harita önizleme (`?shot=aerial|top|street|blue|red|farm|depot|gas|upstairs|churchin|interior|tower`)
+- `screenshots/harita-kasaba/` – ekran görüntüleri
+
 ## Çalıştırma
 
 ```bash
 npm install
-npm run dev           # http://127.0.0.1:5173/viewer.html
+npm run dev           # http://127.0.0.1:5173/viewer.html  (modeller)  ·  /map.html  (harita)
 npm run shots -- screenshots/x.png "view=weapons&hud=0"   # headless ekran görüntüsü (playwright gerekir)
 ```

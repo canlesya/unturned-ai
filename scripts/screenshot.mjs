@@ -8,9 +8,9 @@ const browser = await chromium.launch({
   args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--enable-webgl'],
 });
 const page = await browser.newPage({ viewport: { width: +w, height: +h } });
-page.on('console', (m) => ['error', 'warning'].includes(m.type()) && console.log('[page]', m.text()));
+page.on('console', (m) => (['error', 'warning'].includes(m.type()) || m.text().startsWith('harita')) && console.log('[page]', m.text()));
 page.on('pageerror', (e) => console.log('[pageerror]', e.message));
-await page.goto(`${base}/viewer.html?${query}`);
+await page.goto(`${base}/${process.env.PAGE || 'viewer.html'}?${query}`);
 await page.waitForFunction('window.__ready === true', null, { timeout: 60000 });
 await page.waitForTimeout(400);
 await page.screenshot({ path: out });
