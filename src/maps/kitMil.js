@@ -25,6 +25,7 @@ export const interiorStore = mk('store');
 export const interiorLounge = mk('lounge');
 
 const GL = { glow: true };
+const WIN = { glow: true, emissive: '#ffdf9a', roughness: 0.25 };
 
 // ───────── Aydınlatma ─────────
 export function lampPost(b, x, z, { ry = 0, h = 6.2, color = '#ffe2a0', double = false } = {}) {
@@ -177,9 +178,9 @@ export function hangar(b, rng, { x, z, ry = 0, w = 30, d = 18, openW = 14, color
     // yüksek pencereler: ışıklı
     for (let i = -3; i <= 3; i++) {
       const at = i * (w / 7.5);
-      b.box(at, 5.6, z0 + T / 2, 1.8, 1.1, 0.07, '#ffdf9a', { collide: false, o: GL });
+      b.box(at, 5.6, z0 + T / 2, 1.8, 1.1, 0.07, '#2c3d49', { collide: false, o: WIN });
       const az = i * (d / 7.5);
-      for (const sx of [x0 + T / 2, x1 - T / 2]) if (Math.abs(az) > 2.5 && Math.abs(az - (d / 4 + 1)) > 2.5) b.box(sx, 5.6, az, 0.07, 1.1, 1.8, '#ffdf9a', { collide: false, o: GL });
+      for (const sx of [x0 + T / 2, x1 - T / 2]) if (Math.abs(az) > 2.5 && Math.abs(az - (d / 4 + 1)) > 2.5) b.box(sx, 5.6, az, 0.07, 1.1, 1.8, '#2c3d49', { collide: false, o: WIN });
     }
     // çatı: düz plaka + hafif kemer
     b.box(0, H - 0.3, 0, w, 0.3, d, CONC_D);
@@ -386,9 +387,9 @@ export function radarTower(b, rng, { x, z, w = 10, d = 10, fh = 3.2, wall = '#98
     x, z, w, d, floors: 3, fh, wall, roof, floorColor: '#6d726c', dw: 2.0,
     doors: { s: [-2.6, 2.4], e: [-2.0], w: [2.6] },
     stairs: [
-      { x: -hw + sw / 2 + 0.1, z: -hd + 0.35, dir: '+z', w: sw },
-      { x: -hw + sw / 2 + 2.35, z: hd - 0.35, dir: '-z', w: sw },
-      { x: -hw + sw / 2 + 0.1, z: -hd + 0.35, dir: '+z', w: sw },
+      { x: -hw + sw / 2 + 0.1, z: -hd + 1.2, dir: '+z', w: sw },
+      { x: -hw + sw / 2 + 2.35, z: hd - 1.2, dir: '-z', w: sw },
+      { x: -hw + sw / 2 + 0.1, z: -hd + 1.2, dir: '+z', w: sw },
     ],
     parts: [
       { axis: 'z', c: -hw + 4.1, a0: -d / 2 + 0.35, a1: d / 2 - 0.35, doors: [{ at: -3.4, w: 1.8 }, { at: 2.4, w: 1.8 }] },
@@ -423,9 +424,9 @@ export function controlTower(b, rng, { x, z, w = 7, d = 7, fh = 3.3, wall = '#a2
   const R = milBuilding(b, rng, {
     x, z, w, d, floors: 3, fh, wall, roof, floorColor: '#70746e', dw: 2.0, doors,
     stairs: [
-      { x: -hw + sw / 2 + 0.05, z: -hd + 0.3, dir: '+z', w: sw, rise: 0.22 },
-      { x: hw - sw / 2 - 0.05, z: hd - 0.3, dir: '-z', w: sw, rise: 0.22 },
-      { x: -hw + sw / 2 + 0.05, z: -hd + 0.3, dir: '+z', w: sw, rise: 0.22 },
+      { x: -hw + sw / 2 + 0.05, z: -hd + 1.0, dir: '+z', w: sw, rise: 0.22, run: 0.27 },
+      { x: hw - sw / 2 - 0.05, z: hd - 1.0, dir: '-z', w: sw, rise: 0.22, run: 0.27 },
+      { x: -hw + sw / 2 + 0.05, z: -hd + 1.0, dir: '+z', w: sw, rise: 0.22, run: 0.27 },
     ],
     rooms: [
       { f: 0, kind: 'radio', x0: -w / 2 + 0.35, x1: w / 2 - 0.35, z0: -d / 2 + 0.35, z1: d / 2 - 0.35 },

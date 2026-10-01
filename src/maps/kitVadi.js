@@ -186,6 +186,58 @@ export function plankBridge(b, { x0, z0, x1, z1, y, w = 2.2, color = '#8b6a45' }
   }
 }
 
+// Köprü tabliyesi üstü araç: K.car görünümü, çarpışma 'rail' etiketli (nav tabliye üstündeki nesneyi engel sayar)
+export function deckCar(b, { x, z, ry = 0, color = '#b33a2a', wreck = false }) {
+  b.with(x, 0, z, ry, () => {
+    const c = wreck ? '#6e5a4a' : color;
+    b.box(0, 0.3, 0, 4.3, 0.75, 1.8, c, { collide: false });
+    b.box(-0.35, 1.05, 0, 2.3, 0.62, 1.64, c, { collide: false });
+    b.box(-0.35, 1.08, 0, 2.34, 0.42, 1.67, '#22333f', { collide: false, o: { roughness: 0.2 } });
+    b.box(2.15, 0.3, 0, 0.12, 0.35, 1.7, '#222', { collide: false });
+    b.box(-2.15, 0.3, 0, 0.12, 0.35, 1.7, '#222', { collide: false });
+    for (const wx of [-1.4, 1.4]) for (const wz of [-0.92, 0.92]) b.cyl(wx, 0.34, wz, 0.34, 0.34, 0.26, '#1c1c1e', { rx: Math.PI / 2, center: true, seg: 10, collide: false });
+    b.collide(0, 0, 0, 4.4, 1.7, 1.85, 'rail');
+  });
+}
+
+// ───────── Yıkık yapı: kısmen ayakta duran taş duvarlar (siper) ─────────
+export function ruin(b, rng, gy, { w = 7, d = 5, h = 2.4 } = {}) {
+  const t = 0.5, x0 = -w / 2, x1 = w / 2, z0 = -d / 2, z1 = d / 2;
+  const seg = (ax, az, bx, bz, hh, gaps = []) => stoneWall(b, gy, ax, az, bx, bz, { h: hh, t, gaps, seg: 1.6, cols: ['#8a8578', '#99937f', '#7f7a6d'] });
+  seg(x0, z0, x1, z0, h * 0.55, [{ at: -1.2, w: 1.6 }]);
+  seg(x0, z1, x1, z1, h * 0.9, [{ at: 1.5, w: 1.5 }]);
+  seg(x0, z0, x0, z1, h, [{ at: 0.4, w: 1.4 }]);
+  seg(x1, z0, x1, z1, h * 0.4, [{ at: -0.2, w: 2.4 }]);
+  for (let i = 0; i < 4; i++) b.box(x0 + 1 + i * 1.7, 0, z0 + 1 + (i % 2) * 2, 0.5, 0.3 + rng() * 0.3, 0.6, '#8a8578', { collide: false });   // dökülmüş taşlar
+  rock(b, rng, 1.2, 0.3, 0.7);
+}
+
+// ───────── Gözetleme kulesi (kendi yapımız, tırmanılabilir): platform 6 m; düz merdiven kuzeyden (−z) gelir ─────────
+// Yerel çerçeve: kule merkezi (0,0); platform z∈[−2.3,2.3]; merdiven +z yönüne uzanır (z=2.3..9.5), basamak üstü platformla aynı seviyede.
+export function tower(b, { color = '#7a5a38', dark = '#5e3c1d', H = 6.0, roof = '#6a4a3a' } = {}) {
+  const P = 2.3, steps = 24, rise = H / steps, run = 0.3, sw = 1.3, sx = 1.0;
+  for (const px of [-1, 1]) for (const pz of [-1, 1]) b.box(px * (P - 0.25), 0, pz * (P - 0.25), 0.4, H, 0.4, color, { collide: false });     // dört direk
+  b.collide(0, 0, 0, 2.6, H, 2.6);                                                                                                           // çekirdek (içinden geçilmez)
+  for (const y of [1.6, 3.4, 5.0]) for (const s of [-1, 1]) {                                                                               // çapraz payandalar
+    b.box(0, y, s * (P - 0.1), 3.8, 0.14, 0.12, dark, { collide: false });
+    b.box(s * (P - 0.1), y, 0, 0.12, 0.14, 3.8, dark, { collide: false });
+  }
+  b.box(0, H - 0.25, 0, P * 2 + 0.3, 0.25, P * 2 + 0.3, dark);                                                                               // platform (üst = H)
+  // korkuluk: güney (merdiven) kenarında boşluk
+  b.box(0, H, -P, P * 2, 1.0, 0.14, color);                                                                                                  // kuzey
+  b.box(-P, H, 0, 0.14, 1.0, P * 2, color);                                                                                                  // batı
+  b.box(P, H, 0, 0.14, 1.0, P * 2, color);                                                                                                   // doğu
+  b.box(-1.3, H, P, 1.8, 1.0, 0.14, color);                                                                                                  // güney (boşluk x=0.1..1.9)
+  b.box(2.1, H, P, 0.4, 1.0, 0.14, color);
+  for (const px of [-P, P]) for (const pz of [-P, P]) b.box(px, H, pz, 0.16, 2.4, 0.16, dark, { collide: false });                              // çatı direkleri
+  b.prism(0, H + 2.4, 0, P * 2 + 1.2, 1.1, P * 2 + 1.2, roof, {});                                                                           // çatı (dekor)
+  b.box(0, H + 2.35, 0, P * 2 + 0.5, 0.12, P * 2 + 0.5, dark, { collide: false });
+  // merdiven (platforma yanaşık): ilk basamak zeminde, son basamak z=P'de platform seviyesinde
+  b.stairs(sx, P + steps * run, 0, '-z', sw, steps, rise, run, '#8b6a45');
+  for (const x of [sx - sw / 2 - 0.05, sx + sw / 2 + 0.05]) b.box(x, 0, P + steps * run / 2, 0.1, 1.0, steps * run - 0.2, dark, { collide: false });   // iki yan kiriş (görsel)
+  b.box(sx, H - 0.3, P + 0.25, sw + 0.2, 0.3, 0.5, '#8b6a45', { collide: false });
+}
+
 // ───────── Kaya tüneli: ledge yolunu örten kayalık (iki yan duvar + üst plaka), x ekseni boyunca ─────────
 export function rockTunnel(b, rng, gy, { len = 9, w = 3.2, h = 2.8 } = {}) {
   const wallT = 1.8;

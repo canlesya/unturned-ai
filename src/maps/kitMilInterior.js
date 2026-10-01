@@ -336,6 +336,10 @@ export const ROOM_KINDS = {
     wallRun(b, ctx, R, 's', ['locker', 'locker', 'cot', 'cot'], rng, { start: 0.3 });
     wallRun(b, ctx, R, 'w', ['locker', 'ammo'], rng, { start: 1.0 });
   },
+  hallway(b, ctx, R, rng) {
+    wallRun(b, ctx, R, 'w', ['locker', 'locker', 'board', 'cabinet', 'bin', 'locker', 'locker'], rng, { start: 0.5, gap: 0.5 });
+    wallRun(b, ctx, R, 'e', ['board', 'bin', 'cabinet', 'board', 'cross', 'bin'], rng, { start: 0.5, gap: 0.6 });
+  },
   empty() {},
 };
 

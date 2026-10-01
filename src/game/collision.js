@@ -60,6 +60,7 @@ export class World {
     const list = this.query(p.x - 2, p.z - 2, p.x + 2, p.z + 2, (this._tmp ||= []));
     v.y -= GRAV * dt;
     if (v.y < -40) v.y = -40;
+    let stepped = false;
 
     for (const axis of ['x', 'z']) {
       const d = v[axis] * dt;
@@ -74,9 +75,14 @@ export class World {
       let guard = 0;
       let c;
       while ((c = this._hits(list, p.x, p.y, p.z, h)) && guard++ < 6) {
-        const top = c.max[1];
+        // birden çok basamak/kutu aynı anda çakışıyorsa en yükseğin üstüne çık (merdivene çapraz/yandan girişte takılmayı önler)
+        let top = c.max[1];
+        for (const o of list) {
+          if (o !== c && o.max[1] > top && p.x + R > o.min[0] && p.x - R < o.max[0] && p.z + R > o.min[2] && p.z - R < o.max[2] && p.y + h > o.min[1] + 1e-4 && p.y < o.max[1] - 1e-4) top = o.max[1];
+        }
         if (top - p.y <= STEP && v.y <= 0.5 && !this._hits(list, p.x, top + 0.002, p.z, h)) {
           p.y = top + 0.002;
+          stepped = true;       // arazi üstündeki ilk basamağa çıkıldı: aşağıdaki "yere yapış" bunu geri almasın
           continue;
         }
         p[axis] = d > 0 ? c.min[axis === 'x' ? 0 : 2] - R - 1e-3 : c.max[axis === 'x' ? 0 : 2] + R + 1e-3;
@@ -85,7 +91,7 @@ export class World {
     }
 
     const gh = T ? T.heightAt(p.x, p.z) : 0;
-    if (T && wasOnGround && !s.onCollider && v.y <= 0 && p.y > gh && p.y - gh < 0.5) p.y = gh;   // yokuş aşağı yere yapış
+    if (T && wasOnGround && !s.onCollider && !stepped && v.y <= 0 && p.y > gh && p.y - gh < 0.5) p.y = gh;   // yokuş aşağı yere yapış
     const prevY = p.y;
     p.y += v.y * dt;
     s.onGround = false; s.onCollider = false;

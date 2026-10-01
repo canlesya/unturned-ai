@@ -44,7 +44,7 @@ const SPURS = [
 export const SADDLE_Y = 6.4;       // asma köprü tabliye yüksekliği (kuzey/güney yarık)
 // Tepe zirvesi (düz): [x,z,hx,hz,y,fall]
 const SUMMITS = [
-  [-20, -40, 8, 8, 8.6, 8],
+  [-20, -40, 10, 8, 8.6, 8],
 ];
 
 // Patika / yol tanımları (mavi yarı). Her biri dönmüşüyle birlikte kazınır.
@@ -57,17 +57,17 @@ const TRAIL_DEFS = [
   T('kuzey', [[-65, -14], [-62, -20], [-58, -26], [-52, -31], [-45, -34.5], [-37, -34], [-29, -37], [-22, -40]], { w: 4.2, grade: 0.34 }),
   T('kuzeyLedge', [[-52, -31], [-54, -38], [-57, -44], [-60, -49]], { w: 3.6, grade: 0.42 }),
   T('ledgeK', [[-61, -49.5], [-52, -50.5], [-42, -51], [-32, -51.5], [-22, -50.5], [-15, -49.5], [-10, -47.5], [-7.5, -46.5]], { w: 3.4, fall: 3.5, grade: 0.35, smooth: 9, pin: [null, SADDLE_Y] }),
-  T('tepeLedge', [[-21, -41], [-21, -45], [-23, -49.5]], { w: 3.6, grade: 0.45 }),
+  T('tepeLedge', [[-19.8, -41], [-19.2, -45], [-17.5, -49.2]], { w: 3.6, grade: 0.45 }),
   // Mezra → Tepe rampası (güney yaklaşım) + kuzey geçide inen yol
   T('tepeRampa', [[-26, -4], [-25.5, -11], [-25, -19], [-26, -27], [-24.5, -34], [-21.5, -38.5]], { w: 4.4, grade: 0.36 }),
-  T('kuzeyGecit', [[-25.5, -11], [-19, -16], [-12, -21.5], [-6, -25.5], [-2.4, -26]], { w: 4.6, grade: 0.3 }),
+  T('kuzeyGecit', [[-25.5, -12], [-24, -17], [-19, -19.5], [-12, -22.3], [-6, -25.5], [-2.4, -26]], { w: 4.6, grade: 0.3 }),
   T('tepeDogu', [[-9, -26], [-12.5, -32], [-17, -37], [-20.5, -40]], { w: 4.0, grade: 0.4 }),
   // Güney geçit: çanaktan B sırtı üzerinden Ambar'a
-  T('guney', [[-66, 13], [-60, 16], [-52, 19], [-45, 20], [-39, 21], [-34, 22.5], [-29, 23]], { w: 4.8, grade: 0.3, smooth: 2 }),
-  T('guneyGecit', [[-15, 26], [-8, 26], [-2.4, 26]], { w: 4.6, grade: 0.25 }),
-  T('mezraAmbar', [[-24, 4], [-23.5, 11], [-24, 17.5]], { w: 4.4, grade: 0.3 }),
+  T('guney', [[-66, 13], [-60, 16], [-52, 19], [-45, 20], [-39, 21], [-35, 22.3], [-31.5, 22.5]], { w: 4.8, grade: 0.3, smooth: 2 }),
+  T('guneyGecit', [[-16.5, 26], [-8, 26], [-2.4, 26]], { w: 4.6, grade: 0.25 }),
+  T('mezraAmbar', [[-24, 4], [-23.5, 11], [-24, 16]], { w: 4.4, grade: 0.3 }),
   // Güney sırt: Ambar'dan ledge'e kayalık yol + çanaktan güney patika
-  T('ambarSirt', [[-24, 33], [-28, 39], [-35, 44], [-44, 48.5], [-49, 49]], { w: 3.6, grade: 0.42 }),
+  T('ambarSirt', [[-25.5, 34], [-28, 39], [-35, 44], [-44, 48.5], [-49, 49]], { w: 3.6, grade: 0.42 }),
   T('ledgeG', [[-62, 48.5], [-52, 50], [-42, 50.5], [-33, 50], [-24, 49.5], [-16, 48.5], [-11, 47.5], [-7.5, 46.5]], { w: 3.4, fall: 3.5, grade: 0.35, smooth: 9, pin: [null, SADDLE_Y] }),
   T('guneyPatika', [[-60, 15], [-63, 24], [-62, 33], [-61, 41], [-62, 48]], { w: 3.6, grade: 0.4 }),
 ];
@@ -75,7 +75,8 @@ const TRAIL_DEFS = [
 // ───────── Yükseklik alanı ─────────
 function baseH(x, z) {
   const az = Math.abs(z), ax = Math.abs(x);
-  let h = 0.95 + (nS(x, z, 7, 3, 0.016) - 0.5) * 3.0 + (nS(x, z, 11, 2, 0.07) - 0.5) * 0.9;
+  const flat = 0.25 + 0.75 * smoothstep(14, 40, az);            // vadi tabanı yerleşim için daha düz, sırtlara doğru dalgalı
+  let h = 0.95 + (nS(x, z, 7, 3, 0.016) - 0.5) * 2.8 * flat + (nS(x, z, 11, 2, 0.07) - 0.5) * 0.9 * flat;
   // sırtlar: vadi uçlarında daralır (çanak), ortada genişler
   const zs = 15 + 11 * (1 - smoothstep(26, 66, ax));
   const warp = (nS(x, z, 21, 2, 0.045) - 0.5) * 3.0;
@@ -180,11 +181,13 @@ export const PADS = pads;
 export function finalizeLayout() {
   if (_ready) return;
   _ready = true;
+  pads.sort((a, b) => a.hx * a.hz - b.hx * b.hz);      // küçükler önce, büyük yapı düzlükleri en son (üstüne yazar)
   for (const p of pads) {
-    if (p.y == null) {
-      let a = preH(p.x, p.z), n = 1;
-      for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) { a += preH(p.x + sx * p.hx * 0.8, p.z + sz * p.hz * 0.8); n++; }
-      p.y = Math.round((a / n) * 20) / 20;
+    if (p.y == null) {         // medyan: yamaç/tümsek uçlarındaki örnekler yüksekliği çarpıtmasın
+      const v = [preH(p.x, p.z)];
+      for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) v.push(preH(p.x + sx * p.hx * 0.8, p.z + sz * p.hz * 0.8));
+      v.sort((a, b) => a - b);
+      p.y = Math.round(v[2] * 20) / 20;
     }
   }
   for (const d of TRAIL_DEFS) {

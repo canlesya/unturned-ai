@@ -320,8 +320,8 @@ function rpg() {
 // ───────────────────────── Bıçak ─────────────────────────
 function knife() {
   const g = new THREE.Group();
-  box(g, [0.01, 0.035, 0.16], C.chrome, [0, 0.0, -0.14], null, { metalness: 0.6, roughness: 0.35 });
-  box(g, [0.01, 0.026, 0.026], C.chrome, [0, -0.004, -0.235], [Math.PI / 4, 0, 0], { metalness: 0.6, roughness: 0.35 });
+  box(g, [0.01, 0.035, 0.16], C.chrome, [0, 0.0, -0.14], null, { metalness: 0.1, roughness: 0.4 });
+  box(g, [0.01, 0.026, 0.026], C.chrome, [0, -0.004, -0.235], [Math.PI / 4, 0, 0], { metalness: 0.1, roughness: 0.4 });
   box(g, [0.012, 0.01, 0.15], C.black, [0, 0.016, -0.14]);                         // sırt
   box(g, [0.03, 0.05, 0.014], C.steel, [0, 0.0, -0.055], null, M);                 // siper
   box(g, [0.026, 0.034, 0.11], C.black, [0, 0.0, 0.0]);                            // sap

@@ -266,7 +266,7 @@ export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0,
     weapon: null,
     setWeapon(id, opt) {
       if (opt) api.optic = opt;
-      if (api.weapon) mount.remove(api.weapon);
+      if (api.weapon) { mount.remove(api.weapon); api.weapon.traverse((o) => o.geometry?.dispose()); }
       const w = id ? createWeapon(id, api.optic) : null;
       api.weapon = w;
       if (w) mount.add(w);

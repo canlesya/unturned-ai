@@ -13,7 +13,7 @@ const VM_SCALE = 0.92;
 const Z = new THREE.Vector3(0, 0, 1);
 const REST_L = new THREE.Vector3(-0.2, -0.3, 0.2);      // sol el dinlenme (kullanılmıyorsa ekran dışı)
 const POUCH_VM = new THREE.Vector3(-0.3, -0.34, 0.3);   // yelek şarjör cebi (silah yerelinde)
-const MELEE_IDLE = { pos: [0.2, -0.2, -0.5], rx: 0.45, ry: 0.12, rz: -0.25 };
+const MELEE_IDLE = { pos: [0.1, -0.12, -0.46], rx: 0.5, ry: 0.22, rz: -0.35 };
 const MELEE_SPRINT = { pos: [-0.04, 0.06, -0.06], rx: 0.65, ry: 0.3, rz: -0.1 };
 
 class ViewModel {
@@ -40,7 +40,7 @@ class ViewModel {
   }
 
   setItem(id, team, kind, optic) {
-    if (this.model) this.root.remove(this.model);
+    if (this.model) { this.root.remove(this.model); this.model.traverse((o) => o.geometry?.dispose()); }
     this.id = id;
     this.raise = 1;
     this.raiseRate = 1 / Math.max(0.15, Math.min(0.35, WSTATS[id]?.equip ?? 0.3));
@@ -146,7 +146,7 @@ class ViewModel {
     // ── yükleme: silah yana yatar, sol el şarjöre/kemere gider, şarjör çıkar-takılır, kol şarjı ──
     let camRoll = 0, camPitch = 0;
     if (ra) {
-      pos.y -= ra.tilt * 0.07 + ra.slap * 0.012; pos.x -= ra.tilt * 0.05; pos.z += ra.slap * 0.035;
+      pos.y += ra.tilt * 0.07 - ra.slap * 0.012; pos.x -= ra.tilt * 0.12; pos.z += ra.slap * 0.035 - ra.tilt * 0.1;
       rx -= ra.tilt * 0.22 + ra.slap * 0.05; rz -= ra.tilt * 0.62; ry += ra.tilt * 0.3;
     } else if (s.useT > 0) {
       const tot = Math.max(0.5, st.useTime || 1.4);
@@ -171,10 +171,10 @@ class ViewModel {
         const fg = this.hLfg || REST_L;
         const mg = u.magPos ? u.magPos.clone().add(new THREE.Vector3(0, -0.02, 0)) : new THREE.Vector3(0, -0.03, -0.03);
         if (u.mag && ra.magOut > 0 && ra.w.mag > 0.4) mg.addScaledVector(new THREE.Vector3(...(u.magAxis || [0, -1, 0])), ra.magOut * 0.24);
-        const ch = new THREE.Vector3(0, 0.09, 0.02);
+        const ch = new THREE.Vector3(0.02, 0.07, -0.09);
         const w = ra.w;
         this.handL.position.set(0, 0, 0).addScaledVector(fg, w.fg).addScaledVector(mg, w.mag).addScaledVector(POUCH_VM, w.pouch).addScaledVector(ch, w.charge);
-        this.handL.position.z += ra.charge * 0.1 * w.charge;    // kol şarjını geri çek
+        this.handL.position.z += ra.charge * 0.08 * w.charge;    // kol şarjını geri çek
       } else {
         this.handL.visible = !!this.hLfg;
         if (this.hLfg) this.handL.position.copy(this.hLfg);
@@ -184,7 +184,7 @@ class ViewModel {
     if (isMelee && s.swing) {
       const sw = s.swing;
       const mpz = meleePose(sw.kind, clamp(sw.t / sw.dur, 0, 1));
-      pos.x += mpz.x * 1.25; pos.y += mpz.y * 1.25; pos.z += mpz.z * 1.25;
+      pos.x += mpz.x * 1.9; pos.y += mpz.y * 1.7; pos.z += mpz.z * 1.6;
       rx += mpz.rx; ry += mpz.ry; rz += mpz.rz;
       camRoll = -mpz.ry * 0.025; camPitch = mpz.rx * 0.012;
     }

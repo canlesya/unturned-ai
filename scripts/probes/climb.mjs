@@ -3,6 +3,7 @@
 // Kullanım: node scripts/probes/climb.mjs [filtre]
 import { MapBuilder, makeRng } from '../../src/maps/builder.js';
 import * as K from '../../src/maps/kit.js';
+import * as T from '../../src/maps/kitTown.js';
 import { Walk } from './nav3d.mjs';
 
 const filter = process.argv[2] || '';
@@ -87,8 +88,26 @@ for (const ry of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) {
   });
 }
 
-// Özel sahneler (başka modüller): kit içindeki diğer yüksek yerler
-for (const [name, fn] of Object.entries(K.climbables ? K.climbables() : {})) runScene(name, fn);
+// Diğer yüksek / iç mekânlar: ambar samanlığı, depo asma katı, kilise çan kulesi, benzinlik marketi (+çatı)
+const SPECIAL = [
+  ['ambar', (b, rng) => K.barn(b, rng, { x: 0, z: 0, w: 12, d: 18 })],
+  ['ambar-ry90', (b, rng) => K.barn(b, rng, { x: 0, z: 0, w: 10, d: 14, ry: Math.PI / 2, doors: 'front' })],
+  ['depo', (b, rng) => K.warehouse(b, rng, { x: 0, z: 0 })],
+  ['depo-ry180', (b, rng) => K.warehouse(b, rng, { x: 0, z: 0, ry: Math.PI })],
+  ['kilise', (b, rng) => K.church(b, rng, { x: 0, z: 0 })],
+  ['kilise-ry90', (b, rng) => K.church(b, rng, { x: 0, z: 0, ry: Math.PI / 2 })],
+  ['su-kulesi', (b, rng) => T.waterTower(b, { x: 0, z: 0 })],
+  ['su-kulesi-ry90', (b, rng) => T.waterTower(b, { x: 0, z: 0, ry: Math.PI / 2 })],
+  ['su-kulesi-ry180', (b, rng) => T.waterTower(b, { x: 0, z: 0, ry: Math.PI })],
+  ['benzinlik', (b, rng) => K.gasStation(b, rng, { x: 0, z: 0, store: 'n' })],
+];
+for (const [name, fn] of SPECIAL) {
+  runScene(name, (b, rng, targets) => {
+    const info = fn(b, rng);
+    for (const t of info.targets) targets.push({ name: t.name || t.room || 'hedef', x: t.x, y: t.y, z: t.z });
+    return info.entry || { x: 0, z: 14 };
+  });
+}
 
 let bad = 0;
 for (const r of results) {

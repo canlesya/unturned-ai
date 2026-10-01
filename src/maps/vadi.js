@@ -25,59 +25,54 @@ export function buildVadi() {
   // fn({side, gy}) yerel çerçevede (orijin = zemin) çizer; side +1 = mavi yarı, −1 = kırmızı yarı.
   const plan = (S) => {
     const TEAM = (sd) => (sd > 0 ? { main: '#2c5aa0', wall: '#35577f', roofA: '#5b6f8a' } : { main: '#b0332a', wall: '#9a3a2e', roofA: '#8a4b3f' });
-    const wallOf = (g) => g.side > 0;
+    const cover = (x, z, kind = 'rock', s = 1.2) => S(x, z, 0, [0, 0], () => (kind === 'rock' ? V.rock(b, rng, 0, 0, s) : V.fallenLog(b, 0, 0, 3.4, s)));
 
-    // ═════════ DOĞUŞ ÇANAĞI (çiftlik) ═════════
+    // ═════════ DOĞUŞ ÇANAĞI (çiftlik): ahır, silolar, çiftlik evi, traktör, saman ═════════
     S(-80, -8, 0, [8, 8.5], (g) => K.barn(b, rng, { x: 0, z: 0, w: 10, d: 12, color: TEAM(g.side).wall, roof: '#5f646c' }));
     S(-84.5, 4, 0, [3.2, 3.2], () => K.silo(b, 0, 0));
     S(-85.8, 10, 0, [2.6, 2.6], () => K.silo(b, 0, 0, 1.7, 8));
     S(-77.5, 11.5, 0, [6.5, 5.8], (g) => K.house(b, rng, { x: 0, z: 0, w: 9, d: 7, wall: g.side > 0 ? '#d6cfb4' : '#d9c79a', roof: TEAM(g.side).roofA, door: 'n', floors: 1 }));
-    S(-70, -9.5, PI / 2, [3, 3], (g) => V.tractor(b, { color: g.side > 0 ? '#3a6aa8' : '#a8402f' }));
-    S(-71.5, 13, 0, [2.5, 2.5], () => V.haystack(b, 0, 0, 1));
-    S(-68, 14, 0, [2.5, 2.5], () => V.haystack(b, 0, 0, 0.8));
-    S(-86, -3, 0, [2, 2], () => { for (let i = 0; i < 6; i++) K.hayBale(b, (i % 3) * 1.3 - 1.3, Math.floor(i / 3) * 1.3); });
-    S(-73, -13.5, 0, [3, 2], (g) => { K.crate(b, 0, 0, 1.1); K.crate(b, 1.2, 0.2, 1.0); K.crate(b, 0.5, 0.2, 0.9, 1.1); K.barrel(b, 2.4, 0, TEAM(g.side).main); K.barrel(b, 3.1, 0.3, TEAM(g.side).main); });
-    S(-63.5, -4.5, PI / 2, [1.2, 3], () => K.sandbags(b, 0, 0, 4, 0));
-    S(-63.5, 4.5, PI / 2, [1.2, 3], () => K.sandbags(b, 0, 0, 3.4, 0));
-    S(-66, -11, 0, [1, 1], () => V.lantern(b, 3.4));
-    S(-66, 11.5, 0, [1, 1], () => V.lantern(b, 3.4));
-    S(-83, 0, 0, [1, 1], () => V.lantern(b, 3.4));
-    S(-75, 0, 0, [1, 1], (g) => {       // takım bayrağı
+    S(-70, -9.5, PI / 2, [0, 0], (g) => V.tractor(b, { color: g.side > 0 ? '#3a6aa8' : '#a8402f' }));
+    S(-71.5, 13, 0, [0, 0], () => V.haystack(b, 0, 0, 1));
+    S(-68, 14, 0, [0, 0], () => V.haystack(b, 0, 0, 0.8));
+    S(-86, -3, 0, [0, 0], () => { for (let i = 0; i < 6; i++) K.hayBale(b, (i % 3) * 1.3 - 1.3, Math.floor(i / 3) * 1.3); });
+    S(-73, -13.5, 0, [0, 0], (g) => { K.crate(b, 0, 0, 1.1); K.crate(b, 1.2, 0.2, 1.0); K.crate(b, 0.5, 0.2, 0.9, 1.1); K.barrel(b, 2.4, 0, TEAM(g.side).main); K.barrel(b, 3.1, 0.3, TEAM(g.side).main); });
+    S(-63.5, -4.5, PI / 2, [0, 0], () => K.sandbags(b, 0, 0, 4, 0));
+    S(-63.5, 3.5, PI / 2, [0, 0], () => K.sandbags(b, 0, 0, 3.4, 0));
+    S(-66, -11, 0, [0, 0], () => V.lantern(b, 3.4));
+    S(-66, 6.5, 0, [0, 0], () => V.lantern(b, 3.4));
+    S(-83, 0, 0, [0, 0], () => V.lantern(b, 3.4));
+    S(-75, 0, 0, [0, 0], (g) => {       // takım bayrağı
       b.cyl(0, 0, 0, 0.07, 0.1, 5.2, '#d8d8d2', { seg: 6 });
       b.box(0.62, 3.9, 0, 1.2, 0.8, 0.05, TEAM(g.side).main, { collide: false });
     });
-    S(-61.5, 15.5, 0, [2, 2], () => V.rock(b, rng, 0, 0, 1.1));
-    S(-87, 14, 0, [1.5, 3], () => K.fence(b, 0, -3, 0, 3));
+    S(-87, 14, 0, [0, 0], () => K.fence(b, 0, -3, 0, 3));
 
-    // ═════════ KÖPRÜBAŞI MEZRASI (köprünün her iki yakası) ═════════
-    S(-21, -10.5, 0, [6.5, 5.8], (g) => K.house(b, rng, { x: 0, z: 0, w: 9, d: 7, wall: '#d6cfb4', roof: '#7a3b2e', door: 's', floors: 1 }));
-    S(-21.5, 11, 0, [6.5, 5.8], (g) => K.house(b, rng, { x: 0, z: 0, w: 9, d: 7, wall: '#c9c1a4', roof: '#5d6a4a', door: 'n', floors: 1 }));
-    S(-12.5, -10.5, 0, [4.4, 4.2], () => K.house(b, rng, { x: 0, z: 0, w: 6, d: 5, wall: '#9a948a', roof: '#6a6560', door: 'e', floors: 1, flat: true }));   // taş karakol
-    S(-12, 10, 0, [4.4, 8.5], () => K.watchtower(b, { x: 0, z: 0, ry: 0, color: '#6e5232' }));                                                                   // karakol kulesi
-    S(-17.5, -3.4, 0, [3, 1.6], () => K.car(b, { x: 0, z: 0, ry: 0, color: '#b33a2a', wreck: true }));
-    S(-16, 4.3, 0, [2, 2], () => K.car(b, { x: 0, z: 0, ry: PI, color: '#4a7a4f' }));
-    S(-12.6, -4.6, PI / 2, [1.2, 2.2], () => K.sandbags(b, 0, 0, 3.4, 0));
-    S(-12.6, 4.6, PI / 2, [1.2, 2.2], () => K.sandbags(b, 0, 0, 3.4, 0));
-    S(-14.5, 0.2, 0, [1.8, 1.4], () => K.barrier(b, 0, 0, 0.2));
-    S(-26.5, 1.5, 0, [1.4, 1.2], () => K.crate(b, 0, 0, 1.1));
-    S(-27, -4.5, 0, [2, 2], () => V.haystack(b, 0, 0, 0.8));
-    S(-27, 5, 0, [1.8, 1.6], (g) => { K.barrel(b, 0, 0, '#2c5aa0'); K.barrel(b, 0.8, 0.4, '#d9a921'); });
-    S(-19, -17.5, 0, [1.4, 1.4], () => V.well(b));
-    S(-9, 17, 0, [2.2, 2.2], () => V.rock(b, rng, 0, 0, 1.2));
-    S(-9, -17, 0, [2.2, 2.2], () => V.rock(b, rng, 0, 0, 1.0));
-    S(-16.5, 15.5, 0, [1.2, 1.2], () => V.lantern(b, 3.4));
-    S(-16.5, -14.5, 0, [1.2, 1.2], () => V.lantern(b, 3.4));
-    S(-10.5, -1.4, 0, [1, 1], () => V.lantern(b, 3.2));
+    // ═════════ KÖPRÜBAŞI MEZRASI ═════════
+    S(-17.5, -11, 0, [5.5, 4.8], () => K.house(b, rng, { x: 0, z: 0, w: 8, d: 6.5, wall: '#d6cfb4', roof: '#7a3b2e', door: 's', floors: 1 }));
+    S(-17.5, 11, 0, [5.5, 4.8], () => K.house(b, rng, { x: 0, z: 0, w: 8, d: 6.5, wall: '#c9c1a4', roof: '#5d6a4a', door: 'n', floors: 1 }));
+    S(-10.4, -8.6, 0, [4.0, 3.6], () => K.house(b, rng, { x: 0, z: 0, w: 5.4, d: 4.6, wall: '#9a948a', roof: '#6a6560', door: 's', floors: 1, flat: true }));   // taş karakol
+    S(-10.6, 13.8, 0, [3.6, 6.8], () => b.with(0, 0, -3.6, 0, () => V.tower(b, {})));   // köprübaşı kulesi (merdiven +z yönünde)
+    S(-17.5, -3.6, 0, [3, 1.6], () => K.car(b, { x: 0, z: 0, ry: 0, color: '#b33a2a', wreck: true }));
+    S(-16, 4.6, 0, [2, 2], () => K.car(b, { x: 0, z: 0, ry: PI, color: '#4a7a4f' }));
+    S(-12.6, -5.2, PI / 2, [0, 0], () => K.sandbags(b, 0, 0, 3.4, 0));
+    S(-12.6, 5.2, PI / 2, [0, 0], () => K.sandbags(b, 0, 0, 3.4, 0));
+    S(-14.5, 0.3, 0, [0, 0], () => K.barrier(b, 0, 0, 0.2));
+    S(-27.5, 2, 0, [0, 0], () => K.crate(b, 0, 0, 1.1));
+    S(-28, 6, 0, [0, 0], () => { K.barrel(b, 0, 0, '#2c5aa0'); K.barrel(b, 0.8, 0.4, '#d9a921'); });
+    S(-12.5, -17.5, 0, [0, 0], () => V.well(b));
+    cover(-8.6, -14.5, 'rock', 1.0);
+    S(-10.5, -1.6, 0, [0, 0], () => V.lantern(b, 3.2));
 
-    // ═════════ KUZEY MEZRA (kulübeler + avlu duvarı) ═════════
+    // ═════════ KUZEY MEZRA (kulübeler, avlu duvarları, yıkık yapı, kamyon) ═════════
     S(-33, -17, 0, [4.6, 4.2], () => K.house(b, rng, { x: 0, z: 0, w: 6, d: 5, wall: '#8b5a2b', roof: '#4d5b3a', door: 'e', floors: 1 }));
-    S(-36, -26, 0, [4.6, 4.2], () => K.house(b, rng, { x: 0, z: 0, w: 6, d: 5, wall: '#7d5126', roof: '#3f4a30', door: 's', floors: 1 }));
-    S(-30, -24, 0, [2.2, 2.2], () => V.haystack(b, 0, 0, 1));
-    S(-31.5, -12, 0, [4, 1.4], (g) => V.stoneWall(b, g.gy, -3, 0, 3, 0, { h: 0.9 }));
-    S(-38, -21.5, 0, [1.4, 3.6], (g) => V.stoneWall(b, g.gy, 0, -3.4, 0, 3.4, { h: 0.9, gaps: [{ at: 0, w: 1.8 }] }));
+    S(-39, -22, 0, [4.6, 4.2], () => K.house(b, rng, { x: 0, z: 0, w: 6, d: 5, wall: '#7d5126', roof: '#3f4a30', door: 's', floors: 1 }));
+    S(-30, -23.5, 0, [0, 0], () => V.haystack(b, 0, 0, 1));
+    S(-31.5, -11.5, 0, [0, 0], (g) => V.stoneWall(b, g.gy, -3, 0, 3, 0, { h: 0.9 }));
+    S(-8, 41, 0, [4.6, 3.6], (g) => V.ruin(b, rng, g.gy, { w: 6.4, d: 4.4 }));
 
-    // ═════════ AMBAR (mavi güney çiftlik avlusu) / DEĞİRMEN (kırmızı kuzey) — aynı avlu duvarı, farklı yapı ═════════
-    S(-24, 25, 0, [11.5, 12], (g) => {
+    // ═════════ AMBAR (mavi) / DEĞİRMEN (kırmızı) — aynı avlu duvarı, farklı yapı ═════════
+    S(-24, 25.5, 0, [10.9, 11], (g) => {
       const x0 = -10, x1 = 10, z0 = -10, z1 = 11;
       V.stoneWall(b, g.gy, x0, z0, x1, z0, { gaps: [{ at: 0, w: 5 }] });          // kuzey duvar + kapı
       V.stoneWall(b, g.gy, x0, z1, x1, z1, { gaps: [{ at: -1.5, w: 5 }] });       // güney duvar + kapı
@@ -85,97 +80,107 @@ export function buildVadi() {
       V.stoneWall(b, g.gy, x1, z0, x1, z1, { gaps: [{ at: 1, w: 5 }] });          // doğu duvar + kapı (geçide)
       if (g.side > 0) {
         K.barn(b, rng, { x: 0, z: 0.5, w: 10, d: 14, color: '#7a5a38', roof: '#6a5a4a' });
-        for (let i = 0; i < 5; i++) K.hayBale(b, -8 + (i % 3) * 1.3, 7.5 + Math.floor(i / 3) * 1.3);
-        b.with(-7, 0, -6.2, 0, () => V.tractor(b, { color: '#b7392d' }));
-        V.haystack(b, 7, -7, 1); V.haystack(b, 8.2, 8.5, 0.85);
-        K.crate(b, 7, 7, 1.1); K.crate(b, 8.1, 7.3, 1.0);
-        b.with(-6.5, 0, 8.5, 0, () => V.cart(b, {}));
+        for (let i = 0; i < 5; i++) K.hayBale(b, -8 + (i % 3) * 1.3, 8.2 + Math.floor(i / 3) * 1.3);
+        b.with(-7.2, 0, -6.5, 0, () => V.tractor(b, { color: '#b7392d' }));
+        V.haystack(b, 7.4, -7, 1); V.haystack(b, 7.6, 9, 0.85);
+        K.crate(b, 7.6, 6.2, 1.1); K.crate(b, 8.1, 7.4, 1.0);
+        b.with(-7.4, 0, 3.5, 0, () => V.cart(b, {}));
       } else {
-        K.house(b, rng, { x: 0, z: 0.5, w: 9, d: 8, wall: '#c2bba9', roof: '#6b4a3a', door: 's', floors: 2, floorColor: '#a58a68' });   // değirmen
-        b.cyl(5.0, 3.2, 0.5, 2.4, 2.4, 0.7, '#6e4a2a', { rz: PI / 2, center: true, seg: 12, collide: false });                      // su çarkı (dekor)
-        b.cyl(5.0, 3.2, 0.5, 0.4, 0.4, 1.0, '#4a3220', { rz: PI / 2, center: true, seg: 8, collide: false });
-        for (let i = 0; i < 4; i++) b.box(-8 + i * 1.1, 0, -5.5, 0.9, 0.55 + (i % 2) * 0.2, 0.7, '#cfc4a1');                          // çuvallar
+        K.house(b, rng, { x: 4.6, z: -3.6, w: 7, d: 6.5, wall: '#c2bba9', roof: '#6b4a3a', door: 's', floors: 2, floorColor: '#a58a68' });   // değirmen (hedef merkezi avluda açık kalır)
+        b.cyl(0.75, 3.0, -3.6, 2.4, 2.4, 0.7, '#6e4a2a', { rz: PI / 2, center: true, seg: 12, collide: false });                    // su çarkı (dekor)
+        b.cyl(0.75, 3.0, -3.6, 0.4, 0.4, 1.0, '#4a3220', { rz: PI / 2, center: true, seg: 8, collide: false });
+        for (let i = 0; i < 4; i++) b.box(-8 + i * 1.1, 0, -6, 0.9, 0.55 + (i % 2) * 0.2, 0.7, '#cfc4a1');                          // çuvallar
         b.cyl(-6, 0, 7, 1.3, 1.3, 0.45, '#9a948a', { seg: 10 }); b.cyl(-2.5, 0, 8.5, 1.3, 1.3, 0.45, '#8a8479', { seg: 10 });          // değirmen taşları
-        V.haystack(b, 7, -7, 1); V.haystack(b, 8, 8, 0.85);
-        K.crate(b, 7.5, 6.5, 1.1); K.crate(b, 8.6, 6.8, 1.0); K.barrel(b, -8.5, 9, '#2c5aa0');
-        b.with(7, 0, 1, 0, () => V.cart(b, { color: '#6a4a2a' }));
+        V.haystack(b, 7.4, -7.4, 1); V.haystack(b, 7.6, 9, 0.85);
+        K.crate(b, 7.6, 6.2, 1.1); K.crate(b, 8.1, 7.4, 1.0); K.barrel(b, -8.5, 9, '#2c5aa0');
+        b.with(-7.4, 0, 3.5, 0, () => V.cart(b, { color: '#6a4a2a' }));
       }
-      V.lantern(b, 3.4); // yarı yolda
-    });
+      b.with(-3.5, 0, 6, 0, () => V.lantern(b, 3.4));
+    }, { y: 1.45 });
 
-    // ═════════ GÖZETLEME TEPESİ (kuzey sırt zirvesi) / ORMAN KAMPI (güney) ═════════
-    S(-20, -40, 0, [11, 11], (g) => {
+    // ═════════ GÖZETLEME TEPESİ (kuzey sırt zirvesi) / ORMAN KAMPI (güney sırt) ═════════
+    // Zirveye 4 yol girer: batı (kuzey patika), güney (rampa), doğu (nehir geçidi), kuzey (ledge). Merkez ve koridorlar açık kalır.
+    S(-20, -40, 0, [11.5, 9], (g) => {
       if (g.side > 0) {
-        K.watchtower(b, { x: -3.5, z: -3, ry: 0, color: '#6e5232' });
-        K.sandbags(b, 2, 6.5, 5, 0); K.sandbags(b, 7.5, 3, 4, PI / 2); K.sandbags(b, -4.5, 7, 3.4, 0); K.sandbags(b, -7.5, 1.5, 3.4, PI / 2);
-        b.with(6, 0, -5, 0, () => V.bunker(b, { w: 6, d: 4.4 }));
-        K.crate(b, 2.5, -1.5, 1.1); K.crate(b, 3.6, -1.2, 1.0); K.barrel(b, -2, 3.5, '#4d5b3a');
-        for (const [x, z, s] of [[-8, -6, 1.4], [8.5, 7.5, 1.2], [0, -9, 1.5]]) V.rock(b, rng, x, z, s);
-        b.with(-1.5, 0, 0.5, 0, () => V.lantern(b, 3.4));
+        b.with(1.5, 0, 8.4, 0, () => V.rock(b, rng, 0, 0, 1.0)); K.crate(b, 8.6, 1.4, 1.1); K.crate(b, 8.6, 2.6, 1.0);
+        b.with(8, 0, -5.5, 0, () => V.bunker(b, { w: 6, d: 4.4 }));
+        K.crate(b, -5.5, -3.8, 1.1); K.crate(b, -4.4, -3.6, 1.0); K.barrel(b, 4.4, -4.4, '#4d5b3a');
+        V.rock(b, rng, -9.2, 6.4, 1.3); V.rock(b, rng, 9.4, 6.6, 1.2); V.rock(b, rng, 2.5, 7.6, 1.4);
+        b.with(-3.2, 0, 1.2, 0, () => V.lantern(b, 3.4));
       } else {
-        // Orman Kampı: çadırlar, ateş, kütük evler, bunker
-        b.with(-3, 0, -3, 0.0, () => V.tent(b, { color: '#c7b98a' }));
-        b.with(3.5, 0, -4.5, 0, () => V.tent(b, { color: '#b9b184', w: 3.0 }));
-        b.with(0, 0, 1.5, 0, () => V.campfire(b));
-        K.house(b, rng, { x: -6.5, z: 5.5, w: 6.5, d: 5.5, wall: '#8b5a2b', roof: '#4d5b3a', door: 'e', floors: 1 });
-        b.with(6, 0, -6.5, 0, () => V.bunker(b, { w: 6, d: 4.4 }));
-        b.with(3.5, 0, 4.5, PI / 2, () => V.logPile(b, 0, 2.6));
-        b.with(-2.2, 0, 3, 0, () => V.fallenLog(b, 0, 0, 3.0, 1.57));
-        b.with(2.2, 0, 3.4, 0, () => V.fallenLog(b, 0, 0, 3.0, 0.2));
-        K.crate(b, -8, -2, 1.1); K.crate(b, -8.1, -3.2, 1.0);
-        for (const [x, z, s] of [[-8, -8, 1.4], [8.5, 7.5, 1.2], [1, 9, 1.5]]) V.rock(b, rng, x, z, s);
-        b.with(1.8, 0, -0.8, 0, () => V.lantern(b, 3.0));
+        // Orman Kampı: çadırlar, ateş, kütük ev, bunker (ağaçlı sırt; gece ateşler yol gösterir)
+        b.with(-6.2, 0, -5.8, 0, () => V.tent(b, { color: '#c7b98a' }));
+        b.with(-8.6, 0, -2.2, PI / 2, () => V.tent(b, { color: '#b9b184', w: 3.0, len: 3.6 }));
+        b.with(-3.4, 0, -4.6, 0, () => V.campfire(b));
+        K.house(b, rng, { x: 7.5, z: 6.2, w: 6, d: 5, wall: '#8b5a2b', roof: '#4d5b3a', door: 'w', floors: 1 });
+        b.with(8, 0, -5.5, 0, () => V.bunker(b, { w: 6, d: 4.4 }));
+        b.with(4.6, 0, -3.4, PI / 2, () => V.logPile(b, 0, 2.6));
+        b.with(-5.4, 0, 1.4, 0, () => V.fallenLog(b, 0, 0, 3.0, 1.57));
+        b.with(-1.2, 0, -7.6, 0, () => V.fallenLog(b, 0, 0, 3.0, 0.2));
+        K.crate(b, -9.6, -5.6, 1.1); K.crate(b, -9.7, -6.8, 1.0);
+        V.rock(b, rng, 2.5, 7.8, 1.5); V.rock(b, rng, -9.4, 6.8, 1.3);
+        b.with(-3.0, 0, -2.2, 0, () => V.lantern(b, 3.0));
       }
     });
+    // Tepe kulesi (batıya merdivenli): kuzeybatı köşe
+    S(-26.5, -46.2, -PI / 2, [3.6, 6.8], (g) => { if (g.side > 0) b.with(0, 0, -3.6, 0, () => V.tower(b, {})); }, { sides: [1] });
 
-    // ═════════ NEHİR GEÇİTLERİ: taş basamaklar, devrik kütük, siper kayaları ═════════
-    S(-3, -26, 0, [6, 6], (g) => {
+    // gizli kamplar (orman bankı): ateş + çadır, gece uzaktan seçilir
+    for (const [x, z] of [[-47, -38.5], [-58, 38]]) {
+      S(x, z, 0, [5, 4.5], (g) => {
+        V.campfire(b);
+        b.with(3.4, 0, -1.8, 0, () => V.tent(b, { color: g.side > 0 ? '#9fb0c8' : '#c9a58f', len: 3.8 }));
+        V.rock(b, rng, -2.6, 1.4, 1.0); K.crate(b, -2.2, -1.8, 1.0);
+        b.with(0.4, 0, 2.6, 0, () => V.fallenLog(b, 0, 0, 2.6, 1.57));
+      });
+    }
+
+    // ═════════ NEHİR GEÇİTLERİ: taş basamaklar, devrik kütük, siper kayaları, kum torbaları ═════════
+    S(-3, -26, 0, [6, 6], () => {
       for (const [x, z] of [[-2, -2.5], [1.5, -1.5], [-0.5, 1.2], [2.6, 2.2], [-3, 2.8]]) b.ico(x, -0.12, z, 0.5, '#8a8a84', { scale: [1.3, 0.6, 1], detail: 0, ry: x });
-    }, { mirror: true, noPad: true });
-    S(-8.5, -29, 0, [2, 2], () => V.rock(b, rng, 0, 0, 1.3));
-    S(-9, -23, 0, [2, 2], () => V.rock(b, rng, 0, 0, 1.0));
-    S(-9.5, -26, 0, [2, 2.4], () => K.sandbags(b, 0, 0, 3.4, PI / 2));
-    S(-13, -26, 0, [2.2, 2.2], () => V.fallenLog(b, 0, 0, 4, 0.5));
-    S(-14, -29, 0, [2.2, 2.2], () => V.rock(b, rng, 0, 0, 1.2));
+    }, { noPad: true });
+    cover(-7.2, -31, 'rock', 1.3);
+    cover(-9.5, -18.5, 'rock', 1.0);
+    S(-14.5, -17.6, 0, [0, 0], () => K.sandbags(b, 0, 0, 3.4, 0));
+    S(-7.5, -28.6, 0, [0, 0], () => K.sandbags(b, 0, 0, 3.0, 0));
+    S(-13, -28, 0, [0, 0], () => V.fallenLog(b, 0, 0, 4, 0.5));
+    cover(-14, -26, 'rock', 1.2);
+    S(-12.5, 22.4, 0, [0, 0], () => K.sandbags(b, 0, 0, 3.4, 0));    // güney geçit (dönmüşü kuzeydeki doğu yakası)
+    cover(-8, 30.5, 'rock', 1.3);
+    S(-11, 31.5, 0, [0, 0], () => V.fallenLog(b, 0, 0, 3.6, 0.3));
 
-    // ═════════ SIRT LEDGE'LERİ: keskin nişancı mevzileri (rotada) ═════════
-    for (const [x, z] of [[-44, -51.2], [-27, -51], [-14.5, -49.4]]) {
-      S(x, z, 0, [3.2, 2.6], (g) => {
-        K.sandbags(b, 0, -1.6, 3.4, 0); b.with(2.6, 0, -0.5, 0, () => V.rock(b, rng, 0, 0, 0.9)); K.crate(b, -2.2, -0.8, 1.0);
-        b.with(-2.4, 0, 1.0, 0, () => V.lantern(b, 3.0));
+    // ═════════ SIRT LEDGE'LERİ: keskin nişancı mevzileri + kaya tünelleri ═════════
+    for (const [x, z] of [[-44, -51.2], [-27, -51], [-19, -50.2]]) {
+      S(x, z, 0, [0, 0], () => {
+        K.sandbags(b, 0, 1.7, 3.4, 0); b.with(2.8, 0, 0.9, 0, () => V.rock(b, rng, 0, 0, 0.9)); K.crate(b, -2.4, 1.0, 1.0);
+        b.with(-2.4, 0, -1.2, 0, () => V.lantern(b, 3.0));
       });
     }
-    for (const [x, z] of [[-45, 50.4], [-29, 49.6], [-17, 48.4]]) {
-      S(x, z, PI, [3.2, 2.6], (g) => {
-        K.sandbags(b, 0, -1.6, 3.4, 0); b.with(2.6, 0, -0.5, 0, () => V.rock(b, rng, 0, 0, 0.9)); K.crate(b, -2.2, -0.8, 1.0);
-        b.with(-2.4, 0, 1.0, 0, () => V.lantern(b, 3.0));
+    for (const [x, z] of [[-56, 49.2], [-23, 49.3], [-15, 48.2]]) {
+      S(x, z, PI, [0, 0], () => {
+        K.sandbags(b, 0, 1.7, 3.4, 0); b.with(2.8, 0, 0.9, 0, () => V.rock(b, rng, 0, 0, 0.9)); K.crate(b, -2.4, 1.0, 1.0);
+        b.with(-2.4, 0, -1.2, 0, () => V.lantern(b, 3.0));
       });
     }
-    // kaya tüneli (ledge boyunca örtülü geçit):
-    S(-34, -51.4, 0, [7, 4.2], (g) => V.rockTunnel(b, rng, g.gy, { len: 9 }));
-    S(-37, 50.4, 0, [7, 4.2], (g) => V.rockTunnel(b, rng, g.gy, { len: 9 }));
+    S(-52, -50.6, 0, [7, 4.2], (g) => V.rockTunnel(b, rng, g.gy, { len: 9 }));
+    S(-33, 50.1, 0, [7, 4.2], (g) => V.rockTunnel(b, rng, g.gy, { len: 9 }));
 
-    // ═════════ ŞİKAN ve ana yol boyunca siper kayaları / kütükler / duvarlar ═════════
-    S(-47, -5, 0, [2, 2], () => V.rock(b, rng, 0, 0, 1.4));
-    S(-51.5, 6.5, 0, [2, 2], () => V.rock(b, rng, 0, 0, 1.2));
-    S(-43, 3, 0, [2.4, 2.4], () => V.fallenLog(b, 0, 0, 3.6, 0.9));
-    S(-40, -12, 0, [2.2, 2.2], () => V.rock(b, rng, 0, 0, 1.3));
-    S(-33, -3, 0, [2.2, 2.2], () => V.rock(b, rng, 0, 0, 1.1));
-    S(-29, 9, 0, [2.4, 2.4], () => V.rock(b, rng, 0, 0, 1.5));
-    S(-40, 12, 0, [2, 2], () => V.rock(b, rng, 0, 0, 1.0));
-    // yamaç patikalarında kaya sığınakları
-    S(-58, -28.5, 0, [2.4, 2.4], () => V.rock(b, rng, 0, 0, 1.3));
-    S(-48, -33, 0, [2.4, 2.4], () => V.rock(b, rng, 0, 0, 1.2));
-    S(-43, -36.5, 0, [2.4, 2.4], () => V.fallenLog(b, 0, 0, 3.4, -0.4));
-    S(-32, -35, 0, [2.4, 2.4], () => V.rock(b, rng, 0, 0, 1.4));
-    S(-60, 40, 0, [2.4, 2.4], () => V.rock(b, rng, 0, 0, 1.3));
-    S(-62, 28, 0, [2.4, 2.4], () => V.fallenLog(b, 0, 0, 3.2, 1.2));
-    S(-50, 20.5, 0, [2.4, 2.4], () => V.rock(b, rng, 0, 0, 1.3));
-    // ford yaklaşımı ara siperleri
-    S(-18, 23.5, 0, [2.4, 2.4], () => V.rock(b, rng, 0, 0, 1.2));
-    S(-12, 29, 0, [2.4, 2.4], () => V.fallenLog(b, 0, 0, 3.4, 0.3));
-    S(-6.5, 20, 0, [2.4, 2.4], () => V.rock(b, rng, 0, 0, 1.3));
-    S(-6, -17, 0, [2.4, 2.4], () => V.rock(b, rng, 0, 0, 1.0));
+    // ═════════ ŞİKAN / yamaç patikaları: siper kayaları, kütükler ═════════
+    cover(-47, -6.5, 'rock', 1.4);
+    cover(-53.5, 6.5, 'rock', 1.2);
+    cover(-43, 4, 'log', 0.9);
+    cover(-39, -12.5, 'rock', 1.3);
+    cover(-31, -2, 'rock', 1.1);
+    cover(-31, 11, 'rock', 1.5);
+    cover(-41, 13, 'rock', 1.0);
+    cover(-58, -29.5, 'rock', 1.3);
+    cover(-49, -30.5, 'rock', 1.2);
+    cover(-42.5, -37.5, 'log', -0.4);
+    cover(-65.5, 31, 'log', 1.2);
+    cover(-57.5, 40, 'rock', 1.3);
+    cover(-50, 22.5, 'rock', 1.3);
+    cover(-19, 22, 'rock', 1.2);
+    cover(-6.5, 19, 'rock', 1.3);
   };
 
   // pass 1: yalnızca düzlükler (pad) kaydet
@@ -183,7 +188,7 @@ export function buildVadi() {
     plan((x, z, ry, pad, fn, o = {}) => {
       if (o.noPad || (pad[0] <= 0.5 && pad[1] <= 0.5)) return;
       const sw = Math.abs(Math.round(ry / (PI / 2))) % 2 === 1;
-      for (const side of o.sides || [1, -1]) addPad({ x: side * x, z: side * z, hx: sw ? pad[1] : pad[0], hz: sw ? pad[0] : pad[1], fall: o.fall || 3.2 });
+      for (const side of o.sides || [1, -1]) addPad({ x: side * x, z: side * z, hx: sw ? pad[1] : pad[0], hz: sw ? pad[0] : pad[1], fall: o.fall || 3.2, y: o.y ?? null });
     });
   }
   finalizeLayout();
@@ -267,8 +272,8 @@ export function buildVadi() {
   }
   for (const px of [-5.5, 0, 5.5]) b.box(bx + px, -3.4, 0, 1.6, 3.2, 6.4, '#8a8070', { collide: false });  // ayaklar
   b.with(bx, 0.35, 0, 0, () => {
-    K.car(b, { x: -3, z: 1.0, ry: 0, color: '#b33a2a', wreck: true });
-    K.car(b, { x: 4.5, z: -1.2, ry: PI, color: '#4a7a4f' });
+    V.deckCar(b, { x: -3, z: 1.2, ry: 0, color: '#b33a2a', wreck: true });       // köprü üstü araçlar: çarpışma 'rail' → bot yol bulma da görür
+    V.deckCar(b, { x: 4.5, z: -1.4, ry: PI, color: '#4a7a4f' });
   });
   for (const px of [-8.4, 8.4]) b.with(bx + px, 0.35, 0, 0, () => V.lantern(b, 3.4));
 
@@ -279,20 +284,6 @@ export function buildVadi() {
     for (const px of [-8.2, 8.2]) b.with(px, SADDLE_Y - 0.0, z + 1.6 * sg, 0, () => V.lantern(b, 2.6));
   }
 
-  // ───────── pass 2: yapıları yerleştir ─────────
-  plan((x, z, ry, pad, fn, o = {}) => {
-    for (const side of o.sides || [1, -1]) {
-      const wx = side * x, wz = side * z, wry = side > 0 ? ry : ry + PI;
-      const y0 = terrain.heightAt(wx, wz);
-      b.with(wx, y0, wz, wry, () => {
-        const M = b.M;
-        const gy = (lx, lz) => { const v = new THREE.Vector3(lx, 0, lz).applyMatrix4(M); return terrain.heightAt(v.x, v.z) - y0; };
-        fn({ side, gy });
-      });
-    }
-  });
-
-  // ───────── Ağaçlar / çalılar / kayalar ─────────
   const grid = new Map();
   const near = (x, z, r) => {
     const gx = Math.floor(x / 4), gz = Math.floor(z / 4);
@@ -303,6 +294,37 @@ export function buildVadi() {
     return false;
   };
   const reg = (x, z) => { const k = Math.floor(x / 4) + ',' + Math.floor(z / 4); (grid.get(k) || grid.set(k, []).get(k)).push([x, z]); };
+  // ───────── pass 2: yapıları yerleştir ─────────
+  plan((x, z, ry, pad, fn, o = {}) => {
+    for (const side of o.sides || [1, -1]) {
+      const wx = side * x, wz = side * z, wry = side > 0 ? ry : ry + PI;
+      const y0 = terrain.heightAt(wx, wz);
+      b.with(wx, y0, wz, wry, () => {
+        const M = b.M;
+        const gy = (lx, lz) => { const v = new THREE.Vector3(lx, 0, lz).applyMatrix4(M); return terrain.heightAt(v.x, v.z) - y0; };
+        fn({ side, gy });
+      });
+      if (pad[0] < 3.2 && pad[1] < 3.2) reg(wx, wz);      // küçük nesneler (kaya, fener, sandık): ağaç aralığı bırak
+    }
+  });
+
+  // ───────── Yol boyunca fener direkleri (gece yol gösterir) ─────────
+  for (const t of TRAILS) {
+    const gap = { merkez: 15, guney: 17, kuzey: 21, kuzeyGecit: 20, guneyGecit: 20, tepeRampa: 22, mezraAmbar: 22 }[t.name];
+    if (!gap) continue;
+    let acc = gap * 0.5, alt = 1;
+    for (let i = 1; i < t.p.length - 1; i++) {
+      acc += t.step;
+      if (acc < gap) continue;
+      acc = 0; alt = -alt;
+      const [px, pz] = t.p[i], [qx, qz] = t.p[i + 1], dl = Math.hypot(qx - px, qz - pz) || 1;
+      const x = px + (-(qz - pz) / dl) * (t.w / 2 + 0.7) * alt, z = pz + ((qx - px) / dl) * (t.w / 2 + 0.7) * alt;
+      if (Math.abs(x) > 86 || Math.abs(z) > 58 || padD(x, z, 0.5) || Math.abs(x - riverX(z)) < 9) continue;
+      if (b.colliders.some((c) => x > c.min[0] - 0.6 && x < c.max[0] + 0.6 && z > c.min[2] - 0.6 && z < c.max[2] + 0.6)) continue;
+      b.with(x, terrain.heightAt(x, z), z, 0, () => V.lantern(b, 3.1));
+    }
+  }
+  // ───────── Ağaçlar / çalılar / kayalar ─────────
   const okTree = (x, z, trailM = 1.9) => {
     const h = terrain.heightAt(x, z);
     if (h < 0.3 || h > 42) return false;

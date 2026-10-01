@@ -56,10 +56,10 @@ export function milBuilding(b, rng, o) {
     b.stairs(ax, az, f * fh, s.dir, wd, n, rise, run, '#8b8f88');
     let hole, keep;
     const e = 0.03;
-    if (s.dir === '+z') { hole = { x0: ax - wd / 2 - e, x1: ax + wd / 2 + e, z0: az, z1: az + L }; keep = { x0: hole.x0 - 0.1, x1: hole.x1 + 0.1, z0: az - 1.3, z1: az + L + 1.3 }; }
-    else if (s.dir === '-z') { hole = { x0: ax - wd / 2 - e, x1: ax + wd / 2 + e, z0: az - L, z1: az }; keep = { x0: hole.x0 - 0.1, x1: hole.x1 + 0.1, z0: az - L - 1.3, z1: az + 1.3 }; }
-    else if (s.dir === '+x') { hole = { x0: ax, x1: ax + L, z0: az - wd / 2 - e, z1: az + wd / 2 + e }; keep = { x0: ax - 1.3, x1: ax + L + 1.3, z0: hole.z0 - 0.1, z1: hole.z1 + 0.1 }; }
-    else { hole = { x0: ax - L, x1: ax, z0: az - wd / 2 - e, z1: az + wd / 2 + e }; keep = { x0: ax - L - 1.3, x1: ax + 1.3, z0: hole.z0 - 0.1, z1: hole.z1 + 0.1 }; }
+    if (s.dir === '+z') { hole = { x0: ax - wd / 2 - e, x1: ax + wd / 2 + e, z0: az, z1: az + L }; keep = { x0: hole.x0 - 1.4, x1: hole.x1 + 1.4, z0: az - 1.3, z1: az + L + 1.3 }; }
+    else if (s.dir === '-z') { hole = { x0: ax - wd / 2 - e, x1: ax + wd / 2 + e, z0: az - L, z1: az }; keep = { x0: hole.x0 - 1.4, x1: hole.x1 + 1.4, z0: az - L - 1.3, z1: az + 1.3 }; }
+    else if (s.dir === '+x') { hole = { x0: ax, x1: ax + L, z0: az - wd / 2 - e, z1: az + wd / 2 + e }; keep = { x0: ax - 1.3, x1: ax + L + 1.3, z0: hole.z0 - 1.4, z1: hole.z1 + 1.4 }; }
+    else { hole = { x0: ax - L, x1: ax, z0: az - wd / 2 - e, z1: az + wd / 2 + e }; keep = { x0: ax - L - 1.3, x1: ax + 1.3, z0: hole.z0 - 1.4, z1: hole.z1 + 1.4 }; }
     holes[f + 1] = hole;           // f+1 seviyesi döşemesindeki delik
     keepsAll.push(keep);
   }
@@ -101,8 +101,8 @@ export function milBuilding(b, rng, o) {
   };
   const paneAt = (axis, cc, at, y0, st) => {
     const litNow = rng() < lit;
-    const col = litNow ? '#ffdf9a' : '#22333f';
-    const op = litNow ? { glow: true } : { transparent: true, opacity: 0.5, roughness: 0.2 };
+    const col = litNow ? '#2c3d49' : '#22333f';
+    const op = litNow ? { glow: true, emissive: '#ffdf9a', roughness: 0.25 } : { transparent: true, opacity: 0.5, roughness: 0.2 };
     const ph = st.top - st.b0;
     if (axis === 'x') {
       b.box(at, y0 + st.b0, cc, st.ww, ph, 0.07, col, { collide: false, o: op });
@@ -132,6 +132,7 @@ export function milBuilding(b, rng, o) {
       const sgn = side === 'n' || side === 'w' ? -1 : 1;
       const px = horiz ? x + dr.at : (side === 'w' ? x0 : x1) + sgn * 0.5, pz = horiz ? (side === 'n' ? z0 : z1) + sgn * 0.5 : z + dr.at;
       b.box(px, 2.55, pz, horiz ? dr.w + 0.8 : 1.2, 0.14, horiz ? 1.2 : dr.w + 0.8, roof, { collide: false });
+      b.box(px, 2.4, pz, horiz ? 0.5 : 0.16, 0.12, horiz ? 0.16 : 0.5, '#fff1c0', { collide: false, o: { glow: true } });       // kapı üstü lamba
       b.box(px, 0, pz, horiz ? dr.w + 1.2 : 1.6, 0.1, horiz ? 1.6 : dr.w + 1.2, '#9a9c94', { collide: false });
     }
   }
@@ -200,13 +201,13 @@ export function milBuilding(b, rng, o) {
 
 // ───────── Kule (gözetleme / kontrol) ─────────
 // Kare gövdeli, iç merdivenli, çatı korkuluklu. Kapı güneyde. stairs: iki uçuş: batı duvarında yukarı, doğu duvarında yukarı.
-export function guardTower(b, rng, { x, z, ry = 0, w = 6.4, d = 6.4, floors = 2, fh = 3.3, wall = '#8a9189', roof = '#585d62', glass = false }) {
+export function guardTower(b, rng, { x, z, ry = 0, w = 7, d = 7, floors = 2, fh = 3.3, wall = '#8a9189', roof = '#585d62', glass = false }) {
   const hw = w / 2 - 0.35, hd = d / 2 - 0.35;
   const sw = 1.3;
   // uçuş 0: batı duvarı boyunca kuzeyden güneye yükselir; uçuş 1: doğu duvarı boyunca güneyden kuzeye. Kapı güneyde (yerel +z), ry ile döner.
   const stairs = [
-    { x: -hw + sw / 2 + 0.05, z: -hd + 0.3, dir: '+z', w: sw, rise: 0.22, run: 0.26 },
-    { x: hw - sw / 2 - 0.05, z: hd - 0.3, dir: '-z', w: sw, rise: 0.22, run: 0.26 },
+    { x: -hw + sw / 2 + 0.05, z: -hd + 1.0, dir: '+z', w: sw, rise: 0.22, run: 0.26 },
+    { x: hw - sw / 2 - 0.05, z: hd - 1.0, dir: '-z', w: sw, rise: 0.22, run: 0.26 },
   ];
   let R;
   b.with(x, 0, z, ry, () => {
@@ -299,11 +300,13 @@ export function tunnel(b, rng, { x, z, ry = 0, len = 30, iw = 3.6, ih = 3.0, col
     }
     if (roofStair) {
       const sd = roofStair.side === 'n' ? -1 : 1;
-      const top = ih + 0.55, n = Math.round(top / 0.2);
-      b.stairs(roofStair.at, sd * (iw / 2 + WT + 0.9), 0, roofStair.dir || '+x', 1.3, n, top / n, 0.3, '#8b8f88');
-      // çatı siperi
-      b.box(0, top, -(iw / 2 + WT - 0.2), len + 0.6, 0.9, 0.3, '#7d867c');
-      b.box(0, top, (iw / 2 + WT - 0.2), len + 0.6, 0.9, 0.3, '#7d867c');
+      const top = ih + 0.55, n = Math.round(top / 0.2), L = n * 0.3;
+      b.stairs(roofStair.at, sd * (iw / 2 + WT + 0.9), 0, '+x', 1.3, n, top / n, 0.3, '#8b8f88');
+      // çatı siperi (merdiven girişinde 1.4 m boşluk)
+      const gx0 = roofStair.at + L - 1.6, gx1 = roofStair.at + L - 0.1;
+      const pz = sd * (iw / 2 + WT - 0.2), pzo = -pz;
+      const seg = (a, c, zz) => { if (c - a > 0.1) b.box((a + c) / 2, top, zz, c - a, 0.9, 0.3, '#7d867c'); };
+      seg(-len / 2 - 0.3, gx0, pz); seg(gx1, len / 2 + 0.3, pz); seg(-len / 2 - 0.3, len / 2 + 0.3, pzo);
     }
   });
 }

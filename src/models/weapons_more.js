@@ -414,7 +414,7 @@ function ammobox() {
 
 // ───────────────────────── Yakın dövüş ─────────────────────────
 function machete() {
-  const g = new THREE.Group(), CH = { metalness: 0.6, roughness: 0.35 };
+  const g = new THREE.Group(), CH = { metalness: 0.1, roughness: 0.4 };
   taperBox(g, [0.008, 0.06, 0.34], C.chrome, [0, 0.0, -0.25], null, [1, 1], [1, 1], CH).rotation.z = 0;
   box(g, [0.008, 0.055, 0.1], C.chrome, [0, -0.0, -0.46], null, CH);
   box(g, [0.008, 0.04, 0.06], C.chrome, [0, -0.012, -0.53], [0.4, 0, 0], CH);     // eğimli uç
@@ -426,7 +426,7 @@ function machete() {
   return finish(g, { name: 'Satır', hold: 'melee', gripR: [0, 0, 0.0], gripL: null, muzzle: [0, 0, -0.55], length: 0.68 });
 }
 function tomahawk() {
-  const g = new THREE.Group(), CH = { metalness: 0.6, roughness: 0.35 };
+  const g = new THREE.Group(), CH = { metalness: 0.1, roughness: 0.4 };
   box(g, [0.026, 0.028, 0.46], C.wood, [0, 0, -0.14]);                             // sap
   box(g, [0.03, 0.034, 0.05], BLK, [0, 0, 0.1]);                                   // uç tutacağı
   taperBox(g, [0.014, 0.1, 0.12], STL, [0, -0.03, -0.34], null, [1, 1], [1, 1.5], M);   // balta başı (kesici ağız aşağıda)

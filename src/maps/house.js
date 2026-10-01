@@ -138,12 +138,12 @@ export function house(b, rng, o) {
         if (f.k === k) {
           // alt basamak girişi: kovanın güneyi açık
           P.solids.push({ x0: sx0, x1: sx1, z0: Math.max(front.z0, iz0), z1: f.zb });
-          P.keeps.push({ x0: sx0, x1: sx1 + 1.0, z0: f.zb, z1: f.zb + 1.4 });
+          P.keeps.push({ x0: f.side === 'w' ? sx0 : sx0 - 1.2, x1: f.side === 'w' ? sx1 + 1.2 : sx1, z0: f.zb, z1: f.zb + 1.4 });
           front.ports.push({ x: (sx0 + sx1) / 2, z: f.zb + 0.9 });
         }
         if (f.k + 1 === k) {
           P.solids.push({ x0: sx0, x1: sx1, z0: Math.max(front.z0, iz0), z1: f.zb });
-          P.keeps.push({ x0: sx0 - 0.0, x1: sx1 + 1.0, z0: f.zb, z1: f.zb + 1.0 });
+          P.keeps.push({ x0: f.side === 'w' ? sx0 : sx0 - 1.0, x1: f.side === 'w' ? sx1 + 1.0 : sx1, z0: f.zb, z1: f.zb + 1.0 });
           // iniş sahanlığı kapısı → kuzeydeki oda
           const at = iz0 + f.LD / 2;
           P.parts.push({ type: 'door', axis: 'z', at, c: shaftX(f), w: DW, landing: f });
@@ -273,6 +273,10 @@ export function house(b, rng, o) {
         if (f.k + 1 === k) ops.push({ at: iz0 + f.LD / 2, w: DW, b: 0, top: 2.3 });
         b.wall('z', iz0, f.zb, xw, y0, floorH - 0.1, PT, inner, ops, {});
         for (const q of ops) jambs('z', xw, q.at, q.w, y0);
+        if (f.k === k) {
+          // merdiven başının arkasındaki (iniş sahanlığı altı) boşluğu doldur: kapalı oda kalmasın
+          b.box(f.side === 'w' ? ix0 + SW / 2 : ix1 - SW / 2, y0, (iz0 + f.zt) / 2, SW, floorH - 0.3, f.zt - iz0, '#c9b48a');
+        }
         if (f.k + 1 === k) {
           // boşluğun güney kenarına korkuluk
           rail(f.side === 'w' ? ix0 : ix1 - SW, f.side === 'w' ? ix0 + SW : ix1, f.zb + 0.05, y0);
