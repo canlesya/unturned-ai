@@ -6,6 +6,7 @@ import { WSTATS } from './stats.js';
 import { reloadAnim, meleePose } from './anim.js';
 import { box } from '../core/geo.js';
 import { clamp, lerp, V3 } from './util.js';
+import { applyInput } from '../sim/input.js';
 
 const VM_SCALE = 0.92;
 
@@ -338,24 +339,7 @@ export class Player {
       const r = (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0);
       const st = s.stat;
       const lean = (k.has('KeyE') ? 1 : 0) - (k.has('KeyQ') ? 1 : 0);
-      s.leanDir = lean;
-      const wantSprint = k.has('ShiftLeft') && f > 0 && !s.ads && s.onGround && !s.prone && lean === 0;
-      s.sprinting = wantSprint;                     // yüklerken de koşulabilir
-      if (s.sprinting) { s.crouching = false; if (s.prone) s.prone = false; }
-      let spd = 4.4 * s.def.speed * (st.move || 1);
-      if (s.sprinting) spd *= 1.5;
-      if (s.crouching) spd *= 0.52;
-      if (s.prone) spd *= 0.27;
-      if (s.adsT > 0.1) spd *= 1 - 0.4 * s.adsT;
-      const fx = -Math.sin(s.yaw), fz = -Math.cos(s.yaw), rx = Math.cos(s.yaw), rz = -Math.sin(s.yaw);
-      let wx = fx * f + rx * r, wz = fz * f + rz * r;
-      const wl = Math.hypot(wx, wz);
-      if (wl > 0) { wx = (wx / wl) * spd; wz = (wz / wl) * spd; }
-      const acc = s.onGround ? 14 : 2.2;
-      const a = 1 - Math.exp(-acc * dt);
-      s.vel.x += (wx - s.vel.x) * a;
-      s.vel.z += (wz - s.vel.z) * a;
-      if (k.has('Space') && s.onGround && !s.prone && !s.crouching && !this.spaceLatch) { s.vel.y = 5.4; s.onGround = false; }
+      applyInput(s, { f, r, lean, sprint: k.has('ShiftLeft'), jump: k.has('Space') && !this.spaceLatch }, dt);
       if (!k.has('Space')) this.spaceLatch = false;
 
       // ateş
