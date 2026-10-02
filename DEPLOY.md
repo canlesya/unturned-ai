@@ -1,4 +1,4 @@
-# BlockFront — Sunucu (VPS) Kurulumu
+# WarByte — Sunucu (VPS) Kurulumu
 
 Çok oyunculu mod tek bir Node.js sürecidir: **hem oyunu (derlenmiş istemci) hem WebSocket oyun sunucusunu** aynı porttan verir.
 Veritabanı yok; odalar bellekte tutulur (sunucu yeniden başlarsa odalar kapanır).
@@ -45,14 +45,14 @@ Durum kontrolü: `curl http://SUNUCU_IP:8787/health` → `{"ok":true,"rooms":0,"
 
 ```bash
 sudo npm i -g pm2
-PORT=8787 pm2 start server/index.js --name blockfront
+PORT=8787 pm2 start server/index.js --name warbyte
 pm2 save && pm2 startup        # çıkan komutu çalıştır (yeniden başlatmada otomatik açılır)
-pm2 logs blockfront            # günlük
+pm2 logs warbyte            # günlük
 ```
 
 Güncelleme:
 ```bash
-cd unturned-ai && git pull && npm ci && npm run build && pm2 restart blockfront
+cd unturned-ai && git pull && npm ci && npm run build && pm2 restart warbyte
 ```
 > Yeniden başlatmak açık odaları kapatır; oyuncular yeniden oda kurar.
 
@@ -63,7 +63,7 @@ Güvenli bağlantı (HTTPS) olmadan tarayıcılar bazı şeyleri kısıtlar, ayr
 
 ```bash
 sudo apt-get install -y nginx certbot python3-certbot-nginx
-sudo tee /etc/nginx/sites-available/blockfront >/dev/null <<'EOF'
+sudo tee /etc/nginx/sites-available/warbyte >/dev/null <<'EOF'
 server {
   server_name oyun.ornek.com;
   location / {
@@ -76,7 +76,7 @@ server {
   }
 }
 EOF
-sudo ln -s /etc/nginx/sites-available/blockfront /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/warbyte /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 sudo certbot --nginx -d oyun.ornek.com      # ücretsiz TLS
 ```
@@ -115,7 +115,7 @@ hepsi botlu, haritalar sırayla döner). Oyuncu girince bir bot azalır; boşken
 - [ ] Oyunda `M` ile takım değiştir
 - [ ] Ateş, öldürme, doğma, bayrak, gadget'lar
 - [ ] Maç bitince 15 sn sonra odanın yenilendiği
-- [ ] `pm2 logs blockfront` içinde hata yok
+- [ ] `pm2 logs warbyte` içinde hata yok
 
 Bilinen sınırlar: hesap/giriş yok (takma ad), odalar yeniden başlatmada silinir, hile önlemleri temel düzeyde
 (sunucu otoriter ateş/hasar/hareket kontrolü var; hız/konum doğrulaması ek sertleştirme ister).

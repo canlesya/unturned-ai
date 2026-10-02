@@ -1,4 +1,4 @@
-# BlockFront — Oyun ve Geliştirici Rehberi
+# WarByte — Oyun ve Geliştirici Rehberi
 
 Bu dosya, oyunun **ne olduğunu, nasıl çalıştığını ve nereyi değiştirirsen ne olacağını** anlatır. Bir şeyi
 geliştirmeden önce ilgili bölüme bak. Kurulum için bkz. [`KURULUM.md`](KURULUM.md).
@@ -221,7 +221,7 @@ ses), sis (yakın sis). Botlar geceleri/sisli havada daha az görür (`Game.nigh
 - `hud.js`: tek `Hud` sınıfı, DOM + CSS (kendi `CSS` sabiti). Minimap canvas'a çizilir (arazi gölgelemesi dahil).
 - Silah ikonları `MenuScene.weaponIcon()` ile gerçek modelden render edilip önbelleğe alınır.
 
-### 6.8 Kayıt (`localStorage`, anahtar `blockfront.v2`)
+### 6.8 Kayıt (`localStorage`, anahtar `warbyte.v2` (eski `blockfront.v2` kaydı otomatik okunur))
 `map, tod, weather, type, perTeam, tickets, time, team, cls, diff, optic, loadouts{sınıf→seçimler}, name, sens,
 fov, volume, shadows, quality, xp, stats{matches,wins,kills,deaths}`. Seviye: `floor(sqrt(xp/120)) + 1`.
 

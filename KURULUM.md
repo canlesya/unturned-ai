@@ -1,6 +1,6 @@
-# BlockFront — Kurulum ve Çalıştırma
+# WarByte — Kurulum ve Çalıştırma
 
-BlockFront tarayıcıda çalışan, Three.js ile yazılmış bir takım FPS oyunudur. Sunucu, veritabanı ya da indirilecek
+WarByte tarayıcıda çalışan, Three.js ile yazılmış bir takım FPS oyunudur. Sunucu, veritabanı ya da indirilecek
 görsel/ses dosyası yoktur: tüm modeller ve sesler kodla üretilir. Kurulum için **Node.js** yeterlidir.
 
 > Oyunun nasıl yapıldığı ve geliştirme için bkz. [`OYUN.md`](OYUN.md).
@@ -137,7 +137,7 @@ Oyuna girdikten sonra ekrana bir kez tıkla. Tarayıcı fare kilidini reddederse
 moduna geçer.
 
 **Seviye / ayarlar kayboldu veya sıfırlamak istiyorum**
-Ayarlar ve ilerleme tarayıcının `localStorage` alanında (`blockfront.v2`) saklanır. Menü → Ayarlar →
+Ayarlar ve ilerleme tarayıcının `localStorage` alanında (`warbyte.v2` (eski `blockfront.v2` kaydı otomatik okunur)) saklanır. Menü → Ayarlar →
 *İlerlemeyi sıfırla* ile XP'yi sıfırlarsın; tamamen silmek için tarayıcıda site verilerini temizle.
 Farklı tarayıcı / port / `file://` kullanımı ayrı kayıt tutar.
 

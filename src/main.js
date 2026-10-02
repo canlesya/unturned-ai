@@ -10,7 +10,7 @@ let game = null;
 
 const TIPS = ['Bayrağın çevresinde kal: sıhhiye yakınındaysa canın yenilenir.', 'Köşeden Q / E ile eğilerek ateş et.', 'Gece fenerini F ile aç.', 'Ele geçirdiğin bayrakta yeniden doğabilirsin.', 'Keskin nişancılar yüksek noktaları sever.'];
 function showLoading() {
-  loading.innerHTML = `<div class="lg">BLOCK<b>FRONT</b></div><div class="lb"></div><div class="lt">${TIPS[Math.floor(Math.random() * TIPS.length)]}</div>`;
+  loading.innerHTML = `<div class="lg">WAR<b>BYTE</b></div><div class="lb"></div><div class="lt">${TIPS[Math.floor(Math.random() * TIPS.length)]}</div>`;
   loading.style.display = 'flex';
 }
 const st = document.createElement('style'); st.textContent = MENU_CSS; document.head.appendChild(st);
@@ -74,7 +74,7 @@ async function startOnline() {
     beginOnline({ net, welcome, name, pw });
   } catch (e) {
     loading.style.display = 'flex';
-    loading.innerHTML = `<div class="lg">BLOCK<b>FRONT</b></div><div class="lt">Bağlanılamadı: ${e.message}<br><br><a href="${location.pathname}" style="color:#ff8a1f">Ana menüye dön</a></div>`;
+    loading.innerHTML = `<div class="lg">WAR<b>BYTE</b></div><div class="lt">Bağlanılamadı: ${e.message}<br><br><a href="${location.pathname}" style="color:#ff8a1f">Ana menüye dön</a></div>`;
   }
 }
 

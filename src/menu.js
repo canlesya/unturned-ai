@@ -7,7 +7,7 @@ import { WEATHERS } from './game/weather.js';
 import { NetClient } from './net/client.js';
 import { defaultServerUrl, healthUrl } from './net/protocol.js';
 
-const KEY = 'blockfront.v2';
+const KEY = 'warbyte.v2';
 export const DEFAULTS = {
   map: DEFAULT_MAP, tod: 'day', weather: 'clear', type: 'conquest', perTeam: 10, tickets: 0, time: 900,
   team: 'blue', cls: 'assault', diff: 'normal', optic: 'reddot', loadouts: {}, name: 'Sen',
@@ -18,7 +18,7 @@ export const DEFAULTS = {
 
 export function loadPrefs() {
   try {
-    const raw = JSON.parse(localStorage.getItem(KEY) || localStorage.getItem('blockfront.v1') || '{}');
+    const raw = JSON.parse(localStorage.getItem(KEY) || localStorage.getItem('blockfront.v2') || localStorage.getItem('blockfront.v1') || '{}');
     return { ...DEFAULTS, ...raw, stats: { ...DEFAULTS.stats, ...(raw.stats || {}) }, loadouts: raw.loadouts || {} };
   } catch (e) { return { ...DEFAULTS }; }
 }
@@ -79,10 +79,10 @@ export function showMenu(onStart, onOnline) {
   if (!MAPS[p.map] && p.map !== 'random') p.map = DEFAULT_MAP;
   el.style.display = 'block';
   el.innerHTML = `<canvas id="mnBg"></canvas><div class="mn-vig"></div>
-    <div class="mn-top"><div class="mn-logo">BLOCK<b>FRONT</b><small>TAKIM SAVAŞI · TARAYICIDA</small></div><div class="mn-user" id="mnUser"></div></div>
+    <div class="mn-top"><div class="mn-logo">WAR<b>BYTE</b><small>TAKIM SAVAŞI · TARAYICIDA</small></div><div class="mn-user" id="mnUser"></div></div>
     <nav class="mn-side" id="mnNav"></nav>
     <main class="mn-stage" id="mnStage"></main>
-    <div class="mn-foot"><span id="mnTip"></span><span>BLOCKFRONT v2.0 · yerel ve çevrimiçi, botlu</span></div>`;
+    <div class="mn-foot"><span id="mnTip"></span><span>WARBYTE v2.0 · yerel ve çevrimiçi, botlu</span></div>`;
   const q = (s) => el.querySelector(s);
   const stage = q('#mnStage'), nav = q('#mnNav');
   let scene = null;

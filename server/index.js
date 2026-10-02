@@ -1,4 +1,4 @@
-// BlockFront çok oyunculu sunucu: node server/index.js   (PORT ortam değişkeniyle değişir, varsayılan 8787)
+// WarByte çok oyunculu sunucu: node server/index.js   (PORT ortam değişkeniyle değişir, varsayılan 8787)
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -16,7 +16,7 @@ const rooms = new Map();
 const DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.jpg': 'image/jpeg', '.png': 'image/png', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.woff2': 'font/woff2' };
 function serveStatic(req, res) {
-  if (!fs.existsSync(DIST)) { res.writeHead(404); res.end('BlockFront sunucusu (istemci derlenmemiş: npm run build)'); return; }
+  if (!fs.existsSync(DIST)) { res.writeHead(404); res.end('WarByte sunucusu (istemci derlenmemiş: npm run build)'); return; }
   let rel = decodeURIComponent((req.url || '/').split('?')[0]);
   if (rel.endsWith('/')) rel += 'index.html';
   const file = path.join(DIST, path.normalize(rel));
@@ -111,4 +111,4 @@ setInterval(() => {
   }
 }, 10000);
 
-server.listen(PORT, () => console.log(`BlockFront sunucusu :${PORT} üzerinde dinliyor`));
+server.listen(PORT, () => console.log(`WarByte sunucusu :${PORT} üzerinde dinliyor`));
