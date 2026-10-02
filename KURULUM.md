@@ -164,3 +164,18 @@ Test sırasında sayfanın kendiliğinden yenilenmemesi için HMR'siz sunucu kul
 npx vite --config vite.test.config.js --host 127.0.0.1 --port 5180
 BASE=http://127.0.0.1:5180 node scripts/play.mjs "autostart=10v10&map=vadi&debug=1&nolock=1" out 2
 ```
+
+
+---
+
+## Çevrimiçi oynamak (arkadaşlarla)
+
+```bash
+npm install
+npm run build          # istemciyi derle
+npm start              # http://127.0.0.1:8787  (oyun + sunucu aynı portta)
+```
+Tarayıcıda **Çevrimiçi → Oda kur** ile oda kur; ekrandaki 4 harfli kodu (sol üstte, minimap altında) arkadaşlarına ver, onlar
+**Çevrimiçi → Katıl** ile girer. Kodun üstüne tıklarsan oda bağlantısı kopyalanır. Aynı ağdaki arkadaşların
+`http://SENIN_IP:8787` adresini açar. İnternet üzerinden oynamak için bir VPS gerekir: [`DEPLOY.md`](DEPLOY.md).
+Geliştirirken: `npm run server` (8787) ve `npm run dev` (5173) birlikte çalıştırılır; menü sunucuyu otomatik bulur.

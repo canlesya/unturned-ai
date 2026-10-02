@@ -53,7 +53,11 @@ export function applyFlags(s, f) {
 export function defaultServerUrl() {
   const loc = globalThis.location;
   if (!loc) return `ws://127.0.0.1:${DEFAULT_PORT}`;
-  return loc.protocol === 'https:' ? `wss://${loc.host}/ws` : `ws://${loc.hostname || '127.0.0.1'}:${DEFAULT_PORT}`;
+  if (loc.protocol === 'https:') return `wss://${loc.host}/ws`;                       // TLS ters vekilin arkasında
+  const dev = ['5173', '5180', '4173'].includes(loc.port);                            // Vite geliştirme/önizleme sunucusu
+  if (!dev && loc.port) return `ws://${loc.host}`;                                    // oyun sunucunun kendi portundan servis ediliyor
+  if (!dev) return `ws://${loc.host}/ws`;                                             // 80 portunda ters vekil
+  return `ws://${loc.hostname || '127.0.0.1'}:${DEFAULT_PORT}`;
 }
 // ws(s)://host[:port][/ws]  →  http(s)://host[:port]/health
 export function healthUrl(wsUrl) {

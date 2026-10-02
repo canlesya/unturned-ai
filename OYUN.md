@@ -15,14 +15,15 @@ geliştirmeden önce ilgili bölüme bak. Kurulum için bkz. [`KURULUM.md`](KURU
 9. [URL parametreleri (test/hata ayıklama)](#9-url-parametreleri)
 10. [Test ve araçlar](#10-test-ve-araçlar)
 11. [Bilinen eksikler ve fikirler](#11-bilinen-eksikler-ve-fikirler)
+12. [Çevrimiçi mod](#12-çevrimiçi-mod)
 
 ---
 
 ## 1. Oyun nedir
 
 Unturned görünümlü (kutu karakterler, düz renkli, düşük poligon) + BattleBit Remastered tarzı takım savaşı.
-Yerel çalışır: **Mavi** ve **Kırmızı** takım, rakipler ve takım arkadaşları **botlardır**. Gerçek çok oyunculu
-yoktur (bkz. §11).
+**Mavi** ve **Kırmızı** takım. Offline modda rakipler ve takım arkadaşları **botlardır**. **Çevrimiçi modda** (§12) arkadaşlarınla
+özel odada oynarsın; boş yerleri botlar doldurur.
 
 | Özellik | Durum |
 |---|---|
@@ -395,7 +396,7 @@ sırasında kod değiştirirsen sayfa yenilenip testi bozabilir — o yüzden `v
 ## 11. Bilinen eksikler ve fikirler
 
 **Bilinen eksikler**
-- Çok oyunculu yok (hepsi yerel + bot).
+- Çevrimiçi mod beta: odalar bellekte (sunucu yeniden başlarsa kapanır), hesap yok, JSON protokol (§12.6).
 - Botlar yalnızca zemin kat/arazide yürür; üst kat, çatı ve kuleler sadece oyuncuya özel.
 - Vadi'de Gözetleme Tepesi'ne bot az gider; botlar köprüde yığılma eğilimindedir.
 - Askeri Üs'te uzak kulelerden spawn'lara az bir görüş payı kalmıştır.
@@ -405,8 +406,82 @@ sırasında kod değiştirirsen sayfa yenilenip testi bozabilir — o yüzden `v
 - Harita küçük resimleri (`public/img/*.jpg`) haritayı değiştirince elle yenilenmeli (§7.3).
 
 **Fikirler (öncelik sırasıyla)**
-1. Araçlar (jip/ATV) 2. Gerçek çok oyunculu (WebSocket sunucusu, sunucu otoriteli ateş/hasar)
+1. Araçlar (jip/ATV) 2. Çevrimiçi: ikili protokol, ilgi alanı filtresi, oda listesi, sohbet, hesap/ilerleme sunucuda
 3. Botların üst katlara çıkması (3B yüzey grafiği: `scripts/probes/nav3d.mjs` temel olabilir)
 4. Yıkılabilir duvar / C4 5. Silah özelleştirme (susturucu, kabza, şarjör türleri)
 6. Maç içi ilerleme (sınıf seviyeleri, silah kilitleri, görevler) 7. Yeni modlar (bayrak kapmaca, hedef yok etme)
 8. Yeni haritalar (çöl, kar) ve karakter özelleştirme
+
+
+---
+
+## 12. Çevrimiçi mod
+
+Özel oda + 4 harfli oda kodu. Sunucu **otoriterdir**: hareket, ateş, isabet, hasar, gadget, bayrak ve bilet sunucuda hesaplanır;
+istemci girdi gönderir ve sonucu çizer. Boş slotları botlar doldurur (oyuncu girince bir botun yerine geçer, çıkınca bot geri gelir).
+Sunucu kurulumu: [`DEPLOY.md`](DEPLOY.md).
+
+### 12.1 Mimari
+
+```
+Tarayıcı (istemci)                              Node sunucusu (server/)
+ Player ─ girdi ─► NetClient.pushInput ──ws──►  Room.input ─► kuyruk (Game.humans)
+   │ aynı Game kodu, tahmin                        │  60 Hz sabit adım: Game.step → updateHumans
+   │                                               │  (headless Game: renderer/HUD/ses yok, nullSink)
+ NetClient.onSnap ◄── snapshot 20 Hz + olaylar ◄── Room.snapshot / netEvents
+   ├ reconcile: yerel oyuncu (ack + yeniden oynatma)
+   └ interpolate: diğerleri (100 ms geriden)
+```
+
+| Dosya | Görev |
+|---|---|
+| `src/sim/input.js` | `applyInput(soldier, input, dt)`: girdi→hareket, **tek kaynak** (offline Player, sunucu, istemci tahmini aynı fonksiyon) |
+| `src/sim/nullSink.js` | Sunucuda `sfx/effects/hud/weather` yerine geçen boş nesne |
+| `src/net/protocol.js` | Sabitler (60 Hz sim, 20 Hz snapshot), mesaj biçimleri, `packSoldier`, oda kodu, sunucu adresi |
+| `src/net/client.js` | `NetClient`: bağlantı, girdi gönderme, tahmin uzlaştırma, interpolasyon, ping |
+| `server/index.js` | HTTP (derlenmiş istemci + `/health`) ve WebSocket; oda kur/katıl |
+| `server/room.js` | `Room`: headless `Game`, istemciler, snapshot, olay yayını, maç sonu sıfırlama |
+| `src/game/game.js` | `opts.headless`, `claimSlot/releaseSlot`, `humanTick/updateHumans`, `rewind` (lag comp), `onNetEvents` (istemci) |
+| `src/menu.js` | Çevrimiçi ekranı (oda kur / katıl / sunucu durumu); `src/main.js` `beginOnline` |
+
+### 12.2 Girdi güdümlü simülasyon (önemli)
+Canlı bir insan oyuncunun simülasyonu **zamana değil girdiye bağlıdır**: sunucu, istemcinin gönderdiği her girdi için tam olarak
+bir adım uygular (`Soldier.update` + `World.move`, sonra girdi → hız; istemci `Game.stepOnline` ile birebir aynı sıra).
+Girdi gelmezse oyuncu o adımda ilerlemez. Bu sayede:
+- istemci tahmini ile sunucu **aynı sayıda adım** atar → ağ dalgalansa da sapma ~mm (testte 0 düzeltme);
+- hız hilesi yok: girdi başına 1 hak harcanan **zaman kovası** (her gerçek adımda +1, en çok 30 = 0,5 sn) → toplam simüle süre gerçek süreyi aşamaz;
+  ağ takılması sonrası yığılan girdiler kovadaki zamanla eritilir (adım başına en çok 2).
+- İstemci 0,5 sn'den uzun susarsa oyuncu nötr girdiyle durdurulur. Ölüler genel döngüde güncellenir.
+
+### 12.3 Tahmin ve uzlaştırma (yerel oyuncu)
+Her girdi `seq` taşır; istemci `hist`'te sakladığı konumla, sunucunun `ack` anındaki konumunu (`me.st`) karşılaştırır.
+Fark >5 cm ise sunucu durumuna dönüp onaylanmamış girdileri yeniden oynatır. Doğma (`rs` sayacı) ve ölümde sunucu durumu esas alınır.
+Cephane (`me.am`) yalnızca uçuşta ateş/şarjör yokken sunucuya eşitlenir.
+
+### 12.4 Savaş ve lag compensation
+İstemci ateşi yerelde de çalıştırır (geri tepme, animasyon, mermi sayacı) ama **hasar vermez**. Girdiyle birlikte, rakipleri hangi sunucu
+adımında gördüğünü (`vt`) yollar. Sunucu `Game.rewind` ile hedefleri o ana (en çok 37 adım, yaklaşık 0,6 sn) geri sarar, ışını atar, sonra geri yükler.
+Sonuç olaylarla yayılır: `sh` (atış izi/efekt), `hm` (isabet işareti), `dmg` (hasar yönü), `kill`, `rld`/`swg` (diğer oyuncuların animasyonu),
+`gr/rk/sl` (el bombası/roket/M79 fırlatma), `boom` (patlama/duman/flaş), `dep/depx` (mayın, cephane kutusu), `ammo`.
+İstemci mermi benzeri nesneleri görsel olarak hareket ettirir ama patlamayı sunucudan bekler.
+
+### 12.5 Test araçları
+| Komut | Ne yapar |
+|---|---|
+| `npm run server` | Sunucuyu başlat (`PORT`, `MAX_ROOMS`, `BF_RESTART_MS`; test için `BF_DEBUG=1`) |
+| `node scripts/headless-sim.mjs [harita] [NvN] [sn]` | Tarayıcısız maç simülasyonu |
+| `node scripts/nettest.mjs` | Protokol: oda, katılma, girdi, snapshot hızı, **girdi flood (hız hilesi)** |
+| `node scripts/combattest.mjs` | Ateş, hasar, öldürme, **lag compensation**, doğma (ağsız) |
+| `node scripts/gadgettest.mjs` | Her gadget'ın ağ olayları |
+| `BF_RESTART_MS=3000 BF_DEBUG=1 npm run server` sonra `node scripts/endtest.mjs` | Maç sonu + oda sıfırlama |
+
+`BF_DEBUG=1` ışınlanma/eşya/bilet komutlarını açar (`{t:'dbg',...}`); **üretimde kullanma**.
+Tarayıcıda iki sekme: `/?online=new&name=Ali&per=3` sonra `/?online=KOD&name=Veli`. Otomatik tarayıcı testlerinde dikkat: sekme
+**görünürse** oyunun kendi `requestAnimationFrame` döngüsü de çalışır; oyun döngüsünü elle de sürersen çift adım = çift girdi olur
+(gerçek kullanımda sorun yok, yalnızca test düzeneği hatası).
+
+### 12.6 Sınırlar ve sonraki adımlar
+- Protokol JSON: oyuncu başına yaklaşık 100–200 KB/s. Kalabalık odalar için ikili paketleme + ilgi alanı (yalnızca yakındakiler) planlanmalı.
+- Yeni katılan, o an havada olan el bombası/duman bulutunu görmez (kurulu mayın/kutuları görür).
+- Hesap yok (takma ad); XP/seviye tarayıcıda kalır. Odalar bellekte.
+- Hile önlemi: hareket/ateş/hasar sunucuda; hız hilesi kova ile engelli. Eksik: görüş hattı verisi (tüm konumlar istemciye gider, "wallhack" mümkün), girdi imzası.

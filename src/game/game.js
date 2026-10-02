@@ -257,44 +257,55 @@ export class Game {
     return BOT_NAMES.find((n) => !used.has(n)) || `Bot-${Math.floor(Math.random() * 900 + 100)}`;
   }
 
-  // İnsanların bekleyen girdilerini uygula (adım başına bir girdi; geride kalırsa ikisi)
+  // İnsan oyuncunun simülasyonu GİRDİ GÜDÜMLÜDÜR: her girdi, istemcideki Player akışıyla birebir bir adımdır
+  // (güncelle + hareket, sonra girdi). Girdi yoksa oyuncu o adımda ilerlemez; böylece ağ gecikmesi/dalgalanması
+  // istemci tahminiyle sunucuyu birbirinden koparmaz ve hız hilesi mümkün olmaz.
+  humanTick(h, inp, dt) {
+    const s = h.s;
+    s.update(dt);
+    if (s.alive) this.world.move(s, dt);
+    if (!s.alive) return;
+    s.yaw = inp.yw; s.pitch = Math.max(-1.5, Math.min(1.5, inp.pt));
+    s.ads = !!inp.a;
+    if (inp.w !== s.cur) s.switchTo(inp.w);
+    if (inp.u) s.standUp();
+    if (inp.c) s.toggleCrouch();
+    if (inp.p) s.toggleProne();
+    if (inp.rl) s.startReload();
+    if (inp.fm) s.toggleFireMode();
+    if (inp.o) s.cycleOptic();
+    applyInput(s, { f: inp.f, r: inp.r, lean: inp.l, sprint: !!inp.s, jump: !!inp.j }, dt);
+    // ateş: Player.update ile aynı mantık
+    if (inp.fp) h.fireBuf = 0.15;
+    h.fireBuf = Math.max(0, h.fireBuf - dt);
+    s.rewindTick = Number.isFinite(inp.vt) ? inp.vt : null;
+    const st = s.stat;
+    if (st.kind === 'melee') { if (inp.fh || h.fireBuf > 0) { if (s.tryFire()) h.fireBuf = 0; } }
+    else if (s.fireAuto) { if (inp.fh) s.tryFire(); }
+    else if (h.fireBuf > 0 && s.tryFire()) h.fireBuf = 0;
+    s.rewindTick = null;
+  }
+
   updateHumans(dt) {
     for (const h of this.humans.values()) {
       const s = h.s;
       h.tickAck = false;
-      let n = h.queue.length > 6 ? 2 : 1, first = true;
-      while (n-- > 0) {
-        // geride kalan girdiyi eritirken ikinci girdi için eksik ara adımı da simüle et (istemci tahmini adım adım tutsun)
-        if (!first && s.alive) { s.update(dt); this.world.move(s, dt); }
-        first = false;
-        let inp = h.queue.shift();
-        if (inp) { h.stale = 0; h.last = inp; h.ack = inp.q; h.tickAck = true; }
-        else if (h.last) {
-          // girdi gelmedi: son girdiyi birkaç adım tekrarla, sonra dur (sekme arka plana gittiyse koşup durmasın)
-          // eylem alanları (ateş, şarjör...) asla tekrarlanmaz; yalnızca hareket sürer
-          const act = { c: 0, p: 0, u: 0, fh: 0, fp: 0, rl: 0, fm: 0, o: 0 };
-          inp = ++h.stale > 5 ? { ...h.last, ...act, f: 0, r: 0, s: 0, j: 0 } : { ...h.last, ...act };
-        } else continue;
-        if (!s.alive) continue;
-        s.yaw = inp.yw; s.pitch = Math.max(-1.5, Math.min(1.5, inp.pt));
-        s.ads = !!inp.a;
-        if (inp.w !== s.cur) s.switchTo(inp.w);
-        if (inp.u) s.standUp();
-        if (inp.c) s.toggleCrouch();
-        if (inp.p) s.toggleProne();
-        if (inp.rl) s.startReload();
-        if (inp.fm) s.toggleFireMode();
-        if (inp.o) s.cycleOptic();
-        applyInput(s, { f: inp.f, r: inp.r, lean: inp.l, sprint: !!inp.s, jump: !!inp.j }, dt);
-        // ateş: Player.update ile aynı mantık (istemci tahmini birebir tutsun)
-        if (inp.fp) h.fireBuf = 0.15;
-        h.fireBuf = Math.max(0, h.fireBuf - dt);
-        s.rewindTick = Number.isFinite(inp.vt) ? inp.vt : null;
-        const st = s.stat;
-        if (st.kind === 'melee') { if (inp.fh || h.fireBuf > 0) { if (s.tryFire()) h.fireBuf = 0; } }
-        else if (s.fireAuto) { if (inp.fh) s.tryFire(); }
-        else if (h.fireBuf > 0 && s.tryFire()) h.fireBuf = 0;
-        s.rewindTick = null;
+      if (!s.alive) continue;                       // ölüler genel döngüde güncellenir
+      // Girdi bütçesi = zaman kovası (hız hilesi koruması): her gerçek adımda 1 hak birikir, en çok 30 (0,5 sn).
+      // Her işlenen girdi 1 hak harcar. Böylece ağ dalgalanmasında yığılan girdiler biriken zamanla eritilir (kalıcı gecikme
+      // kalmaz), ama oyuncunun simüle edilen toplam süresi gerçek süreyi aşamaz: saniyede 60'tan fazla girdi yollamak hız kazandırmaz.
+      h.budget = Math.min((h.budget ?? 1) + 1, 30);
+      let n = h.queue.length > 2 ? 2 : 1, did = false;
+      while (n-- > 0 && h.queue.length && h.budget >= 1) {
+        const inp = h.queue.shift();
+        h.budget -= 1; h.stale = 0; h.ack = inp.q; h.tickAck = true; did = true;
+        this.humanTick(h, inp, dt);
+        if (!s.alive) break;
+      }
+      // Girdi yoksa oyuncu o adımda ilerlemez (zaman birikir). İstemci >0,5 sn sustuysa (sekme arka planda, bağlantı takıldı) durdur.
+      if (!did && ++h.stale > 30) {
+        h.budget = Math.max(0, h.budget - 1);
+        this.humanTick(h, { yw: s.yaw, pt: s.pitch, a: 0, w: s.cur, f: 0, r: 0, l: 0, s: 0, j: 0, c: 0, p: 0, u: 0, rl: 0, fm: 0, o: 0, fh: 0, fp: 0 }, dt);
       }
     }
   }
@@ -530,6 +541,7 @@ export class Game {
     this.time += dt;
     this.pathBudget = 1;
     for (const s of this.soldiers) {
+      if (s.human && s.alive) continue;            // canlı insanlar girdi güdümlü (updateHumans)
       s.update(dt);
       if (s.alive) this.world.move(s, dt);
     }

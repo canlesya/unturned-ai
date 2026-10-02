@@ -50,10 +50,10 @@ check(A.items[0].mag < 30, 'şarjör azaldı (sunucu otoriter cephane)');
 // 2) lag compensation: hareket eden hedef — istemcinin gördüğü (6 adım önceki) konuma tek atış
 function lagShot(useVt) {
   reset(); place(); step(2); B.protT = 0;
-  B.vel.set(4, 0, 0);                              // hedef yana koşuyor (insan girdisi yok → vel sabit)
-  step(6);
+  const strafe = () => input(hb, { r: 1, yw: 0 });         // hedef yana koşuyor (insan simülasyonu girdi güdümlü)
+  for (let i = 0; i < 6; i++) { strafe(); step(); }
   const tag = g.tick, seen = B.center(new THREE.Vector3());     // istemcinin gördüğü an ve konum
-  step(6);
+  for (let i = 0; i < 6; i++) { strafe(); step(); }
   const a = aimAt(A, seen);
   g.netEvents.length = 0;
   input(ha, { yw: a.yw, pt: a.pt, fh: 1, fp: 1, vt: useVt ? tag : null }); step();

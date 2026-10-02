@@ -32,9 +32,31 @@ const snap1 = a.msgs.filter((m) => m.t === 'snap').pop();
 console.log(`      A en iyi yönde 0.5 sn'de ${best.toFixed(2)} m yürüdü (ack ${snap1.me.ack}/${q})`);
 check(snap1.me.ack > q - 10, 'sunucu girdileri işledi (ack yakın)');
 check(best > 1.5, 'A sunucuda ilerledi');
+// hız hilesi: saniyede 240 girdi yollayan istemci normalden belirgin hızlı ilerlememeli
+let yawBest = 0, bestD2 = 0;
+for (let k = 0; k < 8; k++) {
+  const before = a.msgs.filter((m) => m.t === 'snap').pop();
+  const iv2 = setInterval(() => a.send(JSON.stringify({ t: 'in', q: ++q, f: 1, r: 0, l: 0, s: 0, j: 0, a: 0, yw: k * Math.PI / 4, pt: 0 })), 1000 / 60);
+  await wait(400); clearInterval(iv2);
+  const after = a.msgs.filter((m) => m.t === 'snap').pop();
+  const d = Math.hypot(after.me.now.x - before.me.now.x, after.me.now.z - before.me.now.z);
+  if (d > bestD2) { bestD2 = d; yawBest = k * Math.PI / 4; }
+}
+const posOf = () => { const m = a.msgs.filter((x) => x.t === 'snap').pop().me.now; return [m.x, m.z]; };
+const walk = async (yw, hz, ms) => { const p0 = posOf(); const iv3 = setInterval(() => a.send(JSON.stringify({ t: 'in', q: ++q, f: 1, r: 0, l: 0, s: 0, j: 0, a: 0, yw, pt: 0 })), 1000 / hz); await wait(ms); clearInterval(iv3); await wait(150); const p1 = posOf(); return Math.hypot(p1[0] - p0[0], p1[1] - p0[1]); };
+await walk(yawBest + Math.PI, 60, 900); await wait(1500);       // geri dön + kuyruk boşalsın
+const dNormal = await walk(yawBest, 60, 2000); await walk(yawBest + Math.PI, 60, 2000); await wait(1500);
+const dFlood = await walk(yawBest, 240, 2000);
+console.log(`      2 sn yürüyüş: normal (60/sn) ${dNormal.toFixed(2)} m · flood (240/sn) ${dFlood.toFixed(2)} m`);
+// 2 sn'de 480 girdi yollandı; korumasız sunucu ~35 m yürütürdü. Sınır: 2 sn gerçek + 0,5 sn bir kerelik pay, 4,4 m/s * 1,1
+check(dFlood < 4.4 * 1.1 * 2.7, `girdi flood saldırısıyla hızlanma yok (${dFlood.toFixed(1)} m < ${(4.4 * 1.1 * 2.7).toFixed(1)} m)`);
+await wait(1200);
+
+await wait(300);
+const aNow = a.msgs.filter((m) => m.t === 'snap').pop().me.now;
 const sb = b.msgs.filter((m) => m.t === 'snap').pop();
 const aInB = sb.s.find((s) => s.i === wa.id);
-check(Math.abs(aInB.z - snap1.me.now.z) < 1.5 && Math.abs(aInB.x - snap1.me.now.x) < 1.5, 'B, A\'nın konumunu snapshot\'ta görüyor');
+check(Math.abs(aInB.z - aNow.z) < 1.5 && Math.abs(aInB.x - aNow.x) < 1.5, 'B, A\'nın konumunu snapshot\'ta görüyor');
 const ks = a.msgs.filter((m) => m.t === 'snap').map((m) => m.k);
 const gaps = ks.slice(1).map((k, i) => k - ks[i]);
 console.log(`      snapshot: ${ks.length} adet · aralık ${Math.min(...gaps)}–${Math.max(...gaps)} adım · son boyut ${JSON.stringify(snap1).length} bayt`);

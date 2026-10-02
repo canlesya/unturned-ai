@@ -98,7 +98,7 @@ export class Room {
     const c = this.clients.get(id);
     if (!c || !Number.isInteger(m.q)) return;
     const h = c.h;
-    if (h.queue.length > 30) return;      // taşma koruması
+    if (h.queue.length > 60) return;      // taşma koruması
     h.queue.push({
       q: m.q,
       f: Math.round(num(m.f, -1, 1)), r: Math.round(num(m.r, -1, 1)), l: Math.round(num(m.l, -1, 1)),
