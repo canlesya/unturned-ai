@@ -354,7 +354,7 @@ export class Hud {
   renderScoreboard() {
     const g = this.game;
     const col = (team) => {
-      const list = g.soldiers.filter((s) => s.team === team).sort((a, b) => b.score - a.score);
+      const list = g.soldiers.filter((s) => s.team === team && !s.vacant).sort((a, b) => b.score - a.score);
       return `<div class="team ${team}"><h3 style="color:var(--c)">${TEAMS[team].name} · ${Math.max(0, g.tickets[team])}</h3><table><tr><th>Oyuncu</th><th>Öl</th><th>Ölüm</th><th>Puan</th></tr>${
         list.map((s) => `<tr class="${s.isPlayer ? 'me' : ''} ${s.alive ? '' : 'dead'}"><td>${s.name}</td><td>${s.kills}</td><td>${s.deaths}</td><td>${s.score}</td></tr>`).join('')}</table></div>`;
     };

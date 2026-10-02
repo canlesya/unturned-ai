@@ -52,6 +52,7 @@ export class NetClient {
     if (!this.game) { (this.queued ||= []).push(m); return; }
     if (m.t === 'snap') return this.onSnap(m);
     if (m.t === 'roster') return this.onRoster(m.roster);
+    if (m.t === 'team') return this.game.onNetTeam?.(m);
     if (m.t === 'end') return this.game.onNetEnd?.(m);
     if (m.t === 'ev') return this.game.onNetEvents?.(m.l);
     if (m.t === 'restart') return this.game.onNetRestart?.();
@@ -91,9 +92,10 @@ export class NetClient {
 
   onRoster(roster) {
     const g = this.game;
+    this.roster = roster;
     for (const r of roster) {
       const s = g.soldiers[r.id]; if (!s) continue;
-      s.name = r.name;
+      s.name = r.name; s.vacant = !!r.vac;
       if (s.cls !== r.cls) s.setClass(r.cls);
     }
   }

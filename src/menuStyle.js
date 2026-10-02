@@ -129,6 +129,21 @@ export const MENU_CSS = `
 #menu .olmsg{padding:12px 16px;border:1px solid var(--line);background:var(--pan);font-size:15px;letter-spacing:.5px}
 #menu .olmsg.err{border-color:var(--red);color:#ffb3a8}
 #menu .play[disabled]{opacity:.5;cursor:wait}
+#menu .lb{display:block;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin:0 0 6px;font-weight:600}#menu .lb em{font-style:normal;letter-spacing:.5px;text-transform:none;opacity:.8}
+#menu h3.sub{margin:4px 0 10px;font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--acc2);display:flex;gap:10px;align-items:center}#menu h3.sub em{font-style:normal;color:var(--dim);letter-spacing:.5px;text-transform:none;font-weight:500}
+#menu .rgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:10px}
+#menu .rcard{display:flex;align-items:stretch;gap:0;background:#ffffff0a;border:1px solid var(--line);min-height:84px;overflow:hidden}
+#menu .rcard.off{border-color:rgba(255,138,31,.45);background:linear-gradient(90deg,rgba(255,138,31,.12),#ffffff08)}
+#menu .rcard .th{width:96px;flex:none;background-size:cover;background-position:center;opacity:.9}
+#menu .rcard .rb{flex:1;padding:8px 12px;min-width:0}
+#menu .rcard .rt{display:flex;gap:6px;align-items:center;font-size:17px;white-space:nowrap;overflow:hidden}#menu .rcard .rt b{overflow:hidden;text-overflow:ellipsis}
+#menu .rcard .rs{font-size:13px;color:var(--dim);letter-spacing:.3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}#menu .rcard .rs.by{opacity:.7}
+#menu .bd{font-style:normal;font-size:10px;letter-spacing:2px;background:var(--acc);color:#111;padding:2px 6px;font-weight:800}#menu .lk{font-style:normal;font-size:13px}
+#menu .rcard .rp{display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;padding:8px 10px;gap:6px}
+#menu .pc{font-size:20px;text-align:right;line-height:1}#menu .pc small{display:block;font-size:10px;color:var(--dim);letter-spacing:1.5px;text-transform:uppercase}#menu .pc.full b{color:var(--red)}
+#menu .chip.join{min-width:78px;padding:6px 12px}#menu .chip[disabled]{opacity:.45;cursor:not-allowed}
+#menu .pwp{border-color:var(--acc)}#menu .row{align-items:center}
+#menu kbd{background:#ffffff1c;border:1px solid var(--line);padding:0 6px;font-family:inherit;font-size:.9em}
 #menu .startbar{display:flex;align-items:center;justify-content:space-between;gap:14px;padding-top:12px;border-top:1px solid var(--line);margin-top:2px}
 @media(max-width:1100px){#menu .mn-side{width:210px}#menu .mn-stage{left:270px}#menu .maps,#menu .tods{grid-template-columns:repeat(2,1fr)}#menu .news{display:none}#menu .mn-logo{font-size:40px}}
 @media(max-width:760px){#menu .mn-side{top:130px;width:auto;flex-direction:row;right:10px;bottom:auto;left:10px;overflow-x:auto}#menu .mn-nav{font-size:14px;padding:8px 10px;letter-spacing:1px}#menu .mn-nav small{display:none}#menu .mn-stage,#menu .mn-stage.right{left:10px;right:10px;top:200px;width:auto}#menu .mn-top{left:14px;right:14px}#menu .mn-user{display:none}#menu .split,#menu .split3{grid-template-columns:1fr}#menu .wgrid{grid-template-columns:repeat(2,1fr)}#menu .play{min-width:0;font-size:24px;width:100%}}

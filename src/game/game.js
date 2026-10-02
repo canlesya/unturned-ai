@@ -138,6 +138,7 @@ export class Game {
       for (const r of opts.online.roster) {
         const isPlayer = r.id === opts.online.id;
         const s = new Soldier(this, { id: r.id, name: r.name, team: r.team, cls: r.cls, isPlayer });
+        s.vacant = !!r.vac;
         this.soldiers.push(s);
         if (isPlayer) this.playerSoldier = s;
       }
@@ -169,7 +170,11 @@ export class Game {
       this.HN = 40;                                            // lag compensation geçmişi (adım)
       this.histBuf = new Float32Array(this.HN * this.soldiers.length * 9);
       this.running = true;
-      for (const s of this.soldiers) this.respawn(s, true);
+      if (opts.bots === false) {                               // botsuz oda: slotlar oyuncu gelene kadar boş
+        for (const s of this.soldiers) { s.vacant = true; s.name = 'Boş'; s.brain = null; }
+        this.brains.length = 0;
+      }
+      for (const s of this.soldiers) if (!s.vacant) this.respawn(s, true);
       return;     // sunucu: DOM, döngü ve girdi yok — step(dt) dışarıdan çağrılır
     }
     this.hud = new Hud(this);
@@ -214,6 +219,11 @@ export class Game {
       };
       document.body.appendChild(b);
       this._badgeT = 0; this._badgeCode = code;
+      this.online.roster = opts.online.roster;
+      document.addEventListener('keydown', this._km = (e) => {                    // M: takım seçimi
+        if (e.code === 'KeyM' && !e.repeat && !this.ended) { e.preventDefault(); this.toggleTeamMenu(); }
+        else if (e.code === 'Escape' && this._tm) this.toggleTeamMenu(false);
+      });
     } else for (const s of this.soldiers) this.respawn(s, true);
     this.running = true;
     this.simulate = !!opts.nolock || !!this.online;
@@ -227,10 +237,10 @@ export class Game {
   // ───── sunucu: insan oyuncular (botların yerine geçer) ─────
   // Takımdan bir bot slotunu alır: beyni sökülür, savaşçı insana verilir. Çıkınca bot geri gelir.
   claimSlot(team, name, cls = 'assault', choice = {}) {
-    const s = this.soldiers.find((e) => e.team === team && e.brain && !this.humans.has(e.id));
+    const s = this.soldiers.find((e) => e.team === team && (e.brain || e.vacant) && !this.humans.has(e.id));
     if (!s) return null;
-    this.brains.splice(this.brains.indexOf(s.brain), 1);
-    s.brain = null; s.dmgMul = 1;
+    if (s.brain) this.brains.splice(this.brains.indexOf(s.brain), 1);
+    s.brain = null; s.dmgMul = 1; s.vacant = false;
     s.human = true; s.name = name;
     s.choice = { primary: choice.primary, secondary: choice.secondary, gadget: choice.gadget, melee: choice.melee };
     if (!CLASS_DEFS[cls]) cls = 'assault';
@@ -246,6 +256,10 @@ export class Game {
     this.humans.delete(id);
     const s = h.s;
     s.human = false;
+    if (this.opts.bots === false) {                      // botsuz oda: slot boşalır
+      s.vacant = true; s.name = 'Boş'; s.alive = false; s.hp = 0; s.deadT = 99; s.vel.set(0, 0, 0);
+      return;
+    }
     s.choice = { random: true };
     s.name = this.freeBotName();
     new BotBrain(this, s, this.opts.diff);
@@ -555,7 +569,7 @@ export class Game {
     this.updateMode(dt);
     this.updateBaseZones(dt);
     for (const s of this.soldiers) {
-      if (!s.alive && !this.ended) {
+      if (!s.alive && !this.ended && !s.vacant) {
         s.respawnT -= dt;
         if (s.respawnT <= 0) this.respawn(s);
       }
@@ -613,6 +627,48 @@ export class Game {
         case 'swg': if (by && by !== me) { by.swing = { t: 0, dur: ev.d, kind: ev.k, idx: 0, done: true }; by.comboT = ev.d + 0.38; } break;
       }
     }
+  }
+
+  // ───── çevrimiçi: M ile takım seçimi ─────
+  toggleTeamMenu(show = !this._tm) {
+    if (!show) { this._tm?.remove(); this._tm = null; if (!this.ended) this.hud.setPaused(!this.player.locked); return; }
+    if (this._tm) return;
+    document.exitPointerLock?.();
+    this.hud.setPaused(false);                       // "Hazır mısın?" paneli menünün üstüne binmesin
+    const cap = this.opts.online.cfg?.perTeam || 1, roster = this.online.roster || [];
+    const me = this.playerSoldier, cnt = (t) => roster.filter((r) => r.team === t && r.human).length;
+    const bots = (t) => roster.filter((r) => r.team === t && !r.human && !r.vac).length;
+    const el = (this._tm = document.createElement('div'));
+    el.style.cssText = 'position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;background:rgba(4,6,10,.62);font-family:Bahnschrift,Rajdhani,Arial Narrow,sans-serif;color:#e8edf5';
+    const card = (t, name, col) => {
+      const full = cnt(t) >= cap, mine = me.team === t;
+      return `<button data-t="${t}" ${full || mine ? 'disabled' : ''} style="all:unset;box-sizing:border-box;cursor:${full || mine ? 'default' : 'pointer'};width:240px;padding:22px 18px;margin:0 10px;text-align:center;background:${col}22;border:2px solid ${col};opacity:${full || mine ? .5 : 1}">
+        <div style="font-size:30px;font-weight:800;letter-spacing:4px;color:${col}">${name}</div>
+        <div style="font-size:18px;margin-top:8px"><b>${cnt(t)}</b> / ${cap} oyuncu</div><div style="font-size:13px;opacity:.7;margin-top:2px">${bots(t)} bot</div>
+        <div style="font-size:13px;margin-top:10px;letter-spacing:2px">${mine ? 'SENİN TAKIMIN' : full ? 'DOLU' : 'KATIL'}</div></button>`;
+    };
+    el.innerHTML = `<div style="text-align:center"><div style="font-size:15px;letter-spacing:5px;opacity:.7;margin-bottom:14px">TAKIM SEÇ</div>
+      <div style="display:flex;justify-content:center">${card('blue', 'MAVİ', '#4aa3ff')}${card('red', 'KIRMIZI', '#ff5a43')}</div>
+      <div id="tmMsg" style="margin-top:16px;font-size:14px;min-height:20px;color:#ffcf7a"></div>
+      <div style="margin-top:6px;font-size:13px;opacity:.6">Takım değiştirmek odaya yeniden bağlanır · M veya Esc: kapat</div></div>`;
+    el.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-t]');
+      if (!b) { if (e.target === el) this.toggleTeamMenu(false); return; }
+      if (b.disabled) return;
+      el.querySelector('#tmMsg').textContent = 'İstek gönderiliyor…';
+      this.online.send({ t: 'team', team: b.dataset.t });
+    });
+    document.body.appendChild(el);
+  }
+
+  onNetTeam(m) {
+    const msg = this._tm?.querySelector('#tmMsg');
+    if (!m.ok) { if (msg) msg.textContent = m.msg || 'Takım değiştirilemedi'; else this.hud.toast(m.msg || 'Takım değiştirilemedi', '#ff8a7a'); return; }
+    if (msg) msg.textContent = 'Geçiliyor…';
+    const u = new URL(location.href); u.searchParams.set('team', m.team);        // yeniden katılırken bu takım istenir
+    this.ended = true;                                                              // bağlantı kopma ekranı çıkmasın
+    this.online?.ws.close();
+    location.href = u.toString();
   }
 
   onNetEnd(m) {
@@ -1028,7 +1084,8 @@ export class Game {
     this.running = false;
     if (this.headless) return;
     this.online?.ws.close();
-    this._badge?.remove();
+    this._badge?.remove(); this._tm?.remove();
+    if (this._km) document.removeEventListener('keydown', this._km);
     cancelAnimationFrame(this.raf);
     this.weather?.dispose();
     document.exitPointerLock?.();

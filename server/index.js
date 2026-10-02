@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { Room } from './room.js';
+import { OFFICIAL } from './official.js';
 import { DEFAULT_PORT, makeRoomCode, cleanName } from '../src/net/protocol.js';
 
 const PORT = +process.env.PORT || DEFAULT_PORT;
@@ -34,6 +35,14 @@ const server = http.createServer((req, res) => {
     res.end(JSON.stringify({ ok: true, rooms: rooms.size, players: [...rooms.values()].reduce((a, r) => a + r.humanCount, 0) }));
     return;
   }
+  if (req.url === '/rooms') {
+    // oda listesi: resmi odalar önce, sonra herkese açık oyuncu odaları (şifre yok, yalnızca "kilitli mi" bilgisi)
+    const all = [...rooms.values()].filter((r) => r.official || r.cfg.listed).map((r) => r.info());
+    all.sort((x, y) => (y.official - x.official) || (y.humans - x.humans));
+    res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*', 'cache-control': 'no-store' });
+    res.end(JSON.stringify(all));
+    return;
+  }
   serveStatic(req, res);
 });
 const wss = new WebSocketServer({ server, maxPayload: 4096 });
@@ -42,6 +51,7 @@ function err(ws, msg) { ws.send(JSON.stringify({ t: 'err', msg })); }
 
 wss.on('connection', (ws) => {
   ws.ctx = null;                 // { room, id }
+  ws.pwFails = 0;
   ws.on('message', (data) => {
     let m;
     try { m = JSON.parse(data); } catch { return; }
@@ -50,18 +60,30 @@ wss.on('connection', (ws) => {
     if (m.t === 'in') { if (ws.ctx) ws.ctx.room.input(ws.ctx.id, m); return; }
     if (m.t === 'opt') { if (ws.ctx) ws.ctx.room.opt(ws.ctx.id, m); return; }
     if (m.t === 'dbg' && process.env.BF_DEBUG && ws.ctx) { ws.ctx.room.debug(ws.ctx.id, m); return; }   // yalnızca test için
+    if (m.t === 'team') {                                // M menüsü: takım değiştirme isteği
+      if (!ws.ctx) return;
+      const r = ws.ctx.room.teamCheck(ws.ctx.id, m.team);
+      ws.send(JSON.stringify({ t: 'team', ...r }));
+      return;
+    }
     if (ws.ctx) return err(ws, 'Zaten bir odadasın');
     if (m.t === 'create') {
-      if (rooms.size >= MAX_ROOMS) return err(ws, 'Sunucu dolu, sonra tekrar dene');
+      if ([...rooms.values()].filter((r) => !r.official).length >= MAX_ROOMS) return err(ws, 'Sunucu dolu, sonra tekrar dene');
       let code; do code = makeRoomCode(); while (rooms.has(code));
-      const room = new Room(code, m.cfg, () => rooms.delete(code));
+      const owner = cleanName(m.name);
+      const cfg = { ...(m.cfg || {}) };
+      if (!cfg.name || !String(cfg.name).trim()) cfg.name = `${owner}'in odası`;
+      const room = new Room(code, cfg, { owner });
       rooms.set(code, room);
       enter(ws, room, m);
     } else if (m.t === 'join') {
       const room = rooms.get(String(m.room || '').toUpperCase());
       if (!room) return err(ws, 'Oda bulunamadı');
-      const why = room.canJoin();
-      if (why) return err(ws, why);
+      const why = room.canJoin(typeof m.pw === 'string' ? m.pw : '');
+      if (why) {
+        if (why === 'Şifre yanlış' && ++ws.pwFails > 5) { err(ws, 'Çok fazla yanlış şifre'); ws.close(); return; }       // kaba kuvvet frenleme
+        return err(ws, why);
+      }
       enter(ws, room, m);
     }
   });
@@ -76,10 +98,16 @@ function enter(ws, room, m) {
   console.log(`[${room.code}] ${c.name} katıldı (${room.humanCount} oyuncu)`);
 }
 
-// boş odaları temizle
+// Resmi odalar: sunucu açılışında kurulur, kapanmaz
+for (const o of OFFICIAL) {
+  rooms.set(o.code, new Room(o.code, { perTeam: o.perTeam, type: o.type, time: o.time, diff: o.diff, bots: true }, { official: o }));
+  console.log(`[${o.code}] ${o.name} hazır`);
+}
+
+// boş oyuncu odalarını temizle (resmi odalar hariç)
 setInterval(() => {
   for (const [code, r] of rooms) {
-    if (!r.humanCount && r.emptySince && Date.now() - r.emptySince > 60000) { r.dispose(); rooms.delete(code); console.log(`[${code}] kapatıldı (boş)`); }
+    if (!r.official && !r.humanCount && r.emptySince && Date.now() - r.emptySince > 60000) { r.dispose(); rooms.delete(code); console.log(`[${code}] kapatıldı (boş)`); }
   }
 }, 10000);
 

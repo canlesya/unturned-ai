@@ -473,6 +473,7 @@ Sonuç olaylarla yayılır: `sh` (atış izi/efekt), `hm` (isabet işareti), `dm
 | `node scripts/nettest.mjs` | Protokol: oda, katılma, girdi, snapshot hızı, **girdi flood (hız hilesi)** |
 | `node scripts/combattest.mjs` | Ateş, hasar, öldürme, **lag compensation**, doğma (ağsız) |
 | `node scripts/gadgettest.mjs` | Her gadget'ın ağ olayları |
+| `node scripts/lobbytest.mjs` | Lobi: resmi odalar, şifre, gizli/botsuz oda, takım isteği, harita dönüşü |
 | `BF_RESTART_MS=3000 BF_DEBUG=1 npm run server` sonra `node scripts/endtest.mjs` | Maç sonu + oda sıfırlama |
 
 `BF_DEBUG=1` ışınlanma/eşya/bilet komutlarını açar (`{t:'dbg',...}`); **üretimde kullanma**.
@@ -480,7 +481,21 @@ Tarayıcıda iki sekme: `/?online=new&name=Ali&per=3` sonra `/?online=KOD&name=V
 **görünürse** oyunun kendi `requestAnimationFrame` döngüsü de çalışır; oyun döngüsünü elle de sürersen çift adım = çift girdi olur
 (gerçek kullanımda sorun yok, yalnızca test düzeneği hatası).
 
-### 12.6 Sınırlar ve sonraki adımlar
+### 12.6 Lobi, resmi sunucular, takım seçimi
+- **Oda listesi:** menü, sunucunun `GET /rooms` uç noktasını 2,5 sn'de bir sorar. Liste resmi odaları, sonra herkese açık oyuncu odalarını verir
+  (ad, harita, mod, doluluk, botlu mu, kilitli mi). Şifre asla listede ya da `welcome` mesajında yoktur. Gizli odalar yalnızca kodla girilir.
+- **Oda kurma:** `Çevrimiçi → Oda kur` formu (Özel Oyun'dan bağımsız, `p.olCfg`): ad, şifre, görünürlük, harita, saat, hava, mod, takım başına oyuncu,
+  **bot açık/kapalı** + zorluk, bilet, süre. Sunucu `sanitizeCfg` ile doğrular.
+- **Botlar:** açıkken boş slotlar botludur; oyuncu girince bir bot azalır (`claimSlot`), çıkınca bot geri gelir. Kapalıyken boş slotlar `vacant` olur
+  (doğmaz, skor tablosunda yok); oyuncu girince slot aktifleşir, çıkınca yeniden boşalır.
+- **Resmi sunucular** (`server/official.js`): açılışta kurulur, kapanmaz, her biri bir harita/saat/hava listesini sırayla döner (maç bitince bir sonrakine).
+  Boşken simülasyon durur (CPU harcamaz) ve taze maça hazırlanır; ilk oyuncu girince bot oyunu başlar. Yeni resmi oda eklemek için listeye bir giriş eklemek yeter.
+- **Şifre:** düz metin, bellekte; yanlış şifre ≥6 kez denenirse bağlantı kesilir. Sayfa yenilenince (maç sonu, takım değişimi) şifre `sessionStorage`'dan tekrar gönderilir.
+- **M tuşu:** takım menüsü (takım doluluk/bot sayısı). Seçince sunucu `team` mesajıyla boş yer olup olmadığını doğrular; onaylanırsa sayfa `?team=` ile yeniden bağlanır
+  (eski slot bota döner, yeni takımda bir bot yerine geçilir).
+- Test: `node scripts/lobbytest.mjs` (resmi odalar, bot sayısı, şifre, gizli oda, botsuz oda, doluluk, takım isteği, harita dönüşü).
+
+### 12.7 Sınırlar ve sonraki adımlar
 - Protokol JSON: oyuncu başına yaklaşık 100–200 KB/s. Kalabalık odalar için ikili paketleme + ilgi alanı (yalnızca yakındakiler) planlanmalı.
 - Yeni katılan, o an havada olan el bombası/duman bulutunu görmez (kurulu mayın/kutuları görür).
 - Hesap yok (takma ad); XP/seviye tarayıcıda kalır. Odalar bellekte.

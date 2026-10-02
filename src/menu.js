@@ -88,7 +88,7 @@ export function showMenu(onStart, onOnline) {
   let scene = null;
   try { scene = new MenuScene(q('#mnBg')); } catch (e) { console.warn('menü sahnesi açılamadı', e); }
   let screen = 'home', slot = 'primary';
-  let ol = { msg: '', err: false, busy: false }, olChk = 0;
+  let ol = { msg: '', err: false, busy: false, rooms: null, pwFor: null, pw: '', cpw: '' }, olChk = 0;
   let tipI = Math.floor(Math.random() * TIPS.length);
   const tipTimer = setInterval(() => { tipI = (tipI + 1) % TIPS.length; q('#mnTip').innerHTML = TIPS[tipI]; }, 7000);
   q('#mnTip').innerHTML = TIPS[tipI];
@@ -122,7 +122,7 @@ export function showMenu(onStart, onOnline) {
   }
 
   function renderNav() {
-    nav.innerHTML = NAV.map(([k, t, s]) => `<button class="mn-nav ${screen === k ? 'on' : ''}" data-a="go" data-v="${k}">${t}<small>${s}</small></button>`).join('')
+    nav.innerHTML = NAV.map(([k, t, s]) => `<button class="mn-nav ${screen === k || (k === 'online' && screen === 'ocreate') ? 'on' : ''}" data-a="go" data-v="${k}">${t}<small>${s}</small></button>`).join('')
       + '<div class="mn-spacer"></div>';
   }
 
@@ -162,61 +162,117 @@ export function showMenu(onStart, onOnline) {
       <div class="startbar">${summary()}<button class="play" data-a="quick" style="min-width:300px">Oyna</button></div>`;
   }
 
+  const OLCFG0 = { name: '', listed: true, map: 'kasaba', tod: 'day', weather: 'clear', type: 'conquest', perTeam: 5, bots: true, diff: 'normal', tickets: 0, time: 900 };
+  const oc = () => (p.olCfg = { ...OLCFG0, ...(p.olCfg || {}) });
+  const esc = (t) => String(t ?? '').replace(/[<>&"']/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c]));
+  const TODN = Object.fromEntries(TODS_LIST), WEAN = Object.fromEntries(WEATHERS);
+
+  function roomCard(r) {
+    const m = MAPS[r.map] || { name: r.map, thumb: '' }, t = MATCH_TYPES[r.type]?.label || r.type;
+    const full = r.humans >= r.cap, tl = r.tl >= 0 ? ` · ${Math.floor(r.tl / 60)}:${String(r.tl % 60).padStart(2, '0')}` : '';
+    const sub = `${m.name} · ${TODN[r.tod] || r.tod}${r.weather !== 'clear' ? ' · ' + (WEAN[r.weather] || r.weather) : ''}`;
+    return `<div class="rcard ${r.official ? 'off' : ''}"><div class="th" style="background-image:url(${m.thumb})"></div>
+      <div class="rb"><div class="rt">${r.official ? '<em class="bd">RESMİ</em>' : ''}${r.locked ? '<em class="lk" title="Şifreli">🔒</em>' : ''}<b>${esc(r.name)}</b></div>
+      <div class="rs">${sub}</div><div class="rs">${t} · ${r.perTeam}v${r.perTeam}${r.bots ? ' · botlu' : ' · botsuz'}${tl}</div>${r.by ? `<div class="rs by">kuran: ${esc(r.by)}</div>` : ''}</div>
+      <div class="rp"><div class="pc ${full ? 'full' : ''}"><b>${r.humans}</b>/${r.cap}<small>oyuncu</small></div>
+      <button class="chip join" data-a="rjoin" data-code="${r.code}" data-locked="${r.locked ? 1 : 0}" ${ol.busy || full || r.ended ? 'disabled' : ''}>${r.ended ? 'Bitti' : full ? 'Dolu' : 'Katıl'}</button></div></div>`;
+  }
+  function roomListHTML() {
+    if (!ol.rooms) return '<div class="hint">Oda listesi yükleniyor…</div>';
+    const off = ol.rooms.filter((r) => r.official), usr = ol.rooms.filter((r) => !r.official);
+    return `<h3 class="sub">Resmi sunucular <em>7/24 açık · hep bot destekli · harita sırayla döner</em></h3><div class="rgrid">${off.map(roomCard).join('') || '<div class="hint">Resmi oda yok.</div>'}</div>
+      <h3 class="sub" style="margin-top:16px">Oyuncu odaları <em>${usr.length} oda</em></h3><div class="rgrid">${usr.map(roomCard).join('') || '<div class="hint">Şu an açık oda yok. İlk odayı sen kur!</div>'}</div>`;
+  }
+  function pwPromptHTML() {
+    if (!ol.pwFor) return '';
+    return `<div class="pan pwp"><h3>Şifreli oda <em>${esc(ol.pwFor.name)}</em></h3><div class="row"><input class="olin" id="olPwJoin" type="password" maxlength="16" placeholder="Oda şifresi" autocomplete="off" style="flex:1">
+      <button class="chip on" data-a="rpwgo">Katıl</button><button class="chip" data-a="rpwcancel">Vazgeç</button></div></div>`;
+  }
   function onlineHTML() {
     const url = p.server || defaultServerUrl();
     const tm = [['auto', 'Otomatik', ''], ['blue', 'Mavi', 'blue'], ['red', 'Kırmızı', 'red']].map(([k, n, c]) => `<button class="chip ${c} ${p.olTeam === k ? 'on' : ''}" data-a="oltm" data-v="${k}">${n}</button>`).join('');
     const msg = ol.msg ? `<div class="olmsg ${ol.err ? 'err' : ''}">${ol.msg}</div>` : '';
     const dis = ol.busy ? 'disabled' : '';
-    return `<div class="scroll">
-      <div class="pan"><h3>Sunucu <em id="olStat">kontrol ediliyor…</em></h3>
-        <input class="olin" id="olServer" value="${url.replace(/"/g, '')}" spellcheck="false" autocomplete="off">
-        <div class="hint">Arkadaşlarınla aynı sunucuya bağlanın. Bu bilgisayarda çalışan sunucu için varsayılan adres yeterli.</div></div>
+    return `<div class="scroll">${msg}${pwPromptHTML()}
+      <div class="pan"><h3>Odalar <em id="olStat">kontrol ediliyor…</em></h3><div id="olRooms">${roomListHTML()}</div></div>
       <div class="split">
-        <div class="pan"><h3>Oda kur <em>ayarlar: Özel Oyun</em></h3>${summary()}
-          <button class="play" data-a="olcreate" ${dis} style="margin-top:14px;width:100%">Oda kur<small>Kod üretilir, arkadaşların koda girerek katılır</small></button></div>
-        <div class="pan"><h3>Odaya katıl</h3>
-          <input class="olin code" id="olCode" maxlength="4" placeholder="KOD" value="${(p.room || '').replace(/"/g, '')}" spellcheck="false" autocomplete="off">
-          <button class="play sec" data-a="oljoin" ${dis} style="margin-top:14px;width:100%">Katıl</button></div>
+        <div class="pan"><h3>Oda kur</h3><div class="hint" style="margin:0 0 12px">Kendi odanı kur: ad, şifre, harita, mod, bot ve daha fazlasını sen seçersin.</div>
+          <button class="play" data-a="oview" data-v="ocreate" ${dis} style="width:100%">+ Oda kur<small>Ayarları seç, kodu arkadaşlarına ver</small></button></div>
+        <div class="pan"><h3>Kodla katıl</h3>
+          <input class="olin code" id="olCode" maxlength="4" placeholder="KOD" value="${esc(p.room || '')}" spellcheck="false" autocomplete="off">
+          <input class="olin" id="olPw" type="password" maxlength="16" placeholder="Şifre (varsa)" autocomplete="off" style="margin-top:8px">
+          <button class="play sec" data-a="oljoin" ${dis} style="margin-top:10px;width:100%">Katıl</button></div>
       </div>
       <div class="pan"><h3>Takım</h3><div class="row">${tm}</div>
-        <div class="hint">Takım seçmezsen sunucu dengeler. Sınıf ve silahın "Sınıf &amp; Silah" ekranından, takma adın sol üstten gelir. Boş yerleri botlar doldurur.</div></div>
-      ${msg}</div>`;
+        <div class="hint">Takım seçmezsen sunucu dengeler. Oyunda <kbd>M</kbd> ile takım değiştirebilirsin. Sınıf ve silahın "Sınıf &amp; Silah" ekranından, takma adın sol üstten gelir.</div></div>
+      <div class="pan"><h3>Sunucu adresi</h3><input class="olin" id="olServer" value="${esc(url)}" spellcheck="false" autocomplete="off">
+        <div class="hint">Varsayılan adres çoğu zaman doğrudur. Arkadaşının sunucusuna bağlanmak için değiştir.</div></div></div>`;
+  }
+  function ocreateHTML() {
+    const c = oc();
+    const chips = (k, list) => list.map(([v, l, sm]) => `<button class="chip ${c[k] === v ? 'on' : ''}" data-a="olset" data-k="${k}" data-v="${v}">${l}${sm ? `<small>${sm}</small>` : ''}</button>`).join('');
+    const maps = Object.values(MAPS).map((m) => `<button class="mapc ${c.map === m.id ? 'on' : ''}" data-a="olset" data-k="map" data-v="${m.id}"><img src="${m.thumb}" alt=""><div class="t"><b>${m.name}</b><small>${m.tag}</small></div></button>`).join('');
+    const msg = ol.msg ? `<div class="olmsg ${ol.err ? 'err' : ''}">${ol.msg}</div>` : '';
+    return `<div class="scroll">${msg}
+      <div class="pan"><h3>Oda bilgileri</h3>
+        <div class="split"><div><label class="lb">Oda adı</label><input class="olin" id="ocName" maxlength="24" placeholder="${esc(p.name)}'in odası" value="${esc(c.name)}" spellcheck="false" autocomplete="off"></div>
+        <div><label class="lb">Şifre <em>boş bırakırsan herkes girebilir</em></label><input class="olin" id="ocPw" type="password" maxlength="16" placeholder="Şifre (isteğe bağlı)" value="${esc(ol.cpw || '')}" autocomplete="off"></div></div>
+        <div style="margin-top:12px"><label class="lb">Görünürlük</label><div class="row">${chips('listed', [[true, 'Herkese açık', 'oda listesinde görünür'], [false, 'Gizli', 'yalnızca kodu bilenler']])}</div></div></div>
+      <div class="pan"><h3>Harita</h3><div class="maps">${maps}</div></div>
+      <div class="split"><div class="pan"><h3>Günün saati</h3><div class="row">${chips('tod', TODS_LIST.map(([k, n]) => [k, n]))}</div></div>
+        <div class="pan"><h3>Hava durumu</h3><div class="row">${chips('weather', WEATHERS.map(([k, n]) => [k, n]))}</div></div></div>
+      <div class="pan"><h3>Oyun modu</h3><div class="row">${chips('type', Object.entries(MATCH_TYPES).map(([k, m]) => [k, m.label, m.desc]))}</div></div>
+      <div class="pan"><h3>Oyuncu sayısı <em>takım başına · en fazla ${c.perTeam * 2} kişi</em></h3>
+        <div class="big"><div class="n" id="ocSizeV">${c.perTeam}<i>vs</i>${c.perTeam}</div><div class="tx">${c.bots ? 'Boş yerleri botlar doldurur; oyuncu girince bir bot azalır.' : 'Botsuz: yalnızca gerçek oyuncular.'}</div></div>
+        <input type="range" id="ocSize" min="1" max="32" step="1" value="${c.perTeam}" style="--p:${((c.perTeam - 1) / 31) * 100}%">
+        <div class="row">${SIZE_PRESETS.map(([n, l]) => `<button class="chip ${c.perTeam === n ? 'on' : ''}" data-a="olset" data-k="perTeam" data-v="${n}">${l}</button>`).join('')}</div></div>
+      <div class="split"><div class="pan"><h3>Botlar</h3><div class="row">${chips('bots', [[true, 'Açık', 'boş slotlara bot'], [false, 'Kapalı', 'yalnızca oyuncular']])}</div>
+        ${c.bots ? `<h3 style="margin-top:14px">Bot zorluğu</h3><div class="row">${chips('diff', Object.entries(DIFFICULTY).map(([k, d]) => [k, d.label]))}</div>` : ''}</div>
+        <div class="pan"><h3>Bilet <em>${c.tickets || defaultTickets(c.perTeam)}</em></h3><div class="row">${chips('tickets', TICKET_OPTS)}</div>
+        <h3 style="margin-top:14px">Süre</h3><div class="row">${chips('time', TIME_OPTS)}</div></div></div>
+      </div>
+      <div class="startbar"><button class="chip" data-a="oview" data-v="online">‹ Geri</button><button class="play" data-a="olcreate" ${ol.busy ? 'disabled' : ''} style="min-width:300px">Odayı oluştur</button></div>`;
   }
 
-  // Sunucu durumu (oda / oyuncu sayısı)
+  // Sunucu durumu + oda listesi (menü çevrimiçi ekranındayken 2,5 sn'de bir)
+  const httpBase = () => healthUrl(p.server || defaultServerUrl()).replace(/\/health$/, '');
   async function checkServer() {
-    const my = ++olChk, em = q('#olStat');
-    if (!em) return;
+    const my = ++olChk;
+    if (!q('#olStat')) return;
     const set = (cls, t) => { const e = q('#olStat'); if (e && my === olChk) { e.className = cls; e.textContent = t; } };
     try {
       const c = new AbortController(), tm = setTimeout(() => c.abort(), 2500);
-      const r = await fetch(healthUrl(p.server || defaultServerUrl()), { signal: c.signal });
+      const r = await fetch(httpBase() + '/rooms', { signal: c.signal, cache: 'no-store' });
       clearTimeout(tm);
-      const j = await r.json();
-      set('ok', `● hazır · ${j.rooms} oda · ${j.players} oyuncu`);
-    } catch (e) { set('bad', '● ulaşılamıyor'); }
+      ol.rooms = await r.json();
+      const n = ol.rooms.reduce((a, x) => a + x.humans, 0);
+      set('ok', `● hazır · ${n} oyuncu çevrimiçi`);
+      const box = q('#olRooms'); if (box && !ol.busy) box.innerHTML = roomListHTML();
+    } catch (e) { ol.rooms = null; set('bad', '● sunucuya ulaşılamıyor'); const box = q('#olRooms'); if (box) box.innerHTML = '<div class="hint">Sunucuya ulaşılamıyor. Sunucu adresini aşağıdan kontrol et.</div>'; }
   }
+  const roomPoll = setInterval(() => { if (screen === 'online' && !ol.busy && !ol.pwFor) checkServer(); }, 2500);
 
-  async function goOnline(kind) {
+  async function goOnline(kind, o = {}) {
     if (ol.busy) return;
     const url = (p.server || defaultServerUrl()).trim();
     const team = p.olTeam === 'blue' || p.olTeam === 'red' ? p.olTeam : undefined;
     const cls = p.cls, loadout = loadoutOf(cls), name = p.name;
-    let hello;
+    let hello, pw = '';
     if (kind === 'create') {
-      const pick = (v, list) => (v === 'random' ? rnd(list) : v);
-      hello = { t: 'create', name, cls, loadout, team, cfg: { map: pick(p.map, Object.keys(MAPS)), tod: pick(p.tod, ['day', 'sunset', 'night']), weather: pick(p.weather, ['clear', 'rain', 'fog']), type: p.type, perTeam: p.perTeam, diff: p.diff, tickets: p.tickets || undefined, time: p.time } };
+      const c = oc(); pw = ol.cpw || '';
+      hello = { t: 'create', name, cls, loadout, team, cfg: { name: c.name.trim(), pw, listed: c.listed, map: c.map, tod: c.tod, weather: c.weather, type: c.type, perTeam: c.perTeam, bots: c.bots, diff: c.diff, tickets: c.tickets || undefined, time: c.time } };
     } else {
-      const code = (p.room || '').toUpperCase();
-      if (code.length !== 4) { ol = { msg: '4 harfli oda kodunu gir.', err: true, busy: false }; render(); return; }
-      hello = { t: 'join', room: code, name, cls, loadout, team };
+      const code = String(o.code || p.room || '').toUpperCase();
+      if (code.length !== 4) { ol = { ...ol, msg: '4 harfli oda kodunu gir.', err: true, busy: false }; render(); return; }
+      pw = o.pw ?? ol.pw ?? '';
+      hello = { t: 'join', room: code, name, cls, loadout, team, pw };
     }
-    ol = { msg: 'Bağlanılıyor…', err: false, busy: true }; render();
+    ol = { ...ol, msg: 'Bağlanılıyor…', err: false, busy: true, pwFor: null }; render();
     try {
       const r = await NetClient.connect(url, hello);
       cleanup();
-      onOnline?.({ net: r.net, welcome: r.welcome, name });
-    } catch (e) { ol = { msg: e.message, err: true, busy: false }; render(); }
+      onOnline?.({ net: r.net, welcome: r.welcome, name, pw });
+    } catch (e) { ol = { ...ol, msg: e.message, err: true, busy: false }; render(); }
   }
 
   function loadoutHTML() {
@@ -278,7 +334,7 @@ export function showMenu(onStart, onOnline) {
   function render() {
     const keep = stage.querySelector('.scroll')?.scrollTop || 0;
     stage.className = 'mn-stage' + (screen === 'loadout' ? ' right' : '');
-    stage.innerHTML = { home: homeHTML, custom: customHTML, online: onlineHTML, loadout: loadoutHTML, settings: settingsHTML, controls: controlsHTML }[screen]();
+    stage.innerHTML = { home: homeHTML, custom: customHTML, online: onlineHTML, ocreate: ocreateHTML, loadout: loadoutHTML, settings: settingsHTML, controls: controlsHTML }[screen]();
     const sc = stage.querySelector('.scroll'); if (sc) sc.scrollTop = keep;
     renderNav(); renderUser(); bg();
     if (screen === 'loadout') fillIcons();
@@ -318,7 +374,7 @@ export function showMenu(onStart, onOnline) {
     onStart(payload);
   }
   function cleanup() {
-    clearInterval(tipTimer); clearTimeout(iconTimer);
+    clearInterval(tipTimer); clearTimeout(iconTimer); clearInterval(roomPoll);
     document.removeEventListener('keydown', onKey);
     scene?.dispose(); scene = null;
     el.style.display = 'none'; el.innerHTML = '';
@@ -329,6 +385,10 @@ export function showMenu(onStart, onOnline) {
   stage.addEventListener('input', (e) => {
     const t = e.target, id = t.id;
     if (id === 'olCode') { t.value = t.value.toUpperCase().replace(/[^A-Z]/g, ''); p.room = t.value; save(); return; }
+    if (id === 'olPw') { ol.pw = t.value; return; }
+    if (id === 'ocName') { oc().name = t.value; save(); return; }
+    if (id === 'ocPw') { ol.cpw = t.value; return; }
+    if (id === 'ocSize') { const v = +t.value; oc().perTeam = v; t.style.setProperty('--p', ((v - 1) / 31) * 100 + '%'); q('#ocSizeV').innerHTML = `${v}<i>vs</i>${v}`; stage.querySelectorAll('[data-k=perTeam]').forEach((c) => c.classList.toggle('on', +c.dataset.v === v)); save(); return; }
     if (id === 'olServer') { p.server = t.value.trim(); save(); clearTimeout(t._d); t._d = setTimeout(checkServer, 500); return; }
     if (t.type !== 'range') return;
     const v = +t.value, mn = +t.min, mx = +t.max;
@@ -341,8 +401,8 @@ export function showMenu(onStart, onOnline) {
     else if (id === 'sVol') { p.volume = v; stage.querySelector('#v_sVol').textContent = Math.round(v * 100) + '%'; }
     save();
   });
-  stage.addEventListener('change', (e) => { if (e.target.id === 'rSize') render(); });
-  stage.addEventListener('keydown', (e) => { if (e.target.tagName === 'INPUT') { e.stopPropagation(); if (e.key === 'Enter' && e.target.id === 'olCode') goOnline('join'); } });
+  stage.addEventListener('change', (e) => { if (e.target.id === 'rSize' || e.target.id === 'ocSize') render(); });
+  stage.addEventListener('keydown', (e) => { if (e.target.tagName === 'INPUT') { e.stopPropagation(); if (e.key === 'Enter' && (e.target.id === 'olCode' || e.target.id === 'olPw')) goOnline('join'); if (e.key === 'Enter' && e.target.id === 'olPwJoin') { const pw = e.target.value; goOnline('join', { code: ol.pwFor?.code, pw }); } } });
 
   const act = (e) => {
     const b = e.target.closest('[data-a]'); if (!b) return;
@@ -361,6 +421,19 @@ export function showMenu(onStart, onOnline) {
       case 'tickets': p.tickets = +v; break;
       case 'time': p.time = +v; break;
       case 'oltm': p.olTeam = v; break;
+      case 'oview': screen = v; ol = { ...ol, msg: '', err: false }; break;
+      case 'olset': {
+        const k = b.dataset.k, c = oc();
+        c[k] = v === 'true' ? true : v === 'false' ? false : (k === 'perTeam' || k === 'tickets' || k === 'time') ? +v : v;
+        break;
+      }
+      case 'rjoin': {
+        const r = ol.rooms?.find((x) => x.code === b.dataset.code);
+        if (b.dataset.locked === '1') { ol = { ...ol, pwFor: { code: b.dataset.code, name: r?.name || '' }, msg: '', err: false }; save(); render(); setTimeout(() => q('#olPwJoin')?.focus(), 30); return; }
+        goOnline('join', { code: b.dataset.code, pw: '' }); return;
+      }
+      case 'rpwgo': goOnline('join', { code: ol.pwFor?.code, pw: q('#olPwJoin')?.value || '' }); return;
+      case 'rpwcancel': ol = { ...ol, pwFor: null }; break;
       case 'olcreate': goOnline('create'); return;
       case 'oljoin': goOnline('join'); return;
       case 'cls': p.cls = v; slot = 'primary'; break;

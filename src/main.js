@@ -39,14 +39,15 @@ function start(opts) {
 }
 
 // Çevrimiçi: bağlantı kurulduktan sonra (menüden ya da URL'den) oyunu başlat
-function beginOnline({ net, welcome, name }) {
+function beginOnline({ net, welcome, name, pw }) {
   const p = loadPrefs();
   const c = welcome.cfg, me = welcome.roster[welcome.id];
+  try { if (pw) sessionStorage.setItem('bf_pw_' + welcome.room, pw); } catch (e) { /* yok say */ }       // sayfa yenilenince (maç sonu / takım değişimi) yeniden sorulmasın
   const cls = me.cls, loadout = (p.loadouts && p.loadouts[cls]) || {};
   history.replaceState(null, '', `?online=${welcome.room}${q.get('debug') ? '&debug=1' : ''}${q.get('nolock') ? '&nolock=1' : ''}&name=${encodeURIComponent(name)}`);
   document.getElementById('menu').style.display = 'none';
   start({
-    online: { net, id: welcome.id, roster: welcome.roster, deps: welcome.deps, room: welcome.room },
+    online: { net, id: welcome.id, roster: welcome.roster, deps: welcome.deps, room: welcome.room, cfg: c },
     match: { perTeam: c.perTeam, type: c.type, tickets: c.tickets, time: c.time }, map: c.map, tod: c.tod, weather: c.weather, diff: c.diff,
     optic: q.get('optic') || p.optic || 'reddot', team: me.team, cls, playerName: name,
     loadout, onExit: () => { location.href = location.pathname; }, onRestart: () => location.reload(),
@@ -63,12 +64,14 @@ async function startOnline() {
   const name = q.get('name') || p.name || 'Oyuncu';
   const code = q.get('online');
   const cls = q.get('cls') || p.cls || 'assault', loadout = (p.loadouts && p.loadouts[cls]) || {};
+  let pw = q.get('pw') || '';
+  if (!pw && code.toLowerCase() !== 'new') { try { pw = sessionStorage.getItem('bf_pw_' + code.toUpperCase()) || ''; } catch (e) { /* yok say */ } }
   const hello = code.toLowerCase() === 'new'
-    ? { t: 'create', name, cls, loadout, team: q.get('team') || undefined, cfg: { map: q.get('map') || 'kasaba', tod: q.get('tod') || 'day', weather: q.get('weather') || 'clear', type: q.get('type') || 'conquest', perTeam: +q.get('per') || 5, diff: q.get('diff') || 'normal', tickets: +q.get('tickets') || undefined, time: q.has('time') ? +q.get('time') : undefined } }
-    : { t: 'join', room: code, name, cls, loadout, team: q.get('team') || undefined };
+    ? { t: 'create', name, cls, loadout, team: q.get('team') || undefined, cfg: { name: q.get('room') || undefined, pw, listed: q.get('listed') !== '0', bots: q.get('bots') !== '0', map: q.get('map') || 'kasaba', tod: q.get('tod') || 'day', weather: q.get('weather') || 'clear', type: q.get('type') || 'conquest', perTeam: +q.get('per') || 5, diff: q.get('diff') || 'normal', tickets: +q.get('tickets') || undefined, time: q.has('time') ? +q.get('time') : undefined } }
+    : { t: 'join', room: code, name, cls, loadout, pw, team: q.get('team') || undefined };
   try {
     const { net, welcome } = await NetClient.connect(url, hello);
-    beginOnline({ net, welcome, name });
+    beginOnline({ net, welcome, name, pw });
   } catch (e) {
     loading.style.display = 'flex';
     loading.innerHTML = `<div class="lg">BLOCK<b>FRONT</b></div><div class="lt">Bağlanılamadı: ${e.message}<br><br><a href="${location.pathname}" style="color:#ff8a1f">Ana menüye dön</a></div>`;

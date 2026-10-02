@@ -2,6 +2,8 @@
 import { Game } from '../src/game/game.js';
 import { SIM_DT, SIM_HZ, SNAP_EVERY, packSoldier, cleanName } from '../src/net/protocol.js';
 import { CLASS_DEFS, WSTATS } from '../src/game/stats.js';
+import { defaultTickets } from '../src/game/match.js';
+import { MAPS } from '../src/maps/index.js';
 
 const RESTART_MS = +process.env.BF_RESTART_MS || 15000;      // maç bitince sonuç ekranı süresi, sonra oda sıfırlanır
 
@@ -17,16 +19,27 @@ export function sanitizeCfg(c = {}) {
     type: pick(c.type, ['conquest', 'tdm'], 'conquest'),
     diff: pick(c.diff, ['easy', 'normal', 'hard'], 'normal'),
     perTeam: Math.round(num(c.perTeam, 1, MAX_PER_TEAM, 5)),
-    tickets: Math.round(num(c.tickets, 20, 1000, 200)),
+    tickets: Number.isFinite(c.tickets) && c.tickets > 0 ? Math.round(num(c.tickets, 20, 1000, 200)) : 0,   // 0 = boyuta göre otomatik
     time: Math.round(num(c.time, 0, 3600, 900)),
+    bots: c.bots !== false,
+    name: cleanRoomName(c.name),
+    pw: typeof c.pw === 'string' ? c.pw.slice(0, 16) : '',
+    listed: c.listed !== false,
   };
 }
 
+const cleanRoomName = (n) => String(n || '').replace(/[<>&"'`]/g, '').trim().slice(0, 24);
+
 export class Room {
-  constructor(code, cfg, onClose) {
+  // opts.official: { name, desc, rotation:[{map,tod,weather}] } — kalıcı, harita dönen resmi oda
+  constructor(code, cfg, opts = {}) {
     this.code = code;
+    this.official = opts.official || null;
+    this.rot = 0;                                   // resmi odada harita sırası
     this.cfg = sanitizeCfg(cfg);
-    this.onClose = onClose;
+    this.cfg.name = this.official ? this.official.name : this.cfg.name || 'Oda ' + code;
+    if (this.official) { this.cfg.listed = true; this.cfg.pw = ''; }
+    this.owner = opts.owner || '';
     this.clients = new Map();        // savaşçı id → { ws, name, h }
     this.emptySince = Date.now();
     this.resetAt = 0;
@@ -38,9 +51,10 @@ export class Room {
 
   newGame() {
     const c = this.cfg;
+    if (this.official) Object.assign(c, this.official.rotation[this.rot % this.official.rotation.length]);   // sıradaki harita
     this.game = new Game(null, {
-      headless: true, map: c.map, tod: c.tod, weather: c.weather, diff: c.diff,
-      match: { perTeam: c.perTeam, type: c.type, tickets: c.tickets, time: c.time },
+      headless: true, map: c.map, tod: c.tod, weather: c.weather, diff: c.diff, bots: c.bots,
+      match: { perTeam: c.perTeam, type: c.type, tickets: c.tickets || undefined, time: c.time },
     });
     this.tick = 0;
     this.resetAt = 0;
@@ -53,23 +67,55 @@ export class Room {
     for (const c of this.clients.values()) c.ws.ctx = null;
     this.clients.clear();
     this.emptySince = Date.now();
+    if (this.official && this.game.ended) this.rot++;       // resmi odada sıradaki haritaya geç
     this.game.dispose();
     this.newGame();
   }
 
+  // Listede gösterilen özet (şifre asla yok)
+  info() {
+    const c = this.cfg, g = this.game;
+    return {
+      code: this.code, name: c.name, official: !!this.official, desc: this.official ? this.official.desc : '',
+      map: c.map, tod: c.tod, weather: c.weather, type: c.type, perTeam: c.perTeam, humans: this.clients.size, cap: c.perTeam * 2,
+      bots: c.bots, diff: c.diff, locked: !!c.pw, ended: g.ended, tl: g.timeLeft === Infinity ? -1 : Math.round(g.timeLeft),
+      tk: [Math.round(g.tickets.blue), Math.round(g.tickets.red)], by: this.owner,
+    };
+  }
+
+  // Şifresiz, sunucuya gönderilecek ayarlar
+  publicCfg() { const { pw, ...rest } = this.cfg; return { ...rest, locked: !!pw, official: !!this.official }; }
+
+  humansOf(team) { let n = 0; for (const id of this.clients.keys()) if (this.game.soldiers[id].team === team) n++; return n; }
+
   get humanCount() { return this.clients.size; }
 
-  canJoin() { return this.game.ended ? 'Maç bitti, yeni maç birazdan başlıyor' : null; }
+  canJoin(pw) {
+    if (this.cfg.pw && pw !== this.cfg.pw) return 'Şifre yanlış';
+    if (this.game.ended) return 'Maç bitti, yeni maç birazdan başlıyor';
+    if (this.clients.size >= this.cfg.perTeam * 2) return 'Oda dolu';
+    return null;
+  }
+
+  // Takım değiştirme isteği (M menüsü): hedef takımda boş yer var mı?
+  teamCheck(id, team) {
+    const c = this.clients.get(id);
+    if (!c || (team !== 'blue' && team !== 'red')) return { ok: false, msg: 'Geçersiz takım' };
+    if (this.game.soldiers[id].team === team) return { ok: false, msg: 'Zaten bu takımdasın' };
+    if (this.humansOf(team) >= this.cfg.perTeam) return { ok: false, msg: 'Bu takım dolu' };
+    return { ok: true, team };
+  }
 
   roster() {
-    return this.game.soldiers.map((s) => ({ id: s.id, name: s.name, team: s.team, cls: s.cls, human: this.game.humans.has(s.id) }));
+    return this.game.soldiers.map((s) => ({ id: s.id, name: s.name, team: s.team, cls: s.cls, human: this.game.humans.has(s.id), vac: !!s.vacant }));
   }
 
   join(ws, name, team, cls, loadout) {
     const g = this.game;
-    const counts = { blue: 0, red: 0 };
-    for (const id of this.clients.keys()) counts[g.soldiers[id].team]++;
-    const t = team === 'blue' || team === 'red' ? team : counts.blue <= counts.red ? 'blue' : 'red';
+    const counts = { blue: this.humansOf('blue'), red: this.humansOf('red') }, cap = this.cfg.perTeam;
+    let t = team === 'blue' || team === 'red' ? team : counts.blue <= counts.red ? 'blue' : 'red';
+    if (counts[t] >= cap) t = t === 'blue' ? 'red' : 'blue';         // seçilen takım doluysa diğeri
+    if (counts[t] >= cap) return null;
     // aynı isim varsa sonuna sayı ekle (Sen, Sen 2, ...)
     const taken = new Set(g.soldiers.map((e) => e.name.toLowerCase()));
     let nm = cleanName(name), n = 2;
@@ -81,7 +127,7 @@ export class Room {
     this.clients.set(s.id, c);
     this.emptySince = 0;
     const deps = g.deployables.map((d) => ({ e: 'dep', id: d.id, ty: d.type === 'claymore' ? 'c' : 'a', p: [d.pos.x, d.mesh.position.y - (d.type === 'claymore' ? 0.15 : 0), d.pos.z], ry: d.ry, tm: d.team, by: d.owner.id }));
-    ws.send(JSON.stringify({ t: 'welcome', id: s.id, room: this.code, cfg: this.cfg, roster: this.roster(), hz: SIM_HZ, deps }));
+    ws.send(JSON.stringify({ t: 'welcome', id: s.id, room: this.code, cfg: this.publicCfg(), roster: this.roster(), hz: SIM_HZ, deps }));
     this.broadcast({ t: 'roster', roster: this.roster() }, ws);
     return c;
   }
@@ -90,7 +136,11 @@ export class Room {
     if (!this.clients.has(id)) return;
     this.clients.delete(id);
     this.game.releaseSlot(id);
-    if (!this.clients.size) this.emptySince = Date.now();
+    if (!this.clients.size) {
+      this.emptySince = Date.now();
+      // resmi oda boşalınca taze maça hazırlanır (bir sonraki ilk oyuncu temiz başlangıç görür; maç bitmişse sıradaki harita)
+      if (this.official) { if (this.game.ended) this.rot++; this.game.dispose(); this.newGame(); return; }
+    }
     this.broadcast({ t: 'roster', roster: this.roster() });
   }
 
@@ -141,6 +191,7 @@ export class Room {
 
   loop() {
     const now = performance.now();
+    if (!this.clients.size) { this._last = now; this._acc = 0; return; }       // izleyen yok: simülasyonu durdur (CPU)
     this._acc = Math.min(this._acc + (now - this._last) / 1000, 0.25);
     this._last = now;
     while (this._acc >= SIM_DT) { this._acc -= SIM_DT; this.step(); }

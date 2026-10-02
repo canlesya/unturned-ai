@@ -99,11 +99,20 @@ nginx kullanıyorsan Node'un 8787 portunu dışarı açma (yalnızca 127.0.0.1'd
 | `BF_RESTART_MS` | 15000 | Maç bitince sonuç ekranı süresi, sonra oda yeni maça hazırlanır |
 | `BF_DEBUG` | kapalı | **Yalnızca test için** ışınlanma/eşya/bilet komutlarını açar. **VPS'te kullanma.** |
 
-## 6. Beta testi için kontrol listesi
+## 6. Resmi sunucular ve oda listesi
+
+Sunucu açılışında `server/official.js` içindeki **3 resmi oda** otomatik kurulur (10v10 Ele Geçirme, 16v16 Büyük Savaş, 8v8 Takım Çatışması;
+hepsi botlu, haritalar sırayla döner). Oyuncu girince bir bot azalır; boşken CPU harcamaz. Menüdeki oda listesi `GET /rooms` ile gelir:
+`curl http://SUNUCU/rooms`. Resmi odaları değiştirmek için `server/official.js` dosyasını düzenle (ad, mod, boyut, harita listesi).
+
+## 7. Beta testi için kontrol listesi
 
 - [ ] `curl https://oyun.ornek.com/health` çalışıyor
 - [ ] İki farklı bilgisayar / ağdan oda kur + koda katıl
 - [ ] Ping rozeti (sol üst, minimap altı) makul (<100 ms aynı bölgede)
+- [ ] Resmi sunucu listede görünüyor, katılınca bot sayısı azalıyor
+- [ ] Şifreli / gizli / botsuz oda kur, başka bilgisayardan listeden katıl
+- [ ] Oyunda `M` ile takım değiştir
 - [ ] Ateş, öldürme, doğma, bayrak, gadget'lar
 - [ ] Maç bitince 15 sn sonra odanın yenilendiği
 - [ ] `pm2 logs blockfront` içinde hata yok
