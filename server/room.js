@@ -78,6 +78,7 @@ export class Room {
       f: Math.round(num(m.f, -1, 1)), r: Math.round(num(m.r, -1, 1)), l: Math.round(num(m.l, -1, 1)),
       s: m.s ? 1 : 0, j: m.j ? 1 : 0, a: m.a ? 1 : 0,
       yw: num(m.yw, -1e4, 1e4), pt: num(m.pt, -1.5, 1.5),
+      w: Math.round(num(m.w, 0, 3)),
       c: m.c ? 1 : 0, p: m.p ? 1 : 0, u: m.u ? 1 : 0,
     });
   }

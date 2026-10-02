@@ -270,8 +270,8 @@ export class Player {
       const s = this.s;
       if (!this.game.running) return;
       if (e.code === 'KeyR') s.startReload();
-      if (s.alive && (e.code === 'KeyC' || e.code === 'ControlLeft' || e.code === 'ControlRight')) s.toggleCrouch();
-      if (s.alive && e.code === 'KeyZ') s.toggleProne();
+      if (s.alive && (e.code === 'KeyC' || e.code === 'ControlLeft' || e.code === 'ControlRight')) { s.toggleCrouch(); this.game.online?.edge('c'); }
+      if (s.alive && e.code === 'KeyZ') { s.toggleProne(); this.game.online?.edge('p'); }
       if (s.alive && e.code === 'KeyB') { const o = s.cycleOptic(); if (o) this.game.hud.toast('Nişangâh: ' + o.label, '#cfe6ff'); }
       if (e.code.startsWith('Digit')) { const n = +e.code.slice(5) - 1; if (n >= 0 && n < 4) s.switchTo(n); }
       if (e.code === 'KeyV') s.switchTo(3);
@@ -279,7 +279,7 @@ export class Player {
       if (e.code === 'KeyG') s.switchTo(2);
       if (e.code === 'Tab') { e.preventDefault(); this.game.hud.showScoreboard(true); }
       if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
-      if (e.code === 'Space' && s.alive && (s.prone || s.crouching)) { s.standUp(); this.spaceLatch = true; }   // yatarken/çömelirken Boşluk = kalk
+      if (e.code === 'Space' && s.alive && (s.prone || s.crouching)) { s.standUp(); this.game.online?.edge('u'); this.spaceLatch = true; }   // yatarken/çömelirken Boşluk = kalk
       if (e.code === 'Escape' && this.game.noPointerLock) this.game.togglePause();
       if (!s.alive && this.game.respawnReady() && e.code.startsWith('Digit')) {
         const keys = Object.keys(this.game.classDefs);
@@ -339,7 +339,9 @@ export class Player {
       const r = (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0);
       const st = s.stat;
       const lean = (k.has('KeyE') ? 1 : 0) - (k.has('KeyQ') ? 1 : 0);
-      applyInput(s, { f, r, lean, sprint: k.has('ShiftLeft'), jump: k.has('Space') && !this.spaceLatch }, dt);
+      const inp = { f, r, lean, sprint: k.has('ShiftLeft'), jump: k.has('Space') && !this.spaceLatch };
+      applyInput(s, inp, dt);
+      if (g.online) g.online.pushInput(inp, s);
       if (!k.has('Space')) this.spaceLatch = false;
 
       // ateş

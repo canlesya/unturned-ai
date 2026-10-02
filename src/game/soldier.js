@@ -165,6 +165,7 @@ export class Soldier {
   }
 
   tryFire() {
+    if (this.game.online) return false;      // çevrimiçi ateş: sunucu otoriteli (Adım 4)
     if (!this.alive || this.cd > 0 || this.switchT > 0 || this.useT > 0) return false;
     if (this.reloadT > 0 && !this.cancelShellReload()) return false;
     const it = this.item, st = this.stat;

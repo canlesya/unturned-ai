@@ -1,6 +1,8 @@
 import { Game } from './game/game.js';
 import { showMenu, loadPrefs, recordMatch } from './menu.js';
 import { MENU_CSS } from './menuStyle.js';
+import { NetClient } from './net/client.js';
+import { DEFAULT_PORT } from './net/protocol.js';
 
 const q = new URLSearchParams(location.search);
 const loading = document.getElementById('loading');
@@ -36,7 +38,35 @@ function start(opts) {
   }, 60);
 }
 
-if (q.get('autostart')) {
+// Çevrimiçi: /?online=new  (oda kur)  ya da  /?online=ABCD  (odaya katıl)  &name=Ad  [&server=ws://host:8787] [&map=&per=&tod=&weather=&type=]
+async function startOnline() {
+  const p = loadPrefs();
+  document.getElementById('menu').style.display = 'none';
+  showLoading();
+  const url = q.get('server') || `ws://${location.hostname || '127.0.0.1'}:${DEFAULT_PORT}`;
+  const name = q.get('name') || p.name || 'Oyuncu';
+  const code = q.get('online');
+  const hello = code.toLowerCase() === 'new'
+    ? { t: 'create', name, team: q.get('team') || undefined, cfg: { map: q.get('map') || 'kasaba', tod: q.get('tod') || 'day', weather: q.get('weather') || 'clear', type: q.get('type') || 'conquest', perTeam: +q.get('per') || 5, diff: q.get('diff') || 'normal', tickets: +q.get('tickets') || undefined, time: q.has('time') ? +q.get('time') : undefined } }
+    : { t: 'join', room: code, name, team: q.get('team') || undefined };
+  try {
+    const { net, welcome } = await NetClient.connect(url, hello);
+    const c = welcome.cfg;
+    history.replaceState(null, '', `?online=${welcome.room}${q.get('debug') ? '&debug=1' : ''}${q.get('nolock') ? '&nolock=1' : ''}&name=${encodeURIComponent(name)}`);
+    start({
+      online: { net, id: welcome.id, roster: welcome.roster },
+      match: { perTeam: c.perTeam, type: c.type, tickets: c.tickets, time: c.time }, map: c.map, tod: c.tod, weather: c.weather, diff: c.diff,
+      optic: q.get('optic') || 'reddot', team: welcome.roster[welcome.id].team, cls: welcome.roster[welcome.id].cls, playerName: name,
+      loadout: {}, settings: { sens: p.sens, fov: p.fov, volume: p.volume ?? 0.6, shadows: q.get('shadows') !== '0', pixelRatio: +(q.get('pr') || 1) },
+    });
+  } catch (e) {
+    loading.style.display = 'flex';
+    loading.innerHTML = `<div class="lg">BLOCK<b>FRONT</b></div><div class="lt">Bağlanılamadı: ${e.message}</div>`;
+  }
+}
+
+if (q.get('online')) startOnline();
+else if (q.get('autostart')) {
   const p = loadPrefs();
   document.getElementById('menu').style.display = 'none';
   const mm = /^(\d+)v\d+$/.exec(q.get('autostart'));

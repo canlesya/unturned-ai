@@ -19,15 +19,19 @@ check(a.msgs.some((m) => m.t === 'roster'), 'A, B girince roster güncellemesi a
 // A, açık bir yöne (yaw=π) ileri yürür (60 Hz, 2 sn)
 await wait(500);
 const snap0 = a.msgs.filter((m) => m.t === 'snap').pop();
-let q = 0;
-const iv = setInterval(() => a.send(JSON.stringify({ t: 'in', q: ++q, f: 1, r: 0, l: 0, s: 0, j: 0, a: 0, yw: 3.14, pt: 0 })), 1000 / 60);
-await wait(2000); clearInterval(iv);
+let q = 0, best = 0, bestSnap = snap0;
+for (let k = 0; k < 8; k++) {            // spawn'ın önü kapalı olabilir: 8 yönü dene
+  const before = a.msgs.filter((m) => m.t === 'snap').pop();
+  const iv = setInterval(() => a.send(JSON.stringify({ t: 'in', q: ++q, f: 1, r: 0, l: 0, s: 0, j: 0, a: 0, yw: k * Math.PI / 4, pt: 0 })), 1000 / 60);
+  await wait(500); clearInterval(iv);
+  const after = a.msgs.filter((m) => m.t === 'snap').pop();
+  const d = Math.hypot(after.me.now.x - before.me.now.x, after.me.now.z - before.me.now.z);
+  if (d > best) { best = d; bestSnap = after; }
+}
 const snap1 = a.msgs.filter((m) => m.t === 'snap').pop();
-const dz = snap1.me.now.z - snap0.me.now.z, dx = snap1.me.now.x - snap0.me.now.x;
-console.log(`      A: ${snap0.me.now.z} → ${snap1.me.now.z}  (dz ${dz.toFixed(2)}, ack ${snap1.me.ack}/${q})`);
+console.log(`      A en iyi yönde 0.5 sn'de ${best.toFixed(2)} m yürüdü (ack ${snap1.me.ack}/${q})`);
 check(snap1.me.ack > q - 10, 'sunucu girdileri işledi (ack yakın)');
-check(Math.abs(dz) > 3 || Math.abs(dx) > 3, 'A sunucuda ilerledi');
-// B, A'yı kendi snapshot'ında görür mü?
+check(best > 1.5, 'A sunucuda ilerledi');
 const sb = b.msgs.filter((m) => m.t === 'snap').pop();
 const aInB = sb.s.find((s) => s.i === wa.id);
 check(Math.abs(aInB.z - snap1.me.now.z) < 1.5 && Math.abs(aInB.x - snap1.me.now.x) < 1.5, 'B, A\'nın konumunu snapshot\'ta görüyor');

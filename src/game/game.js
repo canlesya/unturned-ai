@@ -16,6 +16,7 @@ import { rand, pick, clamp } from './util.js';
 import { TEAMS } from '../core/palette.js';
 import { nullSink } from '../sim/nullSink.js';
 import { applyInput } from '../sim/input.js';
+import { SIM_DT } from '../net/protocol.js';
 import { mat } from '../core/geo.js';
 import { initGadgets, updateGadgets, spawnSmoke, flashBang, smokeBlocks, smokeDensity, placeDeployable } from './gadgets.js';
 
@@ -127,7 +128,15 @@ export class Game {
     const nameOf = (n) => names.length ? names.pop() : `Bot-${n}`;
     const order = ['assault', 'medic', 'assault', 'heavy', 'sniper', 'engineer', 'assault', 'medic', 'engineer', 'assault', 'sniper', 'heavy'];
     let id = 0;
-    for (const team of ['blue', 'red']) {
+    this.online = opts.online ? opts.online.net : null;     // NetClient (çevrimiçi istemci) ya da null (offline / sunucu)
+    if (opts.online) {
+      for (const r of opts.online.roster) {
+        const isPlayer = r.id === opts.online.id;
+        const s = new Soldier(this, { id: r.id, name: r.name, team: r.team, cls: r.cls, isPlayer });
+        this.soldiers.push(s);
+        if (isPlayer) this.playerSoldier = s;
+      }
+    } else for (const team of ['blue', 'red']) {
       for (let i = 0; i < this.mode.perTeam; i++) {
         const isPlayer = !headless && team === opts.team && i === 0;
         const s = new Soldier(this, {
@@ -148,7 +157,7 @@ export class Game {
     this.squadGoals = { blue: [], red: [] };
     this.perchCache = new Map();
     this.squadT = 0;
-    this.assignSquads();
+    if (!opts.online) this.assignSquads();
     if (headless) {
       this.hud = nullSink();
       this.playerSoldier = null;
@@ -184,9 +193,12 @@ export class Game {
       this.renderer.setSize(innerWidth, innerHeight, false);
     });
 
-    for (const s of this.soldiers) this.respawn(s, true);
+    if (this.online) {
+      this._acc = 0;
+      this.online.attach(this);        // ilk snapshot doğmayı belirler (respawn yok)
+    } else for (const s of this.soldiers) this.respawn(s, true);
     this.running = true;
-    this.simulate = !!opts.nolock;
+    this.simulate = !!opts.nolock || !!this.online;
     this.hud.setPaused(!opts.nolock);
     this.last = performance.now();
     this.loop = this.loop.bind(this);
@@ -240,6 +252,7 @@ export class Game {
         if (!s.alive) continue;
         s.yaw = inp.yw; s.pitch = Math.max(-1.5, Math.min(1.5, inp.pt));
         s.ads = !!inp.a;
+        if (inp.w !== s.cur) s.switchTo(inp.w);
         if (inp.u) s.standUp();
         if (inp.c) s.toggleCrouch();
         if (inp.p) s.toggleProne();
@@ -443,9 +456,27 @@ export class Game {
     this.raf = requestAnimationFrame(this.loop);
     const dt = clamp((now - this.last) / 1000 || 0.016, 0, 0.05);
     this.last = now;
-    if (this.simulate && !this.ended) this.step(dt);
+    if (this.online && !this.ended) {
+      // çevrimiçi: sunucuyla aynı sabit adım (tahmin birebir tutsun)
+      this._acc = Math.min(this._acc + dt, 0.1);
+      while (this._acc >= SIM_DT) { this._acc -= SIM_DT; this.stepOnline(SIM_DT); }
+    } else if (this.simulate && !this.ended) this.step(dt);
     else if (this.ended) { this.effects.update(dt); for (const s of this.soldiers) s.syncModel(dt); }
     this.render();
+  }
+
+  // Çevrimiçi istemci adımı: yalnızca yerel oyuncuyu tahmin eder; diğerleri sunucudan interpolasyonla gelir.
+  // Sıra sunucuyla aynı: (güncelle + hareket) sonra girdi → vel.
+  stepOnline(dt) {
+    this.time += dt;
+    this.online.interpolate(performance.now());
+    const me = this.playerSoldier;
+    for (const s of this.soldiers) s.update(dt);
+    if (me.alive) this.world.move(me, dt);
+    this.player.update(dt);
+    this.effects.update(dt);
+    for (const s of this.soldiers) s.syncModel(dt);
+    this.hud.update(dt);
   }
 
   step(dt) {
@@ -814,6 +845,7 @@ export class Game {
   dispose() {
     this.running = false;
     if (this.headless) return;
+    this.online?.ws.close();
     cancelAnimationFrame(this.raf);
     this.weather?.dispose();
     document.exitPointerLock?.();
