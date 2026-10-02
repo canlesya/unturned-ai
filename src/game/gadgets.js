@@ -129,6 +129,7 @@ function groundAt(game, x, z, fromY) {
 export function placeDeployable(game, s, st) {
   const fx = -Math.sin(s.yaw), fz = -Math.cos(s.yaw);
   if (!s.onGround) return false;
+  if (game.online) return true;        // çevrimiçi istemci: nesneyi sunucu olayı (dep) oluşturur; burada yalnızca animasyon/cephane tahmini
   const x = s.pos.x + fx * 0.9, z = s.pos.z + fz * 0.9;
   // önü duvarsa kurma
   const wall = game.world.raycast(new THREE.Vector3(s.pos.x, s.pos.y + 0.5, s.pos.z), new THREE.Vector3(fx, 0, fz), 1.0, {});
@@ -142,7 +143,9 @@ export function placeDeployable(game, s, st) {
     mesh.position.set(x, y + 0.15, z);
     mesh.rotation.y = s.yaw;
     game.scene.add(mesh);
-    game.deployables.push({ type: 'claymore', owner: s, team: s.team, pos: new THREE.Vector3(x, y + 0.18, z), fx, fz, arm: 1.2, mesh, st, beep: 0 });
+    const d = { id: ++game.pidN, type: 'claymore', owner: s, team: s.team, pos: new THREE.Vector3(x, y + 0.18, z), fx, fz, arm: 1.2, mesh, st, beep: 0, ry: s.yaw };
+    game.deployables.push(d);
+    game.netEvent({ e: 'dep', id: d.id, ty: 'c', p: [x, y, z], ry: +s.yaw.toFixed(3), tm: s.team, w: 'claymore', by: s.id });
     return true;
   }
   if (st.kind === 'ammobox') {
@@ -151,7 +154,9 @@ export function placeDeployable(game, s, st) {
     mesh.position.set(x, y, z);
     mesh.rotation.y = s.yaw;
     game.scene.add(mesh);
-    game.deployables.push({ type: 'ammo', owner: s, team: s.team, pos: new THREE.Vector3(x, y + 0.2, z), mesh, life: st.life || 30, tick: 0.5, st });
+    const d = { id: ++game.pidN, type: 'ammo', owner: s, team: s.team, pos: new THREE.Vector3(x, y + 0.2, z), mesh, life: st.life || 30, tick: 0.5, st, ry: s.yaw };
+    game.deployables.push(d);
+    game.netEvent({ e: 'dep', id: d.id, ty: 'a', p: [x, y, z], ry: +s.yaw.toFixed(3), tm: s.team, w: 'ammobox', by: s.id });
     if (s.isPlayer) game.hud.toast('Cephane kutusu kuruldu', '#cfe6ff');
     return true;
   }
@@ -162,10 +167,27 @@ function removeDeployable(game, d) {
   game.scene.remove(d.mesh);
   const i = game.deployables.indexOf(d);
   if (i >= 0) game.deployables.splice(i, 1);
+  game.netEvent({ e: 'depx', id: d.id });
+}
+
+// Çevrimiçi istemci: sunucunun kurduğu nesneyi yalnızca görsel olarak oluştur / kaldır
+export function netDeploy(game, ev) {
+  const [x, y, z] = ev.p;
+  let mesh;
+  if (ev.ty === 'c') { mesh = createWeapon('claymore'); mesh.scale.setScalar(2.2); mesh.position.set(x, y + 0.15, z); }
+  else { mesh = createItem('ammoBox'); mesh.scale.setScalar(1.7); mesh.position.set(x, y, z); }
+  mesh.rotation.y = ev.ry;
+  game.scene.add(mesh);
+  game.deployables.push({ id: ev.id, type: ev.ty === 'c' ? 'claymore' : 'ammo', team: ev.tm, mesh, pos: new THREE.Vector3(x, y, z) });
+}
+export function netUndeploy(game, id) {
+  const d = game.deployables.find((e) => e.id === id);
+  if (d) removeDeployable(game, d);
 }
 
 function claymoreBlast(game, d) {
   const st = d.st, pos = d.pos, R = st.radius;
+  game.netEvent({ e: 'boom', k: 'x', p: [+pos.x.toFixed(2), +pos.y.toFixed(2), +pos.z.toFixed(2)], r: +(R * 0.7).toFixed(2), by: d.owner.id });
   game.effects.explosion(pos, R * 0.7);
   game.sfx.explosion(pos);
   game.alertNear?.(pos, d.team, 70);
@@ -187,6 +209,7 @@ function claymoreBlast(game, d) {
 
 export function updateGadgets(game, dt, T) {
   updateSmokes(game, dt, T);
+  if (game.online) return;               // çevrimiçi istemci: mayın/cephane mantığı sunucuda
   for (let i = game.deployables.length - 1; i >= 0; i--) {
     const d = game.deployables[i];
     if (!game.deployables.includes(d)) continue;
@@ -220,6 +243,7 @@ export function updateGadgets(game, dt, T) {
             }
           }
           if (any && s.isPlayer) { game.hud.toast('Mühimmat dolduruldu', '#9be07a'); game.sfx.deploy(s.pos); }
+          else if (any && s.human) game.netEvent({ e: 'ammo', v: s.id });
         }
       }
     }

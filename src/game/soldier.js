@@ -169,7 +169,6 @@ export class Soldier {
     if (!this.alive || this.cd > 0 || this.switchT > 0 || this.useT > 0) return false;
     if (this.reloadT > 0 && !this.cancelShellReload()) return false;
     const it = this.item, st = this.stat;
-    if (this.game.online && !(st.kind === 'gun' || st.kind === 'melee' || st.kind === 'medkit')) return false;   // gadget'lar: Adım 4b
     if (st.kind === 'melee') return this._melee(st);
     if (st.kind === 'medkit') return this._medkit(it, st);
     if (it.mag <= 0) {
@@ -234,7 +233,7 @@ export class Soldier {
     if (st.impact) this.game.spawnShell(this, m, d, st); else this.game.spawnRocket(this, m, d, st);
     this.game.sfx.shot(st.sound, this.pos);
     this.game.alertNear?.(this.pos, this.team, 40);
-    if (this.isPlayer) { this.recoilP += st.kickV; this.game.emit('fire', this); }
+    if (this.isPlayer || this.human) { this.recoilP += st.kickV; this.game.emit('fire', this); }
     this.flashT = 0.1;
     return true;
   }

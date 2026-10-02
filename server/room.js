@@ -1,7 +1,7 @@
 // Bir oda = başsız bir Game + bağlı oyuncular. Sabit adımla (SIM_HZ) çalışır, her SNAP_EVERY adımda snapshot yollar.
 import { Game } from '../src/game/game.js';
 import { SIM_DT, SIM_HZ, SNAP_EVERY, packSoldier, cleanName } from '../src/net/protocol.js';
-import { CLASS_DEFS } from '../src/game/stats.js';
+import { CLASS_DEFS, WSTATS } from '../src/game/stats.js';
 
 const RESTART_MS = +process.env.BF_RESTART_MS || 15000;      // maç bitince sonuç ekranı süresi, sonra oda sıfırlanır
 
@@ -76,7 +76,8 @@ export class Room {
     const c = { ws, name: s.name, h: g.humans.get(s.id), id: s.id };
     this.clients.set(s.id, c);
     this.emptySince = 0;
-    ws.send(JSON.stringify({ t: 'welcome', id: s.id, room: this.code, cfg: this.cfg, roster: this.roster(), hz: SIM_HZ }));
+    const deps = g.deployables.map((d) => ({ e: 'dep', id: d.id, ty: d.type === 'claymore' ? 'c' : 'a', p: [d.pos.x, d.mesh.position.y - (d.type === 'claymore' ? 0.15 : 0), d.pos.z], ry: d.ry, tm: d.team, by: d.owner.id }));
+    ws.send(JSON.stringify({ t: 'welcome', id: s.id, room: this.code, cfg: this.cfg, roster: this.roster(), hz: SIM_HZ, deps }));
     this.broadcast({ t: 'roster', roster: this.roster() }, ws);
     return c;
   }
@@ -123,6 +124,7 @@ export class Room {
     const s = c.h.s;
     if (Array.isArray(m.tp)) { s.pos.set(m.tp[0], g.world.heightAt(m.tp[0], m.tp[1]), m.tp[2 - 1]); s.vel.set(0, 0, 0); g.world.settle(s); s.protT = 0; }
     if (Number.isFinite(m.hp)) s.hp = m.hp;
+    if (Array.isArray(m.item) && WSTATS[m.item[1]]) s.items[m.item[0] | 0] = { id: m.item[1], mag: 3, reserve: 0 };
     if (Array.isArray(m.tk)) { g.tickets.blue = +m.tk[0]; g.tickets.red = +m.tk[1]; }
     if (m.bots === false) { g.brainsOff = g.brains.splice(0); }
     if (m.bots === true && g.brainsOff) { g.brains.push(...g.brainsOff); g.brainsOff = null; }

@@ -55,7 +55,7 @@ async function startOnline() {
     const c = welcome.cfg;
     history.replaceState(null, '', `?online=${welcome.room}${q.get('debug') ? '&debug=1' : ''}${q.get('nolock') ? '&nolock=1' : ''}&name=${encodeURIComponent(name)}`);
     start({
-      online: { net, id: welcome.id, roster: welcome.roster },
+      online: { net, id: welcome.id, roster: welcome.roster, deps: welcome.deps },
       match: { perTeam: c.perTeam, type: c.type, tickets: c.tickets, time: c.time }, map: c.map, tod: c.tod, weather: c.weather, diff: c.diff,
       optic: q.get('optic') || 'reddot', team: welcome.roster[welcome.id].team, cls: welcome.roster[welcome.id].cls, playerName: name,
       loadout, onExit: () => { location.href = location.pathname; }, onRestart: () => location.reload(), settings: { sens: p.sens, fov: p.fov, volume: p.volume ?? 0.6, shadows: q.get('shadows') !== '0', pixelRatio: +(q.get('pr') || 1) },

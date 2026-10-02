@@ -18,7 +18,11 @@ import { nullSink } from '../sim/nullSink.js';
 import { applyInput } from '../sim/input.js';
 import { SIM_DT } from '../net/protocol.js';
 import { mat } from '../core/geo.js';
-import { initGadgets, updateGadgets, spawnSmoke, flashBang, smokeBlocks, smokeDensity, placeDeployable } from './gadgets.js';
+import { initGadgets, updateGadgets, spawnSmoke, flashBang, smokeBlocks, smokeDensity, placeDeployable, netDeploy, netUndeploy } from './gadgets.js';
+
+const STAT_ID = new Map(Object.entries(WSTATS).map(([k, v]) => [v, k]));      // WSTATS nesnesi → id (ağ olayları için)
+const r2 = (v) => Math.round(v * 100) / 100;
+const v3 = (p) => [r2(p.x), r2(p.y), r2(p.z)];
 
 const UP = new THREE.Vector3(0, 1, 0);
 
@@ -46,7 +50,7 @@ export class Game {
     this.listeners = new Map();
     this.time = 0; this.running = false; this.ended = false; this.simulate = true;
     this.soldiers = []; this.brains = []; this.projectiles = [];
-    this.tick = 0; this.netEvents = [];
+    this.tick = 0; this.netEvents = []; this.pidN = 0;
     this.humans = new Map();      // sunucu: savaşçı id → { s, queue, last, stale, ack, tickAck }
     this.classDefs = CLASS_DEFS;
     this.pendingClass = null;
@@ -199,6 +203,7 @@ export class Game {
     if (this.online) {
       this._acc = 0;
       this.online.attach(this);        // ilk snapshot doğmayı belirler (respawn yok)
+      this.onNetEvents(opts.online.deps || []);     // odada zaten kurulu mayın/cephane kutuları
     } else for (const s of this.soldiers) this.respawn(s, true);
     this.running = true;
     this.simulate = !!opts.nolock || !!this.online;
@@ -247,8 +252,11 @@ export class Game {
     for (const h of this.humans.values()) {
       const s = h.s;
       h.tickAck = false;
-      let n = h.queue.length > 6 ? 2 : 1;
+      let n = h.queue.length > 6 ? 2 : 1, first = true;
       while (n-- > 0) {
+        // geride kalan girdiyi eritirken ikinci girdi için eksik ara adımı da simüle et (istemci tahmini adım adım tutsun)
+        if (!first && s.alive) { s.update(dt); this.world.move(s, dt); }
+        first = false;
         let inp = h.queue.shift();
         if (inp) { h.stale = 0; h.last = inp; h.ack = inp.q; h.tickAck = true; }
         else if (h.last) {
@@ -500,6 +508,8 @@ export class Game {
     for (const s of this.soldiers) s.update(dt);
     if (me.alive) this.world.move(me, dt); else if (me.respawnT > 0) me.respawnT -= dt;
     this.player.update(dt);
+    this.updateProjectiles(dt);
+    updateGadgets(this, dt, this.time);
     this.effects.update(dt);
     for (const s of this.soldiers) s.syncModel(dt);
     this.hud.update(dt);
@@ -561,6 +571,21 @@ export class Game {
           if (victim === me) me.lastHit = killer;
           break;
         }
+        case 'gr': if (by) this.spawnGrenade(by, new V(...ev.o), new V(...ev.v), WSTATS[ev.w], { id: ev.id }); break;
+        case 'rk': if (by) this.spawnRocket(by, new V(...ev.o), new V(...ev.d), WSTATS[ev.w], { id: ev.id }); break;
+        case 'sl': if (by) this.spawnShell(by, new V(...ev.o), new V(...ev.d), WSTATS[ev.w], { id: ev.id }); break;
+        case 'boom': {
+          const i = this.projectiles.findIndex((p) => p.id === ev.id);
+          if (i >= 0) { this.scene.remove(this.projectiles[i].mesh); this.projectiles.splice(i, 1); }
+          const pos = new V(...ev.p);
+          if (ev.k === 's') { if (by) spawnSmoke(this, pos, WSTATS[ev.w], by); }
+          else if (ev.k === 'f') { if (by) flashBang(this, pos, by, WSTATS[ev.w]); }
+          else if (by) this.explode(pos, ev.r, 0, by, '');
+          break;
+        }
+        case 'dep': netDeploy(this, ev); break;
+        case 'depx': netUndeploy(this, ev.id); break;
+        case 'ammo': if (ev.v === me.id) { this.hud.toast('Mühimmat dolduruldu', '#9be07a'); this.sfx.deploy(me.pos); } break;
         case 'rld': if (by && by !== me) { by.reloadStyle = ev.s; by.reloadTotal = by.reloadT = ev.t; by.reloadEmpty = !!ev.em; by.shellT = ev.sh; } break;
         case 'swg': if (by && by !== me) { by.swing = { t: 0, dur: ev.d, kind: ev.k, idx: 0, done: true }; by.comboT = ev.d + 0.38; } break;
       }
@@ -737,7 +762,8 @@ export class Game {
   }
 
   // ───── Mermi benzeri nesneler ─────
-  spawnRocket(owner, pos, dir, st) {
+  spawnRocket(owner, pos, dir, st, net) {
+    if (this.online && !net) return;       // çevrimiçi istemci: sunucu olayı (rk) oluşturur
     const g = new THREE.Group();
     const body = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.5, 8), mat('#4d5b3a'));
     body.rotation.x = Math.PI / 2;
@@ -747,30 +773,39 @@ export class Game {
     g.position.copy(pos);
     g.lookAt(pos.clone().add(dir));
     this.scene.add(g);
-    this.projectiles.push({ type: 'rocket', mesh: g, pos: pos.clone(), vel: dir.clone().multiplyScalar(st.speed), owner, st, life: 6, trail: 0 });
+    const id = net ? net.id : ++this.pidN;
+    this.projectiles.push({ id, type: 'rocket', mesh: g, pos: pos.clone(), vel: dir.clone().multiplyScalar(st.speed), owner, st, life: 6, trail: 0 });
+    this.netEvent({ e: 'rk', id, by: owner.id, w: STAT_ID.get(st), o: v3(pos), d: v3(dir) });
   }
 
-  spawnGrenade(owner, pos, vel, st) {
+  spawnGrenade(owner, pos, vel, st, net) {
+    if (this.online && !net) return;
     const col = st.gtype === 'smoke' ? '#9aa0a6' : st.gtype === 'flash' ? '#33373d' : '#4d5b3a';
     const m = new THREE.Mesh(st.gtype === 'frag' || !st.gtype ? new THREE.IcosahedronGeometry(0.06, 0) : new THREE.CylinderGeometry(0.035, 0.035, 0.12, 8), mat(col));
     m.position.copy(pos);
     m.castShadow = true;
     this.scene.add(m);
-    this.projectiles.push({ type: 'grenade', mesh: m, pos: pos.clone(), vel: vel.clone(), owner, st, fuse: st.fuse, bounces: 0 });
+    const id = net ? net.id : ++this.pidN;
+    this.projectiles.push({ id, type: 'grenade', mesh: m, pos: pos.clone(), vel: vel.clone(), owner, st, fuse: st.fuse, bounces: 0 });
+    this.netEvent({ e: 'gr', id, by: owner.id, w: STAT_ID.get(st), o: v3(pos), v: v3(vel) });
   }
 
   // M79 tarzı bomba: yaylı yol, çarpınca patlar
-  spawnShell(owner, pos, dir, st) {
+  spawnShell(owner, pos, dir, st, net) {
+    if (this.online && !net) return;
     const m = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.04, 0.14, 8), mat('#6a6f3a'));
     m.position.copy(pos);
     this.scene.add(m);
-    this.projectiles.push({ type: 'grenade', mesh: m, pos: pos.clone(), vel: dir.clone().multiplyScalar(st.speed), owner, st, fuse: 4, bounces: 0, shell: true });
+    const id = net ? net.id : ++this.pidN;
+    this.projectiles.push({ id, type: 'grenade', mesh: m, pos: pos.clone(), vel: dir.clone().multiplyScalar(st.speed), owner, st, fuse: 4, bounces: 0, shell: true });
+    this.netEvent({ e: 'sl', id, by: owner.id, w: STAT_ID.get(st), o: v3(pos), d: v3(dir) });
   }
 
   updateProjectiles(dt) {
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const p = this.projectiles[i];
       let boom = null;
+      if (p.hold) { if ((p.hold -= dt) <= 0) { this.scene.remove(p.mesh); this.projectiles.splice(i, 1); } continue; }   // istemci: sunucu patlamasını bekliyor
       if (p.type === 'rocket') {
         p.life -= dt;
         const step = p.vel.clone().multiplyScalar(dt), L = step.length();
@@ -817,10 +852,12 @@ export class Game {
         }
         if (p.fuse <= 0 && !boom) boom = p.pos.clone();
       }
+      if (boom && this.online) { p.hold = 3; continue; }        // sunucudaki 'boom' olayı etkiyi ve silmeyi yapar
       if (boom) {
         this.scene.remove(p.mesh);
         this.projectiles.splice(i, 1);
         const gt = p.st.gtype;
+        this.netEvent({ e: 'boom', id: p.id, k: gt === 'smoke' ? 's' : gt === 'flash' ? 'f' : 'x', p: v3(boom), r: p.st.radius, w: STAT_ID.get(p.st), by: p.owner.id });
         if (gt === 'smoke') spawnSmoke(this, boom, p.st, p.owner);
         else if (gt === 'flash') flashBang(this, boom, p.owner, p.st);
         else this.explode(boom, p.st.radius, p.st.dmg, p.owner, p.st.name);
@@ -834,6 +871,7 @@ export class Game {
     this.alertNear(pos, owner.team, 90);
     const dc = pos.distanceTo(this.camera.position);
     this.effects.shake = Math.max(this.effects.shake, clamp(1 - dc / 35, 0, 1) * 1.1);
+    if (this.online) return;                // hasar sunucuda
     const o = pos.clone(); o.y += 0.3;
     for (const e of this.soldiers) {
       if (!e.alive) continue;
