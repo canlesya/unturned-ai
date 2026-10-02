@@ -15,6 +15,7 @@ import { Weather } from './weather.js';
 import { rand, pick, clamp } from './util.js';
 import { TEAMS } from '../core/palette.js';
 import { nullSink } from '../sim/nullSink.js';
+import { applyInput } from '../sim/input.js';
 import { mat } from '../core/geo.js';
 import { initGadgets, updateGadgets, spawnSmoke, flashBang, smokeBlocks, smokeDensity, placeDeployable } from './gadgets.js';
 
@@ -44,6 +45,7 @@ export class Game {
     this.listeners = new Map();
     this.time = 0; this.running = false; this.ended = false; this.simulate = true;
     this.soldiers = []; this.brains = []; this.projectiles = [];
+    this.humans = new Map();      // sunucu: savaşçı id → { s, queue, last, stale, ack, tickAck }
     this.classDefs = CLASS_DEFS;
     this.pendingClass = null;
     this.pathBudget = 3;
@@ -190,6 +192,60 @@ export class Game {
     this.loop = this.loop.bind(this);
     this.raf = requestAnimationFrame(this.loop);
     if (opts.debug) window.__game = this;
+  }
+
+  // ───── sunucu: insan oyuncular (botların yerine geçer) ─────
+  // Takımdan bir bot slotunu alır: beyni sökülür, savaşçı insana verilir. Çıkınca bot geri gelir.
+  claimSlot(team, name, cls = 'assault') {
+    const s = this.soldiers.find((e) => e.team === team && e.brain && !this.humans.has(e.id));
+    if (!s) return null;
+    this.brains.splice(this.brains.indexOf(s.brain), 1);
+    s.brain = null; s.dmgMul = 1;
+    s.name = name; s.choice = {};
+    if (s.cls !== cls) s.setClass(cls);
+    this.humans.set(s.id, { s, queue: [], last: null, stale: 0, ack: 0, tickAck: false });
+    this.respawn(s, true);
+    return s;
+  }
+
+  releaseSlot(id) {
+    const h = this.humans.get(id);
+    if (!h) return;
+    this.humans.delete(id);
+    const s = h.s;
+    s.choice = { random: true };
+    s.name = this.freeBotName();
+    new BotBrain(this, s, this.opts.diff);
+    this.brains.push(s.brain);
+  }
+
+  freeBotName() {
+    const used = new Set(this.soldiers.map((e) => e.name));
+    return BOT_NAMES.find((n) => !used.has(n)) || `Bot-${Math.floor(Math.random() * 900 + 100)}`;
+  }
+
+  // İnsanların bekleyen girdilerini uygula (adım başına bir girdi; geride kalırsa ikisi)
+  updateHumans(dt) {
+    for (const h of this.humans.values()) {
+      const s = h.s;
+      h.tickAck = false;
+      let n = h.queue.length > 6 ? 2 : 1;
+      while (n-- > 0) {
+        let inp = h.queue.shift();
+        if (inp) { h.stale = 0; h.last = inp; h.ack = inp.q; h.tickAck = true; }
+        else if (h.last) {
+          // girdi gelmedi: son girdiyi birkaç adım tekrarla, sonra dur (sekme arka plana gittiyse koşup durmasın)
+          inp = ++h.stale > 5 ? { ...h.last, f: 0, r: 0, s: 0, j: 0, c: 0, p: 0, u: 0 } : { ...h.last, c: 0, p: 0, u: 0 };
+        } else continue;
+        if (!s.alive) continue;
+        s.yaw = inp.yw; s.pitch = Math.max(-1.5, Math.min(1.5, inp.pt));
+        s.ads = !!inp.a;
+        if (inp.u) s.standUp();
+        if (inp.c) s.toggleCrouch();
+        if (inp.p) s.toggleProne();
+        applyInput(s, { f: inp.f, r: inp.r, lean: inp.l, sprint: !!inp.s, jump: !!inp.j }, dt);
+      }
+    }
   }
 
   // ───── olaylar ─────
@@ -399,7 +455,7 @@ export class Game {
       s.update(dt);
       if (s.alive) this.world.move(s, dt);
     }
-    if (this.player) this.player.update(dt);
+    if (this.player) this.player.update(dt); else this.updateHumans(dt);
     for (const b of this.brains) b.update(dt);
     this.updateProjectiles(dt);
     updateGadgets(this, dt, this.time);

@@ -84,7 +84,7 @@ export class Soldier {
     this.pos.set(point.x, 0, point.z);
     this.vel.set(0, 0, 0);
     this.yaw = point.ry; this.pitch = 0; this.recoilP = 0;
-    this.alive = true; this.deadT = 0;
+    this.alive = true; this.deadT = 0; this.spawnN = (this.spawnN || 0) + 1;     // spawnN: ağ istemcisi yeniden doğmayı fark etsin
     this.hp = this.maxHp;
     this.items = makeLoadout(this.cls, this.team, this.choice);
     this.cur = 0;
