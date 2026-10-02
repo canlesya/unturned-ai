@@ -4,6 +4,8 @@ import { MATCH_TYPES, TODS_LIST, defaultTickets } from './game/match.js';
 import { MENU_CSS } from './menuStyle.js';
 import { MenuScene } from './menuScene.js';
 import { WEATHERS } from './game/weather.js';
+import { NetClient } from './net/client.js';
+import { defaultServerUrl, healthUrl } from './net/protocol.js';
 
 const KEY = 'blockfront.v2';
 export const DEFAULTS = {
@@ -11,6 +13,7 @@ export const DEFAULTS = {
   team: 'blue', cls: 'assault', diff: 'normal', optic: 'reddot', loadouts: {}, name: 'Sen',
   sens: 0.0022, fov: 75, volume: 0.6, shadows: true, quality: 1.5,
   xp: 0, stats: { matches: 0, wins: 0, kills: 0, deaths: 0 },
+  server: '', room: '', olTeam: 'auto',
 };
 
 export function loadPrefs() {
@@ -69,7 +72,7 @@ function ensureStyle() {
   styleEl = document.createElement('style'); styleEl.textContent = MENU_CSS; document.head.appendChild(styleEl);
 }
 
-export function showMenu(onStart) {
+export function showMenu(onStart, onOnline) {
   ensureStyle();
   const el = document.getElementById('menu');
   const p = loadPrefs();
@@ -79,17 +82,18 @@ export function showMenu(onStart) {
     <div class="mn-top"><div class="mn-logo">BLOCK<b>FRONT</b><small>TAKIM SAVAŞI · TARAYICIDA</small></div><div class="mn-user" id="mnUser"></div></div>
     <nav class="mn-side" id="mnNav"></nav>
     <main class="mn-stage" id="mnStage"></main>
-    <div class="mn-foot"><span id="mnTip"></span><span>BLOCKFRONT v2.0 · yerel oyun, botlu</span></div>`;
+    <div class="mn-foot"><span id="mnTip"></span><span>BLOCKFRONT v2.0 · yerel ve çevrimiçi, botlu</span></div>`;
   const q = (s) => el.querySelector(s);
   const stage = q('#mnStage'), nav = q('#mnNav');
   let scene = null;
   try { scene = new MenuScene(q('#mnBg')); } catch (e) { console.warn('menü sahnesi açılamadı', e); }
   let screen = 'home', slot = 'primary';
+  let ol = { msg: '', err: false, busy: false }, olChk = 0;
   let tipI = Math.floor(Math.random() * TIPS.length);
   const tipTimer = setInterval(() => { tipI = (tipI + 1) % TIPS.length; q('#mnTip').innerHTML = TIPS[tipI]; }, 7000);
   q('#mnTip').innerHTML = TIPS[tipI];
 
-  const NAV = [['home', 'Ana Menü', 'Hızlı başla'], ['custom', 'Özel Oyun', 'Harita · mod · boyut'], ['loadout', 'Sınıf & Silah', 'Teçhizatını seç'], ['settings', 'Ayarlar', 'Ses · görüntü · fare'], ['controls', 'Kontroller', 'Tuş haritası']];
+  const NAV = [['home', 'Ana Menü', 'Hızlı başla'], ['custom', 'Özel Oyun', 'Harita · mod · boyut'], ['online', 'Çevrimiçi', 'Oda kur · katıl'], ['loadout', 'Sınıf & Silah', 'Teçhizatını seç'], ['settings', 'Ayarlar', 'Ses · görüntü · fare'], ['controls', 'Kontroller', 'Tuş haritası']];
   const save = () => savePrefs(p);
   const effTickets = () => p.tickets || defaultTickets(p.perTeam);
   const mapName = () => (p.map === 'random' ? 'Rastgele' : MAPS[p.map].name);
@@ -158,6 +162,63 @@ export function showMenu(onStart) {
       <div class="startbar">${summary()}<button class="play" data-a="quick" style="min-width:300px">Oyna</button></div>`;
   }
 
+  function onlineHTML() {
+    const url = p.server || defaultServerUrl();
+    const tm = [['auto', 'Otomatik', ''], ['blue', 'Mavi', 'blue'], ['red', 'Kırmızı', 'red']].map(([k, n, c]) => `<button class="chip ${c} ${p.olTeam === k ? 'on' : ''}" data-a="oltm" data-v="${k}">${n}</button>`).join('');
+    const msg = ol.msg ? `<div class="olmsg ${ol.err ? 'err' : ''}">${ol.msg}</div>` : '';
+    const dis = ol.busy ? 'disabled' : '';
+    return `<div class="scroll">
+      <div class="pan"><h3>Sunucu <em id="olStat">kontrol ediliyor…</em></h3>
+        <input class="olin" id="olServer" value="${url.replace(/"/g, '')}" spellcheck="false" autocomplete="off">
+        <div class="hint">Arkadaşlarınla aynı sunucuya bağlanın. Bu bilgisayarda çalışan sunucu için varsayılan adres yeterli.</div></div>
+      <div class="split">
+        <div class="pan"><h3>Oda kur <em>ayarlar: Özel Oyun</em></h3>${summary()}
+          <button class="play" data-a="olcreate" ${dis} style="margin-top:14px;width:100%">Oda kur<small>Kod üretilir, arkadaşların koda girerek katılır</small></button></div>
+        <div class="pan"><h3>Odaya katıl</h3>
+          <input class="olin code" id="olCode" maxlength="4" placeholder="KOD" value="${(p.room || '').replace(/"/g, '')}" spellcheck="false" autocomplete="off">
+          <button class="play sec" data-a="oljoin" ${dis} style="margin-top:14px;width:100%">Katıl</button></div>
+      </div>
+      <div class="pan"><h3>Takım</h3><div class="row">${tm}</div>
+        <div class="hint">Takım seçmezsen sunucu dengeler. Sınıf ve silahın "Sınıf &amp; Silah" ekranından, takma adın sol üstten gelir. Boş yerleri botlar doldurur.</div></div>
+      ${msg}</div>`;
+  }
+
+  // Sunucu durumu (oda / oyuncu sayısı)
+  async function checkServer() {
+    const my = ++olChk, em = q('#olStat');
+    if (!em) return;
+    const set = (cls, t) => { const e = q('#olStat'); if (e && my === olChk) { e.className = cls; e.textContent = t; } };
+    try {
+      const c = new AbortController(), tm = setTimeout(() => c.abort(), 2500);
+      const r = await fetch(healthUrl(p.server || defaultServerUrl()), { signal: c.signal });
+      clearTimeout(tm);
+      const j = await r.json();
+      set('ok', `● hazır · ${j.rooms} oda · ${j.players} oyuncu`);
+    } catch (e) { set('bad', '● ulaşılamıyor'); }
+  }
+
+  async function goOnline(kind) {
+    if (ol.busy) return;
+    const url = (p.server || defaultServerUrl()).trim();
+    const team = p.olTeam === 'blue' || p.olTeam === 'red' ? p.olTeam : undefined;
+    const cls = p.cls, loadout = loadoutOf(cls), name = p.name;
+    let hello;
+    if (kind === 'create') {
+      const pick = (v, list) => (v === 'random' ? rnd(list) : v);
+      hello = { t: 'create', name, cls, loadout, team, cfg: { map: pick(p.map, Object.keys(MAPS)), tod: pick(p.tod, ['day', 'sunset', 'night']), weather: pick(p.weather, ['clear', 'rain', 'fog']), type: p.type, perTeam: p.perTeam, diff: p.diff, tickets: p.tickets || undefined, time: p.time } };
+    } else {
+      const code = (p.room || '').toUpperCase();
+      if (code.length !== 4) { ol = { msg: '4 harfli oda kodunu gir.', err: true, busy: false }; render(); return; }
+      hello = { t: 'join', room: code, name, cls, loadout, team };
+    }
+    ol = { msg: 'Bağlanılıyor…', err: false, busy: true }; render();
+    try {
+      const r = await NetClient.connect(url, hello);
+      cleanup();
+      onOnline?.({ net: r.net, welcome: r.welcome, name });
+    } catch (e) { ol = { msg: e.message, err: true, busy: false }; render(); }
+  }
+
   function loadoutHTML() {
     const def = CLASS_DEFS[p.cls], lo = loadoutOf(p.cls), team = p.team === 'red' ? 'red' : 'blue';
     const cur = (k) => {
@@ -217,10 +278,11 @@ export function showMenu(onStart) {
   function render() {
     const keep = stage.querySelector('.scroll')?.scrollTop || 0;
     stage.className = 'mn-stage' + (screen === 'loadout' ? ' right' : '');
-    stage.innerHTML = { home: homeHTML, custom: customHTML, loadout: loadoutHTML, settings: settingsHTML, controls: controlsHTML }[screen]();
+    stage.innerHTML = { home: homeHTML, custom: customHTML, online: onlineHTML, loadout: loadoutHTML, settings: settingsHTML, controls: controlsHTML }[screen]();
     const sc = stage.querySelector('.scroll'); if (sc) sc.scrollTop = keep;
     renderNav(); renderUser(); bg();
     if (screen === 'loadout') fillIcons();
+    if (screen === 'online') checkServer();
   }
 
   // Silah ikonları tek tek (arayüzü kilitlemeden) üretilir
@@ -266,6 +328,8 @@ export function showMenu(onStart) {
 
   stage.addEventListener('input', (e) => {
     const t = e.target, id = t.id;
+    if (id === 'olCode') { t.value = t.value.toUpperCase().replace(/[^A-Z]/g, ''); p.room = t.value; save(); return; }
+    if (id === 'olServer') { p.server = t.value.trim(); save(); clearTimeout(t._d); t._d = setTimeout(checkServer, 500); return; }
     if (t.type !== 'range') return;
     const v = +t.value, mn = +t.min, mx = +t.max;
     t.style.setProperty('--p', ((v - mn) / (mx - mn)) * 100 + '%');
@@ -278,6 +342,7 @@ export function showMenu(onStart) {
     save();
   });
   stage.addEventListener('change', (e) => { if (e.target.id === 'rSize') render(); });
+  stage.addEventListener('keydown', (e) => { if (e.target.tagName === 'INPUT') { e.stopPropagation(); if (e.key === 'Enter' && e.target.id === 'olCode') goOnline('join'); } });
 
   const act = (e) => {
     const b = e.target.closest('[data-a]'); if (!b) return;
@@ -295,6 +360,9 @@ export function showMenu(onStart) {
       case 'size': p.perTeam = +v; break;
       case 'tickets': p.tickets = +v; break;
       case 'time': p.time = +v; break;
+      case 'oltm': p.olTeam = v; break;
+      case 'olcreate': goOnline('create'); return;
+      case 'oljoin': goOnline('join'); return;
       case 'cls': p.cls = v; slot = 'primary'; break;
       case 'slot': slot = v; break;
       case 'pick': loadoutOf(p.cls)[slot] = v; break;

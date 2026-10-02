@@ -2,7 +2,7 @@ import { Game } from './game/game.js';
 import { showMenu, loadPrefs, recordMatch } from './menu.js';
 import { MENU_CSS } from './menuStyle.js';
 import { NetClient } from './net/client.js';
-import { DEFAULT_PORT } from './net/protocol.js';
+import { defaultServerUrl } from './net/protocol.js';
 
 const q = new URLSearchParams(location.search);
 const loading = document.getElementById('loading');
@@ -26,7 +26,7 @@ function start(opts) {
         nolock: q.get('nolock') === '1',
         autoplay: q.get('autoplay') === '1',
         onMatchEnd: recordMatch,
-        onExit: opts.onExit || (() => { game = null; showMenu(start); }),
+        onExit: opts.onExit || (() => { game = null; showMenu(start, beginOnline); }),
         onRestart: opts.onRestart || (() => start(opts)),
       });
     } catch (e) {
@@ -38,12 +38,28 @@ function start(opts) {
   }, 60);
 }
 
-// Çevrimiçi: /?online=new  (oda kur)  ya da  /?online=ABCD  (odaya katıl)  &name=Ad  [&server=ws://host:8787] [&map=&per=&tod=&weather=&type=]
+// Çevrimiçi: bağlantı kurulduktan sonra (menüden ya da URL'den) oyunu başlat
+function beginOnline({ net, welcome, name }) {
+  const p = loadPrefs();
+  const c = welcome.cfg, me = welcome.roster[welcome.id];
+  const cls = me.cls, loadout = (p.loadouts && p.loadouts[cls]) || {};
+  history.replaceState(null, '', `?online=${welcome.room}${q.get('debug') ? '&debug=1' : ''}${q.get('nolock') ? '&nolock=1' : ''}&name=${encodeURIComponent(name)}`);
+  document.getElementById('menu').style.display = 'none';
+  start({
+    online: { net, id: welcome.id, roster: welcome.roster, deps: welcome.deps, room: welcome.room },
+    match: { perTeam: c.perTeam, type: c.type, tickets: c.tickets, time: c.time }, map: c.map, tod: c.tod, weather: c.weather, diff: c.diff,
+    optic: q.get('optic') || p.optic || 'reddot', team: me.team, cls, playerName: name,
+    loadout, onExit: () => { location.href = location.pathname; }, onRestart: () => location.reload(),
+    settings: { sens: p.sens, fov: p.fov, volume: p.volume ?? 0.6, shadows: q.get('shadows') !== '0' && p.shadows !== false, pixelRatio: +(q.get('pr') || p.quality || 1) },
+  });
+}
+
+// URL ile: /?online=new (oda kur) ya da /?online=ABCD (katıl)  &name=Ad [&server=ws://host:8787] [&map=&per=&tod=&weather=&type=&cls=&team=]
 async function startOnline() {
   const p = loadPrefs();
   document.getElementById('menu').style.display = 'none';
   showLoading();
-  const url = q.get('server') || `ws://${location.hostname || '127.0.0.1'}:${DEFAULT_PORT}`;
+  const url = q.get('server') || p.server || defaultServerUrl();
   const name = q.get('name') || p.name || 'Oyuncu';
   const code = q.get('online');
   const cls = q.get('cls') || p.cls || 'assault', loadout = (p.loadouts && p.loadouts[cls]) || {};
@@ -52,17 +68,10 @@ async function startOnline() {
     : { t: 'join', room: code, name, cls, loadout, team: q.get('team') || undefined };
   try {
     const { net, welcome } = await NetClient.connect(url, hello);
-    const c = welcome.cfg;
-    history.replaceState(null, '', `?online=${welcome.room}${q.get('debug') ? '&debug=1' : ''}${q.get('nolock') ? '&nolock=1' : ''}&name=${encodeURIComponent(name)}`);
-    start({
-      online: { net, id: welcome.id, roster: welcome.roster, deps: welcome.deps },
-      match: { perTeam: c.perTeam, type: c.type, tickets: c.tickets, time: c.time }, map: c.map, tod: c.tod, weather: c.weather, diff: c.diff,
-      optic: q.get('optic') || 'reddot', team: welcome.roster[welcome.id].team, cls: welcome.roster[welcome.id].cls, playerName: name,
-      loadout, onExit: () => { location.href = location.pathname; }, onRestart: () => location.reload(), settings: { sens: p.sens, fov: p.fov, volume: p.volume ?? 0.6, shadows: q.get('shadows') !== '0', pixelRatio: +(q.get('pr') || 1) },
-    });
+    beginOnline({ net, welcome, name });
   } catch (e) {
     loading.style.display = 'flex';
-    loading.innerHTML = `<div class="lg">BLOCK<b>FRONT</b></div><div class="lt">Bağlanılamadı: ${e.message}</div>`;
+    loading.innerHTML = `<div class="lg">BLOCK<b>FRONT</b></div><div class="lt">Bağlanılamadı: ${e.message}<br><br><a href="${location.pathname}" style="color:#ff8a1f">Ana menüye dön</a></div>`;
   }
 }
 
@@ -76,4 +85,4 @@ else if (q.get('autostart')) {
     loadout: { primary: q.get('primary') || undefined, secondary: q.get('secondary') || undefined, gadget: q.get('gadget') || undefined, melee: q.get('melee') || undefined },
     settings: { sens: p.sens, fov: p.fov, volume: 0, shadows: q.get('shadows') !== '0', pixelRatio: +(q.get('pr') || 1) },
   });
-} else showMenu(start);
+} else showMenu(start, beginOnline);

@@ -204,6 +204,16 @@ export class Game {
       this._acc = 0;
       this.online.attach(this);        // ilk snapshot doğmayı belirler (respawn yok)
       this.onNetEvents(opts.online.deps || []);     // odada zaten kurulu mayın/cephane kutuları
+      const code = opts.online.room;
+      const b = (this._badge = document.createElement('div'));
+      b.style.cssText = 'position:fixed;left:12px;top:178px;z-index:6;padding:6px 10px;background:rgba(8,12,18,.72);border:1px solid rgba(255,255,255,.14);color:#e8edf5;font:600 13px Bahnschrift,Rajdhani,Arial Narrow,sans-serif;letter-spacing:1.5px;cursor:pointer;user-select:none';
+      b.title = 'Tıkla: oda bağlantısını kopyala';
+      b.onclick = () => {
+        const link = `${location.origin}${location.pathname}?online=${code}`;
+        (navigator.clipboard?.writeText(link) || Promise.reject()).then(() => this.hud.toast('Oda bağlantısı kopyalandı: ' + code, '#9be07f'), () => this.hud.toast('Oda kodu: ' + code, '#9be07f'));
+      };
+      document.body.appendChild(b);
+      this._badgeT = 0; this._badgeCode = code;
     } else for (const s of this.soldiers) this.respawn(s, true);
     this.running = true;
     this.simulate = !!opts.nolock || !!this.online;
@@ -504,6 +514,7 @@ export class Game {
   stepOnline(dt) {
     this.time += dt;
     this.online.interpolate(performance.now());
+    if (this._badge && (this._badgeT -= dt) <= 0) { this._badgeT = 0.5; const rtt = Math.round(this.online.stats.rtt || 0); this._badge.innerHTML = `ODA <b style="color:#ffb347">${this._badgeCode}</b> · ${rtt ? rtt + ' ms' : '…'}`; }
     const me = this.playerSoldier;
     for (const s of this.soldiers) s.update(dt);
     if (me.alive) this.world.move(me, dt); else if (me.respawnT > 0) me.respawnT -= dt;
@@ -1005,6 +1016,7 @@ export class Game {
     this.running = false;
     if (this.headless) return;
     this.online?.ws.close();
+    this._badge?.remove();
     cancelAnimationFrame(this.raf);
     this.weather?.dispose();
     document.exitPointerLock?.();

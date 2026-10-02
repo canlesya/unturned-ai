@@ -70,8 +70,12 @@ export class Room {
     const counts = { blue: 0, red: 0 };
     for (const id of this.clients.keys()) counts[g.soldiers[id].team]++;
     const t = team === 'blue' || team === 'red' ? team : counts.blue <= counts.red ? 'blue' : 'red';
-    let s = g.claimSlot(t, cleanName(name), cls, loadout);
-    if (!s) s = g.claimSlot(t === 'blue' ? 'red' : 'blue', cleanName(name), cls, loadout);
+    // aynı isim varsa sonuna sayı ekle (Sen, Sen 2, ...)
+    const taken = new Set(g.soldiers.map((e) => e.name.toLowerCase()));
+    let nm = cleanName(name), n = 2;
+    while (taken.has(nm.toLowerCase())) nm = `${cleanName(name).slice(0, 13)} ${n++}`;
+    let s = g.claimSlot(t, nm, cls, loadout);
+    if (!s) s = g.claimSlot(t === 'blue' ? 'red' : 'blue', nm, cls, loadout);
     if (!s) return null;
     const c = { ws, name: s.name, h: g.humans.get(s.id), id: s.id };
     this.clients.set(s.id, c);

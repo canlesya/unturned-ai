@@ -23,8 +23,9 @@ export class NetClient {
     this.rs = null;
     this.stats = { corrections: 0, lastErr: 0, snaps: 0, rtt: 0 };
     this.pendingMe = null;
+    this._ping = setInterval(() => this.send({ t: 'ping', c: performance.now() }), 2000);
     ws.onmessage = (e) => this.onMessage(JSON.parse(e.data));
-    ws.onclose = () => { this.closed = true; this.game?.onNetClosed?.(); };
+    ws.onclose = () => { this.closed = true; clearInterval(this._ping); this.game?.onNetClosed?.(); };
   }
 
   // Sunucuya bağlan ve oda kur/katıl. Çözülen değer: { net, welcome }
@@ -45,6 +46,7 @@ export class NetClient {
   send(o) { if (this.ws.readyState === 1) this.ws.send(JSON.stringify(o)); }
 
   onMessage(m) {
+    if (m.t === 'pong') { const r = performance.now() - m.c; this.stats.rtt = this.stats.rtt ? this.stats.rtt * 0.7 + r * 0.3 : r; return; }
     if (m.t === 'welcome') return this.onWelcome?.(m);
     if (m.t === 'err') return this.onError?.(m.msg);
     if (!this.game) { (this.queued ||= []).push(m); return; }

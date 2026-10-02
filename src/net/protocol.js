@@ -49,6 +49,20 @@ export function applyFlags(s, f) {
   s.ads = !!(f & F_ADS); s.onGround = !!(f & F_GROUND);
 }
 
+// Varsayılan sunucu adresi: sayfa HTTPS ile açıldıysa aynı alan adındaki /ws (ters vekil), değilse :8787
+export function defaultServerUrl() {
+  const loc = globalThis.location;
+  if (!loc) return `ws://127.0.0.1:${DEFAULT_PORT}`;
+  return loc.protocol === 'https:' ? `wss://${loc.host}/ws` : `ws://${loc.hostname || '127.0.0.1'}:${DEFAULT_PORT}`;
+}
+// ws(s)://host[:port][/ws]  →  http(s)://host[:port]/health
+export function healthUrl(wsUrl) {
+  const u = new URL(wsUrl);
+  u.protocol = u.protocol === 'wss:' ? 'https:' : 'http:';
+  u.pathname = '/health'; u.search = '';
+  return u.toString();
+}
+
 // Oda kodu: karışması kolay harfler çıkarılmış
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 export function makeRoomCode(rand = Math.random) {

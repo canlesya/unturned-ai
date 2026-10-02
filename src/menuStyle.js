@@ -122,6 +122,13 @@ export const MENU_CSS = `
 #menu kbd{display:inline-block;background:#ffffff18;border:1px solid #ffffff33;border-bottom-width:3px;padding:0 8px;margin:0 2px;font:inherit;font-size:13px;font-weight:700;min-width:26px;text-align:center}
 #menu .hint{color:var(--dim);font-size:13px;margin-top:8px;letter-spacing:.5px;line-height:1.4}
 #menu .warn{color:#ffcf7a}
+#menu .olin{width:100%;padding:12px 14px;background:#ffffff0f;border:1px solid var(--line);color:#fff;font:600 17px/1 Consolas,'Courier New',monospace;letter-spacing:1px;outline:none}
+#menu .olin:focus{border-color:var(--acc);background:#ffffff18}
+#menu .olin.code{font-size:34px;letter-spacing:12px;text-align:center;text-transform:uppercase;padding:12px 0 12px 12px}
+#menu .pan h3 em.ok{color:#7be07a}#menu .pan h3 em.bad{color:#ff8a7a}
+#menu .olmsg{padding:12px 16px;border:1px solid var(--line);background:var(--pan);font-size:15px;letter-spacing:.5px}
+#menu .olmsg.err{border-color:var(--red);color:#ffb3a8}
+#menu .play[disabled]{opacity:.5;cursor:wait}
 #menu .startbar{display:flex;align-items:center;justify-content:space-between;gap:14px;padding-top:12px;border-top:1px solid var(--line);margin-top:2px}
 @media(max-width:1100px){#menu .mn-side{width:210px}#menu .mn-stage{left:270px}#menu .maps,#menu .tods{grid-template-columns:repeat(2,1fr)}#menu .news{display:none}#menu .mn-logo{font-size:40px}}
 @media(max-width:760px){#menu .mn-side{top:130px;width:auto;flex-direction:row;right:10px;bottom:auto;left:10px;overflow-x:auto}#menu .mn-nav{font-size:14px;padding:8px 10px;letter-spacing:1px}#menu .mn-nav small{display:none}#menu .mn-stage,#menu .mn-stage.right{left:10px;right:10px;top:200px;width:auto}#menu .mn-top{left:14px;right:14px}#menu .mn-user{display:none}#menu .split,#menu .split3{grid-template-columns:1fr}#menu .wgrid{grid-template-columns:repeat(2,1fr)}#menu .play{min-width:0;font-size:24px;width:100%}}
