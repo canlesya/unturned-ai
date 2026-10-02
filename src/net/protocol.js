@@ -3,13 +3,16 @@
 // İstemci → sunucu
 //   { t:'join',  room:'ABCD', name }                 mevcut odaya katıl
 //   { t:'create', name, cfg:{map,tod,weather,perTeam,type,tickets,time,diff}, team? }   yeni oda
+//   { t:'opt', cls?, loadout?, spawn? }                 sonraki doğuş için sınıf/yükleme/doğma noktası
 //   { t:'in', q, f, r, l, s, j, a, yw, pt, c, p, u }  girdi (her sim adımında bir tane)
 //        q: sıra no · f/r: ileri/sağ (-1..1) · l: yana eğilme · s: koşma · j: zıpla · a: nişan
 //        yw/pt: bakış (rad) · c/p/u: çömel/yat/kalk tuşuna basıldı (kenar olayı)
+//        w: seçili silah · fh: ateş basılı · fp: ateşe yeni basıldı · rl: şarjör · fm: atış modu · o: nişangâh · vt: görülen sunucu adımı (lag compensation)
 // Sunucu → istemci
 //   { t:'welcome', id, room, cfg, roster, st }        id = senin savaşçı numaran
 //   { t:'roster', roster }                            biri girip/çıkınca
 //   { t:'snap', k, ack, me, s:[...], tk, tl, o }      anlık durum (bkz. packSoldier)
+//   { t:'ev', l:[...] }                               olaylar (sh atış, hm isabet, dmg hasar, kill, rld, swg)
 //   { t:'err', msg }
 
 export const SIM_HZ = 60;               // sunucu ve istemci sabit sim adımı
@@ -37,6 +40,7 @@ export function packSoldier(s) {
     a: s.alive ? 1 : 0, hp: Math.round(s.hp),
     f: packFlags(s), l: s.leanDir, c: s.cur,
     it: s.items.map((it) => it.id),
+    kl: s.kills, de: s.deaths, sc: s.score, rv: s.revivable ? 1 : 0,
   };
 }
 

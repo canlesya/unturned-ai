@@ -1,6 +1,9 @@
 // Bir oda = başsız bir Game + bağlı oyuncular. Sabit adımla (SIM_HZ) çalışır, her SNAP_EVERY adımda snapshot yollar.
 import { Game } from '../src/game/game.js';
 import { SIM_DT, SIM_HZ, SNAP_EVERY, packSoldier, cleanName } from '../src/net/protocol.js';
+import { CLASS_DEFS } from '../src/game/stats.js';
+
+const RESTART_MS = +process.env.BF_RESTART_MS || 15000;      // maç bitince sonuç ekranı süresi, sonra oda sıfırlanır
 
 const MAX_PER_TEAM = 32;
 const num = (v, lo, hi, d = 0) => (Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d);
@@ -24,33 +27,51 @@ export class Room {
     this.code = code;
     this.cfg = sanitizeCfg(cfg);
     this.onClose = onClose;
-    const c = this.cfg;
-    this.game = new Game(null, {
-      headless: true, map: c.map, tod: c.tod, weather: c.weather, diff: c.diff,
-      match: { perTeam: c.perTeam, type: c.type, tickets: c.tickets, time: c.time },
-    });
     this.clients = new Map();        // savaşçı id → { ws, name, h }
-    this.tick = 0;
     this.emptySince = Date.now();
-    this.game.on('end', (e) => this.broadcast({ t: 'end', winner: e.winner, why: e.why }));
+    this.resetAt = 0;
+    this.newGame();
     // sabit adım döngüsü (gecikmeyi telafi eder, aşırı birikmeyi keser)
     this._last = performance.now(); this._acc = 0;
     this._timer = setInterval(() => this.loop(), 4);
   }
 
+  newGame() {
+    const c = this.cfg;
+    this.game = new Game(null, {
+      headless: true, map: c.map, tod: c.tod, weather: c.weather, diff: c.diff,
+      match: { perTeam: c.perTeam, type: c.type, tickets: c.tickets, time: c.time },
+    });
+    this.tick = 0;
+    this.resetAt = 0;
+    this.game.on('end', (e) => { this.broadcast({ t: 'end', winner: e.winner, why: e.why }); this.resetAt = Date.now() + RESTART_MS; });
+  }
+
+  // Maç bitti, oda yeni maça hazırlanıyor: oyuncular yeniden katılır (istemci sayfayı yeniler)
+  reset() {
+    this.broadcast({ t: 'restart' });
+    for (const c of this.clients.values()) c.ws.ctx = null;
+    this.clients.clear();
+    this.emptySince = Date.now();
+    this.game.dispose();
+    this.newGame();
+  }
+
   get humanCount() { return this.clients.size; }
+
+  canJoin() { return this.game.ended ? 'Maç bitti, yeni maç birazdan başlıyor' : null; }
 
   roster() {
     return this.game.soldiers.map((s) => ({ id: s.id, name: s.name, team: s.team, cls: s.cls, human: this.game.humans.has(s.id) }));
   }
 
-  join(ws, name, team) {
+  join(ws, name, team, cls, loadout) {
     const g = this.game;
     const counts = { blue: 0, red: 0 };
     for (const id of this.clients.keys()) counts[g.soldiers[id].team]++;
     const t = team === 'blue' || team === 'red' ? team : counts.blue <= counts.red ? 'blue' : 'red';
-    let s = g.claimSlot(t, cleanName(name));
-    if (!s) s = g.claimSlot(t === 'blue' ? 'red' : 'blue', cleanName(name));
+    let s = g.claimSlot(t, cleanName(name), cls, loadout);
+    if (!s) s = g.claimSlot(t === 'blue' ? 'red' : 'blue', cleanName(name), cls, loadout);
     if (!s) return null;
     const c = { ws, name: s.name, h: g.humans.get(s.id), id: s.id };
     this.clients.set(s.id, c);
@@ -80,7 +101,31 @@ export class Room {
       yw: num(m.yw, -1e4, 1e4), pt: num(m.pt, -1.5, 1.5),
       w: Math.round(num(m.w, 0, 3)),
       c: m.c ? 1 : 0, p: m.p ? 1 : 0, u: m.u ? 1 : 0,
+      fh: m.fh ? 1 : 0, fp: m.fp ? 1 : 0, rl: m.rl ? 1 : 0, fm: m.fm ? 1 : 0, o: m.o ? 1 : 0,
+      vt: Number.isFinite(m.vt) ? m.vt : null,
     });
+  }
+
+  // sonraki doğuş için sınıf / yükleme / doğma noktası
+  opt(id, m) {
+    const c = this.clients.get(id);
+    if (!c) return;
+    const h = c.h, g = this.game, str = (v) => (typeof v === 'string' ? v.slice(0, 24) : undefined);
+    if (typeof m.cls === 'string' && CLASS_DEFS[m.cls]) h.pendingClass = m.cls;
+    if (m.loadout && typeof m.loadout === 'object') h.pendingLoadout = { primary: str(m.loadout.primary), secondary: str(m.loadout.secondary), gadget: str(m.loadout.gadget), melee: str(m.loadout.melee) };
+    if (typeof m.spawn === 'string') h.spawnChoice = m.spawn === 'base' || g.mode.objectives.some((o) => o.id === m.spawn) ? m.spawn : 'base';
+  }
+
+  // BF_DEBUG=1 ile açılan test komutları: { t:'dbg', tp:[x,z] } ışınla · { hp } can · { bots:false } botları sustur
+  debug(id, m) {
+    const c = this.clients.get(id), g = this.game;
+    if (!c) return;
+    const s = c.h.s;
+    if (Array.isArray(m.tp)) { s.pos.set(m.tp[0], g.world.heightAt(m.tp[0], m.tp[1]), m.tp[2 - 1]); s.vel.set(0, 0, 0); g.world.settle(s); s.protT = 0; }
+    if (Number.isFinite(m.hp)) s.hp = m.hp;
+    if (Array.isArray(m.tk)) { g.tickets.blue = +m.tk[0]; g.tickets.red = +m.tk[1]; }
+    if (m.bots === false) { g.brainsOff = g.brains.splice(0); }
+    if (m.bots === true && g.brainsOff) { g.brains.push(...g.brainsOff); g.brainsOff = null; }
   }
 
   broadcast(msg, except) {
@@ -93,13 +138,15 @@ export class Room {
     this._acc = Math.min(this._acc + (now - this._last) / 1000, 0.25);
     this._last = now;
     while (this._acc >= SIM_DT) { this._acc -= SIM_DT; this.step(); }
+    if (this.resetAt && Date.now() >= this.resetAt) this.reset();
   }
 
   step() {
     const g = this.game;
     g.step(SIM_DT);
-    this.tick++;
+    this.tick = g.tick;
     for (const c of this.clients.values()) if (c.h.tickAck) c.h.ackState = packSoldier(c.h.s);
+    if (g.netEvents.length) { this.broadcast({ t: 'ev', l: g.netEvents }); g.netEvents.length = 0; }
     if (this.tick % SNAP_EVERY === 0 && this.clients.size) this.snapshot();
   }
 
@@ -112,7 +159,7 @@ export class Room {
     for (const c of this.clients.values()) {
       if (c.ws.readyState !== 1) continue;
       const h = c.h, s = h.s;
-      const me = { ack: h.ack, rs: s.spawnN, st: h.ackState || packSoldier(s), now: packSoldier(s) };
+      const me = { ack: h.ack, rs: s.spawnN, st: h.ackState || packSoldier(s), now: packSoldier(s), rt: +s.respawnT.toFixed(2), am: s.items.map((it) => [it.mag, it.reserve]) };
       c.ws.send(head + JSON.stringify(me) + '}');
     }
   }

@@ -46,6 +46,7 @@ export class Game {
     this.listeners = new Map();
     this.time = 0; this.running = false; this.ended = false; this.simulate = true;
     this.soldiers = []; this.brains = []; this.projectiles = [];
+    this.tick = 0; this.netEvents = [];
     this.humans = new Map();      // sunucu: savaşçı id → { s, queue, last, stale, ack, tickAck }
     this.classDefs = CLASS_DEFS;
     this.pendingClass = null;
@@ -161,6 +162,8 @@ export class Game {
     if (headless) {
       this.hud = nullSink();
       this.playerSoldier = null;
+      this.HN = 40;                                            // lag compensation geçmişi (adım)
+      this.histBuf = new Float32Array(this.HN * this.soldiers.length * 9);
       this.running = true;
       for (const s of this.soldiers) this.respawn(s, true);
       return;     // sunucu: DOM, döngü ve girdi yok — step(dt) dışarıdan çağrılır
@@ -208,14 +211,16 @@ export class Game {
 
   // ───── sunucu: insan oyuncular (botların yerine geçer) ─────
   // Takımdan bir bot slotunu alır: beyni sökülür, savaşçı insana verilir. Çıkınca bot geri gelir.
-  claimSlot(team, name, cls = 'assault') {
+  claimSlot(team, name, cls = 'assault', choice = {}) {
     const s = this.soldiers.find((e) => e.team === team && e.brain && !this.humans.has(e.id));
     if (!s) return null;
     this.brains.splice(this.brains.indexOf(s.brain), 1);
     s.brain = null; s.dmgMul = 1;
-    s.name = name; s.choice = {};
-    if (s.cls !== cls) s.setClass(cls);
-    this.humans.set(s.id, { s, queue: [], last: null, stale: 0, ack: 0, tickAck: false });
+    s.human = true; s.name = name;
+    s.choice = { primary: choice.primary, secondary: choice.secondary, gadget: choice.gadget, melee: choice.melee };
+    if (!CLASS_DEFS[cls]) cls = 'assault';
+    if (s.cls !== cls) s.setClass(cls); else s.items = makeLoadout(cls, s.team, s.choice);
+    this.humans.set(s.id, { s, queue: [], last: null, stale: 0, ack: 0, tickAck: false, fireBuf: 0, pendingClass: null, pendingLoadout: null, spawnChoice: 'base' });
     this.respawn(s, true);
     return s;
   }
@@ -225,6 +230,7 @@ export class Game {
     if (!h) return;
     this.humans.delete(id);
     const s = h.s;
+    s.human = false;
     s.choice = { random: true };
     s.name = this.freeBotName();
     new BotBrain(this, s, this.opts.diff);
@@ -247,7 +253,9 @@ export class Game {
         if (inp) { h.stale = 0; h.last = inp; h.ack = inp.q; h.tickAck = true; }
         else if (h.last) {
           // girdi gelmedi: son girdiyi birkaç adım tekrarla, sonra dur (sekme arka plana gittiyse koşup durmasın)
-          inp = ++h.stale > 5 ? { ...h.last, f: 0, r: 0, s: 0, j: 0, c: 0, p: 0, u: 0 } : { ...h.last, c: 0, p: 0, u: 0 };
+          // eylem alanları (ateş, şarjör...) asla tekrarlanmaz; yalnızca hareket sürer
+          const act = { c: 0, p: 0, u: 0, fh: 0, fp: 0, rl: 0, fm: 0, o: 0 };
+          inp = ++h.stale > 5 ? { ...h.last, ...act, f: 0, r: 0, s: 0, j: 0 } : { ...h.last, ...act };
         } else continue;
         if (!s.alive) continue;
         s.yaw = inp.yw; s.pitch = Math.max(-1.5, Math.min(1.5, inp.pt));
@@ -256,7 +264,19 @@ export class Game {
         if (inp.u) s.standUp();
         if (inp.c) s.toggleCrouch();
         if (inp.p) s.toggleProne();
+        if (inp.rl) s.startReload();
+        if (inp.fm) s.toggleFireMode();
+        if (inp.o) s.cycleOptic();
         applyInput(s, { f: inp.f, r: inp.r, lean: inp.l, sprint: !!inp.s, jump: !!inp.j }, dt);
+        // ateş: Player.update ile aynı mantık (istemci tahmini birebir tutsun)
+        if (inp.fp) h.fireBuf = 0.15;
+        h.fireBuf = Math.max(0, h.fireBuf - dt);
+        s.rewindTick = Number.isFinite(inp.vt) ? inp.vt : null;
+        const st = s.stat;
+        if (st.kind === 'melee') { if (inp.fh || h.fireBuf > 0) { if (s.tryFire()) h.fireBuf = 0; } }
+        else if (s.fireAuto) { if (inp.fh) s.tryFire(); }
+        else if (h.fireBuf > 0 && s.tryFire()) h.fireBuf = 0;
+        s.rewindTick = null;
       }
     }
   }
@@ -288,9 +308,9 @@ export class Game {
   }
 
   respawnReady() { return !this.playerSoldier.alive && !this.ended; }
-  requestClass(k) { this.pendingClass = k; this.hud.markClass(k); }
+  requestClass(k) { this.pendingClass = k; this.hud.markClass(k); this.online?.send({ t: 'opt', cls: k }); }
   // Ölüm ekranında yükleme değiştir: { primary, secondary, gadget, melee } → bir sonraki doğuşta geçerli (sınıfa uymazsa varsayılan)
-  requestLoadout(choice) { this.pendingLoadout = { ...choice }; }
+  requestLoadout(choice) { this.pendingLoadout = { ...choice }; this.online?.send({ t: 'opt', loadout: { ...choice } }); }
 
   // ───── doğma ─────
   // Oyuncu doğma noktası seçimi: 'base' ya da sahip olunan hedefin id'si
@@ -299,7 +319,7 @@ export class Game {
     for (const o of this.mode.objectives) out.push({ id: o.id, name: o.name, ok: this.canForwardSpawn(o, team), label: o.label || o.name[0] });
     return out;
   }
-  requestSpawn(id) { this.spawnChoice = id; this.hud.markSpawn?.(id); }
+  requestSpawn(id) { this.spawnChoice = id; this.hud.markSpawn?.(id); this.online?.send({ t: 'opt', spawn: id }); }
 
   canForwardSpawn(o, team) {
     if (o.owner !== team) return false;
@@ -315,8 +335,9 @@ export class Game {
   pickSpawn(team, s) {
     // ileri doğma: seçilen / bot için ara sıra sahip olunan hedefin çevresi
     let target = null;
-    if (s && s.isPlayer && this.spawnChoice !== 'base') target = this.mode.objectives.find((o) => o.id === this.spawnChoice);
-    else if (s && !s.isPlayer && Math.random() < 0.35) {
+    const ctl = s ? this.ctlOf(s) : null;
+    if (ctl && ctl.spawnChoice !== 'base') target = this.mode.objectives.find((o) => o.id === ctl.spawnChoice);
+    else if (s && !ctl && Math.random() < 0.35) {
       const own = this.mode.objectives.filter((o) => o.owner === team && this.canForwardSpawn(o, team));
       if (own.length) target = pick(own);
     }
@@ -339,14 +360,19 @@ export class Game {
     return base;
   }
 
+  // oyuncu (offline) ya da insan (sunucu) için doğuş tercihleri; botlar için null
+  ctlOf(s) { return s.isPlayer ? this : this.humans.get(s.id) || null; }
+
   respawn(s, first = false) {
-    if (s.isPlayer && this.pendingLoadout) { s.choice = this.pendingLoadout; this.pendingLoadout = null; s.items = makeLoadout(s.cls, s.team, s.choice); }
-    if (s.isPlayer && this.pendingClass && this.pendingClass !== s.cls) s.setClass(this.pendingClass);
+    const ctl = this.ctlOf(s);
+    if (ctl && ctl.pendingLoadout) { s.choice = ctl.pendingLoadout; ctl.pendingLoadout = null; s.items = makeLoadout(s.cls, s.team, s.choice); }
+    if (ctl && ctl.pendingClass && ctl.pendingClass !== s.cls) s.setClass(ctl.pendingClass);
     s.spawn(this.pickSpawn(s.team, s), first ? 1 : 3);
     this.world.settle(s);
     s.zoneT = 0;
     if (s.brain) s.brain.reset();
-    if (s.isPlayer) { this.pendingClass = null; this.hud.onPlayerSpawn?.(); }
+    if (ctl) ctl.pendingClass = null;
+    if (s.isPlayer) this.hud.onPlayerSpawn?.();
   }
 
   // Düşman üssüne giren: uyarı + hasar (spawn baskınını engeller)
@@ -472,7 +498,7 @@ export class Game {
     this.online.interpolate(performance.now());
     const me = this.playerSoldier;
     for (const s of this.soldiers) s.update(dt);
-    if (me.alive) this.world.move(me, dt);
+    if (me.alive) this.world.move(me, dt); else if (me.respawnT > 0) me.respawnT -= dt;
     this.player.update(dt);
     this.effects.update(dt);
     for (const s of this.soldiers) s.syncModel(dt);
@@ -504,6 +530,84 @@ export class Game {
     this.effects.update(dt);
     for (const s of this.soldiers) s.syncModel(dt);
     this.hud.update(dt);
+    if (this.headless) { this.tick++; this.recordHist(); }
+  }
+
+  netEvent(ev) { if (this.headless) this.netEvents.push(ev); }
+
+  // ───── çevrimiçi istemci: sunucu olayları ─────
+  onNetEvents(list) {
+    const me = this.playerSoldier, V = THREE.Vector3;
+    for (const ev of list) {
+      const by = this.soldiers[ev.by];
+      switch (ev.e) {
+        case 'sh': {                                  // başkasının atışı: iz, kıvılcım/kan, namlu alevi, ses
+          if (!by || by === me) break;
+          const st = WSTATS[by.item.id] || {}, o = new V(...ev.o), p = new V(...ev.p);
+          const dir = p.clone().sub(o).normalize();
+          this.effects.tracer(o, p, st.tracer);
+          if (ev.k === 'f') this.effects.blood(p, 7, dir.clone().negate());
+          else if (ev.k === 'w') { const n = new V(...ev.n); this.effects.spark(p, 4, n); this.effects.dust(p, n); this.effects.decal(p, n); }
+          if (ev.m) { this.effects.muzzle(o, dir); this.sfx.shot(st.sound, by.pos); by.flashT = 0.06; }
+          break;
+        }
+        case 'hm': if (ev.by === me.id) this.emit('hitmark', { zone: ev.hd ? 'head' : 'body', dead: !!ev.dead }); break;
+        case 'dmg': if (ev.v === me.id) { this.hud.damageFrom(new V(ev.x, 0, ev.z), me); this.sfx.hurt(); } break;
+        case 'kill': {
+          const victim = this.soldiers[ev.v], killer = this.soldiers[ev.k] || victim;
+          if (!victim) break;
+          this.hud.killFeed(killer, victim, ev.w, !!ev.hs);
+          if (killer === me && victim !== me) this.hud.popup(ev.hs ? '+150 KAFA ATIŞI' : '+100 ÖLDÜRME', !!ev.hs);
+          if (victim === me) me.lastHit = killer;
+          break;
+        }
+        case 'rld': if (by && by !== me) { by.reloadStyle = ev.s; by.reloadTotal = by.reloadT = ev.t; by.reloadEmpty = !!ev.em; by.shellT = ev.sh; } break;
+        case 'swg': if (by && by !== me) { by.swing = { t: 0, dur: ev.d, kind: ev.k, idx: 0, done: true }; by.comboT = ev.d + 0.38; } break;
+      }
+    }
+  }
+
+  onNetEnd(m) {
+    if (this.ended) return;
+    this.ended = true; this.running = false;
+    this.showEndScreen(m.winner, m.why);
+  }
+
+  onNetRestart() { location.reload(); }          // sunucu odayı yeni maça hazırladı: yeniden katıl
+
+  onNetClosed() {
+    if (this.ended) return;
+    this.hud.toast('Sunucu bağlantısı koptu', '#ff8a7a');
+    this.ended = true; this.running = false;
+    this.hud.showEnd(false, 'BAĞLANTI KOPTU', 'Sunucuyla bağlantı kesildi.', '');
+  }
+
+  // ───── lag compensation: son HN adımın konum geçmişi; atış anında hedefler istemcinin gördüğü ana geri sarılır ─────
+  recordHist() {
+    const N = this.soldiers.length, base = (this.tick % this.HN) * N * 9, b = this.histBuf;
+    for (let i = 0; i < N; i++) {
+      const s = this.soldiers[i], o = base + i * 9;
+      b[o] = s.pos.x; b[o + 1] = s.pos.y; b[o + 2] = s.pos.z; b[o + 3] = s.yaw; b[o + 4] = s.height; b[o + 5] = s.proneT;
+      b[o + 6] = s.leanOff.x; b[o + 7] = s.leanOff.y; b[o + 8] = s.leanOff.z;
+    }
+  }
+
+  // vt: istemcinin gördüğü sunucu adımı (kesirli). Dönen fonksiyon eski durumu geri yükler.
+  rewind(shooter, vt) {
+    const N = this.soldiers.length, T = this.tick;                   // en son kaydedilen adım (etiket = adım sonrası tick)
+    const t = Math.max(T - (this.HN - 3), Math.min(T, vt));
+    const i0 = Math.floor(t), f = t - i0, i1 = Math.min(T, i0 + 1);
+    const b = this.histBuf, a0 = (i0 % this.HN) * N * 9, a1 = (i1 % this.HN) * N * 9;
+    const saved = [];
+    for (let i = 0; i < N; i++) {
+      const s = this.soldiers[i];
+      if (s === shooter || !s.alive) continue;
+      const o0 = a0 + i * 9, o1 = a1 + i * 9;
+      saved.push([s, s.pos.x, s.pos.y, s.pos.z, s.yaw, s.height, s.proneT, s.leanOff.x, s.leanOff.y, s.leanOff.z]);
+      const L = (k) => b[o0 + k] + (b[o1 + k] - b[o0 + k]) * f;
+      s.pos.set(L(0), L(1), L(2)); s.yaw = L(3); s.height = L(4); s.proneT = L(5); s.leanOff.set(L(6), L(7), L(8));
+    }
+    return () => { for (const [s, x, y, z, yaw, h, pr, lx, ly, lz] of saved) { s.pos.set(x, y, z); s.yaw = yaw; s.height = h; s.proneT = pr; s.leanOff.set(lx, ly, lz); } };
   }
 
   render() {
@@ -555,6 +659,8 @@ export class Game {
 
   shootRay(shooter, origin, dir, st, muzzle) {
     const maxT = st.range ? st.range[1] * 2.2 : 300;
+    // sunucu: insanın atışı, istemcinin gördüğü ana geri sarılarak hesaplanır (lag compensation)
+    const restore = shooter.rewindTick != null ? this.rewind(shooter, shooter.rewindTick) : null;
     const wh = this.world.raycast(origin, dir, maxT, (this._wh ||= {}));
     const tw = wh ? wh.t : Infinity;
     let bestE = null, bestT = Infinity, bestZ = null;
@@ -563,7 +669,11 @@ export class Game {
       const h = this.hitSoldier(e, origin, dir, Math.min(tw, bestT, maxT));
       if (h && h.t < bestT && h.t < tw) { bestE = e; bestT = h.t; bestZ = h.zone; }
     }
+    restore?.();
     shooter.spottedT = this.time;
+    const first = this._firstPellet; this._firstPellet = false;
+    const q2 = (v) => Math.round(v * 100) / 100;
+    const ev = this.headless ? { e: 'sh', by: shooter.id, m: first ? 1 : 0, o: [q2(muzzle.x), q2(muzzle.y), q2(muzzle.z)] } : null;
     if (bestE) {
       const pt = origin.clone().addScaledVector(dir, bestT);
       const r0 = st.range[0], r1 = st.range[1];
@@ -571,7 +681,9 @@ export class Game {
       const zm = bestZ === 'head' ? 2.1 : bestZ === 'legs' ? 0.8 : 1;
       this.effects.blood(pt, 7, dir.clone().negate());
       if (Math.random() < 0.6 || (st.pellets || 1) === 1) this.effects.tracer(muzzle, pt, st.tracer);
-      bestE.takeDamage(st.dmg * f * zm * (shooter.dmgMul || 1), shooter, bestZ, shooter.pos, st.name);
+      // çevrimiçi istemcide hasar yok: sunucu hesaplar, sonucu olay olarak yollar
+      if (!this.online) bestE.takeDamage(st.dmg * f * zm * (shooter.dmgMul || 1), shooter, bestZ, shooter.pos, st.name);
+      if (ev) { ev.k = 'f'; ev.p = [q2(pt.x), q2(pt.y), q2(pt.z)]; }
     } else if (wh) {
       const pt = wh.point.clone();
       if (Math.random() < 0.7) this.effects.tracer(muzzle, pt, st.tracer);
@@ -579,9 +691,13 @@ export class Game {
       if (wh.collider || wh.normal.y > 0.5) this.effects.dust(pt, wh.normal);
       this.effects.decal(pt, wh.normal);
       if (shooter.isPlayer || pt.distanceTo(this.camera.position) < 25) this.sfx.impact(pt);
+      if (ev) { ev.k = 'w'; ev.p = [q2(pt.x), q2(pt.y), q2(pt.z)]; ev.n = [q2(wh.normal.x), q2(wh.normal.y), q2(wh.normal.z)]; }
     } else {
-      this.effects.tracer(muzzle, origin.clone().addScaledVector(dir, 120), st.tracer);
+      const end = origin.clone().addScaledVector(dir, 120);
+      this.effects.tracer(muzzle, end, st.tracer);
+      if (ev) { ev.k = 'a'; ev.p = [q2(end.x), q2(end.y), q2(end.z)]; }
     }
+    if (ev) this.netEvents.push(ev);
   }
 
   // Yakın dövüş vuruşu: önündeki koni (±34°) içinde, duvar engeli olmayan en yakın düşman. Yoksa duvar vuruşu döner.
@@ -813,9 +929,10 @@ export class Game {
 
   onKill(killer, victim, weapon, hs) {
     this.tickets[victim.team] -= 1;
+    this.netEvent({ e: 'kill', k: killer ? killer.id : -1, v: victim.id, w: weapon || '', hs: hs ? 1 : 0 });
     this.hud.killFeed(killer, victim, weapon, hs);
     if (killer && killer.isPlayer && killer !== victim) this.hud.popup(hs ? '+150 KAFA ATIŞI' : '+100 ÖLDÜRME', hs);
-    victim.respawnT = victim.isPlayer ? 5 : rand(3.5, 6);
+    victim.respawnT = victim.isPlayer || victim.human ? 5 : rand(3.5, 6);
     if (victim.isPlayer && this.player) this.player.camPos.copy(victim.eye());
   }
 
@@ -829,6 +946,10 @@ export class Game {
     this.ended = true;
     this.running = false;
     if (this.headless) { this.winner = w; this.endReason = why; this.emit('end', { winner: w, why }); return; }
+    this.showEndScreen(w, why);
+  }
+
+  showEndScreen(w, why) {
     document.exitPointerLock?.();
     const me = this.playerSoldier;
     const win = w === me.team;

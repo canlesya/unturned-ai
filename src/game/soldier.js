@@ -131,6 +131,7 @@ export class Soldier {
     }
     this.game.sfx.reload(this.pos, style, this.reloadTotal, this.reloadEmpty);
     this.game.emit('reload', this);
+    this.game.netEvent({ e: 'rld', by: this.id, s: style, t: +this.reloadTotal.toFixed(3), em: this.reloadEmpty ? 1 : 0, sh: +(this.shellT || 0).toFixed(3) });
     return true;
   }
 
@@ -165,10 +166,10 @@ export class Soldier {
   }
 
   tryFire() {
-    if (this.game.online) return false;      // çevrimiçi ateş: sunucu otoriteli (Adım 4)
     if (!this.alive || this.cd > 0 || this.switchT > 0 || this.useT > 0) return false;
     if (this.reloadT > 0 && !this.cancelShellReload()) return false;
     const it = this.item, st = this.stat;
+    if (this.game.online && !(st.kind === 'gun' || st.kind === 'melee' || st.kind === 'medkit')) return false;   // gadget'lar: Adım 4b
     if (st.kind === 'melee') return this._melee(st);
     if (st.kind === 'medkit') return this._medkit(it, st);
     if (it.mag <= 0) {
@@ -205,6 +206,7 @@ export class Soldier {
     const muzzle = this.muzzleWorld(new THREE.Vector3());
     const right = new THREE.Vector3().crossVectors(base, UP).normalize();
     const up = new THREE.Vector3().crossVectors(right, base).normalize();
+    g._firstPellet = true;
     for (let i = 0; i < pellets; i++) {
       const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * spread;
       const d = base.clone().addScaledVector(right, Math.cos(a) * r).addScaledVector(up, Math.sin(a) * r).normalize();
@@ -215,7 +217,7 @@ export class Soldier {
     this.flashT = 0.06;
     this.sinceShot = 0;
     this.bloom = Math.min(this.bloom + (st.kickV || 0.01) * 0.07, 0.005);
-    if (this.isPlayer) {
+    if (this.isPlayer || this.human) {
       const k = (st.kickV || 0.01) * (this.adsT > 0.5 ? 0.7 : 1);
       this.pitch = Math.min(1.45, this.pitch + k * 0.55);   // kalıcı tırmanma: oyuncu aşağı çekerek telafi eder
       this.recoilP += k * 0.45;
@@ -272,6 +274,7 @@ export class Soldier {
     this.sprinting = false;
     this.game.sfx.shot('knife', this.pos);
     this.game.emit('melee', this);
+    this.game.netEvent({ e: 'swg', by: this.id, k: kind, d: +dur.toFixed(3) });
     this.flashT = 0;
     return true;
   }
@@ -383,7 +386,9 @@ export class Soldier {
       this.game.hud.damageFrom(fromPos, this);
       this.game.sfx.hurt();
     } else if (this.brain) this.brain.onDamaged(attacker, fromPos);
+    else if (this.human && fromPos) this.game.netEvent({ e: 'dmg', v: this.id, x: +fromPos.x.toFixed(1), z: +fromPos.z.toFixed(1) });
     if (attacker && attacker !== this && attacker.isPlayer) this.game.emit('hitmark', { victim: this, zone, dead: this.hp <= 0, dmg: amount });
+    else if (attacker && attacker !== this && attacker.human) this.game.netEvent({ e: 'hm', by: attacker.id, dead: this.hp <= 0 ? 1 : 0, hd: zone === 'head' ? 1 : 0 });
     if (this.hp <= 0) this.die(attacker, weaponName, zone === 'head');
   }
 
@@ -455,7 +460,8 @@ export class Soldier {
         if (this.reviveTarget) {
           const bt = this.reviveTarget; this.reviveTarget = null;
           const mk = this.items[2];
-          if (this.game.canRevive(bt, this)) { if (mk && mk.id === 'medkit' && mk.mag > 0) mk.mag--; this.game.revive(bt, this); }
+          if (this.game.online) { if (mk && mk.id === 'medkit' && mk.mag > 0) mk.mag--; }
+          else if (this.game.canRevive(bt, this)) { if (mk && mk.id === 'medkit' && mk.mag > 0) mk.mag--; this.game.revive(bt, this); }
         } else if (it && it.mag > 0) { it.mag--; this.heal(WSTATS.medkit.heal); if (it.mag <= 0 && this.cur === 2) this.switchTo(0); }
       }
     }

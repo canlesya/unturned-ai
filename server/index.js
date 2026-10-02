@@ -27,6 +27,8 @@ wss.on('connection', (ws) => {
     try { m = JSON.parse(data); } catch { return; }
     if (!m || typeof m.t !== 'string') return;
     if (m.t === 'in') { if (ws.ctx) ws.ctx.room.input(ws.ctx.id, m); return; }
+    if (m.t === 'opt') { if (ws.ctx) ws.ctx.room.opt(ws.ctx.id, m); return; }
+    if (m.t === 'dbg' && process.env.BF_DEBUG && ws.ctx) { ws.ctx.room.debug(ws.ctx.id, m); return; }   // yalnızca test için
     if (ws.ctx) return err(ws, 'Zaten bir odadasın');
     if (m.t === 'create') {
       if (rooms.size >= MAX_ROOMS) return err(ws, 'Sunucu dolu, sonra tekrar dene');
@@ -37,6 +39,8 @@ wss.on('connection', (ws) => {
     } else if (m.t === 'join') {
       const room = rooms.get(String(m.room || '').toUpperCase());
       if (!room) return err(ws, 'Oda bulunamadı');
+      const why = room.canJoin();
+      if (why) return err(ws, why);
       enter(ws, room, m);
     }
   });
@@ -45,7 +49,7 @@ wss.on('connection', (ws) => {
 });
 
 function enter(ws, room, m) {
-  const c = room.join(ws, cleanName(m.name), m.team);
+  const c = room.join(ws, cleanName(m.name), m.team, m.cls, m.loadout);
   if (!c) return err(ws, 'Oda dolu');
   ws.ctx = { room, id: c.id };
   console.log(`[${room.code}] ${c.name} katıldı (${room.humanCount} oyuncu)`);

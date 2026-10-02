@@ -18,7 +18,8 @@ export class NetClient {
     this.offset = null;                // sunucu zamanı (ms) − yerel zaman (ms) tahmini
     this.seq = 0;
     this.hist = [];                    // gönderilmiş, henüz onaylanmamış girdiler
-    this.edges = { c: 0, p: 0, u: 0 };
+    this.edges = {};
+    this.rt = 0;                       // son gösterilen (interpolasyon) sunucu adımı: atışta vt olarak gider
     this.rs = null;
     this.stats = { corrections: 0, lastErr: 0, snaps: 0, rtt: 0 };
     this.pendingMe = null;
@@ -50,17 +51,24 @@ export class NetClient {
     if (m.t === 'snap') return this.onSnap(m);
     if (m.t === 'roster') return this.onRoster(m.roster);
     if (m.t === 'end') return this.game.onNetEnd?.(m);
+    if (m.t === 'ev') return this.game.onNetEvents?.(m.l);
+    if (m.t === 'restart') return this.game.onNetRestart?.();
   }
 
   // ── girdi ──
   edge(k) { this.edges[k] = 1; }
 
   // Player.update içinde applyInput'tan hemen sonra çağrılır (adım başına bir kez)
-  pushInput(inp, s) {
-    const e = this.edges; this.edges = { c: 0, p: 0, u: 0 };
+  pushInput(inp, s, fireHeld) {
+    const e = this.edges; this.edges = {};
     const q = ++this.seq;
-    this.send({ t: 'in', q, f: inp.f, r: inp.r, l: inp.lean, s: inp.sprint ? 1 : 0, j: inp.jump ? 1 : 0, a: s.ads ? 1 : 0, w: s.cur, yw: +s.yaw.toFixed(4), pt: +s.pitch.toFixed(4), c: e.c, p: e.p, u: e.u });
-    this.hist.push({ q, inp: { f: inp.f, r: inp.r, lean: inp.lean, sprint: !!inp.sprint, jump: !!inp.jump }, yaw: s.yaw, pitch: s.pitch, e, st: { x: s.pos.x, y: s.pos.y, z: s.pos.z } });
+    this.send({
+      t: 'in', q, f: inp.f, r: inp.r, l: inp.lean, s: inp.sprint ? 1 : 0, j: inp.jump ? 1 : 0, a: s.ads ? 1 : 0, w: s.cur,
+      yw: +s.yaw.toFixed(4), pt: +s.pitch.toFixed(4), c: e.c | 0, p: e.p | 0, u: e.u | 0,
+      fh: fireHeld ? 1 : 0, fp: e.fp | 0, rl: e.rl | 0, fm: e.fm | 0, o: e.o | 0, vt: +this.rt.toFixed(2),
+    });
+    const fire = !!(fireHeld || e.fp || e.rl);
+    this.hist.push({ q, fire, inp: { f: inp.f, r: inp.r, lean: inp.lean, sprint: !!inp.sprint, jump: !!inp.jump }, yaw: s.yaw, pitch: s.pitch, e, st: { x: s.pos.x, y: s.pos.y, z: s.pos.z } });
     if (this.hist.length > 240) this.hist.shift();
   }
 
@@ -93,6 +101,7 @@ export class NetClient {
     if (p.a && !s.alive) s.spawn({ x: p.x, z: p.z, ry: p.yw }, 0);
     else if (!p.a && s.alive) { s.alive = false; s.hp = 0; s.deadT = 0; s.deadDir = Math.random() > 0.5 ? 1 : -1; s.ads = false; s.reloadT = 0; s.vel.set(0, 0, 0); }
     s.hp = p.hp;
+    s.kills = p.kl; s.deaths = p.de; s.score = p.sc; s.revivable = !!p.rv;
     if (s.items.length !== p.it.length || s.items.some((it, i) => it.id !== p.it[i])) {
       s.items = p.it.map(mkItem);
       s._modelWeapon = undefined;
@@ -106,6 +115,11 @@ export class NetClient {
     }
   }
 
+  applyAmmo(s, me) {
+    if (!me.am || me.am.length !== s.items.length) return;
+    me.am.forEach(([mag, reserve], i) => { s.items[i].mag = mag; s.items[i].reserve = reserve; });
+  }
+
   // ── tahmin uzlaştırma (yerel oyuncu) ──
   reconcile(me) {
     const g = this.game, s = g.playerSoldier;
@@ -116,17 +130,20 @@ export class NetClient {
       const p = me.now;
       this.applyState(s, p, true);
       s.pos.set(p.x, p.y, p.z); s.vel.set(p.vx, p.vy, p.vz);
-      s.yaw = p.yw; s.pitch = p.pt; s.protT = 0;
+      s.yaw = p.yw; s.pitch = p.pt; s.protT = 0; s.cur = p.c; s.respawnT = me.rt;
       applyFlags(s, p.f);
+      this.applyAmmo(s, me);
       return;
     }
     const st = me.st;
-    if (!st.a) { if (s.alive) this.applyState(s, st, true); this.hist.length = 0; return; }
+    s.kills = me.now.kl; s.deaths = me.now.de; s.score = me.now.sc;
+    if (!st.a) { if (s.alive) this.applyState(s, st, true); this.hist.length = 0; s.respawnT = me.rt; return; }
     if (!s.alive) { this.applyState(s, st, true); }
     s.hp = st.hp;
     // sunucunun işlediği son girdi (ack) anındaki tahminimizle karşılaştır
     let rec = null;
     while (this.hist.length && this.hist[0].q <= me.ack) rec = this.hist.shift();
+    if (!this.hist.some((h) => h.fire)) this.applyAmmo(s, me);     // uçuşta ateş/şarjör yoksa cephaneyi sunucuya eşitle
     if (!rec || rec.q !== me.ack) return;
     const err = Math.hypot(rec.st.x - st.x, rec.st.y - st.y, rec.st.z - st.z);
     this.stats.lastErr = err;
@@ -153,6 +170,7 @@ export class NetClient {
     const g = this.game, S = this.snaps;
     if (!S.length || this.offset === null) return;
     const rt = ((nowMs - this.offset) / 1000) * SIM_HZ - INTERP_DELAY_TICKS;   // gösterilecek sunucu adımı
+    this.rt = rt;
     let a = S[0], b = S[0];
     for (let i = 0; i < S.length; i++) { if (S[i].k <= rt) { a = S[i]; b = S[Math.min(i + 1, S.length - 1)]; } else break; }
     if (S[0].k > rt) a = b = S[0];

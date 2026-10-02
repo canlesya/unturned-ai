@@ -26,8 +26,8 @@ function start(opts) {
         nolock: q.get('nolock') === '1',
         autoplay: q.get('autoplay') === '1',
         onMatchEnd: recordMatch,
-        onExit: () => { game = null; showMenu(start); },
-        onRestart: () => start(opts),
+        onExit: opts.onExit || (() => { game = null; showMenu(start); }),
+        onRestart: opts.onRestart || (() => start(opts)),
       });
     } catch (e) {
       console.error(e);
@@ -46,9 +46,10 @@ async function startOnline() {
   const url = q.get('server') || `ws://${location.hostname || '127.0.0.1'}:${DEFAULT_PORT}`;
   const name = q.get('name') || p.name || 'Oyuncu';
   const code = q.get('online');
+  const cls = q.get('cls') || p.cls || 'assault', loadout = (p.loadouts && p.loadouts[cls]) || {};
   const hello = code.toLowerCase() === 'new'
-    ? { t: 'create', name, team: q.get('team') || undefined, cfg: { map: q.get('map') || 'kasaba', tod: q.get('tod') || 'day', weather: q.get('weather') || 'clear', type: q.get('type') || 'conquest', perTeam: +q.get('per') || 5, diff: q.get('diff') || 'normal', tickets: +q.get('tickets') || undefined, time: q.has('time') ? +q.get('time') : undefined } }
-    : { t: 'join', room: code, name, team: q.get('team') || undefined };
+    ? { t: 'create', name, cls, loadout, team: q.get('team') || undefined, cfg: { map: q.get('map') || 'kasaba', tod: q.get('tod') || 'day', weather: q.get('weather') || 'clear', type: q.get('type') || 'conquest', perTeam: +q.get('per') || 5, diff: q.get('diff') || 'normal', tickets: +q.get('tickets') || undefined, time: q.has('time') ? +q.get('time') : undefined } }
+    : { t: 'join', room: code, name, cls, loadout, team: q.get('team') || undefined };
   try {
     const { net, welcome } = await NetClient.connect(url, hello);
     const c = welcome.cfg;
@@ -57,7 +58,7 @@ async function startOnline() {
       online: { net, id: welcome.id, roster: welcome.roster },
       match: { perTeam: c.perTeam, type: c.type, tickets: c.tickets, time: c.time }, map: c.map, tod: c.tod, weather: c.weather, diff: c.diff,
       optic: q.get('optic') || 'reddot', team: welcome.roster[welcome.id].team, cls: welcome.roster[welcome.id].cls, playerName: name,
-      loadout: {}, settings: { sens: p.sens, fov: p.fov, volume: p.volume ?? 0.6, shadows: q.get('shadows') !== '0', pixelRatio: +(q.get('pr') || 1) },
+      loadout, onExit: () => { location.href = location.pathname; }, onRestart: () => location.reload(), settings: { sens: p.sens, fov: p.fov, volume: p.volume ?? 0.6, shadows: q.get('shadows') !== '0', pixelRatio: +(q.get('pr') || 1) },
     });
   } catch (e) {
     loading.style.display = 'flex';

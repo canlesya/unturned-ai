@@ -269,13 +269,13 @@ export class Player {
       this.keys.add(e.code);
       const s = this.s;
       if (!this.game.running) return;
-      if (e.code === 'KeyR') s.startReload();
+      if (e.code === 'KeyR') { s.startReload(); this.game.online?.edge('rl'); }
       if (s.alive && (e.code === 'KeyC' || e.code === 'ControlLeft' || e.code === 'ControlRight')) { s.toggleCrouch(); this.game.online?.edge('c'); }
       if (s.alive && e.code === 'KeyZ') { s.toggleProne(); this.game.online?.edge('p'); }
-      if (s.alive && e.code === 'KeyB') { const o = s.cycleOptic(); if (o) this.game.hud.toast('Nişangâh: ' + o.label, '#cfe6ff'); }
+      if (s.alive && e.code === 'KeyB') { this.game.online?.edge('o'); const o = s.cycleOptic(); if (o) this.game.hud.toast('Nişangâh: ' + o.label, '#cfe6ff'); }
       if (e.code.startsWith('Digit')) { const n = +e.code.slice(5) - 1; if (n >= 0 && n < 4) s.switchTo(n); }
       if (e.code === 'KeyV') s.switchTo(3);
-      if (e.code === 'KeyX' && s.alive) s.toggleFireMode();
+      if (e.code === 'KeyX' && s.alive) { s.toggleFireMode(); this.game.online?.edge('fm'); }
       if (e.code === 'KeyG') s.switchTo(2);
       if (e.code === 'Tab') { e.preventDefault(); this.game.hud.showScoreboard(true); }
       if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
@@ -300,7 +300,7 @@ export class Player {
     });
     this.on(cv, 'mousedown', (e) => {
       if (!this.locked) { this.game.requestLock(); return; }
-      if (e.button === 0) { this.fireHeld = true; this.fireBuf = 0.15; }
+      if (e.button === 0) { this.fireHeld = true; this.fireBuf = 0.15; this.game.online?.edge('fp'); }
       if (e.button === 2) this.s.ads = true;
     });
     this.on(window, 'mouseup', (e) => {
@@ -341,7 +341,7 @@ export class Player {
       const lean = (k.has('KeyE') ? 1 : 0) - (k.has('KeyQ') ? 1 : 0);
       const inp = { f, r, lean, sprint: k.has('ShiftLeft'), jump: k.has('Space') && !this.spaceLatch };
       applyInput(s, inp, dt);
-      if (g.online) g.online.pushInput(inp, s);
+      if (g.online) g.online.pushInput(inp, s, this.fireHeld);
       if (!k.has('Space')) this.spaceLatch = false;
 
       // ateş
