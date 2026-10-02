@@ -189,7 +189,6 @@ export function showMenu(onStart, onOnline) {
       <button class="chip on" data-a="rpwgo">Katıl</button><button class="chip" data-a="rpwcancel">Vazgeç</button></div></div>`;
   }
   function onlineHTML() {
-    const url = p.server || defaultServerUrl();
     const tm = [['auto', 'Otomatik', ''], ['blue', 'Mavi', 'blue'], ['red', 'Kırmızı', 'red']].map(([k, n, c]) => `<button class="chip ${c} ${p.olTeam === k ? 'on' : ''}" data-a="oltm" data-v="${k}">${n}</button>`).join('');
     const msg = ol.msg ? `<div class="olmsg ${ol.err ? 'err' : ''}">${ol.msg}</div>` : '';
     const dis = ol.busy ? 'disabled' : '';
@@ -204,9 +203,7 @@ export function showMenu(onStart, onOnline) {
           <button class="play sec" data-a="oljoin" ${dis} style="margin-top:10px;width:100%">Katıl</button></div>
       </div>
       <div class="pan"><h3>Takım</h3><div class="row">${tm}</div>
-        <div class="hint">Takım seçmezsen sunucu dengeler. Oyunda <kbd>M</kbd> ile takım değiştirebilirsin. Sınıf ve silahın "Sınıf &amp; Silah" ekranından, takma adın sol üstten gelir.</div></div>
-      <div class="pan"><h3>Sunucu adresi</h3><input class="olin" id="olServer" value="${esc(url)}" spellcheck="false" autocomplete="off">
-        <div class="hint">Varsayılan adres çoğu zaman doğrudur. Arkadaşının sunucusuna bağlanmak için değiştir.</div></div></div>`;
+        <div class="hint">Takım seçmezsen sunucu dengeler. Oyunda <kbd>M</kbd> ile takım değiştirebilirsin. Sınıf ve silahın "Sınıf &amp; Silah" ekranından, takma adın sol üstten gelir.</div></div></div>`;
   }
   function ocreateHTML() {
     const c = oc();
@@ -248,7 +245,7 @@ export function showMenu(onStart, onOnline) {
       const n = ol.rooms.reduce((a, x) => a + x.humans, 0);
       set('ok', `● hazır · ${n} oyuncu çevrimiçi`);
       const box = q('#olRooms'); if (box && !ol.busy) box.innerHTML = roomListHTML();
-    } catch (e) { ol.rooms = null; set('bad', '● sunucuya ulaşılamıyor'); const box = q('#olRooms'); if (box) box.innerHTML = '<div class="hint">Sunucuya ulaşılamıyor. Sunucu adresini aşağıdan kontrol et.</div>'; }
+    } catch (e) { ol.rooms = null; set('bad', '● sunucuya ulaşılamıyor'); const box = q('#olRooms'); if (box) box.innerHTML = '<div class="hint">Sunucuya ulaşılamıyor. Sunucunun çalıştığından emin ol.</div>'; }
   }
   const roomPoll = setInterval(() => { if (screen === 'online' && !ol.busy && !ol.pwFor) checkServer(); }, 2500);
 
@@ -389,7 +386,6 @@ export function showMenu(onStart, onOnline) {
     if (id === 'ocName') { oc().name = t.value; save(); return; }
     if (id === 'ocPw') { ol.cpw = t.value; return; }
     if (id === 'ocSize') { const v = +t.value; oc().perTeam = v; t.style.setProperty('--p', ((v - 1) / 31) * 100 + '%'); q('#ocSizeV').innerHTML = `${v}<i>vs</i>${v}`; stage.querySelectorAll('[data-k=perTeam]').forEach((c) => c.classList.toggle('on', +c.dataset.v === v)); save(); return; }
-    if (id === 'olServer') { p.server = t.value.trim(); save(); clearTimeout(t._d); t._d = setTimeout(checkServer, 500); return; }
     if (t.type !== 'range') return;
     const v = +t.value, mn = +t.min, mx = +t.max;
     t.style.setProperty('--p', ((v - mn) / (mx - mn)) * 100 + '%');
