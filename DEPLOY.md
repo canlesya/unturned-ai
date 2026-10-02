@@ -90,6 +90,11 @@ sudo ufw allow OpenSSH && sudo ufw allow 'Nginx Full' && sudo ufw enable
 ```
 nginx kullanıyorsan Node'un 8787 portunu dışarı açma (yalnızca 127.0.0.1'den erişilsin).
 
+### Cloudflare arkasında
+Alan adını Cloudflare'a (turuncu bulut / proxied) bağladıysan: WebSocket 80/443'ten çalışır (8787'yi doğrudan açmana gerek yok).
+Sertifikayı `sudo certbot --nginx -d alan.com -d www.alan.com --no-redirect` ile al (HTTP-01 proxy arkasında da çalışır; `--no-redirect` HTTPS yönlendirmesini Cloudflare'a bırakır).
+Cloudflare SSL/TLS modu **Full** olmalı. Tarayıcıda **521 Web server is down** görürsen: sunucuda 443 dinlenmiyor (sertifika/nginx), ya da Node servisi kapalı (`systemctl status warbyte`).
+
 ## 5. Ortam değişkenleri
 
 | Değişken | Varsayılan | Anlam |
