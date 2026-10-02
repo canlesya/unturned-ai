@@ -14,6 +14,7 @@ import { makeMatch, PRESETS } from './match.js';
 import { Weather } from './weather.js';
 import { rand, pick, clamp } from './util.js';
 import { TEAMS } from '../core/palette.js';
+import { nullSink } from '../sim/nullSink.js';
 import { mat } from '../core/geo.js';
 import { initGadgets, updateGadgets, spawnSmoke, flashBang, smokeBlocks, smokeDensity, placeDeployable } from './gadgets.js';
 
@@ -37,7 +38,9 @@ export class Game {
   constructor(container, opts) {
     this.opts = opts;
     this.container = container;
-    this.settings = opts.settings;
+    // headless: sunucu/test modu — renderer, HUD, ses, hava, Player ve DOM olayları kurulmaz (bkz. src/sim/nullSink.js)
+    const headless = (this.headless = !!opts.headless);
+    this.settings = opts.settings || { fov: 80, volume: 0, shadows: false, pixelRatio: 1, sens: 1 };
     this.listeners = new Map();
     this.time = 0; this.running = false; this.ended = false; this.simulate = true;
     this.soldiers = []; this.brains = []; this.projectiles = [];
@@ -47,20 +50,23 @@ export class Game {
     this.medicT = 0; this.resupplyT = 0; this.bleedT = 5; this.capT = 0;
 
     // ── renderer ──
-    const r = (this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' }));
-    r.setPixelRatio(Math.min(devicePixelRatio, this.settings.pixelRatio || 1.5));
-    r.setSize(innerWidth, innerHeight, false);   // CSS boyutunu biz belirleriz (yüksek DPI'da tuval taşmasın)
-    r.autoClear = false;
-    r.shadowMap.enabled = this.settings.shadows !== false;
-    r.shadowMap.type = THREE.PCFShadowMap;
-    r.toneMapping = THREE.NeutralToneMapping;
-    r.outputColorSpace = THREE.SRGBColorSpace;
-    this.canvas = r.domElement;
-    this.canvas.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:100%;display:block;';
-    container.appendChild(this.canvas);
-
+    let r = null;
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(this.settings.fov, innerWidth / innerHeight, 0.05, 700);
+    if (!headless) {
+      r = this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+      r.setPixelRatio(Math.min(devicePixelRatio, this.settings.pixelRatio || 1.5));
+      r.setSize(innerWidth, innerHeight, false);   // CSS boyutunu biz belirleriz (yüksek DPI'da tuval taşmasın)
+      r.autoClear = false;
+      r.shadowMap.enabled = this.settings.shadows !== false;
+      r.shadowMap.type = THREE.PCFShadowMap;
+      r.toneMapping = THREE.NeutralToneMapping;
+      r.outputColorSpace = THREE.SRGBColorSpace;
+      this.canvas = r.domElement;
+      this.canvas.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:100%;display:block;';
+      container.appendChild(this.canvas);
+    }
+
+    this.camera = new THREE.PerspectiveCamera(this.settings.fov, headless ? 1 : innerWidth / innerHeight, 0.05, 700);
     this.scene.add(this.camera);
     // fener (F): gece / gün batımında
     this.torch = new THREE.SpotLight('#fff3d6', 0, 70, 0.52, 0.65, 1.1);
@@ -74,14 +80,20 @@ export class Game {
     this.mapDef = MAPS[opts.map] || MAPS[DEFAULT_MAP];
     this.map = this.mapDef.build();
     this.tod = opts.tod || 'day';
-    const env = setupEnvironment(this.scene, r, { shadowSize: 55, sunPos: this.map.env?.sunPos || [55, 85, 40], env: this.map.env, tod: this.tod });
-    const sp = env.sunPos;
-    this.sun = env.sun;
-    this.night = env.night;
-    this.sun.shadow.mapSize.set(2048, 2048);
-    this.sunOff = new THREE.Vector3(...sp);
-    this.scene.add(this.map.group);
-    env.applyGlow(this.map.group);
+    if (headless) {
+      this.night = this.tod === 'night';
+      this.sun = null;
+      this.scene.add(this.map.group);
+    } else {
+      const env = setupEnvironment(this.scene, r, { shadowSize: 55, sunPos: this.map.env?.sunPos || [55, 85, 40], env: this.map.env, tod: this.tod });
+      const sp = env.sunPos;
+      this.sun = env.sun;
+      this.night = env.night;
+      this.sun.shadow.mapSize.set(2048, 2048);
+      this.sunOff = new THREE.Vector3(...sp);
+      this.scene.add(this.map.group);
+      env.applyGlow(this.map.group);
+    }
     this.terrain = this.map.terrain || null;
     this.world = new World(this.map.colliders, this.map.bounds, this.terrain);
     this.nav = new NavGrid(this.map.colliders, this.map.bounds, this.terrain);
@@ -93,13 +105,20 @@ export class Game {
     this.timeLeft = this.mode.time || Infinity;
     this.spawnChoice = 'base';
 
-    this.effects = new Effects(this.scene);
     this.visMul = 1;
     initGadgets(this);
-    this.sfx = new Sfx();
-    this.sfx.setVolume(this.settings.volume);
-    this.sfx.init();
-    this.weather = new Weather(this, opts.weather || 'clear');
+    if (headless) {
+      this.effects = nullSink({ shake: 0 });
+      this.sfx = nullSink();
+      this.weather = nullSink();
+      this.visMul = opts.weather === 'fog' ? 0.5 : opts.weather === 'rain' ? 0.8 : 1;   // Weather'ın bot görüşüne etkisi
+    } else {
+      this.effects = new Effects(this.scene);
+      this.sfx = new Sfx();
+      this.sfx.setVolume(this.settings.volume);
+      this.sfx.init();
+      this.weather = new Weather(this, opts.weather || 'clear');
+    }
 
     // ── savaşçılar ──
     const names = [...BOT_NAMES].sort(() => Math.random() - 0.5);
@@ -108,7 +127,7 @@ export class Game {
     let id = 0;
     for (const team of ['blue', 'red']) {
       for (let i = 0; i < this.mode.perTeam; i++) {
-        const isPlayer = team === opts.team && i === 0;
+        const isPlayer = !headless && team === opts.team && i === 0;
         const s = new Soldier(this, {
           id: id++, name: isPlayer ? (opts.playerName || 'Sen') : nameOf(id), team,
           cls: isPlayer ? opts.cls : order[(i + (team === 'red' ? 2 : 0)) % order.length], isPlayer,
@@ -118,7 +137,7 @@ export class Game {
         else this.brains.push(new BotBrain(this, s, opts.diff));
       }
     }
-    if (opts.autoplay) this.brains.push(new BotBrain(this, this.playerSoldier, opts.diff));
+    if (opts.autoplay && !headless) this.brains.push(new BotBrain(this, this.playerSoldier, opts.diff));
     // mangallar: takım başına 4'lü gruplar
     for (const team of ['blue', 'red']) {
       let n = 0;
@@ -128,6 +147,13 @@ export class Game {
     this.perchCache = new Map();
     this.squadT = 0;
     this.assignSquads();
+    if (headless) {
+      this.hud = nullSink();
+      this.playerSoldier = null;
+      this.running = true;
+      for (const s of this.soldiers) this.respawn(s, true);
+      return;     // sunucu: DOM, döngü ve girdi yok — step(dt) dışarıdan çağrılır
+    }
     this.hud = new Hud(this);
     this.player = new Player(this, this.playerSoldier, this.settings);
     this.player.locked = !!opts.nolock;
@@ -373,7 +399,7 @@ export class Game {
       s.update(dt);
       if (s.alive) this.world.move(s, dt);
     }
-    this.player.update(dt);
+    if (this.player) this.player.update(dt);
     for (const b of this.brains) b.update(dt);
     this.updateProjectiles(dt);
     updateGadgets(this, dt, this.time);
@@ -688,7 +714,9 @@ export class Game {
   }
 
   onFlag(o, prev) {
-    const mine = this.playerSoldier.team;
+    const mine = this.playerSoldier?.team;
+    this.emit('flag', { o, prev });
+    if (this.headless) return;
     if (o.owner) {
       const good = o.owner === mine;
       this.hud.toast(`${o.name} ${good ? 'ele geçirildi' : 'düşman tarafından ele geçirildi'}`, good ? '#7ec8ff' : '#ff8a7a');
@@ -701,7 +729,7 @@ export class Game {
     this.hud.killFeed(killer, victim, weapon, hs);
     if (killer && killer.isPlayer && killer !== victim) this.hud.popup(hs ? '+150 KAFA ATIŞI' : '+100 ÖLDÜRME', hs);
     victim.respawnT = victim.isPlayer ? 5 : rand(3.5, 6);
-    if (victim.isPlayer) this.player.camPos.copy(victim.eye());
+    if (victim.isPlayer && this.player) this.player.camPos.copy(victim.eye());
   }
 
   checkEnd() {
@@ -713,6 +741,7 @@ export class Game {
     if (!w) return;
     this.ended = true;
     this.running = false;
+    if (this.headless) { this.winner = w; this.endReason = why; this.emit('end', { winner: w, why }); return; }
     document.exitPointerLock?.();
     const me = this.playerSoldier;
     const win = w === me.team;
@@ -727,8 +756,9 @@ export class Game {
   restart() { this.dispose(); this.opts.onRestart?.(); }
 
   dispose() {
-    cancelAnimationFrame(this.raf);
     this.running = false;
+    if (this.headless) return;
+    cancelAnimationFrame(this.raf);
     this.weather?.dispose();
     document.exitPointerLock?.();
     document.removeEventListener('pointerlockchange', this._plc);
