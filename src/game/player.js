@@ -244,6 +244,7 @@ export class Player {
     this.refreshWeapon();
     game.on('switch', (s) => { if (s === this.s) this.refreshWeapon(); });
     game.on('spawn', (s) => { if (s === this.s) this.refreshWeapon(); });
+    if (this.devTools()) setTimeout(() => game.hud?.toast('Atölye: F uç · J/K silah değiştir (yuva başına) · 1-4 yuva', '#ffb347'), 2500);
     game.on('fire', (s) => { if (s === this.s) { this.vm.kick = Math.min(this.vm.kick + 0.045, 0.12); this.vm.kickR = Math.min(this.vm.kickR + 0.18, 0.5); this.vm.flashT = 0.045; } });
     game.on('bolt', (s) => { if (s === this.s) this.vm.kickR += 0.2; });
     game.on('melee', (s) => { if (s === this.s) this.vm.kick = 0.02; });
@@ -257,6 +258,28 @@ export class Player {
     const sm = (this.fxSmoke = document.createElement('div'));
     sm.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:3;opacity:0;background:#9aa0a6';
     document.body.append(sm, ov);
+  }
+
+  // Geliştirici haritası (yalnızca çevrimdışı): F uçuş, J/K elindeki yuvadaki silahı sıradakiyle değiştirir
+  devTools() { return !!this.game.mapDef?.dev && !this.game.online; }
+
+  flyMove(f, r, k, dt) {
+    const s = this.s, sp = k.has('ShiftLeft') ? 40 : 13, cp = Math.cos(s.pitch);
+    const up = (k.has('Space') ? 1 : 0) - (k.has('KeyC') || k.has('ControlLeft') ? 1 : 0);
+    let x = -Math.sin(s.yaw) * cp * f + Math.cos(s.yaw) * r, y = Math.sin(s.pitch) * f + up, z = -Math.cos(s.yaw) * cp * f - Math.sin(s.yaw) * r;
+    const l = Math.hypot(x, y, z) || 1;
+    s.vel.set((x / l) * sp, (y / l) * sp, (z / l) * sp);
+    s.leanDir = 0; s.sprinting = false; s.crouching = false; s.prone = false;
+  }
+
+  cycleWeapon(dir) {
+    const s = this.s, slot = ['primary', 'secondary', 'gadget', 'melee'][s.cur];
+    const list = Object.keys(WSTATS).filter((id) => WSTATS[id].slot === slot);
+    const id = list[(list.indexOf(s.item.id) + dir + list.length) % list.length], st = WSTATS[id], n = st.count || 1;
+    s.items[s.cur] = st.kind === 'gun' ? { id, mag: st.mag, reserve: st.reserve } : st.kind === 'launcher' ? { id, mag: 1, reserve: n - 1 } : st.kind === 'melee' ? { id, mag: 1, reserve: 0 } : { id, mag: n, reserve: 0 };
+    s.reloadT = 0; s.cd = 0; s.useT = 0; s.swing = null;
+    this.refreshWeapon();
+    this.game.hud.toast(`${st.name}  (${list.indexOf(id) + 1}/${list.length})`);
   }
 
   refreshWeapon() {
@@ -276,6 +299,11 @@ export class Player {
       if (!this.game.running) return;
       if (e.code === 'KeyT' && s.alive && !this.wheel) this.openWheel();
       if (e.code === 'KeyH' && s.alive) this.toggleThird();
+      if (this.devTools() && s.alive) {
+        if (e.code === 'KeyF') { s.fly = !s.fly; if (!s.fly) s.vel.set(0, 0, 0); this.game.hud.toast(s.fly ? 'Uçuş AÇIK · WASD/Boşluk/C · Shift hızlı' : 'Uçuş kapalı'); }
+        if (e.code === 'KeyJ') this.cycleWeapon(-1);
+        if (e.code === 'KeyK') this.cycleWeapon(1);
+      }
       if (this.third && e.code === 'KeyQ') this.side = -1;                     // 3. şahıs: Q/E omuz değiştirir (eğilme yerine)
       if (this.third && e.code === 'KeyE') this.side = 1;
       if (e.code === 'KeyR') { s.startReload(); this.game.online?.edge('rl'); }
@@ -456,7 +484,7 @@ export class Player {
       const st = s.stat;
       const lean = (k.has('KeyE') ? 1 : 0) - (k.has('KeyQ') ? 1 : 0);                 // 3. şahısta da Q/E yatar (ve omuzu değiştirir)
       const inp = { f, r, lean, sprint: k.has('ShiftLeft'), jump: k.has('Space') && !this.spaceLatch };
-      applyInput(s, inp, dt);
+      if (s.fly) this.flyMove(f, r, k, dt); else applyInput(s, inp, dt);
       if (g.online) g.online.pushInput(inp, s, this.fireHeld);
       if (!k.has('Space')) this.spaceLatch = false;
 

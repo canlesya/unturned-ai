@@ -56,6 +56,7 @@ export class World {
 
   move(s, dt) {
     const p = s.pos, v = s.vel, h = s.height, T = this.terrain;
+    if (s.fly) { p.x += v.x * dt; p.y += v.y * dt; p.z += v.z * dt; s.onGround = false; return; }   // geliştirici haritası: serbest uçuş (çarpışmasız)
     const wasOnGround = s.onGround;
     const list = this.query(p.x - 2, p.z - 2, p.x + 2, p.z + 2, (this._tmp ||= []));
     v.y -= GRAV * dt;

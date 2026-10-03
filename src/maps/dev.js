@@ -141,7 +141,7 @@ export function buildDev() {
   // ───── doğuş / hedef ─────
   const spawns = { blue: [], red: [] };
   for (let i = 0; i < 20; i++) {
-    const z = -16 + (i % 10) * 3.2, x = 84 + (i >> 1 & 1) * 3;
+    const z = -16 + (i % 10) * 3.2, x = 88 + (i >> 1 & 1) * 2.5;
     spawns.blue.push({ x: -x, z, ry: -Math.PI / 2 });
     spawns.red.push({ x, z, ry: Math.PI / 2 });
   }
