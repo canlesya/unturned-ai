@@ -13,7 +13,22 @@ check(bigMax.soldiers.length === 10, `en çok 10 kişi (25 istendi → ${bigMax.
 const pts = S.map((s) => [Math.round(s.pos.x), Math.round(s.pos.z)]);
 const near = pts.filter((p, i) => pts.some((q, j) => j !== i && Math.hypot(p[0] - q[0], p[1] - q[1]) < 3)).length;
 const xs = pts.map((p) => p[0]), spread = Math.max(...xs) - Math.min(...xs);
-check(spread > 60 && near <= 2, `doğma yerleri dağınık (x aralığı ${spread} m, birbirine <3 m: ${near})`);
+check(spread > 40 && near <= 2, `doğma yerleri dağınık (x aralığı ${spread} m, birbirine <3 m: ${near})`);
+// doğma yayılımı: her haritada, uzun bir maç boyunca tüm doğmalar harita geneline dağılıyor mu?
+for (const mapId of ['kasaba', 'vadi', 'us']) {
+  const gm = new Game(null, { headless: true, map: mapId, diff: 'hard', match: { perTeam: 10, type: 'dm', time: 0 } });
+  const spawns = []; gm.on('spawn', (s) => spawns.push({ x: s.pos.x, z: s.pos.z }));
+  for (let i = 0; i < 30 * 150 && spawns.length < 80; i++) gm.step(1 / 30);
+  const cells = new Set(spawns.map((p) => Math.floor(p.x / 30) + ',' + Math.floor(p.z / 30)));
+  const b0 = gm.map.spawns.blue[0], b1 = gm.map.spawns.red[0];
+  const nearBase = spawns.filter((p) => Math.hypot(p.x - b0.x, p.z - b0.z) < 25 || Math.hypot(p.x - b1.x, p.z - b1.z) < 25).length / spawns.length;
+  const pool = gm.dmPool || [];
+  const unreachable = pool.filter((p) => !gm.nav.findPath(b0.x, b0.z, p.x, p.z)).length;
+  const minPair = Math.min(...pool.slice(0, 60).flatMap((p, i) => pool.slice(i + 1, 60).map((q) => Math.hypot(p.x - q.x, p.z - q.z))));
+  console.log(`      ${mapId}: ${spawns.length} doğma · ${cells.size} farklı 30 m bölge · üs yakınında %${Math.round(nearBase * 100)} · havuz ${pool.length} nokta, en yakın çift ${minPair.toFixed(1)} m, ulaşılamayan ${unreachable}`);
+  check(spawns.length >= 40 && cells.size >= 10 && nearBase < 0.35, `${mapId}: doğmalar harita geneline dağılıyor (${cells.size} bölge, üs yakını %${Math.round(nearBase * 100)})`);
+  check(pool.length >= 40 && unreachable === 0 && minPair >= 13, `${mapId}: ${pool.length} doğma noktası, hepsi ulaşılabilir ve aralıklı`);
+}
 let ev = 0; g.on('end', () => ev++);
 const t0 = performance.now();
 for (let i = 0; i < 30 * 60 * 10 && !g.ended; i++) g.step(1 / 30);

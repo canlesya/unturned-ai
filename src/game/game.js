@@ -70,7 +70,7 @@ export class Game {
       r.toneMapping = THREE.NeutralToneMapping;
       r.outputColorSpace = THREE.SRGBColorSpace;
       this.canvas = r.domElement;
-      this.canvas.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:100%;display:block;';
+      this.canvas.style.cssText = 'position:fixed;left:0;top:0;width:100%;height:100%;display:block;cursor:none;user-select:none;-webkit-user-select:none;touch-action:none;';
       container.appendChild(this.canvas);
     }
 
@@ -110,8 +110,12 @@ export class Game {
     this.mode = makeMatch(opts.match || PRESETS[opts.mode] || {});
     this.ffa = this.mode.type === 'dm';                          // Ölüm Maçı: herkes tek, her savaşçının kendi takım kimliği
     if (this.ffa) {
-      const all = [...this.map.spawns.blue, ...this.map.spawns.red];
-      for (let i = 0; i < 32; i++) this.map.spawns['f' + i] = all;   // tüm doğma noktaları ortak
+      // Haritanın doğma noktaları iki üste ait; ölüm maçında bunun yerine TÜM haritadan ulaşılabilir, aralıklı rastgele noktalar kullanılır
+      const base = this.map.spawns.blue[0];
+      const pool = this.nav.spreadPoints(this.nav.reachable(base.x, base.z), { spacing: 14, max: 160 }).map((p) => ({ ...p, ry: 0 }));
+      const all = pool.length >= 20 ? pool : [...this.map.spawns.blue, ...this.map.spawns.red];     // güvenlik: nokta bulunamazsa üsler
+      this.dmPool = all;
+      for (let i = 0; i < 32; i++) this.map.spawns['f' + i] = all;
       this.map.baseZones = null;                                    // üs cezası yok
     }
     this.mode.objectives = this.mode.type !== 'conquest' ? [] : this.map.objectives.filter((o) => this.mode.allFlags || o.core).map((o) => ({ ...o, owner: null, p: 0 }));
@@ -209,11 +213,16 @@ export class Game {
     });
     document.addEventListener('pointerlockchange', this._plc = () => {
       const locked = document.pointerLockElement === this.canvas;
+      if (locked) { this.lockFails = 0; this.player.skipMove = 2; }                 // kilit anındaki ilk fare olayı genelde zıplar: atla
+      else {
+        this._unlockAt = performance.now();
+        this.player.fireHeld = false; this.playerSoldier.ads = false;                // kilit kopunca takılı ateş/nişan kalmasın
+      }
       this.player.locked = locked || !!this.opts.nolock;
       if (!this.ended) this.hud.setPaused(!this.player.locked);
       this.simulate = this.player.locked || this.ended;
     });
-    document.addEventListener('pointerlockerror', this._ple = () => this.fallbackLock());
+    document.addEventListener('pointerlockerror', this._ple = () => this.onLockError());
     addEventListener('resize', this._rs = () => {
       this.camera.aspect = innerWidth / innerHeight; this.camera.updateProjectionMatrix();
       this.renderer.setSize(innerWidth, innerHeight, false);
@@ -346,7 +355,22 @@ export class Game {
     this.sfx.init();
     if (this.opts.nolock) { this.player.locked = true; this.simulate = true; this.hud.setPaused(false); return; }
     if (this.noPointerLock) { this.player.locked = true; this.simulate = true; this.hud.setPaused(false); return; }
-    try { const p = this.canvas.requestPointerLock(); p?.catch?.(() => this.fallbackLock()); } catch (e) { this.fallbackLock(); }
+    // Chrome, Esc ile çıkıştan hemen sonra (~1,3 sn) yapılan kilit isteğini reddeder: bekleyip sonra iste
+    const wait = 1350 - (performance.now() - (this._unlockAt || -1e9));
+    if (wait > 0) { clearTimeout(this._lockT); this._lockT = setTimeout(() => this.requestLock(), wait); return; }
+    const plain = () => { try { const p = this.canvas.requestPointerLock(); p?.catch?.((err) => this.onLockError(err)); } catch (e) { this.onLockError(e); } };
+    try {
+      // ham fare girdisi (işletim sistemi hızlandırması yok): daha tutarlı bakış; desteklenmezse normal istek
+      const p = this.canvas.requestPointerLock({ unadjustedMovement: true });
+      p?.catch?.((err) => { if (err && err.name === 'NotSupportedError') plain(); else this.onLockError(err); });
+    } catch (e) { plain(); }
+  }
+
+  // Kilit alınamadı: tek seferlik hatada kalıcı "kilitsiz moda" GEÇME (imleç ekranda kalıp bakışı bozuyordu); ancak art arda başarısızsa
+  onLockError() {
+    this.lockFails = (this.lockFails || 0) + 1;
+    if (this.lockFails >= 4 || !this.canvas.requestPointerLock) { this.fallbackLock(); return; }
+    this.hud.toast('Fare kilitlenemedi, bir saniye sonra tekrar tıkla', '#ffd27a');
   }
 
   // Fare kilidi desteklenmiyorsa (gömülü sayfa vb.): ok tuşlarıyla bak, Esc ile duraklat
@@ -400,17 +424,18 @@ export class Game {
   pickSpawn(team, s) {
     if (this.ffa) {
       // Ölüm maçı: tüm noktalardan rastgele; canlı düşmanlara en uzak olan adaylardan biri seçilir
-      const pts = this.map.spawns[team] || this.map.spawns.f0;
+      const pts = this.map.spawns[team] || this.map.spawns.f0, cx = (this.map.bounds.minX + this.map.bounds.maxX) / 2, cz = (this.map.bounds.minZ + this.map.bounds.maxZ) / 2;
       let best = null, bs = -1;
-      for (let k = 0; k < 12; k++) {
+      for (let k = 0; k < 16; k++) {
         const p = pick(pts);
         if (this.soldiers.some((e) => e !== s && e.alive && Math.hypot(e.pos.x - p.x, e.pos.z - p.z) < 1.3)) continue;
         let dmin = 1e9;
         for (const e of this.soldiers) if (e !== s && e.alive) dmin = Math.min(dmin, Math.hypot(e.pos.x - p.x, e.pos.z - p.z));
-        const sc = Math.min(dmin, 60) + Math.random() * 25;               // uzaklık + rastgelelik
+        const sc = Math.min(dmin, 70) + Math.random() * 30;               // düşmandan uzaklık + rastgelelik
         if (sc > bs) { bs = sc; best = p; }
       }
-      return best || pick(pts);
+      const p = best || pick(pts);
+      return { x: p.x, z: p.z, ry: Math.atan2(-(cx - p.x), -(cz - p.z)) + (Math.random() - 0.5) * 2.2 };   // yaklaşık harita merkezine bakar
     }
     // ileri doğma: seçilen / bot için ara sıra sahip olunan hedefin çevresi
     let target = null;
@@ -1136,6 +1161,7 @@ export class Game {
     document.removeEventListener('pointerlockchange', this._plc);
     document.removeEventListener('keydown', this._kd);
     document.removeEventListener('pointerlockerror', this._ple);
+    clearTimeout(this._lockT);
     removeEventListener('resize', this._rs);
     this.player.dispose();
     this.hud.dispose();

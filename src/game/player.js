@@ -289,7 +289,7 @@ export class Player {
         if (keys[n]) this.game.requestClass(keys[n]);
       }
     });
-    this.on(window, 'blur', () => { this.keys.clear(); this.fireHeld = false; this.game.hud.showScoreboard(false); this.closeWheel(); });     // pencere odağı gidince takılı tuş kalmasın
+    this.on(window, 'blur', () => { this.keys.clear(); this.fireHeld = false; this.s.ads = false; this.game.hud.showScoreboard(false); this.closeWheel(); });     // pencere odağı gidince takılı tuş kalmasın
     this.on(window, 'keyup', (e) => {
       if (e.code === 'KeyT') this.closeWheel();
       if (e.code === 'Tab') e.preventDefault();
@@ -298,11 +298,14 @@ export class Player {
       if (e.code === 'Tab') this.game.hud.showScoreboard(false);
     });
     this.on(document, 'mousemove', (e) => {
-      if (this.wheel) { this.wheelMove(e.movementX || 0, e.movementY || 0); return; }       // T basılıyken fare seçim imlecidir
+      if (this.skipMove > 0) { this.skipMove--; return; }                                    // kilit sonrası ilk olaylar sıçrar
+      // ani sıçramaları (sürücü/Chrome hatası) kes: tek olayda 120 pikselden fazla gerçek bir fare hareketi değildir
+      const mx = Math.max(-120, Math.min(120, e.movementX || 0)), my = Math.max(-120, Math.min(120, e.movementY || 0));
+      if (this.wheel) { this.wheelMove(mx, my); return; }                                      // T basılıyken fare seçim imlecidir
       if (!this.locked) return;
       const k = this.set.sens * (this.s.zoomNow && this.s.adsT > 0.5 ? 1 / Math.pow(this.s.zoomNow, 0.8) : 1);
-      this.look(e.movementX * k, e.movementY * k);
-      this.lookDX += e.movementX; this.lookDY += e.movementY;
+      this.look(mx * k, my * k);
+      this.lookDX += mx; this.lookDY += my;
     });
     this.on(cv, 'mousedown', (e) => {
       if (this.wheel) { if (e.button === 0) this.wheelPick(); return; }                       // tekerlek açıkken tık = seçim (ateş değil)
@@ -314,7 +317,7 @@ export class Player {
       if (e.button === 0) this.fireHeld = false;
       if (e.button === 2) this.s.ads = false;
     });
-    this.on(cv, 'contextmenu', (e) => e.preventDefault());
+    this.on(document, 'contextmenu', (e) => e.preventDefault());                      // sağ tık menüsü oyunda hiç çıkmasın (nişan alırken takılıyordu)
     this.on(window, 'wheel', (e) => {
       if (!this.locked || !this.s.alive) return;
       const dir = e.deltaY > 0 ? 1 : -1, s = this.s;

@@ -70,6 +70,42 @@ export class NavGrid {
   idx(x, z) { return Math.floor((z - this.minZ) / CELL) * this.w + Math.floor((x - this.minX) / CELL); }
   cx(i) { return this.minX + ((i % this.w) + 0.5) * CELL; }
   cz(i) { return this.minZ + (Math.floor(i / this.w) + 0.5) * CELL; }
+  // (sx,sz)'den yürünerek ulaşılabilen hücreler (kapalı oda/ada dışarıda kalır)
+  reachable(sx, sz) {
+    const seen = new Uint8Array(this.w * this.h), q = new Int32Array(this.w * this.h);
+    const s0 = this.nearestFree(sx, sz);
+    if (s0 < 0) return seen;
+    let qh = 0, qt = 0; q[qt++] = s0; seen[s0] = 1;
+    while (qh < qt) {
+      const i = q[qh++], x = i % this.w, z = (i / this.w) | 0;
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, nz = z + dz;
+        if (nx < 0 || nz < 0 || nx >= this.w || nz >= this.h) continue;
+        const j = nz * this.w + nx;
+        if (seen[j] || this.blocked[j]) continue;
+        seen[j] = 1; q[qt++] = j;
+      }
+    }
+    return seen;
+  }
+
+  // Haritanın her yerinden, birbirinden en az `spacing` m uzak, etrafı ~`clear` m açık rastgele noktalar (ölüm maçı doğmaları)
+  spreadPoints(seen, { spacing = 12, clear = 1.0, max = 140, tries = 40000 } = {}) {
+    const cells = [];
+    for (let i = 0; i < seen.length; i += 3) if (seen[i]) cells.push(i);       // her 3. hücre yeterli (1,5 m ızgara)
+    for (let i = cells.length - 1; i > 0; i--) { const j = (Math.random() * (i + 1)) | 0; [cells[i], cells[j]] = [cells[j], cells[i]]; }
+    const out = [], sp2 = spacing * spacing;
+    for (let k = 0; k < cells.length && k < tries && out.length < max; k++) {
+      const i = cells[k], x = this.cx(i), z = this.cz(i);
+      let ok = true;
+      for (let a = 0; a < 8 && ok; a++) if (!this.isFree(x + Math.cos(a * 0.785) * clear, z + Math.sin(a * 0.785) * clear)) ok = false;   // dar boşluk/duvar dibi olmasın
+      if (!ok) continue;
+      for (const p of out) if ((p.x - x) ** 2 + (p.z - z) ** 2 < sp2) { ok = false; break; }
+      if (ok) out.push({ x, z });
+    }
+    return out;
+  }
+
   isFree(x, z) {
     const cx = Math.floor((x - this.minX) / CELL), cz = Math.floor((z - this.minZ) / CELL);
     return cx >= 0 && cz >= 0 && cx < this.w && cz < this.h && !this.blocked[cz * this.w + cx];
