@@ -520,8 +520,7 @@ Tarayıcıda iki sekme: `/?online=new&name=Ali&per=3` sonra `/?online=KOD&name=V
 - **Gövde:** `Game.showSelf` doğruyken kendi karakter modeli görünür ve animasyonlanır (silah modeli senkron), 1. şahıs silahı/optik örtüleri gizlenir, artı hep görünür.
 - **Atış kameradan bağımsızdır (güvenlik):** mermi 1. şahıs ve 3. şahıs'ta AYNI şekilde **gözden, (yaw, pitch) yönünde** çıkar (`Soldier._shoot`). Kamera atışı hiçbir şekilde etkilemez,
   istemci kamera konumunu sunucuya göndermez; bu yüzden 1. şahısta vuramadığın (duvarın arkasındaki) hedefi 3. şahısta da vuramazsın, köşeden bakarak da ateş edilemez. Roket de aynı.
-- **Artı işareti:** kamera omuzda olduğu için merminin gittiği yer ekranın tam ortası olmaz. Bu yüzden 3. şahısta HUD artısı, merminin gerçekten çarpacağı noktaya
-  (`Game.bulletPoint`: gözden aimDir yönünde ilk engel ya da düşman) ekranda taşınır; duvara yakın nişan alırken artı duvarın üstünde görünür.
+- **Artı işareti:** 3. şahısta da ekranın ortasında SABİT kalır. Kamera omuzda olduğu için mermi artının gösterdiği noktadan hafif sapabilir (mermi gözden gider); bu bilinçli bir tercih.
   Test: `node scripts/thirdtest.mjs` (duvar arkası 0 isabet, oda ayarından bağımsız, sahte kamera ofseti etkisiz, roket).
 
 ### 12.9 Sınırlar ve sonraki adımlar

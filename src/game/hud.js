@@ -1,4 +1,3 @@
-import * as THREE from 'three';
 import { TEAMS } from '../core/palette.js';
 import { WSTATS, CLASS_DEFS } from './stats.js';
 import { clamp } from './util.js';
@@ -432,13 +431,6 @@ export class Hud {
     const tp = g.showSelf;                                   // 3. şahıs kamera: optik örtüsü yok, artı hep görünür
     const showCross = p.alive && (ads < 0.6 || tp);
     cross.style.display = showCross ? 'block' : 'none';
-    // 3. şahıs: mermi gözden çıktığı için artı, merminin GERÇEKTEN çarpacağı noktanın ekrandaki yerine çekilir (duvar varsa duvarın üstünde görünür)
-    if (tp && p.alive) {
-      g.camera.updateMatrixWorld();                                  // kamera bu karede (Player.update) taşındı; projeksiyon güncel matrisle yapılsın
-      const P = g.bulletPoint(p, (this._bp ||= new THREE.Vector3())).project(g.camera);
-      if (P.z < 1 && Number.isFinite(P.x) && Number.isFinite(P.y)) { cross.style.left = ((P.x * 0.5 + 0.5) * 100).toFixed(2) + '%'; cross.style.top = ((-P.y * 0.5 + 0.5) * 100).toFixed(2) + '%'; }
-      this._crossMoved = true;
-    } else if (this._crossMoved) { cross.style.left = '50%'; cross.style.top = '50%'; this._crossMoved = false; }
     cross.classList.toggle('ads', ads > 0.5 && !tp);
     const spread = p.spreadNow(st) * 900;
     cross.style.setProperty('--g', clamp(3 + spread, 3, 60) + 'px');

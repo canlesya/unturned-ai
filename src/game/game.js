@@ -398,20 +398,6 @@ export class Game {
     me.protT = 0; me.die(me, 'İntihar', false);
   }
 
-  // Merminin GERÇEKTEN çarpacağı nokta (gözden, aimDir yönünde ilk engel ya da düşman). 3. şahıs artısı buraya çekilir.
-  bulletPoint(shooter, out = new THREE.Vector3(), maxT = 150) {
-    const o = shooter.eye(this._bpO ||= new THREE.Vector3()), d = shooter.aimDir(this._bpD ||= new THREE.Vector3());
-    let t = maxT;
-    const wh = this.world.raycast(o, d, maxT, (this._bpH ||= {}));
-    if (wh) t = wh.t;
-    for (const e of this.soldiers) {
-      if (e === shooter || !e.alive || e.team === shooter.team) continue;
-      const h = this.hitSoldier(e, o, d, t);
-      if (h && h.t < t) t = h.t;
-    }
-    return out.copy(o).addScaledVector(d, t);
-  }
-
   // 3. şahıs kamera yeterince çekilmişse gövdeni göster, silah modelini (1. şahıs) gizle
   get showSelf() { return !!this.player && this.player.bodyVisible; }
 
