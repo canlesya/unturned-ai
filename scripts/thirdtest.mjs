@@ -75,4 +75,66 @@ check(without <= 3, 'aynı açıyla gözden atış hedefi ıskalıyor (ofset ger
 check(denied <= 3, 'oda 3. şahıs vermiyorsa ofset yok sayılıyor (hile yok)');
 check(tooFar <= 3, '4,5 m\'den büyük ofset reddediliyor');
 
+// ── Açık kapatma: duvarın/köşenin ARKASINDAN ateş edilemez ──
+// Kamera köşeden hedefi görüyor ama göz→hedef arasında duvar var: mermi gözden çıktığı için duvara çarpmalı, hedefe değmemeli.
+{
+  const { g, A, B, ha, input, step } = setup(true);
+  let n = 0, leaked = 0, wallHits = 0, legitAfter = 0, tries = 0;
+  const T = new THREE.Vector3();
+  while (n < 15 && tries++ < 60000) {
+    const x = -45 + Math.random() * 90, z = -45 + Math.random() * 90, a = Math.random() * 6.28, d = 6 + Math.random() * 18;
+    const bx = x + Math.cos(a) * d, bz = z + Math.sin(a) * d;
+    if (!g.nav.isFree(x, z) || !g.nav.isFree(bx, bz)) continue;
+    A.pos.set(x, g.world.heightAt(x, z), z); B.pos.set(bx, g.world.heightAt(bx, bz), bz); A.vel.set(0, 0, 0); B.vel.set(0, 0, 0);
+    B.center(T);
+    const eye = A.eye(new THREE.Vector3());
+    const parts = [T.clone(), B.eye(new THREE.Vector3()), new THREE.Vector3(B.pos.x, B.pos.y + 0.25, B.pos.z), new THREE.Vector3(B.pos.x + 0.25, B.pos.y + 1.0, B.pos.z), new THREE.Vector3(B.pos.x - 0.25, B.pos.y + 1.0, B.pos.z)];
+    if (parts.some((p) => g.world.clear(eye, p))) continue;                  // göz hedefin herhangi bir parçasını görüyorsa meşru isabet olabilir: sömürü değil
+    const { yaw, pitch, off } = cameraAim(A, T);
+    const cam = eye.clone().add(off);
+    if (!g.world.clear(eye, cam) || !g.world.clear(cam, T)) continue;      // kamera geçerli konumda ve hedefi (köşeden) görüyor olmalı
+    n++;
+    B.hp = B.maxHp; B.alive = true; B.protT = 0; A.items[0].mag = 30; A.cd = 0; A.protT = 0; g.netEvents.length = 0;
+    input({ yw: yaw, pt: pitch, fp: 1, fh: 1, co: [off.x, off.y, off.z] }); step(1);
+    const sh = g.netEvents.find((e) => e.e === 'sh');
+    if (sh && sh.k === 'f') {
+      // isabet noktası gözden görünüyorsa meşru kısmi isabet (omuz/kafa kenarı); görünmüyorsa gerçek açık
+      const hp = new THREE.Vector3(...sh.p);
+      if (g.world.clear(eye, hp)) legitAfter++; else leaked++;
+    } else if (sh && sh.k === 'w') wallHits++;
+  }
+  console.log(`      köşeden/duvar arkasından ateş denemesi: ${n} · hedefe isabet (açık): ${leaked} · duvara çarpan: ${wallHits}`);
+  check(n >= 8, `yeterli sömürü senaryosu bulundu (${n})`);
+  check(leaked === 0, 'duvarın arkasından hedefe isabet YOK (mermi gözden çıkıp araya giren engele çarpıyor)');
+  check(wallHits + legitAfter >= n - 1, `mermi araya giren duvara çarptı (${wallHits}/${n}; gözden görünen kısma meşru isabet: ${legitAfter})`);
+}
+
+// ── Roket: köşeden/duvar arkasından atılamaz ──
+{
+  const { g, A, B, input, step } = setup(true);
+  let n = 0, hit = 0, tries = 0;
+  const T = new THREE.Vector3();
+  while (n < 8 && tries++ < 60000) {
+    const x = -45 + Math.random() * 90, z = -45 + Math.random() * 90, a = Math.random() * 6.28, d = 8 + Math.random() * 18;
+    const bx = x + Math.cos(a) * d, bz = z + Math.sin(a) * d;
+    if (!g.nav.isFree(x, z) || !g.nav.isFree(bx, bz)) continue;
+    A.pos.set(x, g.world.heightAt(x, z), z); B.pos.set(bx, g.world.heightAt(bx, bz), bz); A.vel.set(0, 0, 0); B.vel.set(0, 0, 0);
+    B.center(T);
+    const eye = A.eye(new THREE.Vector3());
+    const parts = [T.clone(), B.eye(new THREE.Vector3()), new THREE.Vector3(B.pos.x, B.pos.y + 0.25, B.pos.z)];
+    if (parts.some((p) => g.world.clear(eye, p))) continue;
+    const { yaw, pitch, off } = cameraAim(A, T);
+    const cam = eye.clone().add(off);
+    if (!g.world.clear(eye, cam) || !g.world.clear(cam, T)) continue;
+    n++;
+    B.hp = B.maxHp; B.alive = true; B.protT = 0; A.protT = 0; A.items[2] = { id: 'rpg', mag: 1, reserve: 0 }; A.cur = 2; A.switchT = 0; A.cd = 0; g.netEvents.length = 0;
+    input({ w: 2, yw: yaw, pt: pitch, fp: 1, fh: 1, co: [off.x, off.y, off.z] });
+    for (let i = 0; i < 120; i++) step(1);
+    if (B.hp < B.maxHp) hit++;
+    for (let i = 0; i < 5; i++) g.projectiles.length = 0;
+  }
+  console.log(`      roket (köşeden/duvar arkasından): ${n} deneme · hedefe hasar veren: ${hit}`);
+  check(n >= 5 && hit <= 1, `roket duvarın arkasından hedefi vuramıyor (${hit}/${n})`);
+}
+
 console.log(fail ? 'sonuç: HATA' : 'sonuç: OK'); process.exit(fail ? 1 : 0);

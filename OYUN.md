@@ -518,7 +518,8 @@ Tarayıcıda iki sekme: `/?online=new&name=Ali&per=3` sonra `/?online=KOD&name=V
   bu modda eğilme kapalı). Duvara girmesin diye göz→kamera ışını atılır (`World.raycast`), yere gömülmez. Kamera çok yaklaşırsa (<0,65–0,85 m)
   gövde gizlenip 1. şahıs silahı gösterilir (`bodyVisible`, histerezis). Dürbünle (scope) nişan alınca otomatik 1. şahsa döner.
 - **Gövde:** `Game.showSelf` doğruyken kendi karakter modeli görünür ve animasyonlanır (silah modeli senkron), 1. şahıs silahı/optik örtüleri gizlenir, artı hep görünür.
-- **Nişan hizası:** kamera omuzda olduğu için atış **kameranın bulunduğu noktadan** çıkar (`Soldier.shotOff` = kameranın gözden ofseti): mermi ekranın ortasının gösterdiği yere gider.
+- **Nişan hizası (iki aşamalı atış):** kamera omuzda olduğu için nişan noktasını **kamera ışını** belirler (`Soldier.shotOff` = kameranın gözden ofseti; ışın neye çarparsa — duvar ya da düşman — orası hedef P),
+  mermi ise **her zaman oyuncunun gözünden P'ye** gider (`Game.shootRay(..., camO)`). Arada duvar varsa mermi ona çarpar: köşeden/duvar arkasından ateş edilemez. Roket de aynı şekilde (`Soldier._rocket`).
   Çevrimiçinde ofset girdiyle (`co`) gider; sunucu yalnızca oda izin veriyorsa, ofset ≤ 4,5 m ve göz→kamera arasında duvar yoksa kabul eder (aksi halde gözden atış).
   Test: `node scripts/thirdtest.mjs`.
 

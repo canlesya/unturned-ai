@@ -836,10 +836,23 @@ export class Game {
     return null;
   }
 
-  shootRay(shooter, origin, dir, st, muzzle) {
+  shootRay(shooter, origin, dir, st, muzzle, camO = null) {
     const maxT = st.range ? st.range[1] * 2.2 : 300;
     // sunucu: insanın atışı, istemcinin gördüğü ana geri sarılarak hesaplanır (lag compensation)
     const restore = shooter.rewindTick != null ? this.rewind(shooter, shooter.rewindTick) : null;
+    if (camO) {
+      // 3. şahıs iki aşamalı atış: (1) kamera ışını neye çarpıyor (duvar ya da düşman) → nişan noktası P; (2) mermi gözden P'ye gider
+      // ve gerçek yolundaki ilk engelde durur. Böylece kameranın köşeden gördüğü yere duvarın arkasından ateş edilemez.
+      let tc = maxT;
+      const wc = this.world.raycast(camO, dir, maxT, (this._wc ||= {}));
+      if (wc) tc = wc.t;
+      for (const e of this.soldiers) {
+        if (e === shooter || !e.alive || e.team === shooter.team) continue;
+        const h = this.hitSoldier(e, camO, dir, tc);
+        if (h && h.t < tc) tc = h.t;
+      }
+      dir = camO.clone().addScaledVector(dir, tc).sub(origin).normalize();
+    }
     const wh = this.world.raycast(origin, dir, maxT, (this._wh ||= {}));
     const tw = wh ? wh.t : Infinity;
     let bestE = null, bestT = Infinity, bestZ = null;
