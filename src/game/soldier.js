@@ -47,7 +47,6 @@ export class Soldier {
     this.walkPhase = 0; this.deadT = 0; this.deadDir = 1; this.flashT = 0;
     this.stepT = 0;
     this.botExtraSpread = 0;
-    this.shotOff = null;          // 3. şahıs kamerada: atış kameranın bulunduğu yerden çıkar (nişan hizası); kameradan göze ofset
     this.dmgMul = 1;
     this.model = null;
     this.setClass(cls);
@@ -209,9 +208,8 @@ export class Soldier {
 
   _shoot(st) {
     const g = this.game;
-    const origin = this.eye(_o);                      // mermi HER ZAMAN oyuncunun gözünden çıkar (duvar arkasından ateş edilemez)
-    // 3. şahıs: nişan noktasını KAMERA ışını belirler; mermi gözden o noktaya gider (arada engel varsa ona çarpar)
-    const camO = this.shotOff ? origin.clone().add(this.shotOff) : null;
+    // Mermi HER ZAMAN gözden, (yaw, pitch) yönünde çıkar: 1. şahıs ve 3. şahıs'ta aynı. Kamera atışı etkilemez (köşe/duvar sömürüsü yok).
+    const origin = this.eye(_o);
     const base = this.aimDir(new THREE.Vector3());
     const spread = this.spreadNow(st);
     const pellets = st.pellets || 1;
@@ -222,7 +220,7 @@ export class Soldier {
     for (let i = 0; i < pellets; i++) {
       const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * spread;
       const d = base.clone().addScaledVector(right, Math.cos(a) * r).addScaledVector(up, Math.sin(a) * r).normalize();
-      g.shootRay(this, origin, d, st, muzzle, camO);
+      g.shootRay(this, origin, d, st, muzzle);
     }
     g.effects.muzzle(muzzle, base);
     g.sfx.shot(st.sound, this.pos);
@@ -241,13 +239,8 @@ export class Soldier {
   }
 
   _rocket(st) {
-    let d = this.aimDir(new THREE.Vector3()), m;
-    if (this.shotOff) {
-      // 3. şahıs: hedef noktayı kamera ışını verir, roket gözden o noktaya çıkar (köşeden/duvar arkasından atılamaz)
-      const eye = this.eye(new THREE.Vector3()), co = eye.clone().add(this.shotOff), wh = this.game.world.raycast(co, d, 300, {});
-      d = co.addScaledVector(d, wh ? wh.t : 300).sub(eye).normalize();
-      m = eye.addScaledVector(d, 0.8);
-    } else m = this.muzzleWorld(new THREE.Vector3());
+    const d = this.aimDir(new THREE.Vector3());
+    const m = this.muzzleWorld(new THREE.Vector3());
     if (st.impact) this.game.spawnShell(this, m, d, st); else this.game.spawnRocket(this, m, d, st);
     this.game.sfx.shot(st.sound, this.pos);
     this.game.alertNear?.(this.pos, this.team, 40);

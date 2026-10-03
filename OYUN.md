@@ -473,7 +473,7 @@ Sonuç olaylarla yayılır: `sh` (atış izi/efekt), `hm` (isabet işareti), `dm
 | `node scripts/nettest.mjs` | Protokol: oda, katılma, girdi, snapshot hızı, **girdi flood (hız hilesi)** |
 | `node scripts/combattest.mjs` | Ateş, hasar, öldürme, **lag compensation**, doğma (ağsız) |
 | `node scripts/gadgettest.mjs` | Her gadget'ın ağ olayları |
-| `node scripts/thirdtest.mjs` | 3. şahıs: atış kameradan çıkar, oda kapalıyken/aşırı ofsette yok sayılır |
+| `node scripts/thirdtest.mjs` | 3. şahıs: mermi gözden çıkar, duvar arkası vurulamaz, sahte kamera ofseti etkisiz, roket |
 | `node scripts/dmtest.mjs` | Ölüm Maçı: herkes tek, 10 kişi sınırı, dağınık doğma, 40 öldürmede bitiş |
 | `node scripts/adsaudit.mjs` | Tüm silah × nişangâh: ADS'de nişan çizgisini kapatan parça var mı |
 | `node scripts/lobbytest.mjs` | Lobi: resmi odalar, şifre, gizli/botsuz oda, takım isteği, harita dönüşü |
@@ -518,10 +518,11 @@ Tarayıcıda iki sekme: `/?online=new&name=Ali&per=3` sonra `/?online=KOD&name=V
   bu modda eğilme kapalı). Duvara girmesin diye göz→kamera ışını atılır (`World.raycast`), yere gömülmez. Kamera çok yaklaşırsa (<0,65–0,85 m)
   gövde gizlenip 1. şahıs silahı gösterilir (`bodyVisible`, histerezis). Dürbünle (scope) nişan alınca otomatik 1. şahsa döner.
 - **Gövde:** `Game.showSelf` doğruyken kendi karakter modeli görünür ve animasyonlanır (silah modeli senkron), 1. şahıs silahı/optik örtüleri gizlenir, artı hep görünür.
-- **Nişan hizası (iki aşamalı atış):** kamera omuzda olduğu için nişan noktasını **kamera ışını** belirler (`Soldier.shotOff` = kameranın gözden ofseti; ışın neye çarparsa — duvar ya da düşman — orası hedef P),
-  mermi ise **her zaman oyuncunun gözünden P'ye** gider (`Game.shootRay(..., camO)`). Arada duvar varsa mermi ona çarpar: köşeden/duvar arkasından ateş edilemez. Roket de aynı şekilde (`Soldier._rocket`).
-  Çevrimiçinde ofset girdiyle (`co`) gider; sunucu yalnızca oda izin veriyorsa, ofset ≤ 4,5 m ve göz→kamera arasında duvar yoksa kabul eder (aksi halde gözden atış).
-  Test: `node scripts/thirdtest.mjs`.
+- **Atış kameradan bağımsızdır (güvenlik):** mermi 1. şahıs ve 3. şahıs'ta AYNI şekilde **gözden, (yaw, pitch) yönünde** çıkar (`Soldier._shoot`). Kamera atışı hiçbir şekilde etkilemez,
+  istemci kamera konumunu sunucuya göndermez; bu yüzden 1. şahısta vuramadığın (duvarın arkasındaki) hedefi 3. şahısta da vuramazsın, köşeden bakarak da ateş edilemez. Roket de aynı.
+- **Artı işareti:** kamera omuzda olduğu için merminin gittiği yer ekranın tam ortası olmaz. Bu yüzden 3. şahısta HUD artısı, merminin gerçekten çarpacağı noktaya
+  (`Game.bulletPoint`: gözden aimDir yönünde ilk engel ya da düşman) ekranda taşınır; duvara yakın nişan alırken artı duvarın üstünde görünür.
+  Test: `node scripts/thirdtest.mjs` (duvar arkası 0 isabet, oda ayarından bağımsız, sahte kamera ofseti etkisiz, roket).
 
 ### 12.9 Sınırlar ve sonraki adımlar
 - Protokol JSON: oyuncu başına yaklaşık 100–200 KB/s. Kalabalık odalar için ikili paketleme + ilgi alanı (yalnızca yakındakiler) planlanmalı.

@@ -318,13 +318,6 @@ export class Game {
     if (inp.fp) h.fireBuf = 0.15;
     h.fireBuf = Math.max(0, h.fireBuf - dt);
     s.rewindTick = Number.isFinite(inp.vt) ? inp.vt : null;
-    // 3. şahıs: atış, kameranın bulunduğu noktadan çıkar (nişangâh neresini gösteriyorsa oraya gider). Yalnızca odada izinliyse; ofset 4,5 m'ye
-    // kadar ve gözle arasında duvar yoksa kabul edilir (kamera zaten duvara girmez), aksi halde atış gözden çıkar.
-    s.shotOff = null;
-    if (this.thirdAllowed && Array.isArray(inp.co)) {
-      const o = new THREE.Vector3(inp.co[0], inp.co[1], inp.co[2]);
-      if (o.length() <= 4.5) { const e = s.eye(), to = e.clone().add(o); if (this.world.clear(e, to)) s.shotOff = o; }
-    }
     const st = s.stat;
     if (st.kind === 'melee') { if (inp.fh || h.fireBuf > 0) { if (s.tryFire()) h.fireBuf = 0; } }
     else if (s.fireAuto) { if (inp.fh) s.tryFire(); }
@@ -403,6 +396,20 @@ export class Game {
     if (!me || !me.alive || this.ended) return;
     if (this.online) { this.online.send({ t: 'kill' }); return; }
     me.protT = 0; me.die(me, 'İntihar', false);
+  }
+
+  // Merminin GERÇEKTEN çarpacağı nokta (gözden, aimDir yönünde ilk engel ya da düşman). 3. şahıs artısı buraya çekilir.
+  bulletPoint(shooter, out = new THREE.Vector3(), maxT = 150) {
+    const o = shooter.eye(this._bpO ||= new THREE.Vector3()), d = shooter.aimDir(this._bpD ||= new THREE.Vector3());
+    let t = maxT;
+    const wh = this.world.raycast(o, d, maxT, (this._bpH ||= {}));
+    if (wh) t = wh.t;
+    for (const e of this.soldiers) {
+      if (e === shooter || !e.alive || e.team === shooter.team) continue;
+      const h = this.hitSoldier(e, o, d, t);
+      if (h && h.t < t) t = h.t;
+    }
+    return out.copy(o).addScaledVector(d, t);
   }
 
   // 3. şahıs kamera yeterince çekilmişse gövdeni göster, silah modelini (1. şahıs) gizle
@@ -836,23 +843,10 @@ export class Game {
     return null;
   }
 
-  shootRay(shooter, origin, dir, st, muzzle, camO = null) {
+  shootRay(shooter, origin, dir, st, muzzle) {
     const maxT = st.range ? st.range[1] * 2.2 : 300;
     // sunucu: insanın atışı, istemcinin gördüğü ana geri sarılarak hesaplanır (lag compensation)
     const restore = shooter.rewindTick != null ? this.rewind(shooter, shooter.rewindTick) : null;
-    if (camO) {
-      // 3. şahıs iki aşamalı atış: (1) kamera ışını neye çarpıyor (duvar ya da düşman) → nişan noktası P; (2) mermi gözden P'ye gider
-      // ve gerçek yolundaki ilk engelde durur. Böylece kameranın köşeden gördüğü yere duvarın arkasından ateş edilemez.
-      let tc = maxT;
-      const wc = this.world.raycast(camO, dir, maxT, (this._wc ||= {}));
-      if (wc) tc = wc.t;
-      for (const e of this.soldiers) {
-        if (e === shooter || !e.alive || e.team === shooter.team) continue;
-        const h = this.hitSoldier(e, camO, dir, tc);
-        if (h && h.t < tc) tc = h.t;
-      }
-      dir = camO.clone().addScaledVector(dir, tc).sub(origin).normalize();
-    }
     const wh = this.world.raycast(origin, dir, maxT, (this._wh ||= {}));
     const tw = wh ? wh.t : Infinity;
     let bestE = null, bestT = Infinity, bestZ = null;
