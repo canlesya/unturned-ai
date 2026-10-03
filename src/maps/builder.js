@@ -20,6 +20,9 @@ export class MapBuilder {
   constructor() {
     this.buckets = new Map();
     this.colliders = [];
+    this.autoPlace = false;        // true: araçlar ertelenir, flushVehicles() çakışmayanı en yakın boş yere koyar
+    this.pendingVeh = [];
+    this.vehicles = [];            // araç ayak izleri (dünya OBB): denetim için scripts/vehaudit.mjs
     this.stack = [new THREE.Matrix4()];
   }
 
@@ -66,6 +69,66 @@ export class MapBuilder {
   // Yalnızca çarpışma kutusu (görünmez)
   collide(x, y, z, w, h, d, tag) {
     this._aabb(w, h, d, this._local(x, y + h / 2, z), tag);
+  }
+
+  // Araç gövdesi çarpışması: normal collide + yönlü ayak izi kaydı (araçların birbirine/binalara girmediğini denetlemek için)
+  vcollide(x, y, z, w, h, d, kind = 'car') {
+    const local = this._local(x, y + h / 2, z);
+    this._aabb(w, h, d, local, 'veh');
+    const final = this.M.clone().multiply(local);
+    const pos = new THREE.Vector3(), q = new THREE.Quaternion();
+    final.decompose(pos, q, new THREE.Vector3());
+    this.vehicles.push({ kind, x: pos.x, z: pos.z, ry: new THREE.Euler().setFromQuaternion(q, 'YXZ').y, hl: w / 2, hw: d / 2, h });
+  }
+
+  // Araç çizimini erteler (autoPlace açıksa); aksi halde hemen çizer
+  defer(kind, fn, o) {
+    if (!this.autoPlace || this.flushing) return fn(this, o);
+    this.pendingVeh.push({ kind, fn, o, M: this.M.clone() });
+  }
+
+  // Ertelenmiş araçları yerleştirir: orijinal konum başka araca/engele giriyorsa çevresinde en yakın boş konum aranır,
+  // bulunamazsa araç konmaz (iç içe geçmiş araç/bina olmasın).
+  flushVehicles() {
+    if (!this.pendingVeh.length) return;
+    const FOOT = { car: [0, 4.4, 1.85], bus: [0, 10, 2.55], truck: [0.25, 8.8, 2.55], tanker: [0.1, 8.6, 2.5], apc: [0, 5.4, 2.8], tank: [0, 6.4, 3.4], ambulance: [0.4, 6, 2.5], jeep: [0, 3.9, 1.9] };
+    const solids = this.colliders.filter((c) => c.tag !== 'veh' && c.tag !== 'deck' && c.min[1] < 2.2 && c.max[1] > 0.25 && c.max[0] - c.min[0] < 150 && c.max[2] - c.min[2] < 150);
+    const obb = (cx, cz, ry, hl, hw) => { const c = Math.cos(ry), s = Math.sin(ry); return [[hl, hw], [hl, -hw], [-hl, -hw], [-hl, hw]].map(([x, z]) => [cx + x * c + z * s, cz - x * s + z * c]); };
+    const axes = (P) => [0, 1].map((i) => { const a = P[i], q = P[i + 1], dx = q[0] - a[0], dz = q[1] - a[1], l = Math.hypot(dx, dz); return [-dz / l, dx / l]; });
+    const pr = (P, ax) => { let lo = 1e9, hi = -1e9; for (const p of P) { const d = p[0] * ax[0] + p[1] * ax[1]; lo = Math.min(lo, d); hi = Math.max(hi, d); } return [lo, hi]; };
+    const hit = (P, Q) => { for (const ax of [...axes(P), ...axes(Q)]) { const a = pr(P, ax), q = pr(Q, ax); if (Math.min(a[1], q[1]) - Math.max(a[0], q[0]) < 0.03) return false; } return true; };
+    const boxP = (c) => [[c.min[0], c.min[2]], [c.max[0], c.min[2]], [c.max[0], c.max[2]], [c.min[0], c.max[2]]];
+    const sol = solids.map((c) => ({ c, P: boxP(c) }));
+    const placed = [];
+    const saved = this.stack; this.flushing = true;
+    const todo = this.pendingVeh; this.pendingVeh = [];
+    for (const pv of todo) {
+      const [off, len, wid] = FOOT[pv.kind] || [0, 4, 2];
+      const pos = new THREE.Vector3(), q = new THREE.Quaternion();
+      pv.M.decompose(pos, q, new THREE.Vector3());
+      const mry = new THREE.Euler().setFromQuaternion(q, 'YXZ').y, ry = mry + (pv.o.ry || 0);
+      const worldOf = (lx, lz) => new THREE.Vector3(lx, 0, lz).applyMatrix4(pv.M);
+      const bad = (dx, dz) => {
+        const w = worldOf((pv.o.x || 0) + dx, (pv.o.z || 0) + dz);
+        const P = obb(w.x + off * Math.cos(ry), w.z - off * Math.sin(ry), ry, len / 2, wid / 2);
+        for (const s of sol) { if (s.c.min[0] > Math.max(...P.map((p) => p[0])) || s.c.max[0] < Math.min(...P.map((p) => p[0]))) continue; if (hit(P, s.P)) return true; }
+        for (const v of placed) if (hit(P, v)) return true;
+        return false;
+      };
+      let best = null;
+      if (!bad(0, 0)) best = [0, 0];
+      else {
+        const cand = [];
+        for (let r = 0.25; r <= 3.2; r += 0.25) for (let k = 0; k < 16; k++) cand.push([r * Math.cos(k * Math.PI / 8), r * Math.sin(k * Math.PI / 8), r]);
+        for (const [dx, dz] of cand) if (!bad(dx, dz)) { best = [dx, dz]; break; }
+      }
+      if (!best) continue;
+      const w = worldOf((pv.o.x || 0) + best[0], (pv.o.z || 0) + best[1]);
+      placed.push(obb(w.x + off * Math.cos(ry), w.z - off * Math.sin(ry), ry, len / 2, wid / 2));
+      this.stack = [pv.M.clone()];
+      pv.fn(this, { ...pv.o, x: (pv.o.x || 0) + best[0], z: (pv.o.z || 0) + best[1] });
+    }
+    this.stack = saved; this.flushing = false;
   }
 
   cyl(x, y, z, rTop, rBot, h, color, opt = {}) {
@@ -143,6 +206,7 @@ export class MapBuilder {
   }
 
   build() {
+    this.flushVehicles();
     const group = new THREE.Group();
     for (const b of this.buckets.values()) {
       const merged = mergeGeometries(b.geos, false);

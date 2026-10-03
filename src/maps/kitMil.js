@@ -29,6 +29,7 @@ const WIN = { glow: true, emissive: '#ffdf9a', roughness: 0.25 };
 
 // ───────── Aydınlatma ─────────
 // Işık havuzu: gece parlayan, gündüz zeminle kaynaşan yarı saydam disk (lamba/ateş altında)
+export { tanker, apc, tank, ambulance, jeep } from './vehicles.js';
 export function lightPool(b, x, z, r = 3.2, color = '#ffc66b', y = 0.09, opacity = 0.5) {
   poolDisc(b, x, y, z, r, color, opacity);
 }
@@ -296,65 +297,6 @@ export function fuelTank(b, { x, z, r = 3, h = 5, color = '#cfd2cc' }) {
   b.cyl(x, h * 0.55, z, r + 0.05, r + 0.05, 0.35, '#c0392b', { seg: 14, collide: false });
   b.box(x + r + 0.05, 0, z, 0.1, h, 0.5, STEEL, { collide: false });          // merdiven
   b.box(x, 0, z, r * 2 + 1.2, 0.08, r * 2 + 1.2, '#55595c', { collide: false });
-}
-// Akaryakıt tankeri (+X ileri)
-export function tanker(b, { x, z, ry = 0, color = '#a8aaa4', cab = '#2f4f7a' }) {
-  b.with(x, 0, z, ry, () => {
-    b.box(3.4, 0.55, 0, 2.0, 2.0, 2.4, cab, { collide: false });
-    b.box(3.9, 1.5, 0, 1.1, 0.8, 2.42, '#22333f', { collide: false });
-    b.cyl(-0.7, 1.55, 0, 1.25, 1.25, 7.4, color, { rz: Math.PI / 2, center: true, seg: 12, collide: false });
-    b.cyl(-0.7, 1.55, 0, 1.3, 1.3, 0.35, '#c0392b', { rz: Math.PI / 2, center: true, seg: 12, collide: false });
-    b.box(-0.7, 2.7, 0, 0.9, 0.25, 0.9, STEEL, { collide: false });
-    for (const wx of [-3.5, -2.2, 3.2]) for (const wz of [-1.1, 1.1]) b.cyl(wx, 0.5, wz, 0.5, 0.5, 0.4, '#1c1c1e', { rx: Math.PI / 2, center: true, seg: 10, collide: false });
-    b.collide(0.1, 0, 0, 8.6, 2.9, 2.5);
-  });
-}
-// Zırhlı personel taşıyıcı (+X ileri); wreck → yanık/hurda renk
-export function apc(b, { x, z, ry = 0, color = '#566246', wreck = false }) {
-  b.with(x, 0, z, ry, () => {
-    const c = wreck ? '#4d4338' : color;
-    b.box(0, 0.35, 0, 5.2, 1.5, 2.6, c);
-    b.box(2.5, 0.9, 0, 0.9, 0.8, 2.4, c, { collide: false });
-    b.box(-0.2, 1.85, 0, 2.2, 0.55, 1.7, wreck ? '#3d352c' : '#4a5640');
-    b.box(1.5, 2.0, 0, 2.2, 0.14, 0.14, '#2a2d30', { collide: false });
-    for (const sz of [-1.35, 1.35]) { b.box(0, 0.1, sz, 4.8, 0.55, 0.3, '#26282b', { collide: false }); for (let i = 0; i < 4; i++) b.cyl(-1.8 + i * 1.2, 0.35, sz * 1.0, 0.4, 0.4, 0.3, '#1c1c1e', { rx: Math.PI / 2, center: true, seg: 8, collide: false }); }
-    if (wreck) b.box(-1.2, 1.85, 0.3, 1.2, 0.12, 1.0, '#2a2420', { collide: false });
-  });
-}
-// Tank (hurda/dekor siperi): +X namlu
-export function tank(b, { x, z, ry = 0, color = '#566246', wreck = true }) {
-  b.with(x, 0, z, ry, () => {
-    const c = wreck ? '#51493c' : color;
-    b.box(0, 0.5, 0, 6.2, 1.3, 3.2, c);
-    b.box(0, 0.1, -1.55, 6.4, 0.9, 0.5, '#26282b', { collide: false }); b.box(0, 0.1, 1.55, 6.4, 0.9, 0.5, '#26282b', { collide: false });
-    b.box(-0.3, 1.8, 0, 2.8, 0.9, 2.4, wreck ? '#463e33' : '#4a5640');
-    b.box(2.4, 2.1, 0.0, 3.8, 0.28, 0.28, '#2a2d30', { collide: false });
-    if (wreck) { b.box(-0.8, 2.7, 0.4, 1.0, 0.25, 0.9, '#2a2420', { collide: false }); b.box(0.8, 0.0, 1.9, 1.0, 0.7, 0.6, '#3d352c', { collide: false }); }
-  });
-}
-export function ambulance(b, { x, z, ry = 0 }) {
-  b.with(x, 0, z, ry, () => {
-    b.box(2.0, 0.5, 0, 1.8, 1.7, 2.3, '#f2f2ee', { collide: false });
-    b.box(2.5, 1.45, 0, 0.9, 0.7, 2.32, '#22333f', { collide: false });
-    b.box(-0.6, 0.55, 0, 3.8, 2.4, 2.4, '#f2f2ee', { collide: false });
-    b.box(-0.6, 1.5, 1.21, 0.9, 0.9, 0.04, '#c0392b', { collide: false }); b.box(-0.6, 1.5, 1.23, 0.3, 0.9, 0.04, '#fff', { collide: false });
-    b.box(-0.6, 1.5, -1.21, 0.9, 0.9, 0.04, '#c0392b', { collide: false });
-    b.box(2.0, 2.2, 0, 0.3, 0.18, 1.0, '#ff3b2b', { collide: false, o: GL });
-    b.box(2.0, 2.2, 0.5, 0.3, 0.18, 0.3, '#3b8bff', { collide: false, o: GL });
-    for (const wx of [-1.4, 2.2]) for (const wz of [-1.1, 1.1]) b.cyl(wx, 0.4, wz, 0.4, 0.4, 0.3, '#1c1c1e', { rx: Math.PI / 2, center: true, seg: 10, collide: false });
-    b.collide(0.4, 0, 0, 6.0, 2.9, 2.5);
-  });
-}
-export function jeep(b, { x, z, ry = 0, color = '#5e6b4a' }) {
-  b.with(x, 0, z, ry, () => {
-    b.box(0, 0.35, 0, 3.6, 0.7, 1.8, color, { collide: false });
-    b.box(-0.2, 1.05, 0, 1.6, 0.55, 1.6, color, { collide: false });
-    b.box(-0.2, 1.1, 0, 1.64, 0.4, 1.66, '#22333f', { collide: false, o: { roughness: 0.2 } });
-    b.box(1.5, 0.55, 0, 0.8, 0.3, 1.7, color, { collide: false });
-    for (const wx of [-1.2, 1.2]) for (const wz of [-0.95, 0.95]) b.cyl(wx, 0.38, wz, 0.38, 0.38, 0.3, '#1c1c1e', { rx: Math.PI / 2, center: true, seg: 10, collide: false });
-    b.box(1.85, 0.6, 0.6, 0.06, 0.18, 0.3, '#fff2b0', { collide: false, o: GL }); b.box(1.85, 0.6, -0.6, 0.06, 0.18, 0.3, '#fff2b0', { collide: false, o: GL });
-    b.collide(0, 0, 0, 3.8, 1.5, 1.85);
-  });
 }
 
 // Yükseltilmiş boru hattı (altından geçilebilir): x0,z0 → x1,z1 (eksene paralel), direkler çarpışmalı

@@ -32,42 +32,8 @@ export function container(b, { x, z, ry = 0, y = 0, color = '#3b6a9a', len = 6.1
   });
 }
 
-// ───────── Araçlar (+X ileri) ─────────
-export function car(b, { x, z, ry = 0, color = '#b33a2a', wreck = false }) {
-  b.with(x, 0, z, ry, () => {
-    const c = wreck ? '#6e5a4a' : color;
-    b.box(0, 0.3, 0, 4.3, 0.75, 1.8, c, { collide: false });
-    b.box(-0.35, 1.05, 0, 2.3, 0.62, 1.64, c, { collide: false });
-    b.box(-0.35, 1.08, 0, 2.34, 0.42, 1.67, '#22333f', { collide: false, o: { roughness: 0.2 } });
-    b.box(2.15, 0.3, 0, 0.12, 0.35, 1.7, '#222', { collide: false });
-    b.box(-2.15, 0.3, 0, 0.12, 0.35, 1.7, '#222', { collide: false });
-    b.box(2.17, 0.62, 0.6, 0.06, 0.18, 0.3, wreck ? '#555' : '#fff2b0', { collide: false, o: wreck ? {} : { glow: true } });
-    b.box(2.17, 0.62, -0.6, 0.06, 0.18, 0.3, wreck ? '#555' : '#fff2b0', { collide: false, o: wreck ? {} : { glow: true } });
-    for (const wx of [-1.4, 1.4]) for (const wz of [-0.92, 0.92]) b.cyl(wx, 0.34, wz, 0.34, 0.34, 0.26, '#1c1c1e', { rx: Math.PI / 2, center: true, seg: 10, collide: false });
-    b.collide(0, 0, 0, 4.4, 1.7, 1.85);
-  });
-}
-
-export function bus(b, { x, z, ry = 0, color = '#d9a921' }) {
-  b.with(x, 0, z, ry, () => {
-    b.box(0, 0.35, 0, 10, 2.4, 2.5, color, { collide: false });
-    b.box(0, 1.35, 0, 10.04, 0.9, 2.54, '#22333f', { collide: false, o: { roughness: 0.2 } });
-    b.box(0, 2.6, 0, 10, 0.15, 2.5, '#d8d8d2', { collide: false });
-    b.box(5.02, 0.9, 0, 0.06, 0.5, 2.2, '#222', { collide: false });
-    for (const wx of [-3.2, 3.2]) for (const wz of [-1.2, 1.2]) b.cyl(wx, 0.5, wz, 0.5, 0.5, 0.3, '#1c1c1e', { rx: Math.PI / 2, center: true, seg: 10, collide: false });
-    b.collide(0, 0, 0, 10, 2.8, 2.55);
-  });
-}
-
-export function truck(b, { x, z, ry = 0, color = '#c0392b', cargo = '#cfd3d8' }) {
-  b.with(x, 0, z, ry, () => {
-    b.box(3.0, 0.55, 0, 2.2, 2.2, 2.4, color, { collide: false });
-    b.box(3.4, 1.6, 0, 1.3, 0.8, 2.42, '#22333f', { collide: false });
-    b.box(-1.0, 0.7, 0, 6.6, 2.9, 2.5, cargo, { collide: false });
-    for (const wx of [-3, -1.2, 3.0]) for (const wz of [-1.1, 1.1]) b.cyl(wx, 0.5, wz, 0.5, 0.5, 0.4, '#1c1c1e', { rx: Math.PI / 2, center: true, seg: 10, collide: false });
-    b.collide(0.25, 0, 0, 8.8, 3.6, 2.55);
-  });
-}
+// ───────── Araçlar (+X ileri): vehicles.js ─────────
+export { car, bus, truck } from './vehicles.js';
 
 // ───────── Propler ─────────
 export const crate = (b, x, z, s = 1, y = 0, ry = 0) => b.box(x, y, z, s, s, s, COL.woodLight, { ry });

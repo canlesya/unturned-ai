@@ -48,8 +48,14 @@ function makeArm(torso, side, c) {
   taperBox(upper, [0.14, L1 + 0.01, 0.14], c.shirt, [0, -L1 / 2, 0], null, [1, 1], [0.88, 0.88]);
   taperBox(fore, [0.125, L2 + 0.01, 0.125], c.shirt, [0, -L2 / 2, 0], null, [1, 1], [0.86, 0.86]);
   box(fore, [0.13, 0.05, 0.13], c.gloves, [0, -L2 + 0.045, 0]);        // bilek bandı
+  box(fore, [0.1, 0.09, 0.05], '#1b1c20', [0, -0.03, 0.075]);           // dirsek koruyucu
+  box(upper, [0.01, 0.075, 0.07], side === 'L' ? c.accent : '#d8d8d2', [side === 'R' ? 0.075 : -0.075, -0.1, 0]);   // omuz yaması
+  box(upper, [0.152, 0.025, 0.152], new THREE.Color(c.shirt).multiplyScalar(0.78).getStyle(), [0, -L1 + 0.04, 0]);   // kol kıvrımı
   box(hand, [0.1, 0.11, 0.115], c.gloves, [0, -0.05, 0.0]);             // eldiven
   box(hand, [0.085, 0.03, 0.04], c.gloves, [0, -0.1, -0.03]);           // parmak ucu
+  for (let i = 0; i < 4; i++) box(hand, [0.02, 0.05, 0.02], c.gloves, [-0.036 + i * 0.024, -0.105, -0.045]);   // parmaklar
+  box(hand, [0.03, 0.045, 0.026], c.gloves, [side === 'R' ? -0.06 : 0.06, -0.07, -0.02], [0, 0, side === 'R' ? 0.35 : -0.35]);   // başparmak
+  box(hand, [0.102, 0.03, 0.117], '#15161a', [0, -0.02, 0.0]);           // el sırtı koruması
   torso.add(upper, fore, hand);
   return { upper, fore, hand, side, shoulder: V(side === 'R' ? SHOULDER_X : -SHOULDER_X, SHOULDER_Y, 0) };
 }
@@ -123,6 +129,30 @@ function addGear(cls, team, c, parts, skin) {
   box(torso, [0.07, 0.05, 0.02], C.chrome, [0, -0.26, -0.145], null, { metalness: 0.5 });
   // sol kol bandı (takım rengi)
   box(torso, [0.15, 0.08, 0.15], c.accent, [-SHOULDER_X, SHOULDER_Y - 0.14, 0]);
+  // omuz başı, boyun bandı, kemer cepleri, telsiz
+  for (const sx of [-1, 1]) box(torso, [0.17, 0.09, 0.17], c.shirt, [sx * SHOULDER_X, SHOULDER_Y + 0.045, 0]);
+  box(torso, [0.17, 0.05, 0.17], c.vest, [0, 0.33, 0.0]);                          // yaka
+  box(torso, [0.4, 0.32, 0.03], new THREE.Color(c.vest).multiplyScalar(0.82).getStyle(), [0, 0.1, -0.162]);   // plaka cebi
+  for (let i = 0; i < 3; i++) box(torso, [0.42, 0.012, 0.036], '#15161a', [0, 0.2 - i * 0.07, -0.165]);   // MOLLE bantları
+  for (const sx of [-1, 1]) {
+    box(torso, [0.09, 0.1, 0.06], '#23252a', [sx * 0.2, -0.2, -0.12]);               // kemer cebi
+    box(torso, [0.09, 0.02, 0.066], c.vest, [sx * 0.2, -0.15, -0.12]);
+    box(torso, [0.02, 0.1, 0.012], '#15161a', [sx * 0.2, 0.0, -0.18]);               // göğüs kayışı tokası
+  }
+  box(torso, [0.05, 0.1, 0.035], C.black, [-0.17, 0.2, -0.178]);                   // telsiz
+  box(torso, [0.008, 0.12, 0.008], C.black, [-0.17, 0.31, -0.17]);                 // anten
+  box(torso, [0.46, 0.04, 0.27], new THREE.Color(c.pants).multiplyScalar(0.9).getStyle(), [0, -0.3, 0]);   // pantolon kemeri
+  // sol uyluk cebi + bot ayrıntıları
+  box(legs.L.thigh, [0.04, 0.14, 0.13], new THREE.Color(c.pants).multiplyScalar(0.85).getStyle(), [-0.1, -0.2, 0.0]);
+  box(legs.L.thigh, [0.042, 0.03, 0.134], '#15161a', [-0.1, -0.13, 0.0]);
+  for (const s of ['L', 'R']) {
+    const ft = legs[s].foot;
+    box(ft, [0.175, 0.025, 0.205], '#101012', [0, -0.0475, 0.0]);                    // taban
+    box(ft, [0.175, 0.025, 0.31], '#101012', [0, -0.0475, -0.045]);
+    box(ft, [0.18, 0.035, 0.21], new THREE.Color(c.boots).multiplyScalar(1.35).getStyle(), [0, 0.065, 0.0]);   // bot manşeti
+    box(ft, [0.07, 0.014, 0.11], '#cfcabd', [0, 0.012, -0.085]);                      // bağcık
+    for (let i = 0; i < 3; i++) box(ft, [0.09, 0.006, 0.01], '#101012', [0, 0.02, -0.06 - i * 0.03]);
+  }
   // tabanca kılıfı (sağ uyluk)
   box(legs.R.thigh, [0.06, 0.15, 0.11], C.black, [0.1, -0.2, -0.01]);
   box(legs.R.thigh, [0.04, 0.05, 0.1], C.gun, [0.1, -0.11, -0.01]);
@@ -134,6 +164,10 @@ function addGear(cls, team, c, parts, skin) {
     face(head, skin);
     combatHelmet(head, c.helmet, c.accent);
     goggles(head);
+    box(head, [0.05, 0.045, 0.035], C.black, [0, 0.2, -0.195]);                      // gece görüş tutucu
+    box(head, [0.022, 0.08, 0.075], C.black, [-0.186, -0.01, 0.0]);                   // kulaklık
+    box(head, [0.01, 0.01, 0.1], C.black, [-0.17, -0.07, -0.1]);                       // mikrofon kolu
+    box(head, [0.025, 0.02, 0.02], C.black, [-0.17, -0.075, -0.155]);
     backpack(torso, 0.34, 0.38, 0.16, C.oliveDark, 0.0);
     cylY(torso, 0.07, 0.07, 0.34, '#6b6a52', [0, 0.23, 0.24], 8, [0, 0, Math.PI / 2]); // uyku tulumu
     ico(torso, 0.04, C.olive, [-0.2, -0.1, -0.2], 1, [1, 1.2, 1]);                     // el bombası

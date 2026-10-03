@@ -535,3 +535,9 @@ Tarayıcıda iki sekme: `/?online=new&name=Ali&per=3` sonra `/?online=KOD&name=V
 - Yeni katılan, o an havada olan el bombası/duman bulutunu görmez (kurulu mayın/kutuları görür).
 - Hesap yok (takma ad); XP/seviye tarayıcıda kalır. Odalar bellekte.
 - Hile önlemi: hareket/ateş/hasar sunucuda; hız hilesi kova ile engelli. Eksik: görüş hattı verisi (tüm konumlar istemciye gider, "wallhack" mümkün), girdi imzası.
+
+### 12.10 Araç / silah / karakter ayrıntıları
+- **Araçlar** `src/maps/vehicles.js`: otomobil, otobüs, kamyon, tanker, ZPT, tank, ambulans, cip — eğik camlar, tampon/ızgara, far/stop, ayna, kapı çizgileri, jantlı tekerlekler. Çarpışma tek kutu (`b.vcollide`).
+- **Otomatik yerleşim:** Kasaba ve Üs'te `b.autoPlace = true`; araçlar ertelenir, `b.flushVehicles()` çakışan aracı en yakın boş yere (≤3,2 m) kaydırır, yer yoksa koymaz. Denetim: `node scripts/vehaudit.mjs` (araç↔araç ve araç↔bina/engel, 0 çakışma beklenir).
+- **Silahlar:** AK-47, M4A1, MP5, Glock, Pompalı, M24, M249, RPG-7 ek ayrıntılarla (atım penceresi, seçici, perçin, tırtıl, askı halkası, şarjör kaburgası). Ayrıntılar nişan hattının üstüne eklenmez (`adsaudit` hâlâ 0).
+- **Karakter:** parmaklar/başparmak, dirsek koruyucu, omuz yaması, omuz başları, plaka cebi + MOLLE, telsiz, kemer cepleri, uyluk cebi, taban/bağcık/manşetli botlar, saldırı sınıfında kulaklık-mikrofon + gece görüş tutucu.

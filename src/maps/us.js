@@ -406,6 +406,7 @@ function outside(b, rng) {
 // ───────────────────────── Ana derleme ─────────────────────────
 export function buildUs() {
   const b = new MapBuilder();
+  b.autoPlace = true;
   const rng = makeRng(4242);
 
   ground(b, rng);
@@ -428,6 +429,7 @@ export function buildUs() {
   rot(b, () => yardGarage(b, rng, 1));
   yardMaze(b, rng, 0);
   rot(b, () => yardMaze(b, rng, 1));
+  b.flushVehicles();
   const nCol = b.colliders.length;
   outside(b, rng);
   b.colliders.length = nCol;            // duvar dışı dekorun çarpışması gereksiz

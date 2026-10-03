@@ -38,6 +38,7 @@ export function buildKasaba() {
   const patchCols = ['#88a04f', '#738a3f', '#8d9a52', '#76903f'];
   for (let i = 0; i < 120; i++) b.box(-82 + rng() * 164, 0, -56 + rng() * 112, 4 + rng() * 9, 0.025, 4 + rng() * 9, patchCols[i % 4], { collide: false });
 
+  b.autoPlace = true;
   const roads = [];
   let rotated = false;
   const car = (x, z, ry, color, wreck = false) => K.car(b, { x, z, ry, color, wreck });
@@ -48,6 +49,7 @@ export function buildKasaba() {
   rotated = false;
   center();
   surround();
+  b.flushVehicles();
 
   // ───────── Doğuş noktaları ─────────
   const spawns = {
@@ -263,12 +265,9 @@ export function buildKasaba() {
     car(-39, 3.0, 0.12, palette[V.tint ? 2 : 3], true); K.barrier(b, -33.5, -2.2, 0.1); car(-27, 1.8, Math.PI + 0.1, palette[0]);
     K.sandbags(b, -20, -3.2, 3.2, 0.2); car(-15, 3.2, -0.1, palette[5], true); K.barrier(b, -9.5, 1.8, Math.PI / 2);
     K.bus(b, { x: -23, z: -3.4, ry: 0.05, color: V.tint ? '#3b6a9a' : '#d9a921' });
-    // orta cadde (x -4…4): kuzey bölümü
+    // orta cadde (x -4…4): kuzey bölümü (güney, 180° döndürülen yarıdan gelir)
     car(-1.8, -12, Math.PI / 2 + 0.12, palette[1]); K.barrier(b, 1.5, -18, Math.PI / 2); car(-1.5, -24, Math.PI / 2 - 0.2, palette[4], true);
     K.sandbags(b, 1.8, -31, 3, Math.PI / 2); car(-1.5, -39, Math.PI / 2, palette[2], true); K.barrier(b, 1.5, -47, Math.PI / 2); car(-1.5, -54, Math.PI / 2 + 0.2, palette[3]);
-    // orta cadde (güney bölümü; dönüşte kuzeyi tamamlar)
-    car(1.8, 12, Math.PI / 2 - 0.1, palette[5], true); K.barrier(b, -1.5, 18.5, Math.PI / 2); car(1.5, 25.5, Math.PI / 2 + 0.2, palette[0]);
-    K.sandbags(b, -1.8, 40, 3, Math.PI / 2); car(1.5, 47, Math.PI / 2, palette[1], true); K.barrier(b, -1.5, 53, Math.PI / 2);
     // kuzey sokak (z -34…-26)
     for (const [x, z, ry, ci, w] of [[-72, -29.4, 0.1, 0, 1], [-63, -31.4, Math.PI, 2, 0], [-55, -28.6, 0.05, 4, 1], [-47.5, -31, 0, 1, 0], [-38, -29, 0.12, 5, 1], [-29.5, -31.2, Math.PI - 0.1, 3, 0], [-20, -28.8, 0, 2, 1], [-11.5, -31.5, 0.1, 0, 0]]) car(x, z, ry, palette[ci], !!w);
     K.barrier(b, -59, -29.5, 0); K.sandbags(b, -42.5, -28.2, 3.2, 0); K.barrier(b, -33.5, -31.4, 0); K.sandbags(b, -16.2, -29.7, 3, 0); K.barrier(b, -7.5, -28.5, 0);

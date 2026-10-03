@@ -135,6 +135,25 @@ function attachSight(g, id, optic) {
   return { sight: [0, cy, sz], dist, overlay };
 }
 
+// ── Ortak ayrıntılar ──
+// Şarjör gövdesine kaburga + taban plakası (şarjör alt grubuna eklenir: animasyonda birlikte hareket eder)
+function magRibs(mg, x0, y, z, n, w, color = C.black, step = 0.026) {
+  for (let i = 0; i < n; i++) box(mg, [w, 0.006, 0.004], color, [x0, y - i * step, z]);
+}
+// Çıkıntılı yan perçin/vida (iki yana)
+function studs(g, pts, color = C.steel, sz = 0.008, half = 0.026) {
+  for (const [y, z] of pts) for (const sx of [-1, 1]) box(g, [0.004, sz, sz], color, [sx * half, y, z]);
+}
+// Kabza dokusu: yatay oluklar
+function gripTexture(g, y0, z, w, h, n = 5, tilt = 0.3, color = '#101012') {
+  for (let i = 0; i < n; i++) for (const sx of [-1, 1]) box(g, [0.004, 0.004, 0.044], color, [sx * (w / 2 + 0.001), y0 - i * (h / n), z + Math.sin(tilt) * i * (h / n) * -0.0], [tilt, 0, 0]);
+}
+// Askı halkası
+function sling(g, pos, color = C.steel) {
+  const t = new THREE.Mesh(new THREE.TorusGeometry(0.011, 0.0025, 4, 8), mat(color, { metalness: 0.4 }));
+  t.position.set(...pos); t.rotation.y = Math.PI / 2; t.castShadow = true; g.add(t);
+}
+
 // ───────────────────────── AK-47 ─────────────────────────
 function ak47() {
   const g = new THREE.Group();
@@ -160,6 +179,21 @@ function ak47() {
   // ahşap dipçik
   taperBox(g, [0.046, 0.115, 0.3], C.wood, [0, -0.015, 0.24], [0.1, 0, 0], [1, 1], [1, 1]);
   box(g, [0.05, 0.12, 0.014], C.black, [0, -0.03, 0.4], [0.1, 0, 0]);
+  // ayrıntılar
+  box(g, [0.014, 0.012, 0.075], C.steel, [0.03, 0.028, -0.02], [0, 0, 0]);                  // emniyet/seçici kolu (sağ yan)
+  box(g, [0.012, 0.03, 0.012], C.steel, [0.034, 0.012, -0.02], [0, 0, 0.5]);
+  box(g, [0.006, 0.026, 0.07], '#111214', [0.0265, 0.036, -0.07]);                          // fişek atım penceresi
+  studs(g, [[0.0, -0.22], [0.045, -0.2], [0.0, 0.03], [0.045, 0.035]], C.steel, 0.009, 0.0255);   // gövde perçinleri
+  box(g, [0.062, 0.07, 0.01], C.gunLight, [0, -0.002, -0.245], null, M);                      // ahşap/gövde ayrım bileziği
+  box(g, [0.056, 0.04, 0.008], C.black, [0, 0.04, -0.455]);                                  // gaz borusu kelepçesi
+  box(g, [0.03, 0.03, 0.02], C.steel, [0, 0.03, -0.62]);                                     // gaz bloğu
+  box(g, [0.01, 0.01, 0.2], C.steel, [0, -0.012, -0.47]);                                    // temizleme çubuğu
+  for (let i = 0; i < 5; i++) box(g, [0.062, 0.004, 0.012], C.woodDark, [0, 0.0, -0.28 - i * 0.032], null);   // ahşap oluk
+  for (let i = 0; i < 4; i++) box(g, [0.005, 0.06, 0.004], C.woodDark, [0.0235 + 0.0, 0.0, 0.14 + i * 0.05], [0.1, 0, 0]);   // dipçik damarı
+  magRibs(mg, 0.0, -0.045, -0.115, 1, 0.042, '#2b2d31');
+  box(mg, [0.046, 0.012, 0.085], C.black, [0, -0.3, -0.225], [0.62, 0, 0]);                  // şarjör tabanı
+  sling(g, [0, -0.04, 0.34]); sling(g, [0, -0.03, -0.42]);
+  gripTexture(g, -0.04, 0.05, 0.044, 0.08, 4, 0.32, '#241608');
   return finish(g, {
     name: 'AK-47', mag: mg, hold: 'rifle', gripR: [0, -0.03, 0.045], gripL: [0, -0.03, -0.35], muzzle: [0, 0.015, -0.74], length: 1.14,
   });
@@ -187,6 +221,25 @@ function m4a1() {
   cyl(g, 0.019, 0.019, 0.2, C.black, [0, 0.03, 0.17], 8, M);
   taperBox(g, [0.046, 0.11, 0.16], C.gun, [0, 0.0, 0.26], [0.08, 0, 0], [1, 1], [1, 1], M);
   box(g, [0.05, 0.11, 0.014], C.black, [0, -0.005, 0.345], [0.08, 0, 0]);
+  // ayrıntılar
+  box(g, [0.006, 0.022, 0.05], '#0a0a0c', [0.0265, 0.065, -0.17]);                          // atım penceresi
+  box(g, [0.008, 0.02, 0.026], C.steel, [0.028, 0.065, -0.205]);                            // pencere kapağı
+  box(g, [0.012, 0.022, 0.03], C.steel, [0.03, 0.055, -0.06]);                              // ileri itme düğmesi
+  box(g, [0.018, 0.018, 0.026], C.black, [0.028, 0.02, -0.095], [0, 0, 0.0]);               // şarjör tutma düğmesi
+  box(g, [0.048, 0.03, 0.05], C.gun, [0, -0.022, -0.115], null, M);                          // şarjör yuvası genişlemesi
+  box(g, [0.012, 0.018, 0.045], C.steel, [-0.03, 0.045, -0.04]);                            // emniyet kolu (sol)
+  for (let i = 0; i < 5; i++) for (const sx of [-1, 1]) box(g, [0.004, 0.03, 0.016], '#0a0a0c', [sx * 0.031, 0.05, -0.30 - i * 0.045]);   // tutamak delikleri
+  for (const sx of [-1, 1]) for (let i = 0; i < 6; i++) box(g, [0.006, 0.01, 0.012], C.black, [sx * 0.032, 0.085, -0.28 - i * 0.04]);   // yan ray çentikleri
+  box(g, [0.05, 0.016, 0.032], C.black, [0, 0.024, -0.545]);                                // gaz bloğu
+  box(g, [0.04, 0.012, 0.03], C.black, [0, -0.012, -0.5]);
+  for (let i = 0; i < 3; i++) box(g, [0.05, 0.006, 0.004], '#0a0a0c', [0, 0.05, -0.66 + i * 0.015]);        // alev gizleyici yarıkları
+  for (const sx of [-1, 1]) box(g, [0.004, 0.036, 0.04], '#0a0a0c', [sx * 0.0165, 0.05, -0.665]);
+  magRibs(mg, 0.0, -0.075, -0.113, 4, 0.04, '#2b2d31', 0.032);
+  box(mg, [0.044, 0.012, 0.07], C.black, [0, -0.19, -0.12], [0.1, 0, 0]);                    // şarjör tabanı
+  for (let i = 0; i < 3; i++) box(g, [0.05, 0.006, 0.01], C.black, [0, 0.03, 0.14 + i * 0.03]);   // tampon tüpü halkaları
+  box(g, [0.05, 0.03, 0.03], C.black, [0, 0.06, 0.255], [0.08, 0, 0]);                      // yanak desteği
+  sling(g, [0, 0.0, 0.35]); sling(g, [0.03, 0.05, -0.51]);
+  gripTexture(g, -0.05, 0.04, 0.042, 0.08, 4, 0.3);
   return finish(g, {
     name: 'M4A1', mag: mg, hold: 'rifle', gripR: [0, -0.03, 0.04], gripL: [0, -0.035, -0.4], muzzle: [0, 0.05, -0.7], length: 1.0,
   });
@@ -213,6 +266,21 @@ function mp5() {
   box(g, [0.014, 0.014, 0.28], C.steel, [0, -0.04, 0.24], [0.15, 0, 0], M);
   box(g, [0.012, 0.09, 0.012], C.steel, [0, -0.005, 0.38], null, M);
   box(g, [0.048, 0.1, 0.02], C.black, [0, -0.01, 0.395]);
+  // ayrıntılar
+  for (let i = 0; i < 5; i++) for (const sx of [-1, 1]) box(g, [0.004, 0.035, 0.008], '#0a0a0c', [sx * 0.0315, 0.005, -0.27 - i * 0.025]);   // tutamak yarıkları
+  box(g, [0.064, 0.012, 0.02], C.steel, [0, 0.03, -0.405]);                                // tutamak ucu halkası
+  box(g, [0.012, 0.03, 0.012], C.steel, [0, 0.062, -0.43]);                                 // ön arpacık tabanı
+  box(g, [0.052, 0.01, 0.022], C.steel, [0, 0.01, -0.5]);
+  box(g, [0.01, 0.014, 0.06], C.steel, [0.03, 0.01, -0.02]);                                // seçici kolu
+  box(g, [0.006, 0.02, 0.05], '#0a0a0c', [0.0265, 0.034, -0.11]);                          // atım penceresi
+  box(g, [0.05, 0.02, 0.02], C.steel, [0, 0.04, 0.06]);                                     // tambur arka nişan tabanı
+  box(g, [0.012, 0.018, 0.012], C.black, [0.0, 0.058, 0.07]);
+  studs(g, [[0.02, -0.2], [0.04, -0.1]], C.steel, 0.007, 0.0255);
+  magRibs(mg, 0.0, -0.03, -0.12, 3, 0.034, '#2b2d31', 0.025);
+  box(mg, [0.038, 0.012, 0.055], C.black, [0, -0.275, -0.19], [0.55, 0, 0]);
+  box(g, [0.048, 0.008, 0.07], C.steel, [0, -0.002, -0.05]);
+  sling(g, [0, 0.0, 0.4]);
+  gripTexture(g, -0.04, 0.045, 0.04, 0.08, 4, 0.3);
   return finish(g, {
     name: 'MP5', mag: mg, hold: 'rifle', gripR: [0, -0.03, 0.045], gripL: [0, -0.02, -0.32], muzzle: [0, 0.025, -0.53], length: 0.92,
   });
@@ -230,6 +298,16 @@ function pistol() {
   for (let i = 0; i < 4; i++) box(g, [0.036, 0.03, 0.005], C.black, [0, 0.055, 0.025 + i * 0.012]); // sürgü tırtılı
   const mg = magGroup(g);
   box(mg, [0.03, 0.045, 0.048], C.steel, [0, -0.1, 0.036], [0.2, 0, 0], M);                   // şarjör ucu
+  // ayrıntılar
+  for (let i = 0; i < 4; i++) for (const sx of [-1, 1]) box(g, [0.004, 0.034, 0.004], C.black, [sx * 0.0175, 0.05, -0.09 - i * 0.012]);   // ön sürgü tırtılı
+  box(g, [0.006, 0.014, 0.04], '#0a0a0c', [0.0175, 0.062, -0.05]);                          // atım penceresi
+  box(g, [0.012, 0.012, 0.03], C.steel, [0.02, 0.025, -0.05]);                               // sürgü durdurucu
+  box(g, [0.014, 0.016, 0.034], C.black, [0, -0.002, -0.095]);                               // ray
+  for (let i = 0; i < 2; i++) box(g, [0.016, 0.003, 0.012], C.steel, [0, -0.012, -0.108 + i * 0.016]);
+  box(g, [0.012, 0.018, 0.012], C.steel, [0, 0.0, -0.043]);                                  // tetik
+  box(g, [0.04, 0.012, 0.062], C.black, [0, -0.094, 0.036], [0.2, 0, 0]);                    // kabza tabanı
+  for (let i = 0; i < 4; i++) for (const sx of [-1, 1]) box(g, [0.004, 0.006, 0.04], '#101012', [sx * 0.0185, -0.02 - i * 0.016, 0.022 + i * 0.003], [0.2, 0, 0]);   // kabza dokusu
+  box(g, [0.01, 0.01, 0.012], C.steel, [0, 0.0, 0.07]);
   return finish(g, {
     name: 'Glock 17', mag: mg, hold: 'pistol', gripR: [0, -0.03, 0.02], gripL: null, muzzle: [0, 0.05, -0.18], length: 0.28,
   });
@@ -251,6 +329,19 @@ function shotgun() {
   box(g, [0.054, 0.12, 0.014], C.black, [0, -0.035, 0.4], [0.14, 0, 0]);
   // fişek tutucu
   for (let i = 0; i < 3; i++) cylY(g, 0.009, 0.009, 0.045, C.red, [0.032, 0.0, 0.0 + i * 0.022], 6, [0, 0, Math.PI / 2]);
+  // ayrıntılar
+  box(g, [0.034, 0.012, 0.02], C.steel, [0, 0.0, -0.58]);                                   // namlu bandı
+  box(g, [0.034, 0.05, 0.02], C.steel, [0, 0.015, -0.58]);
+  box(g, [0.034, 0.012, 0.02], C.steel, [0, 0.0, -0.2]);
+  for (const sx of [-1, 1]) box(g, [0.006, 0.03, 0.08], '#0a0a0c', [sx * 0.027, 0.03, -0.04]);   // yükleme/atım penceresi
+  box(g, [0.06, 0.014, 0.03], C.steel, [0, -0.02, -0.03]);                                  // yükleme kapısı
+  box(g, [0.01, 0.014, 0.05], C.steel, [0.03, 0.02, 0.01]);                                  // emniyet düğmesi
+  box(g, [0.064, 0.014, 0.012], C.steel, [0, -0.01, -0.235]);                                // pompa başlığı
+  box(g, [0.064, 0.014, 0.012], C.steel, [0, -0.01, -0.37]);
+  studs(g, [[0.03, 0.03], [0.0, 0.0]], C.steel, 0.008, 0.0265);
+  sling(g, [0, -0.01, 0.4]); sling(g, [0, -0.03, -0.62]);
+  for (let i = 0; i < 4; i++) box(g, [0.056, 0.003, 0.14], C.woodDark, [0, -0.05 + i * 0.02, 0.23], [0.14, 0, 0]);   // dipçik damarı
+  box(g, [0.056, 0.12, 0.008], C.brass, [0, -0.034, 0.395], [0.14, 0, 0], M);
   return finish(g, {
     name: 'Pompalı', hold: 'rifle', gripR: [0, -0.03, 0.05], gripL: [0, -0.03, -0.3], muzzle: [0, 0.04, -0.66], length: 1.05,
   });
@@ -291,6 +382,18 @@ function sniper() {
   box(g, [0.05, 0.03, 0.04], C.steel, [0, -0.055, -0.3]);
   const mg = magGroup(g);
   box(mg, [0.034, 0.05, 0.06], C.steel, [0, -0.06, -0.06], [0.1, 0, 0]);                   // şarjör
+  // ayrıntılar
+  for (const dz of [-0.17, 0.0]) { cyl(g, 0.033, 0.033, 0.014, C.gun, [0, 0.14, dz], 10, M); }   // dürbün bilezikleri (halka)
+  cyl(g, 0.011, 0.011, 0.028, C.gunLight, [0, 0.172, -0.27], 6);                             // ayar kapağı
+  for (let i = 0; i < 5; i++) cyl(g, 0.0172, 0.0172, 0.006, '#0a0a0c', [0, 0.055, -0.72 - i * 0.025], 8, M);   // namlu yivi
+  box(g, [0.06, 0.012, 0.18], C.black, [0, -0.045, -0.3]);                                    // ön kundak alt rayı
+  for (let i = 0; i < 5; i++) for (const sx of [-1, 1]) box(g, [0.004, 0.02, 0.004], '#101012', [sx * 0.0285, 0.0, -0.4 + i * 0.05]);
+  box(g, [0.03, 0.012, 0.012], C.gun, [0, -0.05, 0.28]);                                      // dipçik sapı (ayak)
+  box(g, [0.044, 0.03, 0.05], C.black, [0, -0.1, 0.2], [0.1, 0, 0]);
+  box(g, [0.01, 0.09, 0.016], C.steel, [0.0, -0.14, 0.2]);
+  sling(g, [0, -0.04, -0.55]); sling(g, [0, -0.04, 0.3]);
+  box(g, [0.062, 0.1, 0.01], C.black, [0, -0.01, 0.2], [0.08, 0, 0]);                          // dipçik bölmesi
+  for (const sx of [-1, 1]) box(g, [0.004, 0.06, 0.3], C.oliveDark, [sx * 0.029, -0.01, 0.22], [0.08, 0, 0]);
   return finish(g, {
     name: 'M24 Keskin', mag: mg, bolt: { g: bolt, pivot: 0.055 }, hold: 'rifle', gripR: [0, -0.03, 0.045], gripL: [0, -0.03, -0.36], muzzle: [0, 0.055, -0.92], length: 1.3,
   });
@@ -323,6 +426,20 @@ function lmg() {
   box(g, [0.012, 0.012, 0.1], C.steel, [0, -0.052, -0.02]);
   box(g, [0.06, 0.13, 0.3], C.black, [0, -0.0, 0.27], [0.08, 0, 0]);
   box(g, [0.064, 0.14, 0.016], C.steel, [0, -0.02, 0.43], [0.08, 0, 0]);
+  // ayrıntılar
+  for (let i = 0; i < 6; i++) for (const sx of [-1, 1]) box(g, [0.004, 0.02, 0.008], '#0a0a0c', [sx * 0.037, 0.03, -0.38 - i * 0.025]);   // ısı kalkanı delikleri
+  for (let i = 0; i < 3; i++) box(g, [0.074, 0.01, 0.012], C.steel, [0, 0.025, -0.53 - i * 0.04]);
+  box(g, [0.02, 0.012, 0.04], C.steel, [0.045, 0.04, -0.02]);                                   // doldurma kolu
+  box(g, [0.012, 0.03, 0.012], C.steel, [0.052, 0.03, -0.02]);
+  box(g, [0.012, 0.012, 0.12], C.steel, [-0.045, 0.06, -0.25]);
+  for (let i = 0; i < 5; i++) box(mg, [0.012, 0.014, 0.01], C.brass, [-0.05, -0.03 + 0.0, -0.215 + i * 0.015]);   // kemer halkaları
+  box(mg, [0.106, 0.012, 0.166], C.black, [0, -0.17, -0.13]);                                  // kutu tabanı
+  for (let i = 0; i < 3; i++) box(mg, [0.002, 0.08, 0.004], C.oliveDark, [0.0505, -0.115, -0.18 + i * 0.05]);
+  cyl(g, 0.022, 0.022, 0.03, C.black, [0, 0.028, -0.82], 8, M);                                 // alev gizleyici halkası
+  for (let i = 0; i < 3; i++) box(g, [0.05, 0.006, 0.006], '#0a0a0c', [0, 0.028, -0.8 + i * 0.012]);
+  box(g, [0.066, 0.1, 0.014], C.steel, [0, -0.01, 0.32], [0.08, 0, 0]);
+  sling(g, [0, 0.0, 0.42]); sling(g, [0, 0.01, -0.5]);
+  gripTexture(g, -0.04, 0.06, 0.046, 0.08, 4, 0.3);
   return finish(g, {
     name: 'M249 LMG', mag: mg, hold: 'rifle', gripR: [0, -0.03, 0.06], gripL: [0, -0.01, -0.45], muzzle: [0, 0.028, -0.84], length: 1.28,
   });
@@ -344,6 +461,14 @@ function rpg() {
   box(g, [0.04, 0.09, 0.04], C.black, [0, -0.025, -0.2], [-0.1, 0, 0]);            // ön kabza
   box(g, [0.02, 0.05, 0.06], C.steel, [-0.045, 0.1, -0.05]);                       // nişangah
   box(g, [0.03, 0.01, 0.01], C.steel, [-0.06, 0.13, -0.05]);
+  // ayrıntılar
+  for (let i = 0; i < 4; i++) cyl(g, 0.038, 0.038, 0.012, C.black, [0, 0.05, -0.2 + i * 0.1], 10);       // tüp bantları
+  for (let i = 0; i < 5; i++) box(g, [0.004, 0.012, 0.3 / 5], '#2a2d30', [0.0, 0.086, -0.12 - 0.15 + i * 0.06]);   // ahşap damarı
+  for (let k = 0; k < 4; k++) box(mg, [0.01, 0.07, 0.035], C.oliveDark, [Math.cos(k * Math.PI / 2) * 0.052, 0.05 + Math.sin(k * Math.PI / 2) * 0.052, -0.42], [0, 0, k * Math.PI / 2 + Math.PI / 2]);  // stabilizör kanatları
+  cyl(mg, 0.014, 0.014, 0.03, C.brass, [0, 0.05, -0.68], 8, M);                                  // fünye ucu
+  cyl(g, 0.065, 0.062, 0.02, C.black, [0, 0.05, 0.64], 10, M);                                    // arka huni halkası
+  box(g, [0.06, 0.02, 0.1], C.black, [0, 0.0, -0.04]);                                            // kabza gövdesi
+  sling(g, [0, 0.0, 0.3]); sling(g, [0, 0.0, -0.3]);
   return finish(g, {
     name: 'RPG-7', mag: mg, magAxis: [0, 0, -1], hold: 'launcher', gripR: [0, -0.03, 0.04], gripL: [0, -0.03, -0.2], muzzle: [0, 0.05, -0.68], length: 1.3,
   });
