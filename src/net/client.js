@@ -141,8 +141,9 @@ export class NetClient {
     }
     const st = me.st;
     s.kills = me.now.kl; s.deaths = me.now.de; s.score = me.now.sc;
-    if (!st.a) { if (s.alive) this.applyState(s, st, true); this.hist.length = 0; s.respawnT = me.rt; return; }
-    if (!s.alive) { this.applyState(s, st, true); }
+    // ölüm/yaşam durumu SUNUCUNUN ŞU ANKİ durumundan (me.now) alınır: ack anındaki durum (me.st) ölünce güncellenmez (girdi işlenmez)
+    if (!me.now.a) { if (s.alive) this.applyState(s, me.now, true); this.hist.length = 0; s.respawnT = me.rt; return; }
+    if (!s.alive) { this.applyState(s, me.now, true); }
     s.hp = st.hp;
     // sunucunun işlediği son girdi (ack) anındaki tahminimizle karşılaştır
     let rec = null;

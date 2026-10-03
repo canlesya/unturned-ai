@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { box, taperBox, cyl, cylY, ico } from '../core/geo.js';
 import { C } from '../core/palette.js';
 import { createItem } from './items.js';
-import { M, finish, railTicks, magGroup } from './weapon_util.js';
+import { M, finish, railTicks, magGroup, frontSight } from './weapon_util.js';
 
 // Yeni silahlar. Her biri ayırt edilebilir siluet; origin = kabza (sağ el), namlu -Z.
 // mag: şarjör alt grubu (reload animasyonu), bolt: sürgü kolu alt grubu.
@@ -24,7 +24,7 @@ export const MOUNT_MORE = {
   revolver: { z: 0.0, y: 0.07, front: 0.09, rearZ: 0.05, ownFront: true, scale: 0.75 },
   m1911: { z: -0.02, y: 0.071, front: 0.087, rearZ: 0.035, frontZ: -0.15, frontBase: 0.07, scale: 0.75 },
   svd: { z: -0.06, y: 0.092 },
-  pkm: { z: -0.12, y: 0.1, front: 0.14, rearZ: -0.05, frontZ: -0.84, frontBase: 0.045 },
+  pkm: { z: -0.12, y: 0.1, front: 0.14, rearZ: -0.05, frontZ: -0.84, frontBase: 0.045, lift: 0.01 },
   m79: { z: 0.0, y: 0.08, front: 0.095, rearZ: 0.02, ownFront: true },
 };
 
@@ -91,8 +91,8 @@ function g36() {
   // taşıma sapı + sabit nişan kulesi
   box(g, [0.036, 0.04, 0.3], BLK, [0, 0.0975, -0.03], null, M);
   box(g, [0.024, 0.008, 0.26], BLK, [0, 0.1195, -0.03]);
-  box(g, [0.018, 0.058, 0.022], BLK, [0, 0.093, -0.52]);                         // ön kule
-  box(g, [0.006, 0.03, 0.006], STL, [0, 0.137, -0.52]);                          // arpacık
+  frontSight(g, [0.018, 0.058, 0.022], BLK, [0, 0.093, -0.52]);                  // ön kule
+  frontSight(g, [0.006, 0.03, 0.006], STL, [0, 0.137, -0.52]);                   // arpacık
   const mg = magGroup(g);
   box(mg, [0.038, 0.11, 0.06], GLASSY, [0, -0.08, -0.13], [0.1, 0, 0], M);       // şeffaf kavisli şarjör
   box(mg, [0.038, 0.09, 0.06], GLASSY, [0, -0.17, -0.155], [0.3, 0, 0], M);
@@ -115,8 +115,8 @@ function ak74u() {
   box(g, [0.04, 0.02, 0.12], C.gunLight, [0, 0.043, -0.27]);
   cyl(g, 0.011, 0.011, 0.07, STL, [0, 0.015, -0.4], 8, M);
   cyl(g, 0.019, 0.017, 0.07, BLK, [0, 0.015, -0.46], 8, M);                      // namlu ağzı yükseltici
-  box(g, [0.018, 0.05, 0.022], STL, [0, 0.045, -0.42]);                          // ön kule
-  box(g, [0.006, 0.03, 0.006], STL, [0, 0.085, -0.42]);
+  frontSight(g, [0.018, 0.05, 0.022], STL, [0, 0.045, -0.42]);                   // ön kule
+  frontSight(g, [0.006, 0.03, 0.006], STL, [0, 0.085, -0.42]);
   const mg = magGroup(g);
   curvedMag(mg, PLUM, 0, -0.13, 0.85);
   box(g, [0.042, 0.115, 0.052], BLK, [0, -0.075, 0.05], [0.32, 0, 0]);
@@ -164,8 +164,8 @@ function p90() {
   box(g, [0.012, 0.04, 0.012], STL, [0, -0.07, -0.12]);
   box(g, [0.05, 0.09, 0.06], BLK, [0, 0.01, 0.21]);                              // omuz kısmı
   box(g, [0.05, 0.1, 0.014], BLK, [0, 0.005, 0.245]);
-  box(g, [0.02, 0.07, 0.022], BLK, [0, 0.06, -0.3]);                             // ön kule
-  box(g, [0.006, 0.02, 0.006], STL, [0, 0.13, -0.3]);
+  frontSight(g, [0.02, 0.07, 0.022], BLK, [0, 0.06, -0.3]);                      // ön kule
+  frontSight(g, [0.006, 0.02, 0.006], STL, [0, 0.13, -0.3]);
   box(g, [0.016, 0.07, 0.016], BLK, [0, 0.105, -0.3]);
   return finish(g, { name: 'P90', mag: mg, hold: 'rifle', gripR: [0, -0.03, 0.02], gripL: [0, -0.03, -0.2], muzzle: [0, 0.02, -0.37], length: 0.62 });
 }
@@ -177,7 +177,7 @@ function mac10() {
   box(g, [0.042, 0.022, 0.18], BLK, [0, 0.07, -0.03]);
   cyl(g, 0.013, 0.013, 0.1, STL, [0, 0.035, -0.17], 8, M);
   cyl(g, 0.019, 0.019, 0.04, BLK, [0, 0.035, -0.235], 8, M);                     // namlu manşonu
-  box(g, [0.006, 0.03, 0.006], STL, [0, 0.085, -0.2]);                           // arpacık
+  frontSight(g, [0.006, 0.03, 0.006], STL, [0, 0.085, -0.2]);                    // arpacık
   box(g, [0.012, 0.012, 0.09], STL, [0, -0.03, -0.01]);                          // tetik koruması
   const mg = magGroup(g);
   box(mg, [0.034, 0.14, 0.05], STL, [0, -0.09, 0.015], null, M);
@@ -219,7 +219,7 @@ function dbl() {
   box(g, [0.058, 0.08, 0.14], STL, [0, 0.02, -0.03], null, M);                   // kırılma gövdesi
   box(g, [0.062, 0.045, 0.2], C.woodDark, [0, -0.002, -0.21]);                   // ön kundak
   box(g, [0.01, 0.014, 0.1], C.brass, [0, 0.0, -0.1]);                           // menteşe
-  box(g, [0.008, 0.02, 0.008], C.brass, [0, 0.078, -0.7]);                       // arpacık boncuğu
+  frontSight(g, [0.008, 0.02, 0.008], C.brass, [0, 0.078, -0.7]);                // arpacık boncuğu
   box(g, [0.012, 0.012, 0.08], STL, [0, -0.045, 0.0]);
   box(g, [0.04, 0.09, 0.05], C.wood, [0, -0.05, 0.06], [0.28, 0, 0]);
   taperBox(g, [0.05, 0.115, 0.32], C.wood, [0, -0.012, 0.25], [0.14, 0, 0], [1, 1], [1, 1]);
@@ -252,7 +252,7 @@ function revolver() {
   for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2; box(g, [0.01, 0.012, 0.078], BLK, [Math.cos(a) * 0.026, 0.042 + Math.sin(a) * 0.026, -0.07]); }
   cyl(g, 0.014, 0.014, 0.28, C.chrome, [0, 0.062, -0.25], 8, CH);                // namlu
   box(g, [0.016, 0.02, 0.22], C.gun, [0, 0.03, -0.23], null, M);                 // alt kütle
-  box(g, [0.006, 0.02, 0.008], BLK, [0, 0.084, -0.37]);                          // arpacık
+  frontSight(g, [0.006, 0.02, 0.008], BLK, [0, 0.084, -0.37]);                   // arpacık
   box(g, [0.01, 0.03, 0.02], STL, [0, 0.08, 0.06], [-0.3, 0, 0]);                // horoz
   box(g, [0.012, 0.012, 0.07], STL, [0, -0.005, -0.04]);
   box(g, [0.042, 0.1, 0.055], C.wood, [0, -0.04, 0.055], [0.35, 0, 0]);         // ahşap kabza

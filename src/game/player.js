@@ -17,7 +17,7 @@ const POUCH_VM = new THREE.Vector3(-0.3, -0.34, 0.3);   // yelek şarjör cebi (
 const MELEE_IDLE = { pos: [0.1, -0.12, -0.46], rx: 0.5, ry: 0.22, rz: -0.35 };
 const MELEE_SPRINT = { pos: [-0.04, 0.06, -0.06], rx: 0.65, ry: 0.3, rz: -0.1 };
 
-class ViewModel {
+export class ViewModel {
   constructor(game) {
     this.game = game;
     this.scene = new THREE.Scene();
@@ -265,6 +265,7 @@ export class Player {
   bind() {
     const cv = this.game.canvas;
     this.on(window, 'keydown', (e) => {
+      if (e.code === 'Tab' || e.code === 'Space' || e.code.startsWith('Arrow') || e.code === 'F3') { if (this.game.running) e.preventDefault(); }   // basılı tutunca tekrar eden olaylar dahil
       if (e.repeat) return;
       this.keys.add(e.code);
       const s = this.s;
@@ -287,7 +288,9 @@ export class Player {
         if (keys[n]) this.game.requestClass(keys[n]);
       }
     });
+    this.on(window, 'blur', () => { this.keys.clear(); this.fireHeld = false; this.game.hud.showScoreboard(false); });     // pencere odağı gidince takılı tuş kalmasın
     this.on(window, 'keyup', (e) => {
+      if (e.code === 'Tab') e.preventDefault();
       this.keys.delete(e.code);
       if (e.code === 'Space') this.spaceLatch = false;
       if (e.code === 'Tab') this.game.hud.showScoreboard(false);
@@ -310,8 +313,8 @@ export class Player {
     this.on(cv, 'contextmenu', (e) => e.preventDefault());
     this.on(window, 'wheel', (e) => {
       if (!this.locked || !this.s.alive) return;
-      const dir = e.deltaY > 0 ? 1 : -1;
-      this.s.switchTo((this.s.cur + dir + 4) % 4);
+      const dir = e.deltaY > 0 ? 1 : -1, s = this.s;
+      for (let k = 1; k <= 4; k++) { const j = (s.cur + dir * k + 8) % 4; if (j !== s.cur && s.canEquip(j)) { s.switchTo(j); break; } }       // boş slotları atla
     }, { passive: true });
   }
 

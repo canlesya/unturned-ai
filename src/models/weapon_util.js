@@ -17,6 +17,16 @@ export function finish(g, meta) {
   return g;
 }
 
+// Ön arpacık / ön kule: birleştirmeden ayrı bir alt grup olarak tutulur. Demir nişanda görünür, optik (red dot/holo...) takılıyken
+// nişan çizgisini kapatmasın diye gizlenir (bkz. createWeapon).
+export function frontSight(g, size, color, pos, mat) {
+  const fs = new THREE.Group();
+  fs.userData.frontSight = true;
+  box(fs, size, color, pos, null, mat);
+  g.add(fs);
+  return fs;
+}
+
 export function railTicks(g, z0, z1, y, n, color = C.black) {
   for (let i = 0; i < n; i++) {
     const z = z0 + ((z1 - z0) * i) / (n - 1);

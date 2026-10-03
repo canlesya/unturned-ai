@@ -106,8 +106,18 @@ export class Soldier {
     this.model.setWeapon(id, this.optic);
   }
 
+  // Elde tutulabilir mi? Biten tek kullanımlık gadget (bomba, mayın, kutu, ilk yardım) elle tutulamaz; silahlar şarjörü boş olsa da tutulur.
+  canEquip(i) {
+    const it = this.items[i];
+    if (!it) return false;
+    const k = WSTATS[it.id].kind;
+    if (k === 'throwable' || k === 'mine' || k === 'ammobox' || k === 'medkit') return it.mag > 0;
+    if (k === 'launcher') return it.mag > 0 || it.reserve > 0;
+    return true;
+  }
+
   switchTo(i) {
-    if (i === this.cur || !this.items[i] || !this.alive) return;
+    if (i === this.cur || !this.items[i] || !this.alive || !this.canEquip(i)) return;
     const eq = Math.min(0.35, WSTATS[this.items[i].id].equip ?? 0.3);
     this.cur = i; this.switchT = eq; this.reloadT = 0; this.useT = 0; this.swing = null; this.autoSwitchT = 0;
     this._syncWeaponModel();

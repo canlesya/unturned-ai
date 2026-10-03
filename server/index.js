@@ -58,6 +58,7 @@ wss.on('connection', (ws) => {
     if (!m || typeof m.t !== 'string') return;
     if (m.t === 'ping') { ws.send(JSON.stringify({ t: 'pong', c: m.c })); return; }
     if (m.t === 'in') { if (ws.ctx) ws.ctx.room.input(ws.ctx.id, m); return; }
+    if (m.t === 'kill') { if (ws.ctx) ws.ctx.room.suicide(ws.ctx.id); return; }
     if (m.t === 'opt') { if (ws.ctx) ws.ctx.room.opt(ws.ctx.id, m); return; }
     if (m.t === 'dbg' && process.env.BF_DEBUG && ws.ctx) { ws.ctx.room.debug(ws.ctx.id, m); return; }   // yalnızca test için
     if (m.t === 'team') {                                // M menüsü: takım değiştirme isteği

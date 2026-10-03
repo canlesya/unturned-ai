@@ -161,6 +161,17 @@ export class Room {
     });
   }
 
+  // Menüdeki "kill" komutu: oyuncu kendini öldürür (sıkıştı, hızlı yeniden doğmak istiyor). Ölüm sayılır, öldüren olarak kimseye puan yazılmaz.
+  suicide(id) {
+    const c = this.clients.get(id);
+    if (!c || this.game.ended) return;
+    const s = c.h.s;
+    if (!s.alive) return;
+    if (s.suicideT && this.game.time - s.suicideT < 3) return;      // art arda basmayı sınırla
+    s.suicideT = this.game.time;
+    s.die(s, 'İntihar', false);
+  }
+
   // sonraki doğuş için sınıf / yükleme / doğma noktası
   opt(id, m) {
     const c = this.clients.get(id);
@@ -179,6 +190,7 @@ export class Room {
     if (Array.isArray(m.tp)) { s.pos.set(m.tp[0], g.world.heightAt(m.tp[0], m.tp[1]), m.tp[2 - 1]); s.vel.set(0, 0, 0); g.world.settle(s); s.protT = 0; }
     if (Number.isFinite(m.hp)) s.hp = m.hp;
     if (Array.isArray(m.item) && WSTATS[m.item[1]]) s.items[m.item[0] | 0] = { id: m.item[1], mag: 3, reserve: 0 };
+    if (m.kill) s.takeDamage(9999, s, 'body', s.pos, 'test'), s.protT = 0;
     if (Array.isArray(m.tk)) { g.tickets.blue = +m.tk[0]; g.tickets.red = +m.tk[1]; }
     if (m.bots === false) { g.brainsOff = g.brains.splice(0); }
     if (m.bots === true && g.brainsOff) { g.brains.push(...g.brainsOff); g.brainsOff = null; }

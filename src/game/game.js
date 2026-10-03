@@ -304,7 +304,7 @@ export class Game {
     for (const h of this.humans.values()) {
       const s = h.s;
       h.tickAck = false;
-      if (!s.alive) continue;                       // ölüler genel döngüde güncellenir
+      if (!s.alive) { h.queue.length = 0; continue; }     // ölüler genel döngüde güncellenir; ölüyken gelen girdiler atılır
       // Girdi bütçesi = zaman kovası (hız hilesi koruması): her gerçek adımda 1 hak birikir, en çok 30 (0,5 sn).
       // Her işlenen girdi 1 hak harcar. Böylece ağ dalgalanmasında yığılan girdiler biriken zamanla eritilir (kalıcı gecikme
       // kalmaz), ama oyuncunun simüle edilen toplam süresi gerçek süreyi aşamaz: saniyede 60'tan fazla girdi yollamak hız kazandırmaz.
@@ -348,6 +348,14 @@ export class Game {
     if (this.ended) return;
     this.simulate = !this.simulate;
     this.hud.setPaused(!this.simulate);
+  }
+
+  // Menüdeki "kill": kendini öldür (sıkışınca/hızlı yeniden doğmak için)
+  requestKill() {
+    const me = this.playerSoldier;
+    if (!me || !me.alive || this.ended) return;
+    if (this.online) { this.online.send({ t: 'kill' }); return; }
+    me.protT = 0; me.die(me, 'İntihar', false);
   }
 
   respawnReady() { return !this.playerSoldier.alive && !this.ended; }
@@ -408,6 +416,7 @@ export class Game {
 
   respawn(s, first = false) {
     const ctl = this.ctlOf(s);
+    if (ctl && ctl.queue) { ctl.queue.length = 0; ctl.budget = 1; }        // insan: doğmadan önceki eski girdiler (örn. eski silah seçimi) uygulanmasın
     if (ctl && ctl.pendingLoadout) { s.choice = ctl.pendingLoadout; ctl.pendingLoadout = null; s.items = makeLoadout(s.cls, s.team, s.choice); }
     if (ctl && ctl.pendingClass && ctl.pendingClass !== s.cls) s.setClass(ctl.pendingClass);
     s.spawn(this.pickSpawn(s.team, s), first ? 1 : 3);

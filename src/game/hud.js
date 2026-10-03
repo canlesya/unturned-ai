@@ -68,6 +68,7 @@ const CSS = `
 .slot span{display:inline-block;transform:skewX(10deg)}
 .slot b{color:#ff8a1f;margin-right:5px}
 .slot.on{border-color:#ff8a1f;opacity:1;background:rgba(80,42,8,.75)}
+.slot.empty{opacity:.28;text-decoration:line-through}
 /* bildirimler */
 #toasts{position:absolute;left:50%;top:132px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:4px}
 .toast{padding:6px 18px;background:rgba(9,13,19,.74);font-weight:700;font-size:17px;letter-spacing:1px;animation:ts 3.2s forwards;border-left:3px solid #ff8a1f;border-right:3px solid #ff8a1f}
@@ -167,7 +168,7 @@ export class Hud {
         <div class="card"><h3>Doğma noktası</h3><div id="spawnrow"></div></div></div></div>
       <div id="scoreboard" class="overlay"><div class="panel" style="min-width:760px;text-align:center"><div class="scroll" id="sbbody"></div></div></div>
       <div id="pause" class="overlay"><div class="panel"><h2 id="ptitle">Hazır mısın?</h2><p id="ptext">Başlamak için tıkla. Fare ekrana kilitlenir, Esc ile duraklatırsın.</p>
-        <button class="btn" id="bResume">Başla</button><button class="btn sec" id="bQuit">Ana Menü</button></div></div>
+        <button class="btn" id="bResume">Başla</button><button class="btn sec" id="bKill" title="Sıkıştıysan kendini öldürüp yeniden doğ">Kill (yeniden doğ)</button><button class="btn sec" id="bQuit">Ana Menü</button></div></div>
       <div id="endscreen" class="overlay"><div class="panel"><h2 id="etitle"></h2><p id="einfo"></p><div id="estats" style="margin:10px 0"></div>
         <button class="btn" id="bAgain">Tekrar Oyna</button><button class="btn sec" id="bMenu">Ana Menü</button></div></div>`;
     document.body.appendChild(el);
@@ -187,6 +188,7 @@ export class Hud {
     this.hitT = 0; this.sel = null; this.zoneT = 0; this.cmp = this.root.querySelector('#compass canvas').getContext('2d');
     this.maxTk = game.mode.tickets;
     this.$('bResume').onclick = () => game.requestLock();
+    this.$('bKill').onclick = () => { game.requestKill(); game.requestLock(); };
     this.$('bQuit').onclick = () => game.exit();
     this.$('bAgain').onclick = () => game.restart();
     this.$('bMenu').onclick = () => game.exit();
@@ -408,7 +410,7 @@ export class Hud {
     $('wname').textContent = p.reloadT > 0 ? `${st.name} · dolduruluyor…` : p.useT > 0 ? `${st.name} · kullanılıyor…` : st.name;
     $('mag').textContent = it.mag;
     $('res').textContent = st.kind === 'throwable' || st.kind === 'medkit' || st.kind === 'melee' ? '' : '/ ' + it.reserve;
-    $('slots').innerHTML = p.items.map((x, i) => `<div class="slot ${i === p.cur ? 'on' : ''}"><span><b>${i + 1}</b>${WSTATS[x.id].name}</span></div>`).join('');
+    $('slots').innerHTML = p.items.map((x, i) => `<div class="slot ${i === p.cur ? 'on' : ''} ${p.canEquip(i) ? '' : 'empty'}"><span><b>${i + 1}</b>${WSTATS[x.id].name}</span></div>`).join('');
     this.$('ammo').querySelector('.n').classList.toggle('low', st.mag > 1 && it.mag <= st.mag * 0.25);
     // nişangâh / örtüler
     const cross = $('cross');

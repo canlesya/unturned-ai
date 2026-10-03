@@ -3,7 +3,7 @@ import { box, taperBox, cyl, cylY, ico, V, mergeStatic } from '../core/geo.js';
 import { C } from '../core/palette.js';
 import { mat } from '../core/geo.js';
 import { resolveOptic, WSTATS } from '../game/stats.js';
-import { M, finish, railTicks, magGroup } from './weapon_util.js';
+import { M, finish, railTicks, magGroup, frontSight } from './weapon_util.js';
 import { MORE, MOUNT_MORE } from './weapons_more.js';
 
 // Her silah: origin = tabanca kabzası (sağ el), namlu -Z yönünde.
@@ -80,14 +80,46 @@ const MOUNT = {
   m4a1: { z: -0.14, y: 0.0895, front: 0.125, rearZ: -0.12, ownFront: true },
   mp5: { z: -0.08, y: 0.0575, front: 0.0925, rearZ: -0.01, ownFront: true },
   shotgun: { z: -0.03, y: 0.0575, front: 0.076, rearZ: 0.0, ownFront: true },
-  lmg: { z: -0.1, y: 0.111, front: 0.126, rearZ: -0.12, frontZ: -0.62, frontBase: 0.055 },
+  lmg: { z: -0.1, y: 0.111, front: 0.126, rearZ: -0.12, frontZ: -0.62, frontBase: 0.055, lift: 0.01 },
   pistol: { z: -0.02, y: 0.071, front: 0.086, rearZ: 0.035, frontZ: -0.16, frontBase: 0.07, scale: 0.75 },
 };
 
+// Optik tabanı gövde üstüne oturmalı: nişangâh ayağının altında kalan en yüksek parçanın tepesini bul (en çok 3 cm yükseltir)
+function mountY(g, m, z) {
+  const bb = new THREE.Box3();
+  let top = m.y;
+  for (const n of g.children) {
+    if (!n.isMesh) continue;
+    bb.setFromObject(n);
+    if (bb.max.z < z - 0.05 || bb.min.z > z + 0.05 || bb.min.x > 0.03 || bb.max.x < -0.03) continue;
+    if (bb.max.y > top + 0.001 && bb.max.y < m.y + 0.03) top = bb.max.y;
+  }
+  return top;
+}
+
+// Optik (red dot / holo) takılıyken göz hattının önünde kalan KÜÇÜK ön parçaları (arpacık, kule artığı, boncuk) gizle.
+// Işınlar gözden nişan noktasından geçip ~%2 eğimle açılır (≈ 6 mm yarıçaplı koridor).
+function clearSightLine(g, sight, dist, first) {
+  const [, sy, sz] = sight, ze = sz + dist, bb = new THREE.Box3(), sz3 = new THREE.Vector3(), rm = [];
+  for (let i = 0; i < first; i++) {
+    const n = g.children[i];
+    if (!n.isMesh) continue;
+    bb.setFromObject(n);
+    if (bb.min.z > sz - 0.03) continue;                                // yalnızca nişangâhın önündekiler
+    const w = 0.022 * (ze - bb.max.z);                                 // en yakın yüzde koridor yarı genişliği
+    if (bb.min.x > w || bb.max.x < -w || bb.min.y > sy + w || bb.max.y < sy - w) continue;
+    bb.getSize(sz3);
+    if (sz3.x <= 0.035 && sz3.z <= 0.06 && sz3.y <= 0.09) rm.push(n);   // küçük parça: ön nişan kalıntısı
+  }
+  for (const n of rm) g.remove(n);                                      // birleştirme görünürlüğe bakmaz: parçayı tamamen çıkar
+}
+
 // Silaha seçilen nişangâhı ekler; ADS nişan noktası, uzaklık ve örtü türünü döndürür
 function attachSight(g, id, optic) {
-  const m = MOUNT[id];
-  if (!m) return null;
+  const m0 = MOUNT[id];
+  if (!m0) return null;
+  const nBody = g.children.length;
+  const m = optic === 'iron' ? m0 : { ...m0, y: mountY(g, m0, m0.z) + (m0.lift || 0) };      // lift: üst kapak/besleme tepsisi için ek yükseltme
   const sc = m.scale || 1;
   let cy, sz, dist, overlay = 'none';
   if (optic === 'iron') {
@@ -95,11 +127,11 @@ function attachSight(g, id, optic) {
     if (!m.ownFront) ironFront(g, 0, m.frontZ, m.frontBase, m.front);
     cy = m.front; sz = m.rearZ; dist = 0.22;
   } else {
-    if (!m.ownFront && m.frontZ) ironFront(g, 0, m.frontZ, m.frontBase, m.front);   // ön arpacık hep görünsün
     if (optic === 'holo') { cy = opticHolo(g, 0, m.y, m.z, sc); sz = m.z; dist = 0.3; overlay = 'holo'; }
     else if (optic === 'acog') { cy = opticAcog(g, 0, m.y, m.z); sz = m.z + 0.075; dist = 0.05; overlay = 'scope'; }
     else { cy = opticRedDot(g, 0, m.y, m.z, sc); sz = m.z; dist = 0.28; overlay = 'dot'; }
   }
+  if (optic !== 'iron') clearSightLine(g, [0, cy, sz], dist, nBody);
   return { sight: [0, cy, sz], dist, overlay };
 }
 
@@ -122,7 +154,7 @@ function ak47() {
   taperBox(g, [0.052, 0.03, 0.2], C.wood, [0, 0.04, -0.35], null, [0.9, 1]);
   cyl(g, 0.011, 0.011, 0.26, C.steel, [0, 0.06, -0.37], 6, M);                 // gaz borusu
   cyl(g, 0.011, 0.011, 0.24, C.steel, [0, 0.015, -0.56], 8, M);                // namlu
-  box(g, [0.018, 0.05, 0.022], C.steel, [0, 0.045, -0.66]);                    // arpacık kulesi
+  frontSight(g, [0.018, 0.05, 0.022], C.steel, [0, 0.045, -0.66]);            // arpacık kulesi
   box(g, [0.006, 0.03, 0.006], C.steel, [0, 0.085, -0.66]);
   cyl(g, 0.015, 0.015, 0.05, C.black, [0, 0.015, -0.7], 8, M);                 // namlu ucu
   // ahşap dipçik
@@ -145,7 +177,7 @@ function m4a1() {
   railTicks(g, -0.27, -0.52, 0.092, 9);
   cyl(g, 0.01, 0.01, 0.12, C.steel, [0, 0.05, -0.59], 8, M);
   cyl(g, 0.016, 0.016, 0.065, C.black, [0, 0.05, -0.66], 8, M);                // alev gizleyici
-  box(g, [0.014, 0.04, 0.016], C.steel, [0, 0.105, -0.55]);                    // arpacık
+  frontSight(g, [0.014, 0.04, 0.016], C.steel, [0, 0.105, -0.55]);            // arpacık
   // şarjör, kabza, ön kabza
   const mg = magGroup(g);
   box(mg, [0.038, 0.16, 0.062], C.steel, [0, -0.105, -0.115], [0.1, 0, 0], M);
@@ -167,7 +199,7 @@ function mp5() {
   box(g, [0.062, 0.06, 0.17], C.black, [0, 0.005, -0.32]);                     // tutamaç
   cyl(g, 0.016, 0.016, 0.07, C.steel, [0, 0.025, -0.44], 8, M);                // namlu manşonu
   cyl(g, 0.01, 0.01, 0.05, C.steel, [0, 0.025, -0.49], 8, M);
-  box(g, [0.012, 0.035, 0.016], C.steel, [0, 0.075, -0.45]);                   // arpacık
+  frontSight(g, [0.012, 0.035, 0.016], C.steel, [0, 0.075, -0.45]);           // arpacık
   box(g, [0.04, 0.04, 0.05], C.black, [0, 0.0, -0.01]);
   box(g, [0.012, 0.012, 0.1], C.steel, [0, -0.045, -0.04]);
   box(g, [0.04, 0.105, 0.05], C.black, [0, -0.07, 0.045], [0.3, 0, 0]);
@@ -210,7 +242,7 @@ function shotgun() {
   cyl(g, 0.016, 0.016, 0.52, C.gun, [0, 0.04, -0.4], 8, M);                      // namlu
   cyl(g, 0.014, 0.014, 0.48, C.gun, [0, -0.0, -0.38], 8, M);                     // şarjör tüpü
   cyl(g, 0.018, 0.018, 0.02, C.steel, [0, -0.0, -0.63], 8, M);
-  box(g, [0.008, 0.016, 0.008], C.brass, [0, 0.068, -0.65]);                     // arpacık
+  frontSight(g, [0.008, 0.016, 0.008], C.brass, [0, 0.068, -0.65]);             // arpacık
   box(g, [0.062, 0.05, 0.17], C.woodDark, [0, -0.01, -0.3]);                    // pompa
   for (let i = 0; i < 3; i++) box(g, [0.066, 0.052, 0.01], C.black, [0, -0.01, -0.36 + i * 0.05]);
   box(g, [0.012, 0.012, 0.09], C.steel, [0, -0.047, -0.01]);
@@ -364,6 +396,9 @@ export function createWeapon(id, optic = 'reddot') {
   g.userData.optic = o;
   const sg = o && o !== 'scope' ? attachSight(g, id, o) : null;
   if (sg) { g.userData.sight = sg.sight; g.userData.dist = sg.dist; g.userData.overlay = sg.overlay; }
+  // optik takılıyken ön arpacık nişan çizgisini kapatmasın (demir nişanda ve dürbünsüz silahlarda görünür)
+  const showFront = !sg || o === 'iron';
+  g.traverse((n) => { if (n.userData.frontSight) n.visible = showFront; });
   mergeStatic(g);
   if (g.userData.mag) {                         // şarjör merkezi (animasyonda sol elin hedefi)
     g.updateMatrixWorld(true);
