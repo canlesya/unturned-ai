@@ -519,7 +519,7 @@ Tarayıcıda iki sekme: `/?online=new&name=Ali&per=3` sonra `/?online=KOD&name=V
 - **Oda ayarı:** `third` (Özel Oyun'da `p.third`, çevrimiçi oda formunda "3. şahıs kamera: Açık/Kapalı"; varsayılan odalarda kapalı, resmi odalar kapalı).
   Sunucu `cfg.third === true` demedikçe `Game.thirdAllowed` yanlıştır: `H` "Bu odada 3. şahıs kamera kapalı" der ve atış ofseti yok sayılır.
 - **Kamera:** `Player.thirdCamera` — gözün 2,5 m arkasında, 0,72 m sağda/solda, 0,2 m yukarıda; `Q`/`E` omuzu değiştirir (`sideT` ile akıcı;
-  bu modda eğilme kapalı). Duvara girmesin diye göz→kamera ışını atılır (`World.raycast`), yere gömülmez. Kamera çok yaklaşırsa (<0,65–0,85 m)
+  `Q`/`E` aynı zamanda 1. şahıstaki gibi **yatar**). Sol omuzda (`Q`) karakter aynalı duruşa geçer: gövde sola döner, sağ ayak öne gelir, silah yine sağ elde (`Soldier.stanceLeft/stanceT`; ağda `F_LEFT` bayrağı ve `sd` girdisi ile diğer oyunculara da böyle görünür). Duvara girmesin diye göz→kamera ışını atılır (`World.raycast`), yere gömülmez. Kamera çok yaklaşırsa (<0,65–0,85 m)
   gövde gizlenip 1. şahıs silahı gösterilir (`bodyVisible`, histerezis). Dürbünle (scope) nişan alınca otomatik 1. şahsa döner.
 - **Gövde:** `Game.showSelf` doğruyken kendi karakter modeli görünür ve animasyonlanır (silah modeli senkron), 1. şahıs silahı/optik örtüleri gizlenir, artı hep görünür.
 - **Nişan hizası + güvenlik (iki aşamalı atış):** kamera omuzda olduğu için nişan noktasını **kamera ışını** belirler (`Soldier.shotOff` = kameranın gözden ofseti; ışın neye çarparsa —

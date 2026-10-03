@@ -1,6 +1,6 @@
 // İstemci ağ katmanı: bağlantı, istemci tarafı tahmin (prediction) + sunucu uzlaştırması (reconciliation),
 // uzaktaki oyuncular için snapshot interpolasyonu.
-import { SIM_HZ, SIM_DT, applyFlags } from './protocol.js';
+import { SIM_HZ, SIM_DT, applyFlags, F_LEFT } from './protocol.js';
 import { applyInput } from '../sim/input.js';
 import { WSTATS } from '../game/stats.js';
 
@@ -69,6 +69,7 @@ export class NetClient {
       t: 'in', q, f: inp.f, r: inp.r, l: inp.lean, s: inp.sprint ? 1 : 0, j: inp.jump ? 1 : 0, a: s.ads ? 1 : 0, w: s.cur,
       yw: +s.yaw.toFixed(4), pt: +s.pitch.toFixed(4), c: e.c | 0, p: e.p | 0, u: e.u | 0,
       fh: fireHeld ? 1 : 0, fp: e.fp | 0, rl: e.rl | 0, fm: e.fm | 0, o: e.o | 0, vt: +this.rt.toFixed(2),
+      sd: s.stanceLeft ? 1 : 0,
       co: s.shotOff ? [+s.shotOff.x.toFixed(2), +s.shotOff.y.toFixed(2), +s.shotOff.z.toFixed(2)] : undefined,
     });
     const fire = !!(fireHeld || e.fp || e.rl);
@@ -116,6 +117,7 @@ export class NetClient {
     if (!local) {
       if (s.cur !== p.c) { s.cur = p.c; s._syncWeaponModel(); }
       applyFlags(s, p.f);
+      s.stanceLeft = !!(p.f & F_LEFT);
       s.leanDir = p.l;
     }
   }

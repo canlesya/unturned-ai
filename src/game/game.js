@@ -319,6 +319,7 @@ export class Game {
     h.fireBuf = Math.max(0, h.fireBuf - dt);
     s.rewindTick = Number.isFinite(inp.vt) ? inp.vt : null;
     // 3. şahıs: kameranın gözden ofseti. Yalnızca odada izinliyse, ≤ 4,5 m ve göz→kamera arasında duvar yoksa kabul edilir; aksi halde atış gözden.
+    s.stanceLeft = this.thirdAllowed && !!inp.sd;                      // yalnızca görsel: diğer oyuncular sol omuz duruşunu görsün
     s.shotOff = null;
     if (this.thirdAllowed && Array.isArray(inp.co)) {
       const o = new THREE.Vector3(inp.co[0], inp.co[1], inp.co[2]);

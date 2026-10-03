@@ -309,9 +309,9 @@ const POUCH = V(-0.13, -0.13, -0.2);   // yelek şarjör cebi (gövde yerelinde)
 
 // o: { sprint (0..1), kick (0..1), twist (rad), swing (-1..1), reload: {style,k,empty,ph}, melee: {kind,k} }
 function applyPose(api, w, o = {}) {
-  const { sprint = 0, kick = 0, twist = 0, swing = 0, prone = 0, aimP = 0, reload = null, melee = null } = o;
+  const { sprint = 0, kick = 0, twist = 0, swing = 0, prone = 0, aimP = 0, reload = null, melee = null, side = 1 } = o;
   const { torso, head, mount, armR, armL } = api.parts;
-  const blade = api.blade;
+  const blade = api.blade * side;                       // side: +1 sağ omuz duruşu, −1 sol omuz (aynalı: gövde ters yöne döner, silah yine sağ elde)
   const mp = melee ? meleePose(melee.kind, melee.k) : null;
   const body = mp ? mp.body * 0.6 : 0;
   torso.rotation.y = -blade + twist + body;

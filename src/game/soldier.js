@@ -47,6 +47,7 @@ export class Soldier {
     this.walkPhase = 0; this.deadT = 0; this.deadDir = 1; this.flashT = 0;
     this.stepT = 0;
     this.botExtraSpread = 0;
+    this.stanceLeft = false; this.stanceT = 1;        // 3. şahıs sol omuz duruşu (görsel): hedef ve yumuşatılmış değer (+1 sağ … −1 sol)
     this.shotOff = null;          // 3. şahıs kamerada: kameranın gözden ofseti (nişan noktasını kamera ışını belirler; mermi yine gözden çıkar)
     this.dmgMul = 1;
     this.model = null;
@@ -566,8 +567,11 @@ export class Soldier {
 
     // hazır duruş ağırlığı: yerinde dururken (stanceK=1) bükük diz + açık ayak + alçak pelvis; hareket/çömelme/yatma/havada kalkar
     const stanceK = (1 - moveAmt) * (1 - pr) * (1 - c) * (1 - this.airT);
+    this.stanceT += ((this.stanceLeft ? -1 : 1) - this.stanceT) * Math.min(1, dt * 9);
+    const mt = (1 - this.stanceT) / 2;                  // 0: sol ayak önde (sağ omuz), 1: sağ ayak önde (sol omuz)
+    const mixv = (a, b) => a + (b - a) * mt;
     const idleLow = 0.045 * stanceK;
-    const legs = [[p.legs.L, ph, 0.50, -0.90, 0.9, -1.6, 0.65, -1.0], [p.legs.R, ph + Math.PI, 0.05, -0.75, 0.7, -1.5, -0.15, -0.5]];
+    const legs = [[p.legs.L, ph, mixv(0.50, 0.05), mixv(-0.90, -0.75), 0.9, -1.6, 0.65, -1.0], [p.legs.R, ph + Math.PI, mixv(0.05, 0.50), mixv(-0.75, -0.90), 0.7, -1.5, -0.15, -0.5]];
     for (const [lg, phi, idleHip, idleKnee, crHip, crKnee, airHip, airKnee] of legs) {
       const sw = Math.sin(phi) * amp;
       const flex = Math.max(0, Math.cos(phi)) * flexMax;
@@ -609,6 +613,6 @@ export class Soldier {
       reload = { style: this.reloadStyle, k: clamp(el / this.reloadTotal, 0, 1), empty: this.reloadEmpty, ph: shell ? ((el / st.shell) % 1 + 1) % 1 : 0 };
     }
     if (this.swing) melee = { kind: this.swing.kind, k: clamp(this.swing.t / this.swing.dur, 0, 1) };
-    m.refreshHold({ sprint: this.sprintT * (1 - pr), kick: clamp(this.flashT / 0.06, 0, 1), twist: (twist + twistY) * (1 - pr), swing, prone: pr, aimP: clamp(this.pitch + this.recoilP, -0.8, 0.8), reload, melee });
+    m.refreshHold({ sprint: this.sprintT * (1 - pr), kick: clamp(this.flashT / 0.06, 0, 1), twist: (twist + twistY) * (1 - pr), swing, side: this.stanceT, prone: pr, aimP: clamp(this.pitch + this.recoilP, -0.8, 0.8), reload, melee });
   }
 }

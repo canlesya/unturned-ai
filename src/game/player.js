@@ -454,7 +454,7 @@ export class Player {
       const f = (k.has('KeyW') ? 1 : 0) - (k.has('KeyS') ? 1 : 0);
       const r = (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0);
       const st = s.stat;
-      const lean = this.third ? 0 : (k.has('KeyE') ? 1 : 0) - (k.has('KeyQ') ? 1 : 0);
+      const lean = (k.has('KeyE') ? 1 : 0) - (k.has('KeyQ') ? 1 : 0);                 // 3. şahısta da Q/E yatar (ve omuzu değiştirir)
       const inp = { f, r, lean, sprint: k.has('ShiftLeft'), jump: k.has('Space') && !this.spaceLatch };
       applyInput(s, inp, dt);
       if (g.online) g.online.pushInput(inp, s, this.fireHeld);
@@ -486,6 +486,7 @@ export class Player {
     const wantThird = this.third && s.alive && !(s.overlay === 'scope' && s.adsT > 0.35) ? 1 : 0;
     this.thirdT += Math.sign(wantThird - this.thirdT) * Math.min(Math.abs(wantThird - this.thirdT), dt * 4.5);
     this.sideT += (this.side - this.sideT) * (1 - Math.exp(-9 * dt));
+    s.stanceLeft = this.third && this.thirdT > 0.3 && this.side < 0;          // karakter modeli sol omuz duruşuna geçsin (aynalı)
     if (s.alive) {
       this.deathCamT = 0;
       s.eye(cam.position);
@@ -493,7 +494,7 @@ export class Player {
       cam.rotation.set(
         s.pitch + s.recoilP + (Math.random() - 0.5) * sh * 0.06 + this.vm.camPitch,
         s.yaw + (Math.random() - 0.5) * sh * 0.06,
-        -s.leanT * 0.2 + this.vm.camRoll + (Math.random() - 0.5) * sh * 0.03,
+        -s.leanT * 0.2 * (1 - 0.6 * this.thirdT) + this.vm.camRoll + (Math.random() - 0.5) * sh * 0.03,
       );
       if (this.thirdT > 0.002) this.thirdCamera(dt, this.thirdT); else { this._cs = null; s.shotOff = null; this.bodyVisible = false; }
       this.camPos.copy(cam.position);

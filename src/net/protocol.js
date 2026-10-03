@@ -7,6 +7,7 @@
 //   { t:'in', q, f, r, l, s, j, a, yw, pt, c, p, u }  girdi (her sim adımında bir tane)
 //        q: sıra no · f/r: ileri/sağ (-1..1) · l: yana eğilme · s: koşma · j: zıpla · a: nişan
 //        yw/pt: bakış (rad) · c/p/u: çömel/yat/kalk tuşuna basıldı (kenar olayı)
+//        sd: 1 = 3. şahıs sol omuz duruşu (yalnızca görsel; diğer oyuncular aynalı duruşu görsün)
 //        co: [x,y,z] 3. şahıs kamerada kameranın gözden ofseti (nişan noktası; mermi yine gözden çıkar; odada izinliyse)
 //        w: seçili silah · fh: ateş basılı · fp: ateşe yeni basıldı · rl: şarjör · fm: atış modu · o: nişangâh · vt: görülen sunucu adımı (lag compensation)
 // Sunucu → istemci
@@ -25,10 +26,10 @@ const q2 = (v) => Math.round(v * 100) / 100;
 const q3 = (v) => Math.round(v * 1000) / 1000;
 
 // bayrak bitleri
-export const F_CROUCH = 1, F_PRONE = 2, F_SPRINT = 4, F_ADS = 8, F_GROUND = 16;
+export const F_CROUCH = 1, F_PRONE = 2, F_SPRINT = 4, F_ADS = 8, F_GROUND = 16, F_LEFT = 32;   // F_LEFT: 3. şahıs sol omuz duruşu (görsel)
 
 export function packFlags(s) {
-  return (s.crouching ? F_CROUCH : 0) | (s.prone ? F_PRONE : 0) | (s.sprinting ? F_SPRINT : 0) | (s.ads ? F_ADS : 0) | (s.onGround ? F_GROUND : 0);
+  return (s.crouching ? F_CROUCH : 0) | (s.prone ? F_PRONE : 0) | (s.sprinting ? F_SPRINT : 0) | (s.ads ? F_ADS : 0) | (s.onGround ? F_GROUND : 0) | (s.stanceLeft ? F_LEFT : 0);
 }
 
 // Bir savaşçının ağ durumu (kompakt anahtarlar)
