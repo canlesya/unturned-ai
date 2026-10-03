@@ -18,7 +18,7 @@ check(spread > 40 && near <= 2, `doğma yerleri dağınık (x aralığı ${sprea
 for (const mapId of ['kasaba', 'vadi', 'us']) {
   const gm = new Game(null, { headless: true, map: mapId, diff: 'hard', match: { perTeam: 10, type: 'dm', time: 0 } });
   const spawns = []; gm.on('spawn', (s) => spawns.push({ x: s.pos.x, z: s.pos.z }));
-  for (let i = 0; i < 30 * 150 && spawns.length < 80; i++) gm.step(1 / 30);
+  for (let i = 0; i < 30 * 600 && spawns.length < 80; i++) gm.step(1 / 30);
   const cells = new Set(spawns.map((p) => Math.floor(p.x / 30) + ',' + Math.floor(p.z / 30)));
   const b0 = gm.map.spawns.blue[0], b1 = gm.map.spawns.red[0];
   const nearBase = spawns.filter((p) => Math.hypot(p.x - b0.x, p.z - b0.z) < 25 || Math.hypot(p.x - b1.x, p.z - b1.z) < 25).length / spawns.length;
@@ -33,7 +33,7 @@ let ev = 0; g.on('end', () => ev++);
 const t0 = performance.now();
 for (let i = 0; i < 30 * 60 * 10 && !g.ended; i++) g.step(1 / 30);
 const sec = (performance.now() - t0) / 1000;
-const top = [...S].sort((a, b) => b.kills - a.kills);
+const top = [...S].sort((a, b) => b.kills - a.kills || b.score - a.score);     // eşitlikte puan
 console.log(`      maç ${g.time.toFixed(0)} sn sürdü (gerçek ${sec.toFixed(1)} sn) · ilk 3: ${top.slice(0, 3).map((s) => s.name + ' ' + s.kills).join(', ')}`);
 check(g.ended && ev === 1, `maç bitti: ${g.endReason}`);
 check(top[0].kills >= 40 || g.timeLeft <= 0, `kazanan ${top[0].name}: ${top[0].kills} öldürme (sınır 40 ya da süre)`);

@@ -473,6 +473,7 @@ Sonuç olaylarla yayılır: `sh` (atış izi/efekt), `hm` (isabet işareti), `dm
 | `node scripts/nettest.mjs` | Protokol: oda, katılma, girdi, snapshot hızı, **girdi flood (hız hilesi)** |
 | `node scripts/combattest.mjs` | Ateş, hasar, öldürme, **lag compensation**, doğma (ağsız) |
 | `node scripts/gadgettest.mjs` | Her gadget'ın ağ olayları |
+| `node scripts/thirdtest.mjs` | 3. şahıs: atış kameradan çıkar, oda kapalıyken/aşırı ofsette yok sayılır |
 | `node scripts/dmtest.mjs` | Ölüm Maçı: herkes tek, 10 kişi sınırı, dağınık doğma, 40 öldürmede bitiş |
 | `node scripts/adsaudit.mjs` | Tüm silah × nişangâh: ADS'de nişan çizgisini kapatan parça var mı |
 | `node scripts/lobbytest.mjs` | Lobi: resmi odalar, şifre, gizli/botsuz oda, takım isteği, harita dönüşü |
@@ -510,7 +511,18 @@ Tarayıcıda iki sekme: `/?online=new&name=Ali&per=3` sonra `/?online=KOD&name=V
   gövde, el) kırmızı noktayı kapatıyorsa uyarır. Arpacıklar `frontSight()` alt grubudur (demir nişanda görünür, optikte gizlenir); optik tabanı gövde
   üstüne otomatik oturur (`mountY`), koridordaki küçük ön parçalar çıkarılır (`clearSightLine`).
 
-### 12.8 Sınırlar ve sonraki adımlar
+### 12.8 3. şahıs kamera (H)
+- **Oda ayarı:** `third` (Özel Oyun'da `p.third`, çevrimiçi oda formunda "3. şahıs kamera: Açık/Kapalı"; varsayılan odalarda kapalı, resmi odalar kapalı).
+  Sunucu `cfg.third === true` demedikçe `Game.thirdAllowed` yanlıştır: `H` "Bu odada 3. şahıs kamera kapalı" der ve atış ofseti yok sayılır.
+- **Kamera:** `Player.thirdCamera` — gözün 2,5 m arkasında, 0,72 m sağda/solda, 0,2 m yukarıda; `Q`/`E` omuzu değiştirir (`sideT` ile akıcı;
+  bu modda eğilme kapalı). Duvara girmesin diye göz→kamera ışını atılır (`World.raycast`), yere gömülmez. Kamera çok yaklaşırsa (<0,65–0,85 m)
+  gövde gizlenip 1. şahıs silahı gösterilir (`bodyVisible`, histerezis). Dürbünle (scope) nişan alınca otomatik 1. şahsa döner.
+- **Gövde:** `Game.showSelf` doğruyken kendi karakter modeli görünür ve animasyonlanır (silah modeli senkron), 1. şahıs silahı/optik örtüleri gizlenir, artı hep görünür.
+- **Nişan hizası:** kamera omuzda olduğu için atış **kameranın bulunduğu noktadan** çıkar (`Soldier.shotOff` = kameranın gözden ofseti): mermi ekranın ortasının gösterdiği yere gider.
+  Çevrimiçinde ofset girdiyle (`co`) gider; sunucu yalnızca oda izin veriyorsa, ofset ≤ 4,5 m ve göz→kamera arasında duvar yoksa kabul eder (aksi halde gözden atış).
+  Test: `node scripts/thirdtest.mjs`.
+
+### 12.9 Sınırlar ve sonraki adımlar
 - Protokol JSON: oyuncu başına yaklaşık 100–200 KB/s. Kalabalık odalar için ikili paketleme + ilgi alanı (yalnızca yakındakiler) planlanmalı.
 - Yeni katılan, o an havada olan el bombası/duman bulutunu görmez (kurulu mayın/kutuları görür).
 - Hesap yok (takma ad); XP/seviye tarayıcıda kalır. Odalar bellekte.

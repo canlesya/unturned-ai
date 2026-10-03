@@ -25,6 +25,7 @@ export function sanitizeCfg(c = {}) {
     name: cleanRoomName(c.name),
     pw: typeof c.pw === 'string' ? c.pw.slice(0, 16) : '',
     listed: c.listed !== false,
+    third: c.third === true,                   // 3. şahıs kamera (H) bu odada serbest mi
   };
 }
 
@@ -53,7 +54,7 @@ export class Room {
     const c = this.cfg;
     if (this.official) Object.assign(c, this.official.rotation[this.rot % this.official.rotation.length]);   // sıradaki harita
     this.game = new Game(null, {
-      headless: true, map: c.map, tod: c.tod, weather: c.weather, diff: c.diff, bots: c.bots,
+      headless: true, map: c.map, tod: c.tod, weather: c.weather, diff: c.diff, bots: c.bots, third: c.third,
       match: { perTeam: c.perTeam, type: c.type, tickets: c.tickets || undefined, time: c.time },
     });
     this.tick = 0;
@@ -78,7 +79,7 @@ export class Room {
     return {
       code: this.code, name: c.name, official: !!this.official, desc: this.official ? this.official.desc : '',
       map: c.map, tod: c.tod, weather: c.weather, type: c.type, perTeam: c.perTeam, humans: this.clients.size, cap: this.cap,
-      bots: c.bots, diff: c.diff, locked: !!c.pw, ended: g.ended, tl: g.timeLeft === Infinity ? -1 : Math.round(g.timeLeft),
+      bots: c.bots, diff: c.diff, third: !!c.third, locked: !!c.pw, ended: g.ended, tl: g.timeLeft === Infinity ? -1 : Math.round(g.timeLeft),
       tk: [Math.round(g.tickets.blue), Math.round(g.tickets.red)], by: this.owner,
     };
   }
@@ -164,6 +165,7 @@ export class Room {
       c: m.c ? 1 : 0, p: m.p ? 1 : 0, u: m.u ? 1 : 0,
       fh: m.fh ? 1 : 0, fp: m.fp ? 1 : 0, rl: m.rl ? 1 : 0, fm: m.fm ? 1 : 0, o: m.o ? 1 : 0,
       vt: Number.isFinite(m.vt) ? m.vt : null,
+      co: Array.isArray(m.co) && m.co.length === 3 && m.co.every(Number.isFinite) ? m.co.map((v) => Math.max(-4.5, Math.min(4.5, v))) : null,
     });
   }
 

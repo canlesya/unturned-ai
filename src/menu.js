@@ -13,7 +13,7 @@ export const DEFAULTS = {
   team: 'blue', cls: 'assault', diff: 'normal', optic: 'reddot', loadouts: {}, name: 'Sen',
   sens: 0.0022, fov: 75, volume: 0.6, shadows: true, quality: 1.5,
   xp: 0, stats: { matches: 0, wins: 0, kills: 0, deaths: 0 },
-  server: '', room: '', olTeam: 'auto',
+  server: '', room: '', olTeam: 'auto', third: true,
 };
 
 export function loadPrefs() {
@@ -146,6 +146,7 @@ export function showMenu(onStart, onOnline) {
       <div class="pan"><h3>Harita</h3><div class="maps">${mapCards}</div><div class="mapdesc">${desc}</div></div>
       <div class="pan"><h3>Günün saati</h3><div class="tods">${tods}</div></div>
       <div class="pan"><h3>Hava durumu</h3><div class="row">${[...WEATHERS, ['random', 'Rastgele']].map(([k, n]) => `<button class="chip ${p.weather === k ? 'on' : ''}" data-a="weather" data-v="${k}">${n}</button>`).join('')}</div></div>
+      <div class="pan"><h3>3. şahıs kamera <em>oyunda H ile aç/kapat · Q / E omuz değiştirir</em></h3><div class="row">${[[true, 'Açık'], [false, 'Kapalı']].map(([v, l]) => `<button class="chip ${p.third === v ? 'on' : ''}" data-a="third" data-v="${v ? 1 : 0}">${l}</button>`).join('')}</div></div>
       <div class="split">
         <div class="pan"><h3>Oyun modu</h3><div class="row">${Object.entries(MATCH_TYPES).map(([k, m]) => `<button class="chip ${p.type === k ? 'on' : ''}" data-a="type" data-v="${k}">${m.label}<small>${m.desc}</small></button>`).join('')}</div></div>
         <div class="pan">${p.type === 'dm' ? '' : `<h3>Takımın</h3><div class="row">${[['blue', 'Mavi', 'blue'], ['red', 'Kırmızı', 'red'], ['random', 'Rastgele', '']].map(([k, n, c]) => `<button class="chip ${c} ${p.team === k ? 'on' : ''}" data-a="team" data-v="${k}">${n}</button>`).join('')}</div>
@@ -162,7 +163,7 @@ export function showMenu(onStart, onOnline) {
       <div class="startbar">${summary()}<button class="play" data-a="quick" style="min-width:300px">Oyna</button></div>`;
   }
 
-  const OLCFG0 = { name: '', listed: true, map: 'kasaba', tod: 'day', weather: 'clear', type: 'conquest', perTeam: 5, bots: true, diff: 'normal', tickets: 0, time: 900 };
+  const OLCFG0 = { name: '', listed: true, map: 'kasaba', tod: 'day', weather: 'clear', type: 'conquest', perTeam: 5, bots: true, diff: 'normal', tickets: 0, time: 900, third: false };
   const oc = () => (p.olCfg = { ...OLCFG0, ...(p.olCfg || {}) });
   const esc = (t) => String(t ?? '').replace(/[<>&"']/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c]));
   const TODN = Object.fromEntries(TODS_LIST), WEAN = Object.fromEntries(WEATHERS);
@@ -173,7 +174,7 @@ export function showMenu(onStart, onOnline) {
     const sub = `${m.name} · ${TODN[r.tod] || r.tod}${r.weather !== 'clear' ? ' · ' + (WEAN[r.weather] || r.weather) : ''}`;
     return `<div class="rcard ${r.official ? 'off' : ''}"><div class="th" style="background-image:url(${m.thumb})"></div>
       <div class="rb"><div class="rt">${r.official ? '<em class="bd">RESMİ</em>' : ''}${r.locked ? '<em class="lk" title="Şifreli">🔒</em>' : ''}<b>${esc(r.name)}</b></div>
-      <div class="rs">${sub}</div><div class="rs">${t} · ${r.type === 'dm' ? r.perTeam + ' oyuncu' : r.perTeam + 'v' + r.perTeam}${r.bots ? ' · botlu' : ' · botsuz'}${tl}</div>${r.by ? `<div class="rs by">kuran: ${esc(r.by)}</div>` : ''}</div>
+      <div class="rs">${sub}</div><div class="rs">${t} · ${r.type === 'dm' ? r.perTeam + ' oyuncu' : r.perTeam + 'v' + r.perTeam}${r.bots ? ' · botlu' : ' · botsuz'}${r.third ? ' · 3. şahıs' : ''}${tl}</div>${r.by ? `<div class="rs by">kuran: ${esc(r.by)}</div>` : ''}</div>
       <div class="rp"><div class="pc ${full ? 'full' : ''}"><b>${r.humans}</b>/${r.cap}<small>oyuncu</small></div>
       <button class="chip join" data-a="rjoin" data-code="${r.code}" data-locked="${r.locked ? 1 : 0}" ${ol.busy || full || r.ended ? 'disabled' : ''}>${r.ended ? 'Bitti' : full ? 'Dolu' : 'Katıl'}</button></div></div>`;
   }
@@ -223,6 +224,7 @@ export function showMenu(onStart, onOnline) {
         <div class="big"><div class="n" id="ocSizeV">${c.type === 'dm' ? `${c.perTeam}<i>kişi</i>` : `${c.perTeam}<i>vs</i>${c.perTeam}`}</div><div class="tx">${c.bots ? 'Boş yerleri botlar doldurur; oyuncu girince bir bot azalır.' : 'Botsuz: yalnızca gerçek oyuncular.'}</div></div>
         <input type="range" id="ocSize" min="${c.type === 'dm' ? 2 : 1}" max="${c.type === 'dm' ? DM_MAX : 32}" step="1" value="${c.perTeam}" style="--p:${((c.perTeam - (c.type === 'dm' ? 2 : 1)) / ((c.type === 'dm' ? DM_MAX : 32) - (c.type === 'dm' ? 2 : 1))) * 100}%">
         <div class="row">${(c.type === 'dm' ? [[2, '2'], [4, '4'], [6, '6'], [8, '8'], [10, '10']] : SIZE_PRESETS).map(([n, l]) => `<button class="chip ${c.perTeam === n ? 'on' : ''}" data-a="olset" data-k="perTeam" data-v="${n}">${l}</button>`).join('')}</div></div>
+      <div class="pan"><h3>3. şahıs kamera <em>oyuncular H ile geçebilir · Q / E omuz değiştirir</em></h3><div class="row">${chips('third', [[true, 'Açık', 'omuz üstü kamera serbest'], [false, 'Kapalı', 'yalnızca 1. şahıs']])}</div></div>
       <div class="split"><div class="pan"><h3>Botlar</h3><div class="row">${chips('bots', [[true, 'Açık', 'boş slotlara bot'], [false, 'Kapalı', 'yalnızca oyuncular']])}</div>
         ${c.bots ? `<h3 style="margin-top:14px">Bot zorluğu</h3><div class="row">${chips('diff', Object.entries(DIFFICULTY).map(([k, d]) => [k, d.label]))}</div>` : ''}</div>
         <div class="pan"><h3>${c.type === 'dm' ? 'Öldürme sınırı' : `Bilet <em>${c.tickets || defaultTickets(c.perTeam)}</em>`}</h3>${c.type === 'dm' ? `<div class="hint" style="margin:0 0 6px">İlk <b>${DM_KILLS}</b> öldürmeye ulaşan kazanır.</div>` : `<div class="row">${chips('tickets', TICKET_OPTS)}</div>`}
@@ -257,7 +259,7 @@ export function showMenu(onStart, onOnline) {
     let hello, pw = '';
     if (kind === 'create') {
       const c = oc(); pw = ol.cpw || '';
-      hello = { t: 'create', name, cls, loadout, team, cfg: { name: c.name.trim(), pw, listed: c.listed, map: c.map, tod: c.tod, weather: c.weather, type: c.type, perTeam: c.perTeam, bots: c.bots, diff: c.diff, tickets: c.tickets || undefined, time: c.time } };
+      hello = { t: 'create', name, cls, loadout, team, cfg: { name: c.name.trim(), pw, listed: c.listed, map: c.map, tod: c.tod, weather: c.weather, type: c.type, perTeam: c.perTeam, bots: c.bots, diff: c.diff, third: c.third, tickets: c.tickets || undefined, time: c.time } };
     } else {
       const code = String(o.code || p.room || '').toUpperCase();
       if (code.length !== 4) { ol = { ...ol, msg: '4 harfli oda kodunu gir.', err: true, busy: false }; render(); return; }
@@ -317,6 +319,7 @@ export function showMenu(onStart, onOnline) {
       ['Hareket', '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> · koşma <kbd>Shift</kbd> · zıpla <kbd>Boşluk</kbd>'],
       ['Duruş', 'çömel <kbd>Ctrl</kbd>/<kbd>C</kbd> · yat <kbd>Z</kbd> · kalkmak için <kbd>Boşluk</kbd>'],
       ['Eğilme', 'sola <kbd>Q</kbd> · sağa <kbd>E</kbd> (eğilerek ateş edilir)'],
+      ['3. şahıs kamera', '<kbd>H</kbd> aç/kapat (oda izin veriyorsa) · <kbd>Q</kbd> / <kbd>E</kbd> sol / sağ omuz · dürbünle nişan alınca otomatik 1. şahıs'],
       ['Ateş / Nişan', 'Sol tık / Sağ tık (basılı tut)'],
       ['Şarjör', '<kbd>R</kbd> (şarjör doluyken taktik yükleme daha hızlıdır)'],
       ['Silah', '<kbd>1</kbd> ana · <kbd>2</kbd> yedek · <kbd>3</kbd>/<kbd>G</kbd> gadget · <kbd>4</kbd>/<kbd>V</kbd> bıçak · fare tekeri'],
@@ -365,7 +368,7 @@ export function showMenu(onStart, onOnline) {
     const cls = p.cls;
     const payload = {
       map, tod, weather, team: p.team === 'random' ? rnd(['blue', 'red']) : p.team, cls, diff: p.diff, optic: p.optic, playerName: p.name,
-      match: { perTeam, type: p.type, tickets: randomize ? undefined : p.tickets || undefined, time: p.time },
+      match: { perTeam, type: p.type, tickets: randomize ? undefined : p.tickets || undefined, time: p.time }, third: p.third,
       loadout: loadoutOf(cls),
       settings: { sens: p.sens, fov: p.fov, volume: p.volume, shadows: p.shadows, pixelRatio: p.quality },
     };
@@ -412,6 +415,7 @@ export function showMenu(onStart, onOnline) {
       case 'map': p.map = v; break;
       case 'tod': p.tod = v; break;
       case 'weather': p.weather = v; break;
+      case 'third': p.third = v === '1'; break;
       case 'type': p.type = v; if (v === 'dm') p.perTeam = Math.max(2, Math.min(DM_MAX, p.perTeam)); break;
       case 'team': p.team = v; break;
       case 'diff': p.diff = v; break;

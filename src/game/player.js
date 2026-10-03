@@ -234,6 +234,10 @@ export class Player {
     this.vm = new ViewModel(game);
     this.fov = settings.fov;
     this.camPos = new THREE.Vector3();
+    this.bodyVisible = false;
+    this.third = false; this.thirdT = 0; this.side = 1; this.sideT = 1;      // 3. şahıs: açık mı, geçiş (0..1), omuz hedefi (±1), omuz geçişi
+    this._tv = { p: new THREE.Vector3(), f: new THREE.Vector3(), r: new THREE.Vector3(), d: new THREE.Vector3(), e: new THREE.Vector3(), q: new THREE.Vector3(), hit: {} };
+    this._cs = null;
     this.deathCamT = 0;
     this._bound = [];
     this.bind();
@@ -271,6 +275,9 @@ export class Player {
       const s = this.s;
       if (!this.game.running) return;
       if (e.code === 'KeyT' && s.alive && !this.wheel) this.openWheel();
+      if (e.code === 'KeyH' && s.alive) this.toggleThird();
+      if (this.third && e.code === 'KeyQ') this.side = -1;                     // 3. şahıs: Q/E omuz değiştirir (eğilme yerine)
+      if (this.third && e.code === 'KeyE') this.side = 1;
       if (e.code === 'KeyR') { s.startReload(); this.game.online?.edge('rl'); }
       if (s.alive && (e.code === 'KeyC' || e.code === 'ControlLeft' || e.code === 'ControlRight')) { s.toggleCrouch(); this.game.online?.edge('c'); }
       if (s.alive && e.code === 'KeyZ') { s.toggleProne(); this.game.online?.edge('p'); }
@@ -323,6 +330,37 @@ export class Player {
       const dir = e.deltaY > 0 ? 1 : -1, s = this.s;
       for (let k = 1; k <= 4; k++) { const j = (s.cur + dir * k + 8) % 4; if (j !== s.cur && s.canEquip(j)) { s.switchTo(j); break; } }       // boş slotları atla
     }, { passive: true });
+  }
+
+  // ── 3. şahıs kamera (H) ──
+  toggleThird() {
+    const g = this.game;
+    if (!g.thirdAllowed) { g.hud.toast('Bu odada 3. şahıs kamera kapalı', '#ffd27a'); return; }
+    this.third = !this.third;
+    g.hud.toast(this.third ? '3. şahıs kamera · Q / E ile omuz değiştir · H: 1. şahıs' : '1. şahıs kamera', '#cfe6ff');
+  }
+
+  // Omuz üstü kamera: gözün arkasında ve yanında; duvara girerse yaklaşır, yere gömülmez; Q/E ile sağ-sol omuz akıcı geçer
+  thirdCamera(dt, T) {
+    const s = this.s, g = this.game, v = this._tv, cam = g.camera;
+    const fwd = s.aimDir(v.f), right = s.right(v.r);
+    const adsK = 1 - s.adsT * 0.45;                                             // nişan alırken kamera biraz yaklaşır
+    const pivot = s.eye(v.p); pivot.y += 0.1;
+    const des = v.d.copy(pivot).addScaledVector(fwd, -2.5 * adsK * T).addScaledVector(right, this.sideT * 0.72 * (1 - s.adsT * 0.3) * T);
+    des.y += 0.2 * T;
+    const dir = v.e.subVectors(des, pivot), len = dir.length();
+    if (len > 1e-4) {
+      dir.multiplyScalar(1 / len);
+      const h = g.world.raycast(pivot, dir, len + 0.2, v.hit);
+      const use = h ? Math.max(0.25, h.t - 0.22) : len;
+      des.copy(pivot).addScaledVector(dir, Math.min(len, use));
+    }
+    des.y = Math.max(des.y, g.world.heightAt(des.x, des.z) + 0.3);              // yere gömülme
+    if (!this._cs) this._cs = des.clone(); else this._cs.lerp(des, 1 - Math.exp(-28 * dt));
+    cam.position.copy(this._cs);
+    s.shotOff = (s.shotOff || (s.shotOff = new THREE.Vector3())).subVectors(cam.position, s.eye(v.q));
+    // kamera duvar dibinde göze yapışırsa kendi kafan görüşü kapatmasın: gövdeyi gizle, 1. şahıs silahını göster (histerezis)
+    this.bodyVisible = T > 0.3 && s.shotOff.length() > (this.bodyVisible ? 0.65 : 0.85);
   }
 
   // ── T tekerleği: silahın uygun nişangâhları (ileride silah özelleştirmeleri de buraya eklenir) ──
@@ -416,7 +454,7 @@ export class Player {
       const f = (k.has('KeyW') ? 1 : 0) - (k.has('KeyS') ? 1 : 0);
       const r = (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0);
       const st = s.stat;
-      const lean = (k.has('KeyE') ? 1 : 0) - (k.has('KeyQ') ? 1 : 0);
+      const lean = this.third ? 0 : (k.has('KeyE') ? 1 : 0) - (k.has('KeyQ') ? 1 : 0);
       const inp = { f, r, lean, sprint: k.has('ShiftLeft'), jump: k.has('Space') && !this.spaceLatch };
       applyInput(s, inp, dt);
       if (g.online) g.online.pushInput(inp, s, this.fireHeld);
@@ -444,6 +482,10 @@ export class Player {
     cam.fov += (targetFov - cam.fov) * Math.min(1, dt * 18);
     cam.updateProjectionMatrix();
     const sh = g.effects.shake;
+    // 3. şahıs geçişi: dürbünle nişan alırken (scope) otomatik 1. şahsa döner
+    const wantThird = this.third && s.alive && !(s.overlay === 'scope' && s.adsT > 0.35) ? 1 : 0;
+    this.thirdT += Math.sign(wantThird - this.thirdT) * Math.min(Math.abs(wantThird - this.thirdT), dt * 4.5);
+    this.sideT += (this.side - this.sideT) * (1 - Math.exp(-9 * dt));
     if (s.alive) {
       this.deathCamT = 0;
       s.eye(cam.position);
@@ -453,8 +495,10 @@ export class Player {
         s.yaw + (Math.random() - 0.5) * sh * 0.06,
         -s.leanT * 0.2 + this.vm.camRoll + (Math.random() - 0.5) * sh * 0.03,
       );
+      if (this.thirdT > 0.002) this.thirdCamera(dt, this.thirdT); else { this._cs = null; s.shotOff = null; this.bodyVisible = false; }
       this.camPos.copy(cam.position);
     } else {
+      s.shotOff = null; this._cs = null; this.bodyVisible = false;
       this.deathCamT += dt;
       const t = Math.min(1, this.deathCamT * 2.5);
       cam.position.set(this.camPos.x, Math.max(0.35, this.camPos.y - t * 1.1), this.camPos.z);

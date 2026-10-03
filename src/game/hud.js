@@ -428,17 +428,18 @@ export class Hud {
     const cross = $('cross');
     const ov = p.overlay, ads = p.adsT;
     const scopeOn = p.alive && ov === 'scope' && ads > 0.9;
-    const showCross = p.alive && ads < 0.6;
+    const tp = g.showSelf;                                   // 3. şahıs kamera: optik örtüsü yok, artı hep görünür
+    const showCross = p.alive && (ads < 0.6 || tp);
     cross.style.display = showCross ? 'block' : 'none';
-    cross.classList.toggle('ads', ads > 0.5);
+    cross.classList.toggle('ads', ads > 0.5 && !tp);
     const spread = p.spreadNow(st) * 900;
     cross.style.setProperty('--g', clamp(3 + spread, 3, 60) + 'px');
-    $('rdot').style.display = p.alive && ov === 'dot' && ads > 0.6 ? 'block' : 'none';
-    $('holo').style.display = p.alive && ov === 'holo' && ads > 0.6 ? 'block' : 'none';
+    $('rdot').style.display = p.alive && !tp && ov === 'dot' && ads > 0.6 ? 'block' : 'none';
+    $('holo').style.display = p.alive && !tp && ov === 'holo' && ads > 0.6 ? 'block' : 'none';
     const sc = $('scope');
     sc.style.display = scopeOn ? 'block' : 'none';
     if (scopeOn) sc.className = (p.opticDef.reticle === 'chevron') ? 'chev' : 'mil';
-    $('advig').style.opacity = p.alive && ov !== 'scope' ? (ads * 0.55).toFixed(2) : 0;
+    $('advig').style.opacity = p.alive && ov !== 'scope' && !tp ? (ads * 0.55).toFixed(2) : 0;
     const stTxt = [p.prone ? 'Yatıyor' : p.crouching ? 'Çömelmiş' : '', p.leanT > 0.3 ? 'Sağa eğik' : p.leanT < -0.3 ? 'Sola eğik' : '', p.opticDef && st.kind === 'gun' ? p.opticDef.label : '', st.kind === 'gun' && st.auto ? (p.item.semi ? 'Yarı otomatik [X]' : 'Otomatik [X]') : ''].filter(Boolean).join(' · ');
     $('stance').textContent = stTxt;
     if (this.hitT > 0) { this.hitT -= dt; if (this.hitT <= 0) $('hitm').style.opacity = 0; }

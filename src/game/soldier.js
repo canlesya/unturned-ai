@@ -47,6 +47,7 @@ export class Soldier {
     this.walkPhase = 0; this.deadT = 0; this.deadDir = 1; this.flashT = 0;
     this.stepT = 0;
     this.botExtraSpread = 0;
+    this.shotOff = null;          // 3. şahıs kamerada: atış kameranın bulunduğu yerden çıkar (nişan hizası); kameradan göze ofset
     this.dmgMul = 1;
     this.model = null;
     this.setClass(cls);
@@ -99,7 +100,7 @@ export class Soldier {
   }
 
   _syncWeaponModel(force = false) {
-    if (this.isPlayer) return;
+    if (this.isPlayer && !this.game.showSelf) return;
     const id = this.stat.kind === 'medkit' ? null : this.item.id;
     if (!force && id === this._modelWeapon) return;
     this._modelWeapon = id;
@@ -197,7 +198,7 @@ export class Soldier {
   }
 
   muzzleWorld(out) {
-    if (this.isPlayer) {
+    if (this.isPlayer && !this.game.showSelf) {
       const d = this.aimDir(_d), r = this.right(_v);
       return out.copy(this.eye(_o)).addScaledVector(r, 0.16).addScaledVector(UP, -0.1).addScaledVector(d, 0.8);
     }
@@ -209,6 +210,7 @@ export class Soldier {
   _shoot(st) {
     const g = this.game;
     const origin = this.eye(_o);
+    if (this.shotOff) origin.add(this.shotOff);
     const base = this.aimDir(new THREE.Vector3());
     const spread = this.spreadNow(st);
     const pellets = st.pellets || 1;
@@ -239,7 +241,7 @@ export class Soldier {
 
   _rocket(st) {
     const d = this.aimDir(new THREE.Vector3());
-    const m = this.muzzleWorld(new THREE.Vector3());
+    const m = this.shotOff ? this.eye(new THREE.Vector3()).add(this.shotOff).addScaledVector(d, 0.8) : this.muzzleWorld(new THREE.Vector3());
     if (st.impact) this.game.spawnShell(this, m, d, st); else this.game.spawnRocket(this, m, d, st);
     this.game.sfx.shot(st.sound, this.pos);
     this.game.alertNear?.(this.pos, this.team, 40);
@@ -511,7 +513,8 @@ export class Soldier {
   // Üçüncü şahıs model senkronu (oyuncu hariç): hıza bağlı adım döngüsü, gövde eğimi, kol sallanması
   syncModel(dt) {
     const m = this.model, root = m.root, p = m.parts;
-    if (this.isPlayer) { root.visible = false; return; }
+    if (this.isPlayer && !this.game.showSelf) { root.visible = false; return; }      // 1. şahıs: kendi gövdeni görmezsin
+    if (this.isPlayer) this._syncWeaponModel();                                         // 3. şahıs: elindeki silah modeli güncel olsun
     root.visible = this.alive || this.deadT < 5;
     root.position.set(this.pos.x, this.pos.y + (m.groundOffset ?? m.root.position.y), this.pos.z);
     root.rotation.y = this.yaw;

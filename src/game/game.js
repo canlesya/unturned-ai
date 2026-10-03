@@ -108,6 +108,8 @@ export class Game {
 
     // opts.match: özel maç ayarları; opts.mode: '3v3' | '10v10' hazır ayarı (test/uyumluluk)
     this.mode = makeMatch(opts.match || PRESETS[opts.mode] || {});
+    // 3. şahıs kamera (H): odada izinli mi? sunucu açıkça true ister; offline varsayılan açık
+    this.thirdAllowed = opts.online ? !!opts.online.cfg?.third : headless ? opts.third === true : opts.third !== false;
     this.ffa = this.mode.type === 'dm';                          // Ölüm Maçı: herkes tek, her savaşçının kendi takım kimliği
     if (this.ffa) {
       // Haritanın doğma noktaları iki üste ait; ölüm maçında bunun yerine TÜM haritadan ulaşılabilir, aralıklı rastgele noktalar kullanılır
@@ -316,6 +318,13 @@ export class Game {
     if (inp.fp) h.fireBuf = 0.15;
     h.fireBuf = Math.max(0, h.fireBuf - dt);
     s.rewindTick = Number.isFinite(inp.vt) ? inp.vt : null;
+    // 3. şahıs: atış, kameranın bulunduğu noktadan çıkar (nişangâh neresini gösteriyorsa oraya gider). Yalnızca odada izinliyse; ofset 4,5 m'ye
+    // kadar ve gözle arasında duvar yoksa kabul edilir (kamera zaten duvara girmez), aksi halde atış gözden çıkar.
+    s.shotOff = null;
+    if (this.thirdAllowed && Array.isArray(inp.co)) {
+      const o = new THREE.Vector3(inp.co[0], inp.co[1], inp.co[2]);
+      if (o.length() <= 4.5) { const e = s.eye(), to = e.clone().add(o); if (this.world.clear(e, to)) s.shotOff = o; }
+    }
     const st = s.stat;
     if (st.kind === 'melee') { if (inp.fh || h.fireBuf > 0) { if (s.tryFire()) h.fireBuf = 0; } }
     else if (s.fireAuto) { if (inp.fh) s.tryFire(); }
@@ -395,6 +404,9 @@ export class Game {
     if (this.online) { this.online.send({ t: 'kill' }); return; }
     me.protT = 0; me.die(me, 'İntihar', false);
   }
+
+  // 3. şahıs kamera yeterince çekilmişse gövdeni göster, silah modelini (1. şahıs) gizle
+  get showSelf() { return !!this.player && this.player.bodyVisible; }
 
   respawnReady() { return !this.playerSoldier.alive && !this.ended; }
   requestClass(k) { this.pendingClass = k; this.hud.markClass(k); this.online?.send({ t: 'opt', cls: k }); }
@@ -788,7 +800,7 @@ export class Game {
     this.sun.position.set(tx + this.sunOff.x, ty + this.sunOff.y, tz + this.sunOff.z);
     r.clear();
     r.render(this.scene, this.camera);
-    if (this.playerSoldier.alive) this.player.vm.render(r, innerWidth, innerHeight);
+    if (this.playerSoldier.alive && !this.showSelf) this.player.vm.render(r, innerWidth, innerHeight);
   }
 
   // ───── Savaş mantığı ─────
