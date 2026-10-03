@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { createWeapon } from '../models/weapons.js';
 import { createItem } from '../models/items.js';
 import { TEAMS } from '../core/palette.js';
-import { WSTATS } from './stats.js';
+import { WSTATS, OPTICS, OPTIC_ALLOWED } from './stats.js';
 import { reloadAnim, meleePose } from './anim.js';
 import { box } from '../core/geo.js';
 import { clamp, lerp, V3 } from './util.js';
@@ -270,6 +270,7 @@ export class Player {
       this.keys.add(e.code);
       const s = this.s;
       if (!this.game.running) return;
+      if (e.code === 'KeyT' && s.alive && !this.wheel) this.openWheel();
       if (e.code === 'KeyR') { s.startReload(); this.game.online?.edge('rl'); }
       if (s.alive && (e.code === 'KeyC' || e.code === 'ControlLeft' || e.code === 'ControlRight')) { s.toggleCrouch(); this.game.online?.edge('c'); }
       if (s.alive && e.code === 'KeyZ') { s.toggleProne(); this.game.online?.edge('p'); }
@@ -288,20 +289,23 @@ export class Player {
         if (keys[n]) this.game.requestClass(keys[n]);
       }
     });
-    this.on(window, 'blur', () => { this.keys.clear(); this.fireHeld = false; this.game.hud.showScoreboard(false); });     // pencere odağı gidince takılı tuş kalmasın
+    this.on(window, 'blur', () => { this.keys.clear(); this.fireHeld = false; this.game.hud.showScoreboard(false); this.closeWheel(); });     // pencere odağı gidince takılı tuş kalmasın
     this.on(window, 'keyup', (e) => {
+      if (e.code === 'KeyT') this.closeWheel();
       if (e.code === 'Tab') e.preventDefault();
       this.keys.delete(e.code);
       if (e.code === 'Space') this.spaceLatch = false;
       if (e.code === 'Tab') this.game.hud.showScoreboard(false);
     });
     this.on(document, 'mousemove', (e) => {
+      if (this.wheel) { this.wheelMove(e.movementX || 0, e.movementY || 0); return; }       // T basılıyken fare seçim imlecidir
       if (!this.locked) return;
       const k = this.set.sens * (this.s.zoomNow && this.s.adsT > 0.5 ? 1 / Math.pow(this.s.zoomNow, 0.8) : 1);
       this.look(e.movementX * k, e.movementY * k);
       this.lookDX += e.movementX; this.lookDY += e.movementY;
     });
     this.on(cv, 'mousedown', (e) => {
+      if (this.wheel) { if (e.button === 0) this.wheelPick(); return; }                       // tekerlek açıkken tık = seçim (ateş değil)
       if (!this.locked) { this.game.requestLock(); return; }
       if (e.button === 0) { this.fireHeld = true; this.fireBuf = 0.15; this.game.online?.edge('fp'); }
       if (e.button === 2) this.s.ads = true;
@@ -318,13 +322,81 @@ export class Player {
     }, { passive: true });
   }
 
+  // ── T tekerleği: silahın uygun nişangâhları (ileride silah özelleştirmeleri de buraya eklenir) ──
+  openWheel() {
+    const s = this.s, g = this.game;
+    if (!this.locked && !g.opts.nolock) return;
+    const list = (OPTIC_ALLOWED[s.item.id] || []).filter((id) => OPTICS[id]);
+    if (list.length < 2) { g.hud.toast(`${s.stat.name}: seçilebilir nişangâh yok`, '#cfd3d8'); return; }
+    const el = document.createElement('div');
+    el.style.cssText = 'position:fixed;inset:0;z-index:25;pointer-events:none;font-family:Bahnschrift,Rajdhani,Arial Narrow,sans-serif;color:#e8edf5;background:radial-gradient(circle at 50% 50%,rgba(4,6,10,.15),rgba(4,6,10,.62))';
+    const R = 150, n = list.length;
+    const opts = list.map((id, i) => {
+      const a = -Math.PI / 2 + (i * 2 * Math.PI) / n, d = document.createElement('div');
+      d.style.cssText = `position:absolute;left:calc(50% + ${Math.cos(a) * R}px);top:calc(50% + ${Math.sin(a) * R}px);transform:translate(-50%,-50%);min-width:130px;padding:10px 14px;text-align:center;background:rgba(9,13,19,.78);border:2px solid rgba(255,255,255,.2);letter-spacing:2px;text-transform:uppercase;transition:.08s`;
+      d.innerHTML = `<div style="font-size:18px;font-weight:700">${OPTICS[id].label}</div><div style="font-size:11px;opacity:.65;margin-top:3px">${OPTICS[id].zoom ? OPTICS[id].zoom + 'x yakınlaştırma' : ''}</div>`;
+      el.appendChild(d);
+      return { id, a, d };
+    });
+    const head = document.createElement('div');
+    head.style.cssText = 'position:absolute;left:50%;top:calc(50% - 14px);transform:translateX(-50%);font-size:13px;letter-spacing:4px;opacity:.8;text-align:center';
+    head.innerHTML = `NİŞANGÂH<div style="font-size:11px;opacity:.7;letter-spacing:1px;margin-top:4px">${s.stat.name} · fareyle seç, sol tık</div>`;
+    const cur = document.createElement('div');
+    cur.style.cssText = 'position:absolute;left:50%;top:50%;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:#ff8a1f;box-shadow:0 0 12px #ff8a1f';
+    el.append(head, cur);
+    document.body.appendChild(el);
+    this.wheel = { el, opts, cur, x: 0, y: 0, hover: null };
+    this.fireHeld = false;
+    this.wheelPaint();
+  }
+
+  wheelMove(dx, dy) {
+    const w = this.wheel; if (!w) return;
+    w.x += dx; w.y += dy;
+    const l = Math.hypot(w.x, w.y), max = 210;
+    if (l > max) { w.x *= max / l; w.y *= max / l; }
+    w.cur.style.transform = `translate(${w.x}px,${w.y}px)`;
+    // imleç merkezden yeterince uzaksa açıya göre en yakın seçenek
+    w.hover = null;
+    if (Math.hypot(w.x, w.y) > 55) {
+      const ang = Math.atan2(w.y, w.x);
+      let best = Infinity;
+      for (const o of w.opts) { const d = Math.abs(((ang - o.a + Math.PI * 3) % (Math.PI * 2)) - Math.PI); if (d < best) { best = d; w.hover = o; } }
+    }
+    this.wheelPaint();
+  }
+
+  wheelPaint() {
+    const w = this.wheel; if (!w) return;
+    const now = this.s.opticId;
+    for (const o of w.opts) {
+      const on = o === w.hover, cur = o.id === now;
+      o.d.style.borderColor = on ? '#ff8a1f' : cur ? '#7be07a' : 'rgba(255,255,255,.2)';
+      o.d.style.background = on ? 'rgba(80,42,8,.88)' : 'rgba(9,13,19,.78)';
+      o.d.style.transform = `translate(-50%,-50%) scale(${on ? 1.08 : 1})`;
+    }
+  }
+
+  wheelPick() {
+    const w = this.wheel; if (!w || !w.hover) return;
+    const id = w.hover.id, o = this.s.setOptic(id);
+    if (o) { this.game.online?.send({ t: 'opt', optic: id }); this.game.hud.toast('Nişangâh: ' + o.label, '#cfe6ff'); }
+    this.wheelPaint();
+  }
+
+  closeWheel() {
+    if (!this.wheel) return;
+    this.wheel.el.remove();
+    this.wheel = null;
+  }
+
   look(dx, dy) {
     const s = this.s;
     s.yaw -= dx;
     s.pitch = clamp(s.pitch - dy, -1.5, 1.5);
   }
 
-  dispose() { for (const [t, ev, fn, opt] of this._bound) t.removeEventListener(ev, fn, opt); this._bound = []; this.fx?.remove(); this.fxSmoke?.remove(); }
+  dispose() { this.closeWheel(); for (const [t, ev, fn, opt] of this._bound) t.removeEventListener(ev, fn, opt); this._bound = []; this.fx?.remove(); this.fxSmoke?.remove(); }
 
   update(dt) {
     const s = this.s, g = this.game;

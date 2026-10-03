@@ -18,4 +18,9 @@ export const OFFICIAL = [
     type: 'tdm', perTeam: 8, time: 600, diff: 'hard',
     rotation: [R('kasaba', 'night'), R('vadi'), R('us', 'sunset')],
   },
+  {
+    code: 'OFC4', name: 'Resmi Sunucu #4', desc: 'Ölüm Maçı · herkes tek · ilk 40 · 10 kişi · bot destekli',
+    type: 'dm', perTeam: 10, time: 600, diff: 'normal',
+    rotation: [R('us'), R('kasaba'), R('vadi', 'sunset')],
+  },
 ];

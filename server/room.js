@@ -16,9 +16,9 @@ export function sanitizeCfg(c = {}) {
     map: pick(c.map, ['kasaba', 'vadi', 'us'], 'kasaba'),
     tod: pick(c.tod, ['day', 'sunset', 'night'], 'day'),
     weather: pick(c.weather, ['clear', 'rain', 'fog'], 'clear'),
-    type: pick(c.type, ['conquest', 'tdm'], 'conquest'),
+    type: pick(c.type, ['conquest', 'tdm', 'dm'], 'conquest'),
     diff: pick(c.diff, ['easy', 'normal', 'hard'], 'normal'),
-    perTeam: Math.round(num(c.perTeam, 1, MAX_PER_TEAM, 5)),
+    perTeam: c.type === 'dm' ? Math.round(num(c.perTeam, 2, 10, 10)) : Math.round(num(c.perTeam, 1, MAX_PER_TEAM, 5)),     // ölüm maçında perTeam = toplam oyuncu (2–10)
     tickets: Number.isFinite(c.tickets) && c.tickets > 0 ? Math.round(num(c.tickets, 20, 1000, 200)) : 0,   // 0 = boyuta göre otomatik
     time: Math.round(num(c.time, 0, 3600, 900)),
     bots: c.bots !== false,
@@ -77,7 +77,7 @@ export class Room {
     const c = this.cfg, g = this.game;
     return {
       code: this.code, name: c.name, official: !!this.official, desc: this.official ? this.official.desc : '',
-      map: c.map, tod: c.tod, weather: c.weather, type: c.type, perTeam: c.perTeam, humans: this.clients.size, cap: c.perTeam * 2,
+      map: c.map, tod: c.tod, weather: c.weather, type: c.type, perTeam: c.perTeam, humans: this.clients.size, cap: this.cap,
       bots: c.bots, diff: c.diff, locked: !!c.pw, ended: g.ended, tl: g.timeLeft === Infinity ? -1 : Math.round(g.timeLeft),
       tk: [Math.round(g.tickets.blue), Math.round(g.tickets.red)], by: this.owner,
     };
@@ -90,10 +90,13 @@ export class Room {
 
   get humanCount() { return this.clients.size; }
 
+  // oda kapasitesi: takımlı modlarda 2 x perTeam, ölüm maçında perTeam
+  get cap() { return this.cfg.type === 'dm' ? this.cfg.perTeam : this.cfg.perTeam * 2; }
+
   canJoin(pw) {
     if (this.cfg.pw && pw !== this.cfg.pw) return 'Şifre yanlış';
     if (this.game.ended) return 'Maç bitti, yeni maç birazdan başlıyor';
-    if (this.clients.size >= this.cfg.perTeam * 2) return 'Oda dolu';
+    if (this.clients.size >= this.cap) return 'Oda dolu';
     return null;
   }
 
@@ -101,6 +104,7 @@ export class Room {
   teamCheck(id, team) {
     const c = this.clients.get(id);
     if (!c || (team !== 'blue' && team !== 'red')) return { ok: false, msg: 'Geçersiz takım' };
+    if (this.game.ffa) return { ok: false, msg: 'Ölüm maçında takım yok' };
     if (this.game.soldiers[id].team === team) return { ok: false, msg: 'Zaten bu takımdasın' };
     if (this.humansOf(team) >= this.cfg.perTeam) return { ok: false, msg: 'Bu takım dolu' };
     return { ok: true, team };
@@ -114,8 +118,10 @@ export class Room {
     const g = this.game;
     const counts = { blue: this.humansOf('blue'), red: this.humansOf('red') }, cap = this.cfg.perTeam;
     let t = team === 'blue' || team === 'red' ? team : counts.blue <= counts.red ? 'blue' : 'red';
-    if (counts[t] >= cap) t = t === 'blue' ? 'red' : 'blue';         // seçilen takım doluysa diğeri
-    if (counts[t] >= cap) return null;
+    if (!g.ffa) {
+      if (counts[t] >= cap) t = t === 'blue' ? 'red' : 'blue';         // seçilen takım doluysa diğeri
+      if (counts[t] >= cap) return null;
+    }                                                                  // ölüm maçında takım yok: claimSlot boş herhangi bir slotu verir
     // aynı isim varsa sonuna sayı ekle (Sen, Sen 2, ...)
     const taken = new Set(g.soldiers.map((e) => e.name.toLowerCase()));
     let nm = cleanName(name), n = 2;
@@ -177,6 +183,7 @@ export class Room {
     const c = this.clients.get(id);
     if (!c) return;
     const h = c.h, g = this.game, str = (v) => (typeof v === 'string' ? v.slice(0, 24) : undefined);
+    if (typeof m.optic === 'string' && h.s.alive) h.s.setOptic(m.optic);             // T tekerleği: nişangâh seçimi hemen geçerli
     if (typeof m.cls === 'string' && CLASS_DEFS[m.cls]) h.pendingClass = m.cls;
     if (m.loadout && typeof m.loadout === 'object') h.pendingLoadout = { primary: str(m.loadout.primary), secondary: str(m.loadout.secondary), gadget: str(m.loadout.gadget), melee: str(m.loadout.melee) };
     if (typeof m.spawn === 'string') h.spawnChoice = m.spawn === 'base' || g.mode.objectives.some((o) => o.id === m.spawn) ? m.spawn : 'base';

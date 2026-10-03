@@ -108,7 +108,13 @@ export class Game {
 
     // opts.match: özel maç ayarları; opts.mode: '3v3' | '10v10' hazır ayarı (test/uyumluluk)
     this.mode = makeMatch(opts.match || PRESETS[opts.mode] || {});
-    this.mode.objectives = this.mode.type === 'tdm' ? [] : this.map.objectives.filter((o) => this.mode.allFlags || o.core).map((o) => ({ ...o, owner: null, p: 0 }));
+    this.ffa = this.mode.type === 'dm';                          // Ölüm Maçı: herkes tek, her savaşçının kendi takım kimliği
+    if (this.ffa) {
+      const all = [...this.map.spawns.blue, ...this.map.spawns.red];
+      for (let i = 0; i < 32; i++) this.map.spawns['f' + i] = all;   // tüm doğma noktaları ortak
+      this.map.baseZones = null;                                    // üs cezası yok
+    }
+    this.mode.objectives = this.mode.type !== 'conquest' ? [] : this.map.objectives.filter((o) => this.mode.allFlags || o.core).map((o) => ({ ...o, owner: null, p: 0 }));
     this.tickets = { blue: this.mode.tickets, red: this.mode.tickets };
     this.timeLeft = this.mode.time || Infinity;
     this.spawnChoice = 'base';
@@ -141,6 +147,14 @@ export class Game {
         s.vacant = !!r.vac;
         this.soldiers.push(s);
         if (isPlayer) this.playerSoldier = s;
+      }
+    } else if (this.ffa) {
+      for (let i = 0; i < this.mode.perTeam; i++) {
+        const isPlayer = !headless && i === 0, team = 'f' + i;
+        const s = new Soldier(this, { id: id++, name: isPlayer ? (opts.playerName || 'Sen') : nameOf(id), team, cls: isPlayer ? opts.cls : order[i % order.length], isPlayer });
+        this.soldiers.push(s);
+        if (isPlayer) this.playerSoldier = s;
+        else this.brains.push(new BotBrain(this, s, opts.diff));
       }
     } else for (const team of ['blue', 'red']) {
       for (let i = 0; i < this.mode.perTeam; i++) {
@@ -237,7 +251,7 @@ export class Game {
   // ───── sunucu: insan oyuncular (botların yerine geçer) ─────
   // Takımdan bir bot slotunu alır: beyni sökülür, savaşçı insana verilir. Çıkınca bot geri gelir.
   claimSlot(team, name, cls = 'assault', choice = {}) {
-    const s = this.soldiers.find((e) => e.team === team && (e.brain || e.vacant) && !this.humans.has(e.id));
+    const s = this.soldiers.find((e) => (this.ffa || e.team === team) && (e.brain || e.vacant) && !this.humans.has(e.id));
     if (!s) return null;
     if (s.brain) this.brains.splice(this.brains.indexOf(s.brain), 1);
     s.brain = null; s.dmgMul = 1; s.vacant = false;
@@ -384,6 +398,20 @@ export class Game {
   }
 
   pickSpawn(team, s) {
+    if (this.ffa) {
+      // Ölüm maçı: tüm noktalardan rastgele; canlı düşmanlara en uzak olan adaylardan biri seçilir
+      const pts = this.map.spawns[team] || this.map.spawns.f0;
+      let best = null, bs = -1;
+      for (let k = 0; k < 12; k++) {
+        const p = pick(pts);
+        if (this.soldiers.some((e) => e !== s && e.alive && Math.hypot(e.pos.x - p.x, e.pos.z - p.z) < 1.3)) continue;
+        let dmin = 1e9;
+        for (const e of this.soldiers) if (e !== s && e.alive) dmin = Math.min(dmin, Math.hypot(e.pos.x - p.x, e.pos.z - p.z));
+        const sc = Math.min(dmin, 60) + Math.random() * 25;               // uzaklık + rastgelelik
+        if (sc > bs) { bs = sc; best = p; }
+      }
+      return best || pick(pts);
+    }
     // ileri doğma: seçilen / bot için ara sıra sahip olunan hedefin çevresi
     let target = null;
     const ctl = s ? this.ctlOf(s) : null;
@@ -480,7 +508,7 @@ export class Game {
   }
 
   // ───── mangal görev dağıtımı: her mangal bir hedefe; takım dengesi + tehdit/ihtiyaç ─────
-  squadGoal(s) { return this.squadGoals[s.team][s.squad] || null; }
+  squadGoal(s) { return this.squadGoals[s.team]?.[s.squad] || null; }
 
   assignSquads() {
     const objs = this.mode.objectives;
@@ -640,6 +668,7 @@ export class Game {
 
   // ───── çevrimiçi: M ile takım seçimi ─────
   toggleTeamMenu(show = !this._tm) {
+    if (this.ffa) { if (show) this.hud.toast('Ölüm maçında takım yok: herkes tek', '#cfd3d8'); return; }
     if (!show) { this._tm?.remove(); this._tm = null; if (!this.ended) this.hud.setPaused(!this.player.locked); return; }
     if (this._tm) return;
     document.exitPointerLock?.();
@@ -1054,7 +1083,7 @@ export class Game {
   }
 
   onKill(killer, victim, weapon, hs) {
-    this.tickets[victim.team] -= 1;
+    if (!this.ffa) this.tickets[victim.team] -= 1;
     this.netEvent({ e: 'kill', k: killer ? killer.id : -1, v: victim.id, w: weapon || '', hs: hs ? 1 : 0 });
     this.hud.killFeed(killer, victim, weapon, hs);
     if (killer && killer.isPlayer && killer !== victim) this.hud.popup(hs ? '+150 KAFA ATIŞI' : '+100 ÖLDÜRME', hs);
@@ -1065,7 +1094,11 @@ export class Game {
   checkEnd() {
     if (this.ended) return;
     let w = null, why = '';
-    if (this.tickets.blue <= 0) { w = 'red'; why = 'Mavi takımın biletleri tükendi'; }
+    if (this.ffa) {
+      const best = this.soldiers.filter((s) => !s.vacant).sort((a, b) => b.kills - a.kills || b.score - a.score)[0];
+      if (best && best.kills >= this.mode.killLimit) { w = best.team; why = `${best.name} ${best.kills} öldürmeye ulaştı`; }
+      else if (this.timeLeft <= 0) { w = best.team; why = 'Süre doldu'; }
+    } else if (this.tickets.blue <= 0) { w = 'red'; why = 'Mavi takımın biletleri tükendi'; }
     else if (this.tickets.red <= 0) { w = 'blue'; why = 'Kırmızı takımın biletleri tükendi'; }
     else if (this.timeLeft <= 0) { w = this.tickets.blue >= this.tickets.red ? 'blue' : 'red'; why = 'Süre doldu'; }
     if (!w) return;
@@ -1079,11 +1112,13 @@ export class Game {
     document.exitPointerLock?.();
     const me = this.playerSoldier;
     const win = w === me.team;
-    const list = this.soldiers.filter((s) => s.team === me.team).sort((a, b) => b.score - a.score);
+    const list = this.soldiers.filter((s) => (this.ffa ? !s.vacant : s.team === me.team)).sort((a, b) => b.score - a.score);
     const xp = Math.round(me.score + (win ? 300 : 80));
-    const rows = `<div class="mvp"><div class="st"><b>${me.kills}</b><small>Öldürme</small></div><div class="st"><b>${me.deaths}</b><small>Ölüm</small></div><div class="st"><b>${me.score}</b><small>Puan</small></div><div class="st"><b>+${xp}</b><small>XP</small></div></div><small style="opacity:.75">Mavi ${Math.max(0, Math.round(this.tickets.blue))} – ${Math.max(0, Math.round(this.tickets.red))} Kırmızı · Takımın en iyisi: ${list[0].name} (${list[0].score})</small>`;
+    const wname = this.ffa ? (this.soldiers.find((s) => s.team === w)?.name || '') : TEAMS[w].name;
+    const sub = this.ffa ? `Sıralama: ${[...list].sort((a, b) => b.kills - a.kills).slice(0, 3).map((s, i) => `${i + 1}. ${s.name} (${s.kills})`).join(' · ')}` : `Mavi ${Math.max(0, Math.round(this.tickets.blue))} – ${Math.max(0, Math.round(this.tickets.red))} Kırmızı · Takımın en iyisi: ${list[0].name} (${list[0].score})`;
+    const rows = `<div class="mvp"><div class="st"><b>${me.kills}</b><small>Öldürme</small></div><div class="st"><b>${me.deaths}</b><small>Ölüm</small></div><div class="st"><b>${me.score}</b><small>Puan</small></div><div class="st"><b>+${xp}</b><small>XP</small></div></div><small style="opacity:.75">${sub}</small>`;
     this.opts.onMatchEnd?.({ score: me.score, kills: me.kills, deaths: me.deaths, win });
-    this.hud.showEnd(win, win ? 'ZAFER!' : 'YENİLGİ', `${why}. ${TEAMS[w].name} kazandı.`, rows);
+    this.hud.showEnd(win, win ? 'ZAFER!' : 'YENİLGİ', this.ffa ? `${why}.` : `${why}. ${wname} kazandı.`, rows);
   }
 
   exit() { this.dispose(); this.opts.onExit?.(); }

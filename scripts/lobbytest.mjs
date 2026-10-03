@@ -12,7 +12,7 @@ const last = (ws, t) => [...ws.msgs].reverse().find((m) => m.t === t);
 // 1) resmi odalar
 let rooms = await list();
 const off = rooms.filter((r) => r.official);
-check(off.length === 3 && rooms[0].official, `3 resmi oda listede ilk sırada: ${off.map((r) => r.code + ':' + r.map).join(' ')}`);
+check(off.length === 4 && rooms[0].official, `4 resmi oda listede ilk sırada: ${off.map((r) => r.code + ':' + r.map).join(' ')}`);
 check(off.every((r) => r.bots && !r.locked), 'resmi odalar botlu ve şifresiz');
 
 // 2) resmi odaya gir: 1 bot azalır
@@ -73,5 +73,27 @@ const after = (await list()).find((r) => r.code === o1.code);
 check(after.map !== before.map, `resmi oda haritası döndü: ${before.map} → ${after.map}`);
 check(after.humans === 0, 'oyuncular çıkarıldı, oda taze maçta bekliyor');
 
+// 6) Ölüm Maçı resmi odası: herkes tek, 10 kişi, takım yok
+const dmRoom = (await list()).find((r) => r.type === 'dm');
+check(!!dmRoom && dmRoom.official && dmRoom.cap === 10, `resmi ölüm maçı odası var (${dmRoom && dmRoom.code}, kapasite ${dmRoom && dmRoom.cap})`);
+const p1 = await open(); send(p1, { t: 'join', room: dmRoom.code, name: 'Dm1' });
+const w1 = await until(() => last(p1, 'welcome'));
+check(!!w1 && new Set(w1.roster.map((r) => r.team)).size === 10 && w1.roster.filter((r) => r.human).length === 1 && w1.roster.filter((r) => !r.human && !r.vac).length === 9, 'ölüm maçı: 10 savaşçı hepsi ayrı takım kimliğinde, 1 insan + 9 bot');
+const p2 = await open(); send(p2, { t: 'join', room: dmRoom.code, name: 'Dm2' });
+const w2 = await until(() => last(p2, 'welcome'));
+check(!!w2 && w2.roster.filter((r) => r.human).length === 2 && w2.roster.filter((r) => !r.human && !r.vac).length === 8, 'ikinci oyuncu girince bir bot daha azaldı (2 insan + 8 bot)');
+p1.msgs.length = 0; send(p1, { t: 'team', team: 'red' });
+const tdm = await until(() => last(p1, 'team'));
+check(tdm && !tdm.ok, 'ölüm maçında takım değiştirme reddedildi: ' + (tdm && tdm.msg));
+const snapDm = await until(() => last(p1, 'snap'));
+check(snapDm && snapDm.s.length === 10, 'snapshot 10 savaşçı içeriyor');
+// botsuz küçük ölüm maçı odası: kapasite = oyuncu sayısı
+const q1 = await open(); send(q1, { t: 'create', name: 'Q1', cfg: { type: 'dm', perTeam: 3, bots: false, name: 'Mini DM' } });
+const wq = await until(() => last(q1, 'welcome'));
+check(!!wq && wq.roster.length === 3 && wq.roster.filter((r) => r.vac).length === 2, 'botsuz mini ölüm maçı: 3 slot, 2 boş');
+const qs = [q1]; for (let i = 0; i < 3; i++) { const c2 = await open(); qs.push(c2); send(c2, { t: 'join', room: wq.room, name: 'Q' + (i + 2) }); await wait(250); }
+const full = last(qs[3], 'err');
+check(qs[1].msgs.some((m) => m.t === 'welcome') && qs[2].msgs.some((m) => m.t === 'welcome') && full && full.msg === 'Oda dolu', 'kapasite 3: dördüncü oyuncu reddedildi: ' + (full && full.msg));
+for (const w of [p1, p2, ...qs]) w.close();
 for (const w of [a, b, d, e, f, g]) w.close();
 console.log(fail ? 'sonuç: HATA' : 'sonuç: OK'); process.exit(fail ? 1 : 0);

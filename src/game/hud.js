@@ -186,7 +186,8 @@ export class Hud {
     this.mmCtx = this.mm.getContext('2d');
     this.buildMinimapBase();
     this.hitT = 0; this.sel = null; this.zoneT = 0; this.cmp = this.root.querySelector('#compass canvas').getContext('2d');
-    this.maxTk = game.mode.tickets;
+    this.maxTk = game.ffa ? game.mode.killLimit : game.mode.tickets;
+    if (game.ffa) { this.root.querySelector('.tk.blue small').textContent = 'SEN'; this.root.querySelector('.tk.red small').textContent = 'LİDER'; }
     this.$('bResume').onclick = () => game.requestLock();
     this.$('bKill').onclick = () => { game.requestKill(); game.requestLock(); };
     this.$('bQuit').onclick = () => game.exit();
@@ -315,7 +316,7 @@ export class Hud {
   killFeed(killer, victim, weapon, hs) {
     const f = this.$('killfeed');
     const d = document.createElement('div'); d.className = 'kf' + ((killer && killer.isPlayer) || (victim && victim.isPlayer) ? ' me' : '');
-    const cls = (s) => (s.team === 'blue' ? 'b' : 'r');
+    const cls = (s) => (this.game.ffa ? (s === this.game.playerSoldier ? 'b' : 'r') : s.team === 'blue' ? 'b' : 'r');
     d.innerHTML = killer && killer !== victim
       ? `<span class="${cls(killer)}">${killer.name}</span><span class="w">[${weapon}${hs ? ' ★' : ''}]</span><span class="${cls(victim)}">${victim.name}</span>`
       : `<span class="${cls(victim)}">${victim.name}</span><span class="w">öldü</span>`;
@@ -360,6 +361,12 @@ export class Hud {
       return `<div class="team ${team}"><h3 style="color:var(--c)">${TEAMS[team].name} · ${Math.max(0, g.tickets[team])}</h3><table><tr><th>Oyuncu</th><th>Öl</th><th>Ölüm</th><th>Puan</th></tr>${
         list.map((s) => `<tr class="${s.isPlayer ? 'me' : ''} ${s.alive ? '' : 'dead'}"><td>${s.name}</td><td>${s.kills}</td><td>${s.deaths}</td><td>${s.score}</td></tr>`).join('')}</table></div>`;
     };
+    if (g.ffa) {                                                         // tek tablo, öldürmeye göre
+      const list = g.soldiers.filter((s) => !s.vacant).sort((a, b) => b.kills - a.kills || b.score - a.score);
+      this.$('sbbody').innerHTML = `<div class="team blue"><h3 style="color:var(--c)">Ölüm Maçı · ilk ${g.mode.killLimit}</h3><table><tr><th>Oyuncu</th><th>Öl</th><th>Ölüm</th><th>Puan</th></tr>${
+        list.map((s) => `<tr class="${s.isPlayer ? 'me' : ''} ${s.alive ? '' : 'dead'}"><td>${s.name}</td><td>${s.kills}</td><td>${s.deaths}</td><td>${s.score}</td></tr>`).join('')}</table></div>`;
+      return;
+    }
     this.$('sbbody').innerHTML = col('blue') + col('red');
   }
 
@@ -384,10 +391,15 @@ export class Hud {
 
   update(dt) {
     const g = this.game, p = g.playerSoldier, $ = this.$;
-    $('tkB').textContent = Math.max(0, Math.round(g.tickets.blue));
-    $('tkR').textContent = Math.max(0, Math.round(g.tickets.red));
-    $('tbB').style.width = clamp((g.tickets.blue / this.maxTk) * 100, 0, 100) + '%';
-    $('tbR').style.width = clamp((g.tickets.red / this.maxTk) * 100, 0, 100) + '%';
+    let kb = g.tickets.blue, kr = g.tickets.red;
+    if (g.ffa) {                                                       // ölüm maçı: sol = senin öldürmen, sağ = en iyi rakip
+      kb = p.kills; kr = 0;
+      for (const s of g.soldiers) if (s !== p && !s.vacant && s.kills > kr) kr = s.kills;
+    }
+    $('tkB').textContent = Math.max(0, Math.round(kb));
+    $('tkR').textContent = Math.max(0, Math.round(kr));
+    $('tbB').style.width = clamp((kb / this.maxTk) * 100, 0, 100) + '%';
+    $('tbR').style.width = clamp((kr / this.maxTk) * 100, 0, 100) + '%';
     const t = Math.max(0, Math.ceil(g.timeLeft));
     $('timer').textContent = g.timeLeft === Infinity ? '∞' : `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
     this.drawCompass();

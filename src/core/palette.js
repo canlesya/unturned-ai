@@ -40,4 +40,15 @@ export const TEAMS = {
   },
 };
 
+// Ölüm Maçı (herkes tek): her savaşçının kendi takım kimliği 'f0'..'f31' ve kendi rengi vardır
+function hsl2hex(h, sat, l) {
+  const a = sat * Math.min(l, 1 - l), f = (n) => { const k = (n + h / 30) % 12; return Math.round(255 * (l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)))); };
+  return '#' + [f(0), f(8), f(4)].map((v) => v.toString(16).padStart(2, '0')).join('');
+}
+const FFA_HUES = [210, 5, 130, 45, 280, 170, 25, 330, 85, 245];
+for (let i = 0; i < 32; i++) {
+  const h = (FFA_HUES[i % 10] + Math.floor(i / 10) * 12) % 360;
+  TEAMS['f' + i] = { name: 'Ölüm Maçı', shirt: hsl2hex(h, 0.42, 0.36), pants: hsl2hex(h, 0.3, 0.2), vest: hsl2hex(h, 0.36, 0.19), helmet: hsl2hex(h, 0.4, 0.28), gloves: '#1d2530', boots: '#1b1b1d', accent: hsl2hex(h, 0.85, 0.6) };
+}
+
 export const SKINS = ['#e3b08a', '#c68b62', '#8d5a3a', '#f2cfae', '#a86f4a'];

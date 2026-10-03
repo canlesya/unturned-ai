@@ -1,6 +1,6 @@
 import { MAPS, DEFAULT_MAP } from './maps/index.js';
 import { CLASS_DEFS, WSTATS, DIFFICULTY, OPTICS, OPTIC_ORDER } from './game/stats.js';
-import { MATCH_TYPES, TODS_LIST, defaultTickets } from './game/match.js';
+import { MATCH_TYPES, TODS_LIST, defaultTickets, DM_MAX, DM_KILLS } from './game/match.js';
 import { MENU_CSS } from './menuStyle.js';
 import { MenuScene } from './menuScene.js';
 import { WEATHERS } from './game/weather.js';
@@ -127,7 +127,7 @@ export function showMenu(onStart, onOnline) {
   }
 
   // ───── ekranlar ─────
-  const summary = () => `<div class="sumline"><span><b>${mapName()}</b></span><span>${todName()}${p.weather !== 'clear' ? ' · ' + (p.weather === 'random' ? 'Rastgele hava' : WEATHERS.find((w) => w[0] === p.weather)[1]) : ''}</span><span>${MATCH_TYPES[p.type].label}</span><span><b>${p.perTeam}</b> v <b>${p.perTeam}</b></span><span>${DIFFICULTY[p.diff].label}</span></div>`;
+  const summary = () => `<div class="sumline"><span><b>${mapName()}</b></span><span>${todName()}${p.weather !== 'clear' ? ' · ' + (p.weather === 'random' ? 'Rastgele hava' : WEATHERS.find((w) => w[0] === p.weather)[1]) : ''}</span><span>${MATCH_TYPES[p.type].label}</span>${p.type === 'dm' ? `<span><b>${p.perTeam}</b> oyuncu</span>` : `<span><b>${p.perTeam}</b> v <b>${p.perTeam}</b></span>`}<span>${DIFFICULTY[p.diff].label}</span></div>`;
 
   function homeHTML() {
     return `<div class="home"><div class="news"><h3>YENİLİKLER · v2.0</h3><ul>${NEWS.map((n) => `<li>${n}</li>`).join('')}</ul></div>
@@ -148,15 +148,15 @@ export function showMenu(onStart, onOnline) {
       <div class="pan"><h3>Hava durumu</h3><div class="row">${[...WEATHERS, ['random', 'Rastgele']].map(([k, n]) => `<button class="chip ${p.weather === k ? 'on' : ''}" data-a="weather" data-v="${k}">${n}</button>`).join('')}</div></div>
       <div class="split">
         <div class="pan"><h3>Oyun modu</h3><div class="row">${Object.entries(MATCH_TYPES).map(([k, m]) => `<button class="chip ${p.type === k ? 'on' : ''}" data-a="type" data-v="${k}">${m.label}<small>${m.desc}</small></button>`).join('')}</div></div>
-        <div class="pan"><h3>Takımın</h3><div class="row">${[['blue', 'Mavi', 'blue'], ['red', 'Kırmızı', 'red'], ['random', 'Rastgele', '']].map(([k, n, c]) => `<button class="chip ${c} ${p.team === k ? 'on' : ''}" data-a="team" data-v="${k}">${n}</button>`).join('')}</div>
-        <h3 style="margin-top:14px">Bot zorluğu</h3><div class="row">${Object.entries(DIFFICULTY).map(([k, d]) => `<button class="chip ${p.diff === k ? 'on' : ''}" data-a="diff" data-v="${k}">${d.label}</button>`).join('')}</div></div>
+        <div class="pan">${p.type === 'dm' ? '' : `<h3>Takımın</h3><div class="row">${[['blue', 'Mavi', 'blue'], ['red', 'Kırmızı', 'red'], ['random', 'Rastgele', '']].map(([k, n, c]) => `<button class="chip ${c} ${p.team === k ? 'on' : ''}" data-a="team" data-v="${k}">${n}</button>`).join('')}</div>
+        `}<h3 style="margin-top:14px">Bot zorluğu</h3><div class="row">${Object.entries(DIFFICULTY).map(([k, d]) => `<button class="chip ${p.diff === k ? 'on' : ''}" data-a="diff" data-v="${k}">${d.label}</button>`).join('')}</div></div>
       </div>
-      <div class="pan"><h3>Oyuncu sayısı <em>takım başına, sen dahil · kalanı botlar</em></h3>
-        <div class="big"><div class="n" id="vSize">${p.perTeam}<i>vs</i>${p.perTeam}</div><div class="tx">${p.perTeam * 2} savaşçı. ${warn}</div></div>
-        <input type="range" id="rSize" min="1" max="32" step="1" value="${p.perTeam}" style="--p:${((p.perTeam - 1) / 31) * 100}%">
-        <div class="row">${SIZE_PRESETS.map(([n, l]) => `<button class="chip ${p.perTeam === n ? 'on' : ''}" data-a="size" data-v="${n}">${l}</button>`).join('')}</div></div>
+      <div class="pan"><h3>Oyuncu sayısı <em>${p.type === 'dm' ? `toplam, sen dahil · en çok ${DM_MAX} · kalanı botlar` : 'takım başına, sen dahil · kalanı botlar'}</em></h3>
+        <div class="big"><div class="n" id="vSize">${p.type === 'dm' ? `${p.perTeam}<i>kişi</i>` : `${p.perTeam}<i>vs</i>${p.perTeam}`}</div><div class="tx">${p.type === 'dm' ? `${p.perTeam} savaşçı, herkes tek. İlk ${DM_KILLS} öldürmeye ulaşan kazanır.` : `${p.perTeam * 2} savaşçı. ${warn}`}</div></div>
+        <input type="range" id="rSize" min="${p.type === 'dm' ? 2 : 1}" max="${p.type === 'dm' ? DM_MAX : 32}" step="1" value="${p.perTeam}" style="--p:${((p.perTeam - (p.type === 'dm' ? 2 : 1)) / ((p.type === 'dm' ? DM_MAX : 32) - (p.type === 'dm' ? 2 : 1))) * 100}%">
+        <div class="row">${(p.type === 'dm' ? [[2, '2'], [4, '4'], [6, '6'], [8, '8'], [10, '10']] : SIZE_PRESETS).map(([n, l]) => `<button class="chip ${p.perTeam === n ? 'on' : ''}" data-a="size" data-v="${n}">${l}</button>`).join('')}</div></div>
       <div class="split">
-        <div class="pan"><h3>Bilet <em>${effTickets()}</em></h3><div class="row">${TICKET_OPTS.map(([v, l]) => `<button class="chip ${p.tickets === v ? 'on' : ''}" data-a="tickets" data-v="${v}">${l}</button>`).join('')}</div></div>
+        <div class="pan"><h3>${p.type === 'dm' ? 'Öldürme sınırı' : `Bilet <em>${effTickets()}</em>`}</h3>${p.type === 'dm' ? `<div class="hint" style="margin:0">İlk <b>${DM_KILLS}</b> öldürmeye ulaşan kazanır; süre dolarsa en çok öldüren.</div>` : `<div class="row">${TICKET_OPTS.map(([v, l]) => `<button class="chip ${p.tickets === v ? 'on' : ''}" data-a="tickets" data-v="${v}">${l}</button>`).join('')}</div>`}</div>
         <div class="pan"><h3>Süre</h3><div class="row">${TIME_OPTS.map(([v, l]) => `<button class="chip ${p.time === v ? 'on' : ''}" data-a="time" data-v="${v}">${l}</button>`).join('')}</div></div>
       </div></div>
       <div class="startbar">${summary()}<button class="play" data-a="quick" style="min-width:300px">Oyna</button></div>`;
@@ -173,7 +173,7 @@ export function showMenu(onStart, onOnline) {
     const sub = `${m.name} · ${TODN[r.tod] || r.tod}${r.weather !== 'clear' ? ' · ' + (WEAN[r.weather] || r.weather) : ''}`;
     return `<div class="rcard ${r.official ? 'off' : ''}"><div class="th" style="background-image:url(${m.thumb})"></div>
       <div class="rb"><div class="rt">${r.official ? '<em class="bd">RESMİ</em>' : ''}${r.locked ? '<em class="lk" title="Şifreli">🔒</em>' : ''}<b>${esc(r.name)}</b></div>
-      <div class="rs">${sub}</div><div class="rs">${t} · ${r.perTeam}v${r.perTeam}${r.bots ? ' · botlu' : ' · botsuz'}${tl}</div>${r.by ? `<div class="rs by">kuran: ${esc(r.by)}</div>` : ''}</div>
+      <div class="rs">${sub}</div><div class="rs">${t} · ${r.type === 'dm' ? r.perTeam + ' oyuncu' : r.perTeam + 'v' + r.perTeam}${r.bots ? ' · botlu' : ' · botsuz'}${tl}</div>${r.by ? `<div class="rs by">kuran: ${esc(r.by)}</div>` : ''}</div>
       <div class="rp"><div class="pc ${full ? 'full' : ''}"><b>${r.humans}</b>/${r.cap}<small>oyuncu</small></div>
       <button class="chip join" data-a="rjoin" data-code="${r.code}" data-locked="${r.locked ? 1 : 0}" ${ol.busy || full || r.ended ? 'disabled' : ''}>${r.ended ? 'Bitti' : full ? 'Dolu' : 'Katıl'}</button></div></div>`;
   }
@@ -219,13 +219,13 @@ export function showMenu(onStart, onOnline) {
       <div class="split"><div class="pan"><h3>Günün saati</h3><div class="row">${chips('tod', TODS_LIST.map(([k, n]) => [k, n]))}</div></div>
         <div class="pan"><h3>Hava durumu</h3><div class="row">${chips('weather', WEATHERS.map(([k, n]) => [k, n]))}</div></div></div>
       <div class="pan"><h3>Oyun modu</h3><div class="row">${chips('type', Object.entries(MATCH_TYPES).map(([k, m]) => [k, m.label, m.desc]))}</div></div>
-      <div class="pan"><h3>Oyuncu sayısı <em>takım başına · en fazla ${c.perTeam * 2} kişi</em></h3>
-        <div class="big"><div class="n" id="ocSizeV">${c.perTeam}<i>vs</i>${c.perTeam}</div><div class="tx">${c.bots ? 'Boş yerleri botlar doldurur; oyuncu girince bir bot azalır.' : 'Botsuz: yalnızca gerçek oyuncular.'}</div></div>
-        <input type="range" id="ocSize" min="1" max="32" step="1" value="${c.perTeam}" style="--p:${((c.perTeam - 1) / 31) * 100}%">
-        <div class="row">${SIZE_PRESETS.map(([n, l]) => `<button class="chip ${c.perTeam === n ? 'on' : ''}" data-a="olset" data-k="perTeam" data-v="${n}">${l}</button>`).join('')}</div></div>
+<div class="pan"><h3>Oyuncu sayısı <em>${c.type === 'dm' ? `toplam · en fazla ${DM_MAX} kişi` : `takım başına · en fazla ${c.perTeam * 2} kişi`}</em></h3>
+        <div class="big"><div class="n" id="ocSizeV">${c.type === 'dm' ? `${c.perTeam}<i>kişi</i>` : `${c.perTeam}<i>vs</i>${c.perTeam}`}</div><div class="tx">${c.bots ? 'Boş yerleri botlar doldurur; oyuncu girince bir bot azalır.' : 'Botsuz: yalnızca gerçek oyuncular.'}</div></div>
+        <input type="range" id="ocSize" min="${c.type === 'dm' ? 2 : 1}" max="${c.type === 'dm' ? DM_MAX : 32}" step="1" value="${c.perTeam}" style="--p:${((c.perTeam - (c.type === 'dm' ? 2 : 1)) / ((c.type === 'dm' ? DM_MAX : 32) - (c.type === 'dm' ? 2 : 1))) * 100}%">
+        <div class="row">${(c.type === 'dm' ? [[2, '2'], [4, '4'], [6, '6'], [8, '8'], [10, '10']] : SIZE_PRESETS).map(([n, l]) => `<button class="chip ${c.perTeam === n ? 'on' : ''}" data-a="olset" data-k="perTeam" data-v="${n}">${l}</button>`).join('')}</div></div>
       <div class="split"><div class="pan"><h3>Botlar</h3><div class="row">${chips('bots', [[true, 'Açık', 'boş slotlara bot'], [false, 'Kapalı', 'yalnızca oyuncular']])}</div>
         ${c.bots ? `<h3 style="margin-top:14px">Bot zorluğu</h3><div class="row">${chips('diff', Object.entries(DIFFICULTY).map(([k, d]) => [k, d.label]))}</div>` : ''}</div>
-        <div class="pan"><h3>Bilet <em>${c.tickets || defaultTickets(c.perTeam)}</em></h3><div class="row">${chips('tickets', TICKET_OPTS)}</div>
+        <div class="pan"><h3>${c.type === 'dm' ? 'Öldürme sınırı' : `Bilet <em>${c.tickets || defaultTickets(c.perTeam)}</em>`}</h3>${c.type === 'dm' ? `<div class="hint" style="margin:0 0 6px">İlk <b>${DM_KILLS}</b> öldürmeye ulaşan kazanır.</div>` : `<div class="row">${chips('tickets', TICKET_OPTS)}</div>`}
         <h3 style="margin-top:14px">Süre</h3><div class="row">${chips('time', TIME_OPTS)}</div></div></div>
       </div>
       <div class="startbar"><button class="chip" data-a="oview" data-v="online">‹ Geri</button><button class="play" data-a="olcreate" ${ol.busy ? 'disabled' : ''} style="min-width:300px">Odayı oluştur</button></div>`;
@@ -320,8 +320,10 @@ export function showMenu(onStart, onOnline) {
       ['Ateş / Nişan', 'Sol tık / Sağ tık (basılı tut)'],
       ['Şarjör', '<kbd>R</kbd> (şarjör doluyken taktik yükleme daha hızlıdır)'],
       ['Silah', '<kbd>1</kbd> ana · <kbd>2</kbd> yedek · <kbd>3</kbd>/<kbd>G</kbd> gadget · <kbd>4</kbd>/<kbd>V</kbd> bıçak · fare tekeri'],
-      ['Nişangâh', '<kbd>B</kbd> demir / red dot / holografik / ACOG · ateş modu <kbd>X</kbd>'],
+      ['Nişangâh', '<kbd>T</kbd> basılı tut + fareyle seç + sol tık (silahın uygun nişangâhları) · hızlı değiştir <kbd>B</kbd> · ateş modu <kbd>X</kbd>'],
       ['Fener', '<kbd>F</kbd> (gece ve gün batımında)'],
+      ['Takım (çevrimiçi)', '<kbd>M</kbd> takım seçimi (Ölüm Maçı hariç)'],
+      ['Kill', 'sıkışınca: <kbd>Esc</kbd> ile duraklat → <b>Kill (yeniden doğ)</b> düğmesi'],
       ['Bakış (yedek)', 'Fare kilitlenmezse ok tuşları'],
       ['Skor tablosu', '<kbd>Tab</kbd> · duraklat <kbd>Esc</kbd>'],
     ];
@@ -385,12 +387,12 @@ export function showMenu(onStart, onOnline) {
     if (id === 'olPw') { ol.pw = t.value; return; }
     if (id === 'ocName') { oc().name = t.value; save(); return; }
     if (id === 'ocPw') { ol.cpw = t.value; return; }
-    if (id === 'ocSize') { const v = +t.value; oc().perTeam = v; t.style.setProperty('--p', ((v - 1) / 31) * 100 + '%'); q('#ocSizeV').innerHTML = `${v}<i>vs</i>${v}`; stage.querySelectorAll('[data-k=perTeam]').forEach((c) => c.classList.toggle('on', +c.dataset.v === v)); save(); return; }
+    if (id === 'ocSize') { const v = +t.value; oc().perTeam = v; t.style.setProperty('--p', ((v - 1) / 31) * 100 + '%'); q('#ocSizeV').innerHTML = oc().type === 'dm' ? `${v}<i>kişi</i>` : `${v}<i>vs</i>${v}`; stage.querySelectorAll('[data-k=perTeam]').forEach((c) => c.classList.toggle('on', +c.dataset.v === v)); save(); return; }
     if (t.type !== 'range') return;
     const v = +t.value, mn = +t.min, mx = +t.max;
     t.style.setProperty('--p', ((v - mn) / (mx - mn)) * 100 + '%');
     if (id === 'rSize') {
-      p.perTeam = v; stage.querySelector('#vSize').innerHTML = `${v}<i>vs</i>${v}`;
+      p.perTeam = v; stage.querySelector('#vSize').innerHTML = p.type === 'dm' ? `${v}<i>kişi</i>` : `${v}<i>vs</i>${v}`;
       stage.querySelectorAll('[data-a=size]').forEach((c) => c.classList.toggle('on', +c.dataset.v === v));
     } else if (id === 'sSens') { p.sens = v; stage.querySelector('#v_sSens').textContent = (v / 0.0022).toFixed(2) + '×'; }
     else if (id === 'sFov') { p.fov = v; stage.querySelector('#v_sFov').textContent = v + '°'; }
@@ -410,7 +412,7 @@ export function showMenu(onStart, onOnline) {
       case 'map': p.map = v; break;
       case 'tod': p.tod = v; break;
       case 'weather': p.weather = v; break;
-      case 'type': p.type = v; break;
+      case 'type': p.type = v; if (v === 'dm') p.perTeam = Math.max(2, Math.min(DM_MAX, p.perTeam)); break;
       case 'team': p.team = v; break;
       case 'diff': p.diff = v; break;
       case 'size': p.perTeam = +v; break;
@@ -421,6 +423,7 @@ export function showMenu(onStart, onOnline) {
       case 'olset': {
         const k = b.dataset.k, c = oc();
         c[k] = v === 'true' ? true : v === 'false' ? false : (k === 'perTeam' || k === 'tickets' || k === 'time') ? +v : v;
+        if (k === 'type' && v === 'dm') c.perTeam = Math.max(2, Math.min(DM_MAX, c.perTeam));
         break;
       }
       case 'rjoin': {

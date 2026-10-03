@@ -28,7 +28,7 @@ Unturned görünümlü (kutu karakterler, düz renkli, düşük poligon) + Battl
 | Özellik | Durum |
 |---|---|
 | Maç boyutu | Takım başına **1–32** oyuncu (sen + botlar) |
-| Modlar | **Ele Geçirme** (bayraklar + bilet) ve **Takım Çatışması** (bayraksız, her ölüm 1 bilet) |
+| Modlar | **Ele Geçirme** (bayraklar + bilet), **Takım Çatışması** (bayraksız, her ölüm 1 bilet) ve **Ölüm Maçı** (herkes tek, ilk 40 öldürme, en çok 10 kişi, rastgele doğma) |
 | Haritalar | **Kasaba** (şehir), **Vadi** (nehirli vadi, arazi), **Askeri Üs** (duvarlı üs) |
 | Günün saati | Gündüz, gün batımı, gece (+ rastgele) |
 | Hava | Açık, yağmur (şimşek), sis |
@@ -473,6 +473,8 @@ Sonuç olaylarla yayılır: `sh` (atış izi/efekt), `hm` (isabet işareti), `dm
 | `node scripts/nettest.mjs` | Protokol: oda, katılma, girdi, snapshot hızı, **girdi flood (hız hilesi)** |
 | `node scripts/combattest.mjs` | Ateş, hasar, öldürme, **lag compensation**, doğma (ağsız) |
 | `node scripts/gadgettest.mjs` | Her gadget'ın ağ olayları |
+| `node scripts/dmtest.mjs` | Ölüm Maçı: herkes tek, 10 kişi sınırı, dağınık doğma, 40 öldürmede bitiş |
+| `node scripts/adsaudit.mjs` | Tüm silah × nişangâh: ADS'de nişan çizgisini kapatan parça var mı |
 | `node scripts/lobbytest.mjs` | Lobi: resmi odalar, şifre, gizli/botsuz oda, takım isteği, harita dönüşü |
 | `BF_RESTART_MS=3000 BF_DEBUG=1 npm run server` sonra `node scripts/endtest.mjs` | Maç sonu + oda sıfırlama |
 
@@ -495,7 +497,20 @@ Tarayıcıda iki sekme: `/?online=new&name=Ali&per=3` sonra `/?online=KOD&name=V
   (eski slot bota döner, yeni takımda bir bot yerine geçilir).
 - Test: `node scripts/lobbytest.mjs` (resmi odalar, bot sayısı, şifre, gizli oda, botsuz oda, doluluk, takım isteği, harita dönüşü).
 
-### 12.7 Sınırlar ve sonraki adımlar
+### 12.7 Ölüm Maçı (herkes tek), T tekerleği, kill
+- **Ölüm Maçı (`type: 'dm'`):** her savaşçıya benzersiz takım kimliği (`f0`..`f31`, `palette.js` her biri için ayrı renk üretir). Böylece tüm
+  "düşman mı?" kontrolleri (`e.team !== s.team`) değişmeden herkesi düşman sayar. `Game.ffa` bayrağı: bayrak/bilet/üs cezası yok, doğma
+  `pickSpawn` içinde tüm harita noktalarından rastgele + canlı düşmandan uzak, bitiş `checkEnd`'de 40 öldürme ya da süre (en çok öldüren),
+  HUD'da SEN / LİDER sayacı ve tek skor tablosu. `perTeam` bu modda **toplam oyuncu** (2–10, `DM_MAX`). Odada takım menüsü (M) kapalıdır.
+  Test: `node scripts/dmtest.mjs`.
+- **T tekerleği:** `T` basılı → silahın uygun nişangâhları dairesel menüde; fare = imleç (bakış kilitli), sol tık = seç, `T` bırakılınca kapanır.
+  `Player.openWheel/wheelMove/wheelPick`; seçim `Soldier.setOptic` + çevrimiçinde `{t:'opt', optic}`. Silah özelleştirmeleri (kabza, namlu...) için aynı yapı kullanılacak.
+- **Kill:** duraklatma panelinde (Esc) "Kill (yeniden doğ)" → offline `die()`, çevrimiçi `{t:'kill'}` (3 sn'de bir; ölüm sayılır, puan kimseye yazılmaz).
+- **Nişan denetimi:** `node scripts/adsaudit.mjs` — her silah × nişangâh için ADS pozunda ekran merkezinden ışın atar; cam dışında bir parça (ön arpacık,
+  gövde, el) kırmızı noktayı kapatıyorsa uyarır. Arpacıklar `frontSight()` alt grubudur (demir nişanda görünür, optikte gizlenir); optik tabanı gövde
+  üstüne otomatik oturur (`mountY`), koridordaki küçük ön parçalar çıkarılır (`clearSightLine`).
+
+### 12.8 Sınırlar ve sonraki adımlar
 - Protokol JSON: oyuncu başına yaklaşık 100–200 KB/s. Kalabalık odalar için ikili paketleme + ilgi alanı (yalnızca yakındakiler) planlanmalı.
 - Yeni katılan, o an havada olan el bombası/duman bulutunu görmez (kurulu mayın/kutuları görür).
 - Hesap yok (takma ad); XP/seviye tarayıcıda kalır. Odalar bellekte.

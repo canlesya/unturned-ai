@@ -373,6 +373,17 @@ export class Soldier {
     if (this.crouching && w.canStand(this, H_STAND)) { this.crouching = false; return true; }
     return !this.crouching;
   }
+  // Belirli bir nişangâhı seç (T tekerleği). Silaha uygun değilse reddedilir. Dönen: nişangâh tanımı ya da null
+  setOptic(id) {
+    const allowed = OPTIC_ALLOWED[this.item.id] || [];
+    if (!allowed.includes(id) || !OPTICS[id]) return null;
+    this.optic = id;
+    this.model.optic = id;
+    this._syncWeaponModel(true);
+    this.game.emit('switch', this);
+    return OPTICS[id];
+  }
+
   // Nişangâh değiştir (B): silaha uygun olanlar arasında döner
   cycleOptic() {
     const allowed = OPTIC_ALLOWED[this.item.id] || [];
