@@ -525,7 +525,15 @@ export class Soldier {
     if (this.isPlayer) this._syncWeaponModel();                                         // 3. şahıs: elindeki silah modeli güncel olsun
     root.visible = this.alive || this.deadT < 5;
     root.position.set(this.pos.x, this.pos.y + (m.groundOffset ?? m.root.position.y), this.pos.z);
-    root.rotation.y = this.yaw;
+    // Bacaklar (root) bakış yönüne gecikmeli döner; gövde (silah) hep bakış yönünde kalır: yerinde dönerken ayaklar takip eder, koşarken hızla hizalanır
+    const angDiff = (a, b) => ((a - b + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+    if (this.bodyYaw === undefined || !this.alive || this.proneT > 0.2) this.bodyYaw = this.yaw;
+    const spd0 = Math.hypot(this.vel.x, this.vel.z), maxTw = spd0 > 0.6 ? 0.35 : 0.85;
+    let dY = angDiff(this.yaw, this.bodyYaw);
+    if (Math.abs(dY) > maxTw) { this.bodyYaw += dY - Math.sign(dY) * maxTw; dY = Math.sign(dY) * maxTw; }
+    this.bodyYaw += dY * Math.min(1, dt * (spd0 > 0.6 ? 8 : 2.2));
+    const twistY = angDiff(this.yaw, this.bodyYaw);
+    root.rotation.y = this.bodyYaw;
     if (!this.alive) {
       const k = Math.min(1, this.deadT * 3.2);
       root.rotation.x = this.deadDir * k * (Math.PI / 2) * 0.96;
@@ -540,8 +548,8 @@ export class Soldier {
     }
     const T = this.game.time;
     const vx = this.vel.x, vz = this.vel.z, spd = Math.hypot(vx, vz);
-    const fwdV = vx * -Math.sin(this.yaw) + vz * -Math.cos(this.yaw);
-    const sideV = vx * Math.cos(this.yaw) + vz * -Math.sin(this.yaw);
+    const fwdV = vx * -Math.sin(this.bodyYaw) + vz * -Math.cos(this.bodyYaw);
+    const sideV = vx * Math.cos(this.bodyYaw) + vz * -Math.sin(this.bodyYaw);
     const c = this.crouchT;
     this.airT = lerp(this.airT || 0, this.onGround ? 0 : 1, Math.min(1, dt * 10));
     this.sprintT = lerp(this.sprintT || 0, this.sprinting && fwdV > 2 ? 1 : 0, Math.min(1, dt * 8));
@@ -556,7 +564,10 @@ export class Soldier {
     const flexMax = lerp(0.55, 1.4, run) * (1 - 0.4 * c);
     const sideSign = Math.sign(sideV) || 0;
 
-    const legs = [[p.legs.L, ph, 0.22, -0.18, 0.9, -1.6, 0.65, -1.0], [p.legs.R, ph + Math.PI, -0.2, 0.22, 0.7, -1.5, -0.15, -0.5]];
+    // hazır duruş ağırlığı: yerinde dururken (stanceK=1) bükük diz + açık ayak + alçak pelvis; hareket/çömelme/yatma/havada kalkar
+    const stanceK = (1 - moveAmt) * (1 - pr) * (1 - c) * (1 - this.airT);
+    const idleLow = 0.045 * stanceK;
+    const legs = [[p.legs.L, ph, 0.50, -0.90, 0.9, -1.6, 0.65, -1.0], [p.legs.R, ph + Math.PI, 0.05, -0.75, 0.7, -1.5, -0.15, -0.5]];
     for (const [lg, phi, idleHip, idleKnee, crHip, crKnee, airHip, airKnee] of legs) {
       const sw = Math.sin(phi) * amp;
       const flex = Math.max(0, Math.cos(phi)) * flexMax;
@@ -571,18 +582,21 @@ export class Soldier {
       knee = lerp(knee, -Math.max(0, Math.cos(phi)) * 0.35 * crawlAmt, pr);
       lg.hip.rotation.x = hip;
       lg.knee.rotation.x = knee;
-      lg.hip.rotation.z = sideSign * 0.3 * Math.sin(phi) * sideBlend * moveAmt;   // yan adımda bacak açılması
-      lg.hip.position.y = 0.88 - 0.27 * c;
+      if (lg.foot) lg.foot.rotation.x = -(hip + knee) * (1 - 0.4 * moveAmt) * (1 - pr);    // ayak yere paralel (duruşta tam, yürürken kısmen: topuk/burun kalkar)
+      const sg = lg === p.legs.R ? 1 : -1;
+      lg.hip.rotation.z = sideSign * 0.3 * Math.sin(phi) * sideBlend * moveAmt + sg * 0.05 * stanceK;   // yan adımda bacak açılması + duruşta hafif dışa açık
+      lg.hip.position.y = 0.88 - 0.27 * c - idleLow;
+      lg.hip.position.x = sg * (0.105 + 0.04 * stanceK);
     }
 
     // gövde: öne eğim, hafif burulma, ağırlık aktarımı, nefes
     const breathe = Math.sin(T * 1.7 + this.id) * 0.004 * (1 - moveAmt);
-    const lean = -(0.03 * moveAmt + 0.17 * run * moveAmt) - 0.09 * c;
+    const lean = -(0.03 * moveAmt + 0.17 * run * moveAmt) - 0.09 * c - 0.07 * stanceK;
     const aimP = clamp(this.pitch + this.recoilP, -0.9, 0.9) * 0.7;
     p.torso.rotation.x = (aimP + lean) * (1 - pr);
-    p.torso.rotation.z = Math.sin(ph) * 0.035 * moveAmt * (1 + run) * (1 - pr) - this.leanT * 0.32;
+    p.torso.rotation.z = Math.sin(ph) * 0.035 * moveAmt * (1 + run) * (1 - pr) - this.leanT * 0.32 + Math.sin(T * 0.9 + this.id) * 0.012 * stanceK;
     p.torso.position.x = this.leanT * 0.12;
-    p.torso.position.y = 1.17 - 0.27 * c + breathe;
+    p.torso.position.y = 1.17 - 0.27 * c + breathe - idleLow;
     p.head.rotation.x = (-lean * 0.7 - aimP * 0.25) * (1 - pr);
     p.head.rotation.z = this.leanT * 0.18;
     root.position.y -= (0.018 + 0.035 * run) * moveAmt * Math.sin(ph) ** 2;    // adım sırasında hafif çökme
@@ -595,6 +609,6 @@ export class Soldier {
       reload = { style: this.reloadStyle, k: clamp(el / this.reloadTotal, 0, 1), empty: this.reloadEmpty, ph: shell ? ((el / st.shell) % 1 + 1) % 1 : 0 };
     }
     if (this.swing) melee = { kind: this.swing.kind, k: clamp(this.swing.t / this.swing.dur, 0, 1) };
-    m.refreshHold({ sprint: this.sprintT * (1 - pr), kick: clamp(this.flashT / 0.06, 0, 1), twist: twist * (1 - pr), swing, prone: pr, aimP: clamp(this.pitch + this.recoilP, -0.8, 0.8), reload, melee });
+    m.refreshHold({ sprint: this.sprintT * (1 - pr), kick: clamp(this.flashT / 0.06, 0, 1), twist: (twist + twistY) * (1 - pr), swing, prone: pr, aimP: clamp(this.pitch + this.recoilP, -0.8, 0.8), reload, melee });
   }
 }

@@ -184,6 +184,10 @@ Oyuncu ve botlar aynı `Soldier` sınıfıdır; fark, oyuncuda `Player`, botta `
 - Duruş: ayakta / çömel / yat, yana eğilme (Q/E), `eye()` eğilmeyi içerir.
 - Hasar: `takeDamage` → `die`. Kafa ×2.1, bacak ×0.8, menzil düşüşü `range:[tam, min]` ve `minMul`.
 
+**Duruş / animasyon (`Soldier.syncModel`):** yerinde dururken `stanceK=1` hazır duruş (ön ayak önde, dizler bükük, ayaklar açık, pelvis `idleLow` kadar alçak, gövde hafif öne eğik,
+nefes/ağırlık salınımı); hareket, çömelme, yatma ve havada kendiliğinden kalkar. Ayaklar `legs.*.foot` grubudur ve bacak açısından bağımsız yere paralel tutulur.
+Bacaklar (`root`) bakış yönüne gecikmeli döner (`bodyYaw`: yerinde ~1 sn, koşarken hızlı), gövde/silah anında bakış yönündedir. Hitbox ve ağ mantığı bundan etkilenmez.
+
 ### 6.2 Fizik ve arazi (`collision.js`)
 `World`: ızgara-hash'li AABB'ler, eksen eksen hareket + adım çıkma. Arazi varsa (`terrain`): zemin yüksekliği
 `heightAt`, dik yamaç ve derin su engeli, ışın testi araziyle de yapılır. `settle(s)` doğan savaşçıyı zemine/

@@ -235,11 +235,14 @@ export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0,
     knee.position.set(0, -0.45, 0);
     taperBox(hip, [0.18, 0.46, 0.21], c.pants, [0, -0.225, 0], null, [1, 1], [0.9, 0.9]);
     taperBox(knee, [0.16, 0.43, 0.19], c.pants, [0, -0.205, 0], null, [1, 1], [0.92, 0.92]);
-    box(knee, [0.17, 0.12, 0.2], c.boots, [0, -0.37, 0]);                             // bot gövdesi
-    box(knee, [0.17, 0.07, 0.3], c.boots, [0, -0.395, -0.045]);                      // bot burnu
+    const foot = new THREE.Group();                                                  // ayak: diz çerçevesinde bilek noktası; animasyon yere paralel tutar
+    foot.position.set(0, -0.37, 0);
+    knee.add(foot);
+    box(foot, [0.17, 0.12, 0.2], c.boots, [0, 0, 0]);                                 // bot gövdesi
+    box(foot, [0.17, 0.07, 0.3], c.boots, [0, -0.025, -0.045]);                      // bot burnu
     hip.add(knee);
     root.add(hip);
-    legs[s] = { hip, knee, thigh: hip };
+    legs[s] = { hip, knee, foot, thigh: hip };
   }
   // duruş (sol bacak ileride)
   legs.L.hip.rotation.x = 0.22;
