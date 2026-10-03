@@ -19,6 +19,9 @@ for (let k = 0; k < 4000 && !ok; k++) {
   if (!g.nav.isFree(x, z) || !g.nav.isFree(bx, bz) || !g.nav.isFree(x, z - 3)) continue;
   A.pos.set(x, g.world.heightAt(x, z), z); B.pos.set(bx, g.world.heightAt(bx, bz), bz); A.vel.set(0, 0, 0); B.vel.set(0, 0, 0);
   ok = g.world.clear(A.eye(), B.eye());
+  // önde 14 m, geride/yanda 2 m açık alan: mayın kurulumu, atılan gadget'lar ve patlamalar duvara takılmasın
+  const o = A.eye(new THREE.Vector3());
+  for (const [dx, dz, len] of [[0, -1, 14], [0, 1, 2], [1, 0, 2], [-1, 0, 2]]) if (ok && g.world.raycast(o, new THREE.Vector3(dx, 0, dz), len, {})) ok = false;
 }
 check(ok, 'oyuncular yerleştirildi');
 A.protT = B.protT = 0; step(130);
@@ -46,7 +49,14 @@ const mineDep = g.deployables.find((d) => d.type === 'claymore');
 check(!!mineDep, 'sunucuda claymore nesnesi var');
 // B mayının önüne yürüsün: A'nın 0.9 m önünde kurulu, B'yi mayının koni alanına koy
 step(100);                                                  // mayın kurulumu (arm) bitsin
-B.pos.set(mineDep.pos.x + mineDep.fx * 1.5, B.pos.y, mineDep.pos.z + mineDep.fz * 1.5); B.protT = 0; collect.length = 0;
+// hedefi mayının önünde, mayıdan görüş hattı AÇIK bir noktaya koy (rastgele yerleşimde duvar/engel çıkabilir)
+let placed = false;
+for (const dist of [1.5, 1.2, 1.8, 1.0, 2.2]) {
+  const bx = mineDep.pos.x + mineDep.fx * dist, bz = mineDep.pos.z + mineDep.fz * dist;
+  B.pos.set(bx, mineDep.pos.y, bz); g.world.settle(B);
+  if (g.world.clear(mineDep.pos, B.center(new THREE.Vector3()))) { placed = true; break; }
+}
+B.protT = 0; collect.length = 0;
 run(30);
 r = collect.map((e) => e.e + (e.k ? ':' + e.k : ''));
 check(has(r, 'boom:x') && has(r, 'depx'), `mayın patladı ve kalktı: ${r.join(' ')}`);

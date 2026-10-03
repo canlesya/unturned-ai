@@ -318,6 +318,12 @@ export class Game {
     if (inp.fp) h.fireBuf = 0.15;
     h.fireBuf = Math.max(0, h.fireBuf - dt);
     s.rewindTick = Number.isFinite(inp.vt) ? inp.vt : null;
+    // 3. şahıs: kameranın gözden ofseti. Yalnızca odada izinliyse, ≤ 4,5 m ve göz→kamera arasında duvar yoksa kabul edilir; aksi halde atış gözden.
+    s.shotOff = null;
+    if (this.thirdAllowed && Array.isArray(inp.co)) {
+      const o = new THREE.Vector3(inp.co[0], inp.co[1], inp.co[2]);
+      if (o.length() <= 4.5) { const e = s.eye(), to = e.clone().add(o); if (this.world.clear(e, to)) s.shotOff = o; }
+    }
     const st = s.stat;
     if (st.kind === 'melee') { if (inp.fh || h.fireBuf > 0) { if (s.tryFire()) h.fireBuf = 0; } }
     else if (s.fireAuto) { if (inp.fh) s.tryFire(); }
@@ -829,10 +835,24 @@ export class Game {
     return null;
   }
 
-  shootRay(shooter, origin, dir, st, muzzle) {
+  shootRay(shooter, origin, dir, st, muzzle, camO = null) {
     const maxT = st.range ? st.range[1] * 2.2 : 300;
     // sunucu: insanın atışı, istemcinin gördüğü ana geri sarılarak hesaplanır (lag compensation)
     const restore = shooter.rewindTick != null ? this.rewind(shooter, shooter.rewindTick) : null;
+    if (camO) {
+      // 3. şahıs iki aşamalı atış: (1) kamera ışını neye çarpıyor (duvar ya da düşman) → nişan noktası P; (2) mermi GÖZDEN P'ye gider
+      // ve gerçek yolundaki ilk engelde durur. Kameranın köşeden gördüğü yere duvarın arkasından ateş edilemez.
+      let tc = maxT;
+      const wc = this.world.raycast(camO, dir, maxT, (this._wc ||= {}));
+      if (wc) tc = wc.t;
+      for (const e of this.soldiers) {
+        if (e === shooter || !e.alive || e.team === shooter.team) continue;
+        const h = this.hitSoldier(e, camO, dir, tc);
+        if (h && h.t < tc) tc = h.t;
+      }
+      const nd = camO.clone().addScaledVector(dir, tc).sub(origin).normalize();
+      if (nd.dot(dir) > 0.9) dir = nd;                                    // ~25°'den fazla sapma (çok yakın hedef) → gözden düz (kamera hilesi için tavan)
+    }
     const wh = this.world.raycast(origin, dir, maxT, (this._wh ||= {}));
     const tw = wh ? wh.t : Infinity;
     let bestE = null, bestT = Infinity, bestZ = null;

@@ -358,9 +358,9 @@ export class Player {
     des.y = Math.max(des.y, g.world.heightAt(des.x, des.z) + 0.3);              // yere gömülme
     if (!this._cs) this._cs = des.clone(); else this._cs.lerp(des, 1 - Math.exp(-28 * dt));
     cam.position.copy(this._cs);
+    s.shotOff = (s.shotOff || (s.shotOff = new THREE.Vector3())).subVectors(cam.position, s.eye(v.q));
     // kamera duvar dibinde göze yapışırsa kendi kafan görüşü kapatmasın: gövdeyi gizle, 1. şahıs silahını göster (histerezis)
-    const cd = cam.position.distanceTo(s.eye(v.q));
-    this.bodyVisible = T > 0.3 && cd > (this.bodyVisible ? 0.65 : 0.85);
+    this.bodyVisible = T > 0.3 && s.shotOff.length() > (this.bodyVisible ? 0.65 : 0.85);
   }
 
   // ── T tekerleği: silahın uygun nişangâhları (ileride silah özelleştirmeleri de buraya eklenir) ──
@@ -495,10 +495,10 @@ export class Player {
         s.yaw + (Math.random() - 0.5) * sh * 0.06,
         -s.leanT * 0.2 + this.vm.camRoll + (Math.random() - 0.5) * sh * 0.03,
       );
-      if (this.thirdT > 0.002) this.thirdCamera(dt, this.thirdT); else { this._cs = null; this.bodyVisible = false; }
+      if (this.thirdT > 0.002) this.thirdCamera(dt, this.thirdT); else { this._cs = null; s.shotOff = null; this.bodyVisible = false; }
       this.camPos.copy(cam.position);
     } else {
-      this._cs = null; this.bodyVisible = false;
+      s.shotOff = null; this._cs = null; this.bodyVisible = false;
       this.deathCamT += dt;
       const t = Math.min(1, this.deathCamT * 2.5);
       cam.position.set(this.camPos.x, Math.max(0.35, this.camPos.y - t * 1.1), this.camPos.z);

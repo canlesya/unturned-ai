@@ -7,6 +7,7 @@
 //   { t:'in', q, f, r, l, s, j, a, yw, pt, c, p, u }  girdi (her sim adımında bir tane)
 //        q: sıra no · f/r: ileri/sağ (-1..1) · l: yana eğilme · s: koşma · j: zıpla · a: nişan
 //        yw/pt: bakış (rad) · c/p/u: çömel/yat/kalk tuşuna basıldı (kenar olayı)
+//        co: [x,y,z] 3. şahıs kamerada kameranın gözden ofseti (nişan noktası; mermi yine gözden çıkar; odada izinliyse)
 //        w: seçili silah · fh: ateş basılı · fp: ateşe yeni basıldı · rl: şarjör · fm: atış modu · o: nişangâh · vt: görülen sunucu adımı (lag compensation)
 // Sunucu → istemci
 //   { t:'welcome', id, room, cfg, roster, st }        id = senin savaşçı numaran
