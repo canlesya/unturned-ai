@@ -1,6 +1,7 @@
 import { buildKasaba } from './kasaba.js';
 import { buildVadi } from './vadi.js';
 import { buildUs } from './us.js';
+import { buildDev } from './dev.js';
 
 // Harita kaydı. Her harita build() ile şunu döndürür:
 // { id, name, group, colliders, bounds, spawns:{blue,red}, objectives:[{id,name,x,z,r,core?}], roads?, terrain?, water?, env? }
@@ -21,5 +22,10 @@ MAPS.us = {
   id: 'us', name: 'Askeri Üs', tag: 'Büyük · katmanlı yakın mesafe', thumb: '/img/us.jpg',
   desc: 'Duvarlı askeri üs: 3 katlı komuta binası, iki hangar, radar kulesi, tüneller, bunkerler ve konteyner labirenti. Beş kapılı kamplar, her hedefe birden fazla rota.',
   build: () => buildUs(),
+};
+MAPS.dev = {
+  id: 'dev', name: 'Geliştirici Atölyesi', tag: 'Test · tüm modeller', thumb: '/img/dev.jpg', dev: true,
+  desc: 'Tüm araçlar, silahlar ve gadgetlar, binalar, duvar-merdiven-siper ve askeri yapılar etiketli sergi şeritlerinde. Rastgele harita seçimine girmez.',
+  build: () => buildDev(),
 };
 export const DEFAULT_MAP = 'kasaba';

@@ -361,7 +361,7 @@ export function showMenu(onStart, onOnline) {
   // ───── olaylar ─────
   function launch(randomize = false) {
     const pick = (v, list) => (v === 'random' ? rnd(list) : v);
-    const map = randomize ? rnd(Object.keys(MAPS)) : pick(p.map, Object.keys(MAPS));
+    const map = randomize ? rnd(Object.keys(MAPS).filter((k) => !MAPS[k].dev)) : pick(p.map, Object.keys(MAPS).filter((k) => !MAPS[k].dev));
     const tod = randomize ? rnd(['day', 'sunset', 'night']) : pick(p.tod, ['day', 'sunset', 'night']);
     const weather = randomize ? rnd(['clear', 'clear', 'rain', 'fog']) : pick(p.weather, ['clear', 'rain', 'fog']);
     const perTeam = randomize ? rnd([4, 6, 8, 10, 12, 16]) : p.perTeam;

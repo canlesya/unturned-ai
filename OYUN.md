@@ -541,3 +541,7 @@ Tarayıcıda iki sekme: `/?online=new&name=Ali&per=3` sonra `/?online=KOD&name=V
 - **Otomatik yerleşim:** Kasaba ve Üs'te `b.autoPlace = true`; araçlar ertelenir, `b.flushVehicles()` çakışan aracı en yakın boş yere (≤3,2 m) kaydırır, yer yoksa koymaz. Denetim: `node scripts/vehaudit.mjs` (araç↔araç ve araç↔bina/engel, 0 çakışma beklenir).
 - **Silahlar:** AK-47, M4A1, MP5, Glock, Pompalı, M24, M249, RPG-7 ek ayrıntılarla (atım penceresi, seçici, perçin, tırtıl, askı halkası, şarjör kaburgası). Ayrıntılar nişan hattının üstüne eklenmez (`adsaudit` hâlâ 0).
 - **Karakter:** parmaklar/başparmak, dirsek koruyucu, omuz yaması, omuz başları, plaka cebi + MOLLE, telsiz, kemer cepleri, uyluk cebi, taban/bağcık/manşetli botlar, saldırı sınıfında kulaklık-mikrofon + gece görüş tutucu.
+
+### 12.11 Geliştirici Atölyesi haritası (`dev`)
+Menüde Özel Oyun/Çevrimiçi harita kartlarında "Geliştirici Atölyesi" (rastgele seçime girmez). URL: `?autostart=3v3&map=dev`. `src/maps/dev.js`: z −46 araçlar (11), z −27/−19 tüm silah ve gadgetlar kaide üstünde (2× büyük, etiketli), z +5 binalar (ev, ofis, garaj, dükkân, ambar, depo, kilise, benzinlik, silo), z +27 duvar açıklıkları / merdivenler / siperler / konteyner / hendek, z +39 küçük yapılar ve ağaçlar, z +52 askeri yapılar (hangar, radar, kule, bunker, helikopter, uçak). Etiketler yalnızca tarayıcıda çizilir.
+Araba camları kenarlara oturan eğik cam + A/C sütunu; çamurluk kemeri tekerlek halkası (`wheel(..., { wall })`).
