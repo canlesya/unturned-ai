@@ -30,7 +30,9 @@ class Heap {
 }
 
 export class NavGrid {
-  constructor(colliders, bounds, terrain = null) {
+  // layered: harita 'plat' etiketli yürünebilir platform/basamak/rampa içerir → hücre başına zemin yüksekliği (floor) tutulur;
+  // yol bulma yalnızca |Δzemin| ≤ maxStep olan komşulara geçer (insan 0.6 = basamak, zombi 1.2 = sıçrayarak çıkabilir)
+  constructor(colliders, bounds, terrain = null, layered = false) {
     this.minX = bounds.minX - 1; this.minZ = bounds.minZ - 1;
     this.w = Math.ceil((bounds.maxX - bounds.minX + 2) / CELL);
     this.h = Math.ceil((bounds.maxZ - bounds.minZ + 2) / CELL);
@@ -49,7 +51,28 @@ export class NavGrid {
       const [z0, z1] = cellRange(c.min[2] + INFL, c.max[2] - INFL, this.minZ, this.h);
       for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) this.blocked[z * this.w + x] = 0;
     }
-    for (const c of colliders) {
+    if (layered) {
+      this.floor = new Float32Array(this.w * this.h);
+      if (terrain) for (let z = 0; z < this.h; z++) for (let x = 0; x < this.w; x++) this.floor[z * this.w + x] = terrain.heightAt(this.minX + (x + 0.5) * CELL, this.minZ + (z + 0.5) * CELL);
+      for (const c of colliders) {
+        if (c.tag !== 'plat') continue;
+        let [x0, x1] = cellRange(c.min[0] + 0.02, c.max[0] - 0.02, this.minX, this.w);
+        let [z0, z1] = cellRange(c.min[2] + 0.02, c.max[2] - 0.02, this.minZ, this.h);
+        if (x0 > x1) x0 = x1 = Math.max(0, Math.min(this.w - 1, Math.floor(((c.min[0] + c.max[0]) / 2 - this.minX) / CELL)));        // hücreden dar basamak (run < 0.5): en az 1 hücre
+        if (z0 > z1) z0 = z1 = Math.max(0, Math.min(this.h - 1, Math.floor(((c.min[2] + c.max[2]) / 2 - this.minZ) / CELL)));
+        for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) { const i = z * this.w + x; if (c.max[1] > this.floor[i]) this.floor[i] = c.max[1]; this.blocked[i] = 0; }
+      }
+      for (const c of colliders) {                                         // zemin yüksekliğine göre engeller (platform üstündeki duvar/korkuluk da engel)
+        if (c.tag === 'deck' || c.tag === 'plat') continue;
+        const [x0, x1] = cellRange(c.min[0] - INFL, c.max[0] + INFL, this.minX, this.w);
+        const [z0, z1] = cellRange(c.min[2] - INFL, c.max[2] + INFL, this.minZ, this.h);
+        for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) {
+          const i = z * this.w + x, f = this.floor[i];
+          if (c.min[1] - f > 1.6 || c.max[1] - f < 0.45) continue;
+          this.blocked[i] = 1;
+        }
+      }
+    } else for (const c of colliders) {
       if (c.tag === 'deck') continue;
       const gy = c.tag === 'rail' ? c.min[1] : terrain ? terrain.heightAt((c.min[0] + c.max[0]) / 2, (c.min[2] + c.max[2]) / 2) : 0;
       if (c.min[1] - gy > 1.6 || c.max[1] - gy < 0.45) continue;
@@ -67,6 +90,7 @@ export class NavGrid {
     this.stamp = 0;
   }
 
+  floorAt(x, z) { return this.floor ? this.floor[this.idx(x, z)] : 0; }
   idx(x, z) { return Math.floor((z - this.minZ) / CELL) * this.w + Math.floor((x - this.minX) / CELL); }
   cx(i) { return this.minX + ((i % this.w) + 0.5) * CELL; }
   cz(i) { return this.minZ + (Math.floor(i / this.w) + 0.5) * CELL; }
@@ -83,6 +107,7 @@ export class NavGrid {
         if (nx < 0 || nz < 0 || nx >= this.w || nz >= this.h) continue;
         const j = nz * this.w + nx;
         if (seen[j] || this.blocked[j]) continue;
+        if (this.floor && Math.abs(this.floor[j] - this.floor[i]) > 0.6) continue;
         seen[j] = 1; q[qt++] = j;
       }
     }
@@ -127,13 +152,18 @@ export class NavGrid {
 
   // Izgara üzerinde düz görüş (Bresenham)
   los(i0, i1) {
+    if (this._ms === undefined) this._ms = 0.6;
     let x0 = i0 % this.w, z0 = Math.floor(i0 / this.w);
     const x1 = i1 % this.w, z1 = Math.floor(i1 / this.w);
     const dx = Math.abs(x1 - x0), dz = Math.abs(z1 - z0);
     const sx = x0 < x1 ? 1 : -1, sz = z0 < z1 ? 1 : -1;
     let err = dx - dz;
+    let prev = i0;
     for (;;) {
-      if (this.blocked[z0 * this.w + x0]) return false;
+      const ci = z0 * this.w + x0;
+      if (this.blocked[ci]) return false;
+      if (this.floor && Math.abs(this.floor[ci] - this.floor[prev]) > this._ms) return false;       // basamak/rampa kenarını kesme
+      prev = ci;
       if (x0 === x1 && z0 === z1) return true;
       const e2 = 2 * err;
       if (e2 > -dz) { err -= dz; x0 += sx; }
@@ -142,7 +172,8 @@ export class NavGrid {
   }
 
   // Yol: [Vector3...] ya da null
-  findPath(sx, sz, gx, gz) {
+  findPath(sx, sz, gx, gz, maxStep = 0.6) {
+    this._ms = maxStep;
     const s = this.nearestFree(sx, sz), g = this.nearestFree(gx, gz);
     if (s < 0 || g < 0) return null;
     if (s === g) return [new THREE.Vector3(this.cx(g), 0, this.cz(g))];
@@ -169,6 +200,7 @@ export class NavGrid {
         if (nx < 0 || nz < 0 || nx >= W || nz >= this.h) continue;
         const ni = nz * W + nx;
         if (this.blocked[ni]) continue;
+        if (this.floor && Math.abs(this.floor[ni] - this.floor[cur]) > maxStep) continue;
         if (dx && dz && (this.blocked[cz * W + nx] || this.blocked[nz * W + cx])) continue;
         const ng = this.g[cur] + (dx && dz ? 1.4142 : 1);
         if (this.mark[ni] !== st || ng < this.g[ni]) {

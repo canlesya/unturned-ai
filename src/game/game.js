@@ -97,7 +97,7 @@ export class Game {
       if (!c) { c = this.mapDef.build(); cache.set(opts.map, c); }
       this.map = { ...c, spawns: { ...c.spawns }, group: new THREE.Group() };
     } else this.map = this.mapDef.build();
-    this.tod = opts.tod || 'day';
+    this.tod = this.map.forceTod || opts.tod || 'day';
     if (headless) {
       this.night = this.tod === 'night';
       this.sun = null;
@@ -114,7 +114,7 @@ export class Game {
     }
     this.terrain = this.map.terrain || null;
     this.world = new World(this.map.colliders, this.map.bounds, this.terrain);
-    this.nav = new NavGrid(this.map.colliders, this.map.bounds, this.terrain);
+    this.nav = new NavGrid(this.map.colliders, this.map.bounds, this.terrain, !!this.map.layered);
 
     // opts.match: özel maç ayarları; opts.mode: '3v3' | '10v10' hazır ayarı (test/uyumluluk)
     this.mode = makeMatch(opts.match || PRESETS[opts.mode] || {});
@@ -287,7 +287,7 @@ export class Game {
     for (let i = 0; i < k; i++) this.makeZombie(pool[i], true);
     // zombi doğma havuzu: haritanın her yerinden ulaşılabilir, aralıklı noktalar (insanlara yakın ama ezici değil)
     const base = this.map.spawns.blue[0];
-    this.infPool = this.nav.spreadPoints(this.nav.reachable(base.x, base.z), { spacing: 16, max: 120 }).map((p) => ({ ...p, ry: 0 }));
+    this.infPool = this.nav.spreadPoints(this.nav.reachable(base.x, base.z), { spacing: 16, max: 120 }).filter((p) => !this.nav.floor || this.nav.floorAt(p.x, p.z) < 0.3).map((p) => ({ ...p, ry: 0 }));
     if (this.infPool.length < 12) this.infPool = [...this.map.spawns.blue, ...this.map.spawns.red];
   }
 

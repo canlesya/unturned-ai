@@ -2,6 +2,7 @@ import { buildKasaba } from './kasaba.js';
 import { buildVadi } from './vadi.js';
 import { buildUs } from './us.js';
 import { buildDev } from './dev.js';
+import { buildRiverside } from './riverside.js';
 
 // Harita kaydı. Her harita build() ile şunu döndürür:
 // { id, name, group, colliders, bounds, spawns:{blue,red}, objectives:[{id,name,x,z,r,core?}], roads?, terrain?, water?, env? }
@@ -28,4 +29,11 @@ MAPS.dev = {
   desc: 'Tüm araçlar, silahlar ve gadgetlar, binalar, duvar-merdiven-siper ve askeri yapılar etiketli sergi şeritlerinde. Rastgele harita seçimine girmez.',
   build: () => buildDev(),
 };
+MAPS.riverside = {
+  id: 'riverside', name: 'Riverside', tag: 'Enfekte · gece · yüksek noktalar', thumb: '/img/riverside.jpg', only: ['inf'],
+  desc: 'Enfekte moduna özel gece haritası: harap hastane mahallesi. İnsanlar hastane terasına, depo çatısına, konteyner kulesine ve iskeleye çıkıp yüksekten savunur; zombiler koşup sıçrayarak peşlerinden gelir. 1-1.3 m platformlara zombi sıçrar, 2.6 m üstü yalnızca merdivenden.',
+  build: () => buildRiverside(),
+};
 export const DEFAULT_MAP = 'kasaba';
+// Bu moda uygun haritalar (only: yalnızca o modlarda listelenir; dev hiçbirinde)
+export const mapsFor = (type) => Object.values(MAPS).filter((m) => !m.dev && (!m.only || m.only.includes(type)));

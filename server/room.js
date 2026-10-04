@@ -12,11 +12,12 @@ const num = (v, lo, hi, d = 0) => (Number.isFinite(v) ? Math.max(lo, Math.min(hi
 
 export function sanitizeCfg(c = {}) {
   const pick = (v, list, d) => (list.includes(v) ? v : d);
+  const type0 = pick(c.type, ['conquest', 'tdm', 'dm', 'inf'], 'conquest');
   return {
-    map: pick(c.map, ['kasaba', 'vadi', 'us'], 'kasaba'),
+    map: pick(c.map, type0 === 'inf' ? ['kasaba', 'vadi', 'us', 'riverside'] : ['kasaba', 'vadi', 'us'], 'kasaba'),
     tod: pick(c.tod, ['day', 'sunset', 'night'], 'day'),
     weather: pick(c.weather, ['clear', 'rain', 'fog'], 'clear'),
-    type: pick(c.type, ['conquest', 'tdm', 'dm', 'inf'], 'conquest'),
+    type: type0,
     diff: pick(c.diff, ['easy', 'normal', 'hard'], 'normal'),
     perTeam: c.type === 'dm' ? Math.round(num(c.perTeam, 2, 10, 10)) : c.type === 'inf' ? Math.round(num(c.perTeam, 4, 24, 12)) : Math.round(num(c.perTeam, 1, MAX_PER_TEAM, 5)),     // ölüm maçında ve enfektede perTeam = toplam oyuncu
     tickets: Number.isFinite(c.tickets) && c.tickets > 0 ? Math.round(num(c.tickets, 20, 1000, 200)) : 0,   // 0 = boyuta göre otomatik

@@ -287,7 +287,7 @@ export class MapBuilder {
     for (let i = 0; i < steps; i++) {
       const top = (i + 1) * rise;
       const [cx, cz] = at(i * run + run / 2);
-      this.box(cx, base, cz, horiz ? run : width, top + (y0 - base), horiz ? width : run, color);
+      this.box(cx, base, cz, horiz ? run : width, top + (y0 - base), horiz ? width : run, color, opt.tag ? { tag: opt.tag } : undefined);
     }
     if (opt.posts) {                                                                 // havada duran merdivenin altına yere inen destek direkleri
       for (const i of [Math.round(steps * 0.3), steps - 1]) {                      // iki direk çifti: orta + yüksek uç

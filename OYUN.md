@@ -647,3 +647,10 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 - **Zıplama:** `Soldier.jumpMul` (Yürüyen/Hayalet/Işınlanan 1.18, Koşucu 1.28, Dev 1.1, Boss 1.35) → insanın 1.2–1.8 katı yükseklik; `input.js` ortak (tahmin tutarlı). Zombi botlar koşarken ara sıra sıçrar.
 - **Pençe:** demir kaplı pençe eldiveni (perçinli el sırtı plakası, yumruk çubuğu, 4 kalın kemik pençe + kanlı uçlar + başparmak mahmuzu), iki elde.
 - Test: `scripts/infhit.mjs` (vuruş kutusu + zıplama).
+
+### 12.28 Riverside — Enfekte'ye özel gece haritası + çok katmanlı navigasyon
+- **Harita:** `src/maps/riverside.js` (144 × 124 m, gece zorunlu `forceTod`, yalnızca Enfekte modunda listelenir: `MAPS.riverside.only`). Harap hastane mahallesi: üç katlı hastane + tabela ("RIVERSIDE GENERAL HOSPITAL", ACİL), ıslak/parlak yollar, su birikintileri, lamba direkleri (ışık havuzları), yanan variller, hurda araçlar, sarmaşık, "NO SAFE PLACE" yazısı.
+- **Yüksek savunma noktaları (`map.perches`, 7 adet):** hastane terası 1.5 m · depo çatısı 3.4 m (tek uzun merdiven = boğaz noktası) · konteyner kulesi 1.3 + 2.6 m · otogar 1.1 m · meydan sahnesi 1.0 m · iskele kulesi 3.8 m. Platformlar `plat` etiketli **katı bloklardır**; zombi 1.0–1.3 m'ye sıçrayarak çıkar, 2.6 m ve üstü yalnızca merdivenden.
+- **Navigasyon:** `NavGrid(..., layered)` — `plat` etiketli kutular hücre başına zemin yüksekliği (`floor`) verir; yol bulma yalnızca |Δzemin| ≤ `maxStep` komşulara geçer (insan 0.6 = basamak, zombi 1.15 = sıçrayarak). `Nav.floorAt()`. Diğer haritalar etkilenmez.
+- **Bot davranışı:** insan botlar `huddle()` ile en uygun perch'i seçer (yükseklik, doluluk `cap`, zombi baskısı), merdivenden çıkar, yukarıda geri çekilmez ve yüksekten ateş eder; zombi botlar yüksekteki hedefe rampa/basamaktan çıkar, önündeki ≥0.5 m basamakta ve hedef platformdaysa sıçrayarak vurur. Zombi doğma havuzu yalnızca zemin kattan.
+- **Sunucu:** `sanitizeCfg` Riverside'ı yalnızca `inf` türünde kabul eder. Test: `scripts/riversideshots.mjs`, `riversidebots.mjs`, `riversidethumb.mjs`, `infbotcheck.mjs`, `infmatrix.mjs` (`MAPS=riverside`).

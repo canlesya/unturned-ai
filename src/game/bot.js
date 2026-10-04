@@ -37,7 +37,7 @@ export class BotBrain {
     this.gadgetT = rand(6, 14);
     this.aimFrac = rand(0.55, 0.82);
     this.holdT = 0;
-    this.via = null; this.perching = false;
+    this.via = null; this.perching = false; this.perch = null;
   }
 
   // flaşbang yedi: soldier.blind() çağırır; hedef unutulur
@@ -119,16 +119,40 @@ export class BotBrain {
     return Math.min(n, 8);
   }
 
-  // Enfekte (insan botu): zombilerden uzak, diğer insanlara yakın ama hep hareket halinde güvenli noktalar seçer
-  // (doğma noktasında beklemez; zombi/boss yaklaştıkça karşı yöne açılır, grup dağılmaz).
+  // Enfekte (insan botu): haritada yüksek savunma noktaları (map.perches: platform, konteyner kulesi, çatı...) varsa oraya çıkıp yüksekten savunur;
+  // yoksa zombilerden uzak, diğer insanlara yakın noktalara hareket eder. Doluluk (cap) ve zombi baskısı yer seçimini etkiler.
   huddle() {
     const g = this.game, s = this.s;
     const mates = g.soldiers.filter((e) => e !== s && e.alive && e.team === s.team);
     const zs = g.soldiers.filter((e) => e.alive && e.team !== s.team);
+    this.perching = false;
+    const P = g.map.perches;
+    if (P && P.length) {
+      let best = null, bs = -1e9;
+      for (const p of P) {
+        const occ = mates.filter((m) => Math.hypot(m.pos.x - p.x, m.pos.z - p.z) < p.r && Math.abs(m.pos.y - p.y) < 1.8).length;
+        let zn = 0;
+        for (const e of zs) if (Math.hypot(e.pos.x - p.x, e.pos.z - p.z) < p.r + 7) zn += e.boss ? 2 : 1;
+        const sc = p.y * 2 + (occ >= (p.cap || 4) ? -30 : (p.cap || 4) - occ) * 3 - zn * 3.5 + (this.perch === p ? 7 : 0) - Math.hypot(p.x - s.pos.x, p.z - s.pos.z) * 0.05 + Math.random() * 6;
+        if (sc > bs) { bs = sc; best = p; }
+      }
+      if (best) {
+        this.perch = best;
+        for (let k = 0; k < 10; k++) {
+          const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * best.r * 0.8;
+          const x = best.x + Math.cos(a) * r, z = best.z + Math.sin(a) * r;
+          if (!g.nav.isFree(x, z) || Math.abs(g.nav.floorAt(x, z) - best.y) > 0.4) continue;
+          this.setGoal(x, z, rand(18, 32));
+          return;
+        }
+        this.setGoal(best.x, best.z, rand(18, 32));
+        return;
+      }
+    }
     let cx = s.pos.x, cz = s.pos.z;
     if (mates.length) { cx = 0; cz = 0; for (const m of mates) { cx += m.pos.x; cz += m.pos.z; } cx /= mates.length; cz /= mates.length; }
     const b = g.map.bounds;
-    let best = null, bs = -1e9;
+    let bestG = null, bsg = -1e9;
     for (let k = 0; k < 14; k++) {
       const a = Math.random() * Math.PI * 2, r = 18 + Math.random() * 45;
       const x = clamp(s.pos.x + Math.cos(a) * r, b.minX + 6, b.maxX - 6), z = clamp(s.pos.z + Math.sin(a) * r, b.minZ + 6, b.maxZ - 6);
@@ -138,10 +162,9 @@ export class BotBrain {
       let zd = 1e9;
       for (const e of zs) zd = Math.min(zd, Math.hypot(e.pos.x - px, e.pos.z - pz));
       const sc = Math.min(zd, 90) * 0.9 - Math.hypot(px - cx, pz - cz) * 0.35 + Math.random() * 14;       // zombiden uzak + gruba yakın
-      if (sc > bs) { bs = sc; best = { x: px, z: pz }; }
+      if (sc > bsg) { bsg = sc; bestG = { x: px, z: pz }; }
     }
-    this.perching = false;
-    if (best) this.setGoal(best.x, best.z, rand(10, 20));
+    if (bestG) this.setGoal(bestG.x, bestG.z, rand(10, 20));
     else this.roam();
   }
 
@@ -222,7 +245,8 @@ export class BotBrain {
       const eye = s.eye(tA), tc = tg.center(tC);
       const los = dist < 22 && g.losClear(eye, tc);
       const want = yawFromDir(dx, dz);
-      if (dist < 3.2 || los) {
+      const high = tg.pos.y - s.pos.y > 0.6;                          // hedef yüksekte (platform): düz koşma, rampa/basamaktan ya da sıçrayarak çık
+      if (dist < 3.2 || (los && !high)) {
         // yakın / görüş açık: doğrudan saldır
         s.yaw += clamp(angleDiff(s.yaw, want), -9 * dt, 9 * dt);
         s.pitch += clamp(Math.atan2(tc.y - eye.y, dist) - s.pitch, -6 * dt, 6 * dt);
@@ -231,11 +255,12 @@ export class BotBrain {
         this.path = null;
         this.useZAbility(dist, los, true);
         if (s.onGround && dist > 3 && dist < 14 && Math.random() < 0.012) { s.vel.y = JUMP_SPEED * s.jumpMul; s.onGround = false; }       // zombiler koşarken ara sıra yükseğe sıçrar
+        if (s.onGround && high && dist < 4) { s.vel.y = JUMP_SPEED * s.jumpMul; s.onGround = false; }                                       // platformdaki hedefe sıçrayarak vurur
       } else {
         this.repathT -= dt;
         if ((!this.path || this.repathT <= 0) && g.pathBudget > 0) {
           g.pathBudget--;
-          this.path = g.nav.findPath(s.pos.x, s.pos.z, tg.pos.x, tg.pos.z);
+          this.path = g.nav.findPath(s.pos.x, s.pos.z, tg.pos.x, tg.pos.z, 1.15);        // zombi 1.15 m basamağa kadar sıçrayarak çıkar
           this.repathT = rand(1.4, 2.6);
         }
         if (this.path && this.path.length) {
@@ -243,6 +268,7 @@ export class BotBrain {
           while (this.path.length > 1 && Math.hypot(wp.x - s.pos.x, wp.z - s.pos.z) < 0.9) { this.path.shift(); wp = this.path[0]; }
           const wd = Math.hypot(wp.x - s.pos.x, wp.z - s.pos.z);
           moveX = (wp.x - s.pos.x) / (wd + 1e-6); moveZ = (wp.z - s.pos.z) / (wd + 1e-6);
+          if (s.onGround && g.nav.floor && g.nav.floorAt(s.pos.x + moveX * 0.9, s.pos.z + moveZ * 0.9) - s.pos.y > 0.5) { s.vel.y = JUMP_SPEED * s.jumpMul; s.onGround = false; }      // önünde yüksek basamak: sıçra
           s.yaw += clamp(angleDiff(s.yaw, yawFromDir(moveX, moveZ)), -8 * dt, 8 * dt);
           s.pitch += (0 - s.pitch) * Math.min(1, dt * 4);
           this.useZAbility(dist, false, false);
@@ -369,7 +395,7 @@ export class BotBrain {
       this.holdBudget = (this.holdBudget ?? 6) - dt;
       const holdPos = holdRange > 0 && dist < holdRange && dist > 14 && this.holdBudget > 0;
       if (this.holdBudget < -4) this.holdBudget = rand(5, 9);
-      const kite = g.mode.infection && tg.def && tg.def.zombie;
+      const kite = g.mode.infection && tg.def && tg.def.zombie && !(g.map.perches && s.pos.y > 0.8);      // platformdaki insan geri çekilmez, yüksekten ateş eder
       if (kite) {                                           // zombiye karşı: yaklaşınca geri çekilerek ateş et, uzaktayken yerinde dur
         s.crouching = false;
         if (dist < (tg.boss ? INF_BOT.kiteBoss : INF_BOT.kite)) { moveX = -nx + (-nz) * this.strafeDir * 0.25; moveZ = -nz + nx * this.strafeDir * 0.25; speed *= INF_BOT.kiteSpeed; }

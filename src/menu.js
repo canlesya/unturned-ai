@@ -1,4 +1,4 @@
-import { MAPS, DEFAULT_MAP } from './maps/index.js';
+import { MAPS, DEFAULT_MAP, mapsFor } from './maps/index.js';
 import { CLASS_DEFS, WSTATS, DIFFICULTY, OPTICS, OPTIC_ORDER } from './game/stats.js';
 import { MATCH_TYPES, TODS_LIST, defaultTickets, defaultScoreLimit, DM_MAX, DM_KILLS, isTotalType as tot, totalMin as totMin, totalMax as totMax, INF_MAX } from './game/match.js';
 import { MENU_CSS } from './menuStyle.js';
@@ -147,7 +147,7 @@ export function showMenu(onStart, onOnline) {
   }
 
   function customHTML() {
-    const mapCards = Object.values(MAPS).map((m) => `<button class="mapc ${p.map === m.id ? 'on' : ''}" data-a="map" data-v="${m.id}"><img src="${m.thumb}" alt=""><div class="t"><b>${m.name}</b><small>${m.tag}</small></div></button>`).join('')
+    const mapCards = mapsFor(p.type).map((m) => `<button class="mapc ${p.map === m.id ? 'on' : ''}" data-a="map" data-v="${m.id}"><img src="${m.thumb}" alt=""><div class="t"><b>${m.name}</b><small>${m.tag}</small></div></button>`).join('')
       + `<button class="mapc rnd ${p.map === 'random' ? 'on' : ''}" data-a="map" data-v="random">🎲<div class="t"><b>Rastgele</b></div></button>`;
     const desc = p.map === 'random' ? 'Her maçta farklı bir harita seçilir.' : `<b>${MAPS[p.map].name}.</b> ${MAPS[p.map].desc}`;
     const warn = p.perTeam > 20 ? '<span class="warn">Çok oyunculu maçlar güçlü bilgisayar ister; takılırsa sayıyı azalt.</span>' : '';
@@ -219,7 +219,7 @@ export function showMenu(onStart, onOnline) {
   function ocreateHTML() {
     const c = oc();
     const chips = (k, list) => list.map(([v, l, sm]) => `<button class="chip ${c[k] === v ? 'on' : ''}" data-a="olset" data-k="${k}" data-v="${v}">${l}${sm ? `<small>${sm}</small>` : ''}</button>`).join('');
-    const maps = Object.values(MAPS).map((m) => `<button class="mapc ${c.map === m.id ? 'on' : ''}" data-a="olset" data-k="map" data-v="${m.id}"><img src="${m.thumb}" alt=""><div class="t"><b>${m.name}</b><small>${m.tag}</small></div></button>`).join('');
+    const maps = mapsFor(c.type).map((m) => `<button class="mapc ${c.map === m.id ? 'on' : ''}" data-a="olset" data-k="map" data-v="${m.id}"><img src="${m.thumb}" alt=""><div class="t"><b>${m.name}</b><small>${m.tag}</small></div></button>`).join('');
     const msg = ol.msg ? `<div class="olmsg ${ol.err ? 'err' : ''}">${ol.msg}</div>` : '';
     return `<div class="scroll">${msg}
       <div class="pan"><h3>Oda bilgileri</h3>
@@ -383,7 +383,8 @@ export function showMenu(onStart, onOnline) {
   // ───── olaylar ─────
   function launch(randomize = false) {
     const pick = (v, list) => (v === 'random' ? rnd(list) : v);
-    const map = randomize ? rnd(Object.keys(MAPS).filter((k) => !MAPS[k].dev)) : pick(p.map, Object.keys(MAPS).filter((k) => !MAPS[k].dev));
+    const okMaps = mapsFor(p.type).map((m) => m.id);
+    const map = randomize ? rnd(okMaps) : pick(p.map, okMaps);
     const tod = randomize ? rnd(['day', 'sunset', 'night']) : pick(p.tod, ['day', 'sunset', 'night']);
     const weather = randomize ? rnd(['clear', 'clear', 'rain', 'fog']) : pick(p.weather, ['clear', 'rain', 'fog']);
     const perTeam = randomize ? rnd([4, 6, 8, 10, 12, 16]) : p.perTeam;
@@ -458,7 +459,7 @@ export function showMenu(onStart, onOnline) {
       case 'tod': p.tod = v; break;
       case 'weather': p.weather = v; break;
       case 'third': p.third = v === '1'; break;
-      case 'type': p.type = v; if (tot(v)) p.perTeam = Math.max(lo(v), Math.min(hi(v), p.perTeam)); break;
+      case 'type': p.type = v; if (tot(v)) p.perTeam = Math.max(lo(v), Math.min(hi(v), p.perTeam)); if (MAPS[p.map]?.only && !MAPS[p.map].only.includes(v)) p.map = DEFAULT_MAP; break;
       case 'team': p.team = v; break;
       case 'diff': p.diff = v; break;
       case 'size': p.perTeam = +v; break;
@@ -470,6 +471,7 @@ export function showMenu(onStart, onOnline) {
         const k = b.dataset.k, c = oc();
         c[k] = v === 'true' ? true : v === 'false' ? false : (k === 'perTeam' || k === 'tickets' || k === 'time') ? +v : v;
         if (k === 'type' && tot(v)) c.perTeam = Math.max(lo(v), Math.min(hi(v), c.perTeam));
+        if (k === 'type' && MAPS[c.map]?.only && !MAPS[c.map].only.includes(v)) c.map = DEFAULT_MAP;
         break;
       }
       case 'rjoin': {
