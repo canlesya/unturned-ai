@@ -52,7 +52,7 @@ function beginOnline({ net, welcome, name, pw }) {
     optic: q.get('optic') || p.optic || 'reddot', team: me.team, cls, playerName: name,
     keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs,
     loadout, loadouts: p.loadouts || {}, onExit: () => { location.href = location.pathname; }, onRestart: () => location.reload(),
-    settings: { sens: p.sens, fov: p.fov, volume: p.volume ?? 0.6, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, shadows: q.get('shadows') !== '0' && p.shadows !== false, adaptive: p.adaptive !== false, pixelRatio: +(q.get('pr') || p.quality || 1) },
+    settings: { sens: p.sens, fov: p.fov, volume: p.volume ?? 0.6, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, shadows: q.get('shadows') !== '0' && p.shadows !== false, adaptive: p.adaptive !== false, fullscreen: p.fullscreen !== false, pixelRatio: +(q.get('pr') || p.quality || 1) },
   });
 }
 

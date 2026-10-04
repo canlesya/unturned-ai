@@ -233,8 +233,9 @@ export class Game {
     });
     document.addEventListener('pointerlockchange', this._plc = () => {
       const locked = document.pointerLockElement === this.canvas;
-      if (locked) { this.lockFails = 0; this.player.skipMove = 2; }                 // kilit anındaki ilk fare olayı genelde zıplar: atla
+      if (locked) { this.lockFails = 0; this.player.skipMove = 2; this.lockKeys(true); }                 // kilit anındaki ilk fare olayı genelde zıplar: atla
       else {
+        this.lockKeys(false);
         this._unlockAt = performance.now();
         this.player.fireHeld = false; this.playerSoldier.ads = false;                // kilit kopunca takılı ateş/nişan kalmasın
       }
@@ -243,6 +244,7 @@ export class Game {
       this.simulate = this.player.locked || this.ended;
     });
     document.addEventListener('pointerlockerror', this._ple = () => this.onLockError());
+    addEventListener('beforeunload', this._bu = (e) => { if (this.running && !this.ended && !this.opts.nolock) { e.preventDefault(); e.returnValue = ''; } });      // yanlışlıkla Ctrl+W / sekme kapatma: onay sorar
     addEventListener('resize', this._rs = () => {
       this.camera.aspect = innerWidth / innerHeight; this.camera.updateProjectionMatrix();
       this.renderer.setSize(innerWidth, innerHeight, false);
@@ -467,6 +469,15 @@ export class Game {
   // ───── olaylar ─────
   on(n, fn) { (this.listeners.get(n) || this.listeners.set(n, []).get(n)).push(fn); }
   emit(n, p) { const a = this.listeners.get(n); if (a) for (const f of a) f(p); }
+
+  // Tam ekranda klavye kilidi: Ctrl+W / Ctrl+T gibi tarayıcı kısayolları yakalanır, oyun sırasında sekme kapanmaz (Esc serbest kalır)
+  lockKeys(on) {
+    const kb = navigator.keyboard;
+    if (!on) { try { kb?.unlock(); } catch (e) { /* desteklenmiyor */ } return; }
+    if (this.settings.fullscreen !== false && !document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
+    const keys = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'KeyR', 'KeyT', 'KeyN', 'KeyC', 'KeyF', 'KeyG', 'KeyV', 'KeyX', 'KeyZ', 'KeyB', 'KeyH', 'ControlLeft', 'ControlRight', 'AltLeft', 'AltRight', 'ShiftLeft', 'ShiftRight', 'Space', 'Tab', 'F5'];
+    try { kb?.lock(keys)?.catch?.(() => {}); } catch (e) { /* desteklenmiyor */ }
+  }
 
   requestLock() {
     this.sfx.init();
@@ -1446,6 +1457,7 @@ export class Game {
     this.weather?.dispose();
     document.exitPointerLock?.();
     document.removeEventListener('pointerlockchange', this._plc);
+    removeEventListener('beforeunload', this._bu); this.lockKeys(false); if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
     document.removeEventListener('keydown', this._kd);
     document.removeEventListener('pointerlockerror', this._ple);
     clearTimeout(this._lockT);
