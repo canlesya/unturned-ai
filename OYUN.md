@@ -577,10 +577,12 @@ Otomobil (ve hurdası) camsızdır (kırık cam mantığı): ince sütunlar, tav
 - **İçinden geçilen hacim:** `scripts/probes/passthru.mjs` (yavaş; `--full` ile).
 - Kilise nef çatısı artık kule duvarında biter (kule içine girmez).
 
-**Koşarken / zıplarken ateş:** serbest ama isabetsiz. `Soldier.spreadNow`: koşarken (Shift, `firedSprinting` ya da hız > 5,8 m/s) +0,045 rad (≈2,6°: 20 m'de ~0,9 m, 50 m'de ~2,3 m), havadayken +0,035 rad; nişan alırken (ADS) etkisi azalır. Sunucuda da aynı kod çalışır. Test: `node scripts/spreadtest.mjs`.
+**Koşarken / zıplarken ateş:** serbest ama isabetsiz. `Soldier.spreadNow`: koşarken (Shift, `firedSprinting` ya da hız > 5,8 m/s) +0,085 rad (≈4,9°: 20 m'de ~1,7 m, 50 m'de ~4,3 m), havadayken +0,075 rad (koşarak zıplayınca ikisi toplanır ≈ 9°); nişan alırken (ADS) etkisi azalır. Sunucuda da aynı kod çalışır. Test: `node scripts/spreadtest.mjs`.
 
 ### 12.16 Harita yerleşim düzeltmeleri
 - **Düzenleme denetimleri:** `scripts/mapobj.mjs [harita] [yatay] [dikey]` (her çarpışma kutusu, onu üreten DÜZEN çağrısına — `vadi.js:satır:sütun` gibi — bağlanır; farklı çağrılardan gelen kutuların iç içe girmesi rapor edilir), `scripts/mapvis.mjs` (çarpışmasız süs ve ağaç tepeleri dahil), `scripts/mapveh.mjs` (araç ↔ yapı/prop). `mapqa.mjs` hepsini çalıştırır. Sonuç: Vadi 0, Üs 0 gerçek iç içe yapı (kalanlar bilinçli birleşimler: duvar-direk, kaya tüneli).
 - **Vadi:** orman kampı sandıkları/odun yığını, tepe kaya-sandık, kum torbaları (kuyu ve ahır duvarına gömülüyordu), devrik kütük, ahır duvarına gömülen kaya yer değiştirdi.
 - **Askeri Üs:** hangarın içine gömülü duran varillerle konteyner (dış duvara gömülüydü) ve tünele giren blast duvarı taşındı.
 - **Araç çarpışması hatası:** ZPT/tank taret kutuları 4 m yükseklikte çıkıyordu (yanlış boy: 2,5 m). Düzeltildi: ZPT tareti 0,7 m, tank taret 1,0 m.
+
+Z-fighting düzeltmesi notu: bir yüz toplamda en çok 2,7 cm itilir; çimen yaması/asfalt/toprak gibi ince (≤4,5 cm) zemin kaplamaları birbirini itmez (yolun üstüne çim çıkmasın).

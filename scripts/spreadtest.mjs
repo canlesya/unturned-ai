@@ -8,10 +8,11 @@ const A = g.claimSlot('blue', 'Ali'); g.claimSlot('red', 'Veli'); g.brains.lengt
 const st = WSTATS[A.item.id];
 const setState = (o) => { A.vel.set(o.vx || 0, 0, 0); A.onGround = o.air ? false : true; A.sprinting = !!o.sprint; A.firedSprinting = !!o.sprint; A.sinceShot = o.fresh ? 9 : 0; A.bloom = 0; A.crouching = false; A.adsT = o.ads || 0; };
 const sp = {};
-for (const [name, o] of Object.entries({ dur: { fresh: true }, yuru: { vx: 4.4 }, kos: { vx: 6.6, sprint: true }, hava: { air: true, fresh: true }, adsKos: { vx: 6.6, sprint: true, ads: 1 } })) { setState(o); sp[name] = A.spreadNow(st); }
+for (const [name, o] of Object.entries({ dur: { fresh: true }, yuru: { vx: 4.4 }, kos: { vx: 6.6, sprint: true }, hava: { air: true, fresh: true }, adsKos: { vx: 6.6, sprint: true, ads: 1 }, kosHava: { vx: 6.6, sprint: true, air: true } })) { setState(o); sp[name] = A.spreadNow(st); }
 console.log('      saçılma (rad):', Object.entries(sp).map(([k, v]) => `${k} ${v.toFixed(4)}`).join(' · '));
-check(sp.kos > sp.yuru * 3 && sp.kos > 0.04, 'koşarken saçılma yürümeden çok büyük (≥0,04 rad)');
-check(sp.hava > sp.dur * 5 && sp.hava > 0.03, 'havadayken saçılma belirgin büyük');
+check(sp.kos > sp.yuru * 5 && sp.kos > 0.08, 'koşarken saçılma yürümeden çok büyük (≥0,08 rad)');
+check(sp.hava > sp.dur * 20 && sp.hava > 0.07, 'havadayken saçılma belirgin büyük (≥0,07 rad)');
+check(sp.kosHava > 0.14, 'koşarak zıplarken saçılma ikisinin toplamı (≥0,14 rad)');
 check(sp.dur < 0.004, 'duran oyuncunun ilk atışı hâlâ isabetli');
 // atış koşarken serbest mi: tryFire true döner
 setState({ vx: 6.6, sprint: true }); A.cd = 0; A.switchT = 0; A.reloadT = 0; A.item.mag = 10;

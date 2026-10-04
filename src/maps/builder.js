@@ -91,6 +91,7 @@ export class MapBuilder {
     const it = this._zitems || [], ZEPS = 0.012, ZGAP = 0.013, rep = [];
     if (it.length < 2) return rep;
     const order = it.map((_, i) => i).sort((a, c) => it[a].mn[0] - it[c].mn[0]);
+    const flat = (q) => q.mx[1] - q.mn[1] <= 0.045 && q.mn[1] < 0.02;
     const area = (q, a) => { const o = [0, 1, 2].filter((k) => k !== a); return (q.mx[o[0]] - q.mn[o[0]]) * (q.mx[o[1]] - q.mn[o[1]]); };
     const push = (q, a, side, delta) => {                                           // q kutusunun a ekseni, side yüzü (1: max, -1: min) delta kadar dışarı
       const pos = q.geo.attributes.position, plane = side > 0 ? q.mx[a] : q.mn[a];
@@ -107,6 +108,7 @@ export class MapBuilder {
         const B = it[order[oj]];
         if (B.mn[0] > A.mx[0] + ZEPS) break;
         if (A.key === B.key) continue;                                              // aynı malzeme: görsel fark yok
+        if (flat(A) && flat(B)) continue;                                           // zemin kaplamaları (çimen yaması / asfalt / toprak): birbirini itip yolun üstüne çıkmasın
         for (let a = 0; a < 3; a++) {
           const o = [0, 1, 2].filter((k) => k !== a);
           const ov0 = Math.min(A.mx[o[0]], B.mx[o[0]]) - Math.max(A.mn[o[0]], B.mn[o[0]]);
@@ -120,7 +122,10 @@ export class MapBuilder {
             const target = (side > 0 ? lose.mx[a] : lose.mn[a]) + side * ZGAP;
             const cur = side > 0 ? win.mx[a] : win.mn[a];
             const delta = side > 0 ? target - cur : cur - target;
-            if (delta > 1e-5) { push(win, a, side, delta); rep.push({ a, side, at: ((fa + fb) / 2).toFixed(2), s1: win.site, s2: lose.site }); }
+            // zincirleme yığılma sınırı: bir yüz toplamda en çok ZCAP itilir (üst üste binen çimen yamaları yolun üstüne çıkmasın)
+            const pk = a * 2 + (side > 0 ? 1 : 0), used = (win.pushed ||= [0, 0, 0, 0, 0, 0])[pk];
+            if (used + delta > 0.027) continue;
+            if (delta > 1e-5) { win.pushed[pk] += delta; push(win, a, side, delta); rep.push({ a, side, at: ((fa + fb) / 2).toFixed(2), s1: win.site, s2: lose.site }); }
           }
         }
       }
