@@ -18,7 +18,7 @@ const Z = new THREE.Vector3(0, 0, 1);
 const REST_L = new THREE.Vector3(-0.2, -0.3, 0.2);      // sol el dinlenme (kullanılmıyorsa ekran dışı)
 const POUCH_VM = new THREE.Vector3(-0.3, -0.34, 0.3);   // yelek şarjör cebi (silah yerelinde)
 const MELEE_IDLE = { pos: [0.09, -0.15, -0.5], rx: 0.5, ry: 0.35, rz: -1.05 };
-const CLAWS_IDLE = { pos: [0.12, -0.2, -0.46], rx: 0.12, ry: 0.25, rz: 0.0 };      // zombi pençeleri: yumruk önde, pençeler ileri bakar
+const CLAWS_IDLE = { pos: [0.13, -0.16, -0.5], rx: 0.4, ry: 0.22, rz: 0.0 };      // zombi pençeleri: yumruk önde, pençeler ileri bakar
 const MELEE_SPRINT = { pos: [-0.04, 0.06, -0.06], rx: 0.65, ry: 0.3, rz: -0.1 };
 
 export class ViewModel {
@@ -101,13 +101,29 @@ export class ViewModel {
       g.add(grp);
       return grp;
     };
-    const u = g.userData;
-    if (kind === 'melee' && u.gripR) {
-      this.handR = fist(u.gripR.clone()); this.hLfg = null; this.handL = null;
-      if (id === 'claws') {                                                    // zombi: ikinci pençe ve yumruk solda
-        const w2 = createWeapon('claws'); w2.position.set(-0.27, 0, 0); g.add(w2);
-        fist(u.gripR.clone().add(new THREE.Vector3(-0.27, 0, 0)), -1);
+    // zombi ön kolu: çıplak solgun yeşil, kanlı, yırtık kumaş manşetli; elden geriye/aşağıya doğru uzanır
+    const zArm = (p, side) => {
+      const grp = new THREE.Group();
+      grp.position.copy(p);
+      const dir = new THREE.Vector3(0.1 * side, -0.24, 0.42).normalize(), len = 0.62;
+      const arm = box(grp, [0.12, 0.11, len], '#98ae5e', [0, 0, 0]);
+      arm.position.copy(dir).multiplyScalar(len / 2 + 0.03); arm.quaternion.setFromUnitVectors(Z, dir);
+      for (const [t, w, col] of [[0.25, 0.09, '#6a1712'], [0.45, 0.07, '#8a2018'], [0.62, 0.1, '#6a1712']]) {      // kan lekeleri
+        const b = box(grp, [w, 0.118, 0.07], col, [0, 0, 0]); b.position.copy(dir).multiplyScalar(len * t + 0.03); b.quaternion.setFromUnitVectors(Z, dir); b.rotation.z += t * 4;
       }
+      const cuff = box(grp, [0.135, 0.125, 0.1], '#3b3d2f', [0, 0, 0]);                                              // yırtık kol ucu
+      cuff.position.copy(dir).multiplyScalar(len * 0.92 + 0.03); cuff.quaternion.setFromUnitVectors(Z, dir);
+      g.add(grp);
+      return grp;
+    };
+    const u = g.userData;
+    if (id === 'claws') {                                                        // zombi: iki çıplak el, iki kol
+      this.hLfg = null; this.handL = null;
+      g.children.forEach((o) => o.scale.setScalar(1.25));                         // eller iri (ekranın alt köşelerinde heybetli)
+      const w2 = createWeapon('claws'); w2.scale.setScalar(1.25); w2.position.set(-0.3, 0, 0); g.add(w2);
+      this.handR = zArm(u.gripR.clone(), 1); zArm(u.gripR.clone().add(new THREE.Vector3(-0.3, 0, 0)), -1);
+    } else if (kind === 'melee' && u.gripR) {
+      this.handR = fist(u.gripR.clone()); this.hLfg = null; this.handL = null;
     } else
     this.handR = u.gripR ? hand(u.gripR.clone().add(new THREE.Vector3(0.0, -0.02, 0.0)), 1) : null;
     this.hLfg = u.gripL ? u.gripL.clone().add(new THREE.Vector3(0, -0.03, 0)) : null;

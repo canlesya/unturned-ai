@@ -4,7 +4,7 @@ const pre = process.argv[2] || 'screenshots/inf';
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const errs = []; page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
-await page.goto(`${process.env.BASE || 'http://127.0.0.1:5180'}/?autostart=6v6&type=inf&debug=1&nolock=1&third=1`);
+await page.goto(`${process.env.BASE || 'http://127.0.0.1:5180'}/?autostart=6v6&type=inf&debug=1&nolock=1&third=1&tod=${process.env.TOD || 'day'}`);
 await page.waitForFunction('window.__game && window.__game.running', null, { timeout: 90000 });
 const adv = (n = 6) => page.evaluate((n) => { const g = window.__game; for (let i = 0; i < n; i++) g.step(1 / 30); return null; }, n);
 await page.evaluate(() => { const g = window.__game; g.brains.forEach((b) => (b.update = () => {})); g.playerSoldier.protT = 0; });
