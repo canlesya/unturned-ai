@@ -7,6 +7,7 @@ import { reloadAnim, meleePose } from './anim.js';
 import { box } from '../core/geo.js';
 import { clamp, lerp, V3 } from './util.js';
 import { applyInput } from '../sim/input.js';
+import { norm, codeLabel } from '../core/keybinds.js';
 
 const VM_SCALE = 0.92;
 const ADS_FOV = 68;
@@ -240,9 +241,11 @@ export class ViewModel {
     ry += clamp(this.sx, -0.05, 0.05) * (1 - ads);
     rx += clamp(this.sy, -0.05, 0.05) * (1 - ads);
 
-    this.root.position.copy(pos);
-    this.root.rotation.set(rx, ry, rz);
-    this.root.scale.setScalar(VM_SCALE);
+    // sol el: bütün model ve konum/dönüşler x ekseninde aynalanır (negatif ölçek üç.js'te yüz yönünü otomatik düzeltir)
+    const mir = this.game.leftHand ? -1 : 1;
+    this.root.position.set(pos.x * mir, pos.y, pos.z);
+    this.root.rotation.set(rx, ry * mir, rz * mir);
+    this.root.scale.set(VM_SCALE * mir, VM_SCALE, VM_SCALE);
     this.camRoll = lerp(this.camRoll, camRoll, Math.min(1, dt * 14));
     this.camPitch = lerp(this.camPitch, camPitch, Math.min(1, dt * 14));
 
@@ -273,6 +276,7 @@ export class Player {
     this.s = soldier;
     this.set = settings;
     this.keys = new Set();
+    this.kb = game.binds;
     this.fireHeld = false; this.fireBuf = 0;
     this.lookDX = 0; this.lookDY = 0;
     this.locked = false;
@@ -309,8 +313,8 @@ export class Player {
   devTools() { return !!this.game.mapDef?.dev && !this.game.online; }
 
   flyMove(f, r, k, dt) {
-    const s = this.s, sp = k.has('ShiftLeft') ? 40 : 13, cp = Math.cos(s.pitch);
-    const up = (k.has('Space') ? 1 : 0) - (k.has('KeyC') || k.has('ControlLeft') ? 1 : 0);
+    const s = this.s, kb = this.kb, sp = kb.held('sprint', k) ? 40 : 13, cp = Math.cos(s.pitch);
+    const up = (kb.held('jump', k) ? 1 : 0) - (kb.held('crouch', k) ? 1 : 0);
     let x = -Math.sin(s.yaw) * cp * f + Math.cos(s.yaw) * r, y = Math.sin(s.pitch) * f + up, z = -Math.cos(s.yaw) * cp * f - Math.sin(s.yaw) * r;
     const l = Math.hypot(x, y, z) || 1;
     s.vel.set((x / l) * sp, (y / l) * sp, (z / l) * sp);
@@ -337,46 +341,48 @@ export class Player {
   bind() {
     const cv = this.game.canvas;
     this.on(window, 'keydown', (e) => {
-      if (e.code === 'Tab' || e.code === 'Space' || e.code.startsWith('Arrow') || e.code === 'F3') { if (this.game.running) e.preventDefault(); }   // basılı tutunca tekrar eden olaylar dahil
+      const code = norm(e.code), kb = this.kb;
+      if (code === 'Tab' || code === 'Space' || code.startsWith('Arrow') || code === 'F3' || kb.is('scoreboard', code) || kb.is('jump', code)) { if (this.game.running) e.preventDefault(); }   // basılı tutunca tekrar eden olaylar dahil
       if (e.repeat) return;
-      this.keys.add(e.code);
+      this.keys.add(code);
       const s = this.s;
       if (!this.game.running) return;
-      if (e.code === 'KeyT' && s.alive && !this.wheel) this.openWheel();
-      if (e.code === 'KeyH' && s.alive) this.toggleThird();
-      if (e.code === 'KeyY' && s.alive && !this.wheel) this.vm.inspect(s);                  // silah inceleme (CS tarzı)
+      if (kb.is('wheel', code) && s.alive && !this.wheel) this.openWheel();
+      if (kb.is('third', code) && s.alive) this.toggleThird();
+      if (kb.is('inspect', code) && s.alive && !this.wheel) this.vm.inspect(s);                  // silah inceleme (CS tarzı)
+      if (kb.is('leftHand', code)) this.toggleHand();
       if (this.devTools() && s.alive) {
-        if (e.code === 'KeyL') { s.fly = !s.fly; if (!s.fly) s.vel.set(0, 0, 0); this.game.hud.toast(s.fly ? 'Uçuş AÇIK · WASD/Boşluk/C · Shift hızlı' : 'Uçuş kapalı'); }
+        if (e.code === 'KeyL') { s.fly = !s.fly; if (!s.fly) s.vel.set(0, 0, 0); this.game.hud.toast(s.fly ? 'Uçuş AÇIK · yön tuşları/zıpla/çömel · koş hızlı' : 'Uçuş kapalı'); }
         if (e.code === 'KeyJ') this.cycleWeapon(-1);
         if (e.code === 'KeyK') this.cycleWeapon(1);
       }
-      if (this.third && e.code === 'KeyQ') this.side = -1;                     // 3. şahıs: Q/E omuz değiştirir (eğilme yerine)
-      if (this.third && e.code === 'KeyE') this.side = 1;
-      if (e.code === 'KeyR') { s.startReload(); this.game.online?.edge('rl'); }
-      if (s.alive && (e.code === 'KeyC' || e.code === 'ControlLeft' || e.code === 'ControlRight')) { s.toggleCrouch(); this.game.online?.edge('c'); }
-      if (s.alive && e.code === 'KeyZ') { s.toggleProne(); this.game.online?.edge('p'); }
-      if (s.alive && e.code === 'KeyB') { this.game.online?.edge('o'); const o = s.cycleOptic(); if (o) this.game.hud.toast('Nişangâh: ' + o.label, '#cfe6ff'); }
-      if (e.code.startsWith('Digit')) { const n = +e.code.slice(5) - 1; if (n >= 0 && n < 4) s.switchTo(n); }
-      if (e.code === 'KeyV') s.switchTo(3);
-      if (e.code === 'KeyX' && s.alive) { s.toggleFireMode(); this.game.online?.edge('fm'); }
-      if (e.code === 'KeyG') s.switchTo(2);
-      if (e.code === 'Tab') { e.preventDefault(); this.game.hud.showScoreboard(true); }
-      if (e.code === 'Space' || e.code.startsWith('Arrow')) e.preventDefault();
-      if (e.code === 'Space' && s.alive && (s.prone || s.crouching)) { s.standUp(); this.game.online?.edge('u'); this.spaceLatch = true; }   // yatarken/çömelirken Boşluk = kalk
-      if (e.code === 'Escape' && this.game.noPointerLock) this.game.togglePause();
-      if (!s.alive && this.game.respawnReady() && e.code.startsWith('Digit')) {
+      if (this.third && kb.is('leanLeft', code)) this.side = -1;                     // 3. şahıs: eğilme tuşları omuz değiştirir (aynı zamanda yatırır)
+      if (this.third && kb.is('leanRight', code)) this.side = 1;
+      if (kb.is('reload', code)) { s.startReload(); this.game.online?.edge('rl'); }
+      if (s.alive && kb.is('crouch', code)) { s.toggleCrouch(); this.game.online?.edge('c'); }
+      if (s.alive && kb.is('prone', code)) { s.toggleProne(); this.game.online?.edge('p'); }
+      if (s.alive && kb.is('optic', code)) { this.game.online?.edge('o'); const o = s.cycleOptic(); if (o) this.game.hud.toast('Nişangâh: ' + o.label, '#cfe6ff'); }
+      const slot = kb.slotOf(code);
+      if (slot >= 0) s.switchTo(slot);
+      if (kb.is('fireMode', code) && s.alive) { s.toggleFireMode(); this.game.online?.edge('fm'); }
+      if (kb.is('scoreboard', code)) { e.preventDefault(); this.game.hud.showScoreboard(true); }
+      if (code === 'Space' || code.startsWith('Arrow')) e.preventDefault();
+      if (kb.is('jump', code) && s.alive && (s.prone || s.crouching)) { s.standUp(); this.game.online?.edge('u'); this.spaceLatch = true; }   // yatarken/çömelirken zıplama tuşu = kalk
+      if (code === 'Escape' && this.game.noPointerLock) this.game.togglePause();
+      if (!s.alive && this.game.respawnReady()) {                                 // ölüm ekranında sınıf seç: yuva tuşları 1-4, Digit5 beşinci sınıf
         const keys = Object.keys(this.game.classDefs);
-        const n = +e.code.slice(5) - 1;
-        if (keys[n]) this.game.requestClass(keys[n]);
+        const n = slot >= 0 ? slot : code === 'Digit5' ? 4 : -1;
+        if (n >= 0 && keys[n]) this.game.requestClass(keys[n]);
       }
     });
     this.on(window, 'blur', () => { this.keys.clear(); this.fireHeld = false; this.s.ads = false; this.game.hud.showScoreboard(false); this.closeWheel(); });     // pencere odağı gidince takılı tuş kalmasın
     this.on(window, 'keyup', (e) => {
-      if (e.code === 'KeyT') this.closeWheel();
-      if (e.code === 'Tab') e.preventDefault();
-      this.keys.delete(e.code);
-      if (e.code === 'Space') this.spaceLatch = false;
-      if (e.code === 'Tab') this.game.hud.showScoreboard(false);
+      const code = norm(e.code), kb = this.kb;
+      if (kb.is('wheel', code)) this.closeWheel();
+      if (code === 'Tab' || kb.is('scoreboard', code)) e.preventDefault();
+      this.keys.delete(code);
+      if (kb.is('jump', code)) this.spaceLatch = false;
+      if (kb.is('scoreboard', code)) this.game.hud.showScoreboard(false);
     });
     this.on(document, 'mousemove', (e) => {
       if (this.skipMove > 0) { this.skipMove--; return; }                                    // kilit sonrası ilk olaylar sıçrar
@@ -406,12 +412,20 @@ export class Player {
     }, { passive: true });
   }
 
+  // Silahı tutan eli değiştir (sağ ↔ sol): birinci şahıs modeli aynalanır; tercih kaydedilir
+  toggleHand() {
+    const g = this.game;
+    g.leftHand = !g.leftHand;
+    g.hud.toast(g.leftHand ? 'Silah sol elde' : 'Silah sağ elde', '#cfe6ff');
+    g.opts.onPref?.({ leftHand: g.leftHand });
+  }
+
   // ── 3. şahıs kamera (H) ──
   toggleThird() {
     const g = this.game;
     if (!g.thirdAllowed) { g.hud.toast('Bu odada 3. şahıs kamera kapalı', '#ffd27a'); return; }
     this.third = !this.third;
-    g.hud.toast(this.third ? '3. şahıs kamera · Q / E ile omuz değiştir · H: 1. şahıs' : '1. şahıs kamera', '#cfe6ff');
+    g.hud.toast(this.third ? `3. şahıs kamera · ${codeLabel(this.kb.codes('leanLeft')[0])} / ${codeLabel(this.kb.codes('leanRight')[0])} ile omuz değiştir · ${codeLabel(this.kb.codes('third')[0])}: 1. şahıs` : '1. şahıs kamera', '#cfe6ff');
   }
 
   // Omuz üstü kamera: gözün arkasında ve yanında; duvara girerse yaklaşır, yere gömülmez; Q/E ile sağ-sol omuz akıcı geçer
@@ -525,14 +539,15 @@ export class Player {
     }
     if (s.alive && !g.opts.autoplay) {
       const k = this.keys;
-      const f = (k.has('KeyW') ? 1 : 0) - (k.has('KeyS') ? 1 : 0);
-      const r = (k.has('KeyD') ? 1 : 0) - (k.has('KeyA') ? 1 : 0);
+      const kb = this.kb;
+      const f = (kb.held('forward', k) ? 1 : 0) - (kb.held('back', k) ? 1 : 0);
+      const r = (kb.held('right', k) ? 1 : 0) - (kb.held('left', k) ? 1 : 0);
       const st = s.stat;
-      const lean = (k.has('KeyE') ? 1 : 0) - (k.has('KeyQ') ? 1 : 0);                 // 3. şahısta da Q/E yatar (ve omuzu değiştirir)
-      const inp = { f, r, lean, sprint: k.has('ShiftLeft'), jump: k.has('Space') && !this.spaceLatch };
+      const lean = (kb.held('leanRight', k) ? 1 : 0) - (kb.held('leanLeft', k) ? 1 : 0);                 // 3. şahısta da Q/E yatar (ve omuzu değiştirir)
+      const inp = { f, r, lean, sprint: kb.held('sprint', k), jump: kb.held('jump', k) && !this.spaceLatch };
       if (s.fly) this.flyMove(f, r, k, dt); else applyInput(s, inp, dt);
       if (g.online) g.online.pushInput(inp, s, this.fireHeld);
-      if (!k.has('Space')) this.spaceLatch = false;
+      if (!kb.held('jump', k)) this.spaceLatch = false;
 
       // ateş
       if (this.locked) {

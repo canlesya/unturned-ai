@@ -211,7 +211,7 @@ export class Soldier {
   muzzleWorld(out) {
     if ((this.isPlayer && !this.game.showSelf) || this.game.headless) {
       const d = this.aimDir(_d), r = this.right(_v);
-      return out.copy(this.eye(_o)).addScaledVector(r, 0.16).addScaledVector(UP, -0.1).addScaledVector(d, 0.8);
+      return out.copy(this.eye(_o)).addScaledVector(r, this.game.leftHand ? -0.16 : 0.16).addScaledVector(UP, -0.1).addScaledVector(d, 0.8);
     }
     const w = this.model.weapon;
     if (w) { w.updateWorldMatrix(true, false); return out.copy(w.userData.muzzle).applyMatrix4(w.matrixWorld); }

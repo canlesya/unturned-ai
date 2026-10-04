@@ -49,9 +49,10 @@ export class Weather {
     const src = c.createBufferSource(); src.buffer = sfx.noise; src.loop = true;
     const f = c.createBiquadFilter(); f.type = this.kind === 'rain' ? 'highpass' : 'lowpass'; f.frequency.value = this.kind === 'rain' ? 1400 : 380;
     const gn = c.createGain(); gn.gain.value = this.kind === 'rain' ? 0.12 : 0.05;
-    src.connect(f); f.connect(gn); gn.connect(sfx.master);
+    src.connect(f); f.connect(gn); gn.connect(sfx.ambBus);
     src.start();
-    this.snd = { src, gn };
+    this.snd = { src, gn, base: gn.gain.value };
+    this.applyMix();
   }
 
   update(dt) {
@@ -87,9 +88,14 @@ export class Weather {
     }
   }
 
+  // Ayarlar: yağmur sesi kapalıysa yağmur gürültüsü ve gök gürültüsü çalmaz (rüzgâr/sis ortam kanalında kalır)
+  applyMix() {
+    if (this.snd) this.snd.gn.gain.value = this.kind === 'rain' && !this.g.sfx.mix.rain ? 0 : this.snd.base;
+  }
+
   _thunder() {
     const sfx = this.g.sfx;
-    if (!sfx.ctx) return;
+    if (!sfx.ctx || !sfx.mix.rain) return;
     sfx._noise({ gain: 0.7, dur: 2.2, f0: 380, f1: 60, delay: 0.25 + Math.random() * 0.9 });
     sfx._tone({ gain: 0.35, dur: 1.8, f0: 70, f1: 30, type: 'sawtooth', delay: 0.3 });
   }

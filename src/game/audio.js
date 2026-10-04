@@ -6,6 +6,7 @@ export class Sfx {
     this.ctx = null;
     this.master = null;
     this.volume = 0.6;
+    this.mix = { sfx: 1, amb: 1, rain: true };      // kanal seviyeleri: efekt / ortam; rain: yağmur sesi (Ayarlar'dan)
     this.listener = { pos: new THREE.Vector3(), right: new THREE.Vector3(1, 0, 0) };
   }
 
@@ -17,6 +18,9 @@ export class Sfx {
     this.master = this.ctx.createGain();
     this.master.gain.value = this.volume;
     this.master.connect(this.ctx.destination);
+    this.sfxBus = this.ctx.createGain(); this.sfxBus.connect(this.master);          // efektler
+    this.ambBus = this.ctx.createGain(); this.ambBus.connect(this.master);          // ortam: yağmur, rüzgâr
+    this.setMix(this.mix);
     const len = this.ctx.sampleRate * 1.5;
     this.noise = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
     const d = this.noise.getChannelData(0);
@@ -24,6 +28,10 @@ export class Sfx {
   }
 
   setVolume(v) { this.volume = v; if (this.master) this.master.gain.value = v; }
+  setMix(m) {
+    this.mix = { ...this.mix, ...m };
+    if (this.sfxBus) { this.sfxBus.gain.value = this.mix.sfx; this.ambBus.gain.value = this.mix.amb; }
+  }
 
   setListener(cam) {
     this.listener.pos.copy(cam.position);
@@ -43,8 +51,8 @@ export class Sfx {
     g.gain.value = gain;
     if (c.createStereoPanner) {
       const p = c.createStereoPanner(); p.pan.value = pan * 0.85;
-      g.connect(p); p.connect(this.master);
-    } else g.connect(this.master);
+      g.connect(p); p.connect(this.sfxBus);
+    } else g.connect(this.sfxBus);
     return g;
   }
 

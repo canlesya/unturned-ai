@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { setupEnvironment } from '../maps/environment.js';
 import { MAPS, DEFAULT_MAP } from '../maps/index.js';
 import { World } from './collision.js';
+import { Binds } from '../core/keybinds.js';
+import { music } from './music.js';
 import { NavGrid } from './nav.js';
 import { Effects } from './effects.js';
 import { Sfx } from './audio.js';
@@ -46,6 +48,8 @@ export class Game {
     this.container = container;
     // headless: sunucu/test modu — renderer, HUD, ses, hava, Player ve DOM olayları kurulmaz (bkz. src/sim/nullSink.js)
     const headless = (this.headless = !!opts.headless);
+    this.binds = new Binds(opts.keys);                  // tuş atamaları (menüde Kontroller'den değiştirilir)
+    this.leftHand = !!opts.leftHand;                    // silahı sol elle tut (yalnızca birinci şahıs görünümü)
     this.settings = opts.settings || { fov: 80, volume: 0, shadows: false, pixelRatio: 1, sens: 1 };
     this.listeners = new Map();
     this.time = 0; this.running = false; this.ended = false; this.simulate = true;
@@ -142,7 +146,10 @@ export class Game {
       this.effects = new Effects(this.scene);
       this.sfx = new Sfx();
       this.sfx.setVolume(this.settings.volume);
+      this.sfx.setMix({ sfx: this.settings.vSfx ?? 1, amb: this.settings.vAmb ?? 1, rain: this.settings.rainSound !== false });
       this.sfx.init();
+      music.setVolume((this.settings.volume ?? 0.6) * (this.settings.vMusic ?? 0.5));
+      music.play('match');
       this.weather = new Weather(this, opts.weather || 'clear');
     }
 
@@ -213,7 +220,7 @@ export class Game {
       if (e.dead) this.sfx.kill(); else if (e.zone === 'head') this.sfx.headshot(); else this.sfx.hit();
     });
     document.addEventListener('keydown', this._kd = (e) => {
-      if (e.code !== 'KeyF' || e.repeat || !this.running || this.ended || !this.playerSoldier.alive) return;
+      if (!this.binds.is('flashlight', e.code) || e.repeat || !this.running || this.ended || !this.playerSoldier.alive) return;
       this.torchOn = !this.torchOn;
       this.torch.intensity = this.torchOn ? (this.night ? 140 : this.tod === 'sunset' ? 45 : 0) : 0;
       this.playerSoldier.flashOn = this.torchOn && this.torch.intensity > 0;
@@ -252,7 +259,7 @@ export class Game {
       this._badgeT = 0; this._badgeCode = code;
       this.online.roster = opts.online.roster;
       document.addEventListener('keydown', this._km = (e) => {                    // M: takım seçimi
-        if (e.code === 'KeyM' && !e.repeat && !this.ended) { e.preventDefault(); this.toggleTeamMenu(); }
+        if (this.binds.is('team', e.code) && !e.repeat && !this.ended) { e.preventDefault(); this.toggleTeamMenu(); }
         else if (e.code === 'Escape' && this._tm) this.toggleTeamMenu(false);
       });
     } else for (const s of this.soldiers) this.respawn(s, true);

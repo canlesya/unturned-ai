@@ -116,6 +116,12 @@ export const MENU_CSS = `
 #menu .stat em{font-style:normal;color:#fff;text-align:right}
 #menu .setrow{display:grid;grid-template-columns:200px 1fr 70px;gap:14px;align-items:center;margin:8px 0;font-size:16px;letter-spacing:1px;text-transform:uppercase}
 #menu .setrow em{font-style:normal;color:var(--acc2);text-align:right;font-weight:700}
+#menu .kbrow{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:5px 0;border-bottom:1px solid var(--line);font-size:15px;letter-spacing:.5px}
+#menu .kbrow > div{display:flex;gap:8px}
+#menu .kbk{min-width:92px;padding:7px 10px;background:#ffffff10;border:1px solid var(--line);border-bottom-width:3px;font:inherit;font-size:14px;font-weight:700;color:#fff;cursor:pointer;text-transform:uppercase}
+#menu .kbk:hover{background:#ffffff22;border-color:#ffffff55}
+#menu .kbk.cap{background:rgba(255,138,31,.3);border-color:var(--acc);animation:kbp 1s infinite alternate}
+@keyframes kbp{to{box-shadow:0 0 14px rgba(255,138,31,.6)}}
 #menu table.keys{width:100%;border-collapse:collapse;font-size:15px}
 #menu table.keys td{padding:8px 4px;border-bottom:1px solid var(--line);vertical-align:top}
 #menu table.keys td:first-child{color:var(--dim);letter-spacing:2px;text-transform:uppercase;width:36%;font-size:13px}

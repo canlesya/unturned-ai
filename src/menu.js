@@ -6,6 +6,8 @@ import { MenuScene } from './menuScene.js';
 import { WEATHERS } from './game/weather.js';
 import { NetClient } from './net/client.js';
 import { defaultServerUrl, healthUrl } from './net/protocol.js';
+import { Binds, ACTIONS, GROUPS, codeLabel, RESERVED, norm } from './core/keybinds.js';
+import { music } from './game/music.js';
 
 const KEY = 'warbyte.v2';
 export const DEFAULTS = {
@@ -14,6 +16,7 @@ export const DEFAULTS = {
   sens: 0.0022, fov: 75, volume: 0.6, shadows: true, quality: 1.5,
   xp: 0, stats: { matches: 0, wins: 0, kills: 0, deaths: 0 },
   server: '', room: '', olTeam: 'auto', third: true,
+  keys: {}, leftHand: false, vSfx: 0.9, vMusic: 0.5, vAmb: 0.8, rainSound: true,   // tuş atamaları, silah eli, ses kanalları
 };
 
 export function loadPrefs() {
@@ -23,6 +26,8 @@ export function loadPrefs() {
   } catch (e) { return { ...DEFAULTS }; }
 }
 function savePrefs(p) { try { localStorage.setItem(KEY, JSON.stringify(p)); } catch (e) { /* yok say */ } }
+// oyundan kısmi tercih yaz (ör. sol el)
+export function patchPrefs(o) { const p = loadPrefs(); Object.assign(p, o); savePrefs(p); }
 
 // Maç sonu: XP ve istatistikleri kaydet
 export function recordMatch({ score = 0, kills = 0, deaths = 0, win = false }) {
@@ -307,31 +312,39 @@ export function showMenu(onStart, onOnline) {
     return `<div class="scroll"><div class="pan"><h3>Fare ve görüş</h3>
       ${sl('sSens', 'Hassasiyet', 0.0008, 0.006, 0.0001, p.sens, (x) => (x / 0.0022).toFixed(2) + '×')}
       ${sl('sFov', 'Görüş açısı', 60, 100, 1, p.fov, (x) => x + '°')}</div>
-      <div class="pan"><h3>Ses</h3>${sl('sVol', 'Ana ses', 0, 1, 0.05, p.volume, (x) => Math.round(x * 100) + '%')}</div>
+      <div class="pan"><h3>Ses</h3>${sl('sVol', 'Ana ses', 0, 1, 0.05, p.volume, (x) => Math.round(x * 100) + '%')}
+      ${sl('sSfx', 'Efekt sesleri', 0, 1, 0.05, p.vSfx, (x) => Math.round(x * 100) + '%')}
+      ${sl('sMusic', 'Müzik', 0, 1, 0.05, p.vMusic, (x) => Math.round(x * 100) + '%')}
+      ${sl('sAmb', 'Ortam (yağmur, rüzgâr)', 0, 1, 0.05, p.vAmb, (x) => Math.round(x * 100) + '%')}
+      <div class="row" style="margin-top:8px"><button class="chip ${p.rainSound ? 'on' : ''}" data-a="rain" data-v="1">Yağmur sesi: ${p.rainSound ? 'Açık' : 'Kapalı'}</button></div>
+      <div class="hint">Lobi ve maç müziği için dosyalar henüz yok; <b>public/audio/music/</b> altına eklenince otomatik çalar (bkz. OYUN.md).</div></div>
       <div class="pan"><h3>Grafik</h3><div class="row">${[[1, 'Düşük'], [1.5, 'Orta'], [2, 'Yüksek']].map(([v, l]) => `<button class="chip ${p.quality === v ? 'on' : ''}" data-a="quality" data-v="${v}">${l}</button>`).join('')}
       <button class="chip ${p.shadows ? 'on' : ''}" data-a="shadows" data-v="1">Gölgeler: ${p.shadows ? 'Açık' : 'Kapalı'}</button></div>
       <div class="hint">Düşük kalite ve kapalı gölge, zayıf bilgisayarlarda ve büyük maçlarda akıcılığı artırır.</div></div>
       <div class="pan"><h3>Veri</h3><button class="chip" data-a="reset">İlerlemeyi sıfırla</button></div></div>`;
   }
 
+  let ctl = { cap: null, msg: '' };             // Kontroller ekranı: tuş atama durumu
   function controlsHTML() {
-    const rows = [
-      ['Hareket', '<kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> · koşma <kbd>Shift</kbd> · zıpla <kbd>Boşluk</kbd>'],
-      ['Duruş', 'çömel <kbd>Ctrl</kbd>/<kbd>C</kbd> · yat <kbd>Z</kbd> · kalkmak için <kbd>Boşluk</kbd>'],
-      ['Eğilme', 'sola <kbd>Q</kbd> · sağa <kbd>E</kbd> (eğilerek ateş edilir)'],
-      ['3. şahıs kamera', '<kbd>H</kbd> aç/kapat (oda izin veriyorsa) · <kbd>Q</kbd> / <kbd>E</kbd> sol / sağ omuz · dürbünle nişan alınca otomatik 1. şahıs'],
-      ['Ateş / Nişan', 'Sol tık / Sağ tık (basılı tut)'],
-      ['Şarjör', '<kbd>R</kbd> (şarjör doluyken taktik yükleme daha hızlıdır)'],
-      ['Silah', '<kbd>1</kbd> ana · <kbd>2</kbd> yedek · <kbd>3</kbd>/<kbd>G</kbd> gadget · <kbd>4</kbd>/<kbd>V</kbd> bıçak · fare tekeri'],
-      ['Nişangâh', '<kbd>T</kbd> basılı tut + fareyle seç + sol tık (silahın uygun nişangâhları) · hızlı değiştir <kbd>B</kbd> · ateş modu <kbd>X</kbd>'],
-      ['Fener', '<kbd>F</kbd> (gece ve gün batımında)'],
-      ['Silah inceleme', '<kbd>Y</kbd> (CS gibi: silahı döndürüp gösterir; ateş / nişan / yükleme iptal eder)'],
-      ['Takım (çevrimiçi)', '<kbd>M</kbd> takım seçimi (Ölüm Maçı hariç)'],
-      ['Kill', 'sıkışınca: <kbd>Esc</kbd> ile duraklat → <b>Kill (yeniden doğ)</b> düğmesi'],
+    const kb = new Binds(p.keys), cap = ctl.cap;
+    const handKey = codeLabel(kb.codes('leftHand')[0]);
+    const groups = GROUPS.map((g, gi) => `<div class="pan"><h3>${g}</h3>${ACTIONS.filter((a) => a.group === gi).map((a) => `<div class="kbrow"><span>${a.label}</span><div>${[0, 1].map((sl) => {
+      const on = cap && cap.id === a.id && cap.slot === sl;
+      return `<button class="kbk ${on ? 'cap' : ''}" data-a="kbind" data-id="${a.id}" data-slot="${sl}" title="Tıkla, sonra yeni tuşa bas · Geri tuşu: temizle · Esc: vazgeç">${on ? 'Tuşa bas…' : codeLabel(kb.codes(a.id)[sl])}</button>`;
+    }).join('')}</div></div>`).join('')}</div>`).join('');
+    const fixed = [
+      ['Ateş / Nişan', 'Sol tık / Sağ tık (basılı tut) — sabit'],
+      ['Silah değiştir', 'Fare tekeri · yuva tuşları yukarıdan değişir'],
+      ['Duraklat', '<kbd>Esc</kbd> · menüde <b>Kill (yeniden doğ)</b> düğmesi'],
       ['Bakış (yedek)', 'Fare kilitlenmezse ok tuşları'],
-      ['Skor tablosu', '<kbd>Tab</kbd> · duraklat <kbd>Esc</kbd>'],
     ];
-    return `<div class="scroll"><div class="pan"><h3>Tuş haritası</h3><table class="keys">${rows.map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join('')}</table></div></div>`;
+    return `<div class="scroll">
+      <div class="pan"><h3>Silahı tutan el</h3><div class="row"><button class="chip ${p.leftHand ? '' : 'on'}" data-a="hand" data-v="right">Sağ el</button><button class="chip ${p.leftHand ? 'on' : ''}" data-a="hand" data-v="left">Sol el</button></div>
+      <div class="hint">Birinci şahıs silah modeli aynalanır. Oyunda <kbd>${handKey}</kbd> tuşuyla anında değiştirilebilir.</div></div>
+      <div class="pan"><h3>Tuş atama</h3><div class="hint">Bir tuşa tıkla, sonra yeni tuşa bas. Her eyleme en çok 2 tuş atanabilir. Geri tuşu temizler, Esc vazgeçer. Aynı tuş başka eyleme atanmışsa oradan alınır.</div>
+      <div class="row" style="margin-top:8px"><button class="chip" data-a="kreset">Varsayılana dön</button></div>${ctl.msg ? `<div class="hint" style="color:var(--acc2)">${ctl.msg}</div>` : ''}</div>
+      ${groups}
+      <div class="pan"><h3>Sabit tuşlar</h3><table class="keys">${fixed.map(([a, c]) => `<tr><td>${a}</td><td>${c}</td></tr>`).join('')}</table></div></div>`;
   }
 
   function render() {
@@ -370,8 +383,9 @@ export function showMenu(onStart, onOnline) {
     const payload = {
       map, tod, weather, team: p.team === 'random' ? rnd(['blue', 'red']) : p.team, cls, diff: p.diff, optic: p.optic, playerName: p.name,
       match: { perTeam, type: p.type, tickets: randomize ? undefined : p.tickets || undefined, time: p.time }, third: p.third,
+      keys: p.keys, leftHand: p.leftHand, onPref: patchPrefs,
       loadout: loadoutOf(cls), loadouts: p.loadouts,                    // tüm sınıfların kayıtlı yüklemeleri: oyunda sınıf değişince o sınıfınki gelir
-      settings: { sens: p.sens, fov: p.fov, volume: p.volume, shadows: p.shadows, pixelRatio: p.quality },
+      settings: { sens: p.sens, fov: p.fov, volume: p.volume, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, shadows: p.shadows, pixelRatio: p.quality },
     };
     cleanup();
     onStart(payload);
@@ -379,9 +393,25 @@ export function showMenu(onStart, onOnline) {
   function cleanup() {
     clearInterval(tipTimer); clearTimeout(iconTimer); clearInterval(roomPoll);
     document.removeEventListener('keydown', onKey);
+    document.removeEventListener('keydown', onCap, true);
+    music.stop();
     scene?.dispose(); scene = null;
     el.style.display = 'none'; el.innerHTML = '';
   }
+  // tuş atama yakalama (Kontroller ekranı): yakalama aşamasında dinler, oyun/menü kısayollarına sızdırmaz
+  const onCap = (e) => {
+    if (screen !== 'controls' || !ctl.cap) return;
+    e.preventDefault(); e.stopPropagation();
+    const code = norm(e.code), { id, slot } = ctl.cap, kb = new Binds(p.keys);
+    if (code === 'Escape') { ctl = { cap: null, msg: '' }; render(); return; }
+    if (code === 'Backspace' || code === 'Delete') { kb.clear(id, slot); p.keys = kb.toJSON(); ctl = { cap: null, msg: 'Tuş temizlendi' }; save(); render(); return; }
+    if (RESERVED.has(code)) { ctl.msg = 'Bu tuş atanamaz'; render(); return; }
+    const taken = kb.set(id, slot, code);
+    p.keys = kb.toJSON();
+    ctl = { cap: null, msg: taken ? `"${codeLabel(code)}" tuşu "${ACTIONS.find((a) => a.id === taken).label}" eyleminden alındı` : '' };
+    save(); render();
+  };
+  document.addEventListener('keydown', onCap, true);
   const onKey = (e) => { if (e.key === 'Enter' && (screen === 'home' || screen === 'custom') && e.target.tagName !== 'INPUT') launch(); };
   document.addEventListener('keydown', onKey);
 
@@ -400,7 +430,10 @@ export function showMenu(onStart, onOnline) {
       stage.querySelectorAll('[data-a=size]').forEach((c) => c.classList.toggle('on', +c.dataset.v === v));
     } else if (id === 'sSens') { p.sens = v; stage.querySelector('#v_sSens').textContent = (v / 0.0022).toFixed(2) + '×'; }
     else if (id === 'sFov') { p.fov = v; stage.querySelector('#v_sFov').textContent = v + '°'; }
-    else if (id === 'sVol') { p.volume = v; stage.querySelector('#v_sVol').textContent = Math.round(v * 100) + '%'; }
+    else if (id === 'sVol') { p.volume = v; stage.querySelector('#v_sVol').textContent = Math.round(v * 100) + '%'; music.setVolume(p.volume * p.vMusic); }
+    else if (id === 'sSfx') { p.vSfx = v; stage.querySelector('#v_sSfx').textContent = Math.round(v * 100) + '%'; }
+    else if (id === 'sMusic') { p.vMusic = v; stage.querySelector('#v_sMusic').textContent = Math.round(v * 100) + '%'; music.setVolume(p.volume * p.vMusic); }
+    else if (id === 'sAmb') { p.vAmb = v; stage.querySelector('#v_sAmb').textContent = Math.round(v * 100) + '%'; }
     save();
   });
   stage.addEventListener('change', (e) => { if (e.target.id === 'rSize' || e.target.id === 'ocSize') render(); });
@@ -446,6 +479,10 @@ export function showMenu(onStart, onOnline) {
       case 'optic': p.optic = v; scene?.iconCache.clear(); break;
       case 'quality': p.quality = +v; break;
       case 'shadows': p.shadows = !p.shadows; break;
+      case 'rain': p.rainSound = !p.rainSound; break;
+      case 'hand': p.leftHand = v === 'left'; break;
+      case 'kbind': ctl = { cap: { id: b.dataset.id, slot: +b.dataset.slot }, msg: '' }; break;
+      case 'kreset': p.keys = {}; ctl = { cap: null, msg: 'Tuşlar varsayılana döndü' }; break;
       case 'reset': if (confirm('Seviye ve istatistikler sıfırlansın mı?')) { p.xp = 0; p.stats = { ...DEFAULTS.stats }; } break;
       default: return;
     }
@@ -455,4 +492,6 @@ export function showMenu(onStart, onOnline) {
   nav.addEventListener('click', act);
 
   render();
+  music.setVolume((p.volume ?? 0.6) * (p.vMusic ?? 0.5));
+  music.play('lobby');                       // lobi müziği (public/audio/music/lobby.mp3 varsa)
 }

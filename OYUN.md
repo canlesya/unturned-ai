@@ -590,3 +590,9 @@ Z-fighting düzeltmesi notu: bir yüz toplamda en çok 2,7 cm itilir; çimen yam
 ### 12.17 Sunucu kapasitesi (24 oda simülasyonu)
 `node scripts/roomsim.mjs` (sunucu `PORT=8788 node server/index.js`) 20 kullanıcı odası kurar (farklı harita/mod/boyut/şifre/gizli/botlu-botsuz), 12 odaya oyuncu sokar ve `/rooms` listesini yazar. `scripts/serverprof.mjs` ağsız CPU ölçümü/profili verir (`node --cpu-prof`).
 Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, DM spawn değişimi için yüzeysel kopya), sunucuda görsel geometri kurulmaz (`MapBuilder.noVisual`), başsız modda 3B karakter modeli/animasyon yoktur (hafif taslak). 24 oda + ~75 oyuncuda: bellek 2,0 GB → 0,43 GB, CPU tek çekirdeğin %77'si → %30. Boşta (4 resmi oda): 414 → 175 MB.
+
+### 12.18 Tuş atama, sol el, ses kanalları ve müzik
+- **Tuş atama:** Kontroller ekranında her eylem için 2 tuş (`src/core/keybinds.js`: `ACTIONS` listesi, `Binds`). Tuşa tıkla → yeni tuşa bas; Geri tuşu temizler, Esc vazgeçer; başka eylemdeki aynı tuş oradan alınır; Esc/F5/F11/F12/Meta atanamaz; sağ/sol Ctrl-Shift-Alt aynı sayılır. Yalnızca varsayılandan farklılar `warbyte.v2` → `keys` içinde saklanır. Oyunda `Player` ve `Game` tuşları `game.binds` üzerinden okur (fare tuşları ve Esc sabit). Test: `node scripts/bindtest.mjs`.
+- **Sol el:** Kontroller → "Silahı tutan el" ya da oyunda `U` (atanabilir). Birinci şahıs silah modeli aynalanır (x ekseni negatif ölçek; nişan hizası korunur); tercih kaydedilir. Diğer oyuncular/3. şahıs görünümü etkilenmez.
+- **Ses kanalları:** Ayarlar → Ana ses × (Efekt, Müzik, Ortam). `Sfx`: `sfxBus` (silah/patlama…) ve `ambBus` (yağmur/rüzgâr). **Yağmur sesi** düğmesi yağmur gürültüsünü ve gök gürültüsünü kapatır (sis rüzgârı Ortam kanalında kalır).
+- **Müzik:** `src/game/music.js` — `public/audio/music/lobby.mp3` (menü) ve `match1..3.mp3` (maç) dosyaları varsa çalar, yoksa sessiz. Yeni ad için `TRACKS`'e ekle, `music.play('ad')` çağır. Henüz dosya yok.
