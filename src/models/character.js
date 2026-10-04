@@ -3,7 +3,7 @@ import { box, taperBox, cylY, ico, V, mergeStatic } from '../core/geo.js';
 import { C, TEAMS, SKINS } from '../core/palette.js';
 import { createWeapon } from './weapons.js';
 import { reloadAnim, meleePose } from '../game/anim.js';
-import { ZTYPES } from '../game/stats.js';
+import { ZTYPES, ZBOSS, BOSS } from '../game/stats.js';
 
 // Unturned/BattleBit tarzı kutu karakter. ~1.79 m boyunda, ileri = -Z.
 // Hiyerarşi: root > torso(> head, kollar, silah bağlantısı) + bacaklar. Kollar iki kemikli IK ile silaha kilitlenir.
@@ -124,7 +124,7 @@ function pouches(torso, vestColor, n = 3, color = '#2c2e33') {
 // Zombi: yeşilimsi soluk deri, yırtık gömlek, açık göğüs/kaburga, parlayan gözler, sarkık çene; yelek ve kask yok
 function zombieGear(parts, ztype = 'walker') {
   const { torso, head, legs } = parts;
-  const T = ZTYPES[ztype] || ZTYPES.walker;
+  const T = ztype === 'boss' ? ZBOSS : ZTYPES[ztype] || ZTYPES.walker;
   const SK = T.skin, SKD = '#6b8459', BONE = '#d8d0b4', BLOOD = '#5a1410', DIRT = '#2a2d22';
   face(head, SK, { noHair: true });
   box(head, [0.05, 0.04, 0.014], T.eye, [0.075, 0.02, -0.153], null, { emissive: T.eye, emissiveIntensity: 1.1 });   // parlayan gözler (türe göre renk)
@@ -152,7 +152,17 @@ function zombieGear(parts, ztype = 'walker') {
   }
   box(legs.R.thigh, [0.12, 0.12, 0.02], BLOOD, [0.0, -0.1, -0.11]);
   // türe özgü ayrıntılar
-  if (ztype === 'brute') {                                                                       // Dev: kemik çıkıntılı omuzlar, kalın boyun, göğüs plakası
+  if (ztype === 'boss') {                                                                        // BOSS: boynuzlar, sırt dikenleri, kemik zırh, parlayan kırmızı göğüs çatlağı
+    for (const sx of [-1, 1]) {
+      box(head, [0.06, 0.26, 0.06], BONE, [sx * 0.13, 0.3, 0.0], [0, 0, -sx * 0.35]);              // boynuzlar
+      box(head, [0.04, 0.18, 0.04], '#f3efdc', [sx * 0.2, 0.46, 0.0], [0, 0, -sx * 0.7]);
+      for (let i = 0; i < 4; i++) box(torso, [0.05, 0.2 - i * 0.03, 0.05], BONE, [sx * (0.3 + i * 0.015), 0.34 + i * 0.04, 0.0], [0, 0, -sx * (0.45 + i * 0.2)]);   // omuz dikenleri
+    }
+    for (let i = 0; i < 5; i++) box(torso, [0.06, 0.2, 0.06], BONE, [(i - 2) * 0.09, 0.2 - Math.abs(i - 2) * 0.05, 0.19], [0.5, 0, 0]);   // sırt dikenleri
+    box(torso, [0.36, 0.34, 0.05], '#3b2e2a', [0, 0.06, -0.176]);                                // kemik zırh plakası
+    for (const [x, y, rz] of [[0.02, 0.17, 0.5], [-0.02, 0.1, -0.55], [0.03, 0.03, 0.6], [-0.02, -0.04, -0.5], [0.01, -0.1, 0.4]]) box(torso, [0.035, 0.1, 0.012], '#ff3a1a', [x, y, -0.205], [0, 0, rz], { emissive: '#ff2a00', emissiveIntensity: 1.5 });   // parlayan çatlak (zikzak)
+    box(head, [0.34, 0.08, 0.34], '#2a1d1a', [0, 0.17, 0.0]);
+  } else if (ztype === 'brute') {                                                                       // Dev: kemik çıkıntılı omuzlar, kalın boyun, göğüs plakası
     for (const sx of [-1, 1]) for (let i = 0; i < 3; i++) box(torso, [0.04, 0.16 - i * 0.03, 0.04], BONE, [sx * (0.3 + i * 0.02), 0.34 + i * 0.05, 0.0], [0, 0, -sx * (0.5 + i * 0.25)]);
     box(torso, [0.34, 0.2, 0.04], '#3b3a30', [0, 0.1, -0.175]);
     box(head, [0.34, 0.07, 0.34], '#33372c', [0, 0.17, 0.0]);
@@ -364,7 +374,7 @@ export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0,
     refreshHold(o) { applyPose(api, api.weapon, o); },
   };
 
-  if (cls === 'zombie') root.scale.setScalar((ZTYPES[ztype] || ZTYPES.walker).scale);       // dev büyük, koşucu biraz ince/küçük
+  if (cls === 'zombie') { if (ztype === 'boss') root.scale.set(...BOSS.scale); else root.scale.setScalar((ZTYPES[ztype] || ZTYPES.walker).scale); }       // dev büyük, koşucu biraz ince/küçük
   const wid = weapon === undefined ? null : weapon || CLASSES[cls].weapon[team];
   api.blade = blade;
   api.optic = optic;

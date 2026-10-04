@@ -381,7 +381,9 @@ export class Player {
       if (code === 'Escape' && this.game.noPointerLock) this.game.togglePause();
       if (!s.alive && this.game.respawnReady() && this.game.mode.infection) {                                  // Enfekte ölüm ekranı: 1-5 zombi türü
         const n = slot >= 0 ? slot : code === 'Digit5' ? 4 : -1;
-        if (n >= 0 && ZT_ORDER[n]) this.game.requestZType(ZT_ORDER[n]);
+        const ks = Object.keys(this.game.classDefs);
+        if (s.willCure) { if (n >= 0 && ks[n]) this.game.requestClass(ks[n]); }                   // can hakkı bitti: insan olarak doğacaksın → sınıf seç
+        else if (!s.boss && n >= 0 && ZT_ORDER[n]) this.game.requestZType(ZT_ORDER[n]);
       }
       if (!s.alive && this.game.respawnReady() && !this.game.mode.infection) {                                 // ölüm ekranında sınıf seç: yuva tuşları 1-4, Digit5 beşinci sınıf
         const keys = Object.keys(this.game.classDefs);

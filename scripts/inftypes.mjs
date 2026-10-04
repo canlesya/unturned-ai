@@ -12,13 +12,13 @@ await page.evaluate(() => {
   const e = p.eye(); const T = e.constructor;
   let ok = false;
   for (let k = 0; k < 32 && !ok; k++) { p.yaw = (k / 32) * Math.PI * 2; ok = g.losClear(e, new T(e.x - Math.sin(p.yaw) * 9, e.y, e.z - Math.cos(p.yaw) * 9)) && g.losClear(e, new T(e.x - Math.sin(p.yaw + 0.5) * 9, e.y, e.z - Math.cos(p.yaw + 0.5) * 9)) && g.losClear(e, new T(e.x - Math.sin(p.yaw - 0.5) * 9, e.y, e.z - Math.cos(p.yaw - 0.5) * 9)); }
-  const types = ['walker', 'runner', 'brute', 'ghost', 'blinker'], r = { x: Math.cos(p.yaw), z: -Math.sin(p.yaw) };
+  const types = ['walker', 'runner', 'brute', 'ghost', 'blinker', 'boss'], r = { x: Math.cos(p.yaw), z: -Math.sin(p.yaw) };
   const pool = g.soldiers.filter((s) => s !== p);
   types.forEach((t, i) => {
-    const z = pool[i]; if (z.def.zombie) { z.ztype = t; z.setClass('zombie'); } else g.makeZombie(z, false, t);
-    z.spawn({ x: p.pos.x - Math.sin(p.yaw) * 6 + r.x * (i - 2) * 1.9, z: p.pos.z - Math.cos(p.yaw) * 6 + r.z * (i - 2) * 1.9, ry: p.yaw + Math.PI }, 0); z.protT = 0; z.vel.set(0, 0, 0); g.world.settle(z); z.brain && (z.brain.update = () => {});
+    const z = pool[i]; g.makeZombie(z, t === 'boss', t === 'boss' ? 'walker' : t);
+    z.spawn({ x: p.pos.x - Math.sin(p.yaw) * 6 + r.x * (i - 2.5) * 1.8, z: p.pos.z - Math.cos(p.yaw) * 6 + r.z * (i - 2.5) * 1.8, ry: p.yaw + Math.PI }, 0); z.protT = 0; z.vel.set(0, 0, 0); g.world.settle(z); z.brain && (z.brain.update = () => {});
   });
-  pool.slice(5).forEach((s) => { s.pos.y = -80; });
+  pool.slice(6).forEach((s) => { s.pos.y = -80; });
   g.ghost = pool[3];
 });
 await adv(8);

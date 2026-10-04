@@ -166,7 +166,8 @@ export class BotBrain {
     const s = this.s, ab = s.ability;
     if (!ab || s.abT > 0 || s.abActive > 0) return;
     const id = ab.id;
-    if (id === 'blink') { if (!near && dist > 16 && dist < 40 && Math.random() < 0.05) s.useAbility(); }          // uzaktan ışınlanarak yaklaşır
+    if (id === 'blink') { if (!near && dist > 16 && dist < 40 && Math.random() < 0.05) s.useAbility(); }
+    else if (id === 'shadow') { if (dist > 9 && dist < 40 && Math.random() < 0.06) s.useAbility(); }          // boss: sık sıçrayıp görünmez yaklaşır          // uzaktan ışınlanarak yaklaşır
     else if (id === 'cloak') { if (dist > 10 && dist < 50 && Math.random() < 0.04) s.useAbility(); }
     else if (id === 'shield') { if ((dist < 14 && Math.random() < 0.05) || s.hp < s.maxHp * 0.6) s.useAbility(); }
     else if (dist < 28 && Math.random() < 0.04) s.useAbility();                                                    // öfke / atılış

@@ -108,7 +108,12 @@ export class NetClient {
     if (p.a && !s.alive) s.spawn({ x: p.x, z: p.z, ry: p.yw }, 0);
     else if (!p.a && s.alive) { s.alive = false; s.hp = 0; s.deadT = 0; s.deadDir = Math.random() > 0.5 ? 1 : -1; s.ads = false; s.reloadT = 0; s.vel.set(0, 0, 0); }
     s.hp = p.hp; if (p.mh) s.maxHp = p.mh;
-    if (p.zt) { const t = ZT_ORDER[p.zt - 1]; if (t && t !== s.ztype) { s.ztype = t; if (s.def.zombie) s.setClass('zombie'); } }      // zombi türü değişti: model yenilenir
+    if (p.zt || p.bs) {                                                                            // zombi türü / boss durumu değişti: model yenilenir
+      const t = ZT_ORDER[p.zt - 1] || s.ztype, bs = !!p.bs;
+      if ((t !== s.ztype || bs !== s.boss) && s.def.zombie) { s.ztype = t; s.boss = bs; s.setClass('zombie'); }
+      else { s.ztype = t; s.boss = bs; }
+    }
+    s.zLives = p.zl ?? 0;
     s.kills = p.kl; s.deaths = p.de; s.score = p.sc; s.revivable = !!p.rv;
     if (s.items.length !== p.it.length || s.items.some((it, i) => it.id !== p.it[i])) {
       s.items = p.it.map(mkItem);

@@ -5,7 +5,7 @@ const g = new Game(null, { headless: true, map: 'kasaba', tod: 'day', weather: '
 let fail = 0; const check = (ok, msg) => { console.log((ok ? 'OK    ' : 'HATA  ') + msg); if (!ok) fail++; };
 const z = g.soldiers.find((s) => s.def.zombie);
 const pts = g.nav.spreadPoints(g.nav.reachable(g.map.spawns.blue[0].x, g.map.spawns.blue[0].z), { spacing: 6, max: 400 });
-const setType = (t) => { z.ztype = t; z.alpha = false; z.setClass('zombie'); z.brain = null; g.brains = []; z.spawn({ x: pts[5].x, z: pts[5].z, ry: 0 }, 0); g.world.settle(z); z.protT = 0; z.abT = 0; };
+const setType = (t) => { z.ztype = t; z.boss = false; z.setClass('zombie'); z.brain = null; g.brains = []; z.spawn({ x: pts[5].x, z: pts[5].z, ry: 0 }, 0); g.world.settle(z); z.protT = 0; z.abT = 0; };
 for (const t of Object.keys(ZTYPES)) { setType(t); check(z.maxHp === ZTYPES[t].hp && z.hp === z.maxHp, `${t}: can ${z.maxHp}`); }
 // ışınlanma: en açık yönü bul
 setType('blinker');

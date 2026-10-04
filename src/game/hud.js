@@ -51,6 +51,12 @@ const CSS = `
 #hitm::after{transform:rotate(-45deg)}
 #hitm.k::before,#hitm.k::after{background:#ff3b2f}
 /* sağlık / sınıf */
+#bosses{width:340px;margin-top:4px;pointer-events:none;text-shadow:0 1px 4px #000}
+#bosses .bs{margin-bottom:6px;font-size:12px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#ff6a4a;text-align:center}
+#bosses .bs i{font-style:normal;color:#ff9a8a;letter-spacing:1px}
+#bosses .bar{height:8px;background:rgba(255,255,255,.14);border:1px solid rgba(255,80,50,.5);margin-top:3px}
+#bosses .bar i{display:block;height:100%;background:linear-gradient(90deg,#8a1010,#ff3a1a);transition:width .25s}
+#bosses .dead{opacity:.45}
 #abil{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);width:300px;white-space:nowrap;text-align:center;display:none;text-shadow:0 1px 4px #000;font-weight:700;letter-spacing:2px;text-transform:uppercase}
 #abil .an{font-size:14px;margin-bottom:4px}#abil b{display:inline-block;min-width:22px;padding:1px 6px;margin-right:8px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4)}
 #abil .bar{height:6px;background:rgba(255,255,255,.18)}#abil .bar i{display:block;height:100%;width:100%;background:#8dff5a}
@@ -161,6 +167,7 @@ export class Hud {
         <div id="score"><div class="tk blue"><small id="tnB">MAVİ</small><span id="tkB">0</span><div class="bar"><i id="tbB"></i></div></div><div id="timer"><span id="tm">0:00</span><small id="lim"></small></div><div class="tk red"><small id="tnR">KIRMIZI</small><span id="tkR">0</span><div class="bar"><i id="tbR"></i></div></div></div>
         <div id="flags"></div>
         <div id="compass"><canvas width="920" height="60"></canvas></div>
+        <div id="bosses"></div>
       </div>
       <div id="killfeed"></div>
       <div id="toasts"></div>
@@ -201,8 +208,7 @@ export class Hud {
     if (game.mode.infection) {                                            // Enfekte: sol = insanlar, sağ = zombiler; ölüm ekranında sınıf/doğma seçimi yok
       this.root.querySelector('#tnB').textContent = 'İNSAN'; this.root.querySelector('#tnR').textContent = 'ZOMBİ';
       this.$('spawnrow').parentElement.style.display = 'none';
-      this.buildZRow();
-      this.$('clsrow').parentElement.querySelector('h3').innerHTML = 'Zombi türü <span style="opacity:.6;letter-spacing:1px;text-transform:none">(1–5)</span>';
+      this._rowMode = null;                                                // ölüm ekranı satırı: 'z' zombi türü · 'cls' insan sınıfı · 'boss' (seçim yok)
     }
     if (game.ffa) { this.root.querySelector('.tk.blue small').textContent = 'SEN'; this.root.querySelector('.tk.red small').textContent = 'LİDER'; }
     this.$('bResume').onclick = () => game.requestLock();
@@ -226,6 +232,15 @@ export class Hud {
       c.onclick = () => this.game.requestZType(k);
       row.appendChild(c);
     });
+  }
+  // Enfekte ölüm ekranı: bir sonraki doğuşa göre satırı kur (zombi türü / insan sınıfı / boss)
+  setRowMode(m) {
+    if (m === this._rowMode) return;
+    this._rowMode = m;
+    const h3 = this.$('clsrow').parentElement.querySelector('h3'), small = (t) => `<span style="opacity:.6;letter-spacing:1px;text-transform:none">${t}</span>`;
+    if (m === 'cls') { this.buildClassRow(); h3.innerHTML = `İnsan sınıfı ${small('(1–5)')}`; }
+    else if (m === 'boss') { this.$('clsrow').innerHTML = '<div class="cc on"><b>BOSS</b><small>Dev can, çok hızlı, öfkeli. Gölge Sıçrayışı: ışınlan + görünmez ol.</small></div>'; h3.innerHTML = 'Zombi türü'; }
+    else { this.buildZRow(); h3.innerHTML = `Zombi türü ${small('(1–5)')}`; }
   }
   markZ(k) { this.$('clsrow').querySelectorAll('.cc').forEach((c) => c.classList.toggle('on', c.dataset.k === k)); }
 
@@ -430,8 +445,19 @@ export class Hud {
     this.$('respawn').style.display = 'none';
   }
 
+  // Enfekte: canlı BOSS'ların üstte can çubuğu (herkes görür) + kalan can hakkı
+  drawBosses() {
+    const g = this.game, el = this.$('bosses');
+    const list = g.soldiers.filter((s) => s.boss && s.def.zombie && !s.vacant);
+    const key = list.map((s) => `${s.id}:${s.alive ? Math.ceil(s.hp / s.maxHp * 50) : -1}:${s.zLives}`).join('|');
+    if (key === this._bossKey) return;
+    this._bossKey = key;
+    el.innerHTML = list.map((s) => `<div class="bs ${s.alive ? '' : 'dead'}"><span>BOSS · ${s.name} <i>${'♥'.repeat(Math.max(0, s.zLives))}</i></span><div class="bar"><i style="width:${s.alive ? Math.max(0, s.hp / s.maxHp * 100) : 0}%"></i></div></div>`).join('');
+  }
+
   update(dt) {
     const g = this.game, p = g.playerSoldier, $ = this.$;
+    if (g.mode.infection) this.drawBosses();
     let kb = g.tickets.blue, kr = g.tickets.red;
     if (g.ffa) {                                                       // ölüm maçı: sol = senin öldürmen, sağ = en iyi rakip
       kb = p.kills; kr = 0;
@@ -482,7 +508,7 @@ export class Hud {
     $('hpnum').innerHTML = `${Math.max(0, Math.ceil(p.hp))}<small>HP</small>`;
     $('hpfill').style.width = clamp((p.hp / p.maxHp) * 100, 0, 100) + '%';
     $('hpfill').style.background = p.hp < 30 ? 'linear-gradient(90deg,#d63a2e,#f06a4a)' : 'linear-gradient(90deg,#3ecf5b,#7be06f)';
-    $('clsname').textContent = g.mode.infection ? (p.def.zombie ? `Zombi · ${p.zt.label}` : `${CLASS_DEFS[p.cls].label} · İnsanlar`) : `${CLASS_DEFS[p.cls].label} · ${TEAMS[p.team].name}`;
+    $('clsname').textContent = g.mode.infection ? (p.def.zombie ? `${p.boss ? 'BOSS' : 'Zombi · ' + p.zt.label} · ${'♥'.repeat(Math.max(0, p.zLives))}` : `${CLASS_DEFS[p.cls].label} · İnsanlar`) : `${CLASS_DEFS[p.cls].label} · ${TEAMS[p.team].name}`;
     $('wname').textContent = p.reloadT > 0 ? `${st.name} · dolduruluyor…` : p.useT > 0 ? `${st.name} · kullanılıyor…` : st.name;
     $('mag').textContent = it.mag;
     $('res').textContent = st.kind === 'throwable' || st.kind === 'medkit' || st.kind === 'melee' ? '' : '/ ' + it.reserve;
@@ -517,8 +543,12 @@ export class Hud {
       $('rtitle').textContent = k ? 'Öldürüldün' : 'Öldün';
       $('rinfo').innerHTML = k ? `<b>${k.name}</b> · ${CLASS_DEFS[k.cls].label}<br>${k.item ? WSTATS[k.item.id].name : ''} · ${Math.ceil(k.hp)} can kaldı` : '';
       $('rcount').textContent = p.respawnT > 0 ? Math.ceil(p.respawnT) : '…';
-      if (g.mode.infection) $('rinfo').innerHTML += p.def.zombie ? '<br>Yeniden doğuyorsun…' : '<br><b style="color:#b6ff6a">Zombi olarak doğacaksın</b>';
-      if (g.mode.infection) this.markZ(g.pendingZ || '');
+      if (g.mode.infection) {
+        const cure = p.willCure;
+        this.setRowMode(cure ? 'cls' : p.boss ? 'boss' : 'z');
+        $('rinfo').innerHTML += cure ? `<br><b style="color:#7ec8ff">${p.boss ? 'BOSS devrildi: ' : ''}İNSAN olarak doğacaksın</b> (zombi hakkın bitti)` : !p.def.zombie ? '<br><b style="color:#b6ff6a">Zombi olarak doğacaksın</b>' : `<br>Yeniden doğuyorsun · kalan hakkın: <b style="color:#b6ff6a">${p.zLives}</b>`;
+        if (cure) this.markClass(g.pendingClass || p.humanCls || ''); else if (!p.boss) this.markZ(g.pendingZ || '');
+      }
       else { this.buildSpawnRow(); this.markClass(g.pendingClass || p.cls); }
     } else { rs.style.display = 'none'; this._spKey = null; }
     // mesaj

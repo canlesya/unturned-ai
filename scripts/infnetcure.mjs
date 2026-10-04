@@ -1,0 +1,22 @@
+// Gerçek istemci, çevrimiçi: insan → (1 ölüm) zombi → (2 ölüm) yeniden insan. (önce: BF_DEBUG=1 npm run server ; vite 5180)
+import { chromium } from 'playwright';
+const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
+const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+await page.goto(`${process.env.BASE || 'http://127.0.0.1:5180'}/?online=new&type=inf&per=24&time=600&debug=1&nolock=1&server=ws://127.0.0.1:8787&name=Test`);
+await page.waitForFunction('window.__game && window.__game.running', null, { timeout: 90000 });
+await page.waitForTimeout(2500);
+const st = () => page.evaluate(() => { const p = window.__game.playerSoldier; return JSON.stringify({ team: p.team, cls: p.cls, boss: p.boss, lives: p.zLives, alive: p.alive, hp: p.hp, items: p.items.map((i) => i.id) }); });
+const die = async () => { await page.evaluate(() => { const n = window.__game.online; n.send({ t: 'dbg', kill: 1 }); setTimeout(() => n.send({ t: 'dbg', kill: 1 }), 400); }); await page.waitForTimeout(1500); };
+let fail = 0; const ok = (c, m) => { console.log((c ? 'OK    ' : 'HATA  ') + m); if (!c) fail++; };
+console.log('başta   :', await st());
+await die(); await page.waitForTimeout(8000);
+let o = JSON.parse(await st()); ok(o.team === 'red' && o.cls === 'zombie' && o.lives === 2 && o.alive, 'ilk ölüm → zombi (2 hak): ' + JSON.stringify(o));
+await die(); await page.waitForTimeout(8500);
+o = JSON.parse(await st()); ok(o.team === 'red' && o.lives === 1 && o.alive, 'zombi 1. ölüm → hâlâ zombi (1 hak)');
+await die(); await page.waitForTimeout(8500);
+o = JSON.parse(await st()); ok(o.team === 'blue' && o.cls !== 'zombie' && o.alive && o.items.length === 4, 'zombi 2. ölüm → insan: ' + JSON.stringify(o));
+await page.screenshot({ path: 'screenshots/infnet-5-iyilesti.png' });
+console.log('hata:', errs.length, errs.slice(0, 3));
+await browser.close();
+process.exit(fail ? 1 : 0);

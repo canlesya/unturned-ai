@@ -44,6 +44,16 @@ await adv(10);
 console.log('enfekte:', await page.evaluate(() => { const g = window.__game, p = g.playerSoldier; return JSON.stringify({ team: p.team, cls: p.cls, hp: p.hp, maxHp: p.maxHp, items: p.items.map((i) => i.id), alive: p.alive, c: g.infCounts() }); }));
 await adv(30);
 await page.screenshot({ path: `${pre}-4-zombi-birinci-sahis.png` });
+// zombi olarak öl: 1 hak kaldı → zombi doğacak
+await page.evaluate(() => { const g = window.__game, p = g.playerSoldier; p.protT = 0; p.takeDamage(9999, g.soldiers.find((e) => e.team === 'blue' && e.alive), 'body', p.pos, 'M4A1'); });
+await adv(8); await page.screenshot({ path: `${pre}-4b-zombi-hak.png` });
+await page.evaluate(() => { window.__game.playerSoldier.respawnT = 0; }); await adv(8);
+// ikinci ölüm: hak bitti → insan olarak doğacak (sınıf seçimi)
+await page.evaluate(() => { const g = window.__game, p = g.playerSoldier; p.protT = 0; p.takeDamage(9999, g.soldiers.find((e) => e.team === 'blue' && e.alive), 'body', p.pos, 'M4A1'); });
+await adv(8); await page.screenshot({ path: `${pre}-4c-iyilesme.png` });
+await page.evaluate(() => { window.__game.playerSoldier.respawnT = 0; }); await adv(30);
+console.log('iyileşti:', await page.evaluate(() => { const p = window.__game.playerSoldier; return JSON.stringify({ team: p.team, cls: p.cls, hp: p.hp, alive: p.alive, items: p.items.map((i) => i.id) }); }));
+await page.screenshot({ path: `${pre}-4d-insan-geri.png` });
 await page.evaluate(() => { const g = window.__game; window.__game.player.third = true; g.thirdView = true; });
 await page.keyboard.press('KeyH'); await adv(30);
 await page.screenshot({ path: `${pre}-5-zombi-ucuncu-sahis.png` });

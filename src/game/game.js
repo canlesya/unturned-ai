@@ -11,7 +11,7 @@ import { Hud } from './hud.js';
 import { Soldier } from './soldier.js';
 import { Player } from './player.js';
 import { BotBrain } from './bot.js';
-import { CLASS_DEFS, WSTATS, BOT_NAMES, makeLoadout, BLEED_S, ZOMBIE, ZTYPES, ZT_ORDER, randomZType } from './stats.js';
+import { CLASS_DEFS, WSTATS, BOT_NAMES, makeLoadout, BLEED_S, ZOMBIE, BOSS, ZTYPES, ZT_ORDER, randomZType } from './stats.js';
 import { makeMatch, PRESETS } from './match.js';
 import { Weather } from './weather.js';
 import { rand, pick, clamp } from './util.js';
@@ -277,10 +277,11 @@ export class Game {
   }
 
   // ───── Enfekte modu ─────
-  // Maç başı: oyuncuların 1/ZOMBIE.ratio'su (en az 1) ilk zombi (alfa) olur; geri kalanı insan (mavi). Zombiler 'red' takımındadır.
+  // Maç başı: oyuncu sayısına göre 1 ya da 2 BOSS zombi seçilir (10 kişiden azsa 1); geri kalanı insan (mavi). Zombiler 'red' takımındadır.
+  // Kurallar: boss'un öldürdüğü insan NORMAL zombi olur · insan 1 kez ölünce zombi · normal zombi 2 kez ölünce insan · boss 3 kez ölünce insan.
   seedInfection() {
     const all = this.soldiers.filter((s) => !s.vacant);
-    const k = Math.max(1, Math.round(all.length / ZOMBIE.ratio));
+    const k = all.length < ZOMBIE.bossSplit ? ZOMBIE.bossCount[0] : ZOMBIE.bossCount[1];
     const pool = [...all].sort(() => Math.random() - 0.5);
     for (const s of all) if (s.team !== 'blue') { s.team = 'blue'; s.setClass(s.cls === 'zombie' ? 'assault' : s.cls); }       // hepsi insan olarak başlar
     for (let i = 0; i < k; i++) this.makeZombie(pool[i], true);
@@ -290,29 +291,47 @@ export class Game {
     if (this.infPool.length < 12) this.infPool = [...this.map.spawns.blue, ...this.map.spawns.red];
   }
 
-  makeZombie(s, alpha = false, type) {
-    s.team = 'red'; s.alpha = alpha; s.infectNext = false;
+  makeZombie(s, boss = false, type) {
+    if (!s.def.zombie) { s.humanCls = s.cls; s.humanChoice = s.choice; }                       // insana dönünce eski sınıfı/teçhizatı
+    s.team = 'red'; s.boss = boss; s.infectNext = false;
     s.choice = {};
     s.ztype = type || randomZType();
+    s.zLives = boss ? BOSS.lives : ZOMBIE.lives;
     s.setClass('zombie');
     s.maxHp = s.zombieMaxHp(); s.hp = s.maxHp;
     s.squad = 0;
   }
 
-  // Ölen insan zombi olarak yeniden doğar (respawn içinden çağrılır)
+  // Ölen insan NORMAL zombi olarak yeniden doğar (respawn içinden çağrılır)
   infect(s) {
     const ctl = this.ctlOf(s);
     this.makeZombie(s, false, ctl && ctl.pendingZ);                  // seçtiği tür (yoksa rastgele)
     if (ctl) { ctl.pendingClass = null; ctl.pendingLoadout = null; ctl.pendingZ = null; }
-    this.netEvent({ e: 'inf', v: s.id, al: s.alpha ? 1 : 0, zt: ZT_ORDER.indexOf(s.ztype) + 1 });
+    this.netEvent({ e: 'inf', v: s.id, bs: 0, zt: ZT_ORDER.indexOf(s.ztype) + 1, zl: s.zLives });
     this.emit('infect', s);
     if (s.isPlayer && !this.headless) { this.hud.toast('ENFEKTE OLDUN — zombi olarak doğuyorsun', '#b6ff6a'); this.sfx.zombie?.(s.pos); }
   }
 
-  // insan ve zombi sayıları (ölü ama henüz enfekte olmamış insanlar sayılmaz: onlar zaten zombi olacak)
+  // Can hakkı biten zombi / boss yeniden insan olarak doğar (seçtiği ya da eski sınıfıyla)
+  cure(s) {
+    const ctl = this.ctlOf(s), cls = (ctl && ctl.pendingClass) || s.humanCls || 'assault';
+    const wasBoss = s.boss;
+    s.team = 'blue'; s.boss = false; s.zLives = 0; s.ztype = 'walker'; s.infectNext = false; s.cloakNet = false; s.abActive = 0; s.abT = 0;
+    s.choice = ctl ? (ctl.pendingLoadout || s.humanChoice || {}) : { random: true };
+    s.setClass(CLASS_DEFS[cls] && cls !== 'zombie' ? cls : 'assault');
+    if (ctl) { ctl.pendingClass = null; ctl.pendingLoadout = null; ctl.pendingZ = null; }
+    this.netEvent({ e: 'cure', v: s.id, cls: s.cls });
+    this.emit('cure', s);
+    if (s.isPlayer && !this.headless) this.hud.toast(wasBoss ? 'BOSS DEVRİLDİ — insan oldun' : 'İYİLEŞTİN — yeniden insansın', '#7ec8ff');
+  }
+
+  // İnsan ve zombi sayıları: ölü ama henüz enfekte olmamış insan zombi sayılır; can hakkı biten ölü zombi insan sayılır
   infCounts() {
     let h = 0, z = 0;
-    for (const s of this.soldiers) { if (s.vacant) continue; if (s.team === 'blue' && !s.infectNext) h++; else z++; }
+    for (const s of this.soldiers) {
+      if (s.vacant) continue;
+      if ((s.team === 'blue' && !s.infectNext) || s.willCure) h++; else z++;
+    }
     return { h, z };
   }
 
@@ -346,7 +365,7 @@ export class Game {
     if (s.cls !== cls) s.setClass(cls); else s.items = makeLoadout(cls, s.team, s.choice);
     if (this.mode.infection && this.opts.bots === false && s.team === 'blue') {      // botsuz odada hiç zombi yoksa ikinci oyuncu ilk zombi olur
       const live = this.soldiers.filter((e) => !e.vacant && e !== s);
-      if (live.length && !live.some((e) => e.team === 'red')) { this.makeZombie(s, true); this.netEvent({ e: 'inf', v: s.id, al: 1 }); }
+      if (live.length && !live.some((e) => e.team === 'red')) { this.makeZombie(s, true); this.netEvent({ e: 'inf', v: s.id, bs: 1, zt: 1, zl: s.zLives }); }
     }
     this.humans.set(s.id, { s, queue: [], last: null, stale: 0, ack: 0, tickAck: false, fireBuf: 0, pendingClass: null, pendingLoadout: null, spawnChoice: 'base' });
     this.respawn(s, true);
@@ -502,7 +521,7 @@ export class Game {
   showAbilityFx(s, id, from, to = s.pos) {
     if (this.headless) return;
     const V = THREE.Vector3, cam = this.camera.position;
-    if (id === 'blink') {
+    if (id === 'blink' || id === 'shadow') {
       const hi = (p, c) => { for (let i = 0; i < 3; i++) this.effects.spark(new V(p.x, p.y + 0.4 + i * 0.5, p.z), 10, new V(0, 1, 0), c, 5); };
       hi(from, '#c58cff'); hi(to, '#c58cff');
     } else if (id === 'cloak') this.effects.spark(new V(s.pos.x, s.pos.y + 1, s.pos.z), 14, new V(0, 1, 0), '#7ad7ff', 4);
@@ -588,13 +607,13 @@ export class Game {
   ctlOf(s) { return s.isPlayer ? this : this.humans.get(s.id) || null; }
 
   respawn(s, first = false) {
-    if (this.mode.infection && s.infectNext) this.infect(s);
+    if (this.mode.infection) { if (s.infectNext) this.infect(s); else if (s.willCure) this.cure(s); }
     const ctl = this.ctlOf(s);
     if (ctl && ctl.queue) { ctl.queue.length = 0; ctl.budget = 1; }        // insan: doğmadan önceki eski girdiler (örn. eski silah seçimi) uygulanmasın
     if (ctl && ctl.pendingLoadout) { s.choice = ctl.pendingLoadout; ctl.pendingLoadout = null; s.items = makeLoadout(s.cls, s.team, s.choice); }
     if (ctl && ctl.pendingClass && ctl.pendingClass !== s.cls && !s.def.zombie) s.setClass(ctl.pendingClass);
     if (s.def.zombie) {                                                // yeniden doğan zombi: seçtiği tür; botlar her doğuşta rastgele
-      const want = ctl ? ctl.pendingZ : randomZType();
+      const want = s.boss ? null : ctl ? ctl.pendingZ : randomZType();
       if (want && want !== s.ztype) { s.ztype = want; s.setClass('zombie'); }
       if (ctl) ctl.pendingZ = null;
     }
@@ -814,8 +833,14 @@ export class Game {
         case 'rld': if (by && by !== me) { by.reloadStyle = ev.s; by.reloadTotal = by.reloadT = ev.t; by.reloadEmpty = !!ev.em; by.shellT = ev.sh; } break;
         case 'inf': {                                // bir insan zombi oldu: takım + sınıf (model) değişir
           const v = this.soldiers[ev.v]; if (!v) break;
-          v.team = 'red'; v.alpha = !!ev.al; v.ztype = ZT_ORDER[(ev.zt || 1) - 1] || 'walker'; v.setClass('zombie');
+          v.team = 'red'; v.boss = !!ev.bs; v.zLives = ev.zl ?? 2; v.ztype = ZT_ORDER[(ev.zt || 1) - 1] || 'walker'; v.setClass('zombie');
           if (v === me) { this.hud.toast('ENFEKTE OLDUN — zombi olarak doğuyorsun', '#b6ff6a'); this.sfx.zombie?.(v.pos); }
+          break;
+        }
+        case 'cure': {                              // can hakkı bitti: yeniden insan
+          const v = this.soldiers[ev.v]; if (!v) break;
+          v.team = 'blue'; v.boss = false; v.zLives = 0; v.cloakNet = false; v.setClass(ev.cls || 'assault');
+          if (v === me) this.hud.toast('İYİLEŞTİN — yeniden insansın', '#7ec8ff');
           break;
         }
         case 'ab': if (by) this.showAbilityFx(by, ev.k, { x: ev.f[0], y: ev.f[1], z: ev.f[2] }, { x: ev.d[0], y: ev.d[1], z: ev.d[2] }); break;
@@ -1270,9 +1295,10 @@ export class Game {
     this.hud.killFeed(killer, victim, weapon, hs);
     if (killer && killer.isPlayer && killer !== victim) this.hud.popup(hs ? '+150 KAFA ATIŞI' : '+100 ÖLDÜRME', hs);
     if (this.mode.infection) {
-      if (victim.team === 'blue') { victim.infectNext = true; victim.revivable = false; }         // her insan ölümü enfekte eder
-      else victim.revivable = false;
-      victim.respawnT = victim.team === 'blue' ? (victim.isPlayer || victim.human ? 5 : rand(3.5, 5)) : ZOMBIE.respawn;
+      if (!victim.def.zombie) victim.infectNext = true;                                            // her insan ölümü enfekte eder
+      else victim.zLives = Math.max(0, victim.zLives - 1);                                         // zombi / boss can hakkı eksilir; 0 olunca insan olarak doğar
+      victim.revivable = false;
+      victim.respawnT = !victim.def.zombie || victim.zLives <= 0 ? (victim.isPlayer || victim.human ? 5 : rand(3.5, 5)) : victim.boss ? BOSS.respawn : ZOMBIE.respawn;
     } else victim.respawnT = victim.isPlayer || victim.human ? 5 : rand(3.5, 6);
     if (victim.isPlayer && this.player) this.player.camPos.copy(victim.eye());
   }
@@ -1287,6 +1313,7 @@ export class Game {
     } else if (this.mode.infection) {
       const c = this.infCounts();
       if (c.h <= 0) { w = 'red'; why = 'Tüm insanlar enfekte oldu'; }
+      else if (c.z <= 0 && this.time > 2) { w = 'blue'; why = 'Tüm zombiler iyileşti'; }
       else if (this.timeLeft <= 0) { w = 'blue'; why = `${c.h} insan hayatta kaldı`; }
     } else if (this.mode.scoreBased) {
       const lim = this.mode.tickets;

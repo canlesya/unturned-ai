@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createCharacter } from '../models/character.js';
-import { WSTATS, CLASS_DEFS, OPTICS, OPTIC_ORDER, OPTIC_ALLOWED, resolveOptic, makeLoadout, TAC_RELOAD, BACKSTAB_DMG, ZOMBIE, ZTYPES } from './stats.js';
+import { WSTATS, CLASS_DEFS, OPTICS, OPTIC_ORDER, OPTIC_ALLOWED, resolveOptic, makeLoadout, TAC_RELOAD, BACKSTAB_DMG, ZOMBIE, ZTYPES, BOSS, ZBOSS } from './stats.js';
 import { SWING_HIT_K } from './anim.js';
 import { H_STAND, H_CROUCH, H_PRONE } from './collision.js';
 import { dirFromAngles, clamp, rand, lerp } from './util.js';
@@ -52,6 +52,7 @@ export class Soldier {
     this.stanceLeft = false; this.stanceT = 1;        // 3. şahıs sol omuz duruşu (görsel): hedef ve yumuşatılmış değer (+1 sağ … −1 sol)
     this.shotOff = null;          // 3. şahıs kamerada: kameranın gözden ofseti (nişan noktasını kamera ışını belirler; mermi yine gözden çıkar)
     this.dmgMul = 1;
+    this.boss = false; this.zLives = 0;       // Enfekte: boss mu, kalan ölüm hakkı (0 = bir sonraki doğuşta insana döner)
     this.ztype = 'walker'; this.abT = 0; this.abActive = 0; this.cloakNet = false;      // Enfekte: zombi türü, özel güç bekleme süresi / etkin süresi, ağdan gelen görünmezlik
     this.model = null;
     this.setClass(cls);
@@ -60,23 +61,25 @@ export class Soldier {
   get item() { return this.items[this.cur]; }
   get stat() { return WSTATS[this.item.id]; }
   // ── Enfekte: zombi türü ve özel güç ──
-  get zt() { return ZTYPES[this.ztype] || ZTYPES.walker; }
+  get zt() { return this.boss ? ZBOSS : ZTYPES[this.ztype] || ZTYPES.walker; }
   get ability() { return this.def.zombie ? this.zt.ability : null; }
   get abOn() { return this.abActive > 0; }
-  get cloaked() { return this.cloakNet || (this.def.zombie && this.abActive > 0 && this.zt.ability.id === 'cloak'); }
+  get cloaked() { return this.cloakNet || (this.def.zombie && this.abActive > 0 && (this.zt.ability.id === 'cloak' || this.zt.ability.id === 'shadow')); }
+  // ölüm ekranında: bir sonraki doğuşta insan mı olacak (can hakkı bitti)
+  get willCure() { return !!this.def.zombie && this.zLives <= 0 && !this.alive; }
   // hız çarpanı (insanlarda sınıfın hızı; zombide türün hızı × etkin güç)
   get spd() {
     if (!this.def.zombie) return this.def.speed;
     const a = this.abActive > 0 ? this.zt.ability.id : '';
-    return this.zt.speed * (a === 'rage' ? 1.25 : a === 'burst' ? 1.7 : 1);
+    return this.zt.speed * (this.boss ? BOSS.rageSpd : a === 'rage' ? 1.25 : a === 'burst' ? 1.7 : 1);
   }
-  zombieMaxHp() { return Math.round(this.zt.hp * (this.alpha ? ZOMBIE.alphaMul : 1)); }
+  zombieMaxHp() { return this.boss ? Math.round(BOSS.hp + BOSS.hpPerPlayer * (this.game.mode.total || 12)) : this.zt.hp; }
 
   // Özel güç (F / sağ tık). Sunucu da istemci de (çevrimdışı) aynı kodu çalıştırır. Döner: kullanıldı mı
   useAbility() {
     if (!this.alive || !this.def.zombie || this.abT > 0 || this.game.ended) return false;
     const ab = this.zt.ability, from = this.pos.clone();
-    if (ab.id === 'blink' && !this._blink(ab.range)) { this.abT = 0.8; return false; }
+    if ((ab.id === 'blink' || ab.id === 'shadow') && !this._blink(ab.range)) { this.abT = 0.8; return false; }
     this.abT = ab.cd; this.abActive = ab.dur;
     this.game.abilityFx(this, ab.id, from);
     return true;
@@ -115,7 +118,7 @@ export class Soldier {
     }
     // görünüm: sınıf teçhizatı değişir → modeli yeniden kur
     if (this.model) this.game.scene.remove(this.model.root);
-    this.model = createCharacter({ team: def.zombie ? 'zomb' : this.team, cls, ztype: this.ztype, skinIndex: this.id, weapon: this.items[0].id, optic: this.optic });
+    this.model = createCharacter({ team: def.zombie ? 'zomb' : this.team, cls, ztype: this.boss ? 'boss' : this.ztype, skinIndex: this.id, weapon: this.items[0].id, optic: this.optic });
     this.model.root.visible = this.alive;
     this.game.scene.add(this.model.root);
     this._modelWeapon = this.items[0].id;
@@ -379,7 +382,7 @@ export class Soldier {
     if (hit && hit.victim) {
       const v = hit.victim;
       const zb = this.def.zombie, back = !zb && this.isBehind(v);                       // zombi arkadan tek vuruş yapmaz
-      const mul = (sw.kind === 'stab' ? st.stabMul : 1) * (zb ? this.zt.dmg / st.dmg * (this.abActive > 0 && this.zt.ability.id === 'rage' ? 1.4 : 1) : 1);
+      const mul = (sw.kind === 'stab' ? st.stabMul : 1) * (zb ? this.zt.dmg / st.dmg * ((this.boss || (this.abActive > 0 && this.zt.ability.id === 'rage')) ? BOSS.rageDmg : 1) : 1);
       g.effects.blood(hit.point, back ? 14 : 8, d.clone().negate());
       g.sfx.knifeHit(hit.point, back);
       v.takeDamage((back ? BACKSTAB_DMG : st.dmg * mul) * this.dmgMul, this, 'body', this.pos, back ? st.name + ' · arkadan' : st.name);
@@ -479,7 +482,10 @@ export class Soldier {
 
   takeDamage(amount, attacker, zone, fromPos, weaponName) {
     if (!this.alive || this.protT > 0) return;
-    if (this.def.zombie && this.abActive > 0) { const a = this.zt.ability.id; if (a === 'shield') amount *= 0.3; else if (a === 'cloak') this.abActive = 0; }   // zırh: hasarın %70'i yok · hayalet vurulunca belirir
+    if (this.def.zombie) {
+      if (this.boss) amount *= BOSS.armor;                                                              // boss hasarın %30'unu yok sayar
+      if (this.abActive > 0) { const a = this.zt.ability.id; if (a === 'shield') amount *= 0.3; else if (a === 'cloak' || a === 'shadow') this.abActive = 0; }
+    }   // zırh: hasarın %70'i yok · hayalet vurulunca belirir
     this.hp -= amount;
     this.lastHit = attacker;
     this.lastDmgT = this.game.time;

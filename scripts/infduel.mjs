@@ -9,7 +9,7 @@ g.brains = g.brains.filter((b) => b.s === hum || b.s === zom);
 const pts = g.nav.spreadPoints(g.nav.reachable(g.map.spawns.blue[0].x, g.map.spawns.blue[0].z), { spacing: 6, max: 400 });
 const V3 = hum.pos.constructor, rng = () => pts[Math.floor(Math.random() * pts.length)];
 for (const type of ZT_ORDER) {
-  zom.ztype = type; zom.alpha = false; zom.setClass('zombie');
+  zom.ztype = type; zom.boss = false; zom.setClass('zombie');
   let zWin = 0, n = 0, tsum = 0;
   for (let tries = 0; n < N && tries < 4000; tries++) {
     const a = rng(), b = rng(), d = Math.hypot(a.x - b.x, a.z - b.z);
