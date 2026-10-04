@@ -545,4 +545,6 @@ Tarayıcıda iki sekme: `/?online=new&name=Ali&per=3` sonra `/?online=KOD&name=V
 ### 12.11 Geliştirici Atölyesi haritası (`dev`)
 Menüde Özel Oyun/Çevrimiçi harita kartlarında "Geliştirici Atölyesi" (rastgele seçime girmez). URL: `?autostart=3v3&map=dev`. `src/maps/dev.js`: z −46 araçlar (11), z −27/−19 tüm silah ve gadgetlar kaide üstünde (2× büyük, etiketli), z +5 binalar (ev, ofis, garaj, dükkân, ambar, depo, kilise, benzinlik, silo), z +27 duvar açıklıkları / merdivenler / siperler / konteyner / hendek, z +39 küçük yapılar ve ağaçlar, z +52 askeri yapılar (hangar, radar, kule, bunker, helikopter, uçak). Etiketler yalnızca tarayıcıda çizilir.
 Araba camları kenarlara oturan eğik cam + A/C sütunu; çamurluk kemeri tekerlek halkası (`wheel(..., { wall })`).
-Atölye kısayolları (yalnızca çevrimdışı): **F** serbest uçuş (çarpışmasız; WASD yönüne bakışa göre, Boşluk yukarı, C/Ctrl aşağı, Shift hızlı), **J/K** elindeki yuvadaki silahı önceki/sonraki ile değiştirir (1-4 ile yuva seç; tam mermi). Doğuş noktaları binaların dışında (x ±88).
+Atölye kısayolları (yalnızca çevrimdışı): **L** serbest uçuş (çarpışmasız; WASD yönüne bakışa göre, Boşluk yukarı, C/Ctrl aşağı, Shift hızlı), **J/K** elindeki yuvadaki silahı önceki/sonraki ile değiştirir (1-4 ile yuva seç; tam mermi). Doğuş noktaları binaların dışında (x ±88).
+
+**Silah inceleme (Y):** birinci şahıs silah modeli ~3,4 sn'de ortaya alınıp yandan, ters ve üstten gösterilir (`ViewModel.inspect`); ateş, nişan, yükleme, sprint, silah değişimi ve savurma iptal eder. Yalnızca görsel; çevrimiçide de çalışır.

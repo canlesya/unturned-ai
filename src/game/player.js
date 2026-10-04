@@ -34,7 +34,7 @@ export class ViewModel {
     this.model = null; this.id = null;
     this.kick = 0; this.kickR = 0; this.bobT = 0; this.raise = 1; this.raiseRate = 3.5;
     this.boltT = 0; this.hitKick = 0; this.throwT = 0; this.dryT = 0;
-    this.camRoll = 0; this.camPitch = 0;
+    this.camRoll = 0; this.camPitch = 0; this.inspectT = 0;
     this.pos = new THREE.Vector3(0.2, -0.21, -0.66);
     this.flash = null; this.flashT = 0;
     this.handL = null; this.handR = null;
@@ -88,6 +88,13 @@ export class ViewModel {
     g.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
     this.model = g;
     this.root.add(g);
+  }
+
+  // Silah inceleme (Y): ~3,4 sn; ateş/nişan/yükleme/sprint/silah değişimi/savurma iptal eder
+  inspect(s) {
+    if (this.inspectT > 0) { this.inspectT = 0; return; }
+    if (s.adsT > 0.05 || s.reloadT > 0 || s.sprinting || s.swing || s.useT > 0 || this.raise > 0.05 || this.kick > 0.02) return;
+    this.inspectT = 0.0001;
   }
 
   adsTarget(u) {
@@ -144,6 +151,22 @@ export class ViewModel {
       rx -= sprK * 0.55; ry += sprK * 0.7;
     }
 
+    // ── silah inceleme: öne/ortaya al, yandan göster, ters çevir, üstten bak, geri indir ──
+    let insp = 0;
+    if (this.inspectT > 0) {
+      if (s.adsT > 0.05 || s.reloadT > 0 || s.sprinting || s.swing || s.useT > 0 || this.raise > 0.05 || this.kick > 0.02 || s.cd > 0.05) this.inspectT = 0;
+      else this.inspectT += dt / 3.4;
+      if (this.inspectT >= 1) this.inspectT = 0;
+    }
+    if (this.inspectT > 0) {
+      const t = this.inspectT, sm = (x) => x * x * (3 - 2 * x);
+      insp = sm(clamp(t / 0.12, 0, 1)) * sm(clamp((1 - t) / 0.14, 0, 1));
+      const pl = (x) => Math.sin(clamp(x, 0, 1) * Math.PI);
+      const a = pl((t - 0.1) / 0.36), b = pl((t - 0.42) / 0.3), c = pl((t - 0.66) / 0.24);
+      pos.x -= 0.19 * insp; pos.y += 0.05 * insp; pos.z += 0.07 * insp;
+      ry += 0.95 * a + 0.25 * b; rx += -0.2 * a + 0.5 * c; rz += -0.95 * b + 0.3 * c;
+    }
+
     // ── yükleme: silah yana yatar, sol el şarjöre/kemere gider, şarjör çıkar-takılır, kol şarjı ──
     let camRoll = 0, camPitch = 0;
     if (ra) {
@@ -177,7 +200,7 @@ export class ViewModel {
         this.handL.position.set(0, 0, 0).addScaledVector(fg, w.fg).addScaledVector(mg, w.mag).addScaledVector(POUCH_VM, w.pouch).addScaledVector(ch, w.charge);
         this.handL.position.z += ra.charge * 0.08 * w.charge;    // kol şarjını geri çek
       } else {
-        this.handL.visible = !!this.hLfg;
+        this.handL.visible = !!this.hLfg && insp < 0.15;               // incelerken sol el silahı bırakır
         if (this.hLfg) this.handL.position.copy(this.hLfg);
       }
     }
@@ -244,7 +267,7 @@ export class Player {
     this.refreshWeapon();
     game.on('switch', (s) => { if (s === this.s) this.refreshWeapon(); });
     game.on('spawn', (s) => { if (s === this.s) this.refreshWeapon(); });
-    if (this.devTools()) setTimeout(() => game.hud?.toast('Atölye: F uç · J/K silah değiştir (yuva başına) · 1-4 yuva', '#ffb347'), 2500);
+    if (this.devTools()) setTimeout(() => game.hud?.toast('Atölye: L uç · J/K silah değiştir (yuva başına) · 1-4 yuva', '#ffb347'), 2500);
     game.on('fire', (s) => { if (s === this.s) { this.vm.kick = Math.min(this.vm.kick + 0.045, 0.12); this.vm.kickR = Math.min(this.vm.kickR + 0.18, 0.5); this.vm.flashT = 0.045; } });
     game.on('bolt', (s) => { if (s === this.s) this.vm.kickR += 0.2; });
     game.on('melee', (s) => { if (s === this.s) this.vm.kick = 0.02; });
@@ -260,7 +283,7 @@ export class Player {
     document.body.append(sm, ov);
   }
 
-  // Geliştirici haritası (yalnızca çevrimdışı): F uçuş, J/K elindeki yuvadaki silahı sıradakiyle değiştirir
+  // Geliştirici haritası (yalnızca çevrimdışı): L uçuş, J/K elindeki yuvadaki silahı sıradakiyle değiştirir
   devTools() { return !!this.game.mapDef?.dev && !this.game.online; }
 
   flyMove(f, r, k, dt) {
@@ -299,8 +322,9 @@ export class Player {
       if (!this.game.running) return;
       if (e.code === 'KeyT' && s.alive && !this.wheel) this.openWheel();
       if (e.code === 'KeyH' && s.alive) this.toggleThird();
+      if (e.code === 'KeyY' && s.alive && !this.wheel) this.vm.inspect(s);                  // silah inceleme (CS tarzı)
       if (this.devTools() && s.alive) {
-        if (e.code === 'KeyF') { s.fly = !s.fly; if (!s.fly) s.vel.set(0, 0, 0); this.game.hud.toast(s.fly ? 'Uçuş AÇIK · WASD/Boşluk/C · Shift hızlı' : 'Uçuş kapalı'); }
+        if (e.code === 'KeyL') { s.fly = !s.fly; if (!s.fly) s.vel.set(0, 0, 0); this.game.hud.toast(s.fly ? 'Uçuş AÇIK · WASD/Boşluk/C · Shift hızlı' : 'Uçuş kapalı'); }
         if (e.code === 'KeyJ') this.cycleWeapon(-1);
         if (e.code === 'KeyK') this.cycleWeapon(1);
       }

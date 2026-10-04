@@ -325,6 +325,7 @@ export function showMenu(onStart, onOnline) {
       ['Silah', '<kbd>1</kbd> ana · <kbd>2</kbd> yedek · <kbd>3</kbd>/<kbd>G</kbd> gadget · <kbd>4</kbd>/<kbd>V</kbd> bıçak · fare tekeri'],
       ['Nişangâh', '<kbd>T</kbd> basılı tut + fareyle seç + sol tık (silahın uygun nişangâhları) · hızlı değiştir <kbd>B</kbd> · ateş modu <kbd>X</kbd>'],
       ['Fener', '<kbd>F</kbd> (gece ve gün batımında)'],
+      ['Silah inceleme', '<kbd>Y</kbd> (CS gibi: silahı döndürüp gösterir; ateş / nişan / yükleme iptal eder)'],
       ['Takım (çevrimiçi)', '<kbd>M</kbd> takım seçimi (Ölüm Maçı hariç)'],
       ['Kill', 'sıkışınca: <kbd>Esc</kbd> ile duraklat → <b>Kill (yeniden doğ)</b> düğmesi'],
       ['Bakış (yedek)', 'Fare kilitlenmezse ok tuşları'],
