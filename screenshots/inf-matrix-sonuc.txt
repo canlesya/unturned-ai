@@ -1,0 +1,32 @@
+
+Enfekte · botlu · 10 maç/durum · süre sınırı 300 sn · toplam 180 maç · 15 sn
+
+Zorluk | Harita | Kişi | İnsan kazandı | Ort. süre | Ort. kalan insan | Ort. iyileşen | Boss düşen | Hata
+Kolay  | Kasaba | 10   | 0/10            |   25 sn |   0.0 |   0.0 |  0.0 | 0
+Kolay  | Kasaba | 24   | 0/10            |   42 sn |   0.0 |   0.2 |  0.0 | 0
+Kolay  | Vadi   | 10   | 0/10            |   23 sn |   0.0 |   0.0 |  0.0 | 0
+Kolay  | Vadi   | 24   | 0/10            |   37 sn |   0.0 |   0.4 |  0.0 | 0
+Kolay  | Üs     | 10   | 0/10            |   23 sn |   0.0 |   0.0 |  0.0 | 0
+Kolay  | Üs     | 24   | 0/10            |   45 sn |   0.0 |   1.8 |  0.1 | 0
+Orta   | Kasaba | 10   | 0/10            |   27 sn |   0.0 |   0.0 |  0.0 | 0
+Orta   | Kasaba | 24   | 0/10            |   60 sn |   0.0 |   3.8 |  0.0 | 0
+Orta   | Vadi   | 10   | 0/10            |   24 sn |   0.0 |   0.0 |  0.0 | 0
+Orta   | Vadi   | 24   | 6/10            |  109 sn |  14.3 |  11.0 |  1.3 | 0
+Orta   | Üs     | 10   | 0/10            |   24 sn |   0.0 |   0.0 |  0.0 | 0
+Orta   | Üs     | 24   | 0/10            |   60 sn |   0.0 |   5.9 |  0.2 | 0
+Zor    | Kasaba | 10   | 0/10            |   28 sn |   0.0 |   0.0 |  0.0 | 0
+Zor    | Kasaba | 24   | 8/10            |  127 sn |  19.2 |  19.2 |  1.8 | 0
+Zor    | Vadi   | 10   | 0/10            |   27 sn |   0.0 |   0.0 |  0.0 | 0
+Zor    | Vadi   | 24   | 10/10           |  123 sn |  23.9 |   8.4 |  1.8 | 0
+Zor    | Üs     | 10   | 0/10            |   31 sn |   0.0 |   0.0 |  0.0 | 0
+Zor    | Üs     | 24   | 6/10            |  102 sn |  14.4 |  13.5 |  1.2 | 0
+
+Zorluğa göre özet:
+  Kolay: insan kazandı 0/60 · ort. süre 33 sn
+  Orta: insan kazandı 6/60 · ort. süre 51 sn
+  Zor: insan kazandı 24/60 · ort. süre 73 sn
+  10 kişi: insan kazandı 0/90 · ort. süre 26 sn
+  24 kişi: insan kazandı 30/90 · ort. süre 78 sn
+  Kasaba: insan kazandı 8/60 · ort. süre 52 sn
+  Vadi: insan kazandı 16/60 · ort. süre 57 sn
+  Üs: insan kazandı 6/60 · ort. süre 47 sn
