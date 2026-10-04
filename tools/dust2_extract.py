@@ -34,6 +34,10 @@ for _i, _sl in enumerate(ndi.find_objects(_lab), start=1):
     _touch = (_m & _near_void[_sl]).any()
     _long = np.hypot(_h, _w) * S >= 8.0
     _keep[_i] = (_touch and _m.sum() >= 25) or _long
+lowpx = np.zeros_like(wall)
+for _i, _sl in enumerate(ndi.find_objects(_lab), start=1):
+    if not _keep[_i] and (_lab[_sl] == _i).sum() >= 25:
+        lowpx[_sl] |= (_lab[_sl] == _i)                 # içerideki kısa koyu parçalar: alçak duvar / küpeşte
 wall = _keep[_lab] & wall
 # taralı CT alım bölgesinin içi: desen çizgileri yürünebilir zemindir
 _gl, _gn = ndi.label(ndi.binary_dilation(green, iterations=7))
@@ -68,6 +72,20 @@ near = ndi.binary_dilation(walk | c_wall, iterations=SOLID_BAND)
 solid = c_wall | c_void                       # tüm boşluk katı: dış kenar kesin kapalı, aradaki adalar 'bina' kütlesi olur
 # yürünebilir hücrede: duvar yok
 solid &= ~(walk & ~c_wall) if False else solid
+# ince açık gri çizgiler (basamak / sahanlık kenarı) kutu değil alçak duvardır
+_bl, _bn = ndi.label(box, structure=np.ones((3, 3)))
+for _i, _sl in enumerate(ndi.find_objects(_bl), start=1):
+    _m = _bl[_sl] == _i
+    if _m.sum() < 40: continue
+    _ys, _xs = np.nonzero(_m)
+    _P = np.stack([_xs, _ys], 1).astype(float) * S
+    _w, _v = np.linalg.eigh(np.cov((_P - _P.mean(0)).T))
+    _L = 4 * np.sqrt(max(_w[1], 0)); _T = 4 * np.sqrt(max(_w[0], 0))
+    if _T < 1.3 and _L >= 3.0:
+        lowpx[_sl] |= _m; box[_sl] &= ~_m
+low_c = (frac(lowpx, NX, NZ) > 0.2) & ~c_void & ~solid
+low_c = ndi.binary_dilation(low_c, iterations=1) & ~c_void & ~solid
+solid = ndi.binary_closing(solid, structure=np.ones((3, 3)), iterations=1) | solid       # 1 hücrelik çentikler dolsun: merdiven basamağı şeklindeki çapraz duvarlarda botlar köşeye sürtmesin
 free = ~solid
 print('hücre', NX, NZ, 'yürünebilir', free.sum(), 'katı', solid.sum())
 
@@ -110,10 +128,10 @@ for it in range(60):
     while path[-1] in prev: path.append(prev[path[-1]])
     cells = [q for q in path if not E[q]]
     for (r, c) in cells:
-        for dr in (-1, 0, 1):
-            for dc in (-1, 0, 1):
+        for dr in (-2, -1, 0, 1, 2):
+            for dc in (-2, -1, 0, 1, 2):
                 r2, c2 = r + dr, c + dc
-                if 0 <= r2 < solid.shape[0] and 0 <= c2 < solid.shape[1] and not c_void[r2, c2]: solid[r2, c2] = False
+                if 0 <= r2 < solid.shape[0] and 0 <= c2 < solid.shape[1] and not c_void[r2, c2]: solid[r2, c2] = False; low_c[r2, c2] = False
     carved.append((round(float(X0 + found[1] * CELL), 1), round(float(Z0 + found[0] * CELL), 1), len(cells)))
 print('açılan kapı', len(carved), carved)
 
@@ -135,8 +153,38 @@ def rects(mask):
             else: c += 1
     return out
 
+# ── cephe yüzleri: yürünebilir alana bakan duvar kenarları, koşular halinde ──
+# dir 0:+x yüzü (duvarın doğu kenarı) 1:-x 2:+z 3:-z ; [dir, düzlem koordinatı, başlangıç, bitiş] (m)
+faces = []
+free_cells = ~solid & ~c_void
+def runs(vec):
+    out = []; i = 0
+    while i < len(vec):
+        if vec[i]:
+            j = i
+            while j + 1 < len(vec) and vec[j + 1]: j += 1
+            out.append((i, j + 1)); i = j + 1
+        else: i += 1
+    return out
+nz_, nx_ = solid.shape
+for d in range(4):
+    if d < 2:      # x yüzleri: her sütun sınırı için dikey koşular
+        sh = np.zeros_like(solid)
+        if d == 0: sh[:, :-1] = solid[:, :-1] & free_cells[:, 1:]; plane = lambda c: X0 + (c + 1) * CELL
+        else:      sh[:, 1:] = solid[:, 1:] & free_cells[:, :-1]; plane = lambda c: X0 + c * CELL
+        for c in range(nx_):
+            for (r0, r1) in runs(sh[:, c]): faces.append([d, round(float(plane(c)), 2), round(float(Z0 + r0 * CELL), 2), round(float(Z0 + r1 * CELL), 2)])
+    else:
+        sh = np.zeros_like(solid)
+        if d == 2: sh[:-1, :] = solid[:-1, :] & free_cells[1:, :]; plane = lambda r: Z0 + (r + 1) * CELL
+        else:      sh[1:, :] = solid[1:, :] & free_cells[:-1, :]; plane = lambda r: Z0 + r * CELL
+        for r in range(nz_):
+            for (c0, c1) in runs(sh[r, :]): faces.append([d, round(float(plane(r)), 2), round(float(X0 + c0 * CELL), 2), round(float(X0 + c1 * CELL), 2)])
+faces = [f for f in faces if f[3] - f[2] >= 0.5]
+print('cephe yüzü koşusu', len(faces), 'toplam uzunluk', round(sum(f[3] - f[2] for f in faces)))
 R = rects(solid)
-print('duvar dikdörtgeni', len(R))
+RL = rects(low_c)
+print('duvar dikdörtgeni', len(R), 'alçak duvar', len(RL))
 
 # kutular: bağlantılı bileşenler (radar pikseli çözünürlüğünde)
 lab, n = ndi.label(box, structure=np.ones((3, 3)))
@@ -197,6 +245,8 @@ print('bölgeler', zones)
 data = {
     'S': round(S, 5), 'cell': CELL, 'x0': round(X0, 3), 'z0': round(Z0, 3), 'nx': NX, 'nz': NZ,
     'rects': [[round(X0 + c0 * CELL, 2), round(Z0 + r0 * CELL, 2), round(X0 + c1 * CELL, 2), round(Z0 + r1 * CELL, 2)] for (c0, r0, c1, r1) in R],
+    'lows': [[round(X0 + c0 * CELL, 2), round(Z0 + r0 * CELL, 2), round(X0 + c1 * CELL, 2), round(Z0 + r1 * CELL, 2)] for (c0, r0, c1, r1) in RL],
+    'faces': faces,
     'boxes': boxes, 'hx0': round(X0, 3), 'hz0': round(Z0, 3), 'hnx': NHX, 'hnz': NHZ, 'hcell': HCELL,
     'h': base64.b64encode(np.round(h * 50).clip(0, 255).astype(np.uint8).tobytes()).decode(), 'hscale': 50,
     'zones': zones,

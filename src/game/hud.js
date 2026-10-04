@@ -333,7 +333,8 @@ export class Hud {
     this.mmY = (z) => H / 2 + z * this.mmS;
     const c = document.createElement('canvas'); c.width = W; c.height = H;
     const x = c.getContext('2d');
-    x.fillStyle = '#6d8a45'; x.fillRect(0, 0, W, H);
+    const mini = g.map.mini;                                              // haritaya özel minimap renkleri (çöl: kum zemin, koyu duvar)
+    x.fillStyle = mini ? mini.bg : '#6d8a45'; x.fillRect(0, 0, W, H);
     if (g.terrain) {
       // arazi: yükseklik rengi + gölgelendirme, su mavi
       const T = g.terrain, img = x.createImageData(W, H);
@@ -344,6 +345,7 @@ export class Hud {
         const sh = clamp(0.95 + (-dx - dz) * 0.09, 0.55, 1.3);
         let r, gg, b;
         if (h < -0.25) { r = 74; gg = 144; b = 184; }
+        else if (mini) { const t = clamp(h / 5, 0, 1), sh2 = 0.9 + (sh - 0.95) * 0.5; r = (mini.ground[0] - 14 * t) * sh2; gg = (mini.ground[1] - 14 * t) * sh2; b = (mini.ground[2] - 16 * t) * sh2; }
         else { const t = clamp(h / 14, 0, 1); r = (109 + 50 * t) * sh; gg = (138 + 6 * t) * sh; b = (69 + 30 * t) * sh; }
         const k = (py * W + px) * 4;
         img.data[k] = r; img.data[k + 1] = gg; img.data[k + 2] = b; img.data[k + 3] = 255;
@@ -358,7 +360,8 @@ export class Hud {
       const w = cl.max[0] - cl.min[0], d = cl.max[2] - cl.min[2], h = cl.max[1] - cl.min[1];
       if (cl.max[1] < 0.5) continue;
       if (w > 60 || d > 60) continue;
-      x.fillStyle = h > 4 && (w > 3 || d > 3) ? '#d6cfba' : h > 1.5 ? '#9c9482' : '#7a7566';
+      if (mini && cl.tag === 'roof') x.fillStyle = mini.roof;
+      else x.fillStyle = mini ? (h > 4 && (w > 3 || d > 3) ? mini.wall : h > 1.5 ? mini.mid : mini.low) : h > 4 && (w > 3 || d > 3) ? '#d6cfba' : h > 1.5 ? '#9c9482' : '#7a7566';
       x.fillRect(this.mmX(cl.min[0]), this.mmY(cl.min[2]), Math.max(1, w * this.mmS), Math.max(1, d * this.mmS));
     }
     this.mmBase = c;

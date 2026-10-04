@@ -23,11 +23,17 @@ if (what !== 'overview') {
     ['tspawn', -58, -17, 0, 'orta'], ['orta', -2, -6, 40, 'ct'], ['uzun', -12, 54, 90, 'ct'], ['asite', 42, 38, -60, 'ct'], ['bsite', 50, -38, 120, 'ct'], ['ctspawn', 43, 13, 180, 'orta'], ['tuneller', 6, -56, 90, 'ct'],
   ];
   for (const [name, x, z, , look] of (spots.length ? spots : def)) {
-    await page.evaluate(([x, z, look]) => {
-      const g = window.__game, s = g.playerSoldier;
-      const T = { orta: [2, -6], ct: [43, 13], t: [-58, -17], a: [48, 43], b: [54, -43] }[look] || [0, 0];
-      s.pos.set(x, g.world.heightAt(x, z), z); s.vel.set(0, 0, 0); g.world.settle(s);
-      s.yaw = Math.atan2(-(T[0] - x), -(T[1] - z)); s.pitch = -0.05; s.protT = 99; s.hp = 999;
+    await page.evaluate(([x0, z0, bias]) => {
+      const g = window.__game, s = g.playerSoldier, o = new g.camera.position.constructor(), d = new g.camera.position.constructor();
+      const i = g.nav.nearestFree(x0, z0, 12), x = g.nav.cx(i), z = g.nav.cz(i);
+      s.pos.set(x, g.world.heightAt(x, z), z); s.vel.set(0, 0, 0); g.world.settle(s); s.protT = 99; s.hp = 999;
+      let best = -1, by = 0;                                                     // en uzun görüşlü yöne bak (duvara değil)
+      for (let k = 0; k < 24; k++) {
+        const yaw = (k / 24) * Math.PI * 2; o.set(x, s.pos.y + 1.6, z); d.set(-Math.sin(yaw), 0, -Math.cos(yaw));
+        const h = g.world.raycast(o, d, 60, {}); const t = h ? h.t : 60;
+        if (t > best) { best = t; by = yaw; }
+      }
+      s.yaw = by; s.pitch = -0.04;
     }, [x, z, look]);
     await page.waitForTimeout(700);
     await page.screenshot({ path: `screenshots/cg-${name}.png` });

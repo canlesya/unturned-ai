@@ -1,0 +1,10 @@
+import { chromium } from 'playwright';
+const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+await page.goto(`http://127.0.0.1:5180/?autostart=8v8&map=colgecidi&type=${process.env.TYPE || 'conquest'}&debug=1&nolock=1&tod=${process.env.TOD || 'day'}`);
+await page.waitForFunction('window.__game && window.__game.running', null, { timeout: 120000 });
+await page.waitForTimeout(4000);
+await page.screenshot({ path: 'screenshots/cg-hud.png' });
+console.log('hata', errs.length, errs.slice(0, 3));
+await browser.close();

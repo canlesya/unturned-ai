@@ -98,6 +98,13 @@ export class Game {
       if (!c) { c = this.mapDef.build(); cache.set(opts.map, c); }
       this.map = { ...c, spawns: { ...c.spawns }, group: new THREE.Group() };
     } else this.map = this.mapDef.build();
+    // Taraf değişimi (asimetrik haritalar): sideSwap haritalarda her maç mavi/kırmızı doğuş tarafları rastgele yer değiştirir; sunucu seçer, istemciler cfg.swap ile aynısını uygular
+    this.swapSides = !!this.map.sideSwap && !!(opts.swapSides ?? opts.online?.cfg?.swap ?? (!headless && !opts.online && Math.random() < 0.5));
+    if (this.swapSides) {
+      const sp = this.map.spawns, bz = this.map.baseZones;
+      this.map.spawns = { ...sp, blue: sp.red, red: sp.blue };
+      if (bz) this.map.baseZones = { blue: bz.red, red: bz.blue };
+    }
     this.tod = this.map.forceTod || opts.tod || 'day';
     if (headless) {
       this.night = this.tod === 'night';

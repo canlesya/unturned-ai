@@ -7,13 +7,11 @@ const m = buildColGecidi();
 const nav = new NavGrid(m.colliders, m.bounds, m.terrain, false);
 const W = nav.w, H = nav.h, C = 0.5;
 const mean = (a) => [a.reduce((s, p) => s + p.x, 0) / a.length, a.reduce((s, p) => s + p.z, 0) / a.length];
-const field = (sx, sz) => {                                           // Dijkstra (8 komşu)
-  const d = new Float64Array(W * H).fill(1e9), s = nav.nearestFree(sx, sz, 30);
-  if (s < 0) throw new Error('başlangıç noktası serbest değil ' + sx + ',' + sz);
-  d[s] = 0; const q = [[0, s]];
+const field = (srcs) => {                                           // Dijkstra (8 komşu)
+  const d = new Float64Array(W * H).fill(1e9);
   const heap = []; const push = (e) => { heap.push(e); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
   const pop = () => { const t = heap[0], l = heap.pop(); if (heap.length) { heap[0] = l; let i = 0; for (;;) { let a = 2 * i + 1, b = a + 1, k = i; if (a < heap.length && heap[a][0] < heap[k][0]) k = a; if (b < heap.length && heap[b][0] < heap[k][0]) k = b; if (k === i) break; [heap[k], heap[i]] = [heap[i], heap[k]]; i = k; } } return t; };
-  push([0, s]);
+  for (const [sx, sz] of srcs) { const s = nav.nearestFree(sx, sz, 6); if (s >= 0) { d[s] = 0; push([0, s]); } }
   let guard = 0;
   while (heap.length) {
     if (++guard > 5e6) throw new Error("döngü sınırı " + heap.length);
@@ -28,10 +26,11 @@ const field = (sx, sz) => {                                           // Dijkstr
   }
   return d;
 };
-const [bx, bz] = mean(m.spawns.blue), [rx, rz] = mean(m.spawns.red);
-const dT = field(bx, bz), dC = field(rx, rz);
+const dT = field(m.spawns.blue.map((p) => [p.x, p.z])), dC = field(m.spawns.red.map((p) => [p.x, p.z]));
 const pt = (n, x, z) => { const i = nav.nearestFree(x, z); return `${n}: T ${dT[i].toFixed(0)} m · CT ${dC[i].toFixed(0)} m`; };
 for (const o of m.objectives) console.log(pt(o.id, o.x, o.z));
+const CAND = { 'orta-ust': [-3.5, -6.4], 'orta-kapi': [20, -6], 'catwalk': [28, 14], 'uzun-cukur': [-15, 54], 'uzun-kapi': [3.6, 53], 'a-rampa': [28, 41], 'ust-tunel': [6.5, -55.8], 'alt-tunel': [16.5, -27], 'b-kapi': [40, -30], 'ct-orta': [38, -8], 'a-saha': [48, 43], 'b-saha': [54, -43], 't-dis-uzun': [-30, 50], 't-dis-tunel': [-40, -30] };
+for (const [n, [x, z]] of Object.entries(CAND)) console.log(' ', pt(n, x, z), ' fark', (dT[nav.nearestFree(x, z, 8)] - dC[nav.nearestFree(x, z, 8)]).toFixed(0));
 // adil aday bölgeler: |fark| küçük, iki taraf da 35–110 m
 const cand = [];
 for (let i = 0; i < W * H; i++) if (!nav.blocked[i] && dT[i] < 1e8 && dC[i] < 1e8 && Math.abs(dT[i] - dC[i]) < 5 && dT[i] > 35 && dT[i] < 110 && dC[i] > 35 && dC[i] < 110) cand.push(i);

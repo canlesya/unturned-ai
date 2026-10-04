@@ -54,8 +54,9 @@ export class Room {
   newGame() {
     const c = this.cfg;
     if (this.official) Object.assign(c, this.official.rotation[this.rot % this.official.rotation.length]);   // sıradaki harita
+    this.swap = Math.random() < 0.5;                                    // asimetrik haritalarda bu maçın taraf dağılımı (sideSwap)
     this.game = new Game(null, {
-      headless: true, map: c.map, tod: c.tod, weather: c.weather, diff: c.diff, bots: c.bots, third: c.third,
+      headless: true, swapSides: this.swap, map: c.map, tod: c.tod, weather: c.weather, diff: c.diff, bots: c.bots, third: c.third,
       match: { perTeam: c.perTeam, type: c.type, tickets: c.tickets || undefined, time: c.time },
     });
     this.tick = 0;
@@ -87,7 +88,7 @@ export class Room {
   }
 
   // Şifresiz, sunucuya gönderilecek ayarlar
-  publicCfg() { const { pw, ...rest } = this.cfg; return { ...rest, locked: !!pw, official: !!this.official }; }
+  publicCfg() { const { pw, ...rest } = this.cfg; return { ...rest, locked: !!pw, official: !!this.official, swap: this.swap }; }
 
   humansOf(team) { let n = 0; for (const id of this.clients.keys()) if (this.game.soldiers[id].team === team) n++; return n; }
 
