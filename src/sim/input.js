@@ -13,6 +13,7 @@ export function applyInput(s, input, dt) {
   s.sprinting = wantSprint;                     // yüklerken de koşulabilir
   if (s.sprinting) { s.crouching = false; if (s.prone) s.prone = false; }
   let spd = WALK_SPEED * s.spd * (st.move || 1);
+  if (s.def.zombie && s.game.graceLeft > 0) spd = 0;                  // Enfekte hazırlık süresinde zombiler yerinde bekler
   if (s.sprinting) spd *= 1.5;
   if (s.crouching) spd *= 0.52;
   if (s.prone) spd *= 0.27;
@@ -25,5 +26,5 @@ export function applyInput(s, input, dt) {
   const a = 1 - Math.exp(-acc * dt);
   s.vel.x += (wx - s.vel.x) * a;
   s.vel.z += (wz - s.vel.z) * a;
-  if (input.jump && s.onGround && !s.prone && !s.crouching) { s.vel.y = JUMP_SPEED * (s.jumpMul || 1); s.onGround = false; }
+  if (input.jump && !(s.def.zombie && s.game.graceLeft > 0) && s.onGround && !s.prone && !s.crouching) { s.vel.y = JUMP_SPEED * (s.jumpMul || 1); s.onGround = false; }
 }

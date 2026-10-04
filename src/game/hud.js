@@ -560,6 +560,7 @@ export class Hud {
       if (!msg && p.stat.kind === 'medkit' && p.item.mag > 0 && g.findRevivable(p)) msg = 'Canlandır · sol tık';
       if (!msg && p.item.mag <= 0 && p.stat.kind === 'gun') msg = p.item.reserve > 0 ? 'ŞARJÖR BOŞ · R ile doldur' : 'ŞARJÖR BOŞ · mermi kalmadı!';
     }
+    if (g.mode.infection && g.graceLeft > 0) msg = p.def.zombie ? `Hazırlan! Serbest kalmana ${Math.ceil(g.graceLeft)} sn` : `Zombiler ${Math.ceil(g.graceLeft)} sn sonra serbest kalacak — yüksek bir yere çık!`;
     $('msg').textContent = msg;
     if (this.sbShown) this.renderScoreboard();
     this.drawMinimap();

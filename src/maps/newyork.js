@@ -150,9 +150,13 @@ export function buildNewYork() {
     for (let x = -84; x < 84; x += 21) tower(x, sg > 0 ? 53 : -62, x + 21, sg > 0 ? 62 : -53, 36 + rng() * 22, [sg > 0 ? 'n' : 's'], { brick: rng() < 0.5, sign: false });
   }
   // doğu-batı uç duvarları: cadde sonu devrik bina yığını
-  tower(-84, -9, -78, 9, 12, [], { ruin: true, color: '#555a60' }); tower(78, -9, 84, 9, 12, [], { ruin: true, color: '#555a60' });
+  tower(-84, -13, -76, 13, 50, ['e'], { color: '#5a6066' }); tower(76, -13, 84, 13, 50, ['w'], { color: '#5a6066' });                  // Broadway uç kapakları (cadde bina duvarıyla biter)
+  for (const sg of [-1, 1]) {                                                                                                           // doğu-batı kenarlar: kesintisiz bina duvarı (harita sonu görünmez)
+    for (const [z0, z1] of [[-53, -33], [33, 53]]) { tower(-84, z0, -76, z1, 44 + rng() * 14, ['e'], { brick: rng() < 0.5 }); tower(76, z0, 84, z1, 44 + rng() * 14, ['w'], { brick: rng() < 0.5 }); }
+    break;
+  }
   // Broadway uçlarına devrik otobüs/barikat
-  K.bus(b, { x: -76, z: 2.5, ry: 0.5, wreck: true }); K.bus(b, { x: 76, z: -3, ry: Math.PI - 0.4, wreck: true });
+  K.bus(b, { x: -70, z: 2.5, ry: 0.5, wreck: true }); K.bus(b, { x: 70, z: -3, ry: Math.PI - 0.4, wreck: true });
 
   // ───────── MERKEZ MEYDANI: anıt (1.4 m) ─────────
   plat(b, -5, -5, 5, 5, 0, 1.4, '#7c8085');
@@ -192,17 +196,17 @@ export function buildNewYork() {
   };
   subway(19, 9.8, 1); subway(-23, -13.2, -1);
   // ───────── otopark (3.2 m) – kuzeybatı arkası ─────────
-  plat(b, -80, -52, -56, -42, 0, 3.2, '#5a5e63');
-  b.stairs(-68, -35, 0, '-z', 5, 14, 0.2286, 0.5, '#6a6e72', { deco: false, tag: 'plat' });
-  b.box(-68, 3.2, -42.1, 24, 1.0, 0.25, '#44484d', NC); b.box(-80, 3.2, -47, 0.25, 1.0, 10, '#44484d', NC);
-  b.with(0, 3.2, 0, 0, () => { for (const [x, z, ry] of [[-76, -48, 0.1], [-70, -50, -0.1], [-62, -46, 0.3]]) K.car(b, { x, z, ry, color: '#3a3f45', wreck: true }); });
-  perch(-68, -47, 3.2, 8, 6);
+  plat(b, -74, -52, -56, -42, 0, 3.2, '#5a5e63');
+  b.stairs(-65, -35, 0, '-z', 5, 14, 0.2286, 0.5, '#6a6e72', { deco: false, tag: 'plat' });
+  b.box(-65, 3.2, -42.1, 18, 1.0, 0.25, '#44484d', NC); b.box(-74, 3.2, -47, 0.25, 1.0, 10, '#44484d', NC);
+  b.with(0, 3.2, 0, 0, () => { for (const [x, z, ry] of [[-71, -48, 0.1], [-66, -50, -0.1], [-60, -46, 0.3]]) K.car(b, { x, z, ry, color: '#3a3f45', wreck: true }); });
+  perch(-65, -47, 3.2, 7, 6);
   // ───────── inşaat iskelesi (5.0 m) – güneydoğu arkası ─────────
-  plat(b, 62, 46, 72, 56, 0, 5.0, '#6a5c3a');
-  b.stairs(53.6, 51, 0, '+x', 3.4, 20, 0.25, 0.42, '#7a7e82', { deco: false, tag: 'plat' });
-  for (const [x, z] of [[62, 46], [72, 46], [62, 56], [72, 56]]) b.box(x, 5.0, z, 0.2, 1.1, 0.2, '#383b3e', NC);
-  b.box(67, 5.0, 51, 1.2, 9, 1.2, '#c9a227', NC); b.box(67, 12.5, 51, 14, 0.5, 0.5, '#c9a227', NC);                             // vinç gövdesi + kolu
-  perch(67, 51, 5.0, 4, 3);
+  plat(b, 62, 44, 72, 52, 0, 5.0, '#6a5c3a');
+  b.stairs(53.6, 48, 0, '+x', 3.4, 20, 0.25, 0.42, '#7a7e82', { deco: false, tag: 'plat' });
+  for (const [x, z] of [[62, 44], [72, 44], [62, 52], [72, 52]]) b.box(x, 5.0, z, 0.2, 1.1, 0.2, '#383b3e', NC);
+  b.box(67, 5.0, 48, 1.2, 9, 1.2, '#c9a227', NC); b.box(67, 12.5, 48, 14, 0.5, 0.5, '#c9a227', NC);                             // vinç gövdesi + kolu
+  perch(67, 48, 5.0, 4, 3);
   // ───────── kuzey-doğu: market arkası alçak çatı (3.0 m) ─────────
   plat(b, 52, -42, 66, -35.5, 0, 3.0, '#7a6a5a');
   b.stairs(47.8, -39, 0, '+x', 3, 12, 0.25, 0.35, '#7a7e82', { deco: false, tag: 'plat' });
@@ -233,6 +237,23 @@ export function buildNewYork() {
   M.ambulance(b, { x: -30, z: 12, ry: 0.4, wreck: true }); M.jeep(b, { x: 40, z: -13.5, ry: 2.6, wreck: true });
   M.helicopter(b, { x: 22, z: 26, ry: 0.9 });                                            // düşmüş helikopter (güney B arsa karşısı)
   b.flushVehicles();
+  // ───────── Broadway'i bölen engeller: görüş hatlarını kırar (uzaktan nişan yok, doğar doğmaz ateş yok) ─────────
+  const rubbleWall = (x, z0, z1, h = 3.0) => { for (let z = z0; z < z1; z += 2.1) { const hh = h * (0.75 + rng() * 0.4), w = 2.4 + rng() * 1.6; b.box(x + (rng() - 0.5) * 1.2, 0, z + 1, w, hh, 2.4, rng() < 0.5 ? CONC_D : '#5a463c', { ry: (rng() - 0.5) * 0.4 }); if (rng() < 0.6) b.box(x + (rng() - 0.5) * 1.5, hh, z + 1, 1.4, 0.8, 1.4, '#4a4036', { ry: rng() * 3 }); } };
+  rubbleWall(-62, -9, -2); rubbleWall(-48, 2, 9); rubbleWall(18, -9, -2); rubbleWall(38, 2, 9); rubbleWall(66, -9, -2);
+  rubbleWall(0 + 3.5, 20, 27); rubbleWall(-3.5, -30, -23); rubbleWall(3.5, 40, 47); rubbleWall(-3.5, -52, -46);                      // 5. cadde kırılımları
+  // başlangıç karakolu (insan doğma alanı): hesco duvarları, kum torbaları, çadır, lambalar
+  M.hesco(b, -27, -6.5, 5, Math.PI / 2); M.hesco(b, -27, 4.5, 5, Math.PI / 2); M.hesco(b, -11.5, -8, 5, 0); M.hesco(b, -11.5, 8, 5, 0);
+  for (const [x, z] of [[-26, -2], [-26, 1.5], [-12, -6], [-12, 6]]) K.sandbags(b, x, z, 3, Math.PI / 2);
+  M.floodLight(b, -26, 3, -8, 0); M.floodLight(b, -26, 3, 8, 0);
+  K.crate(b, -24, -7.5, 1.2); K.crate(b, -22.8, -7.7, 1.0); K.barrel(b, -21, -7.6); K.crate(b, -24, 7.6, 1.2); K.crate(b, -22.6, 7.8, 1.0); K.barrel(b, -21.2, 7.7, '#2c5aa0');
+  // park (arka güney): ölü ağaçlar, bankalar, çeşme
+  T.fountain(b, { x: -4, z: 48, r: 3 });
+  for (let i = 0; i < 12; i++) { const x = -26 + rng() * 40, z = 44 + rng() * 8; if (Math.hypot(x + 4, z - 48) < 5) continue; b.cyl(x, 0, z, 0.18, 0.28, 3.5 + rng() * 2.2, '#2f2a26', { seg: 6 }); for (let k = 0; k < 4; k++) b.box(x + (rng() - 0.5) * 1.6, 3.2 + rng() * 2.2, z + (rng() - 0.5) * 1.6, 0.12, 1.2 + rng(), 0.12, '#2f2a26', { collide: false, rz: (rng() - 0.5) * 1.2 }); }
+  for (const [x, z, ry] of [[-14, 45, 0], [6, 51, Math.PI], [-20, 51, Math.PI], [12, 45, 0]]) K.bench(b, x, z, ry);
+  K.lamp(b, -10, 44); K.lamp(b, 4, 52);
+  // kilise (arka kuzey) ve benzinlik (arka güneydoğu)
+  K.church(b, rng, { x: -8, z: -47, w: 10, d: 14, ry: Math.PI / 2 });
+  K.gasStation(b, rng, { x: 46, z: 48, store: 'n' });
   // ───────── krater halkaları ─────────
   const crater = (x, z, r) => { b.cyl(x, 0.05, z, r, r, 0.06, '#0b0c0e', { seg: 14, collide: false }); b.cyl(x, 0.08, z, r * 0.55, r * 0.55, 0.06, '#050506', { seg: 12, collide: false });
     for (let i = 0; i < 12; i++) { const a = (i / 12) * 6.28 + rng(), rr = r * (0.95 + rng() * 0.3); b.box(x + Math.cos(a) * rr, 0, z + Math.sin(a) * rr, 0.7 + rng() * 1.3, 0.35 + rng() * 0.7, 0.7 + rng() * 1.2, rng() < 0.5 ? CONC_D : '#4a3a30', { ry: rng() * 3 }); } };
@@ -251,12 +272,11 @@ export function buildNewYork() {
   for (const [x, z] of [[-70, 38], [-20, 41], [16, 39], [70, 40], [-70, -40], [-24, -40], [30, -41], [66, -38]]) { T.palletWall(b, rng, x, z, rng() * 3, 3); K.barrel(b, x + 2, z + 0.8, '#2c5aa0'); K.barrel(b, x + 2.8, z + 0.2); }
   M.fireBarrel(b, -66, 8); M.fireBarrel(b, -20, 4); M.fireBarrel(b, 4, -7); M.fireBarrel(b, 28, 7); M.fireBarrel(b, 56, 7); M.fireBarrel(b, -4, 24); M.fireBarrel(b, 5, -32); M.fireBarrel(b, 44, 28); M.fireBarrel(b, -44, -28); M.fireBarrel(b, 64, -40); M.fireBarrel(b, -56, 40); M.fireBarrel(b, 12, 38);
   // arka sokaklarda ek tahta çitler, kaçak barakalar
-  for (const [x0, z0, x1, z1] of [[-82, 46, -56, 46], [-30, 46, -8, 46], [10, 46, 34, 46], [-82, -46, -62, -46], [-50, -46, -12, -46], [10, -46, 44, -46]]) K.fence(b, x0, z0, x1, z1, 1.4);
   // ───────── girilebilir dükkânlar (arka sokak) ─────────
-  K.house(b, rng, { x: -56, z: 52, w: 12, d: 9, floors: 1, door: 'n', wall: '#8a8d90', roof: '#4a4e52', flat: true, theme: 'shop', glow: 0.35 });
-  K.house(b, rng, { x: 24, z: 52, w: 12, d: 9, floors: 2, door: 'n', wall: '#7a5a4a', roof: '#4a4440', flat: true, theme: 'shop', glow: 0.35 });
-  K.house(b, rng, { x: -34, z: -52, w: 12, d: 9, floors: 2, door: 's', wall: '#8a8d90', roof: '#4a4e52', flat: true, theme: 'office', glow: 0.35 });
-  K.house(b, rng, { x: 28, z: -52, w: 12, d: 9, floors: 1, door: 's', wall: '#74503f', roof: '#4a4440', flat: true, theme: 'garage', glow: 0.3 });
+  K.house(b, rng, { x: -56, z: 48, w: 12, d: 9, floors: 1, door: 'n', wall: '#8a8d90', roof: '#4a4e52', flat: true, theme: 'shop', glow: 0.35 });
+  K.house(b, rng, { x: 24, z: 48, w: 12, d: 9, floors: 2, door: 'n', wall: '#7a5a4a', roof: '#4a4440', flat: true, theme: 'shop', glow: 0.35 });
+  K.house(b, rng, { x: -34, z: -48, w: 12, d: 9, floors: 2, door: 's', wall: '#8a8d90', roof: '#4a4e52', flat: true, theme: 'office', glow: 0.35 });
+  K.house(b, rng, { x: 28, z: -48, w: 12, d: 9, floors: 1, door: 's', wall: '#74503f', roof: '#4a4440', flat: true, theme: 'garage', glow: 0.3 });
   // ───────── uzak silüet: şehir ufku (çarpışmasız, boşluk hissini bitirir) ─────────
   for (let i = 0; i < 38; i++) {
     const side = i % 4, t = (i / 38) * 2 - 1;
@@ -269,7 +289,7 @@ export function buildNewYork() {
   // ───────── doğuş ─────────
   const spawns = { blue: [], red: [] };
   for (let i = 0; i < 24; i++) spawns.blue.push({ x: -23 + (i % 6) * 2.6, z: -5 + Math.floor(i / 6) * 3.2, ry: -Math.PI / 2 });          // meydanın batısı: anıta ve kamyonlara yakın
-  for (let i = 0; i < 24; i++) { const side = i % 2 ? 1 : -1; spawns.red.push({ x: side * 79, z: -6 + Math.floor(i / 2) * 1.0, ry: side > 0 ? Math.PI / 2 : -Math.PI / 2 }); }
+  for (let i = 0; i < 24; i++) { if (i % 2) spawns.red.push({ x: 58 + (i >> 1) % 7 * 3, z: -50 + ((i >> 1) / 7 | 0) * 3, ry: Math.PI }); else spawns.red.push({ x: -80 + (i >> 1) % 6 * 2.4, z: 44 + ((i >> 1) / 6 | 0) * 3, ry: 0 }); }     // bosslar arka arsalardan (insanların görüşünün dışında) başlar
   const objectives = [{ id: 'merkez', name: 'Merkez', core: true, x: 0, z: 0, r: 8 }];
 
   const group = b.build();

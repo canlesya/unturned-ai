@@ -14,8 +14,9 @@ const view = async (name, x, z, yaw, pitch = 0, y = null) => {
 await page.evaluate(() => { const g = window.__game; g.simOff = true; g.playerSoldier.protT = 99; });
 await view('1-broadway', -70, 0, -Math.PI / 2, 0.02);                      // doğuya: Broadway (batı ucundan)
 await view('2-meydan', -16, 2, -Math.PI / 2, 0.08);                         // meydan + anıt
-await view('3-bati-sokak', -40, 38, 0, 0.1);                                // yan cadde arkası
-await view('4-kuzey-bina', 0, -2, 0.0, 0.5);                                // yukarı bak: gökdelenler
+await view('3-park', -4, 40, Math.PI, 0.05);                                // güneye: park + sınır duvarı
+await view('6-karakol', -30, 0, -Math.PI / 2, 0.05);                         // doğma karakolu
+await view('4-bati-uc', -55, 0, Math.PI / 2, 0.08);                         // batıya: Broadway'in sonu (bina duvarı)
 await view('5-anit-ustu', -2, 0, -Math.PI / 2, 0.02, 1.4);                  // anıt tabanından cadde
 // botlar çalışsın: 40 sn sonra yüksek noktalarda mı?
 await page.evaluate(() => { const g = window.__game; g.soldiers.forEach((s) => { s.protT = 0; }); g.playerSoldier.protT = 99; });

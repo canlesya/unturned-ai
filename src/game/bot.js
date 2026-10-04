@@ -239,7 +239,7 @@ export class BotBrain {
     const tg = this.target && this.target.alive ? this.target : null;
     let moveX = 0, moveZ = 0, speed = 4.4 * s.spd * (s.stat.move || 1);
     s.ads = false; s.crouching = false; s.botExtraSpread = 0;
-    if (s.blindT > 0) { s.yaw += Math.sin(this.t * 2.2 + s.id) * dt * 1.4; s.vel.x *= 0.85; s.vel.z *= 0.85; return; }
+    if (s.blindT > 0 || g.graceLeft > 0) { if (s.blindT > 0) s.yaw += Math.sin(this.t * 2.2 + s.id) * dt * 1.4; s.vel.x *= 0.5; s.vel.z *= 0.5; return; }       // kör ya da hazırlık süresi: bekle
     if (tg) {
       const dx = tg.pos.x - s.pos.x, dz = tg.pos.z - s.pos.z, dist = Math.hypot(dx, dz);
       const eye = s.eye(tA), tc = tg.center(tC);

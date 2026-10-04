@@ -2,6 +2,7 @@
 import { Game } from '../src/game/game.js';
 import { ZTYPES } from '../src/game/stats.js';
 const g = new Game(null, { headless: true, map: 'kasaba', tod: 'day', weather: 'clear', match: { perTeam: 4, type: 'inf', time: 600 } });
+g.timeLeft = g.mode.time - 100;                          // hazırlık süresi bitmiş say
 let fail = 0; const check = (ok, msg) => { console.log((ok ? 'OK    ' : 'HATA  ') + msg); if (!ok) fail++; };
 const z = g.soldiers.find((s) => s.def.zombie);
 const pts = g.nav.spreadPoints(g.nav.reachable(g.map.spawns.blue[0].x, g.map.spawns.blue[0].z), { spacing: 6, max: 400 });

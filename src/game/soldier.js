@@ -79,7 +79,7 @@ export class Soldier {
 
   // Özel güç (F / sağ tık). Sunucu da istemci de (çevrimdışı) aynı kodu çalıştırır. Döner: kullanıldı mı
   useAbility() {
-    if (!this.alive || !this.def.zombie || this.abT > 0 || this.game.ended) return false;
+    if (!this.alive || !this.def.zombie || this.abT > 0 || this.game.ended || this.game.graceLeft > 0) return false;
     const ab = this.zt.ability, from = this.pos.clone();
     if ((ab.id === 'blink' || ab.id === 'shadow') && !this._blink(ab.range)) { this.abT = 0.8; return false; }
     this.abT = ab.cd; this.abActive = ab.dur;
@@ -252,6 +252,7 @@ export class Soldier {
 
   tryFire() {
     if (!this.alive || this.cd > 0 || this.switchT > 0 || this.useT > 0) return false;
+    if (this.def.zombie && this.game.graceLeft > 0) return false;                     // Enfekte hazırlık süresi
     if (this.reloadT > 0 && !this.cancelShellReload()) return false;
     const it = this.item, st = this.stat;
     if (st.kind === 'melee') return this._melee(st);
@@ -485,6 +486,7 @@ export class Soldier {
 
   takeDamage(amount, attacker, zone, fromPos, weaponName) {
     if (!this.alive || this.protT > 0) return;
+    if (this.def.zombie && this.game.graceLeft > 0) return;                            // hazırlık süresinde zombiler dokunulmaz
     if (this.def.zombie) {
       if (this.boss) amount *= BOSS.armor;                                                              // boss hasarın %30'unu yok sayar
       if (this.abActive > 0) { const a = this.zt.ability.id; if (a === 'shield') amount *= 0.3; else if (a === 'cloak' || a === 'shadow') this.abActive = 0; }

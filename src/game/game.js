@@ -325,6 +325,13 @@ export class Game {
     if (s.isPlayer && !this.headless) this.hud.toast(wasBoss ? 'BOSS DEVRİLDİ — insan oldun' : 'İYİLEŞTİN — yeniden insansın', '#7ec8ff');
   }
 
+  // Hazırlık süresi: Enfekte maçın ilk ZOMBIE.grace saniyesinde zombiler hareket/saldırı/güç kullanamaz ve hasar almaz (insanlar yüksek yere çıkar).
+  // timeLeft sunucudan senkron geldiği için istemcide de aynı sonucu verir. Süresiz maçta hazırlık yok.
+  get graceLeft() {
+    if (!this.mode.infection || !Number.isFinite(this.timeLeft) || !this.mode.time) return 0;
+    return Math.max(0, ZOMBIE.grace - (this.mode.time - this.timeLeft));
+  }
+
   // İnsan ve zombi sayıları: ölü ama henüz enfekte olmamış insan zombi sayılır; can hakkı biten ölü zombi insan sayılır
   infCounts() {
     let h = 0, z = 0;
@@ -340,12 +347,15 @@ export class Game {
     const humans = this.soldiers.filter((e) => e.alive && e.team === 'blue');
     const pts = first || !humans.length ? this.map.spawns.red : this.infPool;
     let best = null, bs = -1e9;
-    for (let k = 0; k < 18; k++) {
+    const eyeP = new THREE.Vector3(), tgtP = new THREE.Vector3();
+    for (let k = 0; k < 30; k++) {
       const p = pick(pts);
       if (this.soldiers.some((e) => e !== s && e.alive && Math.hypot(e.pos.x - p.x, e.pos.z - p.z) < 1.3)) continue;
       let dmin = 1e9;
       for (const e of humans) dmin = Math.min(dmin, Math.hypot(e.pos.x - p.x, e.pos.z - p.z));
-      const sc = dmin >= 38 ? 200 - dmin + Math.random() * 25 : dmin - 400;        // yeterince uzak olanlardan en yakını; hiçbiri değilse en uzak
+      let seen = false;                                                          // hiçbir insanın görüşünde doğmasın (doğar doğmaz vurulmasın)
+      if (!first) for (const e of humans) { if (Math.hypot(e.pos.x - p.x, e.pos.z - p.z) < 75 && this.losClear(e.eye(eyeP), tgtP.set(p.x, (p.y || 0) + 1.2, p.z))) { seen = true; break; } }
+      const sc = (dmin >= 38 ? 200 - dmin + Math.random() * 25 : dmin - 400) - (seen ? 500 : 0);        // yeterince uzak + görünmeyen olanlardan en yakını
       if (sc > bs) { bs = sc; best = p; }
     }
     const p = best || pick(pts), tgt = humans.length ? pick(humans).pos : { x: p.x, z: p.z - 1 };

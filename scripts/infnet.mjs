@@ -28,7 +28,7 @@ if (me.cls !== 'zombie') {
   const s2 = a.msgs.filter((m) => m.t === 'snap').pop();
   check(s2.me.now.a === 1 && s2.me.now.it.length === 1 && s2.me.now.it[0] === 'claws', 'yeniden doğdum: tek eşya pençe');
   check(s2.me.now.zt === 4 && s2.me.now.mh === 150, `seçtiğim tür geldi: hayalet (zt ${s2.me.now.zt}, can ${s2.me.now.mh})`);
-  await wait(2500);
+  await wait(7500);                                                     // hazırlık süresi (14 sn) bitsin
   a.send(JSON.stringify({ t: 'in', q: 1, f: 0, r: 0, l: 0, s: 0, j: 0, a: 0, yw: 0, pt: 0, ab: 1 }));
   await wait(2000);
   const s3 = a.msgs.filter((m) => m.t === 'snap').pop(), evs = a.msgs.filter((m) => m.t === 'ev').flatMap((m) => m.l).filter((e) => e.e === 'ab' && e.by === w.id);
