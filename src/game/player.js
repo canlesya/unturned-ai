@@ -85,7 +85,7 @@ export class ViewModel {
       return grp;
     };
     // yakın dövüş: sapı saran sıkı yumruk (parmaklar üstte, avuç altta, başparmak yanda; sap iki uçtan görünür)
-    const fist = (p) => {
+    const fist = (p, side = 1) => {
       const grp = new THREE.Group();
       grp.position.copy(p);
       box(grp, [0.064, 0.016, 0.06], c.gloves, [0, 0.03, 0]);                          // parmaklar (üst)
@@ -94,7 +94,7 @@ export class ViewModel {
       box(grp, [0.016, 0.06, 0.06], c.gloves, [-0.03, 0.0, 0]);
       box(grp, [0.064, 0.022, 0.07], c.gloves, [0, -0.032, 0.005]);                    // avuç (alt)
       box(grp, [0.02, 0.02, 0.05], c.gloves, [-0.02, 0.04, -0.045], [0, 0.3, 0]);      // başparmak (sapın üstünden ileri)
-      const dir = new THREE.Vector3(0.12, -0.2, 0.42).normalize(), len = 0.5;
+      const dir = new THREE.Vector3(0.12 * side, -0.2, 0.42).normalize(), len = 0.5;
       const sleeve = box(grp, [0.11, 0.11, len], c.shirt, [0, 0, 0]);
       sleeve.position.copy(dir).multiplyScalar(len / 2 + 0.05);
       sleeve.quaternion.setFromUnitVectors(Z, dir);
@@ -102,7 +102,13 @@ export class ViewModel {
       return grp;
     };
     const u = g.userData;
-    if (kind === 'melee' && u.gripR) { this.handR = fist(u.gripR.clone()); this.hLfg = null; this.handL = null; } else
+    if (kind === 'melee' && u.gripR) {
+      this.handR = fist(u.gripR.clone()); this.hLfg = null; this.handL = null;
+      if (id === 'claws') {                                                    // zombi: ikinci pençe ve yumruk solda
+        const w2 = createWeapon('claws'); w2.position.set(-0.27, 0, 0); g.add(w2);
+        fist(u.gripR.clone().add(new THREE.Vector3(-0.27, 0, 0)), -1);
+      }
+    } else
     this.handR = u.gripR ? hand(u.gripR.clone().add(new THREE.Vector3(0.0, -0.02, 0.0)), 1) : null;
     this.hLfg = u.gripL ? u.gripL.clone().add(new THREE.Vector3(0, -0.03, 0)) : null;
     this.handL = (kind === 'gun' || kind === 'launcher') ? hand(this.hLfg || REST_L, -1) : null;

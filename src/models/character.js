@@ -351,21 +351,26 @@ export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0,
   const armL = makeArm(torso, 'L', c);
   const mount = new THREE.Group();
   torso.add(mount);
+  const mountL = new THREE.Group();                         // zombi: sol elde de pençe (iki elde pençe)
+  torso.add(mountL);
 
   mergeStatic(root);
 
   const api = {
     root,
-    parts: { torso, head, legs, armR, armL, mount },
+    parts: { torso, head, legs, armR, armL, mount, mountL },
+    weaponL: null,
     team,
     cls,
     weapon: null,
     setWeapon(id, opt) {
       if (opt) api.optic = opt;
       if (api.weapon) { mount.remove(api.weapon); api.weapon.traverse((o) => o.geometry?.dispose()); }
+      if (api.weaponL) { mountL.remove(api.weaponL); api.weaponL.traverse((o) => o.geometry?.dispose()); api.weaponL = null; }
       const w = id ? createWeapon(id, api.optic) : null;
       api.weapon = w;
       if (w) mount.add(w);
+      if (id === 'claws') { api.weaponL = createWeapon('claws'); mountL.add(api.weaponL); }          // ikinci pençe
       applyPose(api, w);
       if (api.groundOffset === undefined) { groundFeet(root); api.groundOffset = root.position.y; } else root.position.y = api.groundOffset;
       return w;
@@ -451,6 +456,14 @@ function applyPose(api, w, o = {}) {
   mount.updateMatrix();
   const toTorso = (v) => v.clone().applyMatrix4(mount.matrix);
   poseArm(armR, toTorso(u.gripR));
+  if (api.weaponL) {                                    // iki elde pençe: sol kol sağın aynası (konum x'i ters, savurma yönü ters)
+    const { mountL } = api.parts;
+    mountL.position.set(-mount.position.x, mount.position.y, mount.position.z);
+    mountL.rotation.set(mount.rotation.x, 2 * blade - mount.rotation.y, -mount.rotation.z);
+    mountL.updateMatrix();
+    poseArm(armL, u.gripR.clone().applyMatrix4(mountL.matrix));
+    return;
+  }
   const restL = () => armL.shoulder.clone().add(V(-0.03, -0.55, -0.05 + swing * 0.3));
   if (ra) {
     const fg = u.gripL ? toTorso(u.gripL) : restL();

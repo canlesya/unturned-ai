@@ -7,6 +7,9 @@ const SNIPERS = new Set(['sniper', 'svd', 'barrett']);
 const LMGS = new Set(['lmg', 'pkm']);
 const SHOTGUNS = new Set(['shotgun', 'aa12', 'dbl']);
 
+// Enfekte insan botları ayarları: crowd = aynı hedefe kilitli her ek kişi için isabet düşüşü · desync = yeni hedefte ek tepki gecikmesi (sn) · kite = bu mesafeden yakına gelen zombiden geri çekilir
+export const INF_BOT = { crowd: 0.12, desync: 0.3, kite: 9, kiteBoss: 14, kiteSpeed: 0.8 };
+
 const tA = new THREE.Vector3(), tB = new THREE.Vector3(), tC = new THREE.Vector3();
 
 export class BotBrain {
@@ -108,16 +111,37 @@ export class BotBrain {
     }
   }
 
-  // Enfekte (insan botu): hayatta kalan diğer insanların ağırlık merkezine yakın bir noktada bekle / yavaşça yer değiştir
+  // Aynı hedefe kilitli diğer bot sayısı (en çok 8)
+  crowd(tg) {
+    let n = 0;
+    for (const b of this.game.brains) if (b !== this && b.target === tg && b.s.alive) n++;
+    return Math.min(n, 8);
+  }
+
+  // Enfekte (insan botu): zombilerden uzak, diğer insanlara yakın ama hep hareket halinde güvenli noktalar seçer
+  // (doğma noktasında beklemez; zombi/boss yaklaştıkça karşı yöne açılır, grup dağılmaz).
   huddle() {
     const g = this.game, s = this.s;
     const mates = g.soldiers.filter((e) => e !== s && e.alive && e.team === s.team);
+    const zs = g.soldiers.filter((e) => e.alive && e.team !== s.team);
     let cx = s.pos.x, cz = s.pos.z;
     if (mates.length) { cx = 0; cz = 0; for (const m of mates) { cx += m.pos.x; cz += m.pos.z; } cx /= mates.length; cz /= mates.length; }
-    const a = Math.random() * Math.PI * 2, r = 4 + Math.random() * 9;
-    const gx = cx + Math.cos(a) * r, gz = cz + Math.sin(a) * r;
+    const b = g.map.bounds;
+    let best = null, bs = -1e9;
+    for (let k = 0; k < 14; k++) {
+      const a = Math.random() * Math.PI * 2, r = 18 + Math.random() * 45;
+      const x = clamp(s.pos.x + Math.cos(a) * r, b.minX + 6, b.maxX - 6), z = clamp(s.pos.z + Math.sin(a) * r, b.minZ + 6, b.maxZ - 6);
+      const fi = g.nav.nearestFree(x, z, 6);
+      if (fi < 0) continue;
+      const px = g.nav.cx(fi), pz = g.nav.cz(fi);
+      let zd = 1e9;
+      for (const e of zs) zd = Math.min(zd, Math.hypot(e.pos.x - px, e.pos.z - pz));
+      const sc = Math.min(zd, 90) * 0.9 - Math.hypot(px - cx, pz - cz) * 0.35 + Math.random() * 14;       // zombiden uzak + gruba yakın
+      if (sc > bs) { bs = sc; best = { x: px, z: pz }; }
+    }
     this.perching = false;
-    this.setGoal(gx, gz, rand(8, 16));
+    if (best) this.setGoal(best.x, best.z, rand(10, 20));
+    else this.roam();
   }
 
   roam() {
@@ -146,10 +170,11 @@ export class BotBrain {
       if (!alerted && (fwd.x * dx + fwd.z * dz) / (dist + 1e-6) < 0.3) continue;
       if (dist > 22 && e.crouching) { if (Math.random() < 0.3) continue; }
       if (!g.losClear(eye, tc)) continue;                  // duman görüşü de keser
-      if (dist < bd) { bd = dist; best = e; }
+      const sc = g.mode.infection ? dist + this.crowd(e) * 12 + Math.random() * 6 : dist;      // Enfekte: herkes aynı zombiyi seçmesin (yük dağılımı)
+      if (sc < bd) { bd = sc; best = e; }
     }
     if (best) {
-      if (best !== this.target) { this.target = best; this.reactT = rand(this.d.react[0], this.d.react[1]); this.aimFrac = rand(0.55, 0.85); }
+      if (best !== this.target) { this.target = best; this.reactT = rand(this.d.react[0], this.d.react[1]) + (g.mode.infection ? rand(0, INF_BOT.desync) : 0); this.aimFrac = rand(0.55, 0.85); }
       this.lostT = 0;
       this.lastKnown = (this.lastKnown || new THREE.Vector3()).copy(best.pos);
     } else if (this.target) {
@@ -291,7 +316,8 @@ export class BotBrain {
       else if (s.cur === 1 && SNIPERS.has(p0) && dist > 25) s.switchTo(0);
       // bıçak dövüşü: çok yakında ve silah işe yaramıyorsa (yükleniyor/boş/ağır) bıçağa geç, uzaklaşınca geri dön
       const gunBusy = s.cur === 0 && (s.reloadT > 0.5 || s.item.mag <= 0 || LMGS.has(p0) || SNIPERS.has(p0));
-      if (dist < 2.1 && s.cur !== 3 && (gunBusy || dist < 1.4) && s.items[3] && Math.random() < 0.08) s.switchTo(3);
+      if (g.mode.infection) { if (s.cur === 3) s.switchTo(0); }                                  // Enfekte: zombiye bıçakla değil silahla karşılık verilir
+      else if (dist < 2.1 && s.cur !== 3 && (gunBusy || dist < 1.4) && s.items[3] && Math.random() < 0.08) s.switchTo(3);
       else if (s.cur === 3 && dist > 3.6) s.switchTo(0);
 
       const ty = tp.y + tg.height * this.aimFrac;
@@ -307,7 +333,7 @@ export class BotBrain {
 
       this.reactT -= dt;
       const aimed = Math.abs(dyaw) < 0.07 + 2 / (dist + 8);
-      s.botExtraSpread = this.d.err * (0.6 + dist / 45) * (this.reactT > -0.8 ? 1.8 : 1);
+      s.botExtraSpread = this.d.err * (0.6 + dist / 45) * (this.reactT > -0.8 ? 1.8 : 1) * (g.mode.infection ? 1 + INF_BOT.crowd * this.crowd(tg) : 1);      // Enfekte: aynı hedefe çok kişi sıkarsa isabet düşer (herkesin aynı anda nişan alıp vurması engellenir)
       if (this.reactT <= 0 && aimed) {
         if (this.burstPause > 0) this.burstPause -= dt;
         else {
@@ -341,7 +367,12 @@ export class BotBrain {
       this.holdBudget = (this.holdBudget ?? 6) - dt;
       const holdPos = holdRange > 0 && dist < holdRange && dist > 14 && this.holdBudget > 0;
       if (this.holdBudget < -4) this.holdBudget = rand(5, 9);
-      if (holdPos) { speed = 0; s.crouching = SNIPERS.has(pid); }
+      const kite = g.mode.infection && tg.def && tg.def.zombie;
+      if (kite) {                                           // zombiye karşı: yaklaşınca geri çekilerek ateş et, uzaktayken yerinde dur
+        s.crouching = false;
+        if (dist < (tg.boss ? INF_BOT.kiteBoss : INF_BOT.kite)) { moveX = -nx + (-nz) * this.strafeDir * 0.25; moveZ = -nz + nx * this.strafeDir * 0.25; speed *= INF_BOT.kiteSpeed; }
+        else { moveX = (-nz) * this.strafeDir * 0.4; moveZ = nx * this.strafeDir * 0.4; speed *= 0.45; }
+      } else if (holdPos) { speed = 0; s.crouching = SNIPERS.has(pid); }
       else {
         s.crouching = false;
         let fwd = 0;

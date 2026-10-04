@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 if (isMainThread) {
   const N = +(process.argv[2] || 10), TIME = +(process.argv[3] || 300);
-  const diffs = ['easy', 'normal', 'hard'], maps = ['kasaba', 'vadi', 'us'], sizes = [10, 24];
+  const diffs = (process.env.DIFFS || 'easy,normal,hard').split(','), maps = (process.env.MAPS || 'kasaba,vadi,us').split(','), sizes = (process.env.SIZES || '10,24').split(',').map(Number);
   const jobs = [];
   for (const diff of diffs) for (const map of maps) for (const size of sizes) for (let i = 0; i < N; i++) jobs.push({ diff, map, size, time: TIME });
   const results = [], workers = Math.max(1, os.cpus().length - 1);
@@ -37,6 +37,10 @@ if (isMainThread) {
   process.exit(errs.length ? 1 : 0);
 } else {
   const { Game } = await import('../src/game/game.js');
+  const { INF_BOT } = await import('../src/game/bot.js');
+  const { BOSS, ZBOSS, ZOMBIE } = await import('../src/game/stats.js');
+  if (process.env.BHP) BOSS.hp = +process.env.BHP; if (process.env.BPP) BOSS.hpPerPlayer = +process.env.BPP; if (process.env.BDMG) ZBOSS.dmg = +process.env.BDMG; if (process.env.BSPD) ZBOSS.speed = +process.env.BSPD; if (process.env.ZRESP) ZOMBIE.respawn = +process.env.ZRESP; if (process.env.BSPLIT) ZOMBIE.bossSplit = +process.env.BSPLIT;
+  for (const [env, key] of [['CROWD', 'crowd'], ['DESYNC', 'desync'], ['KITE', 'kite'], ['KITEB', 'kiteBoss'], ['KSPD', 'kiteSpeed']]) if (process.env[env]) INF_BOT[key] = +process.env[env];
   parentPort.on('message', (j) => {
     const r = { ...j, winner: null, t: 0, h: 0, cure: 0, bossDown: 0, err: null };
     try {
