@@ -29,6 +29,7 @@ export const ACTIONS = [
   ['third', '3. şahıs kamera', 3, ['KeyH']],
   ['flashlight', 'Fener', 3, ['KeyF']],
   ['team', 'Takım seçimi (çevrimiçi)', 3, ['KeyM']],
+  ['chat', 'Sohbet (çevrimiçi) · Shift ile takıma', 3, ['Enter']],
   ['scoreboard', 'Skor tablosu (basılı tut)', 3, ['Tab']],
 ].map(([id, label, group, def]) => ({ id, label, group, def }));
 

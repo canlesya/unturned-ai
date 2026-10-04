@@ -53,6 +53,7 @@ export class NetClient {
     if (!this.game) { (this.queued ||= []).push(m); return; }
     if (m.t === 'snap') return this.onSnap(m);
     if (m.t === 'roster') return this.onRoster(m.roster);
+    if (m.t === 'chat') return this.game.onNetChat?.(m);
     if (m.t === 'team') return this.game.onNetTeam?.(m);
     if (m.t === 'end') return this.game.onNetEnd?.(m);
     if (m.t === 'ev') return this.game.onNetEvents?.(m.l);

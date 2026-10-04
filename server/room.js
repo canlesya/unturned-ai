@@ -141,12 +141,15 @@ export class Room {
     const deps = g.deployables.map((d) => ({ e: 'dep', id: d.id, ty: d.type === 'claymore' ? 'c' : 'a', p: [d.pos.x, d.mesh.position.y - (d.type === 'claymore' ? 0.15 : 0), d.pos.z], ry: d.ry, tm: d.team, by: d.owner.id }));
     ws.send(JSON.stringify({ t: 'welcome', id: s.id, room: this.code, cfg: this.publicCfg(), roster: this.roster(), hz: SIM_HZ, deps }));
     this.broadcast({ t: 'roster', roster: this.roster() }, ws);
+    this.sys(`${s.name} odaya katıldı`);
     return c;
   }
 
   leave(id) {
     if (!this.clients.has(id)) return;
+    const nm = this.clients.get(id).name;
     this.clients.delete(id);
+    if (this.clients.size) this.sys(`${nm} odadan ayrıldı`);
     this._forceSlow = true;
     this.game.releaseSlot(id);
     if (!this.clients.size) {
@@ -175,6 +178,23 @@ export class Room {
       co: Array.isArray(m.co) && m.co.length === 3 && m.co.every(Number.isFinite) ? m.co.map((v) => Math.max(-4.5, Math.min(4.5, v))) : null,
     });
   }
+
+  // Sohbet: herkese ya da takıma. Sunucu temizler (kontrol karakteri, uzunluk), hız sınırı uygular; gönderen de kendi mesajını sunucudan alır
+  chat(id, m) {
+    const c = this.clients.get(id);
+    if (!c || typeof m.m !== 'string') return;
+    const txt = m.m.replace(/[\p{Cc}\p{Cf}]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 120);      // kontrol + biçim karakterleri (sıfır genişlik, yön değiştirme) atılır
+    if (!txt) return;
+    const now = Date.now(), t = (c.chatT ||= []);
+    while (t.length && now - t[0] > 6000) t.shift();
+    if (t.length >= 4) { if (c.ws.readyState === 1) c.ws.send(JSON.stringify({ t: 'chat', sys: 1, m: 'Çok hızlı yazıyorsun, biraz bekle' })); return; }
+    t.push(now);
+    const g = this.game, team = c.h.s.team, tc = !!m.tm && !g.ffa;                          // ölüm maçı / silah yarışında takım yok: hep herkese
+    const str = JSON.stringify({ t: 'chat', id, name: c.name, team, tc, m: txt });
+    for (const o of this.clients.values()) if (o.ws.readyState === 1 && (!tc || o.h.s.team === team)) o.ws.send(str);
+  }
+
+  sys(text) { this.broadcast({ t: 'chat', sys: 1, m: text }); }
 
   // Menüdeki "kill" komutu: oyuncu kendini öldürür (sıkıştı, hızlı yeniden doğmak istiyor). Ölüm sayılır, öldüren olarak kimseye puan yazılmaz.
   suicide(id) {

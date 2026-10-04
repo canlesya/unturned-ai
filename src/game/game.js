@@ -8,6 +8,7 @@ import { NavGrid } from './nav.js';
 import { Effects } from './effects.js';
 import { Sfx } from './audio.js';
 import { Hud } from './hud.js';
+import { Chat } from './chat.js';
 import { Soldier } from './soldier.js';
 import { Player } from './player.js';
 import { BotBrain } from './bot.js';
@@ -216,6 +217,7 @@ export class Game {
       return;     // sunucu: DOM, döngü ve girdi yok — step(dt) dışarıdan çağrılır
     }
     this.hud = new Hud(this);
+    if (this.online) this.chat = new Chat(this);                                   // sohbet yalnızca çevrimiçi odalarda
     this.player = new Player(this, this.playerSoldier, this.settings);
     this.player.locked = !!opts.nolock;
 
@@ -235,6 +237,7 @@ export class Game {
       const locked = document.pointerLockElement === this.canvas;
       if (locked) { this.lockFails = 0; this.player.skipMove = 2; this.lockKeys(true); }                 // kilit anındaki ilk fare olayı genelde zıplar: atla
       else {
+        this.chat?.close();
         this.lockKeys(false);
         this._unlockAt = performance.now();
         this.player.fireHeld = false; this.playerSoldier.ads = false;                // kilit kopunca takılı ateş/nişan kalmasın
@@ -963,6 +966,8 @@ export class Game {
     location.href = u.toString();
   }
 
+  onNetChat(m) { this.chat?.add(m); }
+
   onNetEnd(m) {
     if (this.ended) return;
     this.ended = true; this.running = false;
@@ -1463,6 +1468,7 @@ export class Game {
     clearTimeout(this._lockT);
     removeEventListener('resize', this._rs);
     this.player.dispose();
+    this.chat?.dispose();
     this.hud.dispose();
     this.renderer.dispose();
     this.canvas.remove();

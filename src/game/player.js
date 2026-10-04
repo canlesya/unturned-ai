@@ -396,6 +396,7 @@ export class Player {
       this.keys.add(code);
       const s = this.s;
       if (!this.game.running) return;
+      if (kb.is('chat', code) && this.game.chat && this.locked && !this.wheel) { e.preventDefault(); this.game.chat.open(e.shiftKey); return; }      // sohbet (çevrimiçi): Enter herkese, Shift+Enter takıma
       if (kb.is('wheel', code) && s.alive && !this.wheel) this.openWheel();
       if (kb.is('third', code) && s.alive) this.toggleThird();
       if (kb.is('inspect', code) && s.alive && !this.wheel) this.vm.inspect(s);                  // silah inceleme (CS tarzı)
@@ -443,6 +444,7 @@ export class Player {
       if (kb.is('scoreboard', code)) this.game.hud.showScoreboard(false);
     });
     this.on(document, 'mousemove', (e) => {
+      if (this.game.chatOpen) return;                                                          // yazarken bakış donar
       if (this.skipMove > 0) { this.skipMove--; return; }                                    // kilit sonrası ilk olaylar sıçrar
       // ani sıçramaları (sürücü/Chrome hatası) kes: tek olayda 120 pikselden fazla gerçek bir fare hareketi değildir
       const mx = Math.max(-120, Math.min(120, e.movementX || 0)), my = Math.max(-120, Math.min(120, e.movementY || 0));
@@ -455,6 +457,7 @@ export class Player {
     this.on(cv, 'mousedown', (e) => {
       if (this.wheel) { if (e.button === 0) this.wheelPick(); return; }                       // tekerlek açıkken tık = seçim (ateş değil)
       if (!this.locked) { this.game.requestLock(); return; }
+      if (this.game.chatOpen) return;
       if (e.button === 0) { this.fireHeld = true; this.fireBuf = 0.15; this.game.online?.edge('fp'); }
       if (e.button === 2 && this.s.def.zombie) { this.zAbility(); return; }                  // zombi: sağ tık = özel güç
       if (e.button === 2) this.s.ads = this.game.opts.adsToggle ? !this.s.ads : true;          // Ayarlar: basılı tut ya da bir kez bas (aç-kapa)
