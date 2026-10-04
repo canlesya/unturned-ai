@@ -36,4 +36,4 @@ MAPS.newyork = {
 };
 export const DEFAULT_MAP = 'kasaba';
 // Bu moda uygun haritalar (only: yalnızca o modlarda listelenir; dev hiçbirinde)
-export const mapsFor = (type) => Object.values(MAPS).filter((m) => !m.dev && (!m.only || m.only.includes(type)));
+export const mapsFor = (type) => (type === 'inf' ? [MAPS.newyork] : Object.values(MAPS).filter((m) => !m.dev && (!m.only || m.only.includes(type))));      // Enfekte yalnızca New York'ta

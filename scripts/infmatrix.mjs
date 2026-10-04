@@ -39,7 +39,7 @@ if (isMainThread) {
   const { Game } = await import('../src/game/game.js');
   const { INF_BOT } = await import('../src/game/bot.js');
   const { BOSS, ZBOSS, ZOMBIE } = await import('../src/game/stats.js');
-  if (process.env.BHP) BOSS.hp = +process.env.BHP; if (process.env.BPP) BOSS.hpPerPlayer = +process.env.BPP; if (process.env.BDMG) ZBOSS.dmg = +process.env.BDMG; if (process.env.BSPD) ZBOSS.speed = +process.env.BSPD; if (process.env.ZRESP) ZOMBIE.respawn = +process.env.ZRESP; if (process.env.BSPLIT) ZOMBIE.bossSplit = +process.env.BSPLIT;
+  if (process.env.BHP) BOSS.hp = +process.env.BHP; if (process.env.BG) BOSS.growth = +process.env.BG; if (process.env.BOFF) BOSS.secondOffset = +process.env.BOFF; if (process.env.BDMG) ZBOSS.dmg = +process.env.BDMG; if (process.env.BSPD) ZBOSS.speed = +process.env.BSPD; if (process.env.ZRESP) ZOMBIE.respawn = +process.env.ZRESP; if (process.env.BSPLIT) ZOMBIE.bossSplit = +process.env.BSPLIT;
   for (const [env, key] of [['CROWD', 'crowd'], ['DESYNC', 'desync'], ['KITE', 'kite'], ['KITEB', 'kiteBoss'], ['KSPD', 'kiteSpeed']]) if (process.env[env]) INF_BOT[key] = +process.env[env];
   parentPort.on('message', (j) => {
     const r = { ...j, winner: null, t: 0, h: 0, cure: 0, bossDown: 0, err: null };

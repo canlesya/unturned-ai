@@ -17,7 +17,7 @@ export const ZOMBIE = {
 // Boss zombi: dev canlı, çok hızlı, kalıcı öfkeli (hız ×1.25 ve hasar ×1.4 pasif), hasarın %30'unu yok sayar; tek gücü Gölge Sıçrayışı (ışınlanma + kısa görünmezlik).
 // Boss'un öldürdüğü insan NORMAL zombi olur. Boss 3 kez ölünce insana döner.
 export const BOSS = {
-  hp: 1000, hpPerPlayer: 90,   // can = hp + oyuncu sayısı × hpPerPlayer
+  hp: 1400, growth: 1.18, secondOffset: 7,   // can = hp × growth^(eşdeğer oyuncu − 10); 2 boss'ta eşdeğer = oyuncu − secondOffset
   speed: 1.2, dmg: 46, lives: 3, armor: 0.7, respawn: 9, scale: [1.6, 1.4, 1.6], jump: 1.35,       // scale = model (ve vuruş kutusu) ölçeği x/y/z · jump = zıplama çarpanı
   rageSpd: 1.25, rageDmg: 1.4,
 };

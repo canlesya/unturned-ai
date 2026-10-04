@@ -6,7 +6,7 @@ let fail = 0; const check = (ok, msg) => { console.log((ok ? 'OK    ' : 'HATA  '
 g.brains = [];                                           // botlar durur
 const bosses = g.soldiers.filter((s) => s.boss), humans = g.soldiers.filter((s) => s.team === 'blue');
 check(bosses.length === 2 && g.mode.total === 20, `20 kişide 2 boss (${bosses.length})`);
-check(bosses.every((b) => b.maxHp === BOSS.hp + BOSS.hpPerPlayer * 20 && b.zLives === 3), `boss can ${bosses[0].maxHp}, hak ${bosses[0].zLives}`);
+check(bosses.every((b) => b.maxHp === Math.round(BOSS.hp * BOSS.growth ** (20 - BOSS.secondOffset - 10)) && b.zLives === 3), `boss can ${bosses[0].maxHp}, hak ${bosses[0].zLives}`);
 const small = new Game(null, { headless: true, map: 'kasaba', tod: 'day', weather: 'clear', match: { perTeam: 12, type: 'inf', time: 900 } });
 check(small.soldiers.filter((s) => s.boss).length === 1, '12 kişide 1 boss');
 const step = (n = 30 * 12) => { for (let i = 0; i < n; i++) g.step(1 / 30); };

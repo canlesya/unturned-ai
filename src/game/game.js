@@ -118,6 +118,7 @@ export class Game {
 
     // opts.match: özel maç ayarları; opts.mode: '3v3' | '10v10' hazır ayarı (test/uyumluluk)
     this.mode = makeMatch(opts.match || PRESETS[opts.mode] || {});
+    if (this.mode.infection) { opts.diff = 'hard'; this.bossCount = this.mode.total < ZOMBIE.bossSplit ? ZOMBIE.bossCount[0] : ZOMBIE.bossCount[1]; }                                  // Enfekte yalnızca Zor botlarla (menü/sunucu da öyle sabitler)
     // 3. şahıs kamera (H): odada izinli mi? sunucu açıkça true ister; offline varsayılan açık
     this.thirdAllowed = opts.online ? !!opts.online.cfg?.third : headless ? opts.third === true : opts.third !== false;
     this.ffa = this.mode.type === 'dm';                          // Ölüm Maçı: herkes tek, her savaşçının kendi takım kimliği
@@ -281,7 +282,7 @@ export class Game {
   // Kurallar: boss'un öldürdüğü insan NORMAL zombi olur · insan 1 kez ölünce zombi · normal zombi 2 kez ölünce insan · boss 3 kez ölünce insan.
   seedInfection() {
     const all = this.soldiers.filter((s) => !s.vacant);
-    const k = all.length < ZOMBIE.bossSplit ? ZOMBIE.bossCount[0] : ZOMBIE.bossCount[1];
+    const k = this.bossCount;
     const pool = [...all].sort(() => Math.random() - 0.5);
     for (const s of all) if (s.team !== 'blue') { s.team = 'blue'; s.setClass(s.cls === 'zombie' ? 'assault' : s.cls); }       // hepsi insan olarak başlar
     for (let i = 0; i < k; i++) this.makeZombie(pool[i], true);

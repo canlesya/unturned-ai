@@ -14,11 +14,11 @@ export function sanitizeCfg(c = {}) {
   const pick = (v, list, d) => (list.includes(v) ? v : d);
   const type0 = pick(c.type, ['conquest', 'tdm', 'dm', 'inf'], 'conquest');
   return {
-    map: pick(c.map, type0 === 'inf' ? ['kasaba', 'vadi', 'us', 'newyork'] : ['kasaba', 'vadi', 'us'], 'kasaba'),
+    map: type0 === 'inf' ? 'newyork' : pick(c.map, ['kasaba', 'vadi', 'us'], 'kasaba'),                  // Enfekte yalnızca New York'ta
     tod: pick(c.tod, ['day', 'sunset', 'night'], 'day'),
     weather: pick(c.weather, ['clear', 'rain', 'fog'], 'clear'),
     type: type0,
-    diff: pick(c.diff, ['easy', 'normal', 'hard'], 'normal'),
+    diff: type0 === 'inf' ? 'hard' : pick(c.diff, ['easy', 'normal', 'hard'], 'normal'),                   // Enfekte yalnızca Zor botlarla
     perTeam: c.type === 'dm' ? Math.round(num(c.perTeam, 2, 10, 10)) : c.type === 'inf' ? Math.round(num(c.perTeam, 4, 24, 12)) : Math.round(num(c.perTeam, 1, MAX_PER_TEAM, 5)),     // ölüm maçında ve enfektede perTeam = toplam oyuncu
     tickets: Number.isFinite(c.tickets) && c.tickets > 0 ? Math.round(num(c.tickets, 20, 1000, 200)) : 0,   // 0 = boyuta göre otomatik
     time: Math.round(num(c.time, 0, 3600, 900)),

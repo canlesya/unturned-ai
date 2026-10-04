@@ -1,0 +1,24 @@
+
+Enfekte · botlu · 30 maç/durum · süre sınırı 300 sn · toplam 240 maç · 96 sn
+
+Zorluk | Harita | Kişi | İnsan kazandı | Ort. süre | Ort. kalan insan | Ort. iyileşen | Boss düşen | Hata
+Zor    | New York | 10   | 10/30         |  105 sn |   3.3 |  11.5 |  0.3 | 0
+Zor    | New York | 12   | 16/30         |  128 sn |   6.3 |  16.4 |  0.5 | 0
+Zor    | New York | 14   | 15/30         |  144 sn |   6.9 |  20.3 |  0.3 | 0
+Zor    | New York | 16   | 17/30         |  137 sn |   8.6 |  18.5 |  0.9 | 0
+Zor    | New York | 18   | 13/30         |  145 sn |   7.5 |  17.1 |  0.6 | 0
+Zor    | New York | 20   | 19/30         |  163 sn |  12.3 |  31.2 |  0.9 | 0
+Zor    | New York | 22   | 12/30         |  166 sn |   8.0 |  28.4 |  0.5 | 0
+Zor    | New York | 24   | 17/30         |  196 sn |  11.7 |  51.2 |  0.6 | 0
+
+Zorluğa göre özet:
+  Zor: insan kazandı 119/240 · ort. süre 148 sn
+  10 kişi: insan kazandı 10/30 · ort. süre 105 sn
+  12 kişi: insan kazandı 16/30 · ort. süre 128 sn
+  14 kişi: insan kazandı 15/30 · ort. süre 144 sn
+  16 kişi: insan kazandı 17/30 · ort. süre 137 sn
+  18 kişi: insan kazandı 13/30 · ort. süre 145 sn
+  20 kişi: insan kazandı 19/30 · ort. süre 163 sn
+  22 kişi: insan kazandı 12/30 · ort. süre 166 sn
+  24 kişi: insan kazandı 17/30 · ort. süre 196 sn
+  New York: insan kazandı 119/240 · ort. süre 148 sn

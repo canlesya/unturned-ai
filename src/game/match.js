@@ -2,7 +2,7 @@
 export const MATCH_TYPES = {
   conquest: { label: 'Ele Geçirme', desc: 'Bayrakları ele geçir, düşman biletlerini erit.' },
   tdm: { label: 'Takım Çatışması', desc: 'Bayrak yok: sadece öldür. Takım skoru her öldürmede artar; skor sınırına ilk ulaşan kazanır.' },
-  inf: { label: 'Enfekte', desc: 'Birkaç kişi zombi başlar. Zombi öldürdüğü insanı enfekte eder; son insan da düşerse zombiler, süre dolana dek hayatta kalırsan insanlar kazanır.' },
+  inf: { label: 'Enfekte', desc: '1–2 dev BOSS zombi başlar. İnsan 1 ölümle zombi olur, zombi 1 ölümle (boss 3 ölümle) insana döner. Son insan düşerse zombiler, süre dolarsa ya da tüm zombiler iyileşirse insanlar kazanır.' },
   dm: { label: 'Ölüm Maçı', desc: 'Herkes tek. Rastgele doğ, ilk 40 öldürmeye ulaşan kazanır (en çok 10 kişi).' },
 };
 export const DM_KILLS = 40, DM_MAX = 10;
