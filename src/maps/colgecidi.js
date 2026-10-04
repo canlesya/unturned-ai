@@ -112,6 +112,8 @@ export function buildColGecidi() {
     bounds: CG_BOUNDS,
     terrain,
     sideSwap: true,
+    // takım çatışmasında botlar için hat noktaları (iki doğuşa dengeli dağılım): Orta, Uzun, Tüneller, Kısa, A rampası, B kapısı, CT orta, dış T alanları
+    roamPoints: [[-3.5, -6.4], [20, -6], [28, 14], [-15, 54], [3.6, 53], [28, 41], [6.5, -55.8], [16.5, -27], [40, -30], [38, -8], [-30, 50], [-40, -30]],
     mini: { bg: '#4a3d2a', ground: [226, 204, 158], wall: '#5a4830', mid: '#8b7550', low: '#a88f62', roof: 'rgba(110,86,52,0.45)' },
     spawns,
     baseZones: {

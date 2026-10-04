@@ -89,6 +89,15 @@ solid = ndi.binary_closing(solid, structure=np.ones((3, 3)), iterations=1) | sol
 free = ~solid
 print('hücre', NX, NZ, 'yürünebilir', free.sum(), 'katı', solid.sum())
 
+# ── elle açılan geçitler (radar çizgisi yanlış kapatıyor): dünya metresi [x0, z0, x1, z1] ──
+OVERRIDE_CARVE = [
+    [38.0, 14.0, 48.0, 16.6],      # CT doğuş avlusu: kuzey bölme ile taralı (çatı altı) güney bölme arasındaki duvar, 10 m'lik geniş geçit
+]
+for (ox0, oz0, ox1, oz1) in OVERRIDE_CARVE:
+    c0, c1 = int((ox0 - X0) / CELL), int(np.ceil((ox1 - X0) / CELL)); r0, r1 = int((oz0 - Z0) / CELL), int(np.ceil((oz1 - Z0) / CELL))
+    sub = solid[r0:r1, c0:c1]; sub &= c_void[r0:r1, c0:c1]
+    low_c[r0:r1, c0:c1] = False
+
 # ── bağlantı onarımı: radar çizgilerinden doğan kapalı kapıları aç ──
 # Oyuncu yarıçapı payı (1 hücre) bırakılmış serbest alanın bileşenleri bulunur; ana bileşen (T avlusu) dışında kalan her büyük bileşene,
 # boşluk olmayan hücreler üzerinden en ucuz yoldan (katı hücre = 1, serbest = 0) bağlanılır ve yol açılır (kapı 3 hücre = 1,5 m).
@@ -203,7 +212,7 @@ for i in range(1, n + 1):
     area = ext[0] * ext[1]
     if min(ext) > 6.0 or max(ext) > 11.0 or area > 45: continue          # zemin yaması: nesne değil
     # boyut → yükseklik: küçük sandık 1,0–1,4 · orta 2,0 · büyük (konteyner / araç) 2,6
-    h = 1.0 if area < 1.5 else 1.35 if area < 6 else 2.0 if area < 18 else 2.6
+    h = 1.0 if area < 1.5 else 1.1 if area < 6 else 2.0 if area < 18 else 2.6
     boxes.append([round(float(X0 + cc[0]), 2), round(float(Z0 + cc[1]), 2), round(float(ext[0]), 2), round(float(ext[1]), 2), round(-ang, 3), h])
 print('kutu', len(boxes))
 

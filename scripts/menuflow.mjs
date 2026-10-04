@@ -15,7 +15,7 @@ check((await title()) === 'KASABA' && (await sum()).Mod.includes('Ele Geçirme')
 // 1) mod: Silah Yarışı → harita listesi aynı (3), özet güncellenir
 await page.click('.mdc[data-v=gg]'); await page.waitForTimeout(500);
 check((await sum()).Mod.includes('Silah Yarışı'), 'mod değişince özet güncellendi');
-check(await page.evaluate(() => document.querySelectorAll('#bs2 .mapc').length) === 4, 'Silah Yarışı: 3 harita + rastgele');
+check(await page.evaluate(() => document.querySelectorAll('#bs2 .mapc').length) === 5, 'Silah Yarışı: 4 harita + rastgele');
 // 2) harita: Vadi
 await page.click('.mapc[data-v=vadi]'); await page.waitForTimeout(400);
 check((await title()) === 'VADİ', 'harita seçimi özette');

@@ -23,4 +23,9 @@ export const OFFICIAL = [
     type: 'dm', perTeam: 10, time: 600, diff: 'normal',
     rotation: [R('us'), R('kasaba'), R('vadi', 'sunset')],
   },
+  {
+    code: 'OFC5', name: 'Resmi Sunucu #5', desc: 'Çöl Geçidi · Takım Çatışması · 8v8 · bot destekli',
+    type: 'tdm', perTeam: 8, time: 600, diff: 'normal',
+    rotation: [R('colgecidi'), R('colgecidi', 'sunset')],
+  },
 ];

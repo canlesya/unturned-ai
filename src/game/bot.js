@@ -58,6 +58,8 @@ export class BotBrain {
   }
 
   setGoal(x, z, time = 14) {
+    const nav = this.game.nav;
+    if (nav.blocked[nav.idx(x, z)]) { const i = nav.nearestFree(x, z, 8); if (i >= 0) { x = nav.cx(i); z = nav.cz(i); } }      // hedef duvarın / kutunun içindeyse en yakın serbest noktaya al (yoksa bot orada boşuna bekler)
     this.goal = new THREE.Vector3(x, 0, z);
     this.goalT = time;
     this.path = null; this.repathT = 0;
@@ -172,7 +174,9 @@ export class BotBrain {
   roam() {
     const g = this.game, s = this.s;
     const foes = g.soldiers.filter((e) => e.alive && e.team !== s.team);
-    const t = foes.length && Math.random() < 0.7 ? pick(foes).pos : null;
+    const R = g.map.roamPoints;                                                    // harita dolaşma noktaları verirse (duvarlı / asimetrik haritalar): yarısı hat noktalarına
+    if (R && Math.random() < 0.5) { const p = pick(R); this.setGoal(p[0] + rand(-4, 4), p[1] + rand(-4, 4), rand(8, 16)); return; }
+    const t = foes.length && Math.random() < (R ? 0.5 : 0.7) ? pick(foes).pos : null;
     const b = g.map.bounds;
     const x = t ? t.x + rand(-12, 12) : rand(b.minX + 6, b.maxX - 6), z = t ? t.z + rand(-12, 12) : rand(b.minZ + 6, b.maxZ - 6);
     this.setGoal(x, z, rand(10, 20));

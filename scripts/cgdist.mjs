@@ -35,6 +35,12 @@ for (const [n, [x, z]] of Object.entries(CAND)) console.log(' ', pt(n, x, z), ' 
 const cand = [];
 for (let i = 0; i < W * H; i++) if (!nav.blocked[i] && dT[i] < 1e8 && dC[i] < 1e8 && Math.abs(dT[i] - dC[i]) < 5 && dT[i] > 35 && dT[i] < 110 && dC[i] > 35 && dC[i] < 110) cand.push(i);
 console.log('adil aday hücre', cand.length);
+if (process.env.ROAM) {                                                // dolaşma noktaları: iki tarafa eşit uzaklıkta, birbirinden ≥14 m
+  const wide = []; for (let i = 0; i < W * H; i++) if (!nav.blocked[i] && dT[i] < 1e8 && dC[i] < 1e8 && Math.abs(dT[i] - dC[i]) <= 16 && dT[i] > 25 && dC[i] > 25 && dT[i] < 130) wide.push(i);
+  wide.sort((p, q) => (Math.abs(dT[p] - dC[p]) - Math.abs(dT[q] - dC[q])));
+  const pts = []; for (const i of wide) { const x = nav.cx(i), z = nav.cz(i); if (pts.every((q) => Math.hypot(q[0] - x, q[1] - z) >= 13)) pts.push([Math.round(x * 10) / 10, Math.round(z * 10) / 10]); }
+  console.log('ROAM', pts.length, JSON.stringify(pts));
+}
 const cl = []; // kaba kümeleme (8 m)
 for (const i of cand) { const x = nav.cx(i), z = nav.cz(i); const c = cl.find((k) => Math.hypot(k.x - x, k.z - z) < 9); if (c) { c.n++; c.x += (x - c.x) / c.n; c.z += (z - c.z) / c.n; } else cl.push({ x, z, n: 1 }); }
 console.log(cl.filter((c) => c.n > 30).sort((a, b) => b.n - a.n).slice(0, 12).map((c) => `(${c.x.toFixed(0)},${c.z.toFixed(0)}) n${c.n}`).join('  '));

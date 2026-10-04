@@ -54,7 +54,8 @@ export class Room {
   newGame() {
     const c = this.cfg;
     if (this.official) Object.assign(c, this.official.rotation[this.rot % this.official.rotation.length]);   // sıradaki harita
-    this.swap = Math.random() < 0.5;                                    // asimetrik haritalarda bu maçın taraf dağılımı (sideSwap)
+    this.swap = this._swapNext ?? Math.random() < 0.5;                  // asimetrik haritalarda bu maçın taraf dağılımı (sideSwap): ilki rastgele, sonraki maçlar sırayla yer değiştirir
+    this._swapNext = !this.swap;
     this.game = new Game(null, {
       headless: true, swapSides: this.swap, map: c.map, tod: c.tod, weather: c.weather, diff: c.diff, bots: c.bots, third: c.third,
       match: { perTeam: c.perTeam, type: c.type, tickets: c.tickets || undefined, time: c.time },
