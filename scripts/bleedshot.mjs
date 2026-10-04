@@ -1,0 +1,13 @@
+import { chromium } from 'playwright';
+const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+await page.goto(`${process.env.BASE || 'http://127.0.0.1:5180'}/?autostart=1v1&tickets=50&debug=1&nolock=1&type=conquest`);
+await page.waitForFunction('window.__game && window.__game.running', null, { timeout: 60000 });
+const r = await page.evaluate(() => { const g = window.__game; g.playerSoldier.invuln = 1e9; g.brains.forEach((b) => (b.update = () => {}));
+  g.mode.objectives[0].owner = 'red'; g.mode.objectives[0].p = -1; g.mode.objectives[1].owner = 'red'; g.mode.objectives[1].p = -1;
+  for (let i = 0; i < 60; i++) g.step(1 / 30);
+  return { b: document.getElementById('tnB').textContent, r: document.getElementById('tnR').textContent, toast: [...document.querySelectorAll('#pops *, .toast')].map((e) => e.textContent).join('|') }; });
+console.log(JSON.stringify(r), errs);
+await page.screenshot({ path: 'bleed.png', clip: { x: 340, y: 0, width: 600, height: 200 } });
+await browser.close();

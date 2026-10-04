@@ -153,7 +153,7 @@ export class Hud {
         <svg viewBox="-100 -100 200 200" class="chev"><g fill="none" stroke="#ff2e1f" stroke-linecap="round"><path d="M-14 16L0 -2L14 16" stroke-width="2.2"/><path d="M0 -2V-100M-100 0H-30M30 0H100M0 28V100" stroke-width=".3" stroke="#000"/><path d="M-10 36H10M-14 56H14M-18 76H18" stroke-width=".8" stroke="#ff2e1f"/></g><circle r=".8" fill="#ff2e1f"/></svg></div>
       <div id="mmwrap"><canvas id="minimap" width="236" height="168"></canvas><div id="mmname"></div></div>
       <div id="topbar">
-        <div id="score"><div class="tk blue"><small>MAVİ</small><span id="tkB">0</span><div class="bar"><i id="tbB"></i></div></div><div id="timer">0:00</div><div class="tk red"><small>KIRMIZI</small><span id="tkR">0</span><div class="bar"><i id="tbR"></i></div></div></div>
+        <div id="score"><div class="tk blue"><small id="tnB">MAVİ</small><span id="tkB">0</span><div class="bar"><i id="tbB"></i></div></div><div id="timer">0:00</div><div class="tk red"><small id="tnR">KIRMIZI</small><span id="tkR">0</span><div class="bar"><i id="tbR"></i></div></div></div>
         <div id="flags"></div>
         <div id="compass"><canvas width="920" height="60"></canvas></div>
       </div>
@@ -413,6 +413,18 @@ export class Hud {
     }
     $('tkB').textContent = Math.max(0, Math.round(kb));
     $('tkR').textContent = Math.max(0, Math.round(kr));
+    if (!g.ffa && g.mode.objectives.length) {                       // bayrak kanaması: daha çok bayrağı olan takım, farkı kadar rakip bileti 5 sn'de eksiltir
+      const nb = g.mode.objectives.filter((o) => o.owner === 'blue').length, nr = g.mode.objectives.filter((o) => o.owner === 'red').length;
+      const bb = nr > nb ? nr - nb : 0, br = nb > nr ? nb - nr : 0;
+      $('tnB').textContent = 'MAVİ' + (bb ? ` ▼${bb}` : '');
+      $('tnR').textContent = 'KIRMIZI' + (br ? ` ▼${br}` : '');
+      const mine = p.team === 'blue' ? bb : br, key = mine + ':' + (p.team === 'blue' ? br : bb);
+      if (key !== this._bleedKey) {
+        this._bleedKey = key;
+        if (mine) this.toast(`Rakip ${mine} bayrak önde: biletin 5 sn'de ${mine} azalıyor`, '#ff8a6a');
+        else if (p.team === 'blue' ? br : bb) this.toast('Bayrak üstünlüğün var: rakip bileti azalıyor', '#9fe6a8');
+      }
+    }
     $('tbB').style.width = clamp((kb / this.maxTk) * 100, 0, 100) + '%';
     $('tbR').style.width = clamp((kr / this.maxTk) * 100, 0, 100) + '%';
     const t = Math.max(0, Math.ceil(g.timeLeft));

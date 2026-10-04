@@ -604,3 +604,8 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 ### 12.20 Doğma noktasını klavyeyle seçme
 - Ölüm ekranında (bayrak/conquest) doğma noktası artık **Sol/Sağ eğil tuşlarıyla (varsayılan Q / E) ya da ← →** değiştirilir; kullanılabilir (`ok`) seçenekler arasında döner (`Game.cycleSpawn`). Sınıf seçimi aynen 1–5. Başlıkta tuş ipucu görünür; tuşlar Kontroller'den değiştirilince ipucu da değişir. Çevrimiçide `requestSpawn` → `opt` mesajı aynı yoldan gider.
 - Test: `node scripts/spawnkeytest.mjs` (ekran görüntüsü `spawnkey.png`, çıktıyı silin).
+
+### 12.21 Bayrak kanaması göstergesi
+- Bayrak modunda biletler **kendiliğinden azalır** (hata değil): her 5 sn'de daha çok bayrağı olan takım, bayrak farkı kadar **rakibin biletini** eksiltir (`Game.updateMode`); ölüm de 1 bilet götürür. Bayrak sayısı eşitse kimse kaybetmez.
+- HUD: kanayan takımın adının yanında `▼n` (5 sn'de n bilet) görünür; kanama başlayınca/bitince bildirim çıkar.
+- Test: `scripts/tickettest.mjs` (1v1, 50 bilet, hareketsiz oyuncu: bot 3 bayrağı alınca ~100 sn'de biter), `scripts/bleedshot.mjs`.
