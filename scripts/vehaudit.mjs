@@ -1,8 +1,8 @@
 // Araç çakışma denetimi: araçlar birbirine ve binalara/props'a girmiyor mu?  node scripts/vehaudit.mjs [harita...]
 import { MapBuilder } from '../src/maps/builder.js';
 import { MAPS } from '../src/maps/index.js';
-const made = []; const orig = MapBuilder.prototype.vcollide;
-MapBuilder.prototype.vcollide = function (...a) { if (!made.includes(this)) made.push(this); return orig.apply(this, a); };
+const made = []; const orig = MapBuilder.prototype.vparts;
+MapBuilder.prototype.vparts = function (...a) { if (!made.includes(this)) made.push(this); return orig.apply(this, a); };
 const corners = (v) => { const c = Math.cos(v.ry), s = Math.sin(v.ry); return [[v.hl, v.hw], [v.hl, -v.hw], [-v.hl, -v.hw], [-v.hl, v.hw]].map(([x, z]) => [v.x + x * c + z * s, v.z - x * s + z * c]); };
 const axes = (P) => [0, 1].map((i) => { const a = P[i], b = P[i + 1]; const dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz); return [-dz / l, dx / l]; });
 const proj = (P, ax) => { let lo = 1e9, hi = -1e9; for (const p of P) { const d = p[0] * ax[0] + p[1] * ax[1]; lo = Math.min(lo, d); hi = Math.max(hi, d); } return [lo, hi]; };

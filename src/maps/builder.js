@@ -71,16 +71,6 @@ export class MapBuilder {
     this._aabb(w, h, d, this._local(x, y + h / 2, z), tag);
   }
 
-  // Araç gövdesi çarpışması: normal collide + yönlü ayak izi kaydı (araçların birbirine/binalara girmediğini denetlemek için)
-  vcollide(x, y, z, w, h, d, kind = 'car') {
-    const local = this._local(x, y + h / 2, z);
-    this._aabb(w, h, d, local, 'veh');
-    const final = this.M.clone().multiply(local);
-    const pos = new THREE.Vector3(), q = new THREE.Quaternion();
-    final.decompose(pos, q, new THREE.Vector3());
-    this.vehicles.push({ kind, x: pos.x, z: pos.z, ry: new THREE.Euler().setFromQuaternion(q, 'YXZ').y, hl: w / 2, hw: d / 2, h });
-  }
-
   // Araç çizimini erteler (autoPlace açıksa); aksi halde hemen çizer
   defer(kind, fn, o) {
     if (!this.autoPlace || this.flushing) return fn(this, o);
@@ -129,6 +119,21 @@ export class MapBuilder {
       pv.fn(this, { ...pv.o, x: (pv.o.x || 0) + best[0], z: (pv.o.z || 0) + best[1] });
     }
     this.stack = saved; this.flushing = false;
+  }
+
+  // Araç gövdesi profili: [x0, x1, yükseklik, (genişlik), (taban y)] parçaları (araç yerelinde, +X ileri). Her parça kendi çarpışma kutusu olur;
+  // böylece kaput/bagaj üstünden ve cam boşluklarından atış geçer, uzun gövde dönük durunca tek dev kutuya şişmez.
+  // off/len/wid: ayak izi (üst üste binme denetimi için bir kez kaydedilir).
+  vparts(kind, off, len, wid, parts) {
+    let top = 0;
+    for (const [x0, x1, h, w = wid, y0 = 0] of parts) {
+      this._aabb(x1 - x0, h, w, this._local((x0 + x1) / 2, y0 + h / 2, 0), 'veh');
+      top = Math.max(top, y0 + h);
+    }
+    const final = this.M.clone().multiply(this._local(off, 0, 0));
+    const pos = new THREE.Vector3(), q = new THREE.Quaternion();
+    final.decompose(pos, q, new THREE.Vector3());
+    this.vehicles.push({ kind, x: pos.x, z: pos.z, ry: new THREE.Euler().setFromQuaternion(q, 'YXZ').y, hl: len / 2, hw: wid / 2, h: top });
   }
 
   cyl(x, y, z, rTop, rBot, h, color, opt = {}) {

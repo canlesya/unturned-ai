@@ -1,4 +1,4 @@
-// Detaylı araçlar (+X ileri). Hepsi MapBuilder (b) üzerine kutu/silindirle çizilir; çarpışma yalnızca vcollide ile (tek kutu, ayak izi kaydı).
+// Detaylı araçlar (+X ileri). Hepsi MapBuilder (b) üzerine kutu/silindirle çizilir; çarpışma vparts ile (gövde profiline uyan birkaç kutu + ayak izi kaydı).
 // Ortak parçalar: lastik+jant, tampon, ızgara, far/stop, ayna, kapı çizgileri, camlar (eğik ön cam), plaka.
 const GL = { glow: true };
 const GLASS = '#22333f';
@@ -39,7 +39,11 @@ function car_(b, { x, z, ry = 0, color = '#b33a2a', wreck = false }) {
       b.box(-1.125, 0.895, sz, 0.06, 0.63, 0.05, dk, { collide: false, rz: -0.41 });                    // C sütunu
     }
     for (const sz of [-1, 1]) {
-      b.box(-0.35, 0.92, sz * 0.78, 1.3, 0.58, 0.05, GLASS, { collide: false, o: { roughness: 0.15 } });  // yan camlar
+      for (let i = 0; i < 10; i++) {                                                                       // yan cam: ön/arka cam eğimini izleyen dilimler (boşluk kalmaz)
+        const xa = -1.25 + i * 0.205, xc = xa + 0.1025;
+        const top = xc < -1.0 ? 0.92 + (xc + 1.25) / 0.25 * 0.58 : xc > 0.3 ? 1.5 - (xc - 0.3) / 0.5 * 0.58 : 1.5;
+        b.box(xc, 0.92, sz * 0.78, 0.2, Math.max(0.05, Math.min(0.58, top - 0.92)), 0.05, GLASS, { collide: false, o: { roughness: 0.15 } });
+      }
       b.box(-0.32, 0.9, sz * 0.82, 0.07, 0.6, 0.06, dk, N);                                            // B sütunu
       b.box(-0.32, 0.6, sz * 0.91, 0.05, 0.3, 0.02, '#14161a', N);                                     // kapı çizgisi
       b.box(0.35, 0.62, sz * 0.91, 0.18, 0.04, 0.03, '#9aa0a8', N);                                    // kapı kolu
@@ -59,7 +63,7 @@ function car_(b, { x, z, ry = 0, color = '#b33a2a', wreck = false }) {
     for (const wx of [-1.4, 1.4]) for (const wz of [-0.86, 0.86]) { if (wreck && wx < 0 && wz > 0) continue; wheel(b, wx, wz, 0.34, 0.22, { wall: 0.905 }); }
     if (wreck) { b.box(1.45, 0.9, 0.3, 1.0, 0.05, 0.7, '#2a2420', { collide: false, rz: 0.12 }); b.box(-0.3, 1.58, -0.3, 0.9, 0.04, 0.6, '#3a3027', N); }
     else b.box(-0.4, 1.58, 0, 0.9, 0.04, 0.6, mix(c, 1.3), N);          // tavan parlaması
-    b.vcollide(0, 0, 0, 4.4, 1.62, 1.85, 'car');
+    b.vparts('car', 0, 4.4, 1.85, [[1.6, 2.2, 0.85], [0.8, 1.6, 0.85], [0.3, 0.8, 1.2], [-1.0, 0.3, 1.58], [-1.25, -1.0, 1.2], [-1.75, -1.25, 0.85], [-2.2, -1.75, 0.85]]);
   });
 }
 
@@ -90,7 +94,7 @@ function bus_(b, { x, z, ry = 0, color = '#d9a921' }) {
     b.box(5.1, 0.12, 0, 0.14, 0.18, 2.5, '#8c9096', N); b.box(-5.1, 0.12, 0, 0.14, 0.18, 2.5, '#8c9096', N);
     b.box(-5.06, 0.7, 0, 0.03, 0.14, 0.4, '#eeeee0', N);
     for (const wx of [-3.2, 3.2]) for (const wz of [-1.2, 1.2]) { wheel(b, wx, wz * 0.98, 0.5, 0.3, { wall: 1.26 }); }
-    b.vcollide(0, 0, 0, 10, 2.8, 2.55, 'bus');
+    b.vparts('bus', 0, 10, 2.55, [[-5, -2.5, 2.8], [-2.5, 0, 2.8], [0, 2.5, 2.8], [2.5, 5, 2.8]]);
   });
 }
 
@@ -117,7 +121,7 @@ function truck_(b, { x, z, ry = 0, color = '#c0392b', cargo = '#cfd3d8' }) {
     for (let i = -3; i <= 3; i++) for (const sz of [-1, 1]) b.box(-1.0 + i * 1.0, 1.0, sz * 1.26, 0.1, 2.3, 0.04, mix(cargo, 0.82), N);
     b.box(-4.33, 1.0, 0, 0.05, 2.3, 2.5, mix(cargo, 0.88), N);
     for (const wx of [-3.4, -1.9, 3.0]) for (const wz of [-1.1, 1.1]) { wheel(b, wx, wz, 0.5, 0.4, { wall: 1.1 }); }
-    b.vcollide(0.25, 0, 0, 8.8, 3.6, 2.55, 'truck');
+    b.vparts('truck', 0.25, 8.8, 2.55, [[-4.35, -2.2, 3.3], [-2.2, 0, 3.3], [0, 1.9, 3.3], [1.9, 2.9, 2.7], [2.9, 4.2, 2.4], [4.2, 4.65, 1.0]]);
   });
 }
 
@@ -139,7 +143,7 @@ function tanker_(b, { x, z, ry = 0, color = '#a8aaa4', cab = '#2f4f7a' }) {
     b.box(-0.7, 2.62, -0.9, 7.0, 0.05, 0.05, '#8c9096', N);                          // korkuluk/ray
     b.box(-4.38, 0.55, 0.9, 0.05, 0.18, 0.3, '#c0261b', { collide: false, o: GL }); b.box(-4.38, 0.55, -0.9, 0.05, 0.18, 0.3, '#c0261b', { collide: false, o: GL });
     for (const wx of [-3.5, -2.2, 3.2]) for (const wz of [-1.1, 1.1]) wheel(b, wx, wz, 0.5, 0.4, { wall: 1.1 });
-    b.vcollide(0.1, 0, 0, 8.6, 2.9, 2.5, 'truck');
+    b.vparts('truck', 0.1, 8.6, 2.5, [[-4.2, -2.1, 2.8, 2.5, 0.3], [-2.1, 0, 2.8, 2.5, 0.3], [0, 2.4, 2.8, 2.5, 0.3], [2.4, 4.4, 2.6, 2.4, 0]]);
   });
 }
 
@@ -166,7 +170,7 @@ function apc_(b, { x, z, ry = 0, color = '#566246', wreck = false }) {
       for (let i = 0; i < 5; i++) wheel(b, -1.9 + i * 0.95, sz * 1.45, 0.38, 0.22, { tire: '#14161a', rim: '#3a3d42' });
     }
     if (wreck) { b.box(-1.2, 1.85, 0.3, 1.2, 0.12, 1.0, '#2a2420', { collide: false, rz: 0.15 }); b.box(0.3, 2.3, -0.5, 0.8, 0.1, 0.5, '#2a2420', N); }
-    b.vcollide(0, 0, 0, 5.4, 2.4, 2.8, 'apc');
+    b.vparts('apc', 0, 5.4, 2.8, [[-2.7, 0, 1.8], [0, 2.7, 1.5], [-1.3, 0.9, 2.5, 1.7, 1.8]]);
   });
 }
 
@@ -193,7 +197,7 @@ function tank_(b, { x, z, ry = 0, color = '#566246', wreck = true }) {
     b.box(-0.9, 2.45, -0.5, 0.5, 0.12, 0.5, '#2a2d30', N);
     b.box(-1.9, 2.15, 0, 0.6, 0.3, 1.7, dk, N);                                       // bagaj sandığı
     if (wreck) { b.box(-0.8, 2.7, 0.4, 1.0, 0.25, 0.9, '#2a2420', { collide: false, rz: 0.2 }); b.box(0.8, 0.0, 1.9, 1.0, 0.7, 0.6, '#3d352c', N); }
-    b.vcollide(0, 0, 0, 6.4, 2.6, 3.4, 'tank');
+    b.vparts('tank', 0, 6.4, 3.4, [[-3.2, 0, 1.5, 3.2], [0, 3.2, 1.5, 3.2], [-1.7, 1.1, 2.5, 2.4, 1.5], [-2.3, -1.5, 2.45, 1.7, 1.5]]);
   });
 }
 
@@ -225,7 +229,7 @@ function ambulance_(b, { x, z, ry = 0 }) {
     b.box(2.0, 2.05, -0.5, 0.3, 0.18, 0.3, '#3b8bff', { collide: false, o: GL });
     b.box(-0.6, 2.95, 0, 1.0, 0.1, 0.5, '#9aa0a8', N);                                  // çatı klima
     for (const wx of [-1.4, 2.2]) for (const wz of [-1.1, 1.1]) { wheel(b, wx, wz * 0.98, 0.4, 0.28, { wall: 1.2 }); }
-    b.vcollide(0.4, 0, 0, 6.0, 2.9, 2.5, 'truck');
+    b.vparts('ambulance', 0.4, 6.0, 2.5, [[-2.6, -0.65, 2.95], [-0.65, 1.3, 2.95], [1.1, 3.1, 2.1]]);
   });
 }
 
@@ -255,7 +259,7 @@ function jeep_(b, { x, z, ry = 0, color = '#5e6b4a' }) {
     b.cyl(-1.9, 0.82, 0, 0.3, 0.3, 0.2, BLACK, { rz: Math.PI / 2, center: true, seg: 10, collide: false });
     b.box(-0.2, 1.74, 0, 0.1, 0.1, 0.1, dk, N);
     for (const wx of [-1.2, 1.2]) for (const wz of [-0.95, 0.95]) { wheel(b, wx, wz * 0.9, 0.38, 0.26, { wall: 0.91 }); }
-    b.vcollide(0, 0, 0, 3.9, 1.8, 1.9, 'car');
+    b.vparts('jeep', 0, 3.9, 1.9, [[1.0, 1.95, 0.95], [0.3, 1.0, 1.7], [-0.9, 0.3, 1.7], [-1.95, -0.9, 1.0]]);
   });
 }
 

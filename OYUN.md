@@ -560,3 +560,5 @@ Nişan görüş alanı: `ADS_K` (göz-nişangâh mesafesi ×1,3), kırmızı nok
 - Bıçak (mat siyah taktik, zeytin oluklu sap, kırmızı kordon), Satır (geniş eğri çelik bıçak, ahşap sap, pirinç perçin) ve Tomahawk (ahşap saplı balta) birbirinden belirgin ayrılır; hepsinde sap z=0 merkezli.
 - Birinci şahıs: sapı saran yumruk (`fist`: parmaklar üstte, avuç altta, başparmak yanda), yassı tarafı kameraya dönük duruş (`MELEE_IDLE`). Üçüncü şahıs: bıçak göğüs hizasında önde, ucu yukarı-ileri (`MOUNTS.melee`).
 - RPG-7 nişangâhı: tüpün solunda arka halka + önde turuncu uçlu arpacık; halkanın ortasında turuncu ucu görünce nişan hizalıdır.
+
+Araç çarpışması (`MapBuilder.vparts`): her araç gövde profiline uyan birkaç kutudan oluşur (ör. otomobil: kaput/bagaj 0,85 m, kabin 1,58 m, ön-arka cam eğimi 1,2 m). Kaput ve bagaj üstünden atış geçer, kabin ve gövde engeller; dönük araçta kutular şişmez. Otomobil yan camı ön/arka cam eğimini izleyen dilimlerden oluşur (boşluk kalmaz).
