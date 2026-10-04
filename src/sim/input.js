@@ -25,5 +25,5 @@ export function applyInput(s, input, dt) {
   const a = 1 - Math.exp(-acc * dt);
   s.vel.x += (wx - s.vel.x) * a;
   s.vel.z += (wz - s.vel.z) * a;
-  if (input.jump && s.onGround && !s.prone && !s.crouching) { s.vel.y = JUMP_SPEED; s.onGround = false; }
+  if (input.jump && s.onGround && !s.prone && !s.crouching) { s.vel.y = JUMP_SPEED * (s.jumpMul || 1); s.onGround = false; }
 }

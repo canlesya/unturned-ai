@@ -952,13 +952,14 @@ export class Game {
 
   // ───── Savaş mantığı ─────
   hitSoldier(e, o, d, maxT) {
-    const H = e.height, px = e.pos.x, py = e.pos.y, pz = e.pos.z;
+    const kH = e.hbH || 1, kW = e.hbW || 1;                       // iri zombiler (boss...) görünen modelleri kadar geniş/uzun vurulur
+    const H = e.height * kH, px = e.pos.x, py = e.pos.y, pz = e.pos.z;
     // kaba küre testi
     const cx = px - o.x, cy = py + H * 0.5 - o.y, cz = pz - o.z;
     const proj = cx * d.x + cy * d.y + cz * d.z;
     if (proj < -1.2 || proj > maxT + 1.2) return null;
     const dist2 = cx * cx + cy * cy + cz * cz - proj * proj;
-    const rad = e.proneT > 0.5 ? 1.35 : 1.2;
+    const rad = (e.proneT > 0.5 ? 1.35 : 1.2) * Math.max(kH, kW);
     if (dist2 > rad * rad) return null;
     if (e.proneT > 0.5) {
       // yatan oyuncu: gövde yaw boyunca uzanır (eksen hizalı kutu), kafa önde
@@ -972,9 +973,9 @@ export class Game {
       return null;
     }
     const lx = e.leanOff.x, lz = e.leanOff.z;       // eğilen oyuncunun kafası yana kayar
-    const hh = H - 0.36;
-    const th = rayBox(o, d, [px + lx - 0.2, py + hh + e.leanOff.y, pz + lz - 0.2], [px + lx + 0.2, py + H + e.leanOff.y, pz + lz + 0.2], maxT);
-    const tb = rayBox(o, d, [px + lx * 0.45 - 0.29, py, pz + lz * 0.45 - 0.29], [px + lx * 0.45 + 0.29, py + hh, pz + lz * 0.45 + 0.29], maxT);
+    const hh = H - 0.36 * kH, hw = 0.2 * kW, bw = 0.29 * kW;
+    const th = rayBox(o, d, [px + lx - hw, py + hh + e.leanOff.y, pz + lz - hw], [px + lx + hw, py + H + e.leanOff.y, pz + lz + hw], maxT);
+    const tb = rayBox(o, d, [px + lx * 0.45 - bw, py, pz + lz * 0.45 - bw], [px + lx * 0.45 + bw, py + hh, pz + lz * 0.45 + bw], maxT);
     if (th >= 0 && (tb < 0 || th <= tb)) return { t: th, zone: 'head' };
     if (tb >= 0) {
       const y = o.y + d.y * tb - py;
@@ -1048,7 +1049,7 @@ export class Game {
       if (e === attacker || !e.alive || e.team === attacker.team) continue;
       // vücut ve baş noktalarından biri yeterli
       for (const fy of [0.55, 0.9]) {
-        c.set(e.pos.x, e.pos.y + e.height * fy, e.pos.z);
+        c.set(e.pos.x, e.pos.y + e.height * (e.hbH || 1) * fy, e.pos.z);
         v.subVectors(c, o);
         const dist = v.length();
         if (dist > reach + 0.3 || dist < 1e-4) continue;

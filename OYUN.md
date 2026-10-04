@@ -640,3 +640,10 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 - **Hız:** tüm zombi türleri +%10 (Yürüyen 1.24, Koşucu 1.45, Dev 1.1, Hayalet 1.3, Işınlanan 1.27).
 - **Ağ:** snapshot `bs` (boss), `zl` (can hakkı); `inf` olayı `bs/zt/zl`, yeni `cure` olayı; ölüm ekranı satırı duruma göre zombi türü / insan sınıfı / boss.
 - **Test:** `scripts/inflives.mjs` (kurallar), `infnetcure.mjs` (gerçek istemci, çevrimiçi insan→zombi→insan), `inftypes.mjs` (görünüm), `infbalance.mjs` (BHP/BPP/BSPD/BDMG ile deneme). Not: insan botlar bossları zor yener; denge gerçek oyuncuyla ayarlanmalı.
+
+### 12.27 Zombi boyutu, vuruş kutusu, zıplama ve pençeler
+- **Boyut:** zombiler daha heybetli: Yürüyen ×1.1, Koşucu ×1.04, Dev ×1.28, Hayalet/Işınlanan ×1.12, **Boss 1.6 × 1.4 × 1.6** (≈2.5 m boy). Değerler `ZTYPES[].scale` / `BOSS.scale`.
+- **Vuruş kutusu = görünen model:** `Soldier.hbH/hbW` (setClass'ta model ölçeğinden), `Game.hitSoldier` ve `meleeHit` bunu kullanır; boss kafası/kolları artık vurulur. Hareket çarpışması (kapılar) değişmedi; gözü ölçeğin %60'ı kadar yüksek.
+- **Zıplama:** `Soldier.jumpMul` (Yürüyen/Hayalet/Işınlanan 1.18, Koşucu 1.28, Dev 1.1, Boss 1.35) → insanın 1.2–1.8 katı yükseklik; `input.js` ortak (tahmin tutarlı). Zombi botlar koşarken ara sıra sıçrar.
+- **Pençe:** demir kaplı pençe eldiveni (perçinli el sırtı plakası, yumruk çubuğu, 4 kalın kemik pençe + kanlı uçlar + başparmak mahmuzu), iki elde.
+- Test: `scripts/infhit.mjs` (vuruş kutusu + zıplama).

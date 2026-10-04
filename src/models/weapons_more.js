@@ -584,20 +584,26 @@ function machete() {
   box(g, [0.014, 0.056, 0.018], C.brass, [0, 0.0, -0.072], null, M);                  // siper
   return finish(g, { name: 'Satır', hold: 'melee', gripR: [0, 0, 0.0], gripL: null, muzzle: [0, 0, -0.56], length: 0.7 });
 }
-// Zombi pençeleri: sargılı bilek + üç kemik/metal pençe (eldiven gibi elin önüne uzanır)
+// Zombi pençeleri: demir kaplı pençe eldiveni — kalın bilek manşeti, perçinli el sırtı plakası, yumruk çubuğu ve dört kalın, sivrilen, hafif aşağı kıvrık pençe.
+// Başparmak tarafında kısa bir kemik mahmuz. Uçlarda kurumuş kan. Kabza z=0 (el burada).
 function claws() {
-  const g = new THREE.Group(), BONE = '#d8d0b4', WRAP = '#4c4a3a', BLD = '#5a1410';
-  box(g, [0.1, 0.07, 0.1], WRAP, [0, 0, 0.02]);                                                  // el sargısı
-  box(g, [0.1, 0.02, 0.1], '#2f2e24', [0, 0.03, 0.02]);
-  box(g, [0.04, 0.04, 0.012], BLD, [0.02, 0.0, -0.034]);                                        // kan lekesi
-  for (let i = 0; i < 3; i++) {
-    const x = (i - 1) * 0.034;
-    box(g, [0.012, 0.014, 0.12], BONE, [x, 0.0, -0.1], [0.0, -(i - 1) * 0.05, 0]);               // pençe gövdesi
-    box(g, [0.008, 0.01, 0.07], BONE, [x * 1.25, 0.0, -0.19], [0.18, -(i - 1) * 0.08, 0]);       // kıvrık uç
-    box(g, [0.005, 0.006, 0.05], '#f3efdc', [x * 1.4, -0.012, -0.235], [0.34, -(i - 1) * 0.1, 0]);   // sivri uç
-    box(g, [0.014, 0.012, 0.03], BLD, [x, 0.0, -0.065]);                                         // kanlı kök
+  const g = new THREE.Group(), IRON = '#34353a', IRON2 = '#4b4d54', BONE = '#e6dec2', TIP = '#f6f2df', BLD = '#6a1712', WRAP = '#3f3b2e', M2 = { metalness: 0.55, roughness: 0.4 };
+  box(g, [0.15, 0.085, 0.07], WRAP, [0, 0.0, 0.1]);                                              // bilek sargısı
+  box(g, [0.16, 0.05, 0.05], IRON, [0, 0.0, 0.15], null, M2);                                    // manşet halkası
+  box(g, [0.14, 0.05, 0.13], IRON, [0, 0.045, 0.02], null, M2);                                  // el sırtı plakası
+  for (let i = 0; i < 4; i++) box(g, [0.014, 0.014, 0.014], IRON2, [(i - 1.5) * 0.034, 0.075, 0.0], null, M2);   // perçinler
+  box(g, [0.155, 0.045, 0.045], IRON2, [0, 0.0, -0.06], null, M2);                               // yumruk çubuğu (parmak kemikleri)
+  box(g, [0.145, 0.07, 0.05], '#2a2820', [0, -0.012, 0.05]);                                     // avuç içi
+  for (let i = 0; i < 4; i++) {
+    const x = (i - 1.5) * 0.04, yaw = (i - 1.5) * 0.045;
+    taperBox(g, [0.036, 0.19, 0.022], BONE, [x, -0.002, -0.17], [-Math.PI / 2, 0, yaw], [0.55, 0.7], [1, 1]);                            // kalın kök
+    taperBox(g, [0.022, 0.17, 0.014], BONE, [x * 1.12, -0.03, -0.3], [-Math.PI / 2 + 0.36, 0, yaw * 1.4], [0.18, 0.4], [1, 1]);         // aşağı kıvrık uç
+    taperBox(g, [0.011, 0.07, 0.008], TIP, [x * 1.2, -0.085, -0.385], [-Math.PI / 2 + 0.7, 0, yaw * 1.7], [0.1, 0.2], [1, 1]);          // iğne uç
+    box(g, [0.04, 0.02, 0.05], BLD, [x, -0.002, -0.1]);                                           // kanlı kök
+    box(g, [0.014, 0.012, 0.03], BLD, [x * 1.15, -0.052, -0.34], [0.5, 0, 0]);                    // uçlarda kan
   }
-  return finish(g, { name: 'Pençe', hold: 'melee', gripR: [0, 0, 0.02], gripL: null, muzzle: [0, 0, -0.26], length: 0.3 });
+  taperBox(g, [0.03, 0.12, 0.02], BONE, [0.085, 0.01, -0.1], [-Math.PI / 2 + 0.1, 0, -0.5], [0.2, 0.4], [1, 1]);                       // başparmak mahmuzu
+  return finish(g, { name: 'Pençe', hold: 'melee', gripR: [0, 0, 0.02], gripL: null, muzzle: [0, -0.05, -0.4], length: 0.5 });
 }
 function tomahawk() {
   const g = new THREE.Group(), CH = { metalness: 0.1, roughness: 0.4 };

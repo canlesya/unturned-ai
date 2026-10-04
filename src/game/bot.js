@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { DIFFICULTY, WSTATS } from './stats.js';
+import { JUMP_SPEED } from '../sim/input.js';
 import { clamp, rand, angleDiff, yawFromDir, lerp, pick } from './util.js';
 
 // silah rolleri (bot davranışı)
@@ -229,6 +230,7 @@ export class BotBrain {
         if (dist < 2.2 && Math.abs(angleDiff(s.yaw, want)) < 0.5) s.tryFire();
         this.path = null;
         this.useZAbility(dist, los, true);
+        if (s.onGround && dist > 3 && dist < 14 && Math.random() < 0.012) { s.vel.y = JUMP_SPEED * s.jumpMul; s.onGround = false; }       // zombiler koşarken ara sıra yükseğe sıçrar
       } else {
         this.repathT -= dt;
         if ((!this.path || this.repathT <= 0) && g.pathBudget > 0) {

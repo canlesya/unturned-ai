@@ -73,6 +73,8 @@ export class Soldier {
     const a = this.abActive > 0 ? this.zt.ability.id : '';
     return this.zt.speed * (this.boss ? BOSS.rageSpd : a === 'rage' ? 1.25 : a === 'burst' ? 1.7 : 1);
   }
+  // zıplama çarpanı: zombiler insandan yüksek zıplar; vuruş kutusu ölçeği (model ölçeğiyle aynı)
+  get jumpMul() { return this.def.zombie ? (this.boss ? BOSS.jump : this.zt.jump || 1) : 1; }
   zombieMaxHp() { return this.boss ? Math.round(BOSS.hp + BOSS.hpPerPlayer * (this.game.mode.total || 12)) : this.zt.hp; }
 
   // Özel güç (F / sağ tık). Sunucu da istemci de (çevrimdışı) aynı kodu çalıştırır. Döner: kullanıldı mı
@@ -109,6 +111,7 @@ export class Soldier {
     this.def = def;
     this.maxHp = def.hp;
     this.hp = def.hp;
+    { const sc = def.zombie ? (this.boss ? BOSS.scale : [this.zt.scale, this.zt.scale, this.zt.scale]) : [1, 1, 1]; this.hbW = Math.max(sc[0], sc[2]); this.hbH = sc[1]; }      // model ölçeği = vuruş kutusu ölçeği
     this.items = makeLoadout(cls, this.team, this.choice);
     this.cur = 0;
     if (this.game.headless) {                                    // sunucu/test: 3B model kurulmaz (bellek+CPU); yalnızca model alanlarını okuyan mantık için hafif taslak
@@ -581,7 +584,7 @@ export class Soldier {
     this.height = this.prone ? H_PRONE : this.crouching ? H_CROUCH : H_STAND;
     this.crouchT = clamp(this.crouchT + (this.crouching ? 1 : -1) * dt * 7, 0, 1);
     this.proneT = clamp(this.proneT + (this.prone ? 1 : -1) * dt * 4.5, 0, 1);
-    this.eyeY = lerp(lerp(EYE_STAND, EYE_CROUCH, this.crouchT), EYE_PRONE, this.proneT);
+    this.eyeY = lerp(lerp(EYE_STAND, EYE_CROUCH, this.crouchT), EYE_PRONE, this.proneT) * (1 + ((this.hbH || 1) - 1) * 0.6);      // iri zombinin gözü biraz yüksekte
     // yana eğilme (Q/E): kafa yana kayar, duvara girmesin diye ışınla sınırlanır
     const canLean = this.onGround && !this.sprinting && this.proneT < 0.3;
     this.leanT = lerp(this.leanT, canLean ? this.leanDir : 0, Math.min(1, dt * 10));
