@@ -18,6 +18,7 @@ const Z = new THREE.Vector3(0, 0, 1);
 const REST_L = new THREE.Vector3(-0.2, -0.3, 0.2);      // sol el dinlenme (kullanılmıyorsa ekran dışı)
 const POUCH_VM = new THREE.Vector3(-0.3, -0.34, 0.3);   // yelek şarjör cebi (silah yerelinde)
 const MELEE_IDLE = { pos: [0.09, -0.15, -0.5], rx: 0.5, ry: 0.35, rz: -1.05 };
+const CLAWS_IDLE = { pos: [0.12, -0.2, -0.46], rx: 0.12, ry: 0.25, rz: 0.0 };      // zombi pençeleri: yumruk önde, pençeler ileri bakar
 const MELEE_SPRINT = { pos: [-0.04, 0.06, -0.06], rx: 0.65, ry: 0.3, rz: -0.1 };
 
 export class ViewModel {
@@ -49,7 +50,7 @@ export class ViewModel {
     this.raise = 1;
     this.raiseRate = 1 / Math.max(0.15, Math.min(0.35, WSTATS[id]?.equip ?? 0.3));
     this.boltT = 0;
-    const c = TEAMS[team];
+    const c = TEAMS[id === 'claws' ? 'zomb' : team];                  // zombinin kolu/eli soluk yeşil
     const g = new THREE.Group();
     this.flash = null;
     if (kind === 'medkit') {
@@ -163,8 +164,9 @@ export class ViewModel {
     this.sprintT = lerp(this.sprintT || 0, sp, Math.min(1, dt * 9));
     const sprK = this.sprintT * (1 - (ra ? ra.tilt * 0.8 : 0));
     if (isMelee) {
-      pos.x += MELEE_IDLE.pos[0] - hip.x; pos.y += MELEE_IDLE.pos[1] - hip.y; pos.z += MELEE_IDLE.pos[2] - hip.z;
-      rx += MELEE_IDLE.rx; ry += MELEE_IDLE.ry; rz += MELEE_IDLE.rz;
+      const MI = this.id === 'claws' ? CLAWS_IDLE : MELEE_IDLE;
+      pos.x += MI.pos[0] - hip.x; pos.y += MI.pos[1] - hip.y; pos.z += MI.pos[2] - hip.z;
+      rx += MI.rx; ry += MI.ry; rz += MI.rz;
       pos.x += MELEE_SPRINT.pos[0] * sprK; pos.y += MELEE_SPRINT.pos[1] * sprK; pos.z += MELEE_SPRINT.pos[2] * sprK;
       rx += MELEE_SPRINT.rx * sprK; ry += MELEE_SPRINT.ry * sprK; rz += MELEE_SPRINT.rz * sprK;
     } else {
@@ -370,7 +372,7 @@ export class Player {
       if (code === 'Space' || code.startsWith('Arrow')) e.preventDefault();
       if (kb.is('jump', code) && s.alive && (s.prone || s.crouching)) { s.standUp(); this.game.online?.edge('u'); this.spaceLatch = true; }   // yatarken/çömelirken zıplama tuşu = kalk
       if (code === 'Escape' && this.game.noPointerLock) this.game.togglePause();
-      if (!s.alive && this.game.respawnReady()) {                                 // ölüm ekranında sınıf seç: yuva tuşları 1-4, Digit5 beşinci sınıf
+      if (!s.alive && this.game.respawnReady() && !this.game.mode.infection) {                                 // ölüm ekranında sınıf seç: yuva tuşları 1-4, Digit5 beşinci sınıf
         const keys = Object.keys(this.game.classDefs);
         const n = slot >= 0 ? slot : code === 'Digit5' ? 4 : -1;
         if (n >= 0 && keys[n]) this.game.requestClass(keys[n]);

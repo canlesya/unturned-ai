@@ -6,6 +6,16 @@
 
 export const TAC_RELOAD = 0.65;
 
+// Enfekte modu (zombi) denge değerleri — tek yerden ayarlanır
+export const ZOMBIE = {
+  hp: 100,            // zombi canı (insanla aynı: menzil avantajı insanda, kalabalık zombide)
+  alphaHp: 200,       // ilk enfekte (maç başında seçilen) zombinin canı
+  speed: 1.0,         // hız çarpanı (insanla aynı): koşan insanı yakalamak için sürü gerekir
+  dmg: 25,            // pençe hasarı: insanı 4 vuruşta öldürür
+  respawn: 8,         // sn: zombi öldüğünde yeniden doğma süresi
+  ratio: 8,           // oyuncu sayısının 1/8'i (en az 1) ilk zombi
+};
+
 export const WSTATS = {
   // ───────── Tüfekler ─────────
   ak47: {
@@ -194,6 +204,11 @@ export const WSTATS = {
     dmg: 70, reach: 2.5, rpm: 100, mag: 1, reserve: 0, move: 1.05, equip: 0.26, sound: 'knife',
     swings: ['rl', 'lr', 'diag'], swingT: 0.46, stabT: 0.5, stabMul: 1.2,
   },
+  claws: {
+    name: 'Pençe', kind: 'melee', slot: 'melee', desc: 'Zombi pençesi: hızlı, kanlı darbeler.', stats: { dmg: 40, range: 40, rate: 85, control: 90, mobility: 100 },
+    dmg: ZOMBIE.dmg, reach: 2.3, rpm: 150, mag: 1, reserve: 0, move: 1.0, equip: 0.1, sound: 'knife',
+    swings: ['rl', 'lr', 'stab'], swingT: 0.34, stabT: 0.4, stabMul: 1.25,
+  },
   tomahawk: {
     name: 'Tomahawk', kind: 'melee', slot: 'melee', desc: 'Tepeden inen ağır darbe, kısa menzil.', stats: { dmg: 90, range: 32, rate: 50, control: 60, mobility: 98 },
     dmg: 90, reach: 1.9, rpm: 80, mag: 1, reserve: 0, move: 1.06, equip: 0.24, sound: 'knife',
@@ -254,6 +269,7 @@ export const CLASS_DEFS = {
 // choice.random=true ise (botlar) seçeneklerden rastgele.
 export function makeLoadout(cls, team, choice = {}, rng = Math.random) {
   const def = CLASS_DEFS[cls], d = def.defaults;
+  if (def.zombie) return [{ id: 'claws', mag: 1, reserve: 0 }];
   const pickOpt = (opts, want, dflt) => (choice.random ? opts[Math.floor(rng() * opts.length)] : opts.includes(want) ? want : dflt);
   const primary = pickOpt(def.primaryOptions, choice.primary, d.primary[team] || d.primary.blue);
   const secondary = pickOpt(def.secondaryOptions, choice.secondary, d.secondary);
@@ -264,6 +280,13 @@ export function makeLoadout(cls, team, choice = {}, rng = Math.random) {
   const gi = gs.kind === 'launcher' ? { id: gadget, mag: 1, reserve: n - 1 } : { id: gadget, mag: n, reserve: 0 };
   return [gun(primary), gun(secondary), gi, { id: melee, mag: 1, reserve: 0 }];
 }
+
+// Zombi sınıfı: menüde/sınıf seçiminde görünmez (numaralandırılamaz), yalnızca enfekte olunca atanır. Tek silah: pençe.
+Object.defineProperty(CLASS_DEFS, 'zombie', {
+  enumerable: false,
+  value: { label: 'Zombi', hp: ZOMBIE.hp, speed: ZOMBIE.speed, zombie: true, primary: { blue: 'claws', red: 'claws' }, gadget: ['claws', 0], desc: 'Pençeli enfekte',
+    primaryOptions: ['claws'], secondaryOptions: [], gadgetOptions: [], meleeOptions: ['claws'], defaults: { primary: { blue: 'claws', red: 'claws' }, secondary: 'claws', gadget: 'claws', melee: 'claws' } },
+});
 
 export const DIFFICULTY = {
   easy: { label: 'Kolay', react: [0.7, 1.2], err: 0.075, turn: 3.6, burst: [2, 5], dmgMul: 0.8 },

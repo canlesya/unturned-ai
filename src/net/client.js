@@ -98,6 +98,7 @@ export class NetClient {
     for (const r of roster) {
       const s = g.soldiers[r.id]; if (!s) continue;
       s.name = r.name; s.vacant = !!r.vac;
+      if (s.team !== r.team) s.team = r.team;
       if (s.cls !== r.cls) s.setClass(r.cls);
     }
   }
@@ -106,7 +107,7 @@ export class NetClient {
   applyState(s, p, local) {
     if (p.a && !s.alive) s.spawn({ x: p.x, z: p.z, ry: p.yw }, 0);
     else if (!p.a && s.alive) { s.alive = false; s.hp = 0; s.deadT = 0; s.deadDir = Math.random() > 0.5 ? 1 : -1; s.ads = false; s.reloadT = 0; s.vel.set(0, 0, 0); }
-    s.hp = p.hp;
+    s.hp = p.hp; if (p.mh) s.maxHp = p.mh;
     s.kills = p.kl; s.deaths = p.de; s.score = p.sc; s.revivable = !!p.rv;
     if (s.items.length !== p.it.length || s.items.some((it, i) => it.id !== p.it[i])) {
       s.items = p.it.map(mkItem);

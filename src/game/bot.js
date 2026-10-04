@@ -63,6 +63,7 @@ export class BotBrain {
     const g = this.game, s = this.s;
     const objs = g.mode.objectives;
     this.via = null;
+    if (g.mode.infection) { this.huddle(); return; }      // Enfekte: insan botlar zombiye koşmaz, birbirine yakın durup birlikte savunur
     if (!objs.length) { this.roam(); return; }       // takım çatışması: haritada dolaş, düşmana yönel
     const sq = g.squadGoal(s);
     let obj = sq || null;
@@ -107,6 +108,18 @@ export class BotBrain {
     }
   }
 
+  // Enfekte (insan botu): hayatta kalan diğer insanların ağırlık merkezine yakın bir noktada bekle / yavaşça yer değiştir
+  huddle() {
+    const g = this.game, s = this.s;
+    const mates = g.soldiers.filter((e) => e !== s && e.alive && e.team === s.team);
+    let cx = s.pos.x, cz = s.pos.z;
+    if (mates.length) { cx = 0; cz = 0; for (const m of mates) { cx += m.pos.x; cz += m.pos.z; } cx /= mates.length; cz /= mates.length; }
+    const a = Math.random() * Math.PI * 2, r = 4 + Math.random() * 9;
+    const gx = cx + Math.cos(a) * r, gz = cz + Math.sin(a) * r;
+    this.perching = false;
+    this.setGoal(gx, gz, rand(8, 16));
+  }
+
   roam() {
     const g = this.game, s = this.s;
     const foes = g.soldiers.filter((e) => e.alive && e.team !== s.team);
@@ -147,9 +160,76 @@ export class BotBrain {
     }
   }
 
+  // ── Zombi botu: en yakın insanı kovalar (yol bulma), yakına gelince pençeler. Silah/ateş mantığı yok. ──
+  updateZombie(dt) {
+    const s = this.s, g = this.game;
+    this.t += dt; this.senseT -= dt;
+    if (this.senseT <= 0) {
+      this.senseT = 0.3 + Math.random() * 0.15;
+      let best = null, bd = 1e9;
+      for (const e of g.soldiers) {
+        if (!e.alive || e.team === s.team || e.protT > 1) continue;
+        const d = Math.hypot(e.pos.x - s.pos.x, e.pos.z - s.pos.z);
+        if (d < bd) { bd = d; best = e; }
+      }
+      this.target = best; this.tDist = bd;
+    }
+    const tg = this.target && this.target.alive ? this.target : null;
+    let moveX = 0, moveZ = 0, speed = 4.4 * s.def.speed * (s.stat.move || 1);
+    s.ads = false; s.crouching = false; s.botExtraSpread = 0;
+    if (s.blindT > 0) { s.yaw += Math.sin(this.t * 2.2 + s.id) * dt * 1.4; s.vel.x *= 0.85; s.vel.z *= 0.85; return; }
+    if (tg) {
+      const dx = tg.pos.x - s.pos.x, dz = tg.pos.z - s.pos.z, dist = Math.hypot(dx, dz);
+      const eye = s.eye(tA), tc = tg.center(tC);
+      const los = dist < 22 && g.losClear(eye, tc);
+      const want = yawFromDir(dx, dz);
+      if (dist < 3.2 || los) {
+        // yakın / görüş açık: doğrudan saldır
+        s.yaw += clamp(angleDiff(s.yaw, want), -9 * dt, 9 * dt);
+        s.pitch += clamp(Math.atan2(tc.y - eye.y, dist) - s.pitch, -6 * dt, 6 * dt);
+        if (dist > 1.5) { moveX = dx / (dist + 1e-6); moveZ = dz / (dist + 1e-6); }
+        if (dist < 2.2 && Math.abs(angleDiff(s.yaw, want)) < 0.5) s.tryFire();
+        this.path = null;
+      } else {
+        this.repathT -= dt;
+        if ((!this.path || this.repathT <= 0) && g.pathBudget > 0) {
+          g.pathBudget--;
+          this.path = g.nav.findPath(s.pos.x, s.pos.z, tg.pos.x, tg.pos.z);
+          this.repathT = rand(1.4, 2.6);
+        }
+        if (this.path && this.path.length) {
+          let wp = this.path[0];
+          while (this.path.length > 1 && Math.hypot(wp.x - s.pos.x, wp.z - s.pos.z) < 0.9) { this.path.shift(); wp = this.path[0]; }
+          const wd = Math.hypot(wp.x - s.pos.x, wp.z - s.pos.z);
+          moveX = (wp.x - s.pos.x) / (wd + 1e-6); moveZ = (wp.z - s.pos.z) / (wd + 1e-6);
+          s.yaw += clamp(angleDiff(s.yaw, yawFromDir(moveX, moveZ)), -8 * dt, 8 * dt);
+          s.pitch += (0 - s.pitch) * Math.min(1, dt * 4);
+        } else { moveX = dx / (dist + 1e-6); moveZ = dz / (dist + 1e-6); s.yaw += clamp(angleDiff(s.yaw, want), -6 * dt, 6 * dt); }
+      }
+      speed *= 1.5;                                          // zombiler hep koşar
+    } else { speed = 0; }
+    // takılma
+    this.stuckT += dt;
+    if (this.stuckT > 1.2) {
+      if ((moveX || moveZ) && s.pos.distanceTo(this.stuckPos) < 0.35) { this.path = null; this.repathT = 0; }
+      this.stuckT = 0; this.stuckPos.copy(s.pos);
+    }
+    for (const o of g.soldiers) {
+      if (o === s || !o.alive || o.team !== s.team) continue;
+      const dx = s.pos.x - o.pos.x, dz = s.pos.z - o.pos.z, d2 = dx * dx + dz * dz;
+      if (d2 < 1.1 && d2 > 1e-4) { const d = Math.sqrt(d2); moveX += (dx / d) * 0.7; moveZ += (dz / d) * 0.7; }
+    }
+    const ml = Math.hypot(moveX, moveZ), k = ml > 1 ? 1 / ml : 1, a = Math.min(1, dt * 10);
+    if (s.swing) speed *= 0.55;                                // savururken yavaşlar
+    s.vel.x = lerp(s.vel.x, moveX * k * speed, a);
+    s.vel.z = lerp(s.vel.z, moveZ * k * speed, a);
+    s.sprinting = speed > 5.5;
+  }
+
   update(dt) {
     const s = this.s, g = this.game;
     if (!s.alive) return;
+    if (s.def.zombie) { this.updateZombie(dt); return; }
     this.t += dt;
     this.senseT -= dt;
     if (this.senseT <= 0) { this.senseT = 0.2 + Math.random() * 0.08; this.sense(); }

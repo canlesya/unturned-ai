@@ -1,0 +1,20 @@
+// Gerçek tarayıcı istemcisi ile çevrimiçi Enfekte: oda kur, öl, zombi olarak doğ, ekran görüntüsü. (önce: BF_DEBUG=1 npm run server ; vite 5180)
+import { chromium } from 'playwright';
+const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+const errs = []; page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+await page.goto(`${process.env.BASE || 'http://127.0.0.1:5180'}/?online=new&type=inf&perTeam=8&debug=1&nolock=1&server=ws://127.0.0.1:8787&name=Test`);
+await page.waitForFunction('window.__game && window.__game.running', null, { timeout: 90000 });
+await page.waitForTimeout(3000);
+const st = () => page.evaluate(() => { const g = window.__game, p = g.playerSoldier; return JSON.stringify({ team: p.team, cls: p.cls, hp: p.hp, maxHp: p.maxHp, alive: p.alive, items: p.items.map((i) => i.id), hud: [document.getElementById('tnB').textContent, document.getElementById('tkB').textContent, document.getElementById('tnR').textContent, document.getElementById('tkR').textContent], zom: g.soldiers.filter((s) => s.cls === 'zombie').length }); });
+console.log('başta:', await st());
+await page.screenshot({ path: 'screenshots/infnet-1-insan.png' });
+await page.evaluate(() => { const n = window.__game.online; n.send({ t: 'dbg', kill: 1 }); setTimeout(() => n.send({ t: 'dbg', kill: 1 }), 300); });
+await page.waitForTimeout(2500);
+await page.screenshot({ path: 'screenshots/infnet-2-olum.png' });
+console.log('ölünce:', await st());
+await page.waitForTimeout(7000);
+console.log('zombi doğdu:', await st());
+await page.screenshot({ path: 'screenshots/infnet-3-zombi.png' });
+console.log('hata:', errs.length, errs.slice(0, 4));
+await browser.close();

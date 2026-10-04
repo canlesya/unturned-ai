@@ -16,9 +16,9 @@ export function sanitizeCfg(c = {}) {
     map: pick(c.map, ['kasaba', 'vadi', 'us'], 'kasaba'),
     tod: pick(c.tod, ['day', 'sunset', 'night'], 'day'),
     weather: pick(c.weather, ['clear', 'rain', 'fog'], 'clear'),
-    type: pick(c.type, ['conquest', 'tdm', 'dm'], 'conquest'),
+    type: pick(c.type, ['conquest', 'tdm', 'dm', 'inf'], 'conquest'),
     diff: pick(c.diff, ['easy', 'normal', 'hard'], 'normal'),
-    perTeam: c.type === 'dm' ? Math.round(num(c.perTeam, 2, 10, 10)) : Math.round(num(c.perTeam, 1, MAX_PER_TEAM, 5)),     // ölüm maçında perTeam = toplam oyuncu (2–10)
+    perTeam: c.type === 'dm' ? Math.round(num(c.perTeam, 2, 10, 10)) : c.type === 'inf' ? Math.round(num(c.perTeam, 4, 24, 12)) : Math.round(num(c.perTeam, 1, MAX_PER_TEAM, 5)),     // ölüm maçında ve enfektede perTeam = toplam oyuncu
     tickets: Number.isFinite(c.tickets) && c.tickets > 0 ? Math.round(num(c.tickets, 20, 1000, 200)) : 0,   // 0 = boyuta göre otomatik
     time: Math.round(num(c.time, 0, 3600, 900)),
     bots: c.bots !== false,
@@ -92,7 +92,7 @@ export class Room {
   get humanCount() { return this.clients.size; }
 
   // oda kapasitesi: takımlı modlarda 2 x perTeam, ölüm maçında perTeam
-  get cap() { return this.cfg.type === 'dm' ? this.cfg.perTeam : this.cfg.perTeam * 2; }
+  get cap() { return this.cfg.type === 'dm' || this.cfg.type === 'inf' ? this.cfg.perTeam : this.cfg.perTeam * 2; }
 
   canJoin(pw) {
     if (this.cfg.pw && pw !== this.cfg.pw) return 'Şifre yanlış';
@@ -106,6 +106,7 @@ export class Room {
     const c = this.clients.get(id);
     if (!c || (team !== 'blue' && team !== 'red')) return { ok: false, msg: 'Geçersiz takım' };
     if (this.game.ffa) return { ok: false, msg: 'Ölüm maçında takım yok' };
+    if (this.game.mode.infection) return { ok: false, msg: 'Enfekte modunda takım seçilmez' };
     if (this.game.soldiers[id].team === team) return { ok: false, msg: 'Zaten bu takımdasın' };
     if (this.humansOf(team) >= this.cfg.perTeam) return { ok: false, msg: 'Bu takım dolu' };
     return { ok: true, team };
@@ -119,7 +120,8 @@ export class Room {
     const g = this.game;
     const counts = { blue: this.humansOf('blue'), red: this.humansOf('red') }, cap = this.cfg.perTeam;
     let t = team === 'blue' || team === 'red' ? team : counts.blue <= counts.red ? 'blue' : 'red';
-    if (!g.ffa) {
+    if (g.mode.infection) t = 'blue';                                  // Enfekte: gelen insan olarak başlar (blue yoksa claimSlot diğer yarıya geçer)
+    else if (!g.ffa) {
       if (counts[t] >= cap) t = t === 'blue' ? 'red' : 'blue';         // seçilen takım doluysa diğeri
       if (counts[t] >= cap) return null;
     }                                                                  // ölüm maçında takım yok: claimSlot boş herhangi bir slotu verir

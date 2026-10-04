@@ -13,6 +13,7 @@ export const CLASSES = {
   sniper: { label: 'Keskin Nişancı', weapon: { blue: 'sniper', red: 'sniper' } },
   heavy: { label: 'Ağır Destek', weapon: { blue: 'lmg', red: 'lmg' } },
   engineer: { label: 'Mühendis', weapon: { blue: 'shotgun', red: 'shotgun' } },
+  zombie: { label: 'Zombi', weapon: { blue: 'claws', red: 'claws', zomb: 'claws' } },
 };
 
 const L1 = 0.32; // üst kol
@@ -119,8 +120,40 @@ function pouches(torso, vestColor, n = 3, color = '#2c2e33') {
   }
 }
 
+// Zombi: yeşilimsi soluk deri, yırtık gömlek, açık göğüs/kaburga, parlayan gözler, sarkık çene; yelek ve kask yok
+function zombieGear(parts) {
+  const { torso, head, legs } = parts;
+  const SK = '#86a273', SKD = '#6b8459', BONE = '#d8d0b4', BLOOD = '#5a1410', DIRT = '#2a2d22';
+  face(head, SK, { noHair: true });
+  box(head, [0.05, 0.04, 0.014], '#d6ff6a', [0.075, 0.02, -0.153], null, { emissive: '#aaff33', emissiveIntensity: 1.1 });   // parlayan gözler
+  box(head, [0.05, 0.04, 0.014], '#d6ff6a', [-0.075, 0.02, -0.153], null, { emissive: '#aaff33', emissiveIntensity: 1.1 });
+  box(head, [0.1, 0.03, 0.014], '#2a0c08', [0, -0.09, -0.153]);                              // açık ağız
+  box(head, [0.012, 0.02, 0.012], BONE, [0.03, -0.075, -0.158]); box(head, [0.012, 0.02, 0.012], BONE, [-0.03, -0.075, -0.158]);   // dişler
+  box(head, [0.14, 0.06, 0.02], SKD, [0.05, 0.13, -0.15], [0, 0, 0.3]);                       // kafa derisi yırtığı
+  box(head, [0.1, 0.07, 0.1], DIRT, [-0.1, 0.17, 0.08]);                                       // seyrek saç tutamları
+  box(head, [0.12, 0.05, 0.1], DIRT, [0.08, 0.16, 0.1]);
+  // gövde: yırtık gömlek, açıkta kaburga ve yara
+  box(torso, [0.5, 0.18, 0.3], '#4a5440', [0, 0.17, 0.0]);                                     // omuz/üst gömlek
+  box(torso, [0.3, 0.2, 0.02], SK, [0.0, 0.0, -0.152]);                                        // açık göğüs
+  for (let i = 0; i < 3; i++) box(torso, [0.26, 0.018, 0.026], BONE, [0, 0.07 - i * 0.07, -0.158]);   // kaburgalar
+  box(torso, [0.1, 0.12, 0.024], BLOOD, [0.1, -0.02, -0.16]);                                  // kan lekesi
+  box(torso, [0.12, 0.14, 0.02], BLOOD, [-0.12, 0.2, -0.158], [0, 0, 0.5]);
+  box(torso, [0.46, 0.05, 0.27], '#3a3d2e', [0, -0.3, 0]);                                     // kemer
+  box(torso, [0.08, 0.2, 0.02], '#3a4034', [-0.16, -0.32, -0.145], [0, 0, 0.12]);             // sarkan kumaş şeritleri
+  box(torso, [0.07, 0.17, 0.02], '#3a4034', [0.12, -0.33, -0.145], [0, 0, -0.1]);
+  box(torso, [0.5, 0.1, 0.3], '#33372c', [0, 0.3, 0.0]);                                       // yırtık yaka
+  // bacaklar: yırtık paçalar, çıplak diz
+  for (const s of ['L', 'R']) {
+    box(legs[s].thigh, [0.19, 0.12, 0.22], SK, [0, -0.38, 0]);
+    box(legs[s].thigh, [0.19, 0.05, 0.22], DIRT, [0, -0.43, 0]);
+    box(legs[s].foot, [0.176, 0.025, 0.205], '#101012', [0, -0.0475, 0.0]);                    // taban
+  }
+  box(legs.R.thigh, [0.12, 0.12, 0.02], BLOOD, [0.0, -0.1, -0.11]);
+}
+
 function addGear(cls, team, c, parts, skin) {
   const { torso, head, legs } = parts;
+  if (cls === 'zombie') { zombieGear(parts); return; }
   // ortak: yelek + kemer + omuz kayışları
   box(torso, [0.5, 0.42, 0.3], c.vest, [0, 0.07, 0]);
   box(torso, [0.1, 0.14, 0.31], c.vest, [0.16, 0.26, 0]);                       // omuz kayışı

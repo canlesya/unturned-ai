@@ -6,11 +6,12 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const until = async (f, ms) => { const t = Date.now(); while (Date.now() - t < ms) { const v = f(); if (v) return v; await wait(100); } return null; };
 let fail = 0; const check = (ok, msg) => { console.log((ok ? 'OK    ' : 'HATA  ') + msg); if (!ok) fail++; };
 
+const TYPE = process.env.TYPE || 'conquest';      // conquest: bilet biter · tdm: skor sınırına ulaşılır
 const a = await open();
-a.send(JSON.stringify({ t: 'create', name: 'Ali', cfg: { map: 'kasaba', perTeam: 4, type: 'tdm', tickets: 20, time: 0, diff: 'hard' } }));
+a.send(JSON.stringify({ t: 'create', name: 'Ali', cfg: { map: 'kasaba', perTeam: 4, type: TYPE, tickets: 20, time: 0, diff: 'hard' } }));
 const w = await until(() => a.msgs.find((m) => m.t === 'welcome'), 4000);
 check(!!w, 'oda kuruldu ' + (w && w.room));
-a.send(JSON.stringify({ t: 'dbg', tk: [0, 5] }));      // BF_DEBUG: mavi biletleri bitir
+a.send(JSON.stringify({ t: 'dbg', tk: TYPE === 'tdm' ? [20, 0] : [0, 5] }));      // BF_DEBUG: mavi biletleri bitir (tdm: mavi skor sınırına ulaşır)
 const end = await until(() => a.msgs.find((m) => m.t === 'end'), 120000);
 check(!!end, `maç bitti: ${end && end.winner} kazandı (${end && end.why})`);
 const b = await open();
@@ -24,6 +25,7 @@ c.send(JSON.stringify({ t: 'join', room: w.room, name: 'Ali' }));
 const w2 = await until(() => c.msgs.find((m) => m.t === 'welcome'), 4000);
 check(!!w2, 'sıfırlanan odaya yeniden katılındı');
 const s = await until(() => c.msgs.filter((m) => m.t === 'snap').pop(), 3000);
-check(s && s.tk[0] === 20 && s.tk[1] === 20, 'yeni maç taze biletlerle başladı: ' + (s && s.tk));
+const fresh = TYPE === 'tdm' ? 0 : 20;
+check(s && s.tk[0] === fresh && s.tk[1] === fresh, 'yeni maç taze sayaçlarla başladı: ' + (s && s.tk));
 a.close(); b.close(); c.close();
 console.log(fail ? 'sonuç: HATA' : 'sonuç: OK'); process.exit(fail ? 1 : 0);

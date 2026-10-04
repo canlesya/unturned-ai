@@ -39,7 +39,7 @@ export function packSoldier(s) {
     x: q2(s.pos.x), y: q2(s.pos.y), z: q2(s.pos.z),
     vx: q2(s.vel.x), vy: q2(s.vel.y), vz: q2(s.vel.z),
     yw: q3(s.yaw), pt: q3(s.pitch),
-    a: s.alive ? 1 : 0, hp: Math.round(s.hp),
+    a: s.alive ? 1 : 0, hp: Math.round(s.hp), mh: s.maxHp,
     f: packFlags(s), l: s.leanDir, c: s.cur,
     it: s.items.map((it) => it.id),
     kl: s.kills, de: s.deaths, sc: s.score, rv: s.revivable ? 1 : 0,

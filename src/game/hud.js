@@ -192,7 +192,11 @@ export class Hud {
     this.mmCtx = this.mm.getContext('2d');
     this.buildMinimapBase();
     this.hitT = 0; this.sel = null; this.zoneT = 0; this.cmp = this.root.querySelector('#compass canvas').getContext('2d');
-    this.maxTk = game.ffa ? game.mode.killLimit : game.mode.tickets;
+    this.maxTk = game.ffa ? game.mode.killLimit : game.mode.infection ? game.mode.total : game.mode.tickets;
+    if (game.mode.infection) {                                            // Enfekte: sol = insanlar, sağ = zombiler; ölüm ekranında sınıf/doğma seçimi yok
+      this.root.querySelector('#tnB').textContent = 'İNSAN'; this.root.querySelector('#tnR').textContent = 'ZOMBİ';
+      for (const id of ['clsrow', 'spawnrow']) this.$(id).parentElement.style.display = 'none';
+    }
     if (game.ffa) { this.root.querySelector('.tk.blue small').textContent = 'SEN'; this.root.querySelector('.tk.red small').textContent = 'LİDER'; }
     this.$('bResume').onclick = () => game.requestLock();
     this.$('bKill').onclick = () => { game.requestKill(); game.requestLock(); };
@@ -366,7 +370,7 @@ export class Hud {
     const g = this.game;
     const col = (team) => {
       const list = g.soldiers.filter((s) => s.team === team && !s.vacant).sort((a, b) => b.score - a.score);
-      return `<div class="team ${team}"><h3 style="color:var(--c)">${TEAMS[team].name} · ${Math.max(0, g.tickets[team])}</h3><table><tr><th>Oyuncu</th><th>Öl</th><th>Ölüm</th><th>Puan</th></tr>${
+      return `<div class="team ${team}"><h3 style="color:var(--c)">${g.mode.infection ? (team === 'blue' ? 'İnsanlar' : 'Zombiler') : TEAMS[team].name} · ${Math.max(0, g.tickets[team])}</h3><table><tr><th>Oyuncu</th><th>Öl</th><th>Ölüm</th><th>Puan</th></tr>${
         list.map((s) => `<tr class="${s.isPlayer ? 'me' : ''} ${s.alive ? '' : 'dead'}"><td>${s.name}</td><td>${s.kills}</td><td>${s.deaths}</td><td>${s.score}</td></tr>`).join('')}</table></div>`;
     };
     if (g.ffa) {                                                         // tek tablo, öldürmeye göre
@@ -447,7 +451,7 @@ export class Hud {
     $('hpnum').innerHTML = `${Math.max(0, Math.ceil(p.hp))}<small>HP</small>`;
     $('hpfill').style.width = clamp((p.hp / p.maxHp) * 100, 0, 100) + '%';
     $('hpfill').style.background = p.hp < 30 ? 'linear-gradient(90deg,#d63a2e,#f06a4a)' : 'linear-gradient(90deg,#3ecf5b,#7be06f)';
-    $('clsname').textContent = `${CLASS_DEFS[p.cls].label} · ${TEAMS[p.team].name}`;
+    $('clsname').textContent = g.mode.infection ? `${CLASS_DEFS[p.cls].label} · ${p.def.zombie ? 'Zombiler' : 'İnsanlar'}` : `${CLASS_DEFS[p.cls].label} · ${TEAMS[p.team].name}`;
     $('wname').textContent = p.reloadT > 0 ? `${st.name} · dolduruluyor…` : p.useT > 0 ? `${st.name} · kullanılıyor…` : st.name;
     $('mag').textContent = it.mag;
     $('res').textContent = st.kind === 'throwable' || st.kind === 'medkit' || st.kind === 'melee' ? '' : '/ ' + it.reserve;
@@ -482,8 +486,8 @@ export class Hud {
       $('rtitle').textContent = k ? 'Öldürüldün' : 'Öldün';
       $('rinfo').innerHTML = k ? `<b>${k.name}</b> · ${CLASS_DEFS[k.cls].label}<br>${k.item ? WSTATS[k.item.id].name : ''} · ${Math.ceil(k.hp)} can kaldı` : '';
       $('rcount').textContent = p.respawnT > 0 ? Math.ceil(p.respawnT) : '…';
-      this.buildSpawnRow();
-      this.markClass(g.pendingClass || p.cls);
+      if (g.mode.infection) $('rinfo').innerHTML += p.def.zombie ? '<br>Yeniden doğuyorsun…' : '<br><b style="color:#b6ff6a">Zombi olarak doğacaksın</b>';
+      else { this.buildSpawnRow(); this.markClass(g.pendingClass || p.cls); }
     } else { rs.style.display = 'none'; this._spKey = null; }
     // mesaj
     let msg = '';

@@ -117,6 +117,13 @@ export class Sfx {
   hit() { this._tone({ gain: 0.35, dur: 0.07, f0: 1400, f1: 1000, type: 'square' }); }
   headshot() { this._tone({ gain: 0.4, dur: 0.1, f0: 2000, f1: 1500, type: 'square' }); }
   kill() { this._tone({ gain: 0.4, dur: 0.12, f0: 900, f1: 900, type: 'square' }); this._tone({ gain: 0.4, dur: 0.18, f0: 1350, f1: 1350, type: 'square', delay: 0.1 }); }
+  // Zombi hırıltısı / inlemesi: alçak, titrek testere + boğuk gürültü
+  zombie(pos, big = false) {
+    const f = big ? 70 : 90 + Math.random() * 40;
+    this._tone({ pos, gain: big ? 0.5 : 0.32, dur: big ? 0.9 : 0.6, f0: f * 1.5, f1: f * 0.7, type: 'sawtooth' });
+    this._tone({ pos, gain: 0.18, dur: big ? 0.9 : 0.6, f0: f * 3.1, f1: f * 1.4, type: 'square', delay: 0.03 });
+    this._noise({ pos, type: 'bandpass', gain: 0.22, dur: big ? 0.8 : 0.5, f0: 500, f1: 220 });
+  }
   hurt() { this._tone({ gain: 0.35, dur: 0.18, f0: 200, f1: 90, type: 'sawtooth' }); }
   // Yükleme sesleri: animasyonla aynı zaman çizelgesi (şarjör çıkar → yeni şarjör takılır → kol şarjı)
   reload(pos, style = 'mag', total = 1.4, empty = true) {

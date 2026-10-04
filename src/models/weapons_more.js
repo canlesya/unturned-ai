@@ -584,6 +584,21 @@ function machete() {
   box(g, [0.014, 0.056, 0.018], C.brass, [0, 0.0, -0.072], null, M);                  // siper
   return finish(g, { name: 'Satır', hold: 'melee', gripR: [0, 0, 0.0], gripL: null, muzzle: [0, 0, -0.56], length: 0.7 });
 }
+// Zombi pençeleri: sargılı bilek + üç kemik/metal pençe (eldiven gibi elin önüne uzanır)
+function claws() {
+  const g = new THREE.Group(), BONE = '#d8d0b4', WRAP = '#4c4a3a', BLD = '#5a1410';
+  box(g, [0.1, 0.07, 0.1], WRAP, [0, 0, 0.02]);                                                  // el sargısı
+  box(g, [0.1, 0.02, 0.1], '#2f2e24', [0, 0.03, 0.02]);
+  box(g, [0.04, 0.04, 0.012], BLD, [0.02, 0.0, -0.034]);                                        // kan lekesi
+  for (let i = 0; i < 3; i++) {
+    const x = (i - 1) * 0.034;
+    box(g, [0.012, 0.014, 0.12], BONE, [x, 0.0, -0.1], [0.0, -(i - 1) * 0.05, 0]);               // pençe gövdesi
+    box(g, [0.008, 0.01, 0.07], BONE, [x * 1.25, 0.0, -0.19], [0.18, -(i - 1) * 0.08, 0]);       // kıvrık uç
+    box(g, [0.005, 0.006, 0.05], '#f3efdc', [x * 1.4, -0.012, -0.235], [0.34, -(i - 1) * 0.1, 0]);   // sivri uç
+    box(g, [0.014, 0.012, 0.03], BLD, [x, 0.0, -0.065]);                                         // kanlı kök
+  }
+  return finish(g, { name: 'Pençe', hold: 'melee', gripR: [0, 0, 0.02], gripL: null, muzzle: [0, 0, -0.26], length: 0.3 });
+}
 function tomahawk() {
   const g = new THREE.Group(), CH = { metalness: 0.1, roughness: 0.4 };
   box(g, [0.026, 0.028, 0.46], C.wood, [0, 0, -0.14]);                             // sap
@@ -600,5 +615,5 @@ function tomahawk() {
 
 export const MORE = {
   scarh, aug, g36, ak74u, vector, p90, mac10, aa12, dbl, deagle, revolver, m1911, svd, barrett, pkm, m79,
-  smoke, flash, claymore, ammobox, machete, tomahawk,
+  smoke, flash, claymore, ammobox, machete, tomahawk, claws,
 };

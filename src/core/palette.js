@@ -51,4 +51,7 @@ for (let i = 0; i < 32; i++) {
   TEAMS['f' + i] = { name: 'Ölüm Maçı', shirt: hsl2hex(h, 0.42, 0.36), pants: hsl2hex(h, 0.3, 0.2), vest: hsl2hex(h, 0.36, 0.19), helmet: hsl2hex(h, 0.4, 0.28), gloves: '#1d2530', boots: '#1b1b1d', accent: hsl2hex(h, 0.85, 0.6) };
 }
 
+// Enfekte modu: zombiler. Solgun yeşil deri, yırtık kirli giysiler (şapka/yelek yok). Soldier.team 'red' kalır; yalnızca görünüm bu paleti kullanır.
+TEAMS.zomb = { name: 'Zombiler', shirt: '#4a5440', pants: '#33372c', vest: '#2d3326', helmet: '#2d3326', gloves: '#7e9a6a', boots: '#1d1d18', accent: '#8dff5a' };
+
 export const SKINS = ['#e3b08a', '#c68b62', '#8d5a3a', '#f2cfae', '#a86f4a'];
