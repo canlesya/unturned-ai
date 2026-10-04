@@ -1,6 +1,6 @@
 // Bir oda = başsız bir Game + bağlı oyuncular. Sabit adımla (SIM_HZ) çalışır, her SNAP_EVERY adımda snapshot yollar.
 import { Game } from '../src/game/game.js';
-import { SIM_DT, SIM_HZ, SNAP_EVERY, packSoldier, cleanName } from '../src/net/protocol.js';
+import { SIM_DT, SIM_HZ, SNAP_EVERY, packSoldier, slowSig, cleanName } from '../src/net/protocol.js';
 import { CLASS_DEFS, WSTATS, ZTYPES } from '../src/game/stats.js';
 import { defaultTickets } from '../src/game/match.js';
 import { MAPS } from '../src/maps/index.js';
@@ -59,6 +59,7 @@ export class Room {
       match: { perTeam: c.perTeam, type: c.type, tickets: c.tickets || undefined, time: c.time },
     });
     this.tick = 0;
+    this._sig = []; this._forceSlow = true;
     this.resetAt = 0;
     this.game.on('end', (e) => { this.broadcast({ t: 'end', winner: e.winner, why: e.why }); this.resetAt = Date.now() + RESTART_MS; });
   }
@@ -136,6 +137,7 @@ export class Room {
     const c = { ws, name: s.name, h: g.humans.get(s.id), id: s.id };
     this.clients.set(s.id, c);
     this.emptySince = 0;
+    this._forceSlow = true;
     const deps = g.deployables.map((d) => ({ e: 'dep', id: d.id, ty: d.type === 'claymore' ? 'c' : 'a', p: [d.pos.x, d.mesh.position.y - (d.type === 'claymore' ? 0.15 : 0), d.pos.z], ry: d.ry, tm: d.team, by: d.owner.id }));
     ws.send(JSON.stringify({ t: 'welcome', id: s.id, room: this.code, cfg: this.publicCfg(), roster: this.roster(), hz: SIM_HZ, deps }));
     this.broadcast({ t: 'roster', roster: this.roster() }, ws);
@@ -145,6 +147,7 @@ export class Room {
   leave(id) {
     if (!this.clients.has(id)) return;
     this.clients.delete(id);
+    this._forceSlow = true;
     this.game.releaseSlot(id);
     if (!this.clients.size) {
       this.emptySince = Date.now();
@@ -235,7 +238,11 @@ export class Room {
 
   snapshot() {
     const g = this.game;
-    const all = JSON.stringify(g.soldiers.map(packSoldier));
+    // yavaş alanlar yalnızca değişen savaşçılarda (ya da 2 sn'de bir / yeni katılımda) gönderilir
+    const force = this._forceSlow || this.tick % (SNAP_EVERY * 40) === 0;
+    this._forceSlow = false;
+    const sig = (this._sig ||= []);
+    const all = JSON.stringify(g.soldiers.map((s) => { const sg = slowSig(s), ch = force || sig[s.id] !== sg; if (ch) sig[s.id] = sg; return packSoldier(s, ch); }));
     const o = JSON.stringify(g.mode.objectives.map((ob) => [ob.owner === 'blue' ? 1 : ob.owner === 'red' ? 2 : 0, Math.round(ob.p * 100) / 100]));
     const tl = g.timeLeft === Infinity ? -1 : Math.round(g.timeLeft * 10) / 10;
     const head = `{"t":"snap","k":${this.tick},"tk":[${Math.round(g.tickets.blue)},${Math.round(g.tickets.red)}],"tl":${tl},"o":${o},"s":${all},"me":`;

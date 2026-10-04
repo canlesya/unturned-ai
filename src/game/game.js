@@ -743,13 +743,47 @@ export class Game {
     this.raf = requestAnimationFrame(this.loop);
     const dt = clamp((now - this.last) / 1000 || 0.016, 0, 0.05);
     this.last = now;
+    this.perfTick(now, dt);
     if (this.online && !this.ended) {
       // çevrimiçi: sunucuyla aynı sabit adım (tahmin birebir tutsun)
       this._acc = Math.min(this._acc + dt, 0.1);
       while (this._acc >= SIM_DT) { this._acc -= SIM_DT; this.stepOnline(SIM_DT); }
+      // Görüntü her karede yeniden hesaplanır (adım sayısı kareden kareye 0/1/2 oynasa da akıcı kalsın):
+      // diğer oyuncular o anki zamana göre interpolasyonla, yerel kamera iki sim adımı arasında ara değerlenir.
+      this.online.interpolate(performance.now());
+      for (const s of this.soldiers) s.syncModel(dt);
+      this.lerpCamera(this._acc / SIM_DT);
     } else if (this.simulate && !this.ended) this.step(dt);
     else if (this.ended) { this.effects.update(dt); for (const s of this.soldiers) s.syncModel(dt); }
     this.render();
+  }
+
+  // Kamera, son iki sim adımı arasında ara değerlenir (alpha = adım içindeki ilerleme)
+  lerpCamera(alpha) {
+    const c = this.camera, a = this._c0, b = this._c1;
+    if (!a || !this.playerSoldier.alive) return;
+    c.position.lerpVectors(a.p, b.p, alpha);
+    c.quaternion.slerpQuaternions(a.q, b.q, alpha);
+  }
+
+  // FPS ölçümü + uyarlanabilir çözünürlük: ortalama kare süresi uzun sürerse çözünürlük kademeli düşer, rahatlayınca geri yükselir (en çok seçilen kaliteye kadar)
+  perfTick(now, dt) {
+    const p = (this._perf ||= { n: 0, t: 0, fps: 0, ratio: null, max: 0, cool: 0 });
+    if (dt > 0.2 || document.visibilityState !== 'visible') { p.n = 0; p.t = 0; return; }       // duraklatma/sekme değişimi sayılmaz
+    p.n++; p.t += dt;
+    if (p.t < 1.2) return;
+    p.fps = p.n / p.t; const ms = (p.t / p.n) * 1000; p.n = 0; p.t = 0;
+    const r = this.renderer;
+    if (p.ratio === null) { p.max = Math.min(devicePixelRatio, this.settings.pixelRatio || 1.5); p.ratio = p.max; }
+    if (this.settings.adaptive === false) return;
+    if (p.cool > 0) { p.cool--; return; }
+    let want = p.ratio;
+    if (ms > 25 && p.ratio > 0.6) want = Math.max(0.6, p.ratio * 0.85);                       // < 40 FPS: çözünürlüğü düşür
+    else if (ms < 13.5 && p.ratio < p.max) want = Math.min(p.max, p.ratio * 1.12);             // rahat: geri yükselt
+    if (Math.abs(want - p.ratio) > 0.01) {
+      p.ratio = want; p.cool = 1;
+      r.setPixelRatio(want); r.setSize(innerWidth, innerHeight, false);
+    }
   }
 
   // Çevrimiçi istemci adımı: yalnızca yerel oyuncuyu tahmin eder; diğerleri sunucudan interpolasyonla gelir.
@@ -757,15 +791,19 @@ export class Game {
   stepOnline(dt) {
     this.time += dt;
     this.online.interpolate(performance.now());
-    if (this._badge && (this._badgeT -= dt) <= 0) { this._badgeT = 0.5; const rtt = Math.round(this.online.stats.rtt || 0); this._badge.innerHTML = `ODA <b style="color:#ffb347">${this._badgeCode}</b> · ${rtt ? rtt + ' ms' : '…'}`; }
+    if (this._badge && (this._badgeT -= dt) <= 0) { this._badgeT = 0.5; const rtt = Math.round(this.online.stats.rtt || 0); this._badge.innerHTML = `ODA <b style="color:#ffb347">${this._badgeCode}</b> · ${rtt ? rtt + ' ms' : '…'} · ${Math.round(this._perf?.fps || 0)} FPS`; }
     const me = this.playerSoldier;
     for (const s of this.soldiers) s.update(dt);
     if (me.alive) this.world.move(me, dt); else if (me.respawnT > 0) me.respawnT -= dt;
     this.player.update(dt);
+    {                                                                                             // kamera ara değerleme için son iki adım (nesne yeniden kullanılır)
+      const c = this.camera;
+      if (!this._c0) { this._c0 = { p: c.position.clone(), q: c.quaternion.clone() }; this._c1 = { p: c.position.clone(), q: c.quaternion.clone() }; }
+      const t = this._c0; this._c0 = this._c1; this._c1 = t; t.p.copy(c.position); t.q.copy(c.quaternion);
+    }
     this.updateProjectiles(dt);
     updateGadgets(this, dt, this.time);
     this.effects.update(dt);
-    for (const s of this.soldiers) s.syncModel(dt);
     this.hud.update(dt);
   }
 

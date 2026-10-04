@@ -16,7 +16,7 @@ console.log(`      roster: ${hs.length} insan, ${zs.length} zombi; ben: ${me.tea
 check(zs.length >= 1 && zs.every((r) => r.team === 'red') && hs.every((r) => r.team === 'blue'), 'zombiler red/zombie, insanlar blue');
 const snap = a.msgs.filter((m) => m.t === 'snap').pop();
 check(snap && snap.tk[0] + snap.tk[1] === 8, `snapshot sayaçları insan+zombi = 8 (${snap && snap.tk})`);
-const bosses = snap.s.filter((p) => p.bs === 1);
+const bosses = a.msgs.filter((m) => m.t === 'snap').flatMap((m) => m.s).filter((p) => p.bs === 1).slice(0, 1);       // yavaş alanlar yalnızca değişince/periyodik gelir: ilk tam paketi ara
 check(bosses.length === 1 && bosses[0].mh > 1000 && bosses[0].zl === 3, `snapshot boss taşıyor: ${bosses.length} boss, can ${bosses[0] && bosses[0].mh}, hak ${bosses[0] && bosses[0].zl}`);
 if (me.cls !== 'zombie') {
   a.send(JSON.stringify({ t: 'opt', zt: 'ghost' }));                 // sonraki doğuş için zombi türü: hayalet

@@ -76,6 +76,42 @@ export const V = (x, y, z) => new THREE.Vector3(x, y, z);
 
 // Bir grubun doğrudan Mesh çocuklarını materyal başına tek mesh'te birleştirir (çizim çağrısı azaltır).
 // Alt gruplar kendi dönüşümlerini korur ve ayrı ayrı birleştirilir (kemik/uzuv hiyerarşisi bozulmaz).
+// Karakter gövdeleri için: düz (parlamasız, saydam olmayan, metalik olmayan) malzemeli tüm mesh'leri köşe rengiyle TEK paylaşımlı malzemede birleştirir
+// (renk başına ayrı mesh yerine). Özel malzemeler (parlayan, saydam, metalik) kendi malzemesiyle ayrı kalır. Çizim çağrısı ~5x azalır.
+const VC_MAT = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.82, metalness: 0 });
+const VC_METAL = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.4, metalness: 0.5 });
+const plain = (m) => m && !Array.isArray(m) && m.isMeshStandardMaterial && !m.transparent && !m.userData.glow && m.metalness === 0 && m.roughness === 0.82 && m.emissive.getHex() === 0 && m.opacity === 1;
+const metal = (m) => m && !Array.isArray(m) && m.isMeshStandardMaterial && !m.transparent && !m.userData.glow && m.metalness > 0 && m.emissive.getHex() === 0 && m.opacity === 1;
+// metals: true → metalik malzemeler de ortak "metal" köşe-rengi malzemesinde birleşir (uzaktaki savaşçıların silahı: sadeleştirilmiş görünüm, birkaç çizim çağrısı)
+export function mergeVC(group, metals = false) {
+  const plainGeos = [], metalGeos = [], other = new Map(), rm = [];
+  for (const ch of group.children) {
+    if (!ch.isMesh || Array.isArray(ch.material)) continue;
+    ch.updateMatrix();
+    const g = ch.geometry.index ? ch.geometry.toNonIndexed() : ch.geometry.clone();
+    g.applyMatrix4(ch.matrix);
+    g.deleteAttribute('uv');
+    if (plain(ch.material) || (metals && metal(ch.material))) {
+      const c = ch.material.color, n = g.attributes.position.count, arr = new Float32Array(n * 3);
+      for (let i = 0; i < n; i++) { arr[i * 3] = c.r; arr[i * 3 + 1] = c.g; arr[i * 3 + 2] = c.b; }
+      g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+      (plain(ch.material) ? plainGeos : metalGeos).push(g);
+    } else {
+      let b = other.get(ch.material);
+      if (!b) other.set(ch.material, (b = []));
+      b.push(g);
+    }
+    rm.push(ch);
+  }
+  for (const m of rm) { group.remove(m); m.geometry.dispose(); }
+  const emit = (geos, material) => { const mesh = new THREE.Mesh(mergeGeometries(geos, false), material); mesh.castShadow = true; mesh.receiveShadow = true; group.add(mesh); };
+  if (plainGeos.length) emit(plainGeos, VC_MAT);
+  if (metalGeos.length) emit(metalGeos, VC_METAL);
+  for (const [material, geos] of other) emit(geos, material);
+  for (const ch of [...group.children]) if (ch.isGroup) mergeVC(ch, metals);
+  return group;
+}
+
 export function mergeStatic(group) {
   const buckets = new Map();
   const rm = [];

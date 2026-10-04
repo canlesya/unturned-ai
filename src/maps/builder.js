@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { mat } from '../core/geo.js';
 
+const VC_MAP = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.82, metalness: 0 });     // mat() düz malzemesiyle aynı, rengi köşelerden alır
+
 // Harita üreticisi: tüm statik parçalar renk/materyal başına tek geometride birleştirilir (az draw call),
 // her katı parça için AABB çarpışma kutusu da kaydedilir (oyuncu + bot hareketi için).
 // Konvansiyon: box(x, y(taban), z, w, h, d) — x/z merkez, y zeminden başlar.
@@ -331,11 +333,33 @@ export class MapBuilder {
     if (MapBuilder.noVisual) return new THREE.Group();                 // sunucu: görsel geometri gerekmez (yalnızca çarpışma kutuları + yerleşim)
     if (MapBuilder.zfix) this.zfightReport = this.resolveZFight();
     const group = new THREE.Group();
+    // Düz malzemeli (seçeneksiz) tüm kutular köşe rengiyle TEK mesh'te birleşir (renk başına ~400 çizim çağrısı yerine 1); parlayan/saydam/özel
+    // malzemeler eskisi gibi kendi kovasında kalır. Çizim çağrısı hem ana hem gölge geçişinde ciddi azalır.
+    const plainGeos = [];
     for (const b of this.buckets.values()) {
+      if (Object.keys(b.o).length === 0 && !MapBuilder.noVC) {
+        const c = new THREE.Color(b.color);
+        for (const g of b.geos) {
+          const n = g.attributes.position.count, arr = new Float32Array(n * 3);
+          for (let i = 0; i < n; i++) { arr[i * 3] = c.r; arr[i * 3 + 1] = c.g; arr[i * 3 + 2] = c.b; }
+          g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+          plainGeos.push(g);
+        }
+        continue;
+      }
       const merged = mergeGeometries(b.geos, false);
       const mesh = new THREE.Mesh(merged, mat(b.color, { ...b.o }));
       mesh.castShadow = !b.o.transparent;
       mesh.receiveShadow = true;
+      group.add(mesh);
+    }
+    if (plainGeos.length) {
+      const merged = mergeGeometries(plainGeos, false);
+      const c32 = merged.attributes.color.array, c16 = new Uint16Array(c32.length);            // bellek: köşe rengi 12 → 6 bayt (yarım duyarlık)
+      for (let i = 0; i < c32.length; i++) c16[i] = THREE.DataUtils.toHalfFloat(c32[i]);
+      merged.setAttribute('color', new THREE.Float16BufferAttribute(c16, 3));
+      const mesh = new THREE.Mesh(merged, VC_MAP);
+      mesh.castShadow = true; mesh.receiveShadow = true;
       group.add(mesh);
     }
     return group;

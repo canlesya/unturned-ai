@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { box, taperBox, cyl, cylY, ico, V, mergeStatic } from '../core/geo.js';
+import { box, taperBox, cyl, cylY, ico, V, mergeStatic, mergeVC } from '../core/geo.js';
 import { C } from '../core/palette.js';
 import { mat } from '../core/geo.js';
 import { resolveOptic, WSTATS } from '../game/stats.js';
@@ -503,7 +503,8 @@ export const WEAPONS = {
 // Görüntüleyici alt yazısı: WSTATS açıklamasından
 export const WEAPON_INFO = new Proxy({}, { get: (_, id) => WSTATS[id]?.desc || '' });
 
-export function createWeapon(id, optic = 'reddot') {
+// lod: true → uzaktan görünen savaşçı modeli için sadeleştirilmiş silah (köşe renkli, 2-3 çizim çağrısı; metal/ahşap doku katmanı yok)
+export function createWeapon(id, optic = 'reddot', lod = false) {
   const fn = WEAPONS[id];
   if (!fn) throw new Error('Bilinmeyen silah: ' + id);
   const g = fn();
@@ -515,8 +516,8 @@ export function createWeapon(id, optic = 'reddot') {
   // optik takılıyken ön arpacık nişan çizgisini kapatmasın (demir nişanda ve dürbünsüz silahlarda görünür)
   const showFront = !sg || o === 'iron';
   g.traverse((n) => { if (n.userData.frontSight) n.visible = showFront; });
-  mergeStatic(g);
-  finishWeapon(g);                              // metal çizik/aşınma, ahşap damar, boya kırığı (shader)
+  if (lod) mergeVC(g, true);
+  else { mergeStatic(g); finishWeapon(g); }                              // metal çizik/aşınma, ahşap damar, boya kırığı (shader)
   if (g.userData.mag) {                         // şarjör merkezi (animasyonda sol elin hedefi)
     g.updateMatrixWorld(true);
     g.userData.magPos = new THREE.Box3().setFromObject(g.userData.mag).getCenter(new THREE.Vector3());

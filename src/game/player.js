@@ -646,6 +646,8 @@ export class Player {
         -s.leanT * 0.2 * (1 - 0.6 * this.thirdT) + this.vm.camRoll + (Math.random() - 0.5) * sh * 0.03,
       );
       if (this.thirdT > 0.002) this.thirdCamera(dt, this.thirdT); else { this._cs = null; s.shotOff = null; this.bodyVisible = false; }
+      const vo = g.online && g.online.viewOff;                      // çevrimiçi: tahmin düzeltmesi kamerada yumuşatılır (bkz. NetClient.reconcile)
+      if (vo) { const k = Math.exp(-dt * 11); vo.x *= k; vo.y *= k; vo.z *= k; cam.position.x += vo.x; cam.position.y += vo.y; cam.position.z += vo.z; }
       this.camPos.copy(cam.position);
     } else {
       s.shotOff = null; this._cs = null; this.bodyVisible = false;

@@ -15,12 +15,14 @@ check(s.me.now.it.length === 2 && s.me.now.it[0] === 'm4a1' && s.me.now.gl === 0
 // botlar birbirini öldürsün: 90 sn sonra bazı seviyeler artmış olmalı
 await wait(60000);
 s = a.msgs.filter((m) => m.t === 'snap').pop();
-const lv = s.s.map((p) => p.gl);
+// yavaş alanlar (gl, it…) yalnızca değişince gelir: istemci gibi son bilinen değerleri biriktir
+const known = {}; for (const m of a.msgs.filter((x) => x.t === 'snap')) for (const p of m.s) Object.assign((known[p.i] ||= {}), p);
+const lv = Object.values(known).map((p) => p.gl);
 console.log('      seviyeler:', lv.join(','));
 check(Math.max(...lv) >= 2, 'botlar seviye atladı (snapshot gl)');
 const evs = a.msgs.filter((m) => m.t === 'ev').flatMap((m) => m.l).filter((e) => e.e === 'lvl');
 check(evs.length >= 2, `lvl olayları yayınlandı (${evs.length})`);
-const other = s.s.find((p) => p.gl >= 2);
+const other = Object.values(known).find((p) => p.gl >= 2);
 check(other && other.it[0] !== 'm4a1' || other.it.length === 1, `başkasının silahı ağdan geliyor: ${other && other.it}`);
 console.log('hata:', fail);
 a.close(); process.exit(fail ? 1 : 0);

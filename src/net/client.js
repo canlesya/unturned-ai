@@ -23,6 +23,7 @@ export class NetClient {
     this.rs = null;
     this.stats = { corrections: 0, lastErr: 0, snaps: 0, rtt: 0 };
     this.pendingMe = null;
+    this.viewOff = { x: 0, y: 0, z: 0, set(x, y, z) { this.x = x; this.y = y; this.z = z; } };            // kamera yumuşatma ofseti (Player uygular, sönümler)
     this._ping = setInterval(() => this.send({ t: 'ping', c: performance.now() }), 2000);
     ws.onmessage = (e) => this.onMessage(JSON.parse(e.data));
     ws.onclose = () => { this.closed = true; clearInterval(this._ping); this.game?.onNetClosed?.(); };
@@ -107,19 +108,22 @@ export class NetClient {
   applyState(s, p, local) {
     if (p.a && !s.alive) s.spawn({ x: p.x, z: p.z, ry: p.yw }, 0);
     else if (!p.a && s.alive) { s.alive = false; s.hp = 0; s.deadT = 0; s.deadDir = Math.random() > 0.5 ? 1 : -1; s.ads = false; s.reloadT = 0; s.vel.set(0, 0, 0); }
-    s.hp = p.hp; if (p.mh) s.maxHp = p.mh; if (p.gl !== undefined) s.ggLevel = p.gl;
-    if (p.zt || p.bs) {                                                                            // zombi türü / boss durumu değişti: model yenilenir
-      const t = ZT_ORDER[p.zt - 1] || s.ztype, bs = !!p.bs;
-      if ((t !== s.ztype || bs !== s.boss) && s.def.zombie) { s.ztype = t; s.boss = bs; s.setClass('zombie'); }
-      else { s.ztype = t; s.boss = bs; }
-    }
-    s.zLives = p.zl ?? 0;
-    s.kills = p.kl; s.deaths = p.de; s.score = p.sc; s.revivable = !!p.rv;
-    if (s.items.length !== p.it.length || s.items.some((it, i) => it.id !== p.it[i])) {
-      s.items = p.it.map(mkItem);
-      s._modelWeapon = undefined;
-      if (local) this.game.emit('switch', s);
-      else { s.cur = p.c; s._syncWeaponModel(true); }
+    s.hp = p.hp;
+    if (p.it) {                                                                                    // yavaş alanlar (yalnızca değişince / periyodik gelir)
+      if (p.mh) s.maxHp = p.mh; if (p.gl !== undefined) s.ggLevel = p.gl;
+      if (p.zt || p.bs) {                                                                          // zombi türü / boss durumu değişti: model yenilenir
+        const t = ZT_ORDER[p.zt - 1] || s.ztype, bs = !!p.bs;
+        if ((t !== s.ztype || bs !== s.boss) && s.def.zombie) { s.ztype = t; s.boss = bs; s.setClass('zombie'); }
+        else { s.ztype = t; s.boss = bs; }
+      }
+      s.zLives = p.zl ?? 0;
+      s.kills = p.kl; s.deaths = p.de; s.score = p.sc; s.revivable = !!p.rv;
+      if (s.items.length !== p.it.length || s.items.some((it, i) => it.id !== p.it[i])) {
+        s.items = p.it.map(mkItem);
+        s._modelWeapon = undefined;
+        if (local) this.game.emit('switch', s);
+        else { s.cur = p.c; s._syncWeaponModel(true); }
+      }
     }
     if (!local) {
       if (s.cur !== p.c) { s.cur = p.c; s._syncWeaponModel(); }
@@ -163,10 +167,11 @@ export class NetClient {
     if (!rec || rec.q !== me.ack) return;
     const err = Math.hypot(rec.st.x - st.x, rec.st.y - st.y, rec.st.z - st.z);
     this.stats.lastErr = err;
+    if (err > POS_EPS) { this.stats.errSum = (this.stats.errSum || 0) + err; this.stats.errMax = Math.max(this.stats.errMax || 0, err); }
     if (err <= POS_EPS) return;
     this.stats.corrections++;
     // düzelt: sunucu durumuna dön, onaylanmamış girdileri yeniden oynat
-    const keepYaw = s.yaw, keepPitch = s.pitch;
+    const keepYaw = s.yaw, keepPitch = s.pitch, bx = s.pos.x, by = s.pos.y, bz = s.pos.z;
     s.pos.set(st.x, st.y, st.z); s.vel.set(st.vx, st.vy, st.vz);
     applyFlags(s, st.f);
     for (const h of this.hist) {
@@ -179,6 +184,10 @@ export class NetClient {
       h.st = { x: s.pos.x, y: s.pos.y, z: s.pos.z };
     }
     s.yaw = keepYaw; s.pitch = keepPitch;
+    // Küçük düzeltmeler (≤ 0.8 m) kamerada yumuşatılır: oyuncu gerçek konumda ama görüntü eski yerden hızla (~0.1 sn) yeni yere kayar → "takılma/sıçrama" hissi yok.
+    // Büyük farklar (ışınlanma, sunucu itmesi) anında uygulanır.
+    const ox = bx - s.pos.x, oy = by - s.pos.y, oz = bz - s.pos.z;
+    if (ox * ox + oy * oy + oz * oz < 0.64) { this.viewOff.x += ox; this.viewOff.y += oy; this.viewOff.z += oz; } else this.viewOff.set(0, 0, 0);
   }
 
   // Uzaktaki oyuncuları interpolasyonla yerleştir (her sim adımında)

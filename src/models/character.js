@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { box, taperBox, cylY, ico, V, mergeStatic } from '../core/geo.js';
+import { box, taperBox, cylY, ico, V, mergeStatic, mergeVC } from '../core/geo.js';
 import { C, TEAMS, SKINS } from '../core/palette.js';
 import { createWeapon } from './weapons.js';
 import { reloadAnim, meleePose } from '../game/anim.js';
@@ -354,7 +354,7 @@ export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0,
   const mountL = new THREE.Group();                         // zombi: sol elde de pençe (iki elde pençe)
   torso.add(mountL);
 
-  mergeStatic(root);
+  mergeVC(root);                                       // renk başına değil köşe rengiyle birleştir: karakter başına ~70 yerine ~15 çizim çağrısı
 
   const api = {
     root,
@@ -367,10 +367,10 @@ export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0,
       if (opt) api.optic = opt;
       if (api.weapon) { mount.remove(api.weapon); api.weapon.traverse((o) => o.geometry?.dispose()); }
       if (api.weaponL) { mountL.remove(api.weaponL); api.weaponL.traverse((o) => o.geometry?.dispose()); api.weaponL = null; }
-      const w = id ? createWeapon(id, api.optic) : null;
+      const w = id ? createWeapon(id, api.optic, true) : null;
       api.weapon = w;
       if (w) mount.add(w);
-      if (id === 'claws') { api.weaponL = createWeapon('claws'); mountL.add(api.weaponL); }          // ikinci pençe
+      if (id === 'claws') { api.weaponL = createWeapon('claws', 'reddot', true); mountL.add(api.weaponL); }          // ikinci pençe
       applyPose(api, w);
       if (api.groundOffset === undefined) { groundFeet(root); api.groundOffset = root.position.y; } else root.position.y = api.groundOffset;
       return w;

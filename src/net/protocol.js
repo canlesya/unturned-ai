@@ -35,17 +35,27 @@ export function packFlags(s) {
 }
 
 // Bir savaşçının ağ durumu (kompakt anahtarlar)
-export function packSoldier(s) {
-  return {
+// slow=false: yavaş değişen alanlar (eşyalar, skor, can üst sınırı, zombi türü, seviye…) çıkarılır → anlık görüntü ~%45 küçülür.
+// Sunucu bu alanları yalnızca değişince (ya da periyodik/yeni katılımda) yollar; istemci `it` yoksa onları değiştirmez. Kendi durumun (me.now / ack) her zaman tam.
+export function packSoldier(s, slow = true) {
+  const o = {
     i: s.id,
     x: q2(s.pos.x), y: q2(s.pos.y), z: q2(s.pos.z),
     vx: q2(s.vel.x), vy: q2(s.vel.y), vz: q2(s.vel.z),
     yw: q3(s.yaw), pt: q3(s.pitch),
-    a: s.alive ? 1 : 0, hp: Math.round(s.hp), mh: s.maxHp, gl: s.ggLevel, zt: s.def.zombie ? ZT_ORDER.indexOf(s.ztype) + 1 : 0, bs: s.boss ? 1 : 0, zl: s.zLives,
+    a: s.alive ? 1 : 0, hp: Math.round(s.hp),
     f: packFlags(s), l: s.leanDir, c: s.cur,
-    it: s.items.map((it) => it.id),
-    kl: s.kills, de: s.deaths, sc: s.score, rv: s.revivable ? 1 : 0,
   };
+  if (slow) {
+    o.mh = s.maxHp; o.gl = s.ggLevel; o.zt = s.def.zombie ? ZT_ORDER.indexOf(s.ztype) + 1 : 0; o.bs = s.boss ? 1 : 0; o.zl = s.zLives;
+    o.it = s.items.map((it) => it.id);
+    o.kl = s.kills; o.de = s.deaths; o.sc = s.score; o.rv = s.revivable ? 1 : 0;
+  }
+  return o;
+}
+// yavaş alanların imzası: değişince o savaşçı tam paketlenir
+export function slowSig(s) {
+  return s.maxHp + '|' + s.ggLevel + '|' + (s.def.zombie ? s.ztype : '') + (s.boss ? 'B' : '') + '|' + s.zLives + '|' + s.items.map((it) => it.id).join() + '|' + s.kills + '|' + s.deaths + '|' + s.score + '|' + (s.revivable ? 1 : 0);
 }
 
 export function applyFlags(s, f) {

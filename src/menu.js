@@ -13,7 +13,7 @@ const KEY = 'warbyte.v2';
 export const DEFAULTS = {
   map: DEFAULT_MAP, tod: 'day', weather: 'clear', type: 'conquest', perTeam: 10, tickets: 0, time: 900,
   team: 'blue', cls: 'assault', diff: 'normal', optic: 'reddot', loadouts: {}, name: 'Sen',
-  sens: 0.0022, fov: 75, volume: 0.6, shadows: true, quality: 1.5,
+  sens: 0.0022, fov: 75, volume: 0.6, shadows: true, quality: 1.5, adaptive: true,
   xp: 0, stats: { matches: 0, wins: 0, kills: 0, deaths: 0 },
   server: '', room: '', olTeam: 'auto', third: true,
   keys: {}, leftHand: false, adsToggle: false, vSfx: 0.9, vMusic: 0.5, vAmb: 0.8, rainSound: true,   // tuş atamaları, silah eli, ses kanalları
@@ -324,7 +324,7 @@ export function showMenu(onStart, onOnline) {
       <div class="row" style="margin-top:8px"><button class="chip ${p.rainSound ? 'on' : ''}" data-a="rain" data-v="1">Yağmur sesi: ${p.rainSound ? 'Açık' : 'Kapalı'}</button></div>
       <div class="hint">Lobi ve maç müziği için dosyalar henüz yok; <b>public/audio/music/</b> altına eklenince otomatik çalar (bkz. OYUN.md).</div></div>
       <div class="pan"><h3>Grafik</h3><div class="row">${[[1, 'Düşük'], [1.5, 'Orta'], [2, 'Yüksek']].map(([v, l]) => `<button class="chip ${p.quality === v ? 'on' : ''}" data-a="quality" data-v="${v}">${l}</button>`).join('')}
-      <button class="chip ${p.shadows ? 'on' : ''}" data-a="shadows" data-v="1">Gölgeler: ${p.shadows ? 'Açık' : 'Kapalı'}</button></div>
+      <button class="chip ${p.shadows ? 'on' : ''}" data-a="shadows" data-v="1">Gölgeler: ${p.shadows ? 'Açık' : 'Kapalı'}</button><button class="chip ${p.adaptive !== false ? 'on' : ''}" data-a="adaptive" data-v="1" title="Kare hızı düşerse çözünürlüğü otomatik azaltır, rahatlayınca geri yükseltir">Otomatik çözünürlük: ${p.adaptive !== false ? 'Açık' : 'Kapalı'}</button></div>
       <div class="hint">Düşük kalite ve kapalı gölge, zayıf bilgisayarlarda ve büyük maçlarda akıcılığı artırır.</div></div>
       <div class="pan"><h3>Veri</h3><button class="chip" data-a="reset">İlerlemeyi sıfırla</button></div></div>`;
   }
@@ -394,7 +394,7 @@ export function showMenu(onStart, onOnline) {
       match: { perTeam, type: p.type, tickets: randomize ? undefined : p.tickets || undefined, time: p.time }, third: p.third,
       keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs,
       loadout: loadoutOf(cls), loadouts: p.loadouts,                    // tüm sınıfların kayıtlı yüklemeleri: oyunda sınıf değişince o sınıfınki gelir
-      settings: { sens: p.sens, fov: p.fov, volume: p.volume, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, shadows: p.shadows, pixelRatio: p.quality },
+      settings: { sens: p.sens, fov: p.fov, volume: p.volume, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, shadows: p.shadows, adaptive: p.adaptive !== false, pixelRatio: p.quality },
     };
     cleanup();
     onStart(payload);
@@ -489,6 +489,7 @@ export function showMenu(onStart, onOnline) {
       case 'optic': p.optic = v; scene?.iconCache.clear(); break;
       case 'quality': p.quality = +v; break;
       case 'shadows': p.shadows = !p.shadows; break;
+      case 'adaptive': p.adaptive = p.adaptive === false; break;
       case 'rain': p.rainSound = !p.rainSound; break;
       case 'hand': p.leftHand = v === 'left'; break;
       case 'ads': p.adsToggle = v === 'toggle'; break;
