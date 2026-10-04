@@ -18,7 +18,8 @@ const CSS = `
 #score .tk.blue{color:#9fd0ff;clip-path:polygon(0 0,100% 0,calc(100% - 12px) 100%,0 100%)}
 #score .tk.red{color:#ffb3a6;clip-path:polygon(12px 0,100% 0,100% 100%,0 100%)}
 #score .tk.blue .bar i{float:right}
-#timer{padding:8px 16px;font-size:22px;font-weight:700;min-width:84px;text-align:center;background:rgba(9,13,19,.85);border:1px solid rgba(255,255,255,.12);border-width:1px 0}
+#timer small{display:block;font-size:10px;font-weight:700;letter-spacing:2px;opacity:.7;margin-top:-2px}
+#timer{padding:5px 16px 0;line-height:1.1;font-size:22px;font-weight:700;min-width:84px;text-align:center;background:rgba(9,13,19,.85);border:1px solid rgba(255,255,255,.12);border-width:1px 0}
 #flags{display:flex;gap:7px}
 .flag{width:34px;height:34px;border-radius:50%;background:rgba(9,13,19,.7);border:3px solid #888;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;position:relative}
 .flag i{position:absolute;inset:-3px;border-radius:50%}
@@ -153,7 +154,7 @@ export class Hud {
         <svg viewBox="-100 -100 200 200" class="chev"><g fill="none" stroke="#ff2e1f" stroke-linecap="round"><path d="M-14 16L0 -2L14 16" stroke-width="2.2"/><path d="M0 -2V-100M-100 0H-30M30 0H100M0 28V100" stroke-width=".3" stroke="#000"/><path d="M-10 36H10M-14 56H14M-18 76H18" stroke-width=".8" stroke="#ff2e1f"/></g><circle r=".8" fill="#ff2e1f"/></svg></div>
       <div id="mmwrap"><canvas id="minimap" width="236" height="168"></canvas><div id="mmname"></div></div>
       <div id="topbar">
-        <div id="score"><div class="tk blue"><small id="tnB">MAVİ</small><span id="tkB">0</span><div class="bar"><i id="tbB"></i></div></div><div id="timer">0:00</div><div class="tk red"><small id="tnR">KIRMIZI</small><span id="tkR">0</span><div class="bar"><i id="tbR"></i></div></div></div>
+        <div id="score"><div class="tk blue"><small id="tnB">MAVİ</small><span id="tkB">0</span><div class="bar"><i id="tbB"></i></div></div><div id="timer"><span id="tm">0:00</span><small id="lim"></small></div><div class="tk red"><small id="tnR">KIRMIZI</small><span id="tkR">0</span><div class="bar"><i id="tbR"></i></div></div></div>
         <div id="flags"></div>
         <div id="compass"><canvas width="920" height="60"></canvas></div>
       </div>
@@ -428,7 +429,8 @@ export class Hud {
     $('tbB').style.width = clamp((kb / this.maxTk) * 100, 0, 100) + '%';
     $('tbR').style.width = clamp((kr / this.maxTk) * 100, 0, 100) + '%';
     const t = Math.max(0, Math.ceil(g.timeLeft));
-    $('timer').textContent = g.timeLeft === Infinity ? '∞' : `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+    $('lim').textContent = g.mode.scoreBased ? `İLK ${g.mode.tickets}` : '';
+    $('tm').textContent = g.timeLeft === Infinity ? '∞' : `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
     this.drawCompass();
     if (this.zoneT > 0) { this.zoneT -= dt; if (this.zoneT <= 0) $('zonew').style.display = 'none'; }
     g.mode.objectives.forEach((o, i) => {

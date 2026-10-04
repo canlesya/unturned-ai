@@ -1,6 +1,6 @@
 import { MAPS, DEFAULT_MAP } from './maps/index.js';
 import { CLASS_DEFS, WSTATS, DIFFICULTY, OPTICS, OPTIC_ORDER } from './game/stats.js';
-import { MATCH_TYPES, TODS_LIST, defaultTickets, DM_MAX, DM_KILLS } from './game/match.js';
+import { MATCH_TYPES, TODS_LIST, defaultTickets, defaultScoreLimit, DM_MAX, DM_KILLS } from './game/match.js';
 import { MENU_CSS } from './menuStyle.js';
 import { MenuScene } from './menuScene.js';
 import { WEATHERS } from './game/weather.js';
@@ -60,6 +60,7 @@ const NEWS = [
 const SIZE_PRESETS = [[1, '1v1'], [3, '3v3'], [5, '5v5'], [10, '10v10'], [16, '16v16'], [24, '24v24'], [32, '32v32']];
 const TIME_OPTS = [[300, '5 dk'], [600, '10 dk'], [900, '15 dk'], [1200, '20 dk'], [1800, '30 dk'], [0, '∞']];
 const TICKET_OPTS = [[0, 'Otomatik'], [50, '50'], [100, '100'], [200, '200'], [400, '400'], [800, '800']];
+const SCORE_OPTS = [[0, 'Otomatik'], [30, '30'], [50, '50'], [75, '75'], [100, '100'], [150, '150'], [200, '200']];
 const SLOTS = [['primary', 'Ana silah', 'primaryOptions'], ['secondary', 'Yedek', 'secondaryOptions'], ['gadget', 'Gadget', 'gadgetOptions'], ['melee', 'Yakın dövüş', 'meleeOptions']];
 const rnd = (a) => a[Math.floor(Math.random() * a.length)];
 
@@ -100,7 +101,7 @@ export function showMenu(onStart, onOnline) {
 
   const NAV = [['home', 'Ana Menü', 'Hızlı başla'], ['custom', 'Özel Oyun', 'Harita · mod · boyut'], ['online', 'Çevrimiçi', 'Oda kur · katıl'], ['loadout', 'Sınıf & Silah', 'Teçhizatını seç'], ['settings', 'Ayarlar', 'Ses · görüntü · fare'], ['controls', 'Kontroller', 'Tuş haritası']];
   const save = () => savePrefs(p);
-  const effTickets = () => p.tickets || defaultTickets(p.perTeam);
+  const effTickets = () => p.tickets || (p.type === 'tdm' ? defaultScoreLimit(p.perTeam) : defaultTickets(p.perTeam));
   const mapName = () => (p.map === 'random' ? 'Rastgele' : MAPS[p.map].name);
   const todName = () => (p.tod === 'random' ? 'Rastgele' : TODS_LIST.find((t) => t[0] === p.tod)[1]);
   const loadoutOf = (cls) => p.loadouts[cls] || (p.loadouts[cls] = {});
@@ -162,7 +163,7 @@ export function showMenu(onStart, onOnline) {
         <input type="range" id="rSize" min="${p.type === 'dm' ? 2 : 1}" max="${p.type === 'dm' ? DM_MAX : 32}" step="1" value="${p.perTeam}" style="--p:${((p.perTeam - (p.type === 'dm' ? 2 : 1)) / ((p.type === 'dm' ? DM_MAX : 32) - (p.type === 'dm' ? 2 : 1))) * 100}%">
         <div class="row">${(p.type === 'dm' ? [[2, '2'], [4, '4'], [6, '6'], [8, '8'], [10, '10']] : SIZE_PRESETS).map(([n, l]) => `<button class="chip ${p.perTeam === n ? 'on' : ''}" data-a="size" data-v="${n}">${l}</button>`).join('')}</div></div>
       <div class="split">
-        <div class="pan"><h3>${p.type === 'dm' ? 'Öldürme sınırı' : `Bilet <em>${effTickets()}</em>`}</h3>${p.type === 'dm' ? `<div class="hint" style="margin:0">İlk <b>${DM_KILLS}</b> öldürmeye ulaşan kazanır; süre dolarsa en çok öldüren.</div>` : `<div class="row">${TICKET_OPTS.map(([v, l]) => `<button class="chip ${p.tickets === v ? 'on' : ''}" data-a="tickets" data-v="${v}">${l}</button>`).join('')}</div>`}</div>
+        <div class="pan"><h3>${p.type === 'dm' ? 'Öldürme sınırı' : `${p.type === 'tdm' ? 'Skor sınırı' : 'Bilet'} <em>${effTickets()}</em>`}</h3>${p.type === 'dm' ? `<div class="hint" style="margin:0">İlk <b>${DM_KILLS}</b> öldürmeye ulaşan kazanır; süre dolarsa en çok öldüren.</div>` : `<div class="row">${(p.type === 'tdm' ? SCORE_OPTS : TICKET_OPTS).map(([v, l]) => `<button class="chip ${p.tickets === v ? 'on' : ''}" data-a="tickets" data-v="${v}">${l}</button>`).join('')}</div>`}</div>
         <div class="pan"><h3>Süre</h3><div class="row">${TIME_OPTS.map(([v, l]) => `<button class="chip ${p.time === v ? 'on' : ''}" data-a="time" data-v="${v}">${l}</button>`).join('')}</div></div>
       </div></div>
       <div class="startbar">${summary()}<button class="play" data-a="quick" style="min-width:300px">Oyna</button></div>`;
@@ -232,7 +233,7 @@ export function showMenu(onStart, onOnline) {
       <div class="pan"><h3>3. şahıs kamera <em>oyuncular H ile geçebilir · Q / E omuz değiştirir</em></h3><div class="row">${chips('third', [[true, 'Açık', 'omuz üstü kamera serbest'], [false, 'Kapalı', 'yalnızca 1. şahıs']])}</div></div>
       <div class="split"><div class="pan"><h3>Botlar</h3><div class="row">${chips('bots', [[true, 'Açık', 'boş slotlara bot'], [false, 'Kapalı', 'yalnızca oyuncular']])}</div>
         ${c.bots ? `<h3 style="margin-top:14px">Bot zorluğu</h3><div class="row">${chips('diff', Object.entries(DIFFICULTY).map(([k, d]) => [k, d.label]))}</div>` : ''}</div>
-        <div class="pan"><h3>${c.type === 'dm' ? 'Öldürme sınırı' : `Bilet <em>${c.tickets || defaultTickets(c.perTeam)}</em>`}</h3>${c.type === 'dm' ? `<div class="hint" style="margin:0 0 6px">İlk <b>${DM_KILLS}</b> öldürmeye ulaşan kazanır.</div>` : `<div class="row">${chips('tickets', TICKET_OPTS)}</div>`}
+        <div class="pan"><h3>${c.type === 'dm' ? 'Öldürme sınırı' : `${c.type === 'tdm' ? 'Skor sınırı' : 'Bilet'} <em>${c.tickets || (c.type === 'tdm' ? defaultScoreLimit(c.perTeam) : defaultTickets(c.perTeam))}</em>`}</h3>${c.type === 'dm' ? `<div class="hint" style="margin:0 0 6px">İlk <b>${DM_KILLS}</b> öldürmeye ulaşan kazanır.</div>` : `<div class="row">${chips('tickets', c.type === 'tdm' ? SCORE_OPTS : TICKET_OPTS)}</div>`}
         <h3 style="margin-top:14px">Süre</h3><div class="row">${chips('time', TIME_OPTS)}</div></div></div>
       </div>
       <div class="startbar"><button class="chip" data-a="oview" data-v="online">‹ Geri</button><button class="play" data-a="olcreate" ${ol.busy ? 'disabled' : ''} style="min-width:300px">Odayı oluştur</button></div>`;

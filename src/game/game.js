@@ -131,7 +131,7 @@ export class Game {
       this.map.baseZones = null;                                    // üs cezası yok
     }
     this.mode.objectives = this.mode.type !== 'conquest' ? [] : this.map.objectives.filter((o) => this.mode.allFlags || o.core).map((o) => ({ ...o, owner: null, p: 0 }));
-    this.tickets = { blue: this.mode.tickets, red: this.mode.tickets };
+    this.tickets = this.mode.scoreBased ? { blue: 0, red: 0 } : { blue: this.mode.tickets, red: this.mode.tickets };   // skor modunda: takım skoru 0'dan başlar, mode.tickets = sınır
     this.timeLeft = this.mode.time || Infinity;
     this.spawnChoice = 'base';
 
@@ -1158,7 +1158,8 @@ export class Game {
   }
 
   onKill(killer, victim, weapon, hs) {
-    if (!this.ffa) this.tickets[victim.team] -= 1;
+    if (this.mode.scoreBased) { if (killer && killer.team !== victim.team) this.tickets[killer.team] += 1; }      // TDM: öldürmek takıma 1 skor
+    else if (!this.ffa) this.tickets[victim.team] -= 1;
     this.netEvent({ e: 'kill', k: killer ? killer.id : -1, v: victim.id, w: weapon || '', hs: hs ? 1 : 0 });
     this.hud.killFeed(killer, victim, weapon, hs);
     if (killer && killer.isPlayer && killer !== victim) this.hud.popup(hs ? '+150 KAFA ATIŞI' : '+100 ÖLDÜRME', hs);
@@ -1173,6 +1174,11 @@ export class Game {
       const best = this.soldiers.filter((s) => !s.vacant).sort((a, b) => b.kills - a.kills || b.score - a.score)[0];
       if (best && best.kills >= this.mode.killLimit) { w = best.team; why = `${best.name} ${best.kills} öldürmeye ulaştı`; }
       else if (this.timeLeft <= 0) { w = best.team; why = 'Süre doldu'; }
+    } else if (this.mode.scoreBased) {
+      const lim = this.mode.tickets;
+      if (this.tickets.blue >= lim) { w = 'blue'; why = `Mavi takım ${lim} skora ulaştı`; }
+      else if (this.tickets.red >= lim) { w = 'red'; why = `Kırmızı takım ${lim} skora ulaştı`; }
+      else if (this.timeLeft <= 0) { w = this.tickets.blue >= this.tickets.red ? 'blue' : 'red'; why = 'Süre doldu'; }
     } else if (this.tickets.blue <= 0) { w = 'red'; why = 'Mavi takımın biletleri tükendi'; }
     else if (this.tickets.red <= 0) { w = 'blue'; why = 'Kırmızı takımın biletleri tükendi'; }
     else if (this.timeLeft <= 0) { w = this.tickets.blue >= this.tickets.red ? 'blue' : 'red'; why = 'Süre doldu'; }
