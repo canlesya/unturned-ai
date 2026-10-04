@@ -562,3 +562,4 @@ Nişan görüş alanı: `ADS_K` (göz-nişangâh mesafesi ×1,3), kırmızı nok
 - RPG-7 nişangâhı: tüpün solunda arka halka + önde turuncu uçlu arpacık; halkanın ortasında turuncu ucu görünce nişan hizalıdır.
 
 Araç çarpışması (`MapBuilder.vparts`): her araç gövde profiline uyan birkaç kutudan oluşur (ör. otomobil: kaput/bagaj 0,85 m, kabin 1,58 m, ön-arka cam eğimi 1,2 m). Kaput ve bagaj üstünden atış geçer, kabin ve gövde engeller; dönük araçta kutular şişmez. Otomobil yan camı ön/arka cam eğimini izleyen dilimlerden oluşur (boşluk kalmaz).
+Otomobil (ve hurdası) camsızdır (kırık cam mantığı): ince sütunlar, tavan, torpido ve koltuklar görünür; pencere boşluklarından kurşun geçer (çarpışma: kemer hattı 0,92 m + ince sütunlar + tavan). Cip üstü açıktır: alçak gövde, yan paneller, koltuk sırtı ve ince ön cam çerçevesi (cam boşluğu geçirir).

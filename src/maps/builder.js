@@ -121,13 +121,13 @@ export class MapBuilder {
     this.stack = saved; this.flushing = false;
   }
 
-  // Araç gövdesi profili: [x0, x1, yükseklik, (genişlik), (taban y)] parçaları (araç yerelinde, +X ileri). Her parça kendi çarpışma kutusu olur;
+  // Araç gövdesi profili: [x0, x1, yükseklik, (genişlik), (taban y), (z merkezi)] parçaları (araç yerelinde, +X ileri). Her parça kendi çarpışma kutusu olur;
   // böylece kaput/bagaj üstünden ve cam boşluklarından atış geçer, uzun gövde dönük durunca tek dev kutuya şişmez.
   // off/len/wid: ayak izi (üst üste binme denetimi için bir kez kaydedilir).
   vparts(kind, off, len, wid, parts) {
     let top = 0;
-    for (const [x0, x1, h, w = wid, y0 = 0] of parts) {
-      this._aabb(x1 - x0, h, w, this._local((x0 + x1) / 2, y0 + h / 2, 0), 'veh');
+    for (const [x0, x1, h, w = wid, y0 = 0, zc = 0] of parts) {
+      this._aabb(x1 - x0, h, w, this._local((x0 + x1) / 2, y0 + h / 2, zc), 'veh');
       top = Math.max(top, y0 + h);
     }
     const final = this.M.clone().multiply(this._local(off, 0, 0));

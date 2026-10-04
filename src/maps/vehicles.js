@@ -28,22 +28,28 @@ function car_(b, { x, z, ry = 0, color = '#b33a2a', wreck = false }) {
     b.box(0, 0.32, 0, 4.3, 0.55, 1.8, c, N);                       // ana gövde
     b.box(1.45, 0.82, 0, 1.3, 0.1, 1.72, c, N);                    // kaput
     b.box(-1.7, 0.82, 0, 0.9, 0.1, 1.72, c, N);                    // bagaj kapağı
-    // kabin: yan duvarlar + tavan + eğik camlar
+    // kabin: camsız (kırık cam) — sütunlar + tavan, boşluklardan içi görünür ve kurşun geçer
     b.box(-0.3, 0.87, 0, 2.0, 0.06, 1.6, dk, N);                   // kabin tabanı
     b.box(-0.35, 1.5, 0, 1.3, 0.07, 1.58, lt, N);                  // tavan
-    // ön cam: kaput arka kenarından (x .8, y .92) tavan ön kenarına (x .3, y 1.5); arka cam: bagaj kenarından (x -1.25) tavan arka kenarına (x -1.0)
-    b.box(0.55, 0.827, 0, 0.04, 0.77, 1.5, GLASS, { collide: false, rz: 0.71, o: { roughness: 0.15 } });
-    b.box(-1.125, 0.895, 0, 0.04, 0.63, 1.5, GLASS, { collide: false, rz: -0.41, o: { roughness: 0.15 } });
     for (const sz of [-0.77, 0.77]) {
-      b.box(0.55, 0.827, sz, 0.06, 0.77, 0.05, dk, { collide: false, rz: 0.71 });                       // A sütunu
-      b.box(-1.125, 0.895, sz, 0.06, 0.63, 0.05, dk, { collide: false, rz: -0.41 });                    // C sütunu
+      b.box(0.55, 0.827, sz, 0.06, 0.77, 0.06, dk, { collide: false, rz: 0.71 });                       // A sütunu (eğik)
+      b.box(-1.125, 0.895, sz, 0.06, 0.63, 0.06, dk, { collide: false, rz: -0.41 });                    // C sütunu (eğik)
     }
+    b.box(0.5, 1.5, 0, 0.1, 0.06, 1.58, dk, { collide: false, rz: 0.71 });                              // ön cam üst kasası
+    b.box(0.55, 0.88, 0, 0.1, 0.05, 1.56, dk, N);                                                       // ön cam alt kasası (torpido üstü)
+    b.box(-1.15, 0.88, 0, 0.1, 0.05, 1.56, dk, N);                                                      // arka cam alt kasası
+    // iç mekân: torpido, direksiyon, koltuklar
+    const seat = wreck ? '#3a342c' : '#2e3036';
+    b.box(0.45, 0.62, 0, 0.3, 0.28, 1.5, '#23252a', N);                                                 // torpido
+    b.cyl(0.18, 0.95, 0.38, 0.17, 0.17, 0.03, '#1c1c1e', { rz: Math.PI / 2 - 0.5, center: true, seg: 8, collide: false });   // direksiyon
+    for (const sz of [-0.4, 0.4]) {
+      b.box(-0.2, 0.55, sz, 0.55, 0.22, 0.55, seat, N);                                                 // ön koltuk
+      b.box(-0.48, 0.77, sz, 0.12, 0.55, 0.52, seat, { collide: false, rz: 0.15 });                     // sırtlık
+    }
+    b.box(-0.95, 0.55, 0, 0.5, 0.22, 1.5, seat, N);                                                     // arka bank
+    b.box(-1.18, 0.77, 0, 0.1, 0.5, 1.5, seat, { collide: false, rz: 0.12 });
+    if (wreck) for (let i = 0; i < 5; i++) b.box(0.55 - i * 0.05 + (i % 2) * 0.1, 0.9 + (i % 3) * 0.07, (i - 2) * 0.28, 0.02, 0.1, 0.07, '#7fa3b8', { collide: false, rz: 0.7 + i * 0.3, o: { transparent: true, opacity: 0.45 } });   // cam kırıkları
     for (const sz of [-1, 1]) {
-      for (let i = 0; i < 10; i++) {                                                                       // yan cam: ön/arka cam eğimini izleyen dilimler (boşluk kalmaz)
-        const xa = -1.25 + i * 0.205, xc = xa + 0.1025;
-        const top = xc < -1.0 ? 0.92 + (xc + 1.25) / 0.25 * 0.58 : xc > 0.3 ? 1.5 - (xc - 0.3) / 0.5 * 0.58 : 1.5;
-        b.box(xc, 0.92, sz * 0.78, 0.2, Math.max(0.05, Math.min(0.58, top - 0.92)), 0.05, GLASS, { collide: false, o: { roughness: 0.15 } });
-      }
       b.box(-0.32, 0.9, sz * 0.82, 0.07, 0.6, 0.06, dk, N);                                            // B sütunu
       b.box(-0.32, 0.6, sz * 0.91, 0.05, 0.3, 0.02, '#14161a', N);                                     // kapı çizgisi
       b.box(0.35, 0.62, sz * 0.91, 0.18, 0.04, 0.03, '#9aa0a8', N);                                    // kapı kolu
@@ -63,7 +69,10 @@ function car_(b, { x, z, ry = 0, color = '#b33a2a', wreck = false }) {
     for (const wx of [-1.4, 1.4]) for (const wz of [-0.86, 0.86]) { if (wreck && wx < 0 && wz > 0) continue; wheel(b, wx, wz, 0.34, 0.22, { wall: 0.905 }); }
     if (wreck) { b.box(1.45, 0.9, 0.3, 1.0, 0.05, 0.7, '#2a2420', { collide: false, rz: 0.12 }); b.box(-0.3, 1.58, -0.3, 0.9, 0.04, 0.6, '#3a3027', N); }
     else b.box(-0.4, 1.58, 0, 0.9, 0.04, 0.6, mix(c, 1.3), N);          // tavan parlaması
-    b.vparts('car', 0, 4.4, 1.85, [[1.6, 2.2, 0.85], [0.8, 1.6, 0.85], [0.3, 0.8, 1.2], [-1.0, 0.3, 1.58], [-1.25, -1.0, 1.2], [-1.75, -1.25, 0.85], [-2.2, -1.75, 0.85]]);
+    // kaput/bagaj alçak, kabinde yalnızca kemer hattı (0,92 m) + ince sütunlar + tavan: pencere boşluklarından kurşun geçer
+    b.vparts('car', 0, 4.4, 1.85, [[1.6, 2.2, 0.85], [0.8, 1.6, 0.85], [-0.2, 0.8, 0.92], [-1.25, -0.2, 0.92], [-1.75, -1.25, 0.85], [-2.2, -1.75, 0.85],
+      [-1.05, 0.35, 0.08, 1.58, 1.5], [0.43, 0.53, 0.58, 0.07, 0.92, 0.77], [0.43, 0.53, 0.58, 0.07, 0.92, -0.77], [-0.36, -0.28, 0.58, 0.07, 0.92, 0.8], [-0.36, -0.28, 0.58, 0.07, 0.92, -0.8],
+      [-1.14, -1.06, 0.58, 0.07, 0.92, 0.77], [-1.14, -1.06, 0.58, 0.07, 0.92, -0.77]]);
   });
 }
 
@@ -259,7 +268,9 @@ function jeep_(b, { x, z, ry = 0, color = '#5e6b4a' }) {
     b.cyl(-1.9, 0.82, 0, 0.3, 0.3, 0.2, BLACK, { rz: Math.PI / 2, center: true, seg: 10, collide: false });
     b.box(-0.2, 1.74, 0, 0.1, 0.1, 0.1, dk, N);
     for (const wx of [-1.2, 1.2]) for (const wz of [-0.95, 0.95]) { wheel(b, wx, wz * 0.9, 0.38, 0.26, { wall: 0.91 }); }
-    b.vparts('jeep', 0, 3.9, 1.9, [[1.0, 1.95, 0.95], [0.3, 1.0, 1.7], [-0.9, 0.3, 1.7], [-1.95, -0.9, 1.0]]);
+    // üstü açık: alçak gövde + yan paneller + koltuk sırtı + ince ön cam çerçevesi (cam boşluğundan kurşun geçer)
+    b.vparts('jeep', 0, 3.9, 1.9, [[1.0, 1.95, 0.95], [-0.95, 1.0, 0.92], [-1.95, -0.95, 0.92], [-0.95, 0.55, 1.3, 0.06, 0, 0.88], [-0.95, 0.55, 1.3, 0.06, 0, -0.88],
+      [-1.0, -0.2, 1.38, 1.5], [0.46, 0.54, 1.75, 0.06, 0, 0.84], [0.46, 0.54, 1.75, 0.06, 0, -0.84], [0.44, 0.56, 0.08, 1.7, 1.7], [-2.05, -1.7, 1.15, 0.62, 0.5]]);
   });
 }
 
