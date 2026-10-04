@@ -41,7 +41,7 @@ Unturned görünümlü (kutu karakterler, düz renkli, düşük poligon) + Battl
 
 Oyun kuralları (Ele Geçirme):
 - Bayrağın yarıçapında çoğunluk olan takım ilerlemeyi çeker; ilerleme ±1'e varınca sahip olur.
-- Her 5 sn'de bayrağı fazla olan takım, rakibin biletini farkı kadar eritir. Her ölüm de 1 bilet.
+- Her 8 sn (`BLEED_S`)'de bayrağı fazla olan takım, rakibin biletini farkı kadar eritir. Her ölüm de 1 bilet.
 - Bilet 0'a ya da süre bitince maç sonlanır (süre bitince bileti çok olan kazanır). Süre "∞" olabilir.
 - Ele geçirdiğin bayrakta yeniden doğabilirsin (düşman yakında değilse). Düşman üssüne girenler uyarı alır,
   ~6 sn sonra can kaybeder.
@@ -606,6 +606,10 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 - Test: `node scripts/spawnkeytest.mjs` (ekran görüntüsü `spawnkey.png`, çıktıyı silin).
 
 ### 12.21 Bayrak kanaması göstergesi
-- Bayrak modunda biletler **kendiliğinden azalır** (hata değil): her 5 sn'de daha çok bayrağı olan takım, bayrak farkı kadar **rakibin biletini** eksiltir (`Game.updateMode`); ölüm de 1 bilet götürür. Bayrak sayısı eşitse kimse kaybetmez.
-- HUD: kanayan takımın adının yanında `▼n` (5 sn'de n bilet) görünür; kanama başlayınca/bitince bildirim çıkar.
+- Bayrak modunda biletler **kendiliğinden azalır** (hata değil): her 8 sn (`BLEED_S`, stats.js)'de daha çok bayrağı olan takım, bayrak farkı kadar **rakibin biletini** eksiltir (`Game.updateMode`); ölüm de 1 bilet götürür. Bayrak sayısı eşitse kimse kaybetmez.
+- HUD: kanayan takımın adının yanında `▼n` (8 sn'de n bilet) görünür; kanama başlayınca/bitince bildirim çıkar.
 - Test: `scripts/tickettest.mjs` (1v1, 50 bilet, hareketsiz oyuncu: bot 3 bayrağı alınca ~100 sn'de biter), `scripts/bleedshot.mjs`.
+
+### 12.22 Denge güncellemesi
+- Keskin Nişancı canı 90 → **100**; Ağır Destek 150 → **125** (hız 0.9 ve LMG ile dengeli); Desert Eagle hasarı 55 → **48** (artık 3 atış; yedek silah tüfekle yarışmasın); bayrak kanaması 5 → **8 sn** (`BLEED_S`).
+- Güncel TTK (100 can, gövde): AK/SCAR 3 atış 0.20–0.23 sn, M4/AUG/G36 4 atış 0.24–0.26 sn, SMG'ler 5–6 atış ~0.27–0.30 sn. Yeni mod/silah eklerken bu aralığı koru.

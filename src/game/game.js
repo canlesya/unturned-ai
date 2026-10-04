@@ -11,7 +11,7 @@ import { Hud } from './hud.js';
 import { Soldier } from './soldier.js';
 import { Player } from './player.js';
 import { BotBrain } from './bot.js';
-import { CLASS_DEFS, WSTATS, BOT_NAMES, makeLoadout } from './stats.js';
+import { CLASS_DEFS, WSTATS, BOT_NAMES, makeLoadout, BLEED_S } from './stats.js';
 import { makeMatch, PRESETS } from './match.js';
 import { Weather } from './weather.js';
 import { rand, pick, clamp } from './util.js';
@@ -59,7 +59,7 @@ export class Game {
     this.classDefs = CLASS_DEFS;
     this.pendingClass = null;
     this.pathBudget = 3;
-    this.medicT = 0; this.resupplyT = 0; this.bleedT = 5; this.capT = 0;
+    this.medicT = 0; this.resupplyT = 0; this.bleedT = BLEED_S; this.capT = 0;
 
     // ── renderer ──
     let r = null;
@@ -1109,7 +1109,7 @@ export class Game {
     }
     this.bleedT -= dt;
     if (this.bleedT <= 0) {
-      this.bleedT = 5;
+      this.bleedT = BLEED_S;
       const nb = this.mode.objectives.filter((o) => o.owner === 'blue').length;
       const nr = this.mode.objectives.filter((o) => o.owner === 'red').length;
       if (nb > nr) this.tickets.red -= nb - nr;

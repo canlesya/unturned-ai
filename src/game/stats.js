@@ -102,8 +102,8 @@ export const WSTATS = {
     sight: [0, 0.09, -0.02], dist: 0.28, dot: true, sound: 'pistol45',
   },
   deagle: {
-    name: 'Desert Eagle', kind: 'gun', slot: 'secondary', desc: '.50 AE: tek-iki atışta öldürür, tepmesi sert.', stats: { dmg: 82, range: 52, rate: 38, control: 36, mobility: 88 },
-    auto: false, dmg: 55, rpm: 200, mag: 7, reserve: 35, reload: 1.3, equip: 0.25,
+    name: 'Desert Eagle', kind: 'gun', slot: 'secondary', desc: '.50 AE: 3 atışta öldürür, tepmesi sert.', stats: { dmg: 74, range: 52, rate: 38, control: 36, mobility: 88 },
+    auto: false, dmg: 48, rpm: 200, mag: 7, reserve: 35, reload: 1.3, equip: 0.25,
     hip: 0.008, ads: 0.0012, kickV: 0.045, kickH: 0.008, range: [25, 80], minMul: 0.6, zoom: 1.2, move: 1.0,
     sight: [0, 0.098, -0.02], dist: 0.28, dot: true, sound: 'magnum',
   },
@@ -204,6 +204,9 @@ export const WSTATS = {
 export const BACKSTAB_DMG = 999;
 
 // Sınıflar: hp, hız çarpanı ve ekipman. primary/gadget = eski alanlar (varsayılanlarla aynı)
+// Bayrak kanaması aralığı (sn): bayrak farkı kadar rakip bileti bu sürede bir eksilir
+export const BLEED_S = 8;
+
 export const CLASS_DEFS = {
   assault: {
     label: 'Saldırı', hp: 100, speed: 1.0, primary: { blue: 'm4a1', red: 'ak47' }, gadget: ['grenade', 2], desc: 'Dengeli tüfek + 2 el bombası',
@@ -222,7 +225,7 @@ export const CLASS_DEFS = {
     defaults: { primary: { blue: 'mp5', red: 'mp5' }, secondary: 'pistol', gadget: 'medkit', melee: 'knife' },
   },
   sniper: {
-    label: 'Keskin Nişancı', hp: 90, speed: 0.97, primary: { blue: 'sniper', red: 'sniper' }, gadget: ['grenade', 1], desc: 'Tek atış, uzun menzil dürbünü',
+    label: 'Keskin Nişancı', hp: 100, speed: 0.97, primary: { blue: 'sniper', red: 'sniper' }, gadget: ['grenade', 1], desc: 'Tek atış, uzun menzil dürbünü',
     primaryOptions: ['sniper', 'svd', 'barrett'],
     secondaryOptions: ['pistol', 'm1911', 'deagle', 'revolver', 'mac10'],
     gadgetOptions: ['grenade', 'smoke', 'claymore', 'medkit'],
@@ -230,7 +233,7 @@ export const CLASS_DEFS = {
     defaults: { primary: { blue: 'sniper', red: 'sniper' }, secondary: 'pistol', gadget: 'grenade', melee: 'knife' },
   },
   heavy: {
-    label: 'Ağır Destek', hp: 150, speed: 0.9, primary: { blue: 'lmg', red: 'lmg' }, gadget: ['grenade', 1], desc: '100 mermilik LMG, fazla can',
+    label: 'Ağır Destek', hp: 125, speed: 0.9, primary: { blue: 'lmg', red: 'lmg' }, gadget: ['grenade', 1], desc: '100 mermilik LMG, fazla can',
     primaryOptions: ['lmg', 'pkm', 'scarh'],
     secondaryOptions: ['pistol', 'm1911', 'deagle', 'revolver', 'mac10'],
     gadgetOptions: ['grenade', 'ammobox', 'smoke', 'claymore', 'flash'],

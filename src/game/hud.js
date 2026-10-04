@@ -1,5 +1,5 @@
 import { TEAMS } from '../core/palette.js';
-import { WSTATS, CLASS_DEFS } from './stats.js';
+import { WSTATS, CLASS_DEFS, BLEED_S } from './stats.js';
 import { clamp } from './util.js';
 import { codeLabel } from '../core/keybinds.js';
 
@@ -421,7 +421,7 @@ export class Hud {
       const mine = p.team === 'blue' ? bb : br, key = mine + ':' + (p.team === 'blue' ? br : bb);
       if (key !== this._bleedKey) {
         this._bleedKey = key;
-        if (mine) this.toast(`Rakip ${mine} bayrak önde: biletin 5 sn'de ${mine} azalıyor`, '#ff8a6a');
+        if (mine) this.toast(`Rakip ${mine} bayrak önde: biletin ${BLEED_S} sn'de ${mine} azalıyor`, '#ff8a6a');
         else if (p.team === 'blue' ? br : bb) this.toast('Bayrak üstünlüğün var: rakip bileti azalıyor', '#9fe6a8');
       }
     }
