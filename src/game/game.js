@@ -227,6 +227,14 @@ export class Game {
     if (this.online) this.chat = new Chat(this);                                   // sohbet yalnızca çevrimiçi odalarda
     this.player = new Player(this, this.playerSoldier, this.settings);
     this.player.locked = !!opts.nolock;
+    if (opts.devMode && !this.online) {                                             // geliştirici modu: uçuş + ölümsüzlük + rozet; maç bitmez
+      this.playerSoldier.fly = true; this.devGod = true;
+      const bd = document.createElement('div');
+      bd.style.cssText = 'position:absolute;left:50%;top:104px;transform:translateX(-50%);padding:3px 14px;background:rgba(255,138,31,.9);color:#160a02;font:700 12px Bahnschrift,Arial Narrow,sans-serif;letter-spacing:3px;text-transform:uppercase;z-index:6';
+      bd.textContent = 'Geliştirici modu · L uçuş · N botlar · O ölümsüz · P konum';
+      this.hud.root.appendChild(bd);
+      setTimeout(() => this.hud?.toast('Geliştirici modu: uçuyorsun. W/A/S/D + Boşluk yüksel, Ctrl alçal, Shift hızlı, tekerlek hız', '#ffd27a'), 800);
+    }
 
     // olaylar
     this.on('hitmark', (e) => {
@@ -1412,7 +1420,7 @@ export class Game {
   }
 
   checkEnd() {
-    if (this.ended) return;
+    if (this.ended || this.opts.devMode) return;                                  // geliştirici modunda maç bitmez
     let w = null, why = '';
     if (this.mode.gungame) {
       const best = this.soldiers.filter((s) => !s.vacant).sort((a, b) => b.ggLevel - a.ggLevel || b.kills - a.kills || b.score - a.score)[0];

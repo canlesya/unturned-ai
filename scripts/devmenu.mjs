@@ -1,0 +1,21 @@
+// Menüden geliştirici modu: Özel Oyun → Çöl Geçidi → Geliştirici modu Açık → Oyna → uçuş açık mı.  node scripts/devmenu.mjs
+import { chromium } from 'playwright';
+const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
+const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+let fail = 0; const check = (ok, msg) => { console.log((ok ? 'OK    ' : 'HATA  ') + msg); if (!ok) fail++; };
+await page.goto('http://127.0.0.1:5180/?debug=1&nolock=1');
+await page.evaluate(() => localStorage.clear()); await page.reload();
+await page.waitForSelector('.mn-nav', { timeout: 30000 }); await page.waitForTimeout(1500);
+await page.click('.mn-nav[data-v=custom]'); await page.waitForTimeout(800);
+await page.click('#bs2 .mapc[data-v=colgecidi]'); await page.waitForTimeout(400);
+await page.click('[data-a=devmode][data-v="1"]'); await page.waitForTimeout(400);
+check(await page.evaluate(() => [...document.querySelectorAll('.pvl li')].some((li) => /Geliştirici/.test(li.textContent))), 'özet panelinde Geliştirici: Açık görünüyor');
+await page.screenshot({ path: 'screenshots/dev-menu.png' });
+await page.click('.pv .play'); await page.waitForFunction('window.__game && window.__game.running', null, { timeout: 120000 });
+await page.waitForTimeout(1500);
+const r = await page.evaluate(() => { const g = window.__game; return { map: g.mapDef.id, dev: g.opts.devMode, fly: g.playerSoldier.fly }; });
+check(r.map === 'colgecidi' && r.dev && r.fly, 'oyun Çöl Geçidi, geliştirici modu ve uçuş açık ' + JSON.stringify(r));
+check(errs.length === 0, 'sayfa hatası yok ' + JSON.stringify(errs.slice(0, 2)));
+console.log(fail ? 'sonuç: HATA' : 'sonuç: OK');
+await browser.close(); process.exit(fail ? 1 : 0);

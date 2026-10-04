@@ -708,3 +708,8 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 - **Yön standart** (radar gibi): T güney, CT kuzey, A doğu, B batı. Bölge adları (`CALLOUTS`, 41 yer: Long, Mid, Xbox, Pit, Window …) HUD'da minimap altında ("ÇÖL GEÇİDİ · Long Corner") ve büyükleri minimap üstünde görünür.
 - Yeni görsel: bina yükseklikleri 5,5–9 m (bölgelere göre), bölme duvarları 3 m, kapı çerçeveleri (Long/Mid/B Doors, tünel girişi), Long ve B'de araba, mavi konteyner, A / B saha tabelaları, duvar reklamları, uydu çanakları, elektrik telleri, Long'da mavi-beyaz karo.
 - `scripts/cglinks.mjs`: 41 komşu çift kontrolü (hepsi OK).
+
+### 12.38 Geliştirici modu (uçuş)
+- **Açma:** Özel Oyun → Ayarlar → "Geliştirici modu: Açık", ya da adresle `?autostart=6v6&map=colgecidi&dev=1`. Yalnızca çevrim dışı; herhangi bir haritada çalışır (eskiden yalnızca "Atölye" haritasında).
+- **Davranış:** oyun uçuşla başlar, ölümsüz, maç bitmez, ekranda turuncu rozet. **L** uçuş aç/kapa · **W/A/S/D** + **Boşluk** yüksel / **Ctrl** alçal · **Shift** ×3 hız · **fare tekerleği** uçuş hızı (3–120 m/sn) · **N** botları dondur/aç · **O** ölümsüzlük · **P** konum (x, y, z) + en yakın bölge adı (konsola da yazar) · **J/K** silah değiştir.
+- Test: `scripts/devfly.mjs` (uçuş, hız, N, P, L), `scripts/devmenu.mjs` (menüden açma).

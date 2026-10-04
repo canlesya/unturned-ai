@@ -1,0 +1,33 @@
+// Geliştirici modu / uçuş testi.  node scripts/devfly.mjs  (vite 5180)
+import { chromium } from 'playwright';
+const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+let fail = 0; const check = (ok, msg) => { console.log((ok ? 'OK    ' : 'HATA  ') + msg); if (!ok) fail++; };
+await page.goto('http://127.0.0.1:5180/?autostart=6v6&map=colgecidi&type=tdm&dev=1&debug=1&nolock=1');
+await page.waitForFunction('window.__game && window.__game.running', null, { timeout: 120000 });
+await page.waitForTimeout(2500);
+const st = () => page.evaluate(() => { const g = window.__game, s = g.playerSoldier; return { fly: s.fly, y: +s.pos.y.toFixed(1), x: +s.pos.x.toFixed(1), z: +s.pos.z.toFixed(1), god: g.devGod, speed: g.player.flySpeed || 13, brains: g.brains.length, hp: s.hp }; });
+let a = await st(); check(a.fly && a.god, 'geliştirici modunda uçuş + ölümsüzlük açık başladı ' + JSON.stringify(a));
+await page.keyboard.down('Space'); await page.waitForFunction((y) => window.__game.playerSoldier.pos.y > y + 8, a.y, { timeout: 60000 }).catch(() => {}); await page.keyboard.up('Space');
+let b = await st(); check(b.y > a.y + 8, `Boşluk ile yükseldi (${a.y} → ${b.y})`);
+await page.evaluate(() => { window.__game.playerSoldier.pitch = 0; window.__game.playerSoldier.yaw = 0; });
+await page.keyboard.down('KeyW'); await page.waitForFunction(([x, z]) => Math.hypot(window.__game.playerSoldier.pos.x - x, window.__game.playerSoldier.pos.z - z) > 8, [b.x, b.z], { timeout: 60000 }).catch(() => {}); await page.keyboard.up('KeyW');
+let c = await st(); check(Math.hypot(c.x - b.x, c.z - b.z) > 8, `W ile ileri uçtu (${Math.hypot(c.x - b.x, c.z - b.z).toFixed(1)} m, duvarları geçerek)`);
+await page.mouse.move(640, 360); await page.mouse.wheel(0, -100); await page.waitForTimeout(600);
+let d = await st(); check(d.speed > 13, `tekerlek uçuş hızını artırdı (${d.speed.toFixed(1)})`);
+await page.keyboard.press('KeyN'); await page.waitForTimeout(200);
+let e = await st(); check(e.brains === 0, 'N botları dondurdu');
+await page.keyboard.press('KeyN'); await page.waitForTimeout(200);
+e = await st(); check(e.brains > 0, 'N botları geri açtı');
+await page.keyboard.press('KeyP'); await page.waitForTimeout(300);
+check(await page.evaluate(() => [...document.querySelectorAll('.toast')].some((t) => /Konum x/.test(t.textContent))), 'P konum + bölge adını gösterdi');
+await page.keyboard.press('KeyL'); await page.waitForTimeout(400);
+let f = await st(); check(!f.fly, 'L uçuşu kapattı');
+await page.keyboard.press('KeyL');
+// yüksekten görüntü
+await page.evaluate(() => { const s = window.__game.playerSoldier; s.pos.set(0, 70, 25); s.vel.set(0, 0, 0); s.pitch = -0.9; s.yaw = 0; });
+await page.waitForTimeout(1200); await page.screenshot({ path: 'screenshots/dev-fly.png' });
+check(errs.length === 0, 'sayfa hatası yok ' + JSON.stringify(errs.slice(0, 2)));
+console.log(fail ? 'sonuç: HATA' : 'sonuç: OK');
+await browser.close(); process.exit(fail ? 1 : 0);

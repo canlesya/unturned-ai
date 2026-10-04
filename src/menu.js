@@ -13,7 +13,7 @@ const KEY = 'warbyte.v2';
 export const DEFAULTS = {
   map: DEFAULT_MAP, tod: 'day', weather: 'clear', type: 'conquest', perTeam: 10, tickets: 0, time: 900,
   team: 'blue', cls: 'assault', diff: 'normal', optic: 'reddot', loadouts: {}, name: 'Sen',
-  sens: 0.0022, fov: 75, volume: 0.6, shadows: true, quality: 1.5, adaptive: true, fullscreen: true,
+  sens: 0.0022, fov: 75, volume: 0.6, shadows: true, quality: 1.5, adaptive: true, fullscreen: true, devMode: false,
   xp: 0, stats: { matches: 0, wins: 0, kills: 0, deaths: 0 },
   server: '', room: '', olTeam: 'auto', third: true,
   keys: {}, leftHand: false, adsToggle: false, vSfx: 0.9, vMusic: 0.5, vAmb: 0.8, rainSound: true,   // tuş atamaları, silah eli, ses kanalları
@@ -190,6 +190,7 @@ export function showMenu(onStart, onOnline) {
     const limitCard = `<div class="sc"><h4>${limitTitle}</h4>${limitBody}</div>`;
     const timeCard = `<div class="sc"><h4>Süre</h4><div class="row">${TIME_OPTS.map(([v, l]) => `<button class="chip ${c.time === v ? 'on' : ''}" ${at('time', v)}>${l}</button>`).join('')}</div></div>`;
     const todCard = `<div class="sc wide"><h4>Günün saati</h4>${tods}</div>`;
+    const devCard = online ? '' : `<div class="sc wide"><h4>Geliştirici modu <em>harita gezmek / incelemek için</em></h4><div class="row">${[[false, 'Kapalı', ''], [true, 'Açık', 'uçuş · ölümsüz · maç bitmez']].map(([v, l, sm]) => `<button class="chip ${!!p.devMode === v ? 'on' : ''}" data-a="devmode" data-v="${v ? '1' : '0'}">${l}${sm ? `<small>${sm}</small>` : ''}</button>`).join('')}</div>${p.devMode ? '<div class="hint" style="margin-top:8px">L uçuş aç/kapa · Shift hızlı · tekerlek hız · N botları dondur · O ölümsüzlük · P konum + bölge adı · J/K silah değiştir</div>' : ''}</div>`;
     const weatherCard = `<div class="sc"><h4>Hava durumu</h4><div class="row">${[...WEATHERS, ['random', 'Rastgele']].map(([k, nm]) => `<button class="chip ${c.weather === k ? 'on' : ''}" ${at('weather', k)}>${nm}</button>`).join('')}</div></div>`;
     const camCard = `<div class="sc ${teamCard ? '' : 'wide'}"><h4>3. şahıs kamera</h4><div class="row">${[[true, 'Açık', 'H ile geçilir'], [false, 'Kapalı', '']].map(([v, l, sm]) => `<button class="chip ${c.third === v ? 'on' : ''}" ${at('third', v)}>${l}${sm ? `<small>${sm}</small>` : ''}</button>`).join('')}</div></div>`;
 
@@ -202,14 +203,14 @@ export function showMenu(onStart, onOnline) {
     const msg = online && ol.msg ? `<div class="olmsg ${ol.err ? 'err' : ''}">${ol.msg}</div>` : '';
 
     const rows = [['Mod', `${meta.icon} ${M.label}`], ['Oyuncu', `${sizeTxt}${online && !c.bots ? ' · botsuz' : ''}`], ['Süre', timeLbl], [limitTitle, limitSum],
-      ['Botlar', botsOn ? DIFFICULTY[diffKey].label : 'Kapalı'], ['Gün saati', todLbl], ['Hava', weaLbl], ['Kamera', c.third ? '3. şahıs açık' : '1. şahıs']];
+      ['Botlar', botsOn ? DIFFICULTY[diffKey].label : 'Kapalı'], ['Gün saati', todLbl], ['Hava', weaLbl], ['Kamera', c.third ? '3. şahıs açık' : '1. şahıs']].concat(online || !p.devMode ? [] : [['Geliştirici', 'Açık']]);
     const startBtn = online
       ? `<button class="play" data-a="olcreate" ${ol.busy ? 'disabled' : ''}>Odayı oluştur</button><button class="chip back" data-a="oview" data-v="online">‹ Geri</button>`
       : '<button class="play" data-a="quick">Oyna<small>Enter</small></button>';
     return `<div class="bld"><div class="scroll">${msg}<div class="bsteps">${steps}</div>${roomSec}
       <section class="bs" id="bs1"><h2><i>${1 + k0}</i>Oyun modu<small>nasıl kazanılır?</small></h2><div class="mdgrid">${modeCards}</div></section>
       <section class="bs" id="bs2"><h2><i>${2 + k0}</i>Harita<small>${maps.length === 1 ? 'bu moda özel' : `${maps.length} harita`}</small></h2><div class="maps">${mapCards}</div>${mapNote}${mapDesc}</section>
-      <section class="bs" id="bs3"><h2><i>${3 + k0}</i>Ayarlar<small>kurallar ve ortam</small></h2><div class="sgrid">${sizeCard}${timeCard}${limitCard}${botCard}${teamCard ? `${teamCard}${weatherCard}${camCard}${todCard}` : `${weatherCard}${todCard}${camCard}`}</div></section>
+      <section class="bs" id="bs3"><h2><i>${3 + k0}</i>Ayarlar<small>kurallar ve ortam</small></h2><div class="sgrid">${sizeCard}${timeCard}${limitCard}${botCard}${teamCard ? `${teamCard}${weatherCard}${camCard}${todCard}` : `${weatherCard}${todCard}${camCard}`}${devCard}</div></section>
       <div class="bld-mini">${startBtn}</div></div>
       <aside class="bld-side"><div class="pv"><div class="pvimg ${cm ? '' : 'rnd'}" ${cm ? `style="background-image:url(${cm.thumb})"` : ''}><span class="pvm">${meta.icon} ${M.label}</span></div>
         <h2>${cm ? cm.name : 'Rastgele harita'}</h2><div class="pvtag">${cm ? cm.tag : 'her maçta farklı'}</div>
@@ -420,7 +421,7 @@ export function showMenu(onStart, onOnline) {
     const cls = p.cls;
     const payload = {
       map, tod, weather, team: p.team === 'random' ? rnd(['blue', 'red']) : p.team, cls, diff: p.type === 'inf' ? 'hard' : p.diff, optic: p.optic, playerName: p.name,
-      match: { perTeam, type: p.type, tickets: randomize ? undefined : p.tickets || undefined, time: p.time }, third: p.third,
+      match: { perTeam, type: p.type, tickets: randomize ? undefined : p.tickets || undefined, time: p.time }, third: p.third, devMode: !!p.devMode && !randomize,
       keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs,
       loadout: loadoutOf(cls), loadouts: p.loadouts,                    // tüm sınıfların kayıtlı yüklemeleri: oyunda sınıf değişince o sınıfınki gelir
       settings: { sens: p.sens, fov: p.fov, volume: p.volume, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, shadows: p.shadows, adaptive: p.adaptive !== false, fullscreen: p.fullscreen !== false, pixelRatio: p.quality },
@@ -490,6 +491,7 @@ export function showMenu(onStart, onOnline) {
       case 'tod': p.tod = v; break;
       case 'weather': p.weather = v; break;
       case 'third': p.third = v === '1'; break;
+      case 'devmode': p.devMode = v === '1'; break;
       case 'type': if (p.type !== v) adv = 'bs2'; p.type = v; if (tot(v)) p.perTeam = Math.max(lo(v), Math.min(hi(v), p.perTeam)); if (v === 'inf') p.map = 'newyork'; else if (MAPS[p.map]?.only && !MAPS[p.map].only.includes(v)) p.map = DEFAULT_MAP; break;
       case 'team': p.team = v; break;
       case 'diff': p.diff = v; break;

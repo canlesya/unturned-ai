@@ -353,10 +353,10 @@ export class Player {
   }
 
   // Geliştirici haritası (yalnızca çevrimdışı): L uçuş, J/K elindeki yuvadaki silahı sıradakiyle değiştirir
-  devTools() { return !!this.game.mapDef?.dev && !this.game.online; }
+  devTools() { return (!!this.game.mapDef?.dev || !!this.game.opts.devMode) && !this.game.online; }
 
   flyMove(f, r, k, dt) {
-    const s = this.s, kb = this.kb, sp = kb.held('sprint', k) ? 40 : 13, cp = Math.cos(s.pitch);
+    const s = this.s, kb = this.kb, sp = (this.flySpeed || 13) * (kb.held('sprint', k) ? 3 : 1), cp = Math.cos(s.pitch);
     const up = (kb.held('jump', k) ? 1 : 0) - (kb.held('crouch', k) ? 1 : 0);
     let x = -Math.sin(s.yaw) * cp * f + Math.cos(s.yaw) * r, y = Math.sin(s.pitch) * f + up, z = -Math.cos(s.yaw) * cp * f - Math.sin(s.yaw) * r;
     const l = Math.hypot(x, y, z) || 1;
@@ -402,7 +402,10 @@ export class Player {
       if (kb.is('inspect', code) && s.alive && !this.wheel) this.vm.inspect(s);                  // silah inceleme (CS tarzı)
       if (kb.is('leftHand', code)) this.toggleHand();
       if (this.devTools() && s.alive) {
-        if (e.code === 'KeyL') { s.fly = !s.fly; if (!s.fly) s.vel.set(0, 0, 0); this.game.hud.toast(s.fly ? 'Uçuş AÇIK · yön tuşları/zıpla/çömel · koş hızlı' : 'Uçuş kapalı'); }
+        if (e.code === 'KeyL') { s.fly = !s.fly; if (!s.fly) s.vel.set(0, 0, 0); this.game.hud.toast(s.fly ? 'Uçuş AÇIK · W/A/S/D + Boşluk yüksel · Ctrl alçal · Shift hızlı · tekerlek hız' : 'Uçuş kapalı'); }
+        if (e.code === 'KeyP') { const g = this.game, c = g.map.callouts, p = s.pos; let nm = ''; if (c) { let bd = 1e9; for (const q of c) { const d = Math.hypot(q.x - p.x, q.z - p.z); if (d < bd) { bd = d; nm = q.name; } } } const t = `Konum x ${p.x.toFixed(1)} · y ${p.y.toFixed(1)} · z ${p.z.toFixed(1)}${nm ? ' · ' + nm : ''}`; console.log('[geliştirici]', t); g.hud.toast(t, '#cfe6ff'); }
+        if (e.code === 'KeyN') { const g = this.game; if (g.brainsOff) { g.brains.push(...g.brainsOff); g.brainsOff = null; g.hud.toast('Botlar AÇIK', '#9fe6a8'); } else { g.brainsOff = g.brains.splice(0); g.hud.toast('Botlar DONDURULDU (N: tekrar aç)', '#ffd27a'); } }
+        if (e.code === 'KeyO') { const g = this.game; g.devGod = !g.devGod; g.hud.toast(g.devGod ? 'Ölümsüzlük AÇIK' : 'Ölümsüzlük kapalı', '#cfe6ff'); }
         if (e.code === 'KeyJ') this.cycleWeapon(-1);
         if (e.code === 'KeyK') this.cycleWeapon(1);
       }
@@ -470,6 +473,7 @@ export class Player {
     this.on(window, 'wheel', (e) => {
       if (!this.locked || !this.s.alive) return;
       const dir = e.deltaY > 0 ? 1 : -1, s = this.s;
+      if (s.fly && this.devTools()) { this.flySpeed = Math.max(3, Math.min(120, (this.flySpeed || 13) * (dir > 0 ? 0.8 : 1.25))); this.game.hud.toast(`Uçuş hızı ${this.flySpeed.toFixed(0)} m/sn (Shift ×3)`, '#cfe6ff'); return; }       // uçarken tekerlek hız ayarlar
       for (let k = 1; k <= 4; k++) { const j = (s.cur + dir * k + 8) % 4; if (j !== s.cur && s.canEquip(j)) { s.switchTo(j); break; } }       // boş slotları atla
     }, { passive: true });
   }

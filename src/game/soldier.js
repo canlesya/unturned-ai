@@ -505,6 +505,7 @@ export class Soldier {
 
   takeDamage(amount, attacker, zone, fromPos, weaponName) {
     if (!this.alive || this.protT > 0) return;
+    if (this.isPlayer && this.game.devGod) return;                                  // geliştirici modu: ölümsüzlük (O)
     if (this.def.zombie && this.game.graceLeft > 0) return;                            // hazırlık süresinde zombiler dokunulmaz
     if (this.def.zombie) {
       if (this.boss) amount *= BOSS.armor;                                                              // boss hasarın %30'unu yok sayar
