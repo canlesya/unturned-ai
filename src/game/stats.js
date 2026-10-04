@@ -10,8 +10,8 @@ export const TAC_RELOAD = 0.65;
 export const ZOMBIE = {
   respawn: 6,         // sn: zombi öldüğünde yeniden doğma süresi
   lives: 1,           // normal zombi: bu kadar kez ölünce insana döner
-  bossCount: [1, 2],  // 10 kişiden azsa 1, 10 ve üstüyse 2 boss
-  bossSplit: 10,
+  bossCount: [1, 2],  // 16 kişiden azsa 1, 16 ve üstüyse 2 boss
+  bossSplit: 16,
 };
 // Boss zombi: dev canlı, çok hızlı, kalıcı öfkeli (hız ×1.25 ve hasar ×1.4 pasif), hasarın %30'unu yok sayar; tek gücü Gölge Sıçrayışı (ışınlanma + kısa görünmezlik).
 // Boss'un öldürdüğü insan NORMAL zombi olur. Boss 3 kez ölünce insana döner.

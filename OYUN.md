@@ -633,7 +633,7 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 - Test: `scripts/infabil.mjs` (güçler), `infduel.mjs` (tür başına düello), `infnet.mjs` (sunucu), `inftypes.mjs` (görünüm).
 
 ### 12.26 Enfekte: BOSS zombiler ve can hakları (12.24'teki "alfa" ve ilk zombi oranının yerini alır)
-- **Başlangıç:** yalnızca **BOSS zombiler** zombi başlar: 10 kişiden azsa **1**, 10 ve üstüyse **2** (`ZOMBIE.bossCount/bossSplit`). Geri kalan herkes insan.
+- **Başlangıç:** yalnızca **BOSS zombiler** zombi başlar: 16 kişiden azsa **1**, 16 ve üstüyse **2** (`ZOMBIE.bossCount/bossSplit`). Geri kalan herkes insan.
 - **Boss:** `BOSS` (stats.js): can = 1000 + 90 × oyuncu sayısı (12 kişide ~2080), hız 1.2 × kalıcı öfke 1.25, pençe 46 × kalıcı öfke 1.4 (~64), hasarın %30'unu yok sayar, **3 can hakkı**, 9 sn ile doğar. Tek gücü **Gölge Sıçrayışı** (F / sağ tık): 15 m ışınlanma + 2 sn görünmezlik, 7 sn bekleme. Boynuzlu, dikenli, kırmızı gözlü model, üstte herkesin gördüğü boss can çubuğu + ♥ hakları.
 - **Can hakları:** insan 1 ölümle **normal zombi** olur (boss'un öldürdüğü de normal zombi) · normal zombi **1 ölümle** (`ZOMBIE.lives`, önceden 2) **insana döner** · boss **3 ölümle** insana döner. Dönen kişi eski sınıfıyla (ya da ölüm ekranında seçtiğiyle) mavi üste doğar; yine öldürülürse yeniden enfekte olur.
 - **Kazanma:** insan kalmazsa zombiler · süre dolarsa ya da **tüm zombiler/bosslar iyileşirse** insanlar. Ölü ama can hakkı biten zombi insan sayılır (`willCure`).

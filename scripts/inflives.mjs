@@ -1,14 +1,14 @@
 // Can hakkı kuralları (headless): insan 1 ölümle zombi · zombi 1 ölümle insan · boss 3 ölümle insan · boss'un öldürdüğü NORMAL zombi.
 import { Game } from '../src/game/game.js';
 import { ZOMBIE, BOSS } from '../src/game/stats.js';
-const g = new Game(null, { headless: true, map: 'kasaba', tod: 'day', weather: 'clear', match: { perTeam: 12, type: 'inf', time: 900 } });
+const g = new Game(null, { headless: true, map: 'kasaba', tod: 'day', weather: 'clear', match: { perTeam: 20, type: 'inf', time: 900 } });
 let fail = 0; const check = (ok, msg) => { console.log((ok ? 'OK    ' : 'HATA  ') + msg); if (!ok) fail++; };
 g.brains = [];                                           // botlar durur
 const bosses = g.soldiers.filter((s) => s.boss), humans = g.soldiers.filter((s) => s.team === 'blue');
-check(bosses.length === 2 && g.mode.total === 12, `12 kişide 2 boss (${bosses.length})`);
-check(bosses.every((b) => b.maxHp === BOSS.hp + BOSS.hpPerPlayer * 12 && b.zLives === 3), `boss can ${bosses[0].maxHp}, hak ${bosses[0].zLives}`);
-const small = new Game(null, { headless: true, map: 'kasaba', tod: 'day', weather: 'clear', match: { perTeam: 8, type: 'inf', time: 900 } });
-check(small.soldiers.filter((s) => s.boss).length === 1, '8 kişide 1 boss');
+check(bosses.length === 2 && g.mode.total === 20, `20 kişide 2 boss (${bosses.length})`);
+check(bosses.every((b) => b.maxHp === BOSS.hp + BOSS.hpPerPlayer * 20 && b.zLives === 3), `boss can ${bosses[0].maxHp}, hak ${bosses[0].zLives}`);
+const small = new Game(null, { headless: true, map: 'kasaba', tod: 'day', weather: 'clear', match: { perTeam: 12, type: 'inf', time: 900 } });
+check(small.soldiers.filter((s) => s.boss).length === 1, '12 kişide 1 boss');
 const step = (n = 30 * 12) => { for (let i = 0; i < n; i++) g.step(1 / 30); };
 const kill = (v, by) => { v.protT = 0; v.takeDamage(99999, by, 'body', v.pos, 'test'); };
 // 1) boss bir insanı öldürür → normal zombi (boss değil), 2 hak
