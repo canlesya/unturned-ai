@@ -3,6 +3,7 @@ import { buildVadi } from './vadi.js';
 import { buildUs } from './us.js';
 import { buildDev } from './dev.js';
 import { buildNewYork } from './newyork.js';
+import { buildColGecidi } from './colgecidi.js';
 
 // Harita kaydı. Her harita build() ile şunu döndürür:
 // { id, name, group, colliders, bounds, spawns:{blue,red}, objectives:[{id,name,x,z,r,core?}], roads?, terrain?, water?, env? }
@@ -33,6 +34,11 @@ MAPS.newyork = {
   id: 'newyork', name: 'New York', tag: 'Enfekte · gece · patlamış cadde', thumb: '/img/newyork.jpg', only: ['inf'], forceTod: 'night',
   desc: 'Enfekte moduna özel gece haritası: patlamış New York caddesi. Yıkık gökdelenler, yanan araçlar, devrik otobüsler, düşmüş helikopter, kraterler. İnsanlar meydan anıtına, kamyon kasalarına, metro girişlerine, çökmüş kat döşemesine, otoparka ve inşaat iskelesine çıkıp yüksekten savunur; zombiler koşup sıçrayarak peşlerinden gelir.',
   build: () => buildNewYork(),
+};
+MAPS.colgecidi = {
+  id: 'colgecidi', name: 'Çöl Geçidi', tag: 'Büyük · üç hat · iki saha', thumb: '/img/colgecidi.jpg',
+  desc: 'Klasik çöl haritası: uzun koridor, orta ve tüneller olmak üzere üç hat; A (pazar) ve B (avlu) sahaları. Kapalı yapı, her hatta farklı çatışma mesafesi.',
+  build: () => buildColGecidi(),
 };
 export const DEFAULT_MAP = 'kasaba';
 // Bu moda uygun haritalar (only: yalnızca o modlarda listelenir; dev hiçbirinde)

@@ -14,7 +14,7 @@ export function sanitizeCfg(c = {}) {
   const pick = (v, list, d) => (list.includes(v) ? v : d);
   const type0 = pick(c.type, ['conquest', 'tdm', 'dm', 'gg', 'inf'], 'conquest');
   return {
-    map: type0 === 'inf' ? 'newyork' : pick(c.map, ['kasaba', 'vadi', 'us'], 'kasaba'),                  // Enfekte yalnızca New York'ta
+    map: type0 === 'inf' ? 'newyork' : pick(c.map, ['kasaba', 'vadi', 'us', 'colgecidi'], 'kasaba'),                  // Enfekte yalnızca New York'ta
     tod: pick(c.tod, ['day', 'sunset', 'night'], 'day'),
     weather: pick(c.weather, ['clear', 'rain', 'fog'], 'clear'),
     type: type0,
