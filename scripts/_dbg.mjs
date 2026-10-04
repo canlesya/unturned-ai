@@ -1,5 +1,5 @@
 import { Game } from '../src/game/game.js';
-const g = new Game(null, { headless: true, map: 'riverside', tod: 'night', weather: 'clear', diff: 'normal', match: { perTeam: 24, type: 'inf', time: 300 } });
+const g = new Game(null, { headless: true, map: 'newyork', tod: 'night', weather: 'clear', diff: 'normal', match: { perTeam: 24, type: 'inf', time: 300 } });
 const n = g.nav; let hi = 0; for (let i = 0; i < n.floor.length; i++) if (n.floor[i] > 0.5) hi++;
 console.log('yüksek hücre', hi, 'perches', g.map.perches.length);
 const s = g.map.spawns.blue[3];

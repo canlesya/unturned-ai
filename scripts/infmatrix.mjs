@@ -19,7 +19,7 @@ if (isMainThread) {
       feed();
     }
   });
-  const L = { easy: 'Kolay', normal: 'Orta', hard: 'Zor' }, M = { kasaba: 'Kasaba', vadi: 'Vadi', us: 'Üs', riverside: 'Riverside' };
+  const L = { easy: 'Kolay', normal: 'Orta', hard: 'Zor' }, M = { kasaba: 'Kasaba', vadi: 'Vadi', us: 'Üs', newyork: 'New York' };
   console.log(`\nEnfekte · botlu · ${N} maç/durum · süre sınırı ${TIME} sn · toplam ${results.length} maç · ${Math.round((Date.now() - t0) / 1000)} sn\n`);
   console.log('Zorluk | Harita | Kişi | İnsan kazandı | Ort. süre | Ort. kalan insan | Ort. iyileşen | Boss düşen | Hata');
   const out = [];

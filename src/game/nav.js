@@ -31,7 +31,7 @@ class Heap {
 
 export class NavGrid {
   // layered: harita 'plat' etiketli yürünebilir platform/basamak/rampa içerir → hücre başına zemin yüksekliği (floor) tutulur;
-  // yol bulma yalnızca |Δzemin| ≤ maxStep olan komşulara geçer (insan 0.6 = basamak, zombi 1.2 = sıçrayarak çıkabilir)
+  // yol bulma yalnızca |Δzemin| ≤ maxStep olan komşulara geçer (insan 0.7 = basamak, zombi 1.15 = sıçrayarak çıkabilir)
   constructor(colliders, bounds, terrain = null, layered = false) {
     this.minX = bounds.minX - 1; this.minZ = bounds.minZ - 1;
     this.w = Math.ceil((bounds.maxX - bounds.minX + 2) / CELL);
@@ -107,7 +107,7 @@ export class NavGrid {
         if (nx < 0 || nz < 0 || nx >= this.w || nz >= this.h) continue;
         const j = nz * this.w + nx;
         if (seen[j] || this.blocked[j]) continue;
-        if (this.floor && Math.abs(this.floor[j] - this.floor[i]) > 0.6) continue;
+        if (this.floor && Math.abs(this.floor[j] - this.floor[i]) > 0.7) continue;
         seen[j] = 1; q[qt++] = j;
       }
     }
@@ -152,7 +152,7 @@ export class NavGrid {
 
   // Izgara üzerinde düz görüş (Bresenham)
   los(i0, i1) {
-    if (this._ms === undefined) this._ms = 0.6;
+    if (this._ms === undefined) this._ms = 0.7;
     let x0 = i0 % this.w, z0 = Math.floor(i0 / this.w);
     const x1 = i1 % this.w, z1 = Math.floor(i1 / this.w);
     const dx = Math.abs(x1 - x0), dz = Math.abs(z1 - z0);
@@ -172,7 +172,7 @@ export class NavGrid {
   }
 
   // Yol: [Vector3...] ya da null
-  findPath(sx, sz, gx, gz, maxStep = 0.6) {
+  findPath(sx, sz, gx, gz, maxStep = 0.7) {
     this._ms = maxStep;
     const s = this.nearestFree(sx, sz), g = this.nearestFree(gx, gz);
     if (s < 0 || g < 0) return null;
