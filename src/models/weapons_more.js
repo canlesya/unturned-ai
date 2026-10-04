@@ -227,7 +227,7 @@ function p90() {
 function mac10() {
   const g = new THREE.Group();
   box(g, [0.05, 0.08, 0.18], C.gun, [0, 0.02, -0.03], null, M);
-  box(g, [0.042, 0.022, 0.14], BLK, [0, 0.07, -0.05]);
+  box(g, [0.042, 0.018, 0.14], BLK, [0, 0.06, -0.05]);
   cyl(g, 0.013, 0.013, 0.1, STL, [0, 0.035, -0.17], 8, M);
   cyl(g, 0.019, 0.019, 0.04, BLK, [0, 0.035, -0.235], 8, M);                     // namlu manşonu
   frontSight(g, [0.006, 0.055, 0.006], STL, [0, 0.075, -0.2]);                   // arpacık
@@ -240,7 +240,7 @@ function mac10() {
   box(g, [0.012, 0.06, 0.012], STL, [0, 0.01, 0.31], null, M);
   // ayrıntılar
   for (let i = 0; i < 4; i++) for (const sx of [-1, 1]) box(g, [0.004, 0.012, 0.012], '#0a0a0c', [sx * 0.0145, 0.035 + (i % 2) * 0.01, -0.14 - i * 0.02]);   // namlu kılıfı delikleri
-  box(g, [0.05, 0.016, 0.02], STL, [0, 0.09, -0.05]);                                    // kurma kolu
+  for (const sx of [-1, 1]) box(g, [0.008, 0.016, 0.02], STL, [sx * 0.03, 0.06, -0.05]);   // kurma kolu (yanlarda: nişan hattını kesmez)
   studs(g, [[0.02, -0.08], [0.04, 0.0]], STL, 0.008, 0.0255);
   box(g, [0.004, 0.02, 0.05], '#0a0a0c', [0.0255, 0.05, -0.05]);
   sling(g, [0, 0.01, 0.31]);

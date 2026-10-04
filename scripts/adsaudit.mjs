@@ -46,7 +46,9 @@ for (const id of Object.keys(WSTATS)) {
     for (const [dx, dy] of dirs) {
       const h = firstSolid(O, new THREE.Vector3(dx, dy, -1).normalize());
       // demir nişanda ön arpacık nişan noktasının kendisidir; yalnızca arka nişangâhtan ÖNCE (göze yakın) giren parçalar (horoz, kabza, kurma kolu...) engeldir
-      if (h && (optic !== 'iron' || h.distance < (vm.model.userData.dist ?? 0.22) - 0.006)) {
+      // iron: arka nişangâhtan önce giren parça VEYA arka-ön nişangâh arasında (namlunun ilk yarısında) hattı kesen parça engeldir; ön arpacık (namlu ucuna yakın) hedeftir
+      const ironBlock = h && optic === 'iron' && (h.distance < (vm.model.userData.dist ?? 0.22) - 0.006 || vm.model.worldToLocal(h.point.clone()).z > 0.5 * vm.model.userData.muzzle.z);
+      if (h && (optic !== 'iron' || ironBlock)) {
         const bb = new THREE.Box3().setFromObject(h.object), sz = bb.getSize(new THREE.Vector3()), c = bb.getCenter(new THREE.Vector3());
         blocked.push({ dx, dy, d: h.distance, local: vm.model.worldToLocal(h.point.clone()).toArray().map((v) => +v.toFixed(3)), sight: vm.model.userData.sight, boyut: sz.toArray().map((v) => +(v * 100).toFixed(1)).join('x') + ' cm', mesh: h.object });
       }
