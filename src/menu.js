@@ -370,7 +370,7 @@ export function showMenu(onStart, onOnline) {
     const payload = {
       map, tod, weather, team: p.team === 'random' ? rnd(['blue', 'red']) : p.team, cls, diff: p.diff, optic: p.optic, playerName: p.name,
       match: { perTeam, type: p.type, tickets: randomize ? undefined : p.tickets || undefined, time: p.time }, third: p.third,
-      loadout: loadoutOf(cls),
+      loadout: loadoutOf(cls), loadouts: p.loadouts,                    // tüm sınıfların kayıtlı yüklemeleri: oyunda sınıf değişince o sınıfınki gelir
       settings: { sens: p.sens, fov: p.fov, volume: p.volume, shadows: p.shadows, pixelRatio: p.quality },
     };
     cleanup();

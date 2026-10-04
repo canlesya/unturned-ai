@@ -50,7 +50,7 @@ function beginOnline({ net, welcome, name, pw }) {
     online: { net, id: welcome.id, roster: welcome.roster, deps: welcome.deps, room: welcome.room, cfg: c },
     match: { perTeam: c.perTeam, type: c.type, tickets: c.tickets, time: c.time }, map: c.map, tod: c.tod, weather: c.weather, diff: c.diff,
     optic: q.get('optic') || p.optic || 'reddot', team: me.team, cls, playerName: name,
-    loadout, onExit: () => { location.href = location.pathname; }, onRestart: () => location.reload(),
+    loadout, loadouts: p.loadouts || {}, onExit: () => { location.href = location.pathname; }, onRestart: () => location.reload(),
     settings: { sens: p.sens, fov: p.fov, volume: p.volume ?? 0.6, shadows: q.get('shadows') !== '0' && p.shadows !== false, pixelRatio: +(q.get('pr') || p.quality || 1) },
   });
 }

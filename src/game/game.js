@@ -409,7 +409,11 @@ export class Game {
   get showSelf() { return !!this.player && this.player.bodyVisible; }
 
   respawnReady() { return !this.playerSoldier.alive && !this.ended; }
-  requestClass(k) { this.pendingClass = k; this.hud.markClass(k); this.online?.send({ t: 'opt', cls: k }); }
+  requestClass(k) {
+    this.pendingClass = k; this.hud.markClass(k); this.online?.send({ t: 'opt', cls: k });
+    const lo = this.opts.loadouts?.[k];                                   // menüde o sınıf için kaydedilen silah/gadget seçimi
+    this.requestLoadout(lo || {});                                        // (kayıt yoksa sınıfın varsayılanı)
+  }
   // Ölüm ekranında yükleme değiştir: { primary, secondary, gadget, melee } → bir sonraki doğuşta geçerli (sınıfa uymazsa varsayılan)
   requestLoadout(choice) { this.pendingLoadout = { ...choice }; this.online?.send({ t: 'opt', loadout: { ...choice } }); }
 
