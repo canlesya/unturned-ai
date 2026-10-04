@@ -751,8 +751,16 @@ export class Game {
       // Görüntü her karede yeniden hesaplanır (adım sayısı kareden kareye 0/1/2 oynasa da akıcı kalsın):
       // diğer oyuncular o anki zamana göre interpolasyonla, yerel kamera iki sim adımı arasında ara değerlenir.
       this.online.interpolate(performance.now());
-      for (const s of this.soldiers) s.syncModel(dt);
-      this.lerpCamera(this._acc / SIM_DT);
+      const alpha = this._acc / SIM_DT, me = this.playerSoldier, a = this._p0, b = this._p1, vo = this.online.viewOff;
+      for (const s of this.soldiers) {
+        if (s === me && a && me.alive && this.modelLerp !== false) {                               // yerel karakter modeli de kamerayla aynı ara değerleme + düzeltme yumuşatmasıyla çizilir
+          const sx = me.pos.x, sy = me.pos.y, sz = me.pos.z;
+          me.pos.set(a.x + (b.x - a.x) * alpha + vo.x, a.y + (b.y - a.y) * alpha + vo.y, a.z + (b.z - a.z) * alpha + vo.z);
+          s.syncModel(dt);
+          me.pos.set(sx, sy, sz);
+        } else s.syncModel(dt);
+      }
+      this.lerpCamera(alpha);
     } else if (this.simulate && !this.ended) this.step(dt);
     else if (this.ended) { this.effects.update(dt); for (const s of this.soldiers) s.syncModel(dt); }
     this.render();
@@ -796,6 +804,7 @@ export class Game {
     for (const s of this.soldiers) s.update(dt);
     if (me.alive) this.world.move(me, dt); else if (me.respawnT > 0) me.respawnT -= dt;
     this.player.update(dt);
+    { const m = this.playerSoldier.pos; if (!this._p0) { this._p0 = m.clone(); this._p1 = m.clone(); } else { const t = this._p0; this._p0 = this._p1; this._p1 = t; t.copy(m); } }       // yerel karakter konumu: son iki adım
     {                                                                                             // kamera ara değerleme için son iki adım (nesne yeniden kullanılır)
       const c = this.camera;
       if (!this._c0) { this._c0 = { p: c.position.clone(), q: c.quaternion.clone() }; this._c1 = { p: c.position.clone(), q: c.quaternion.clone() }; }

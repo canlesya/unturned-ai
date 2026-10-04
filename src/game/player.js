@@ -500,6 +500,7 @@ export class Player {
       dir.multiplyScalar(1 / len);
       const h = g.world.raycast(pivot, dir, len + 0.2, v.hit);
       const use = h ? Math.max(0.25, h.t - 0.22) : len;
+      this.camHit = h ? h.t : 0;
       des.copy(pivot).addScaledVector(dir, Math.min(len, use));
     }
     des.y = Math.max(des.y, g.world.heightAt(des.x, des.z) + 0.3);              // yere gömülme
