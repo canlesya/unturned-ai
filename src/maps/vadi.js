@@ -110,7 +110,7 @@ export function buildVadi() {
     // Zirveye 4 yol girer: batı (kuzey patika), güney (rampa), doğu (nehir geçidi), kuzey (ledge). Merkez ve koridorlar açık kalır.
     S(-20, -40, 0, [11.5, 9], (g) => {
       if (g.side > 0) {
-        g.at(1.5, 8.4, () => V.rock(b, rng, 0, 0, 1.0)); g.at(8.6, 1.4, () => K.crate(b, 0, 0, 1.1)); g.at(8.6, 2.6, () => K.crate(b, 0, 0, 1.0));
+        g.at(-1.4, 8.8, () => V.rock(b, rng, 0, 0, 1.0)); g.at(8.6, 1.4, () => K.crate(b, 0, 0, 1.1)); g.at(8.6, 2.6, () => K.crate(b, 0, 0, 1.0));
         b.with(6, 0, -3.8, PI / 2, () => V.bunker(b, { w: 6, d: 4.4, ramp: false }));    // mazgal doğuya (vadiye) bakar, giriş batıdan
         g.at(-5.5, -3.8, () => K.crate(b, 0, 0, 1.1)); g.at(-4.4, -3.6, () => K.crate(b, 0, 0, 1.0)); g.at(-6.6, -4.6, () => K.barrel(b, 0, 0, '#4d5b3a'));
         g.at(-9.2, 6.4, () => V.rock(b, rng, 0, 0, 1.3)); g.at(9.4, 6.6, () => V.rock(b, rng, 0, 0, 1.2)); g.at(2.5, 7.6, () => V.rock(b, rng, 0, 0, 1.4));
@@ -122,10 +122,10 @@ export function buildVadi() {
         b.with(-3.4, 0, -4.6, 0, () => V.campfire(b));
         b.with(-8.8, 0, -7.4, 0, () => V.tent(b, { color: '#a7b38a', w: 3.0, len: 3.8 }));
         b.with(6, 0, -3.8, PI / 2, () => V.bunker(b, { w: 6, d: 4.4, ramp: false }));    // mazgal doğuya (vadiye) bakar, giriş batıdan
-        b.with(3.8, 0, -7.4, PI / 2, () => V.logPile(b, 0, 2.6));
+        b.with(1.4, 0, -0.6, PI / 2, () => V.logPile(b, 0, 2.6));
         b.with(-5.4, 0, 1.4, 0, () => V.fallenLog(b, 0, 0, 3.0, 1.57));
         b.with(-1.2, 0, -7.6, 0, () => V.fallenLog(b, 0, 0, 3.0, 0.2));
-        g.at(-9.6, -5.6, () => K.crate(b, 0, 0, 1.1)); g.at(-9.7, -6.8, () => K.crate(b, 0, 0, 1.0));
+        g.at(0.0, -5.0, () => K.crate(b, 0, 0, 1.1)); g.at(1.2, -5.1, () => K.crate(b, 0, 0, 1.0));
         g.at(2.5, 7.8, () => V.rock(b, rng, 0, 0, 1.5)); g.at(-9.4, 6.8, () => V.rock(b, rng, 0, 0, 1.3));
         b.with(-3.0, 0, -2.2, 0, () => V.lantern(b, 3.0));
       }
@@ -149,11 +149,11 @@ export function buildVadi() {
     }, { noPad: true });
     cover(-7.2, -31, 'rock', 1.3);
     cover(-9.5, -18.5, 'rock', 1.0);
-    S(-14.5, -17.6, 0, [0, 0], () => K.sandbags(b, 0, 0, 3.4, 0));
+    S(-15.6, -19.8, 0, [0, 0], () => K.sandbags(b, 0, 0, 3.4, 0));
     S(-7.5, -28.6, 0, [0, 0], () => K.sandbags(b, 0, 0, 3.0, 0));
-    S(-13, -28, 0, [0, 0], () => V.fallenLog(b, 0, 0, 4, 0.5));
+    S(-11.5, -29.6, 0, [0, 0], () => V.fallenLog(b, 0, 0, 4, 0.5));
     cover(-14, -26, 'rock', 1.2);
-    S(-12.5, 21.4, 0, [0, 0], () => K.sandbags(b, 0, 0, 3.4, 0));    // güney geçit (dönmüşü kuzeydeki doğu yakası)
+    S(-10.9, 21.4, 0, [0, 0], () => K.sandbags(b, 0, 0, 3.4, 0));    // güney geçit (dönmüşü kuzeydeki doğu yakası)
     cover(-8, 31.6, 'rock', 1.3);
     S(-11, 31.5, 0, [0, 0], () => V.fallenLog(b, 0, 0, 3.6, 0.3));
 
@@ -185,9 +185,9 @@ export function buildVadi() {
     cover(-49, -30.5, 'rock', 1.2);
     cover(-42.5, -37.5, 'log', -0.4);
     cover(-65.5, 31, 'log', 1.2);
-    cover(-57.5, 40, 'rock', 1.3);
+    cover(-60.6, 42.4, 'rock', 1.3);
     cover(-50, 22.5, 'rock', 1.3);
-    cover(-19, 22, 'rock', 1.2);
+    cover(-16.4, 25.2, 'rock', 1.2);
     cover(-6.5, 19, 'rock', 1.3);
   };
 

@@ -13,6 +13,8 @@ bad += run('araç çakışması', 'scripts/vehaudit.mjs', maps) ? 1 : 0;
 bad += run('kaplama boşluk üstünde mi (halı/membran merdiven boşluğunu örtüyor mu)', 'scripts/mapfloat.mjs', maps) ? 1 : 0;
 run('z-fighting (toplu çözüm raporu)', 'scripts/mapzfight.mjs', maps);
 run('çatı / yüksek döşeme / iç içe yapı', 'scripts/mapaudit.mjs', maps);
+for (const m of (maps.length ? maps : ['kasaba', 'vadi', 'us', 'dev'])) { if (m !== 'dev') { run(`nesne↔nesne örtüşmesi (çarpışma kutuları): ${m}`, 'scripts/mapobj.mjs', [m, '0.3', '0.4']); run(`nesne↔nesne örtüşmesi (görsel + ağaç tepeleri): ${m}`, 'scripts/mapvis.mjs', [m, '0.5', '0.8']); } }
+run('araç ↔ yapı/prop (görsel)', 'scripts/mapveh.mjs', maps);
 if (full) for (const m of (maps.length ? maps : ['kasaba', 'vadi', 'us', 'dev'])) run(`içinden geçilen hacim: ${m}`, 'scripts/probes/passthru.mjs', [m, '0.5']);
 console.log(bad ? '\nKALİTE DENETİMİ: sorun var' : '\nKALİTE DENETİMİ: temiz');
 process.exit(bad ? 1 : 0);

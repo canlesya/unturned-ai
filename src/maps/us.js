@@ -193,7 +193,7 @@ function radarComplex(b, rng) {
   M.pipeRack(b, 5.6, 40, 11, 40, { y: 2.7 }); M.pipeRack(b, 19.5, 41, 30, 41, { y: 2.7 });
   
   M.hesco(b, -8, 36, 4, 0); M.hesco(b, 8, 36, 4, 0); K.sandbags(b, 0, 35.5, 4, 0);
-  M.blastWall(b, -11, 44, 6, PI / 2); M.blastWall(b, 21, 36, 5, PI / 2, 1.6, 0.6);
+  M.blastWall(b, -11, 44, 6, PI / 2); M.blastWall(b, 17, 36, 5, PI / 2, 1.6, 0.6);
   K.container(b, { x: -10, z: 54, ry: 0, color: '#556b2f' }); K.container(b, { x: 10, z: 55, ry: 0, color: '#2d5a8a' });
   K.crate(b, 7, 52, 1.2); K.crate(b, 8.3, 52.2, 1.0); K.barrel(b, 6, 53, '#556b2f'); K.barrel(b, 6.9, 53.3, '#c0392b');
   M.fenceRow(b, 3, 58.2, 25, 58.2, { h: 2.4 });
@@ -208,7 +208,7 @@ function midNW(b, rng, v) {
   M.hangar(b, rng, { x: -40, z: -51, w: 24, d: 14, openW: 12, color: v ? '#8a8f86' : '#808a84', H: 7, mezzLen: 11.4, label: v ? '#8a6a2d' : '#556b2f' });
   if (!v) {
     M.apc(b, { x: -43, z: -50, ry: 0.0 }); M.jeep(b, { x: -34, z: -48, ry: PI / 2 });
-    K.barrel(b, -31, -54, '#c0392b'); K.barrel(b, -31.8, -54.4, '#556b2f');
+    K.barrel(b, -26.4, -53.2, '#c0392b'); K.barrel(b, -25.6, -53.8, '#556b2f');
   } else {
     for (const [x, z] of [[-48, -54], [-46.6, -54.1], [-47.3, -54]]) K.crate(b, x, z, 1.2);
     K.container(b, { x: -37, z: -52, ry: PI / 2, color: '#8a6a2d' });
@@ -345,7 +345,7 @@ function yardMaze(b, rng, v) {
   c(-76, 46.5); c(-67.5, 46.5); c(-58.5, 46.5);
   c(-72, 39.5, 0, 2.6); c(-66.5, 32.5, 0, 2.6); c(-67.5, 46.5, 0, 2.6);
   // çapraz kısa bloklar (şikan)
-  c(-79.0, 37.0, PI / 2, 0, 4.6); c(-56.6, 37.4, PI / 2, 0, 3.0);
+  c(-78.4, 37.0, PI / 2, 0, 4.6); c(-56.6, 37.4, PI / 2, 0, 3.0);
   K.crate(b, -64.5, 36, 1.2); K.crate(b, -65.8, 36.1, 1.0); K.crate(b, -74, 43.2, 1.2); K.barrel(b, -60.5, 43, '#c0392b'); K.barrel(b, -61.4, 43.3, '#556b2f');
   K.crate(b, -69.5, 50.5, 1.2); K.crate(b, -70.7, 50.6, 1.0, 0, 0.0);
   // konteyner üstü nişancı yuvası: merdivenle çıkılır
