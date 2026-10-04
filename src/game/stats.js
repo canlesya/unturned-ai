@@ -150,7 +150,7 @@ export const WSTATS = {
     name: 'RPG-7', kind: 'launcher', slot: 'gadget', desc: 'Roketatar: araç ve bina için patlayıcı hasar.', stats: { dmg: 100, range: 80, rate: 8, control: 40, mobility: 40 },
     count: 2, auto: false, dmg: 160, radius: 6.5, speed: 38, rpm: 30, mag: 1, reserve: 2, reload: 2.8, equip: 0.35,
     hip: 0.02, ads: 0.005, kickV: 0.06, kickH: 0.01, zoom: 1.4, move: 0.85,
-    sight: [-0.045, 0.14, -0.05], dist: 0.34, sound: 'rpg',
+    sight: [-0.045, 0.14, -0.05], dist: 0.38, sound: 'rpg',
   },
   m79: {
     name: 'M79 Bomba Atar', kind: 'launcher', slot: 'gadget', desc: 'Yaylı yoldan 40 mm bomba, çarpınca patlar.', stats: { dmg: 70, range: 55, rate: 10, control: 60, mobility: 55 },

@@ -555,3 +555,8 @@ Atölye kısayolları (yalnızca çevrimdışı): **L** serbest uçuş (çarpı�
 - `node scripts/weaponaudit.mjs`: parçaların ana gövdeye bağlı olduğunu (havada kalan parça yok) denetler; 32/32 OK.
 
 Nişan görüş alanı: `ADS_K` (göz-nişangâh mesafesi ×1,3), kırmızı nokta ×0,68 / holo ×0,72 küçük ve ince çerçeveli, demir arka nişangâh daha ince, nişan alırken silah kamerası FOV 54→68 (`ADS_FOV`). `node scripts/adsview.mjs`: ekran merkezi çevresinde (3°/6°/10°) silah-nişangâhın kapattığı oranı ölçer.
+
+### 12.13 Yakın dövüş ve RPG-7
+- Bıçak (mat siyah taktik, zeytin oluklu sap, kırmızı kordon), Satır (geniş eğri çelik bıçak, ahşap sap, pirinç perçin) ve Tomahawk (ahşap saplı balta) birbirinden belirgin ayrılır; hepsinde sap z=0 merkezli.
+- Birinci şahıs: sapı saran yumruk (`fist`: parmaklar üstte, avuç altta, başparmak yanda), yassı tarafı kameraya dönük duruş (`MELEE_IDLE`). Üçüncü şahıs: bıçak göğüs hizasında önde, ucu yukarı-ileri (`MOUNTS.melee`).
+- RPG-7 nişangâhı: tüpün solunda arka halka + önde turuncu uçlu arpacık; halkanın ortasında turuncu ucu görünce nişan hizalıdır.

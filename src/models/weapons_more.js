@@ -568,19 +568,21 @@ function ammobox() {
 
 // ───────────────────────── Yakın dövüş ─────────────────────────
 function machete() {
-  const g = new THREE.Group(), CH = { metalness: 0.1, roughness: 0.4 };
-  taperBox(g, [0.008, 0.06, 0.34], C.chrome, [0, 0.0, -0.25], null, [1, 1], [1, 1], CH).rotation.z = 0;
-  box(g, [0.008, 0.055, 0.1], C.chrome, [0, -0.0, -0.46], null, CH);
-  box(g, [0.008, 0.04, 0.06], C.chrome, [0, -0.012, -0.53], [0.4, 0, 0], CH);     // eğimli uç
-  box(g, [0.012, 0.012, 0.52], BLK, [0, 0.03, -0.3]);                              // sırt
-  box(g, [0.014, 0.045, 0.016], STL, [0, 0.0, -0.065], null, M);                   // siper
-  box(g, [0.028, 0.036, 0.13], BLK, [0, 0.0, 0.0]);                                // sap
-  for (let i = 0; i < 3; i++) box(g, [0.03, 0.038, 0.008], STL, [0, 0, -0.025 + i * 0.03]);
-  box(g, [0.03, 0.042, 0.02], STL, [0, 0.0, 0.07], null, M);
-  for (let i = 0; i < 4; i++) box(g, [0.01, 0.004, 0.05], '#7a8088', [0, -0.02 + i * 0.012, -0.28 - i * 0.07]);   // bıçak üzerinde çizik izleri
-  for (let i = 0; i < 3; i++) cylY(g, 0.006, 0.006, 0.034, C.chrome, [0, 0, -0.02 + i * 0.04], 6, [0, 0, Math.PI / 2], M);   // sap perçinleri
-  box(g, [0.034, 0.012, 0.03], STL, [0, 0.02, 0.08], null, M);                                                    // kayış deliği
-  return finish(g, { name: 'Satır', hold: 'melee', gripR: [0, 0, 0.0], gripL: null, muzzle: [0, 0, -0.55], length: 0.68 });
+  const g = new THREE.Group(), CH = { metalness: 0.45, roughness: 0.3 }, N = 7;
+  // geniş, öne doğru eğri uzun satır bıçağı: uca doğru genişleyip sivrilir
+  for (let i = 0; i < N; i++) {
+    const t = (i + 0.5) / N, h = 0.04 + 0.04 * Math.sin(Math.min(1, t * 1.25) * Math.PI * 0.6) - (t > 0.82 ? (t - 0.82) * 0.2 : 0);
+    const z = -0.08 - 0.062 * (i + 0.5), y = 0.004 * i * i * 0.18 + 0.01 * t;
+    box(g, [0.008, h, 0.063], C.chrome, [0, y - (h - 0.04) * 0.5, z], [0.045 * i * 0.3, 0, 0], CH);
+    box(g, [0.011, 0.008, 0.064], BLK, [0, y + 0.02 - (h - 0.04) * 0.0 + (h - 0.04) * 0.5, z], [0.045 * i * 0.3, 0, 0]);   // koyu sırt
+  }
+  box(g, [0.008, 0.035, 0.05], C.chrome, [0, 0.026, -0.5], [-0.5, 0, 0], CH);        // sivri uç
+  box(g, [0.032, 0.04, 0.13], C.wood, [0, 0, 0.0]);                                   // ahşap sap
+  for (let i = 0; i < 3; i++) cylY(g, 0.007, 0.007, 0.036, C.brass, [0, 0, -0.04 + i * 0.04], 6, [0, 0, Math.PI / 2], M);   // pirinç perçinler
+  box(g, [0.034, 0.05, 0.02], BLK, [0, 0.0, 0.075]);                                  // kuyruk kapağı
+  box(g, [0.034, 0.016, 0.03], BLK, [0, -0.032, 0.09], [0.4, 0, 0]);                  // sap kancası
+  box(g, [0.014, 0.056, 0.018], C.brass, [0, 0.0, -0.072], null, M);                  // siper
+  return finish(g, { name: 'Satır', hold: 'melee', gripR: [0, 0, 0.0], gripL: null, muzzle: [0, 0, -0.56], length: 0.7 });
 }
 function tomahawk() {
   const g = new THREE.Group(), CH = { metalness: 0.1, roughness: 0.4 };

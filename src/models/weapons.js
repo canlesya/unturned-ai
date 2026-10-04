@@ -440,8 +440,13 @@ function rpg() {
   box(g, [0.04, 0.115, 0.05], C.black, [0, -0.04, 0.04], [0.3, 0, 0]);             // kabza
   box(g, [0.012, 0.012, 0.09], C.steel, [0, -0.012, -0.01]);                       // tetik koruması
   box(g, [0.04, 0.09, 0.04], C.black, [0, -0.025, -0.2], [-0.1, 0, 0]);            // ön kabza
-  box(g, [0.02, 0.05, 0.06], C.steel, [-0.045, 0.1, -0.05]);                       // nişangah
-  box(g, [0.03, 0.01, 0.01], C.steel, [-0.06, 0.13, -0.05]);
+  // nişangâh (tüpün solunda): arkada halka (göze yakın), önde turuncu uçlu arpacık. Halkanın ortasından arpacığın turuncu ucu görününce nişan hizalıdır.
+  box(g, [0.04, 0.012, 0.022], C.steel, [-0.027, 0.082, -0.05]);                    // arka kelepçe
+  box(g, [0.01, 0.045, 0.014], C.steel, [-0.045, 0.1, -0.05]);                      // arka halka sapı
+  ring(g, 0.017, 0.0032, C.black, [-0.045, 0.14, -0.05], 12);                       // arka halka (nişan penceresi)
+  box(g, [0.04, 0.012, 0.022], C.steel, [-0.027, 0.082, -0.4]);                     // ön kelepçe
+  box(g, [0.007, 0.062, 0.009], C.steel, [-0.045, 0.114, -0.4]);                    // arpacık
+  box(g, [0.009, 0.014, 0.011], '#ff9a2e', [-0.045, 0.143, -0.4]);                  // turuncu uç (nişan noktası)
   // ayrıntılar
   for (let i = 0; i < 4; i++) cyl(g, 0.038, 0.038, 0.012, C.black, [0, 0.05, -0.2 + i * 0.1], 10);       // tüp bantları
   for (let i = 0; i < 5; i++) box(g, [0.004, 0.012, 0.3 / 5], '#2a2d30', [0.0, 0.086, -0.12 - 0.15 + i * 0.06]);   // ahşap damarı
@@ -455,20 +460,25 @@ function rpg() {
   });
 }
 
-// ───────────────────────── Bıçak ─────────────────────────
+// ───────────────────────── Bıçak (taktik savaş bıçağı) ─────────────────────────
+// Kısa, mat siyah sivri uç bıçak + zeytin yeşili oluklu sap + kırmızı kordon. Sap z=0 merkezli (el burada tutar).
 function knife() {
-  const g = new THREE.Group();
-  box(g, [0.01, 0.035, 0.16], C.chrome, [0, 0.0, -0.14], null, { metalness: 0.1, roughness: 0.4 });
-  box(g, [0.01, 0.026, 0.026], C.chrome, [0, -0.004, -0.235], [Math.PI / 4, 0, 0], { metalness: 0.1, roughness: 0.4 });
-  box(g, [0.012, 0.01, 0.15], C.black, [0, 0.016, -0.14]);                         // sırt
-  box(g, [0.03, 0.05, 0.014], C.steel, [0, 0.0, -0.055], null, M);                 // siper
-  box(g, [0.026, 0.034, 0.11], C.black, [0, 0.0, 0.0]);                            // sap
-  for (let i = 0; i < 4; i++) box(g, [0.03, 0.036, 0.008], C.steel, [0, 0, -0.03 + i * 0.026]);
-  box(g, [0.03, 0.04, 0.02], C.steel, [0, 0.0, 0.065], null, M);
+  const g = new THREE.Group(), DARK = '#2e3238';
+  box(g, [0.028, 0.036, 0.12], C.oliveDark, [0, 0, 0]);                              // sap
+  for (let i = 0; i < 4; i++) box(g, [0.03, 0.038, 0.009], BLK_K, [0, 0, -0.04 + i * 0.027]);   // parmak olukları
+  box(g, [0.03, 0.042, 0.016], C.steel, [0, 0, 0.066], null, M);                     // kafa
+  box(g, [0.008, 0.01, 0.06], C.red, [0, -0.026, 0.1], [0.3, 0, 0]);                 // kordon
+  box(g, [0.011, 0.062, 0.016], C.steel, [0, 0.0, -0.066], null, M);                 // siper (haç)
+  box(g, [0.009, 0.034, 0.15], DARK, [0, 0.004, -0.14], null, M);                    // bıçak gövdesi
+  box(g, [0.0095, 0.008, 0.15], C.chrome, [0, -0.016, -0.14], null, { metalness: 0.4, roughness: 0.3 });   // parlak ağız
+  box(g, [0.009, 0.026, 0.05], DARK, [0, 0.0, -0.238], [-0.42, 0, 0], M);            // sivri uç (sırttan ağıza doğru iner)
+  box(g, [0.0095, 0.007, 0.05], C.chrome, [0, -0.016, -0.236], [-0.42, 0, 0], { metalness: 0.4, roughness: 0.3 });
+  for (let i = 0; i < 6; i++) box(g, [0.01, 0.007, 0.007], BLK_K, [0, 0.024, -0.1 - i * 0.017]);   // sırt tırtılı
   return finish(g, {
-    name: 'Bıçak', hold: 'melee', gripR: [0, 0, 0.0], gripL: null, muzzle: [0, 0, -0.25], length: 0.34,
+    name: 'Bıçak', hold: 'melee', gripR: [0, 0, 0.0], gripL: null, muzzle: [0, 0, -0.26], length: 0.34,
   });
 }
+const BLK_K = '#15161a';
 
 // ───────────────────────── El Bombası ─────────────────────────
 function grenade() {

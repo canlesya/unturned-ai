@@ -15,7 +15,7 @@ const ADS_FOV = 68;
 const Z = new THREE.Vector3(0, 0, 1);
 const REST_L = new THREE.Vector3(-0.2, -0.3, 0.2);      // sol el dinlenme (kullanılmıyorsa ekran dışı)
 const POUCH_VM = new THREE.Vector3(-0.3, -0.34, 0.3);   // yelek şarjör cebi (silah yerelinde)
-const MELEE_IDLE = { pos: [0.1, -0.12, -0.46], rx: 0.5, ry: 0.22, rz: -0.35 };
+const MELEE_IDLE = { pos: [0.09, -0.15, -0.5], rx: 0.5, ry: 0.35, rz: -1.05 };
 const MELEE_SPRINT = { pos: [-0.04, 0.06, -0.06], rx: 0.65, ry: 0.3, rz: -0.1 };
 
 export class ViewModel {
@@ -81,7 +81,25 @@ export class ViewModel {
       g.add(grp);
       return grp;
     };
+    // yakın dövüş: sapı saran sıkı yumruk (parmaklar üstte, avuç altta, başparmak yanda; sap iki uçtan görünür)
+    const fist = (p) => {
+      const grp = new THREE.Group();
+      grp.position.copy(p);
+      box(grp, [0.064, 0.016, 0.06], c.gloves, [0, 0.03, 0]);                          // parmaklar (üst)
+      for (let i = 0; i < 4; i++) box(grp, [0.066, 0.006, 0.004], '#101114', [0, 0.0385, -0.022 + i * 0.015]);   // parmak araları
+      box(grp, [0.016, 0.06, 0.06], c.gloves, [0.03, 0.0, 0]);                         // yan
+      box(grp, [0.016, 0.06, 0.06], c.gloves, [-0.03, 0.0, 0]);
+      box(grp, [0.064, 0.022, 0.07], c.gloves, [0, -0.032, 0.005]);                    // avuç (alt)
+      box(grp, [0.02, 0.02, 0.05], c.gloves, [-0.02, 0.04, -0.045], [0, 0.3, 0]);      // başparmak (sapın üstünden ileri)
+      const dir = new THREE.Vector3(0.12, -0.2, 0.42).normalize(), len = 0.5;
+      const sleeve = box(grp, [0.11, 0.11, len], c.shirt, [0, 0, 0]);
+      sleeve.position.copy(dir).multiplyScalar(len / 2 + 0.05);
+      sleeve.quaternion.setFromUnitVectors(Z, dir);
+      g.add(grp);
+      return grp;
+    };
     const u = g.userData;
+    if (kind === 'melee' && u.gripR) { this.handR = fist(u.gripR.clone()); this.hLfg = null; this.handL = null; } else
     this.handR = u.gripR ? hand(u.gripR.clone().add(new THREE.Vector3(0.0, -0.02, 0.0)), 1) : null;
     this.hLfg = u.gripL ? u.gripL.clone().add(new THREE.Vector3(0, -0.03, 0)) : null;
     this.handL = (kind === 'gun' || kind === 'launcher') ? hand(this.hLfg || REST_L, -1) : null;

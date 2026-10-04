@@ -327,7 +327,7 @@ const MOUNTS = {
   rifle: { pos: [0.13, 0.1, -0.27], rotX: 0.0 },
   pistol: { pos: [0.12, 0.12, -0.42], rotX: 0.0 },
   launcher: { pos: [0.2, 0.24, -0.12], rotX: 0.0 },
-  melee: { pos: [0.2, 0.02, -0.36], rotX: 0.3, rotZ: -0.2 },
+  melee: { pos: [0.27, 0.07, -0.34], rotX: 0.85, rotZ: -0.1 },
   grenade: { pos: [0.18, 0.12, -0.38], rotX: 0.0 },
 };
 // koşarken silah aşağıda, gövdeye yakın ("low ready"); bıçak yukarıda tutulur
