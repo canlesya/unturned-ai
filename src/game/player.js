@@ -18,7 +18,7 @@ const Z = new THREE.Vector3(0, 0, 1);
 const REST_L = new THREE.Vector3(-0.2, -0.3, 0.2);      // sol el dinlenme (kullanılmıyorsa ekran dışı)
 const POUCH_VM = new THREE.Vector3(-0.3, -0.34, 0.3);   // yelek şarjör cebi (silah yerelinde)
 const MELEE_IDLE = { pos: [0.09, -0.15, -0.5], rx: 0.5, ry: 0.35, rz: -1.05 };
-const CLAWS_IDLE = { pos: [0.13, -0.16, -0.5], rx: 0.4, ry: 0.22, rz: 0.0 };      // zombi pençeleri: yumruk önde, pençeler ileri bakar
+const CLAWS_IDLE = { pos: [0.0, -0.16, -0.5], rx: 0.4, ry: 0.0, rz: 0.0 };      // zombi pençeleri: yumruk önde, pençeler ileri bakar
 const MELEE_SPRINT = { pos: [-0.04, 0.06, -0.06], rx: 0.65, ry: 0.3, rz: -0.1 };
 
 export class ViewModel {
@@ -53,6 +53,7 @@ export class ViewModel {
     const c = TEAMS[id === 'claws' ? 'zomb' : team];                  // zombinin kolu/eli soluk yeşil
     const g = new THREE.Group();
     this.flash = null;
+    this.zh = null;
     if (kind === 'medkit') {
       const m = createItem('medkit'); m.scale.setScalar(1.5); m.position.set(0, -0.08, 0); g.add(m);
       g.userData = { gripR: new THREE.Vector3(0.02, -0.02, 0.0), gripL: null, muzzle: new THREE.Vector3(), sight: [0, 0, 0], dist: 0.3, noAds: true };
@@ -102,7 +103,7 @@ export class ViewModel {
       return grp;
     };
     // zombi ön kolu: çıplak solgun yeşil, kanlı, yırtık kumaş manşetli; elden geriye/aşağıya doğru uzanır
-    const zArm = (p, side) => {
+    const zArm = (p, side, parent = g) => {
       const grp = new THREE.Group();
       grp.position.copy(p);
       const dir = new THREE.Vector3(0.1 * side, -0.24, 0.42).normalize(), len = 0.62;
@@ -113,15 +114,21 @@ export class ViewModel {
       }
       const cuff = box(grp, [0.135, 0.125, 0.1], '#3b3d2f', [0, 0, 0]);                                              // yırtık kol ucu
       cuff.position.copy(dir).multiplyScalar(len * 0.92 + 0.03); cuff.quaternion.setFromUnitVectors(Z, dir);
-      g.add(grp);
+      parent.add(grp);
       return grp;
     };
     const u = g.userData;
     if (id === 'claws') {                                                        // zombi: iki çıplak el, iki kol
       this.hLfg = null; this.handL = null;
-      g.children.forEach((o) => o.scale.setScalar(1.25));                         // eller iri (ekranın alt köşelerinde heybetli)
-      const w2 = createWeapon('claws'); w2.scale.setScalar(1.25); w2.position.set(-0.3, 0, 0); g.add(w2);
-      this.handR = zArm(u.gripR.clone(), 1); zArm(u.gripR.clone().add(new THREE.Vector3(-0.3, 0, 0)), -1);
+      // iki bağımsız el grubu: her biri kendi omzundan (ekran altı) koşarken sağa / sola açılır ve dönüşümlü ileri-geri sallanır
+      const hR = new THREE.Group(), hL = new THREE.Group();
+      const w = g.children.find((o) => o.userData && o.userData.id === 'claws') || g.children[0];
+      g.remove(w); hR.add(w); w.scale.setScalar(1.25);                             // eller iri (ekranın alt köşelerinde heybetli)
+      const w2 = createWeapon('claws'); w2.scale.setScalar(1.25); hL.add(w2);
+      zArm(u.gripR.clone(), 1, hR); zArm(u.gripR.clone(), -1, hL);
+      g.add(hR, hL);
+      this.zh = { R: hR, L: hL };
+      this.handR = hR;
     } else if (kind === 'melee' && u.gripR) {
       this.handR = fist(u.gripR.clone()); this.hLfg = null; this.handL = null;
     } else
@@ -189,8 +196,10 @@ export class ViewModel {
       const MI = this.id === 'claws' ? CLAWS_IDLE : MELEE_IDLE;
       pos.x += MI.pos[0] - hip.x; pos.y += MI.pos[1] - hip.y; pos.z += MI.pos[2] - hip.z;
       rx += MI.rx; ry += MI.ry; rz += MI.rz;
-      pos.x += MELEE_SPRINT.pos[0] * sprK; pos.y += MELEE_SPRINT.pos[1] * sprK; pos.z += MELEE_SPRINT.pos[2] * sprK;
-      rx += MELEE_SPRINT.rx * sprK; ry += MELEE_SPRINT.ry * sprK; rz += MELEE_SPRINT.rz * sprK;
+      if (this.id !== 'claws') {                                      // bıçak vb.: koşarken yukarıda tutulur · zombi elleri: aşağıdaki ayrı el animasyonu
+        pos.x += MELEE_SPRINT.pos[0] * sprK; pos.y += MELEE_SPRINT.pos[1] * sprK; pos.z += MELEE_SPRINT.pos[2] * sprK;
+        rx += MELEE_SPRINT.rx * sprK; ry += MELEE_SPRINT.ry * sprK; rz += MELEE_SPRINT.rz * sprK;
+      }
     } else {
       pos.x -= sprK * 0.1; pos.y -= sprK * 0.1; pos.z += sprK * 0.05;
       rx -= sprK * 0.55; ry += sprK * 0.7;
@@ -266,6 +275,15 @@ export class ViewModel {
     ry += clamp(this.sx, -0.05, 0.05) * (1 - ads);
     rx += clamp(this.sy, -0.05, 0.05) * (1 - ads);
 
+    // zombi elleri: koşarken biri sağa biri sola açılır, dönüşümlü ileri-geri sallanır; dururken hafif nefes alır
+    if (this.zh) {
+      const k = this.sprintT || 0, sw = Math.sin(this.bobT * 0.9) * k, br = Math.sin(this.game.time * 1.7) * 0.012;
+      const R = this.zh.R, L = this.zh.L;
+      R.position.set(0.17 + 0.16 * k, -0.02 * k + br, -sw * 0.12 - 0.03 * k);
+      L.position.set(-0.17 - 0.16 * k, -0.02 * k - br, sw * 0.12 - 0.03 * k);
+      R.rotation.set(sw * 0.35, -0.12 - 0.42 * k, -0.1 - 0.34 * k);
+      L.rotation.set(-sw * 0.35, 0.12 + 0.42 * k, 0.1 + 0.34 * k);
+    }
     // sol el: bütün model ve konum/dönüşler x ekseninde aynalanır (negatif ölçek üç.js'te yüz yönünü otomatik düzeltir)
     const mir = this.game.leftHand ? -1 : 1;
     this.root.position.set(pos.x * mir, pos.y, pos.z);
