@@ -23,7 +23,7 @@ function ring(g, R, r, color, pos, seg = 14) {
 
 // Kompakt red dot: tüp şeklinde halka, yuvarlak cam
 function opticRedDot(g, x, yb, z, s = 1) {
-  const R = 0.0175 * s, r = 0.0042 * s, cy = yb + 0.012 * s + R + r;
+  const R = 0.0175 * s, r = 0.0026 * s, cy = yb + 0.012 * s + R + r;
   box(g, [0.03 * s, 0.012 * s, 0.05 * s], BLK, [x, yb + 0.006 * s, z]);                       // taban
   box(g, [0.012 * s, 0.014 * s, 0.032 * s], BLK, [x, yb + 0.017 * s, z]);                     // halka altı destek
   for (const dz of [-0.012, 0, 0.012]) ring(g, R + (dz === 0 ? 0 : 0.0008 * s), r, dz === 0 ? '#2b2d31' : BLK, [x, cy, z + dz * s]);
@@ -35,15 +35,15 @@ function opticRedDot(g, x, yb, z, s = 1) {
 
 // Holografik (EOTech/PUBG tarzı): geniş dikdörtgen siyah gövde, büyük pencere
 function opticHolo(g, x, yb, z, s = 1) {
-  const cy = yb + 0.029 * s;
+  const cy = yb + 0.026 * s;
   box(g, [0.052 * s, 0.007 * s, 0.078 * s], BLK, [x, yb + 0.0035 * s, z]);                    // taban
   for (const sx of [-1, 1]) {
-    box(g, [0.006 * s, 0.046 * s, 0.07 * s], BLK, [x + sx * 0.0235 * s, yb + 0.03 * s, z]);   // ince yan duvarlar
-    box(g, [0.0025 * s, 0.03 * s, 0.05 * s], '#3b3e44', [x + sx * 0.0265 * s, yb + 0.03 * s, z]); // yan vurgu
+    box(g, [0.004 * s, 0.04 * s, 0.07 * s], BLK, [x + sx * 0.0235 * s, yb + 0.027 * s, z]);   // ince yan duvarlar
+    box(g, [0.0025 * s, 0.024 * s, 0.05 * s], '#3b3e44', [x + sx * 0.0255 * s, yb + 0.027 * s, z]); // yan vurgu
   }
-  box(g, [0.053 * s, 0.007 * s, 0.07 * s], BLK, [x, yb + 0.0555 * s, z]);                     // tavan
-  box(g, [0.042 * s, 0.0025 * s, 0.05 * s], '#3b3e44', [x, yb + 0.0605 * s, z]);              // tavan vurgusu
-  box(g, [0.041 * s, 0.047 * s, 0.002 * s], '#a8d8ff', [x, cy + 0.001 * s, z - 0.02 * s], null, GLASS); // geniş cam
+  box(g, [0.053 * s, 0.005 * s, 0.07 * s], BLK, [x, yb + 0.0485 * s, z]);                     // tavan
+  box(g, [0.042 * s, 0.0025 * s, 0.05 * s], '#3b3e44', [x, yb + 0.0525 * s, z]);              // tavan vurgusu
+  box(g, [0.041 * s, 0.04 * s, 0.002 * s], '#a8d8ff', [x, cy + 0.001 * s, z - 0.02 * s], null, GLASS); // geniş cam
   box(g, [0.004 * s, 0.032 * s, 0.002 * s], '#ffffff', [x + 0.009 * s, cy + 0.003 * s, z - 0.0215 * s], [0, 0, 0.35], { transparent: true, opacity: 0.14, depthWrite: false });
   box(g, [0.05 * s, 0.01 * s, 0.01 * s], '#2b2d31', [x, yb + 0.005 * s, z + 0.04 * s]);       // arka ayak
   return cy;
@@ -65,14 +65,18 @@ function opticAcog(g, x, yb, z) {
 // Demir nişan: arka peep (delikli) nişangâh. h = ön arpacık tepe yüksekliği = nişan çizgisi
 function ironRear(g, x, yb, z, h, s = 1) {
   const bot = h - 0.014 * s;
-  if (bot > yb) box(g, [0.03 * s, bot - yb, 0.012 * s], C.steel, [x, (yb + bot) / 2, z]);
-  for (const sx of [-1, 1]) box(g, [0.007 * s, 0.028 * s, 0.012 * s], C.steel, [x + sx * 0.0105 * s, h, z]);
-  box(g, [0.028 * s, 0.006 * s, 0.012 * s], C.steel, [x, h + 0.017 * s, z]);
+  if (bot > yb) box(g, [0.02 * s, bot - yb, 0.012 * s], C.steel, [x, (yb + bot) / 2, z]);
+  for (const sx of [-1, 1]) box(g, [0.005 * s, 0.022 * s, 0.012 * s], C.steel, [x + sx * 0.0095 * s, h - 0.001 * s, z]);
+  box(g, [0.022 * s, 0.004 * s, 0.012 * s], C.steel, [x, h + 0.012 * s, z]);
 }
 function ironFront(g, x, z, base, h) {
   box(g, [0.006, h - base, 0.006], C.steel, [x, (base + h) / 2, z]);
   for (const sx of [-1, 1]) box(g, [0.004, 0.02, 0.01], C.steel, [x + sx * 0.011, h - 0.006, z]);   // koruyucu kulaklar
 }
+
+// Nişangâh gövde ölçekleri: nişan alırken rakibi örtmesin diye küçük tutulur (bkz. scripts/adsview.mjs)
+const OPT_K = { dot: 0.68, holo: 0.72 };
+const ADS_K = 1.3;              // nişan alırken göz-nişangâh mesafesi çarpanı: silah ve nişangâh ekranda daha küçük, rakip görünür
 
 // Silaha göre montaj noktaları (z: nişangâh merkezi, y: üst yüzey, front: ön arpacık yüksekliği)
 const MOUNT = {
@@ -128,12 +132,12 @@ function attachSight(g, id, optic) {
     if (!m.ownFront) ironFront(g, 0, m.frontZ, m.frontBase, m.front);
     cy = m.front; sz = m.rearZ; dist = 0.22;
   } else {
-    if (optic === 'holo') { cy = opticHolo(g, 0, m.y, m.z, sc); sz = m.z; dist = 0.3; overlay = 'holo'; }
+    if (optic === 'holo') { cy = opticHolo(g, 0, m.y, m.z, sc * OPT_K.holo); sz = m.z; dist = 0.3; overlay = 'holo'; }
     else if (optic === 'acog') { cy = opticAcog(g, 0, m.y, m.z); sz = m.z + 0.075; dist = 0.05; overlay = 'scope'; }
-    else { cy = opticRedDot(g, 0, m.y, m.z, sc); sz = m.z; dist = 0.28; overlay = 'dot'; }
+    else { cy = opticRedDot(g, 0, m.y, m.z, sc * OPT_K.dot); sz = m.z; dist = 0.28; overlay = 'dot'; }
   }
   if (optic !== 'iron') clearSightLine(g, [0, cy, sz], dist, nBody);
-  return { sight: [0, cy, sz], dist, overlay };
+  return { sight: [0, cy, sz], dist: optic === 'acog' ? dist : dist * ADS_K, overlay };
 }
 
 // ───────────────────────── AK-47 ─────────────────────────

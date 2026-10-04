@@ -41,7 +41,7 @@ for (const id of Object.keys(WSTATS)) {
     vm.scene.updateMatrixWorld(true);
     // merkez ışın + etrafında 8 ışın (nokta ~ 6 mm yarıçap, 0,28 m uzaklıkta ≈ 0,02 eğim)
     const O = new THREE.Vector3(0, 0, 0), dirs = [[0, 0]];
-    for (let k = 0; k < 8; k++) dirs.push([Math.cos(k * Math.PI / 4) * 0.02, Math.sin(k * Math.PI / 4) * 0.02]);
+    for (let k = 0; k < 8; k++) dirs.push([Math.cos(k * Math.PI / 4) * 0.014, Math.sin(k * Math.PI / 4) * 0.014]);
     const blocked = [];
     for (const [dx, dy] of dirs) {
       const h = firstSolid(O, new THREE.Vector3(dx, dy, -1).normalize());

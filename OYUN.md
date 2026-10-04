@@ -553,3 +553,5 @@ Atölye kısayolları (yalnızca çevrimdışı): **L** serbest uçuş (çarpı�
 - `src/models/weaponFinish.js`: silah malzemelerine shader ile ince yüzey katmanı (doku dosyası yok): metalde namlu yönünde çizik + mikro benek + aşınmış açık yamalar (hafif metalik), ahşapta lif damarı, boyalı yüzeylerde (zeytin/kum) boya kırıkları. Yalnızca silah malzemeleri klonlanır; harita ve karakter etkilenmez.
 - Ortak ayrıntı yardımcıları `weapon_util.js`: `magRibs, studs, vents, gripTexture, sling`. 32 silahın hepsinde atım penceresi, seçici, perçin, havalandırma, şarjör kaburga/taban, askı halkası, kabza dokusu. Ayrıntılar nişan hattının üstüne eklenmez.
 - `node scripts/weaponaudit.mjs`: parçaların ana gövdeye bağlı olduğunu (havada kalan parça yok) denetler; 32/32 OK.
+
+Nişan görüş alanı: `ADS_K` (göz-nişangâh mesafesi ×1,3), kırmızı nokta ×0,68 / holo ×0,72 küçük ve ince çerçeveli, demir arka nişangâh daha ince, nişan alırken silah kamerası FOV 54→68 (`ADS_FOV`). `node scripts/adsview.mjs`: ekran merkezi çevresinde (3°/6°/10°) silah-nişangâhın kapattığı oranı ölçer.

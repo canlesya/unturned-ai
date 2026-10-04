@@ -9,6 +9,7 @@ import { clamp, lerp, V3 } from './util.js';
 import { applyInput } from '../sim/input.js';
 
 const VM_SCALE = 0.92;
+const ADS_FOV = 68;
 
 // ───────────── Birinci şahıs silah modeli ─────────────
 const Z = new THREE.Vector3(0, 0, 1);
@@ -234,6 +235,9 @@ export class ViewModel {
     // dürbünlü silahta tam nişanda modeli gizle
     this.root.visible = !(s.overlay === 'scope' && s.adsT > 0.9);
     this.cam.rotation.z = -s.leanT * 0.2;   // yana eğilirken silah da kafayla birlikte yatar
+    // nişan alırken silah kamerasının görüş açısı genişler: silah/nişangâh ekranda küçülür, rakip örtülmez (dürbünsüz silahlarda)
+    const fovT = 54 + (ADS_FOV - 54) * (u.noAds ? 0 : ads);
+    if (Math.abs(this.cam.fov - fovT) > 0.01) { this.cam.fov = fovT; this.cam.updateProjectionMatrix(); }
   }
 
   render(renderer, w, h) {
