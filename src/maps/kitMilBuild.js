@@ -203,7 +203,13 @@ export function milBuilding(b, rng, o) {
     }
   }
   // zemin kat dışı kat zemin rengi
-  for (let f = 1; f <= floors; f++) if (f < floors || true) b.box(x, f * fh, z, w - 0.8, 0.02, d - 0.8, floorColor, { collide: false });
+  // (merdiven boşluğunu / çatı çıkışını kapatmasın diye boşluk çevresinde parçalara bölünür)
+  for (let f = 1; f <= floors; f++) {
+    const X0 = x - (w - 0.8) / 2, X1 = x + (w - 0.8) / 2, Z0 = z - (d - 0.8) / 2, Z1 = z + (d - 0.8) / 2, h = holes[f];
+    const piece = (ax0, ax1, az0, az1) => { if (ax1 - ax0 > 0.02 && az1 - az0 > 0.02) b.box((ax0 + ax1) / 2, f * fh, (az0 + az1) / 2, ax1 - ax0, 0.02, az1 - az0, floorColor, { collide: false }); };
+    if (!h) piece(X0, X1, Z0, Z1);
+    else { piece(X0, h.x0, Z0, Z1); piece(h.x1, X1, Z0, Z1); piece(h.x0, h.x1, Z0, h.z0); piece(h.x0, h.x1, h.z1, Z1); }
+  }
 
   return { x0, x1, z0, z1, H, floors, fh };
 }

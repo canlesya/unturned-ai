@@ -219,7 +219,9 @@ export function church(b, rng, { x, z, w = 9, d = 16, ry = 0 }) {
     });
     for (const [cx, cz] of [[x0, z0], [x1, z0], [x0, z1], [x1, z1]]) b.box(cx, 0, cz, 0.55, H, 0.55, stone, NC);
     b.box(0, H - 0.25, 0, w - 0.1, 0.25, d - 0.1, '#e0d8c4');
-    b.prism(0, H - 0.1, 0, w + 1.2, 3.6, d + 1.0, '#5b4a45', {});
+    // nef çatısı: kule duvarından (z0 + T/2) başlar, kulenin içine uzanmaz (çan katına/kule odasına girmesin)
+    const rz0 = z0 + T / 2, rz1 = z1 + 0.5;
+    b.prism(0, H - 0.1, (rz0 + rz1) / 2, w + 1.2, 3.6, rz1 - rz0, '#5b4a45', {});
     // ── çan kulesi ──
     // kule duvarları iki bantta: alt bant (kapı/pencere) + üst bant (çan katı kemeri; 7.9…9.9 açıklık, altında 0.9 m siper)
     const yA = yB + 0.9, hU = TH - yA;

@@ -569,3 +569,10 @@ Otomobil (ve hurdası) camsızdır (kırık cam mantığı): ince sütunlar, tav
 - **Merdiven (`MapBuilder.stairs`)** artık süslü: açık tonlu basamak yüzü + koyu burun şeridi, yan kirişler, korkuluk direkleri ve eğik el tutamağı (hepsi çarpışmasız). `opt.base`: havada başlayan merdivenin altı o yüksekliğe kadar dolar (kilise B kolu); `opt.posts`: altına yere inen destek direkleri (su kulesi B kolu).
 - **Ev çatısı:** mahya, saçak alın tahtası, kiremit sıraları, alın havalandırması, baca başlığı (`house.js`, rastgelelik kullanmaz → mevcut düzen/mobilya dizisi değişmez).
 - Denetimler: `node scripts/mapaudit.mjs [harita]` (çarpışmasız yüksek döşeme, çatı prizması, iç içe yapı), `node scripts/probes/passthru.mjs [harita] [çözünürlük]` (JUMP=1 ile zıplayarak: ulaşılabilen noktada gövdenin çarpışmasız katı hacmin içine girip girmediği).
+
+### 12.15 Toplu harita kalite denetimi (`node scripts/mapqa.mjs [harita] [--full]`)
+- **Z-fighting (dokuların gidip gelmesi) otomatik çözülür:** `MapBuilder.resolveZFight` (tarayıcıda her harita kurulurken, ~+0,1 sn). Eksen hizalı her kutu/prizma kaydedilir; farklı malzemeli iki kutunun AYNI YÖNE bakan yüzleri ≤1,2 cm arayla çakışıyorsa küçük yüzlü olan 1,3 cm öne itilir (alt-üst zincirleri için en çok 5 geçiş). Çarpışma kutuları değişmez. `scripts/mapzfight.mjs`: kaynak (dosya:satır) çiftleriyle kaç yüz düzeltildi + ikinci geçişte 0 kalmalı.
+- **Boşluk üstü kaplama:** `scripts/mapfloat.mjs` halı/kat zemini/membran gibi ince yatay çarpışmasız kutuların merdiven ya da çatı çıkışı deliğini örtüp örtmediğine bakar (askeri binalarda kat zemin rengi ve evlerde halı/membran artık deliği dışarıda bırakır).
+- **İç içe yapı:** `scripts/mapaudit.mjs` (özet), `scripts/mapoverlap.mjs [harita] [min]` (katı örtüşmeler kaynak çiftine göre gruplu: alışılmadık, az sayıdaki çiftler hatadır).
+- **İçinden geçilen hacim:** `scripts/probes/passthru.mjs` (yavaş; `--full` ile).
+- Kilise nef çatısı artık kule duvarında biter (kule içine girmez).

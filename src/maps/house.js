@@ -370,7 +370,8 @@ export function house(b, rng, o) {
       b.box(0, H, z1, W + T + 0.2, ph, pw, roof, pc);
       b.box(x0, H, 0, pw, ph, D - 0.3, roof, pc);
       b.box(x1, H, 0, pw, ph, D - 0.3, roof, pc);
-      b.box(0, H, 0, W - 0.2, 0.06, D - 0.2, '#5a5c60', NC);      // çatı membranı
+      if (hasRoofAccess) flatMinusHole(-(W - 0.2) / 2, (W - 0.2) / 2, -(D - 0.2) / 2, (D - 0.2) / 2, H, 0.06, '#5a5c60', F);
+      else b.box(0, H, 0, W - 0.2, 0.06, D - 0.2, '#5a5c60', NC);      // çatı membranı
       // çatı eşyaları
       const rx = W * 0.2, rz = -D * 0.2;
       b.box(rx, H + 0.06, rz, 1.4, 0.9, 1.0, '#a8aeb4', hasRoofAccess ? {} : NC);   // klima kutusu
@@ -493,11 +494,20 @@ export function house(b, rng, o) {
         b.box(xa, y0, (za + zb2) / 2, 0.08, 1.0, zb2 - za, '#8b5a2b');
       }
     }
+    // k. kat döşemesindeki merdiven boşluğunu (varsa) dışarıda bırakarak ince yatay kutu çizer: halı / membran boşluğun üstünü kapatmasın
+    function flatMinusHole(cx0, cx1, cz0, cz1, y, th, col, k) {
+      const f = fl.find((q) => q.k + 1 === k);
+      const piece = (a0, a1, c0, c1) => { if (a1 - a0 > 0.02 && c1 - c0 > 0.02) b.box((a0 + a1) / 2, y, (c0 + c1) / 2, a1 - a0, th, c1 - c0, col, NC); };
+      if (!f) { piece(cx0, cx1, cz0, cz1); return; }
+      const hx0 = f.side === 'w' ? ix0 : ix1 - SW, hx1 = f.side === 'w' ? ix0 + SW : ix1, hz0 = f.zt, hz1 = f.zb;
+      piece(cx0, Math.min(cx1, hx0), cz0, cz1); piece(Math.max(cx0, hx1), cx1, cz0, cz1);
+      piece(Math.max(cx0, hx0), Math.min(cx1, hx1), cz0, Math.min(cz1, hz0)); piece(Math.max(cx0, hx0), Math.min(cx1, hx1), Math.max(cz0, hz1), cz1);
+    }
     function roomFloor(R, y0, k) {
       const tile = R.type === 'bath' || R.type === 'kitchen' || R.type === 'storage' || R.type === 'garageHall' || R.type === 'shopHall';
       const col = R.type === 'bath' ? pick(rng, TILEC) : tile ? (R.type === 'garageHall' ? '#6a6d73' : R.type === 'shopHall' ? '#b9b5aa' : pick(rng, TILEC)) : R.type === 'living' ? pick(rng, ['#8a6a48', '#a58a62']) : R.type === 'bedroom' || R.type === 'study' ? pick(rng, FLOORC) : R.type === 'classroom' || R.type === 'office' || R.type === 'lobby' ? pick(rng, ['#8a8d8a', '#9a9486', '#7a8590']) : pick(rng, FLOORC);
       const yy = y0 + (k === 0 ? 0.06 : 0.0);
-      b.box((R.x0 + R.x1) / 2, yy, (R.z0 + R.z1) / 2, R.x1 - R.x0, 0.025, R.z1 - R.z0, col, NC);
+      flatMinusHole(R.x0, R.x1, R.z0, R.z1, yy, 0.025, col, k);
     }
 
     // ═════════ mobilya yerleştirme ═════════

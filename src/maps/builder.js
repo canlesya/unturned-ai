@@ -43,6 +43,7 @@ export class MapBuilder {
     g.applyMatrix4(this.M.clone().multiply(local));
     g.deleteAttribute('uv');
     b.geos.push(g);
+    return { g, key };
   }
 
   _aabb(w, h, d, local, tag, yCenterOffset = 0) {
@@ -62,8 +63,69 @@ export class MapBuilder {
 
   box(x, y, z, w, h, d, color, opt = {}) {
     const local = this._local(x, y + h / 2, z, opt.rx, opt.ry, opt.rz);
-    this.addGeo(new THREE.BoxGeometry(w, h, d), color, local, opt.o);
+    const r = this.addGeo(new THREE.BoxGeometry(w, h, d), color, local, opt.o);
     if (opt.collide !== false) this._aabb(w, h, d, local, opt.tag);
+    if (MapBuilder.zfix) this._zrec(r, local, w, h, d);
+  }
+
+  // ── Z-fighting (dokuların gidip gelmesi) toplu çözümü ──
+  // Eksen hizalı her kutunun dünya AABB'si ve geometrisi kaydedilir; build()'de farklı malzemeli iki kutunun AYNI YÖNE bakan yüzleri
+  // (üst-üst, alt-alt, ön-ön …) ≤ ZEPS aralıkla çakışıyorsa (ortak alan > 4 cm²) ve yüzler örtüşüyorsa, küçük yüzlü kutunun (eşitse sonrakinin)
+  // yüzü ZGAP kadar öne itilir (üstündeki ek/kaplama). Çarpışma kutuları değişmez.
+  _zrec(r, local, w, h, d) {
+    const e = this.M.clone().multiply(local).elements;
+    const col = [[e[0], e[1], e[2]], [e[4], e[5], e[6]], [e[8], e[9], e[10]]], half = [w / 2, h / 2, d / 2];
+    for (const c of col) if (Math.max(Math.abs(c[0]), Math.abs(c[1]), Math.abs(c[2])) < 0.9999) return;       // yalnızca eksen hizalı
+    const mn = [e[12], e[13], e[14]], mx = [e[12], e[13], e[14]];
+    for (let i = 0; i < 3; i++) for (let a = 0; a < 3; a++) { const v = Math.abs(col[i][a]) * half[i]; mn[a] -= v; mx[a] += v; }
+    (this._zitems ||= []).push({ mn, mx, geo: r.g, key: r.key, site: MapBuilder.zsite ? MapBuilder.zsite() : null });
+  }
+
+  resolveZFight() {                                       // zincirleme itmeler için en çok 5 geçiş (ikinci çağrıda 0 dönmeli)
+    const all = [];
+    for (let p = 0; p < 5; p++) { const r = this._zpass(); if (!r.length) break; all.push(...r); }
+    return all;
+  }
+
+  _zpass() {
+    const it = this._zitems || [], ZEPS = 0.012, ZGAP = 0.013, rep = [];
+    if (it.length < 2) return rep;
+    const order = it.map((_, i) => i).sort((a, c) => it[a].mn[0] - it[c].mn[0]);
+    const area = (q, a) => { const o = [0, 1, 2].filter((k) => k !== a); return (q.mx[o[0]] - q.mn[o[0]]) * (q.mx[o[1]] - q.mn[o[1]]); };
+    const push = (q, a, side, delta) => {                                           // q kutusunun a ekseni, side yüzü (1: max, -1: min) delta kadar dışarı
+      const pos = q.geo.attributes.position, plane = side > 0 ? q.mx[a] : q.mn[a];
+      for (let i = 0; i < pos.count; i++) {
+        const v = a === 0 ? pos.getX(i) : a === 1 ? pos.getY(i) : pos.getZ(i);
+        if (Math.abs(v - plane) < 1e-3) { if (a === 0) pos.setX(i, v + side * delta); else if (a === 1) pos.setY(i, v + side * delta); else pos.setZ(i, v + side * delta); }
+      }
+      pos.needsUpdate = true;
+      if (side > 0) q.mx[a] += side * delta; else q.mn[a] += side * delta;
+    };
+    for (let oi = 0; oi < order.length; oi++) {
+      const A = it[order[oi]];
+      for (let oj = oi + 1; oj < order.length; oj++) {
+        const B = it[order[oj]];
+        if (B.mn[0] > A.mx[0] + ZEPS) break;
+        if (A.key === B.key) continue;                                              // aynı malzeme: görsel fark yok
+        for (let a = 0; a < 3; a++) {
+          const o = [0, 1, 2].filter((k) => k !== a);
+          const ov0 = Math.min(A.mx[o[0]], B.mx[o[0]]) - Math.max(A.mn[o[0]], B.mn[o[0]]);
+          const ov1 = Math.min(A.mx[o[1]], B.mx[o[1]]) - Math.max(A.mn[o[1]], B.mn[o[1]]);
+          if (ov0 < 0.01 || ov1 < 0.01 || ov0 * ov1 < 0.0004) continue;
+          for (const side of [1, -1]) {
+            const fa = side > 0 ? A.mx[a] : A.mn[a], fb = side > 0 ? B.mx[a] : B.mn[a];
+            if (Math.abs(fa - fb) >= ZEPS) continue;
+            const aA = area(A, a), aB = area(B, a);
+            const win = aA < aB * 0.66 ? A : aB < aA * 0.66 ? B : B, lose = win === A ? B : A;   // küçük yüz üstte; yakınsa sonradan eklenen
+            const target = (side > 0 ? lose.mx[a] : lose.mn[a]) + side * ZGAP;
+            const cur = side > 0 ? win.mx[a] : win.mn[a];
+            const delta = side > 0 ? target - cur : cur - target;
+            if (delta > 1e-5) { push(win, a, side, delta); rep.push({ a, side, at: ((fa + fb) / 2).toFixed(2), s1: win.site, s2: lose.site }); }
+          }
+        }
+      }
+    }
+    return rep;
   }
 
   // Yalnızca çarpışma kutusu (görünmez)
@@ -156,7 +218,8 @@ export class MapBuilder {
     const shape = new THREE.Shape([new THREE.Vector2(-w / 2, 0), new THREE.Vector2(w / 2, 0), new THREE.Vector2(0, h)]);
     const g = new THREE.ExtrudeGeometry(shape, { depth: d, bevelEnabled: false });
     g.translate(0, 0, -d / 2);
-    this.addGeo(g, color, this._local(x, y, z, 0, opt.ry || 0, 0), opt.o);
+    const pr = this.addGeo(g, color, this._local(x, y, z, 0, opt.ry || 0, 0), opt.o);
+    if (MapBuilder.zfix) this._zrec(pr, this._local(x, y, z, 0, opt.ry || 0, 0).multiply(new THREE.Matrix4().makeTranslation(0, h / 2, 0)), w, h, d);   // alın yüzleri (çadır kapısı vb. ile z-fight)
     // Çatı katıdır (içine girilemez): eğimi basamaklı kutularla (yarım genişlik başına 4 dilim, dilim ortasındaki yükseklik) örter.
     // opt.collide === false veya ince (≤0,3 m) alın üçgenlerinde çarpışma yok.
     if (opt.collide !== false && d > 0.3) {
@@ -238,7 +301,7 @@ export class MapBuilder {
       const top = (i + 1) * rise;
       const [cx, cz] = at(i * run + run / 2), [nx, nz] = at(i * run + 0.03);
       this.box(cx, y0 + top, cz, horiz ? run : width, 0.02, horiz ? width : run, light, NC);
-      this.box(nx, y0 + top - 0.02, nz, horiz ? 0.05 : width + 0.02, 0.03, horiz ? width + 0.02 : 0.05, dark, NC);
+      this.box(nx, y0 + top - 0.004, nz, horiz ? 0.05 : width + 0.02, 0.04, horiz ? width + 0.02 : 0.05, dark, NC);
     }
     const len = steps * run, hgt = steps * rise, L = Math.hypot(len, hgt), a = Math.atan2(hgt, len);
     const [mx, mz] = at(len / 2);
@@ -260,6 +323,7 @@ export class MapBuilder {
 
   build() {
     this.flushVehicles();
+    if (MapBuilder.zfix) this.zfightReport = this.resolveZFight();
     const group = new THREE.Group();
     for (const b of this.buckets.values()) {
       const merged = mergeGeometries(b.geos, false);
@@ -271,3 +335,7 @@ export class MapBuilder {
     return group;
   }
 }
+
+// Tarayıcıda varsayılan açık (görsel); Node'da (sunucu/testler) görsele gerek olmadığından kapalı — denetim betikleri MapBuilder.zfix = true yapar.
+MapBuilder.zfix = typeof window !== 'undefined';
+MapBuilder.zsite = null;
