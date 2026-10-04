@@ -548,3 +548,8 @@ Araba camları kenarlara oturan eğik cam + A/C sütunu; çamurluk kemeri tekerl
 Atölye kısayolları (yalnızca çevrimdışı): **L** serbest uçuş (çarpışmasız; WASD yönüne bakışa göre, Boşluk yukarı, C/Ctrl aşağı, Shift hızlı), **J/K** elindeki yuvadaki silahı önceki/sonraki ile değiştirir (1-4 ile yuva seç; tam mermi). Doğuş noktaları binaların dışında (x ±88).
 
 **Silah inceleme (Y):** birinci şahıs silah modeli ~3,4 sn'de ortaya alınıp yandan, ters ve üstten gösterilir (`ViewModel.inspect`); ateş, nişan, yükleme, sprint, silah değişimi ve savurma iptal eder. Yalnızca görsel; çevrimiçide de çalışır.
+
+### 12.12 Silah yüzey cilası ve ayrıntılar
+- `src/models/weaponFinish.js`: silah malzemelerine shader ile ince yüzey katmanı (doku dosyası yok): metalde namlu yönünde çizik + mikro benek + aşınmış açık yamalar (hafif metalik), ahşapta lif damarı, boyalı yüzeylerde (zeytin/kum) boya kırıkları. Yalnızca silah malzemeleri klonlanır; harita ve karakter etkilenmez.
+- Ortak ayrıntı yardımcıları `weapon_util.js`: `magRibs, studs, vents, gripTexture, sling`. 32 silahın hepsinde atım penceresi, seçici, perçin, havalandırma, şarjör kaburga/taban, askı halkası, kabza dokusu. Ayrıntılar nişan hattının üstüne eklenmez.
+- `node scripts/weaponaudit.mjs`: parçaların ana gövdeye bağlı olduğunu (havada kalan parça yok) denetler; 32/32 OK.
