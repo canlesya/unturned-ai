@@ -576,3 +576,5 @@ Otomobil (ve hurdası) camsızdır (kırık cam mantığı): ince sütunlar, tav
 - **İç içe yapı:** `scripts/mapaudit.mjs` (özet), `scripts/mapoverlap.mjs [harita] [min]` (katı örtüşmeler kaynak çiftine göre gruplu: alışılmadık, az sayıdaki çiftler hatadır).
 - **İçinden geçilen hacim:** `scripts/probes/passthru.mjs` (yavaş; `--full` ile).
 - Kilise nef çatısı artık kule duvarında biter (kule içine girmez).
+
+**Koşarken / zıplarken ateş:** serbest ama isabetsiz. `Soldier.spreadNow`: koşarken (Shift, `firedSprinting` ya da hız > 5,8 m/s) +0,045 rad (≈2,6°: 20 m'de ~0,9 m, 50 m'de ~2,3 m), havadayken +0,035 rad; nişan alırken (ADS) etkisi azalır. Sunucuda da aynı kod çalışır. Test: `node scripts/spreadtest.mjs`.

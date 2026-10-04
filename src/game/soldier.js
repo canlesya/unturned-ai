@@ -9,6 +9,8 @@ const _v = new THREE.Vector3();
 const _d = new THREE.Vector3();
 const _o = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
+// Koşarken / havadayken ateş serbest ama isabetsiz: ek saçılma (rad). 0,045 ≈ 2,6° → 20 m'de ~0,9 m, 50 m'de ~2,3 m.
+const SPRINT_SPREAD = 0.045, AIR_SPREAD = 0.035, SPRINT_SPEED = 5.8;
 
 export const EYE_STAND = 1.62;
 export const EYE_CROUCH = 1.16;
@@ -168,7 +170,8 @@ export class Soldier {
     const speed = Math.hypot(this.vel.x, this.vel.z);
     let s = lerp(hipv, adsv, this.adsT);
     s += Math.min(speed * 0.0007, 0.0045) * (1 - this.adsT * 0.65);   // hareket cezası
-    if (!this.onGround) s += 0.012;
+    if (!this.onGround) s += AIR_SPREAD * (1 - this.adsT * 0.5);            // havadayken (zıplarken) atış çok dağılır
+    if (this.firedSprinting || speed > SPRINT_SPEED) s += SPRINT_SPREAD * (1 - this.adsT);   // koşarken (Shift) atış serbest ama isabetsiz
     if (this.blindT > 0.5) s += 0.04;
     if (this.crouching) s *= 0.7;
     s += this.bloom;                                                   // seri atışta açılma
@@ -191,9 +194,11 @@ export class Soldier {
     it.mag--;
     if (st.kind === 'throwable') { this.sprinting = false; return this._throw(st); }
     if (st.kind === 'mine' || st.kind === 'ammobox') { this.sprinting = false; return this._place(st, it); }
+    this.firedSprinting = this.sprinting;                      // koşarken ateş: bu atış için dağılma cezası (spreadNow)
     this.sprinting = false;
     if (st.kind === 'launcher') return this._rocket(st);
     this._shoot(st);
+    this.firedSprinting = false;
     if (it.mag <= 0 && it.reserve > 0 && !this.isPlayer) this.startReload();
     return true;
   }
