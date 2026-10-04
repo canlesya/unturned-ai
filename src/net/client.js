@@ -2,7 +2,7 @@
 // uzaktaki oyuncular için snapshot interpolasyonu.
 import { SIM_HZ, SIM_DT, applyFlags, F_LEFT } from './protocol.js';
 import { applyInput } from '../sim/input.js';
-import { WSTATS } from '../game/stats.js';
+import { WSTATS, ZT_ORDER } from '../game/stats.js';
 
 const INTERP_DELAY_TICKS = 6;          // 100 ms geriden göster (20 Hz snapshot'ta iki örnek arası interpolasyon)
 const POS_EPS = 0.05;                  // tahmin–sunucu farkı bunu aşarsa düzelt (m)
@@ -68,7 +68,7 @@ export class NetClient {
     this.send({
       t: 'in', q, f: inp.f, r: inp.r, l: inp.lean, s: inp.sprint ? 1 : 0, j: inp.jump ? 1 : 0, a: s.ads ? 1 : 0, w: s.cur,
       yw: +s.yaw.toFixed(4), pt: +s.pitch.toFixed(4), c: e.c | 0, p: e.p | 0, u: e.u | 0,
-      fh: fireHeld ? 1 : 0, fp: e.fp | 0, rl: e.rl | 0, fm: e.fm | 0, o: e.o | 0, vt: +this.rt.toFixed(2),
+      fh: fireHeld ? 1 : 0, fp: e.fp | 0, rl: e.rl | 0, fm: e.fm | 0, o: e.o | 0, ab: e.ab | 0, vt: +this.rt.toFixed(2),
       sd: s.stanceLeft ? 1 : 0,
       co: s.shotOff ? [+s.shotOff.x.toFixed(2), +s.shotOff.y.toFixed(2), +s.shotOff.z.toFixed(2)] : undefined,
     });
@@ -108,6 +108,7 @@ export class NetClient {
     if (p.a && !s.alive) s.spawn({ x: p.x, z: p.z, ry: p.yw }, 0);
     else if (!p.a && s.alive) { s.alive = false; s.hp = 0; s.deadT = 0; s.deadDir = Math.random() > 0.5 ? 1 : -1; s.ads = false; s.reloadT = 0; s.vel.set(0, 0, 0); }
     s.hp = p.hp; if (p.mh) s.maxHp = p.mh;
+    if (p.zt) { const t = ZT_ORDER[p.zt - 1]; if (t && t !== s.ztype) { s.ztype = t; if (s.def.zombie) s.setClass('zombie'); } }      // zombi türü değişti: model yenilenir
     s.kills = p.kl; s.deaths = p.de; s.score = p.sc; s.revivable = !!p.rv;
     if (s.items.length !== p.it.length || s.items.some((it, i) => it.id !== p.it[i])) {
       s.items = p.it.map(mkItem);
@@ -132,6 +133,7 @@ export class NetClient {
   reconcile(me) {
     const g = this.game, s = g.playerSoldier;
     if (!s) return;
+    if (me.ab) { s.abT = me.ab[0]; s.abActive = me.ab[1]; }          // zombi gücü: bekleme / etkin süre sunucudan (hız tahmini tutarlı kalsın)
     if (me.rs !== this.rs) {
       // ilk snapshot veya yeniden doğma: sunucunun şu anki durumuna geç
       this.rs = me.rs; this.hist.length = 0;

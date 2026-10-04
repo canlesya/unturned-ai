@@ -3,6 +3,7 @@ import { box, taperBox, cylY, ico, V, mergeStatic } from '../core/geo.js';
 import { C, TEAMS, SKINS } from '../core/palette.js';
 import { createWeapon } from './weapons.js';
 import { reloadAnim, meleePose } from '../game/anim.js';
+import { ZTYPES } from '../game/stats.js';
 
 // Unturned/BattleBit tarzı kutu karakter. ~1.79 m boyunda, ileri = -Z.
 // Hiyerarşi: root > torso(> head, kollar, silah bağlantısı) + bacaklar. Kollar iki kemikli IK ile silaha kilitlenir.
@@ -121,12 +122,13 @@ function pouches(torso, vestColor, n = 3, color = '#2c2e33') {
 }
 
 // Zombi: yeşilimsi soluk deri, yırtık gömlek, açık göğüs/kaburga, parlayan gözler, sarkık çene; yelek ve kask yok
-function zombieGear(parts) {
+function zombieGear(parts, ztype = 'walker') {
   const { torso, head, legs } = parts;
-  const SK = '#86a273', SKD = '#6b8459', BONE = '#d8d0b4', BLOOD = '#5a1410', DIRT = '#2a2d22';
+  const T = ZTYPES[ztype] || ZTYPES.walker;
+  const SK = T.skin, SKD = '#6b8459', BONE = '#d8d0b4', BLOOD = '#5a1410', DIRT = '#2a2d22';
   face(head, SK, { noHair: true });
-  box(head, [0.05, 0.04, 0.014], '#d6ff6a', [0.075, 0.02, -0.153], null, { emissive: '#aaff33', emissiveIntensity: 1.1 });   // parlayan gözler
-  box(head, [0.05, 0.04, 0.014], '#d6ff6a', [-0.075, 0.02, -0.153], null, { emissive: '#aaff33', emissiveIntensity: 1.1 });
+  box(head, [0.05, 0.04, 0.014], T.eye, [0.075, 0.02, -0.153], null, { emissive: T.eye, emissiveIntensity: 1.1 });   // parlayan gözler (türe göre renk)
+  box(head, [0.05, 0.04, 0.014], T.eye, [-0.075, 0.02, -0.153], null, { emissive: T.eye, emissiveIntensity: 1.1 });
   box(head, [0.1, 0.03, 0.014], '#2a0c08', [0, -0.09, -0.153]);                              // açık ağız
   box(head, [0.012, 0.02, 0.012], BONE, [0.03, -0.075, -0.158]); box(head, [0.012, 0.02, 0.012], BONE, [-0.03, -0.075, -0.158]);   // dişler
   box(head, [0.14, 0.06, 0.02], SKD, [0.05, 0.13, -0.15], [0, 0, 0.3]);                       // kafa derisi yırtığı
@@ -149,11 +151,25 @@ function zombieGear(parts) {
     box(legs[s].foot, [0.176, 0.025, 0.205], '#101012', [0, -0.0475, 0.0]);                    // taban
   }
   box(legs.R.thigh, [0.12, 0.12, 0.02], BLOOD, [0.0, -0.1, -0.11]);
+  // türe özgü ayrıntılar
+  if (ztype === 'brute') {                                                                       // Dev: kemik çıkıntılı omuzlar, kalın boyun, göğüs plakası
+    for (const sx of [-1, 1]) for (let i = 0; i < 3; i++) box(torso, [0.04, 0.16 - i * 0.03, 0.04], BONE, [sx * (0.3 + i * 0.02), 0.34 + i * 0.05, 0.0], [0, 0, -sx * (0.5 + i * 0.25)]);
+    box(torso, [0.34, 0.2, 0.04], '#3b3a30', [0, 0.1, -0.175]);
+    box(head, [0.34, 0.07, 0.34], '#33372c', [0, 0.17, 0.0]);
+  } else if (ztype === 'ghost') {                                                                // Hayalet: solgun, iplik gibi sarkan paçavralar
+    for (let i = 0; i < 4; i++) box(torso, [0.07, 0.3 + i * 0.05, 0.02], '#5f7a80', [-0.18 + i * 0.12, -0.45, 0.14], [0.1, 0, 0.05 * (i - 1.5)], { transparent: true, opacity: 0.8 });
+    box(head, [0.34, 0.1, 0.34], '#7fa3ab', [0, 0.18, 0.0]);                                    // başlık
+  } else if (ztype === 'blinker') {                                                              // Işınlanan: sırtında parlak mor kristaller
+    for (let i = 0; i < 3; i++) box(torso, [0.06, 0.2 + i * 0.05, 0.06], '#c58cff', [-0.14 + i * 0.14, 0.2, 0.2], [0.35, 0.2 * i, 0.15 * (i - 1)], { emissive: '#a05cff', emissiveIntensity: 0.9 });
+  } else if (ztype === 'runner') {                                                               // Koşucu: açık kemikler, sarı bant
+    box(torso, [0.48, 0.05, 0.28], '#e3c84a', [0, 0.28, 0.0]);
+    box(torso, [0.48, 0.05, 0.28], '#e3c84a', [0, -0.05, 0.0]);
+  }
 }
 
-function addGear(cls, team, c, parts, skin) {
+function addGear(cls, team, c, parts, skin, ztype) {
   const { torso, head, legs } = parts;
-  if (cls === 'zombie') { zombieGear(parts); return; }
+  if (cls === 'zombie') { zombieGear(parts, ztype); return; }
   // ortak: yelek + kemer + omuz kayışları
   box(torso, [0.5, 0.42, 0.3], c.vest, [0, 0.07, 0]);
   box(torso, [0.1, 0.14, 0.31], c.vest, [0.16, 0.26, 0]);                       // omuz kayışı
@@ -274,7 +290,7 @@ function addGear(cls, team, c, parts, skin) {
 }
 
 // ── Karakter oluşturucu ──
-export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0, weapon = null, blade = 0.38, optic = 'reddot' } = {}) {
+export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0, weapon = null, blade = 0.38, optic = 'reddot', ztype = 'walker' } = {}) {
   const c = TEAMS[team];
   const skin = SKINS[skinIndex % SKINS.length];
   const root = new THREE.Group();
@@ -318,7 +334,7 @@ export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0,
   legs.R.knee.rotation.x = 0.22;
 
   const parts = { torso, head, legs };
-  addGear(cls, team, c, parts, skin);
+  addGear(cls, team, c, parts, skin, ztype);
 
   // kollar + silah
   const armR = makeArm(torso, 'R', c);
@@ -348,6 +364,7 @@ export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0,
     refreshHold(o) { applyPose(api, api.weapon, o); },
   };
 
+  if (cls === 'zombie') root.scale.setScalar((ZTYPES[ztype] || ZTYPES.walker).scale);       // dev büyük, koşucu biraz ince/küçük
   const wid = weapon === undefined ? null : weapon || CLASSES[cls].weapon[team];
   api.blade = blade;
   api.optic = optic;

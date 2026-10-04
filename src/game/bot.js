@@ -137,6 +137,7 @@ export class BotBrain {
     let best = null, bd = 1e9;
     for (const e of g.soldiers) {
       if (!e.alive || e.team === s.team || e.protT > 0.5) continue;
+      if (e.cloaked && Math.hypot(e.pos.x - s.pos.x, e.pos.z - s.pos.z) > 6) continue;       // görünmez zombi yakına gelmeden fark edilmez
       const tc = e.center(tC);
       const dx = tc.x - eye.x, dz = tc.z - eye.z;
       const dist = Math.hypot(dx, dz);
@@ -160,6 +161,17 @@ export class BotBrain {
     }
   }
 
+  // Zombi botu özel gücü: türüne göre uygun anda kullanır
+  useZAbility(dist, los, near) {
+    const s = this.s, ab = s.ability;
+    if (!ab || s.abT > 0 || s.abActive > 0) return;
+    const id = ab.id;
+    if (id === 'blink') { if (!near && dist > 16 && dist < 40 && Math.random() < 0.05) s.useAbility(); }          // uzaktan ışınlanarak yaklaşır
+    else if (id === 'cloak') { if (dist > 10 && dist < 50 && Math.random() < 0.04) s.useAbility(); }
+    else if (id === 'shield') { if ((dist < 14 && Math.random() < 0.05) || s.hp < s.maxHp * 0.6) s.useAbility(); }
+    else if (dist < 28 && Math.random() < 0.04) s.useAbility();                                                    // öfke / atılış
+  }
+
   // ── Zombi botu: en yakın insanı kovalar (yol bulma), yakına gelince pençeler. Silah/ateş mantığı yok. ──
   updateZombie(dt) {
     const s = this.s, g = this.game;
@@ -175,7 +187,7 @@ export class BotBrain {
       this.target = best; this.tDist = bd;
     }
     const tg = this.target && this.target.alive ? this.target : null;
-    let moveX = 0, moveZ = 0, speed = 4.4 * s.def.speed * (s.stat.move || 1);
+    let moveX = 0, moveZ = 0, speed = 4.4 * s.spd * (s.stat.move || 1);
     s.ads = false; s.crouching = false; s.botExtraSpread = 0;
     if (s.blindT > 0) { s.yaw += Math.sin(this.t * 2.2 + s.id) * dt * 1.4; s.vel.x *= 0.85; s.vel.z *= 0.85; return; }
     if (tg) {
@@ -190,6 +202,7 @@ export class BotBrain {
         if (dist > 1.5) { moveX = dx / (dist + 1e-6); moveZ = dz / (dist + 1e-6); }
         if (dist < 2.2 && Math.abs(angleDiff(s.yaw, want)) < 0.5) s.tryFire();
         this.path = null;
+        this.useZAbility(dist, los, true);
       } else {
         this.repathT -= dt;
         if ((!this.path || this.repathT <= 0) && g.pathBudget > 0) {
@@ -204,6 +217,7 @@ export class BotBrain {
           moveX = (wp.x - s.pos.x) / (wd + 1e-6); moveZ = (wp.z - s.pos.z) / (wd + 1e-6);
           s.yaw += clamp(angleDiff(s.yaw, yawFromDir(moveX, moveZ)), -8 * dt, 8 * dt);
           s.pitch += (0 - s.pitch) * Math.min(1, dt * 4);
+          this.useZAbility(dist, false, false);
         } else { moveX = dx / (dist + 1e-6); moveZ = dz / (dist + 1e-6); s.yaw += clamp(angleDiff(s.yaw, want), -6 * dt, 6 * dt); }
       }
       speed *= 1.5;                                          // zombiler hep koşar
@@ -247,7 +261,7 @@ export class BotBrain {
 
     const st = s.stat;
     const eye = s.eye(tA);
-    let moveX = 0, moveZ = 0, speed = 4.4 * s.def.speed * (st.move || 1);
+    let moveX = 0, moveZ = 0, speed = 4.4 * s.spd * (st.move || 1);
     let combat = false;
 
     // ── reload / silah yönetimi ──

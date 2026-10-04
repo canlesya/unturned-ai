@@ -1,7 +1,7 @@
 // Bir oda = başsız bir Game + bağlı oyuncular. Sabit adımla (SIM_HZ) çalışır, her SNAP_EVERY adımda snapshot yollar.
 import { Game } from '../src/game/game.js';
 import { SIM_DT, SIM_HZ, SNAP_EVERY, packSoldier, cleanName } from '../src/net/protocol.js';
-import { CLASS_DEFS, WSTATS } from '../src/game/stats.js';
+import { CLASS_DEFS, WSTATS, ZTYPES } from '../src/game/stats.js';
 import { defaultTickets } from '../src/game/match.js';
 import { MAPS } from '../src/maps/index.js';
 
@@ -165,7 +165,7 @@ export class Room {
       yw: num(m.yw, -1e4, 1e4), pt: num(m.pt, -1.5, 1.5),
       w: Math.round(num(m.w, 0, 3)),
       c: m.c ? 1 : 0, p: m.p ? 1 : 0, u: m.u ? 1 : 0,
-      fh: m.fh ? 1 : 0, fp: m.fp ? 1 : 0, rl: m.rl ? 1 : 0, fm: m.fm ? 1 : 0, o: m.o ? 1 : 0,
+      fh: m.fh ? 1 : 0, fp: m.fp ? 1 : 0, rl: m.rl ? 1 : 0, fm: m.fm ? 1 : 0, o: m.o ? 1 : 0, ab: m.ab ? 1 : 0,
       vt: Number.isFinite(m.vt) ? m.vt : null,
       sd: m.sd ? 1 : 0,
       co: Array.isArray(m.co) && m.co.length === 3 && m.co.every(Number.isFinite) ? m.co.map((v) => Math.max(-4.5, Math.min(4.5, v))) : null,
@@ -189,7 +189,8 @@ export class Room {
     if (!c) return;
     const h = c.h, g = this.game, str = (v) => (typeof v === 'string' ? v.slice(0, 24) : undefined);
     if (typeof m.optic === 'string' && h.s.alive) h.s.setOptic(m.optic);             // T tekerleği: nişangâh seçimi hemen geçerli
-    if (typeof m.cls === 'string' && CLASS_DEFS[m.cls]) h.pendingClass = m.cls;
+    if (typeof m.cls === 'string' && CLASS_DEFS[m.cls] && m.cls !== 'zombie') h.pendingClass = m.cls;
+    if (typeof m.zt === 'string' && ZTYPES[m.zt]) h.pendingZ = m.zt;                  // Enfekte: bir sonraki doğuşta zombi türü
     if (m.loadout && typeof m.loadout === 'object') h.pendingLoadout = { primary: str(m.loadout.primary), secondary: str(m.loadout.secondary), gadget: str(m.loadout.gadget), melee: str(m.loadout.melee) };
     if (typeof m.spawn === 'string') h.spawnChoice = m.spawn === 'base' || g.mode.objectives.some((o) => o.id === m.spawn) ? m.spawn : 'base';
   }
@@ -240,7 +241,7 @@ export class Room {
     for (const c of this.clients.values()) {
       if (c.ws.readyState !== 1) continue;
       const h = c.h, s = h.s;
-      const me = { ack: h.ack, rs: s.spawnN, st: h.ackState || packSoldier(s), now: packSoldier(s), rt: +s.respawnT.toFixed(2), am: s.items.map((it) => [it.mag, it.reserve]) };
+      const me = { ack: h.ack, rs: s.spawnN, st: h.ackState || packSoldier(s), now: packSoldier(s), rt: +s.respawnT.toFixed(2), am: s.items.map((it) => [it.mag, it.reserve]), ab: [+s.abT.toFixed(1), +s.abActive.toFixed(1)] };
       c.ws.send(head + JSON.stringify(me) + '}');
     }
   }

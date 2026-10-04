@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { createWeapon } from '../models/weapons.js';
 import { createItem } from '../models/items.js';
 import { TEAMS } from '../core/palette.js';
-import { WSTATS, OPTICS, OPTIC_ALLOWED } from './stats.js';
+import { WSTATS, OPTICS, OPTIC_ALLOWED, ZT_ORDER } from './stats.js';
 import { reloadAnim, meleePose } from './anim.js';
 import { box } from '../core/geo.js';
 import { clamp, lerp, V3 } from './util.js';
@@ -341,6 +341,12 @@ export class Player {
 
   on(target, ev, fn, opt) { target.addEventListener(ev, fn, opt); this._bound.push([target, ev, fn, opt]); }
 
+  // Zombi özel gücü: çevrimdışı hemen uygula; çevrimiçinde sunucu uygular (kenar olayı gönderilir)
+  zAbility() {
+    const s = this.s;
+    if (this.game.online) this.game.online.edge('ab'); else s.useAbility();
+  }
+
   bind() {
     const cv = this.game.canvas;
     this.on(window, 'keydown', (e) => {
@@ -369,9 +375,14 @@ export class Player {
       if (slot >= 0) s.switchTo(slot);
       if (kb.is('fireMode', code) && s.alive) { s.toggleFireMode(); this.game.online?.edge('fm'); }
       if (kb.is('scoreboard', code)) { e.preventDefault(); this.game.hud.showScoreboard(true); }
+      if (kb.is('ability', code) && s.alive && s.def.zombie && !e.repeat) this.zAbility();
       if (code === 'Space' || code.startsWith('Arrow')) e.preventDefault();
       if (kb.is('jump', code) && s.alive && (s.prone || s.crouching)) { s.standUp(); this.game.online?.edge('u'); this.spaceLatch = true; }   // yatarken/çömelirken zıplama tuşu = kalk
       if (code === 'Escape' && this.game.noPointerLock) this.game.togglePause();
+      if (!s.alive && this.game.respawnReady() && this.game.mode.infection) {                                  // Enfekte ölüm ekranı: 1-5 zombi türü
+        const n = slot >= 0 ? slot : code === 'Digit5' ? 4 : -1;
+        if (n >= 0 && ZT_ORDER[n]) this.game.requestZType(ZT_ORDER[n]);
+      }
       if (!s.alive && this.game.respawnReady() && !this.game.mode.infection) {                                 // ölüm ekranında sınıf seç: yuva tuşları 1-4, Digit5 beşinci sınıf
         const keys = Object.keys(this.game.classDefs);
         const n = slot >= 0 ? slot : code === 'Digit5' ? 4 : -1;
@@ -403,6 +414,7 @@ export class Player {
       if (this.wheel) { if (e.button === 0) this.wheelPick(); return; }                       // tekerlek açıkken tık = seçim (ateş değil)
       if (!this.locked) { this.game.requestLock(); return; }
       if (e.button === 0) { this.fireHeld = true; this.fireBuf = 0.15; this.game.online?.edge('fp'); }
+      if (e.button === 2 && this.s.def.zombie) { this.zAbility(); return; }                  // zombi: sağ tık = özel güç
       if (e.button === 2) this.s.ads = this.game.opts.adsToggle ? !this.s.ads : true;          // Ayarlar: basılı tut ya da bir kez bas (aç-kapa)
     });
     this.on(window, 'mouseup', (e) => {

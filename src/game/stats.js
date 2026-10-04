@@ -8,13 +8,25 @@ export const TAC_RELOAD = 0.65;
 
 // Enfekte modu (zombi) denge değerleri — tek yerden ayarlanır
 export const ZOMBIE = {
-  hp: 100,            // zombi canı (insanla aynı: menzil avantajı insanda, kalabalık zombide)
-  alphaHp: 200,       // ilk enfekte (maç başında seçilen) zombinin canı
-  speed: 1.0,         // hız çarpanı (insanla aynı): koşan insanı yakalamak için sürü gerekir
-  dmg: 25,            // pençe hasarı: insanı 4 vuruşta öldürür
-  respawn: 8,         // sn: zombi öldüğünde yeniden doğma süresi
-  ratio: 8,           // oyuncu sayısının 1/8'i (en az 1) ilk zombi
+  alphaMul: 2,        // ilk enfekte (alfa) canı çarpanı
+  respawn: 6,         // sn: zombi öldüğünde yeniden doğma süresi
+  ratio: 4,           // oyuncu sayısının 1/4'ü (en az 1) ilk zombi
 };
+// Zombi türleri: can / hız çarpanı (insan 1.0) / pençe hasarı / model ölçeği / göz rengi / özel güç (tuş: F ya da sağ tık)
+// Güçler: rage = hız+hasar artışı · burst = kısa süre çok hızlı koşu · shield = az hasar alma · cloak = görünmezlik (saldırınca/hasar alınca biter) · blink = ileri ışınlanma
+export const ZTYPES = {
+  walker:  { label: 'Yürüyen',   desc: 'Dengeli. Öfke: kısa süre hızlı ve ölümcül.',            hp: 190, speed: 1.12, dmg: 32, scale: 1.0,  eye: '#d6ff6a', skin: '#86a273', ability: { id: 'rage',   label: 'Öfke',          cd: 14, dur: 4 }, w: 30 },
+  runner:  { label: 'Koşucu',    desc: 'Çok hızlı, kırılgan. Atılış: kısa süre inanılmaz hız.', hp: 140, speed: 1.32, dmg: 28, scale: 0.96, eye: '#ffd24a', skin: '#a3ad72', ability: { id: 'burst',  label: 'Atılış',        cd: 10, dur: 2.5 }, w: 25 },
+  brute:   { label: 'Dev',       desc: 'Çok dayanıklı, ağır vurur. Zırh: hasarı büyük ölçüde azaltır.', hp: 460, speed: 1.0, dmg: 46, scale: 1.1, eye: '#ff5a3c', skin: '#7a8a68', ability: { id: 'shield', label: 'Zırh',          cd: 16, dur: 5 }, w: 15 },
+  ghost:   { label: 'Hayalet',   desc: 'Görünmezlik: saldırana kadar kimse seni görmez.',        hp: 150, speed: 1.18, dmg: 32, scale: 1.0,  eye: '#7ad7ff', skin: '#93bcc6', ability: { id: 'cloak',  label: 'Görünmezlik',   cd: 16, dur: 6 }, w: 15 },
+  blinker: { label: 'Işınlanan', desc: 'Işınlanma: baktığın yönde 14 m öteye sıçrar.',          hp: 170, speed: 1.15, dmg: 32, scale: 1.0,  eye: '#d58aff', skin: '#9c88b8', ability: { id: 'blink',  label: 'Işınlanma',     cd: 8,  dur: 0, range: 14 }, w: 15 },
+};
+export const ZT_ORDER = Object.keys(ZTYPES);
+export function randomZType(rng = Math.random) {
+  let r = rng() * ZT_ORDER.reduce((a, k) => a + ZTYPES[k].w, 0);
+  for (const k of ZT_ORDER) { r -= ZTYPES[k].w; if (r <= 0) return k; }
+  return 'walker';
+}
 
 export const WSTATS = {
   // ───────── Tüfekler ─────────
@@ -206,7 +218,7 @@ export const WSTATS = {
   },
   claws: {
     name: 'Pençe', kind: 'melee', slot: 'melee', desc: 'Zombi pençesi: hızlı, kanlı darbeler.', stats: { dmg: 40, range: 40, rate: 85, control: 90, mobility: 100 },
-    dmg: ZOMBIE.dmg, reach: 2.3, rpm: 150, mag: 1, reserve: 0, move: 1.0, equip: 0.1, sound: 'knife',
+    dmg: 32, reach: 2.3, rpm: 150, mag: 1, reserve: 0, move: 1.0, equip: 0.1, sound: 'knife',
     swings: ['rl', 'lr', 'stab'], swingT: 0.34, stabT: 0.4, stabMul: 1.25,
   },
   tomahawk: {
@@ -284,7 +296,7 @@ export function makeLoadout(cls, team, choice = {}, rng = Math.random) {
 // Zombi sınıfı: menüde/sınıf seçiminde görünmez (numaralandırılamaz), yalnızca enfekte olunca atanır. Tek silah: pençe.
 Object.defineProperty(CLASS_DEFS, 'zombie', {
   enumerable: false,
-  value: { label: 'Zombi', hp: ZOMBIE.hp, speed: ZOMBIE.speed, zombie: true, primary: { blue: 'claws', red: 'claws' }, gadget: ['claws', 0], desc: 'Pençeli enfekte',
+  value: { label: 'Zombi', hp: 190, speed: 1.12, zombie: true, primary: { blue: 'claws', red: 'claws' }, gadget: ['claws', 0], desc: 'Pençeli enfekte',
     primaryOptions: ['claws'], secondaryOptions: [], gadgetOptions: [], meleeOptions: ['claws'], defaults: { primary: { blue: 'claws', red: 'claws' }, secondary: 'claws', gadget: 'claws', melee: 'claws' } },
 });
 

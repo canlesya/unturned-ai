@@ -1,5 +1,5 @@
 import { TEAMS } from '../core/palette.js';
-import { WSTATS, CLASS_DEFS, BLEED_S } from './stats.js';
+import { WSTATS, CLASS_DEFS, BLEED_S, ZTYPES, ZT_ORDER } from './stats.js';
 import { clamp } from './util.js';
 import { codeLabel } from '../core/keybinds.js';
 
@@ -51,6 +51,10 @@ const CSS = `
 #hitm::after{transform:rotate(-45deg)}
 #hitm.k::before,#hitm.k::after{background:#ff3b2f}
 /* sağlık / sınıf */
+#abil{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);width:300px;white-space:nowrap;text-align:center;display:none;text-shadow:0 1px 4px #000;font-weight:700;letter-spacing:2px;text-transform:uppercase}
+#abil .an{font-size:14px;margin-bottom:4px}#abil b{display:inline-block;min-width:22px;padding:1px 6px;margin-right:8px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4)}
+#abil .bar{height:6px;background:rgba(255,255,255,.18)}#abil .bar i{display:block;height:100%;width:100%;background:#8dff5a}
+#abil.cd .bar i{background:#a8a8a8}#abil.on .bar i{background:#ff8a1f}#abil.on{color:#ffb35c}
 #vitals{position:absolute;left:20px;bottom:20px;width:300px;text-shadow:0 1px 4px #000}
 #vitals .cls{font-size:13px;font-weight:700;letter-spacing:3px;opacity:.9;text-transform:uppercase}
 #vitals .row{display:flex;align-items:flex-end;gap:12px;margin-top:2px}
@@ -167,6 +171,7 @@ export class Hud {
       <div id="rdot"></div><div id="holo"><i></i><i></i><i></i><i></i></div><div id="hitm"></div>
       <div id="pops"></div><div id="zonew">DÜŞMAN ÜSSÜNE GİRDİN!<small id="zonet"></small></div><div id="msg"></div>
       <div id="vitals"><div class="cls" id="clsname"></div><div class="row"><div id="hpnum">100</div><div id="hpbar"><div id="hpfill"></div></div></div><div id="stance"></div></div>
+      <div id="abil"><div class="an"><b id="abk">F</b><span id="abn"></span></div><div class="bar"><i id="abbar"></i></div></div>
       <div id="ammo"><div class="nm" id="wname"></div><div class="n"><span id="mag">0</span> <small id="res">/ 0</small></div><div id="slots"></div></div>
       <div id="respawn" class="overlay"><div class="dep">
         <div class="card"><h3>Durum</h3><div id="rtitle">Öldün</div><p id="rinfo"></p><div id="rcount"></div></div>
@@ -195,7 +200,9 @@ export class Hud {
     this.maxTk = game.ffa ? game.mode.killLimit : game.mode.infection ? game.mode.total : game.mode.tickets;
     if (game.mode.infection) {                                            // Enfekte: sol = insanlar, sağ = zombiler; ölüm ekranında sınıf/doğma seçimi yok
       this.root.querySelector('#tnB').textContent = 'İNSAN'; this.root.querySelector('#tnR').textContent = 'ZOMBİ';
-      for (const id of ['clsrow', 'spawnrow']) this.$(id).parentElement.style.display = 'none';
+      this.$('spawnrow').parentElement.style.display = 'none';
+      this.buildZRow();
+      this.$('clsrow').parentElement.querySelector('h3').innerHTML = 'Zombi türü <span style="opacity:.6;letter-spacing:1px;text-transform:none">(1–5)</span>';
     }
     if (game.ffa) { this.root.querySelector('.tk.blue small').textContent = 'SEN'; this.root.querySelector('.tk.red small').textContent = 'LİDER'; }
     this.$('bResume').onclick = () => game.requestLock();
@@ -207,6 +214,20 @@ export class Hud {
   }
 
   dispose() { this.root.remove(); this.st.remove(); }
+
+  // Enfekte: ölüm ekranında zombi türü seçimi (1–5)
+  buildZRow() {
+    const row = this.$('clsrow');
+    row.innerHTML = '';
+    ZT_ORDER.forEach((k, i) => {
+      const t = ZTYPES[k], c = document.createElement('div');
+      c.className = 'cc'; c.dataset.k = k;
+      c.innerHTML = `<b>${i + 1} · ${t.label}</b><small>${t.desc}</small>`;
+      c.onclick = () => this.game.requestZType(k);
+      row.appendChild(c);
+    });
+  }
+  markZ(k) { this.$('clsrow').querySelectorAll('.cc').forEach((c) => c.classList.toggle('on', c.dataset.k === k)); }
 
   buildClassRow() {
     const row = this.$('clsrow');
@@ -448,10 +469,20 @@ export class Hud {
     });
     // oyuncu durumu
     const st = p.stat, it = p.item;
+    const ab = p.ability;                                                   // zombi özel gücü göstergesi
+    const abEl = $('abil');
+    if (ab && p.alive) {
+      abEl.style.display = 'block';
+      const act = p.abActive > 0, rdy = p.abT <= 0 && !act;
+      abEl.className = act ? 'on' : rdy ? '' : 'cd';
+      $('abk').textContent = codeLabel(g.binds.codes('ability')[0]) + ' / SAĞ TIK';
+      $('abn').textContent = act ? `${ab.label} · ${p.abActive.toFixed(1)}s` : rdy ? `${ab.label} · HAZIR` : `${ab.label} · ${Math.ceil(p.abT)}s`;
+      $('abbar').style.width = (act ? p.abActive / ab.dur * 100 : rdy ? 100 : (1 - p.abT / ab.cd) * 100) + '%';
+    } else abEl.style.display = 'none';
     $('hpnum').innerHTML = `${Math.max(0, Math.ceil(p.hp))}<small>HP</small>`;
     $('hpfill').style.width = clamp((p.hp / p.maxHp) * 100, 0, 100) + '%';
     $('hpfill').style.background = p.hp < 30 ? 'linear-gradient(90deg,#d63a2e,#f06a4a)' : 'linear-gradient(90deg,#3ecf5b,#7be06f)';
-    $('clsname').textContent = g.mode.infection ? `${CLASS_DEFS[p.cls].label} · ${p.def.zombie ? 'Zombiler' : 'İnsanlar'}` : `${CLASS_DEFS[p.cls].label} · ${TEAMS[p.team].name}`;
+    $('clsname').textContent = g.mode.infection ? (p.def.zombie ? `Zombi · ${p.zt.label}` : `${CLASS_DEFS[p.cls].label} · İnsanlar`) : `${CLASS_DEFS[p.cls].label} · ${TEAMS[p.team].name}`;
     $('wname').textContent = p.reloadT > 0 ? `${st.name} · dolduruluyor…` : p.useT > 0 ? `${st.name} · kullanılıyor…` : st.name;
     $('mag').textContent = it.mag;
     $('res').textContent = st.kind === 'throwable' || st.kind === 'medkit' || st.kind === 'melee' ? '' : '/ ' + it.reserve;
@@ -487,6 +518,7 @@ export class Hud {
       $('rinfo').innerHTML = k ? `<b>${k.name}</b> · ${CLASS_DEFS[k.cls].label}<br>${k.item ? WSTATS[k.item.id].name : ''} · ${Math.ceil(k.hp)} can kaldı` : '';
       $('rcount').textContent = p.respawnT > 0 ? Math.ceil(p.respawnT) : '…';
       if (g.mode.infection) $('rinfo').innerHTML += p.def.zombie ? '<br>Yeniden doğuyorsun…' : '<br><b style="color:#b6ff6a">Zombi olarak doğacaksın</b>';
+      if (g.mode.infection) this.markZ(g.pendingZ || '');
       else { this.buildSpawnRow(); this.markClass(g.pendingClass || p.cls); }
     } else { rs.style.display = 'none'; this._spKey = null; }
     // mesaj

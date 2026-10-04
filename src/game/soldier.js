@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createCharacter } from '../models/character.js';
-import { WSTATS, CLASS_DEFS, OPTICS, OPTIC_ORDER, OPTIC_ALLOWED, resolveOptic, makeLoadout, TAC_RELOAD, BACKSTAB_DMG, ZOMBIE } from './stats.js';
+import { WSTATS, CLASS_DEFS, OPTICS, OPTIC_ORDER, OPTIC_ALLOWED, resolveOptic, makeLoadout, TAC_RELOAD, BACKSTAB_DMG, ZOMBIE, ZTYPES } from './stats.js';
 import { SWING_HIT_K } from './anim.js';
 import { H_STAND, H_CROUCH, H_PRONE } from './collision.js';
 import { dirFromAngles, clamp, rand, lerp } from './util.js';
@@ -52,12 +52,49 @@ export class Soldier {
     this.stanceLeft = false; this.stanceT = 1;        // 3. şahıs sol omuz duruşu (görsel): hedef ve yumuşatılmış değer (+1 sağ … −1 sol)
     this.shotOff = null;          // 3. şahıs kamerada: kameranın gözden ofseti (nişan noktasını kamera ışını belirler; mermi yine gözden çıkar)
     this.dmgMul = 1;
+    this.ztype = 'walker'; this.abT = 0; this.abActive = 0; this.cloakNet = false;      // Enfekte: zombi türü, özel güç bekleme süresi / etkin süresi, ağdan gelen görünmezlik
     this.model = null;
     this.setClass(cls);
   }
 
   get item() { return this.items[this.cur]; }
   get stat() { return WSTATS[this.item.id]; }
+  // ── Enfekte: zombi türü ve özel güç ──
+  get zt() { return ZTYPES[this.ztype] || ZTYPES.walker; }
+  get ability() { return this.def.zombie ? this.zt.ability : null; }
+  get abOn() { return this.abActive > 0; }
+  get cloaked() { return this.cloakNet || (this.def.zombie && this.abActive > 0 && this.zt.ability.id === 'cloak'); }
+  // hız çarpanı (insanlarda sınıfın hızı; zombide türün hızı × etkin güç)
+  get spd() {
+    if (!this.def.zombie) return this.def.speed;
+    const a = this.abActive > 0 ? this.zt.ability.id : '';
+    return this.zt.speed * (a === 'rage' ? 1.25 : a === 'burst' ? 1.7 : 1);
+  }
+  zombieMaxHp() { return Math.round(this.zt.hp * (this.alpha ? ZOMBIE.alphaMul : 1)); }
+
+  // Özel güç (F / sağ tık). Sunucu da istemci de (çevrimdışı) aynı kodu çalıştırır. Döner: kullanıldı mı
+  useAbility() {
+    if (!this.alive || !this.def.zombie || this.abT > 0 || this.game.ended) return false;
+    const ab = this.zt.ability, from = this.pos.clone();
+    if (ab.id === 'blink' && !this._blink(ab.range)) { this.abT = 0.8; return false; }
+    this.abT = ab.cd; this.abActive = ab.dur;
+    this.game.abilityFx(this, ab.id, from);
+    return true;
+  }
+
+  // Işınlanma: yatay bakış yönünde en çok `range` m; engel varsa önünde durur
+  _blink(range) {
+    const g = this.game, d = new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
+    const o = new THREE.Vector3(this.pos.x, this.pos.y + 0.9, this.pos.z);
+    const hit = g.world.raycast(o, d, range, {});
+    const dist = hit ? hit.t - 0.9 : range;
+    if (dist < 1.5) return false;
+    this.pos.x += d.x * dist; this.pos.z += d.z * dist;
+    g.world.settle(this);
+    this.vel.set(d.x * 2, 0, d.z * 2);
+    return true;
+  }
+
   get opticId() { return resolveOptic(this.item.id, this.optic); }
   get opticDef() { const o = this.opticId; return o ? OPTICS[o] : null; }
   get zoomNow() { const st = this.stat; if (!st.zoom) return 0; return this.opticDef ? this.opticDef.zoom : st.zoom; }
@@ -78,7 +115,7 @@ export class Soldier {
     }
     // görünüm: sınıf teçhizatı değişir → modeli yeniden kur
     if (this.model) this.game.scene.remove(this.model.root);
-    this.model = createCharacter({ team: def.zombie ? 'zomb' : this.team, cls, skinIndex: this.id, weapon: this.items[0].id, optic: this.optic });
+    this.model = createCharacter({ team: def.zombie ? 'zomb' : this.team, cls, ztype: this.ztype, skinIndex: this.id, weapon: this.items[0].id, optic: this.optic });
     this.model.root.visible = this.alive;
     this.game.scene.add(this.model.root);
     this._modelWeapon = this.items[0].id;
@@ -94,7 +131,7 @@ export class Soldier {
     this.vel.set(0, 0, 0);
     this.yaw = point.ry; this.pitch = 0; this.recoilP = 0;
     this.alive = true; this.deadT = 0; this.spawnN = (this.spawnN || 0) + 1;     // spawnN: ağ istemcisi yeniden doğmayı fark etsin
-    if (this.def.zombie) this.maxHp = this.alpha ? ZOMBIE.alphaHp : ZOMBIE.hp;    // ilk enfekte (alfa) daha dayanıklı
+    if (this.def.zombie) { this.maxHp = this.zombieMaxHp(); this.abT = 2.5; this.abActive = 0; this.cloakNet = false; }    // türüne göre can; güç kısa bir bekleme ile başlar
     this.hp = this.maxHp;
     this.items = makeLoadout(this.cls, this.team, this.choice);
     this.cur = 0;
@@ -320,6 +357,7 @@ export class Soldier {
     this.comboN = idx;
     const kind = st.swings[idx];
     const dur = kind === 'stab' ? st.stabT : st.swingT;
+    if (this.def.zombie && this.cloaked && this.abActive > 0) this.abActive = 0;      // saldırı görünmezliği bitirir
     this.swing = { t: 0, dur, kind, idx, done: false };
     this.comboT = dur + 0.38;
     this.cd = dur * 0.8;                                   // %80'de yeni savurma zincirlenebilir (hızlı çekme)
@@ -340,8 +378,8 @@ export class Soldier {
     g.effects.slash(o, d, sw.kind, st.reach, this.team);
     if (hit && hit.victim) {
       const v = hit.victim;
-      const back = this.isBehind(v);
-      const mul = sw.kind === 'stab' ? st.stabMul : 1;
+      const zb = this.def.zombie, back = !zb && this.isBehind(v);                       // zombi arkadan tek vuruş yapmaz
+      const mul = (sw.kind === 'stab' ? st.stabMul : 1) * (zb ? this.zt.dmg / st.dmg * (this.abActive > 0 && this.zt.ability.id === 'rage' ? 1.4 : 1) : 1);
       g.effects.blood(hit.point, back ? 14 : 8, d.clone().negate());
       g.sfx.knifeHit(hit.point, back);
       v.takeDamage((back ? BACKSTAB_DMG : st.dmg * mul) * this.dmgMul, this, 'body', this.pos, back ? st.name + ' · arkadan' : st.name);
@@ -441,6 +479,7 @@ export class Soldier {
 
   takeDamage(amount, attacker, zone, fromPos, weaponName) {
     if (!this.alive || this.protT > 0) return;
+    if (this.def.zombie && this.abActive > 0) { const a = this.zt.ability.id; if (a === 'shield') amount *= 0.3; else if (a === 'cloak') this.abActive = 0; }   // zırh: hasarın %70'i yok · hayalet vurulunca belirir
     this.hp -= amount;
     this.lastHit = attacker;
     this.lastDmgT = this.game.time;
@@ -480,6 +519,7 @@ export class Soldier {
   update(dt) {
     if (!this.alive) { this.deadT += dt; return; }
     this.cd = Math.max(0, this.cd - dt);
+    this.abT = Math.max(0, this.abT - dt); this.abActive = Math.max(0, this.abActive - dt);
     this.switchT = Math.max(0, this.switchT - dt);
     this.protT = Math.max(0, this.protT - dt);
     this.flashT = Math.max(0, this.flashT - dt);
@@ -558,6 +598,7 @@ export class Soldier {
     if (this.isPlayer && !this.game.showSelf) { root.visible = false; return; }      // 1. şahıs: kendi gövdeni görmezsin
     if (this.isPlayer) this._syncWeaponModel();                                         // 3. şahıs: elindeki silah modeli güncel olsun
     root.visible = this.alive || this.deadT < 5;
+    if (this.cloaked && this.alive && !this.isPlayer && this.pos.distanceTo(this.game.camera.position) > 3) root.visible = false;   // görünmez zombi: yalnızca 3 m içinde seçilir
     root.position.set(this.pos.x, this.pos.y + (m.groundOffset ?? m.root.position.y), this.pos.z);
     // Bacaklar (root) bakış yönüne gecikmeli döner; gövde (silah) hep bakış yönünde kalır: yerinde dönerken ayaklar takip eder, koşarken hızla hizalanır
     const angDiff = (a, b) => ((a - b + Math.PI * 3) % (Math.PI * 2)) - Math.PI;

@@ -12,7 +12,7 @@ export function applyInput(s, input, dt) {
   const wantSprint = input.sprint && f > 0 && !s.ads && s.onGround && !s.prone && lean === 0;
   s.sprinting = wantSprint;                     // yüklerken de koşulabilir
   if (s.sprinting) { s.crouching = false; if (s.prone) s.prone = false; }
-  let spd = WALK_SPEED * s.def.speed * (st.move || 1);
+  let spd = WALK_SPEED * s.spd * (st.move || 1);
   if (s.sprinting) spd *= 1.5;
   if (s.crouching) spd *= 0.52;
   if (s.prone) spd *= 0.27;

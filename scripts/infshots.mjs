@@ -21,6 +21,20 @@ await page.evaluate(() => {
 });
 await adv(6);
 await page.screenshot({ path: `${pre}-2-zombi-karsida.png` });
+// bütün zombi türleri yan yana
+await page.evaluate(() => {
+  const g = window.__game, p = g.playerSoldier, types = ['walker', 'runner', 'brute', 'ghost', 'blinker'];
+  const zs = g.soldiers.filter((s) => s.def.zombie && s !== p), r = { x: Math.cos(p.yaw), z: -Math.sin(p.yaw) };
+  const others = g.soldiers.filter((s) => s !== p && !s.def.zombie && s.alive);
+  for (let i = 0; i < 5; i++) {
+    const z = zs[i] || others[i]; if (!z) continue;
+    if (!z.def.zombie) g.makeZombie(z, false, types[i]); else { z.ztype = types[i]; z.setClass('zombie'); }
+    z.spawn({ x: p.pos.x - Math.sin(p.yaw) * 5.5 + r.x * (i - 2) * 1.9, z: p.pos.z - Math.cos(p.yaw) * 5.5 + r.z * (i - 2) * 1.9, ry: p.yaw + Math.PI }, 0); z.protT = 0; z.vel.set(0, 0, 0); g.world.settle(z);
+    if (i === 3) { z.abT = 0; z.useAbility(); z.pos.x += 0; }
+  }
+});
+await adv(6);
+await page.screenshot({ path: `${pre}-7-turler.png` });
 // oyuncuyu enfekte et: öldür → ölüm ekranı → zombi doğuş
 await page.evaluate(() => { const g = window.__game, p = g.playerSoldier, z = g.zshot; z.pos.y = -50; p.takeDamage(999, z, 'body', z.pos, 'Pençe'); });
 await adv(10);
@@ -38,5 +52,6 @@ await page.evaluate(() => { const g = window.__game; g.soldiers.filter((s) => s.
 await adv(40);
 await page.screenshot({ path: `${pre}-6-bitis.png` });
 console.log('bitti:', await page.evaluate(() => { const g = window.__game; return JSON.stringify({ ended: g.ended, w: g.winner, why: g.endReason }); }));
+console.log('abil:', await page.evaluate(() => { const a = document.getElementById('abil'); return JSON.stringify([a.style.display, a.className, document.getElementById('abn').textContent]); }));
 console.log('hata:', errs.length, errs.slice(0, 4));
 await browser.close();

@@ -3,19 +3,21 @@
 // İstemci → sunucu
 //   { t:'join',  room:'ABCD', name }                 mevcut odaya katıl
 //   { t:'create', name, cfg:{map,tod,weather,perTeam,type,tickets,time,diff}, team? }   yeni oda
-//   { t:'opt', cls?, loadout?, spawn? }                 sonraki doğuş için sınıf/yükleme/doğma noktası
+//   { t:'opt', cls?, loadout?, spawn?, zt? }                 sonraki doğuş için sınıf/yükleme/doğma noktası
 //   { t:'in', q, f, r, l, s, j, a, yw, pt, c, p, u }  girdi (her sim adımında bir tane)
 //        q: sıra no · f/r: ileri/sağ (-1..1) · l: yana eğilme · s: koşma · j: zıpla · a: nişan
 //        yw/pt: bakış (rad) · c/p/u: çömel/yat/kalk tuşuna basıldı (kenar olayı)
 //        sd: 1 = 3. şahıs sol omuz duruşu (yalnızca görsel; diğer oyuncular aynalı duruşu görsün)
 //        co: [x,y,z] 3. şahıs kamerada kameranın gözden ofseti (nişan noktası; mermi yine gözden çıkar; odada izinliyse)
-//        w: seçili silah · fh: ateş basılı · fp: ateşe yeni basıldı · rl: şarjör · fm: atış modu · o: nişangâh · vt: görülen sunucu adımı (lag compensation)
+//        ab: 1 = zombi özel gücü (F / sağ tık) tuşuna basıldı · w: seçili silah · fh: ateş basılı · fp: ateşe yeni basıldı · rl: şarjör · fm: atış modu · o: nişangâh · vt: görülen sunucu adımı (lag compensation)
 // Sunucu → istemci
 //   { t:'welcome', id, room, cfg, roster, st }        id = senin savaşçı numaran
 //   { t:'roster', roster }                            biri girip/çıkınca
 //   { t:'snap', k, ack, me, s:[...], tk, tl, o }      anlık durum (bkz. packSoldier)
 //   { t:'ev', l:[...] }                               olaylar (sh atış, hm isabet, dmg hasar, kill, rld, swg)
 //   { t:'err', msg }
+
+import { ZT_ORDER } from '../game/stats.js';
 
 export const SIM_HZ = 60;               // sunucu ve istemci sabit sim adımı
 export const SIM_DT = 1 / SIM_HZ;
@@ -26,10 +28,10 @@ const q2 = (v) => Math.round(v * 100) / 100;
 const q3 = (v) => Math.round(v * 1000) / 1000;
 
 // bayrak bitleri
-export const F_CROUCH = 1, F_PRONE = 2, F_SPRINT = 4, F_ADS = 8, F_GROUND = 16, F_LEFT = 32;   // F_LEFT: 3. şahıs sol omuz duruşu (görsel)
+export const F_CROUCH = 1, F_PRONE = 2, F_SPRINT = 4, F_ADS = 8, F_GROUND = 16, F_LEFT = 32, F_CLOAK = 64;   // F_LEFT: 3. şahıs sol omuz duruşu (görsel)
 
 export function packFlags(s) {
-  return (s.crouching ? F_CROUCH : 0) | (s.prone ? F_PRONE : 0) | (s.sprinting ? F_SPRINT : 0) | (s.ads ? F_ADS : 0) | (s.onGround ? F_GROUND : 0) | (s.stanceLeft ? F_LEFT : 0);
+  return (s.crouching ? F_CROUCH : 0) | (s.prone ? F_PRONE : 0) | (s.sprinting ? F_SPRINT : 0) | (s.ads ? F_ADS : 0) | (s.onGround ? F_GROUND : 0) | (s.stanceLeft ? F_LEFT : 0) | (s.cloaked ? F_CLOAK : 0);
 }
 
 // Bir savaşçının ağ durumu (kompakt anahtarlar)
@@ -39,7 +41,7 @@ export function packSoldier(s) {
     x: q2(s.pos.x), y: q2(s.pos.y), z: q2(s.pos.z),
     vx: q2(s.vel.x), vy: q2(s.vel.y), vz: q2(s.vel.z),
     yw: q3(s.yaw), pt: q3(s.pitch),
-    a: s.alive ? 1 : 0, hp: Math.round(s.hp), mh: s.maxHp,
+    a: s.alive ? 1 : 0, hp: Math.round(s.hp), mh: s.maxHp, zt: s.def.zombie ? ZT_ORDER.indexOf(s.ztype) + 1 : 0,
     f: packFlags(s), l: s.leanDir, c: s.cur,
     it: s.items.map((it) => it.id),
     kl: s.kills, de: s.deaths, sc: s.score, rv: s.revivable ? 1 : 0,
@@ -48,7 +50,7 @@ export function packSoldier(s) {
 
 export function applyFlags(s, f) {
   s.crouching = !!(f & F_CROUCH); s.prone = !!(f & F_PRONE); s.sprinting = !!(f & F_SPRINT);
-  s.ads = !!(f & F_ADS); s.onGround = !!(f & F_GROUND);
+  s.ads = !!(f & F_ADS); s.onGround = !!(f & F_GROUND); s.cloakNet = !!(f & F_CLOAK);
 }
 
 // Varsayılan sunucu adresi: sayfa HTTPS ile açıldıysa aynı alan adındaki /ws (ters vekil), değilse :8787

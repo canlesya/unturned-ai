@@ -11,7 +11,7 @@ import { Hud } from './hud.js';
 import { Soldier } from './soldier.js';
 import { Player } from './player.js';
 import { BotBrain } from './bot.js';
-import { CLASS_DEFS, WSTATS, BOT_NAMES, makeLoadout, BLEED_S, ZOMBIE } from './stats.js';
+import { CLASS_DEFS, WSTATS, BOT_NAMES, makeLoadout, BLEED_S, ZOMBIE, ZTYPES, ZT_ORDER, randomZType } from './stats.js';
 import { makeMatch, PRESETS } from './match.js';
 import { Weather } from './weather.js';
 import { rand, pick, clamp } from './util.js';
@@ -224,7 +224,7 @@ export class Game {
       if (e.dead) this.sfx.kill(); else if (e.zone === 'head') this.sfx.headshot(); else this.sfx.hit();
     });
     document.addEventListener('keydown', this._kd = (e) => {
-      if (!this.binds.is('flashlight', e.code) || e.repeat || !this.running || this.ended || !this.playerSoldier.alive) return;
+      if (!this.binds.is('flashlight', e.code) || e.repeat || !this.running || this.ended || !this.playerSoldier.alive || this.playerSoldier.def.zombie) return;      // zombi: aynı tuş özel güç
       this.torchOn = !this.torchOn;
       this.torch.intensity = this.torchOn ? (this.night ? 140 : this.tod === 'sunset' ? 45 : 0) : 0;
       this.playerSoldier.flashOn = this.torchOn && this.torch.intensity > 0;
@@ -290,20 +290,21 @@ export class Game {
     if (this.infPool.length < 12) this.infPool = [...this.map.spawns.blue, ...this.map.spawns.red];
   }
 
-  makeZombie(s, alpha = false) {
+  makeZombie(s, alpha = false, type) {
     s.team = 'red'; s.alpha = alpha; s.infectNext = false;
     s.choice = {};
+    s.ztype = type || randomZType();
     s.setClass('zombie');
-    s.maxHp = alpha ? ZOMBIE.alphaHp : ZOMBIE.hp; s.hp = s.maxHp;
+    s.maxHp = s.zombieMaxHp(); s.hp = s.maxHp;
     s.squad = 0;
   }
 
   // Ölen insan zombi olarak yeniden doğar (respawn içinden çağrılır)
   infect(s) {
-    this.makeZombie(s, false);
     const ctl = this.ctlOf(s);
-    if (ctl) { ctl.pendingClass = null; ctl.pendingLoadout = null; }
-    this.netEvent({ e: 'inf', v: s.id, al: s.alpha ? 1 : 0 });
+    this.makeZombie(s, false, ctl && ctl.pendingZ);                  // seçtiği tür (yoksa rastgele)
+    if (ctl) { ctl.pendingClass = null; ctl.pendingLoadout = null; ctl.pendingZ = null; }
+    this.netEvent({ e: 'inf', v: s.id, al: s.alpha ? 1 : 0, zt: ZT_ORDER.indexOf(s.ztype) + 1 });
     this.emit('infect', s);
     if (s.isPlayer && !this.headless) { this.hud.toast('ENFEKTE OLDUN — zombi olarak doğuyorsun', '#b6ff6a'); this.sfx.zombie?.(s.pos); }
   }
@@ -389,6 +390,7 @@ export class Game {
     if (inp.p) s.toggleProne();
     if (inp.rl) s.startReload();
     if (inp.fm) s.toggleFireMode();
+    if (inp.ab) s.useAbility();
     if (inp.o) s.cycleOptic();
     applyInput(s, { f: inp.f, r: inp.r, lean: inp.l, sprint: !!inp.s, jump: !!inp.j }, dt);
     // ateş: Player.update ile aynı mantık
@@ -490,6 +492,24 @@ export class Game {
     const lo = this.opts.loadouts?.[k];                                   // menüde o sınıf için kaydedilen silah/gadget seçimi
     this.requestLoadout(lo || {});                                        // (kayıt yoksa sınıfın varsayılanı)
   }
+  // Enfekte: bir sonraki doğuşta zombi türü
+  requestZType(k) { this.pendingZ = k; this.hud.markZ?.(k); this.online?.send({ t: 'opt', zt: k }); }
+  // Zombi gücü efekti + ses (sunucuda yalnızca olay yayımlanır)
+  abilityFx(s, id, from) {
+    this.netEvent({ e: 'ab', by: s.id, k: id, f: [+from.x.toFixed(1), +from.y.toFixed(1), +from.z.toFixed(1)], d: [+s.pos.x.toFixed(1), +s.pos.y.toFixed(1), +s.pos.z.toFixed(1)] });
+    this.showAbilityFx(s, id, from, s.pos);
+  }
+  showAbilityFx(s, id, from, to = s.pos) {
+    if (this.headless) return;
+    const V = THREE.Vector3, cam = this.camera.position;
+    if (id === 'blink') {
+      const hi = (p, c) => { for (let i = 0; i < 3; i++) this.effects.spark(new V(p.x, p.y + 0.4 + i * 0.5, p.z), 10, new V(0, 1, 0), c, 5); };
+      hi(from, '#c58cff'); hi(to, '#c58cff');
+    } else if (id === 'cloak') this.effects.spark(new V(s.pos.x, s.pos.y + 1, s.pos.z), 14, new V(0, 1, 0), '#7ad7ff', 4);
+    else if (id === 'shield') this.effects.spark(new V(s.pos.x, s.pos.y + 1, s.pos.z), 14, new V(0, 1, 0), '#ffb13c', 4);
+    else this.effects.spark(new V(s.pos.x, s.pos.y + 1, s.pos.z), 14, new V(0, 1, 0), '#ff4b3a', 4);
+    if (s.pos.distanceTo(cam) < 45) this.sfx.zombie(s.pos, true);
+  }
   // Ölüm ekranında yükleme değiştir: { primary, secondary, gadget, melee } → bir sonraki doğuşta geçerli (sınıfa uymazsa varsayılan)
   requestLoadout(choice) { this.pendingLoadout = { ...choice }; this.online?.send({ t: 'opt', loadout: { ...choice } }); }
 
@@ -573,6 +593,11 @@ export class Game {
     if (ctl && ctl.queue) { ctl.queue.length = 0; ctl.budget = 1; }        // insan: doğmadan önceki eski girdiler (örn. eski silah seçimi) uygulanmasın
     if (ctl && ctl.pendingLoadout) { s.choice = ctl.pendingLoadout; ctl.pendingLoadout = null; s.items = makeLoadout(s.cls, s.team, s.choice); }
     if (ctl && ctl.pendingClass && ctl.pendingClass !== s.cls && !s.def.zombie) s.setClass(ctl.pendingClass);
+    if (s.def.zombie) {                                                // yeniden doğan zombi: seçtiği tür; botlar her doğuşta rastgele
+      const want = ctl ? ctl.pendingZ : randomZType();
+      if (want && want !== s.ztype) { s.ztype = want; s.setClass('zombie'); }
+      if (ctl) ctl.pendingZ = null;
+    }
     s.spawn(s.def.zombie && this.infPool ? this.pickZombieSpawn(s, first) : this.pickSpawn(s.team, s), first ? 1 : 3);
     this.world.settle(s);
     s.zoneT = 0;
@@ -789,10 +814,11 @@ export class Game {
         case 'rld': if (by && by !== me) { by.reloadStyle = ev.s; by.reloadTotal = by.reloadT = ev.t; by.reloadEmpty = !!ev.em; by.shellT = ev.sh; } break;
         case 'inf': {                                // bir insan zombi oldu: takım + sınıf (model) değişir
           const v = this.soldiers[ev.v]; if (!v) break;
-          v.team = 'red'; v.alpha = !!ev.al; v.setClass('zombie');
+          v.team = 'red'; v.alpha = !!ev.al; v.ztype = ZT_ORDER[(ev.zt || 1) - 1] || 'walker'; v.setClass('zombie');
           if (v === me) { this.hud.toast('ENFEKTE OLDUN — zombi olarak doğuyorsun', '#b6ff6a'); this.sfx.zombie?.(v.pos); }
           break;
         }
+        case 'ab': if (by) this.showAbilityFx(by, ev.k, { x: ev.f[0], y: ev.f[1], z: ev.f[2] }, { x: ev.d[0], y: ev.d[1], z: ev.d[2] }); break;
         case 'swg': if (by && by !== me) { by.swing = { t: 0, dur: ev.d, kind: ev.k, idx: 0, done: true }; by.comboT = ev.d + 0.38; } break;
       }
     }
