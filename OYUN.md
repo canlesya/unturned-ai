@@ -600,3 +600,7 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 ### 12.19 Ateş modları ve aç-kapa nişan
 - **Ateş modu (X):** otomatik silahlarda **Tek atış** (her tık 1 mermi) → **Seri** (tek tık ya da basılı tutma 3-5 mermi; başlayan seri tetik bırakılsa da biter, yenisi için yeniden tık gerekir) → **Otomatik** (basılı tutunca sürekli) → başa. Seri uzunluğu: 700 dk/dk altı 3, 900 altı 4, üstü 5 mermi (`Soldier.burstSize`, silaha `burst:` yazılarak değiştirilebilir). Tabanca, pompalı, keskin nişancı vb. hep tek atar. Mantık `Soldier.triggerUpdate`: Player ve sunucu (`humanTick`) aynı kodu kullanır. Test: `node scripts/firetest.mjs`.
 - **Nişan alma (sağ tık):** Kontroller → "Basılı tut" ya da "Bir kez bas (aç-kapa)" (`prefs.adsToggle`). Aç-kapa modunda koşmak ve silah değiştirmek nişanı kapatır.
+
+### 12.20 Doğma noktasını klavyeyle seçme
+- Ölüm ekranında (bayrak/conquest) doğma noktası artık **Sol/Sağ eğil tuşlarıyla (varsayılan Q / E) ya da ← →** değiştirilir; kullanılabilir (`ok`) seçenekler arasında döner (`Game.cycleSpawn`). Sınıf seçimi aynen 1–5. Başlıkta tuş ipucu görünür; tuşlar Kontroller'den değiştirilince ipucu da değişir. Çevrimiçide `requestSpawn` → `opt` mesajı aynı yoldan gider.
+- Test: `node scripts/spawnkeytest.mjs` (ekran görüntüsü `spawnkey.png`, çıktıyı silin).

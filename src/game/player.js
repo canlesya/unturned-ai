@@ -374,6 +374,8 @@ export class Player {
         const keys = Object.keys(this.game.classDefs);
         const n = slot >= 0 ? slot : code === 'Digit5' ? 4 : -1;
         if (n >= 0 && keys[n]) this.game.requestClass(keys[n]);
+        const step = kb.is('leanLeft', code) || code === 'ArrowLeft' ? -1 : kb.is('leanRight', code) || code === 'ArrowRight' ? 1 : 0;   // doğma noktası: sol/sağ eğil tuşları (ya da ← →) seçeneği değiştirir
+        if (step) this.game.cycleSpawn(step);
       }
     });
     this.on(window, 'blur', () => { this.keys.clear(); this.fireHeld = false; this.s.ads = false; this.game.hud.showScoreboard(false); this.closeWheel(); });     // pencere odağı gidince takılı tuş kalmasın

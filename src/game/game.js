@@ -436,6 +436,14 @@ export class Game {
     for (const o of this.mode.objectives) out.push({ id: o.id, name: o.name, ok: this.canForwardSpawn(o, team), label: o.label || o.name[0] });
     return out;
   }
+  // klavyeyle doğma noktası seç: kullanılabilir seçenekler arasında ileri/geri
+  cycleSpawn(step) {
+    const ok = this.spawnOptions().filter((o) => o.ok);
+    if (!ok.length) return;
+    const i = Math.max(0, ok.findIndex((o) => o.id === this.spawnChoice));
+    this.requestSpawn(ok[(i + step + ok.length) % ok.length].id);
+    this.hud._spKey = null;
+  }
   requestSpawn(id) { this.spawnChoice = id; this.hud.markSpawn?.(id); this.online?.send({ t: 'opt', spawn: id }); }
 
   canForwardSpawn(o, team) {

@@ -1,6 +1,7 @@
 import { TEAMS } from '../core/palette.js';
 import { WSTATS, CLASS_DEFS } from './stats.js';
 import { clamp } from './util.js';
+import { codeLabel } from '../core/keybinds.js';
 
 const CSS = `
 #hud{position:fixed;inset:0;pointer-events:none;font-family:Bahnschrift,'Rajdhani','Arial Narrow','Segoe UI',system-ui,sans-serif;color:#fff;user-select:none;z-index:5;letter-spacing:.5px}
@@ -169,7 +170,7 @@ export class Hud {
       <div id="respawn" class="overlay"><div class="dep">
         <div class="card"><h3>Durum</h3><div id="rtitle">Öldün</div><p id="rinfo"></p><div id="rcount"></div></div>
         <div class="card"><h3>Sınıf seç <span style="opacity:.6;letter-spacing:1px;text-transform:none">(1–5)</span></h3><div class="clsrow" id="clsrow"></div></div>
-        <div class="card"><h3>Doğma noktası</h3><div id="spawnrow"></div></div></div></div>
+        <div class="card"><h3>Doğma noktası <span id="spkeys" style="opacity:.6;letter-spacing:1px;text-transform:none"></span></h3><div id="spawnrow"></div></div></div></div>
       <div id="scoreboard" class="overlay"><div class="panel" style="min-width:760px;text-align:center"><div class="scroll" id="sbbody"></div></div></div>
       <div id="pause" class="overlay"><div class="panel"><h2 id="ptitle">Hazır mısın?</h2><div id="pmeta"></div><p id="ptext">Başlamak için tıkla. Fare ekrana kilitlenir, Esc ile duraklatırsın.</p>
         <button class="btn" id="bResume">Başla</button><button class="btn sec" id="bKill" title="Sıkıştıysan kendini öldürüp yeniden doğ">Kill (yeniden doğ)</button><button class="btn sec" id="bQuit">Ana Menü</button></div></div>
@@ -238,6 +239,8 @@ export class Hud {
     const key = opts.map((o) => o.id + (o.ok ? 1 : 0)).join(',') + '|' + g.spawnChoice;
     if (key === this._spKey) return;
     this._spKey = key;
+    const kb = g.binds;
+    this.$('spkeys').textContent = `(${codeLabel(kb.codes('leanLeft')[0])} / ${codeLabel(kb.codes('leanRight')[0])})`;
     row.innerHTML = '';
     for (const o of opts) {
       const c = document.createElement('div');
