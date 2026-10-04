@@ -243,7 +243,7 @@ export function church(b, rng, { x, z, w = 9, d = 16, ry = 0 }) {
     const zbA = zi0 + 1.2 + n * run;
     b.stairs(-TI / 2 + 0.6, zbA, 0, '-z', 1.2, n, rise, run, '#8b6a45');
     // B kolu: doğu, yL'den yB'ye (kuzeyden güneye); altı açık
-    b.stairs(TI / 2 - 0.6, zi0 + 1.2, yL, '+z', 1.2, n, rise2, run, '#8b6a45');
+    b.stairs(TI / 2 - 0.6, zi0 + 1.2, yL, '+z', 1.2, n, rise2, run, '#8b6a45', { base: 0 });
     // çan katı döşemesi (boşluk: doğu şerit, B kolunun üstü)
     const hx0 = TI / 2 - 1.2, zh0 = zi0 + 1.2, zh1 = zbA - 0.0;
     b.box((-TI / 2 + hx0) / 2, yB - 0.25, (zi0 + zi1) / 2, hx0 + TI / 2, 0.25, TI, '#7a6a55');

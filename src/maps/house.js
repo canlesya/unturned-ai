@@ -24,6 +24,7 @@ const TILEC = ['#d8dcd8', '#c8d4d8', '#d8d4c4'];
 const pick = (r, a) => a[Math.floor(r() * a.length)];
 const clamp = (v, a, c) => Math.max(a, Math.min(c, v));
 const NC = { collide: false };
+const shade = (hex, k) => { const n = parseInt(hex.slice(1), 16); const f = (v) => Math.max(0, Math.min(255, Math.round(v * k))); return '#' + [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => f(v).toString(16).padStart(2, '0')).join(''); };
 
 const ROT = { s: 0, n: Math.PI, e: Math.PI / 2, w: -Math.PI / 2 };
 const DOORSIGN = { s: 1, n: -1, e: -1, w: 1 };
@@ -384,7 +385,26 @@ export function house(b, rng, o) {
       const cross = (ridgeAlongX ? D : W) + 1.0;
       const len = (ridgeAlongX ? W : D) + 1.0;
       b.prism(0, H - 0.15, 0, cross, cross * 0.3, len, roof, { ry: ridgeAlongX ? Math.PI / 2 : 0 });
-      if (rng() < 0.8) b.box(ridgeAlongX ? W * 0.25 : 0, H, ridgeAlongX ? 0 : D * 0.25, 0.7, 2.2, 0.7, '#8a5a48', NC);
+      const chimney = rng() < 0.8;
+      if (chimney) b.box(ridgeAlongX ? W * 0.25 : 0, H, ridgeAlongX ? 0 : D * 0.25, 0.7, 2.2, 0.7, '#8a5a48');
+      // çatı süsü (rastgelelik yok: düzen/mobilya dizisi değişmez): mahya, saçak alın tahtası, kiremit sıraları, alın havalandırması
+      const ph = cross * 0.3, th = Math.atan2(ph, cross / 2), slope = Math.hypot(cross / 2, ph), rows = Math.max(3, Math.floor(slope / 0.55));
+      b.with(0, H - 0.15, 0, ridgeAlongX ? Math.PI / 2 : 0, () => {
+        b.box(0, ph - 0.06, 0, 0.32, 0.14, len + 0.12, shade(roof, 0.7), NC);                                 // mahya
+        for (const sg of [-1, 1]) {
+          b.box(sg * (cross / 2 + 0.04), -0.08, 0, 0.1, 0.2, len + 0.06, TRIM, NC);                           // saçak alın tahtası
+          for (let k = 1; k <= rows; k++) {                                                                     // kiremit sıraları (eğim boyunca ince şeritler)
+            const t = k / (rows + 1), cx = sg * (cross / 2) * (1 - t) + sg * Math.sin(th) * 0.016, cy = ph * t + Math.cos(th) * 0.016;
+            b.box(cx, cy - 0.015, 0, 0.1, 0.03, len + 0.02, shade(roof, k % 2 ? 0.8 : 1.12), { collide: false, rz: -sg * th });
+          }
+        }
+        for (const ez of [-1, 1]) {                                                                              // alın üçgeninde havalandırma + çerçeve
+          b.box(0, ph * 0.3, ez * (len / 2 + 0.02), 0.62, 0.42, 0.05, TRIM, NC);
+          b.box(0, ph * 0.3 + 0.02, ez * (len / 2 + 0.05), 0.46, 0.3, 0.04, '#3a3f46', NC);
+          for (let k = 0; k < 4; k++) b.box(0, ph * 0.3 - 0.1 + k * 0.08, ez * (len / 2 + 0.075), 0.44, 0.015, 0.03, '#59606a', NC);
+        }
+      });
+      if (chimney) b.box(ridgeAlongX ? W * 0.25 : 0, H + 2.2, ridgeAlongX ? 0 : D * 0.25, 0.95, 0.14, 0.95, '#6a4a3c', NC);   // baca başlığı
     }
 
     // ───── sundurma (ön/arka kapı) ─────

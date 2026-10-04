@@ -282,9 +282,9 @@ export function tunnel(b, rng, { x, z, ry = 0, len = 30, iw = 3.6, ih = 3.0, col
     b.box(0, ih, 0, len + 0.6, 0.55, iw + 2 * WT + 0.6, '#686e66');             // çatı döşemesi
     // giriş portalları (iki uç): kalın başlık + kanat duvarları
     for (const sx of [-1, 1]) {
-      b.box(sx * (len / 2 + 0.15), ih - 0.5, 0, 0.5, 0.5, iw + 2 * WT + 0.8, '#5b615a', { collide: false });
-      b.box(sx * (len / 2 + 0.2), 0.0, -(iw / 2 + WT + 0.4), 0.5, ih + 0.5, 0.5, '#5b615a', { collide: false });
-      b.box(sx * (len / 2 + 0.2), 0.0, (iw / 2 + WT + 0.4), 0.5, ih + 0.5, 0.5, '#5b615a', { collide: false });
+      b.box(sx * (len / 2 + 0.15), ih - 0.5, 0, 0.5, 0.5, iw + 2 * WT + 0.8, '#5b615a');
+      b.box(sx * (len / 2 + 0.2), 0.0, -(iw / 2 + WT + 0.4), 0.5, ih + 0.5, 0.5, '#5b615a');
+      b.box(sx * (len / 2 + 0.2), 0.0, (iw / 2 + WT + 0.4), 0.5, ih + 0.5, 0.5, '#5b615a');
       b.box(sx * (len / 2 + 0.34), 2.0, 0, 0.1, 0.5, 1.2, '#d9a921', { collide: false });
     }
     // iç: lambalar, borular, kablo, zikzak

@@ -157,6 +157,15 @@ export class MapBuilder {
     const g = new THREE.ExtrudeGeometry(shape, { depth: d, bevelEnabled: false });
     g.translate(0, 0, -d / 2);
     this.addGeo(g, color, this._local(x, y, z, 0, opt.ry || 0, 0), opt.o);
+    // Çatı katıdır (içine girilemez): eğimi basamaklı kutularla (yarım genişlik başına 4 dilim, dilim ortasındaki yükseklik) örter.
+    // opt.collide === false veya ince (≤0,3 m) alın üçgenlerinde çarpışma yok.
+    if (opt.collide !== false && d > 0.3) {
+      const N = 4, sw = w / 2 / N;
+      for (const sgn of [-1, 1]) for (let k = 0; k < N; k++) {
+        const hk = h * (1 - (k + 0.5) / N);
+        this._aabb(sw, hk, d, this._local(x, y, z, 0, opt.ry || 0, 0).multiply(new THREE.Matrix4().makeTranslation(sgn * (k + 0.5) * sw, hk / 2, 0)), 'roof');
+      }
+    }
   }
 
   // Boşluklu (kapı/pencere) duvar. axis 'x': x0→x1 boyunca, z=c'de. axis 'z': z0→z1 boyunca, x=c'de.
@@ -200,13 +209,52 @@ export class MapBuilder {
   }
 
   // Basamaklar: (x,z)=alt basamağın başlangıç kenarı ortası, dir yönünde yükselir.
-  stairs(x, z, y0, dir, width, steps, rise, run, color) {
+  // opt.base: basamakların altı bu yüksekliğe kadar dolar (zeminden havada başlayan merdivenin altı boş kalmasın; varsayılan y0)
+  // opt.deco === false: görsel süs yok. Süs (çarpışmasız): basamak yüzeyi kaplaması, yan kirişler, korkuluk direkleri + el tutamağı.
+  stairs(x, z, y0, dir, width, steps, rise, run, color, opt = {}) {
+    const base = opt.base ?? y0;
+    const horiz = dir === '+x' || dir === '-x';
+    const sgn = dir === '+x' || dir === '+z' ? 1 : -1;
+    const at = (s) => (horiz ? [x + sgn * s, z] : [x, z + sgn * s]);                 // yön boyunca s mesafesindeki merkez
     for (let i = 0; i < steps; i++) {
       const top = (i + 1) * rise;
-      const off = i * run + run / 2;
-      const [dx, dz] = dir === '+x' ? [off, 0] : dir === '-x' ? [-off, 0] : dir === '+z' ? [0, off] : [0, -off];
-      const horiz = dir === '+x' || dir === '-x';
-      this.box(x + dx, y0, z + dz, horiz ? run : width, top, horiz ? width : run, color);
+      const [cx, cz] = at(i * run + run / 2);
+      this.box(cx, base, cz, horiz ? run : width, top + (y0 - base), horiz ? width : run, color);
+    }
+    if (opt.posts) {                                                                 // havada duran merdivenin altına yere inen destek direkleri
+      for (const i of [Math.round(steps * 0.3), steps - 1]) {                      // iki direk çifti: orta + yüksek uç
+        const [px, pz] = at(i * run + run / 2);
+        for (const sd of [-1, 1]) {
+          const [lx, lz] = horiz ? [0, sd * (width / 2 - 0.12)] : [sd * (width / 2 - 0.12), 0];
+          const bot = opt.posts.to ?? 0, top = y0 + i * rise;
+          if (top - bot > 0.3) this.box(px + lx, bot, pz + lz, 0.24, top - bot, 0.24, new THREE.Color(color).multiplyScalar(0.55).getStyle(), { collide: false });
+        }
+      }
+    }
+    if (opt.deco === false || steps < 3) return;
+    const NC = { collide: false };
+    const light = new THREE.Color(color).multiplyScalar(1.18).getStyle(), dark = new THREE.Color(color).multiplyScalar(0.62).getStyle();
+    for (let i = 0; i < steps; i++) {                                                // basamak yüzeyi (açık ton) + burun şeridi (koyu)
+      const top = (i + 1) * rise;
+      const [cx, cz] = at(i * run + run / 2), [nx, nz] = at(i * run + 0.03);
+      this.box(cx, y0 + top, cz, horiz ? run : width, 0.02, horiz ? width : run, light, NC);
+      this.box(nx, y0 + top - 0.02, nz, horiz ? 0.05 : width + 0.02, 0.03, horiz ? width + 0.02 : 0.05, dark, NC);
+    }
+    const len = steps * run, hgt = steps * rise, L = Math.hypot(len, hgt), a = Math.atan2(hgt, len);
+    const [mx, mz] = at(len / 2);
+    const rot = dir === '+z' ? { rx: -a } : dir === '-z' ? { rx: a } : dir === '+x' ? { rz: a } : { rz: -a };
+    const lat = (o) => (horiz ? [0, o] : [o, 0]);                                    // yanal kayma (genişlik yönü)
+    for (const sd of [-1, 1]) {
+      const [lx, lz] = lat(sd * (width / 2 + 0.035));
+      // yan kiriş: eğimin altında, çizgiye paralel
+      this.box(mx + lx, y0 + hgt / 2 - 0.12, mz + lz, horiz ? L : 0.07, 0.26, horiz ? 0.07 : L, dark, { collide: false, ...rot });
+      // korkuluk: içeride (genişlikten 0,05 içeri) direkler + üstte eğik tutamak
+      const [ix, iz] = lat(sd * (width / 2 - 0.05));
+      this.box(mx + ix, y0 + hgt / 2 + 0.9, mz + iz, horiz ? L : 0.05, 0.05, horiz ? 0.05 : L, dark, { collide: false, ...rot });
+      for (let i = 0; i < steps; i += Math.max(2, Math.round(steps / 5))) {
+        const [px, pz] = at(i * run + run / 2);
+        this.box(px + ix, y0 + (i + 1) * rise, pz + iz, 0.05, 0.9, 0.05, light, NC);
+      }
     }
   }
 

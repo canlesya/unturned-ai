@@ -386,7 +386,7 @@ export function controlTower(b, rng, { x, z, w = 7, d = 7, fh = 3.3, wall = '#a2
     winStyle: { 2: 'wide' },
   });
   const H = R.H;
-  b.box(x, H + 0.02, z, 0.6, 2.6, 0.6, STEEL, { collide: false });
+  b.box(x, H + 0.02, z, 0.6, 2.6, 0.6, STEEL);
   b.box(x, H + 2.6, z, 0.12, 2.0, 0.12, '#2a2d30', { collide: false });
   b.box(x, H + 4.6, z, 0.2, 0.2, 0.2, '#ff2b2b', { collide: false, o: GL });
   b.box(x + 1.4, H, z + 1.2, 1.0, 0.9, 1.0, '#7b8660');

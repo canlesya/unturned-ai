@@ -563,3 +563,9 @@ Nişan görüş alanı: `ADS_K` (göz-nişangâh mesafesi ×1,3), kırmızı nok
 
 Araç çarpışması (`MapBuilder.vparts`): her araç gövde profiline uyan birkaç kutudan oluşur (ör. otomobil: kaput/bagaj 0,85 m, kabin 1,58 m, ön-arka cam eğimi 1,2 m). Kaput ve bagaj üstünden atış geçer, kabin ve gövde engeller; dönük araçta kutular şişmez. Otomobil yan camı ön/arka cam eğimini izleyen dilimlerden oluşur (boşluk kalmaz).
 Otomobil (ve hurdası) camsızdır (kırık cam mantığı): ince sütunlar, tavan, torpido ve koltuklar görünür; pencere boşluklarından kurşun geçer (çarpışma: kemer hattı 0,92 m + ince sütunlar + tavan). Cip üstü açıktır: alçak gövde, yan paneller, koltuk sırtı ve ince ön cam çerçevesi (cam boşluğu geçirir).
+
+### 12.14 Yapı cilası ve denetimi
+- **Çatılar katı:** `MapBuilder.prism` artık basamaklı çarpışma kutuları üretir (yarım genişlik başına 4 dilim, tag `roof`). Kilise kulesinin çan katı kemerinden zıplayıp nef çatısının içine girme sorunu buradan çıkıyordu. Baca, anten direği, kule direkleri ve hangar payandaları da çarpışmalı.
+- **Merdiven (`MapBuilder.stairs`)** artık süslü: açık tonlu basamak yüzü + koyu burun şeridi, yan kirişler, korkuluk direkleri ve eğik el tutamağı (hepsi çarpışmasız). `opt.base`: havada başlayan merdivenin altı o yüksekliğe kadar dolar (kilise B kolu); `opt.posts`: altına yere inen destek direkleri (su kulesi B kolu).
+- **Ev çatısı:** mahya, saçak alın tahtası, kiremit sıraları, alın havalandırması, baca başlığı (`house.js`, rastgelelik kullanmaz → mevcut düzen/mobilya dizisi değişmez).
+- Denetimler: `node scripts/mapaudit.mjs [harita]` (çarpışmasız yüksek döşeme, çatı prizması, iç içe yapı), `node scripts/probes/passthru.mjs [harita] [çözünürlük]` (JUMP=1 ile zıplayarak: ulaşılabilen noktada gövdenin çarpışmasız katı hacmin içine girip girmediği).

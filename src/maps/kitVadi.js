@@ -217,7 +217,7 @@ export function ruin(b, rng, gy, { w = 7, d = 5, h = 2.4 } = {}) {
 // Yerel çerçeve: kule merkezi (0,0); platform z∈[−2.3,2.3]; merdiven +z yönüne uzanır (z=2.3..9.5), basamak üstü platformla aynı seviyede.
 export function tower(b, { color = '#7a5a38', dark = '#5e3c1d', H = 6.0, roof = '#6a4a3a' } = {}) {
   const P = 2.3, steps = 24, rise = H / steps, run = 0.3, sw = 1.3, sx = 1.0;
-  for (const px of [-1, 1]) for (const pz of [-1, 1]) b.box(px * (P - 0.25), 0, pz * (P - 0.25), 0.4, H, 0.4, color, { collide: false });     // dört direk
+  for (const px of [-1, 1]) for (const pz of [-1, 1]) b.box(px * (P - 0.25), 0, pz * (P - 0.25), 0.4, H, 0.4, color);     // dört direk
   b.collide(0, 0, 0, 2.6, H, 2.6);                                                                                                           // çekirdek (içinden geçilmez)
   for (const y of [1.6, 3.4, 5.0]) for (const s of [-1, 1]) {                                                                               // çapraz payandalar
     b.box(0, y, s * (P - 0.1), 3.8, 0.14, 0.12, dark, { collide: false });

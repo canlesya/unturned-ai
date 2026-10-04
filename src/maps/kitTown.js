@@ -87,7 +87,7 @@ export function waterTower(b, { x, z, ry = 0, color = '#8a6a45', tank = '#9db4c4
     const zbA = -S + n * run;           // güney uç
     b.stairs(ax, zbA, 0, '-z', 1.2, n, rise, run, color);
     b.box(ax, 4.0 - 0.3, -S - 0.6, 1.2, 0.3, 1.2 + 0.0, '#6a5a45');                // sahanlık (z∈[-4.4,-3.2])
-    b.stairs(-S - 0.2, -S - 0.6, 4.0, '+x', 1.2, n, rise, run, color);       // B kolu: x başlangıç = sahanlığın doğu kenarı (-3.4)
+    b.stairs(-S - 0.2, -S - 0.6, 4.0, '+x', 1.2, n, rise, run, color, { posts: { to: 0 } });       // B kolu: x başlangıç = sahanlığın doğu kenarı (-3.4)
     // korkuluk ve el tutamağı (görsel)
     for (let i = 0; i <= 4; i++) {
       const t = i / 4;
