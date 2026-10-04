@@ -364,6 +364,10 @@ export class Hud {
       else x.fillStyle = mini ? (h > 4 && (w > 3 || d > 3) ? mini.wall : h > 1.5 ? mini.mid : mini.low) : h > 4 && (w > 3 || d > 3) ? '#d6cfba' : h > 1.5 ? '#9c9482' : '#7a7566';
       x.fillRect(this.mmX(cl.min[0]), this.mmY(cl.min[2]), Math.max(1, w * this.mmS), Math.max(1, d * this.mmS));
     }
+    if (g.map.callouts) {                                                  // büyük bölgelerin adları minimap'te
+      x.font = 'bold 8px Bahnschrift, Arial Narrow, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.lineWidth = 2.5; x.strokeStyle = 'rgba(20,14,6,.85)'; x.fillStyle = '#fff6dc';
+      for (const cl of g.map.callouts) if (cl.major) { const px = this.mmX(cl.x), py = this.mmY(cl.z); x.strokeText(cl.name, px, py); x.fillText(cl.name, px, py); }
+    }
     this.mmBase = c;
   }
 
@@ -574,8 +578,19 @@ export class Hud {
     this.drawMinimap();
   }
 
+  // Bulunduğun bölgenin adı (haritada callouts varsa): minimap altındaki başlıkta "HARİTA · Bölge"
+  updateLocation() {
+    const g = this.game, C = g.map.callouts, p = g.playerSoldier;
+    if (!C || !p) return;
+    let best = null, bd = 1e9;
+    for (const c of C) { const d = Math.hypot(c.x - p.pos.x, c.z - p.pos.z); if (d < bd) { bd = d; best = c; } }
+    const nm = best && bd < 14 ? best.name : '';
+    if (nm !== this._loc) { this._loc = nm; this.$('mmname').textContent = (g.map.name || '') + (nm ? ' · ' + nm : ''); }
+  }
+
   drawMinimap() {
     const g = this.game, x = this.mmCtx, p = g.playerSoldier;
+    this.updateLocation();
     x.clearRect(0, 0, this.mm.width, this.mm.height);
     x.drawImage(this.mmBase, 0, 0);
     for (const o of g.mode.objectives) {
