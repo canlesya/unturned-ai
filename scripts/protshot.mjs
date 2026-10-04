@@ -1,0 +1,31 @@
+// Doğma koruması görünürlüğü: bayrak ağdan gelir, kalkan görünür, ateş edince koruma biter. (BF_DEBUG=1 sunucu + vite 5180)
+import { chromium } from 'playwright';
+const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const page = await browser.newPage({ viewport: { width: 1000, height: 560 } });
+const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+let fail = 0; const check = (ok, msg) => { console.log((ok ? 'OK    ' : 'HATA  ') + msg); if (!ok) fail++; };
+await page.goto(`${process.env.BASE || 'http://127.0.0.1:5180'}/?online=new&type=conquest&per=6&third=1&debug=1&nolock=1&server=${process.env.WSURL || 'ws://127.0.0.1:8787'}&name=Kalkan`);
+await page.waitForFunction('window.__game && window.__game.running', null, { timeout: 90000 });
+await page.keyboard.press('KeyH');
+await page.waitForTimeout(500);
+const st = () => page.evaluate(() => { const m = window.__game.playerSoldier; return { alive: m.alive, prot: m.protected, net: !!m.protNet, mesh: !!(m._shieldMesh && m._shieldMesh.visible) }; });
+await page.evaluate(() => window.__game.online.send({ t: 'dbg', kill: 1 }));
+await page.waitForFunction(() => window.__game.playerSoldier.alive === false, null, { timeout: 8000 });
+await page.waitForFunction(() => window.__game.playerSoldier.alive === true, null, { timeout: 20000 });
+await page.waitForFunction(() => window.__game.playerSoldier._shieldMesh?.visible, null, { timeout: 3000 }).catch(() => {});
+const s1 = await st(); check(s1.prot && s1.mesh, 'doğunca koruma bayrağı geldi ve kalkan görünüyor ' + JSON.stringify(s1));
+await page.screenshot({ path: 'screenshots/prot-shield.png' });
+await page.waitForTimeout(2800);
+const s2 = await st(); check(!s2.prot && !s2.mesh, 'koruma süresi bitince kalkan kayboldu ' + JSON.stringify(s2));
+// ateş edince biter
+await page.evaluate(() => window.__game.online.send({ t: 'dbg', kill: 1 }));
+await page.waitForFunction(() => window.__game.playerSoldier.alive === false, null, { timeout: 8000 });
+await page.waitForFunction(() => window.__game.playerSoldier.alive === true, null, { timeout: 20000 });
+await page.waitForTimeout(300);
+await page.waitForTimeout(100);
+await page.evaluate(() => { window.__game.player.fireHeld = true; window.__game.player.fireBuf = 0.2; }); await page.waitForTimeout(300); await page.evaluate(() => { window.__game.player.fireHeld = false; });
+await page.waitForTimeout(500);
+const s3 = await st(); check(!s3.prot, 'ateş edince koruma bitti ' + JSON.stringify(s3));
+check(errs.length === 0, 'sayfa hatası yok ' + JSON.stringify(errs));
+console.log(fail ? 'sonuç: HATA' : 'sonuç: OK');
+await browser.close(); process.exit(fail ? 1 : 0);

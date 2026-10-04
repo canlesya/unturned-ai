@@ -642,7 +642,7 @@ export class Game {
       if (want && want !== s.ztype) { s.ztype = want; s.setClass('zombie'); }
       if (ctl) ctl.pendingZ = null;
     }
-    s.spawn(s.def.zombie && this.infPool ? this.pickZombieSpawn(s, first) : this.pickSpawn(s.team, s), first ? 1 : 3);
+    s.spawn(s.def.zombie && this.infPool ? this.pickZombieSpawn(s, first) : this.pickSpawn(s.team, s), first ? 1 : 2);
     this.world.settle(s);
     s.zoneT = 0;
     if (s.brain) s.brain.reset();

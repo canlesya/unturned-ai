@@ -1,6 +1,6 @@
 // İstemci ağ katmanı: bağlantı, istemci tarafı tahmin (prediction) + sunucu uzlaştırması (reconciliation),
 // uzaktaki oyuncular için snapshot interpolasyonu.
-import { SIM_HZ, SIM_DT, applyFlags, F_LEFT } from './protocol.js';
+import { SIM_HZ, SIM_DT, applyFlags, F_LEFT, F_PROT } from './protocol.js';
 import { applyInput } from '../sim/input.js';
 import { WSTATS, ZT_ORDER } from '../game/stats.js';
 
@@ -161,6 +161,7 @@ export class NetClient {
     if (!me.now.a) { if (s.alive) this.applyState(s, me.now, true); this.hist.length = 0; s.respawnT = me.rt; return; }
     if (!s.alive) { this.applyState(s, me.now, true); }
     s.hp = st.hp;
+    s.protNet = !!(me.now.f & F_PROT);                              // doğma koruması: sunucunun şu anki durumundan (kalkan görseli)
     // sunucunun işlediği son girdi (ack) anındaki tahminimizle karşılaştır
     let rec = null;
     while (this.hist.length && this.hist[0].q <= me.ack) rec = this.hist.shift();

@@ -28,10 +28,10 @@ const q2 = (v) => Math.round(v * 100) / 100;
 const q3 = (v) => Math.round(v * 1000) / 1000;
 
 // bayrak bitleri
-export const F_CROUCH = 1, F_PRONE = 2, F_SPRINT = 4, F_ADS = 8, F_GROUND = 16, F_LEFT = 32, F_CLOAK = 64;   // F_LEFT: 3. şahıs sol omuz duruşu (görsel)
+export const F_CROUCH = 1, F_PRONE = 2, F_SPRINT = 4, F_ADS = 8, F_GROUND = 16, F_LEFT = 32, F_CLOAK = 64, F_PROT = 128;   // F_LEFT: 3. şahıs sol omuz duruşu (görsel)
 
 export function packFlags(s) {
-  return (s.crouching ? F_CROUCH : 0) | (s.prone ? F_PRONE : 0) | (s.sprinting ? F_SPRINT : 0) | (s.ads ? F_ADS : 0) | (s.onGround ? F_GROUND : 0) | (s.stanceLeft ? F_LEFT : 0) | (s.cloaked ? F_CLOAK : 0);
+  return (s.crouching ? F_CROUCH : 0) | (s.prone ? F_PRONE : 0) | (s.sprinting ? F_SPRINT : 0) | (s.ads ? F_ADS : 0) | (s.onGround ? F_GROUND : 0) | (s.stanceLeft ? F_LEFT : 0) | (s.cloaked ? F_CLOAK : 0) | (s.protT > 0 ? F_PROT : 0);
 }
 
 // Bir savaşçının ağ durumu (kompakt anahtarlar)
@@ -60,7 +60,7 @@ export function slowSig(s) {
 
 export function applyFlags(s, f) {
   s.crouching = !!(f & F_CROUCH); s.prone = !!(f & F_PRONE); s.sprinting = !!(f & F_SPRINT);
-  s.ads = !!(f & F_ADS); s.onGround = !!(f & F_GROUND); s.cloakNet = !!(f & F_CLOAK);
+  s.ads = !!(f & F_ADS); s.onGround = !!(f & F_GROUND); s.cloakNet = !!(f & F_CLOAK); s.protNet = !!(f & F_PROT);
 }
 
 // Varsayılan sunucu adresi: sayfa HTTPS ile açıldıysa aynı alan adındaki /ws (ters vekil), değilse :8787

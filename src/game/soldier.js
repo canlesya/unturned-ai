@@ -20,6 +20,8 @@ export { makeLoadout };
 // Eski ad: seçim yoksa sınıf varsayılanı
 export function buildLoadout(cls, team, choice = {}) { return makeLoadout(cls, team, choice); }
 
+const SHIELD_GEO = new THREE.SphereGeometry(0.85, 14, 10);
+
 export class Soldier {
   constructor(game, { id, name, team, cls, isPlayer = false }) {
     this.game = game;
@@ -65,6 +67,8 @@ export class Soldier {
   get zt() { return this.boss ? ZBOSS : ZTYPES[this.ztype] || ZTYPES.walker; }
   get ability() { return this.def.zombie ? this.zt.ability : null; }
   get abOn() { return this.abActive > 0; }
+  get protected() { return this.alive && (this.protT > 0.001 || !!this.protNet); }        // doğma koruması (ağdan gelen bayrak dahil): vurulamaz, görünür kalkan
+
   get cloaked() { return this.cloakNet || (this.def.zombie && this.abActive > 0 && (this.zt.ability.id === 'cloak' || this.zt.ability.id === 'shadow')); }
   // ölüm ekranında: bir sonraki doğuşta insan mı olacak (can hakkı bitti)
   get willCure() { return !!this.def.zombie && this.zLives <= 0 && !this.alive; }
@@ -146,7 +150,7 @@ export class Soldier {
   right(out = new THREE.Vector3()) { return out.set(Math.cos(this.yaw), 0, -Math.sin(this.yaw)); }
   center(out = new THREE.Vector3()) { return out.set(this.pos.x, this.pos.y + this.height * 0.6, this.pos.z); }
 
-  spawn(point, protect = 2.5) {
+  spawn(point, protect = 2) {
     this.pos.set(point.x, 0, point.z);
     this.vel.set(0, 0, 0);
     this.yaw = point.ry; this.pitch = 0; this.recoilP = 0;
@@ -156,7 +160,7 @@ export class Soldier {
     this.items = this.game.mode.gungame ? ggItems(this.ggLevel) : makeLoadout(this.cls, this.team, this.choice);
     this.cur = 0;
     this.cd = 0; this.reloadT = 0; this.switchT = 0; this.useT = 0; this.swing = null; this.comboT = 0; this.autoSwitchT = 0; this.blindT = 0; this.burstLeft = 0;
-    this.protT = protect;
+    this.protT = protect; this.protNet = false;
     this.crouching = false; this.prone = false; this.proneT = 0; this.crouchT = 0; this.leanDir = 0; this.leanT = 0; this.leanOff.set(0, 0, 0);
     this.height = H_STAND; this.ads = false; this.adsT = 0;
     this.model.root.visible = !this.isPlayer;
@@ -316,6 +320,7 @@ export class Soldier {
       const d = base.clone().addScaledVector(right, Math.cos(a) * r).addScaledVector(up, Math.sin(a) * r).normalize();
       g.shootRay(this, origin, d, st, muzzle, camO);
     }
+    this.protT = 0;                                                              // ateş eden artık dokunulmaz değil (korumayla düşmana ateş edilemez)
     g.effects.muzzle(muzzle, base);
     g.sfx.shot(st.sound, this.pos);
     this.flashT = 0.06;
@@ -616,6 +621,21 @@ export class Soldier {
     } else this.leanOff.set(0, 0, 0);
   }
 
+  // Doğma koruması kalkanı: mavi, nabız gibi atan yarı saydam balon (düşman da görür; "mermi geçiyor" yanılgısını önler)
+  _shield(on) {
+    let sh = this._shieldMesh;
+    if (!on) { if (sh) sh.visible = false; return; }
+    if (!sh) {
+      sh = this._shieldMesh = new THREE.Mesh(SHIELD_GEO, new THREE.MeshBasicMaterial({ color: 0x66ccff, transparent: true, opacity: 0.2, depthWrite: false, side: THREE.DoubleSide }));
+      sh.position.y = 0.9; sh.renderOrder = 5; sh.frustumCulled = false;
+      this.model.root.add(sh);
+    }
+    sh.visible = !(this.isPlayer && !this.game.showSelf);                          // 1. şahıs: kendi balonun görüşü kapatmasın
+    const k = 1 + Math.sin(this.game.time * 9) * 0.04;
+    sh.scale.set(k, 1.12 * k, k);
+    sh.material.opacity = 0.16 + 0.1 * (0.5 + 0.5 * Math.sin(this.game.time * 7));
+  }
+
   // Üçüncü şahıs model senkronu (oyuncu hariç): hıza bağlı adım döngüsü, gövde eğimi, kol sallanması
   syncModel(dt) {
     if (this.game.headless) return;                                                     // görsel animasyon: sunucuda gerekmez
@@ -623,6 +643,7 @@ export class Soldier {
     if (this.isPlayer && !this.game.showSelf) { root.visible = false; return; }      // 1. şahıs: kendi gövdeni görmezsin
     if (this.isPlayer) this._syncWeaponModel();                                         // 3. şahıs: elindeki silah modeli güncel olsun
     root.visible = this.alive || this.deadT < 5;
+    this._shield(this.protected);
     if (this.cloaked && this.alive && !this.isPlayer && this.pos.distanceTo(this.game.camera.position) > 3) root.visible = false;   // görünmez zombi: yalnızca 3 m içinde seçilir
     root.position.set(this.pos.x, this.pos.y + (m.groundOffset ?? m.root.position.y), this.pos.z);
     // Bacaklar (root) bakış yönüne gecikmeli döner; gövde (silah) hep bakış yönünde kalır: yerinde dönerken ayaklar takip eder, koşarken hızla hizalanır

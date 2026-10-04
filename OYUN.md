@@ -688,3 +688,8 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 - **Sunucu güvenliği:** metin string olmalı; kontrol + biçim karakterleri (`\p{Cc}\p{Cf}`: sıfır genişlik, yön değiştirme) atılır, boşluklar teke iner, 120 karaktere kesilir; oyuncu başına 6 sn'de en çok 4 mesaj (aşınca yalnızca gönderene uyarı); istemci `textContent` ile yazar, HTML çalışmaz. Katılma/ayrılma sistem mesajı olarak yayılır. Test: `scripts/chattest.mjs` (protokol), `scripts/chatui.mjs` (iki tarayıcı).
 - **3. şahıs akıcılığı:** yerel karakter modeli de kamerayla aynı alpha ile enterpole edilir (`game.js` loop); 144 Hz'de karakter–kamera sapması 2,14 cm → 0,01 cm. Ölçüm scriptleri `netthird/netcam/netanim`.
 - **Ctrl+W koruması:** fare kilitlenince tam ekran + Keyboard Lock, maç sürerken `beforeunload` onayı; Ayarlar → "Tam ekran + Ctrl+W koruması" ile kapatılır. Test: `scripts/keylocktest.mjs`.
+
+### 12.35 Doğma koruması görünür + ateşle biter ("mermiler içinden geçiyor" şikâyeti)
+- Resmi odalarda botlar sürekli doğar; doğan savaşçı 3 sn vurulamazdı ve **görsel ipucu yoktu**, üstelik bu sürede ateş edebiliyordu (5 dk'lık botlu maçta canlı süresinin ~%7'si korumada, koruma altında 180–740 mermi atılıyordu). Oyuncu için bu "mermi rakibin içinden geçiyor" gibi görünür.
+- Düzeltme: koruma 3 → **2 sn**; **ateş eden savaşçının koruması hemen biter**; korumalı savaşçının çevresinde **mavi, atan yarı saydam kalkan** görünür (ağdan `F_PROT` bayrağı, `Soldier._shield`). Test: `scripts/protshot.mjs`. İsabet tanısı için `scripts/netbullet.mjs` (gerçek istemci + gecikme, sunucu isabeti/ istemci tahmini).
+- Sunucu adım süresi 16v16'da ort. 0,44 ms (bütçe 16,7 ms): sunucu yükü sorun değil; geri sarma (lag comp) mantığı tutarlı.
