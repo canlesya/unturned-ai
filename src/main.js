@@ -50,7 +50,7 @@ function beginOnline({ net, welcome, name, pw }) {
     online: { net, id: welcome.id, roster: welcome.roster, deps: welcome.deps, room: welcome.room, cfg: c },
     match: { perTeam: c.perTeam, type: c.type, tickets: c.tickets, time: c.time }, map: c.map, tod: c.tod, weather: c.weather, diff: c.diff,
     optic: q.get('optic') || p.optic || 'reddot', team: me.team, cls, playerName: name,
-    keys: p.keys, leftHand: p.leftHand, onPref: patchPrefs,
+    keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs,
     loadout, loadouts: p.loadouts || {}, onExit: () => { location.href = location.pathname; }, onRestart: () => location.reload(),
     settings: { sens: p.sens, fov: p.fov, volume: p.volume ?? 0.6, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, shadows: q.get('shadows') !== '0' && p.shadows !== false, pixelRatio: +(q.get('pr') || p.quality || 1) },
   });
@@ -87,7 +87,7 @@ else if (q.get('autostart')) {
   start({
     third: q.get('third') !== '0',
     match: { perTeam: mm ? +mm[1] : 10, type: q.get('type') || 'conquest', tickets: +q.get('tickets') || undefined, time: q.has('time') ? +q.get('time') : 900 }, map: q.get('map') || 'kasaba', tod: q.get('tod') || 'day', weather: q.get('weather') || 'clear', optic: q.get('optic') || 'reddot', team: q.get('team') || 'blue', cls: q.get('cls') || 'assault', diff: q.get('diff') || 'normal',
-    keys: p.keys, leftHand: p.leftHand, onPref: patchPrefs,
+    keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs,
     loadout: { primary: q.get('primary') || undefined, secondary: q.get('secondary') || undefined, gadget: q.get('gadget') || undefined, melee: q.get('melee') || undefined },
     settings: { sens: p.sens, fov: p.fov, volume: 0, shadows: q.get('shadows') !== '0', pixelRatio: +(q.get('pr') || 1) },
   });

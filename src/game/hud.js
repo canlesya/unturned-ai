@@ -452,7 +452,7 @@ export class Hud {
     sc.style.display = scopeOn ? 'block' : 'none';
     if (scopeOn) sc.className = (p.opticDef.reticle === 'chevron') ? 'chev' : 'mil';
     $('advig').style.opacity = p.alive && ov !== 'scope' && !tp ? (ads * 0.55).toFixed(2) : 0;
-    const stTxt = [p.prone ? 'Yatıyor' : p.crouching ? 'Çömelmiş' : '', p.leanT > 0.3 ? 'Sağa eğik' : p.leanT < -0.3 ? 'Sola eğik' : '', p.opticDef && st.kind === 'gun' ? p.opticDef.label : '', st.kind === 'gun' && st.auto ? (p.item.semi ? 'Yarı otomatik [X]' : 'Otomatik [X]') : ''].filter(Boolean).join(' · ');
+    const stTxt = [p.prone ? 'Yatıyor' : p.crouching ? 'Çömelmiş' : '', p.leanT > 0.3 ? 'Sağa eğik' : p.leanT < -0.3 ? 'Sola eğik' : '', p.opticDef && st.kind === 'gun' ? p.opticDef.label : '', st.kind === 'gun' && st.auto ? ({ semi: 'Tek atış [X]', burst: 'Seri [X]', auto: 'Otomatik [X]' }[p.fireModeNow]) : ''].filter(Boolean).join(' · ');
     $('stance').textContent = stTxt;
     if (this.hitT > 0) { this.hitT -= dt; if (this.hitT <= 0) $('hitm').style.opacity = 0; }
     if (this.vigT > 0) { this.vigT -= dt; if (this.vigT <= 0) $('vig').style.opacity = 0; }

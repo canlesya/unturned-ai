@@ -340,8 +340,7 @@ export class Game {
     }
     const st = s.stat;
     if (st.kind === 'melee') { if (inp.fh || h.fireBuf > 0) { if (s.tryFire()) h.fireBuf = 0; } }
-    else if (s.fireAuto) { if (inp.fh) s.tryFire(); }
-    else if (h.fireBuf > 0 && s.tryFire()) h.fireBuf = 0;
+    else if (s.triggerUpdate(!!inp.fh, h.fireBuf)) h.fireBuf = 0;
     s.rewindTick = null;
   }
 

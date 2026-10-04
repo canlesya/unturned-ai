@@ -97,7 +97,7 @@ export class Soldier {
     this.hp = this.maxHp;
     this.items = makeLoadout(this.cls, this.team, this.choice);
     this.cur = 0;
-    this.cd = 0; this.reloadT = 0; this.switchT = 0; this.useT = 0; this.swing = null; this.comboT = 0; this.autoSwitchT = 0; this.blindT = 0;
+    this.cd = 0; this.reloadT = 0; this.switchT = 0; this.useT = 0; this.swing = null; this.comboT = 0; this.autoSwitchT = 0; this.blindT = 0; this.burstLeft = 0;
     this.protT = protect;
     this.crouching = false; this.prone = false; this.proneT = 0; this.crouchT = 0; this.leanDir = 0; this.leanT = 0; this.leanOff.set(0, 0, 0);
     this.height = H_STAND; this.ads = false; this.adsT = 0;
@@ -128,7 +128,7 @@ export class Soldier {
   switchTo(i) {
     if (i === this.cur || !this.items[i] || !this.alive || !this.canEquip(i)) return;
     const eq = Math.min(0.35, WSTATS[this.items[i].id].equip ?? 0.3);
-    this.cur = i; this.switchT = eq; this.reloadT = 0; this.useT = 0; this.swing = null; this.autoSwitchT = 0;
+    this.cur = i; this.switchT = eq; this.reloadT = 0; this.useT = 0; this.swing = null; this.autoSwitchT = 0; this.burstLeft = 0;
     this._syncWeaponModel();
     this.game.emit('switch', this);
   }
@@ -160,15 +160,36 @@ export class Soldier {
     return false;
   }
 
-  // yarı otomatik / otomatik geçişi (yalnızca otomatik silahlarda)
+  // Ateş modu (yalnızca otomatik silahlarda): semi = tek tek (her tık 1 mermi) → burst = seri (tek tık ya da basılı tutma 3-5 mermi, sonra tetik bırakılıp yeniden çekilmeli) → auto = basılı tutunca sürekli
   toggleFireMode() {
     const it = this.item, st = this.stat;
     if (st.kind !== 'gun' || !st.auto) return null;
-    it.semi = !it.semi;
+    it.mode = this.fireModeNow === 'semi' ? 'burst' : this.fireModeNow === 'burst' ? 'auto' : 'semi';
+    this.burstLeft = 0;
     this.game.emit('firemode', this);
-    return it.semi ? 'semi' : 'auto';
+    return it.mode;
   }
-  get fireAuto() { return !!this.stat.auto && !this.item.semi; }
+  get fireModeNow() { const st = this.stat; return st.kind === 'gun' && st.auto ? (this.item.mode || 'auto') : 'semi'; }
+  get fireAuto() { return this.fireModeNow === 'auto'; }
+  // seri atış uzunluğu: yavaş silahlarda 3, hızlılarda 4-5 mermi
+  burstSize(st = this.stat) { return st.burst || (st.rpm < 700 ? 3 : st.rpm < 900 ? 4 : 5); }
+
+  // Tetik: held = basılı, buf = yeni tık tamponu (>0). Dönen true → tampon tüketildi. Player ve sunucu (humanTick) aynı mantığı kullanır.
+  triggerUpdate(held, buf) {
+    if (!this.alive) { this.burstLeft = 0; return false; }
+    const mode = this.fireModeNow;
+    if (mode === 'auto') { if (held) this.tryFire(); return false; }
+    if (mode === 'burst') {
+      if (this.burstLeft > 0) {                                   // seri sürüyor: tetik bırakılsa da bitene kadar atar
+        if (this.item.mag <= 0 || this.reloadT > 0 || this.switchT > 0) this.burstLeft = 0;
+        else if (this.tryFire()) this.burstLeft--;
+        return false;
+      }
+      if (buf > 0 && this.tryFire()) { this.burstLeft = this.burstSize() - 1; return true; }
+      return false;
+    }
+    return buf > 0 && this.tryFire();
+  }
 
   spreadNow(st) {
     const hipv = st.hip ?? 0.01, adsv = st.ads ?? 0.002;

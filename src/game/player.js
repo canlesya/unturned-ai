@@ -10,6 +10,7 @@ import { applyInput } from '../sim/input.js';
 import { norm, codeLabel } from '../core/keybinds.js';
 
 const VM_SCALE = 0.92;
+export const FIRE_LABEL = { semi: 'Tek atış', burst: 'Seri (3-5 mermi)', auto: 'Otomatik' };
 const ADS_FOV = 68;
 
 // ───────────── Birinci şahıs silah modeli ─────────────
@@ -300,7 +301,7 @@ export class Player {
     game.on('meleehit', () => { this.vm.hitKick = 1; });
     game.on('throw', (s) => { if (s === this.s) this.vm.throwT = 1; });
     game.on('dry', (s) => { if (s === this.s) this.vm.dryT = 1; });
-    game.on('firemode', (s) => { if (s === this.s) { this.game.hud.toast('Atış modu: ' + (s.item.semi ? 'Yarı otomatik' : 'Otomatik'), '#cfe6ff'); this.vm.dryT = 1; } });
+    game.on('firemode', (s) => { if (s === this.s) { this.game.hud.toast('Atış modu: ' + FIRE_LABEL[s.fireModeNow], '#cfe6ff'); this.vm.dryT = 1; } });
     // flaşbang (beyaz) ve duman (gri) ekran örtüsü: HUD'dan bağımsız, kendi katmanı
     const ov = (this.fx = document.createElement('div'));
     ov.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:4;opacity:0;background:#fff';
@@ -398,11 +399,11 @@ export class Player {
       if (this.wheel) { if (e.button === 0) this.wheelPick(); return; }                       // tekerlek açıkken tık = seçim (ateş değil)
       if (!this.locked) { this.game.requestLock(); return; }
       if (e.button === 0) { this.fireHeld = true; this.fireBuf = 0.15; this.game.online?.edge('fp'); }
-      if (e.button === 2) this.s.ads = true;
+      if (e.button === 2) this.s.ads = this.game.opts.adsToggle ? !this.s.ads : true;          // Ayarlar: basılı tut ya da bir kez bas (aç-kapa)
     });
     this.on(window, 'mouseup', (e) => {
       if (e.button === 0) this.fireHeld = false;
-      if (e.button === 2) this.s.ads = false;
+      if (e.button === 2 && !this.game.opts.adsToggle) this.s.ads = false;
     });
     this.on(document, 'contextmenu', (e) => e.preventDefault());                      // sağ tık menüsü oyunda hiç çıkmasın (nişan alırken takılıyordu)
     this.on(window, 'wheel', (e) => {
@@ -540,6 +541,8 @@ export class Player {
     if (s.alive && !g.opts.autoplay) {
       const k = this.keys;
       const kb = this.kb;
+      if (g.opts.adsToggle && (s.sprinting || s.cur !== this._adsCur)) s.ads = false;           // aç-kapa nişan: koşmak ve silah değiştirmek nişanı kapatır
+      this._adsCur = s.cur;
       const f = (kb.held('forward', k) ? 1 : 0) - (kb.held('back', k) ? 1 : 0);
       const r = (kb.held('right', k) ? 1 : 0) - (kb.held('left', k) ? 1 : 0);
       const st = s.stat;
@@ -552,8 +555,7 @@ export class Player {
       // ateş
       if (this.locked) {
         if (st.kind === 'melee') { if (this.fireHeld || this.fireBuf > 0) { if (s.tryFire()) this.fireBuf = 0; } }
-        else if (s.fireAuto) { if (this.fireHeld) s.tryFire(); }
-        else if (this.fireBuf > 0 && s.tryFire()) this.fireBuf = 0;
+        else if (s.triggerUpdate(this.fireHeld, this.fireBuf)) this.fireBuf = 0;
       }
       // adım sesi
       const sp = Math.hypot(s.vel.x, s.vel.z);

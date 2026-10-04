@@ -596,3 +596,7 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 - **Sol el:** Kontroller → "Silahı tutan el" ya da oyunda `U` (atanabilir). Birinci şahıs silah modeli aynalanır (x ekseni negatif ölçek; nişan hizası korunur); tercih kaydedilir. Diğer oyuncular/3. şahıs görünümü etkilenmez.
 - **Ses kanalları:** Ayarlar → Ana ses × (Efekt, Müzik, Ortam). `Sfx`: `sfxBus` (silah/patlama…) ve `ambBus` (yağmur/rüzgâr). **Yağmur sesi** düğmesi yağmur gürültüsünü ve gök gürültüsünü kapatır (sis rüzgârı Ortam kanalında kalır).
 - **Müzik:** `src/game/music.js` — `public/audio/music/lobby.mp3` (menü) ve `match1..3.mp3` (maç) dosyaları varsa çalar, yoksa sessiz. Yeni ad için `TRACKS`'e ekle, `music.play('ad')` çağır. Henüz dosya yok.
+
+### 12.19 Ateş modları ve aç-kapa nişan
+- **Ateş modu (X):** otomatik silahlarda **Tek atış** (her tık 1 mermi) → **Seri** (tek tık ya da basılı tutma 3-5 mermi; başlayan seri tetik bırakılsa da biter, yenisi için yeniden tık gerekir) → **Otomatik** (basılı tutunca sürekli) → başa. Seri uzunluğu: 700 dk/dk altı 3, 900 altı 4, üstü 5 mermi (`Soldier.burstSize`, silaha `burst:` yazılarak değiştirilebilir). Tabanca, pompalı, keskin nişancı vb. hep tek atar. Mantık `Soldier.triggerUpdate`: Player ve sunucu (`humanTick`) aynı kodu kullanır. Test: `node scripts/firetest.mjs`.
+- **Nişan alma (sağ tık):** Kontroller → "Basılı tut" ya da "Bir kez bas (aç-kapa)" (`prefs.adsToggle`). Aç-kapa modunda koşmak ve silah değiştirmek nişanı kapatır.

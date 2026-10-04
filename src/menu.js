@@ -16,7 +16,7 @@ export const DEFAULTS = {
   sens: 0.0022, fov: 75, volume: 0.6, shadows: true, quality: 1.5,
   xp: 0, stats: { matches: 0, wins: 0, kills: 0, deaths: 0 },
   server: '', room: '', olTeam: 'auto', third: true,
-  keys: {}, leftHand: false, vSfx: 0.9, vMusic: 0.5, vAmb: 0.8, rainSound: true,   // tuş atamaları, silah eli, ses kanalları
+  keys: {}, leftHand: false, adsToggle: false, vSfx: 0.9, vMusic: 0.5, vAmb: 0.8, rainSound: true,   // tuş atamaları, silah eli, ses kanalları
 };
 
 export function loadPrefs() {
@@ -341,6 +341,9 @@ export function showMenu(onStart, onOnline) {
     return `<div class="scroll">
       <div class="pan"><h3>Silahı tutan el</h3><div class="row"><button class="chip ${p.leftHand ? '' : 'on'}" data-a="hand" data-v="right">Sağ el</button><button class="chip ${p.leftHand ? 'on' : ''}" data-a="hand" data-v="left">Sol el</button></div>
       <div class="hint">Birinci şahıs silah modeli aynalanır. Oyunda <kbd>${handKey}</kbd> tuşuyla anında değiştirilebilir.</div></div>
+      <div class="pan"><h3>Nişan alma (sağ tık)</h3><div class="row"><button class="chip ${p.adsToggle ? '' : 'on'}" data-a="ads" data-v="hold">Basılı tut</button><button class="chip ${p.adsToggle ? 'on' : ''}" data-a="ads" data-v="toggle">Bir kez bas (aç-kapa)</button></div>
+      <div class="hint">Aç-kapa seçilirse sağ tıkla nişan açılır, tekrar sağ tıkla kapanır; koşmak ve silah değiştirmek nişanı kapatır.</div></div>
+      <div class="pan"><h3>Ateş modu</h3><div class="hint">Oyunda <kbd>${codeLabel(kb.codes('fireMode')[0])}</kbd>: <b>Tek atış</b> (her tık 1 mermi) → <b>Seri</b> (tek tık ya da basılı tutma 3-5 mermi atar; tekrar için tetiği bırakıp yeniden çek) → <b>Otomatik</b> (basılı tutunca sürekli). Tabanca, pompalı, keskin nişancı gibi yarı otomatik silahlar her zaman tek atar.</div></div>
       <div class="pan"><h3>Tuş atama</h3><div class="hint">Bir tuşa tıkla, sonra yeni tuşa bas. Her eyleme en çok 2 tuş atanabilir. Geri tuşu temizler, Esc vazgeçer. Aynı tuş başka eyleme atanmışsa oradan alınır.</div>
       <div class="row" style="margin-top:8px"><button class="chip" data-a="kreset">Varsayılana dön</button></div>${ctl.msg ? `<div class="hint" style="color:var(--acc2)">${ctl.msg}</div>` : ''}</div>
       ${groups}
@@ -383,7 +386,7 @@ export function showMenu(onStart, onOnline) {
     const payload = {
       map, tod, weather, team: p.team === 'random' ? rnd(['blue', 'red']) : p.team, cls, diff: p.diff, optic: p.optic, playerName: p.name,
       match: { perTeam, type: p.type, tickets: randomize ? undefined : p.tickets || undefined, time: p.time }, third: p.third,
-      keys: p.keys, leftHand: p.leftHand, onPref: patchPrefs,
+      keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs,
       loadout: loadoutOf(cls), loadouts: p.loadouts,                    // tüm sınıfların kayıtlı yüklemeleri: oyunda sınıf değişince o sınıfınki gelir
       settings: { sens: p.sens, fov: p.fov, volume: p.volume, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, shadows: p.shadows, pixelRatio: p.quality },
     };
@@ -481,6 +484,7 @@ export function showMenu(onStart, onOnline) {
       case 'shadows': p.shadows = !p.shadows; break;
       case 'rain': p.rainSound = !p.rainSound; break;
       case 'hand': p.leftHand = v === 'left'; break;
+      case 'ads': p.adsToggle = v === 'toggle'; break;
       case 'kbind': ctl = { cap: { id: b.dataset.id, slot: +b.dataset.slot }, msg: '' }; break;
       case 'kreset': p.keys = {}; ctl = { cap: null, msg: 'Tuşlar varsayılana döndü' }; break;
       case 'reset': if (confirm('Seviye ve istatistikler sıfırlansın mı?')) { p.xp = 0; p.stats = { ...DEFAULTS.stats }; } break;

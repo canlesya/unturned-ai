@@ -20,7 +20,7 @@ export const ACTIONS = [
   ['slot2', 'Yedek silah', 2, ['Digit2']],
   ['slot3', 'Gadget', 2, ['Digit3', 'KeyG']],
   ['slot4', 'Bıçak', 2, ['Digit4', 'KeyV']],
-  ['fireMode', 'Ateş modu', 2, ['KeyX']],
+  ['fireMode', 'Ateş modu (tek → seri → otomatik)', 2, ['KeyX']],
   ['optic', 'Nişangâh değiştir (hızlı)', 2, ['KeyB']],
   ['wheel', 'Nişangâh çarkı (basılı tut)', 2, ['KeyT']],
   ['inspect', 'Silahı incele', 2, ['KeyY']],
