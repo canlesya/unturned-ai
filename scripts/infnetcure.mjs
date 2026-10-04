@@ -11,11 +11,9 @@ const die = async () => { await page.evaluate(() => { const n = window.__game.on
 let fail = 0; const ok = (c, m) => { console.log((c ? 'OK    ' : 'HATA  ') + m); if (!c) fail++; };
 console.log('başta   :', await st());
 await die(); await page.waitForTimeout(8000);
-let o = JSON.parse(await st()); ok(o.team === 'red' && o.cls === 'zombie' && o.lives === 2 && o.alive, 'ilk ölüm → zombi (2 hak): ' + JSON.stringify(o));
+let o = JSON.parse(await st()); ok(o.team === 'red' && o.cls === 'zombie' && o.lives === 1 && o.alive, 'ilk ölüm → zombi (1 hak): ' + JSON.stringify(o));
 await die(); await page.waitForTimeout(8500);
-o = JSON.parse(await st()); ok(o.team === 'red' && o.lives === 1 && o.alive, 'zombi 1. ölüm → hâlâ zombi (1 hak)');
-await die(); await page.waitForTimeout(8500);
-o = JSON.parse(await st()); ok(o.team === 'blue' && o.cls !== 'zombie' && o.alive && o.items.length === 4, 'zombi 2. ölüm → insan: ' + JSON.stringify(o));
+o = JSON.parse(await st()); ok(o.team === 'blue' && o.cls !== 'zombie' && o.alive && o.items.length === 4, 'zombi 1 ölümle → insan: ' + JSON.stringify(o));
 await page.screenshot({ path: 'screenshots/infnet-5-iyilesti.png' });
 console.log('hata:', errs.length, errs.slice(0, 3));
 await browser.close();

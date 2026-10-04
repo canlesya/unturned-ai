@@ -9,7 +9,7 @@ export const TAC_RELOAD = 0.65;
 // Enfekte modu (zombi) denge değerleri — tek yerden ayarlanır
 export const ZOMBIE = {
   respawn: 6,         // sn: zombi öldüğünde yeniden doğma süresi
-  lives: 2,           // normal zombi: bu kadar kez ölünce insana döner
+  lives: 1,           // normal zombi: bu kadar kez ölünce insana döner
   bossCount: [1, 2],  // 10 kişiden azsa 1, 10 ve üstüyse 2 boss
   bossSplit: 10,
 };

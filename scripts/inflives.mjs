@@ -1,4 +1,4 @@
-// Can hakkı kuralları (headless): insan 1 ölümle zombi · zombi 2 ölümle insan · boss 3 ölümle insan · boss'un öldürdüğü NORMAL zombi.
+// Can hakkı kuralları (headless): insan 1 ölümle zombi · zombi 1 ölümle insan · boss 3 ölümle insan · boss'un öldürdüğü NORMAL zombi.
 import { Game } from '../src/game/game.js';
 import { ZOMBIE, BOSS } from '../src/game/stats.js';
 const g = new Game(null, { headless: true, map: 'kasaba', tod: 'day', weather: 'clear', match: { perTeam: 12, type: 'inf', time: 900 } });
@@ -16,17 +16,15 @@ const b = bosses[0], h = humans[0];
 step(30 * 4); b.protT = h.protT = 0;
 kill(h, b); check(h.infectNext, 'insan 1 ölümle enfekte olacak'); step();
 check(h.def.zombie && !h.boss && h.zLives === ZOMBIE.lives && h.team === 'red', `boss'un öldürdüğü normal zombi oldu (hak ${h.zLives})`);
-// 2) normal zombi: ilk ölüm → hâlâ zombi; ikinci ölüm → insan
-kill(h, humans[1]); check(h.zLives === 1 && !h.willCure, 'ilk ölüm: 1 hak kaldı'); step();
-check(h.def.zombie && h.alive, 'ilk ölümden sonra zombi olarak doğdu');
-kill(h, humans[1]); check(h.zLives === 0 && h.willCure, 'ikinci ölüm: hak bitti, insana dönecek'); step();
+// 2) normal zombi: tek ölümle insan
+kill(h, humans[1]); check(h.zLives === 0 && h.willCure, 'normal zombi 1 ölümle: hak bitti, insana dönecek'); step();
 check(!h.def.zombie && h.team === 'blue' && h.alive && h.cls === h.humanCls, `iyileşti: insan (${h.cls}) olarak doğdu`);
 // 3) boss 3 ölüm
 for (let i = 1; i <= 3; i++) { step(30 * 3); b.protT = 0; kill(b, humans[2]); check(b.zLives === 3 - i, `boss ölüm ${i}: kalan hak ${b.zLives}`); step(30 * 12); }
 check(!b.def.zombie && !b.boss && b.team === 'blue' && b.alive, 'boss 3 ölümden sonra insan oldu');
 // 4) tekrar enfekte olabilir
 step(30 * 4); b.protT = 0; kill(b, bosses[1]); step(30 * 12);
-check(b.def.zombie && !b.boss && b.zLives === 2, 'iyileşen biri yeniden enfekte olunca normal zombi');
+check(b.def.zombie && !b.boss && b.zLives === ZOMBIE.lives, 'iyileşen biri yeniden enfekte olunca normal zombi');
 // 5) tüm zombiler iyileşirse insanlar kazanır
 for (const s of g.soldiers) if (s.def.zombie) { s.zLives = 0; }
 for (const s of g.soldiers) if (s.def.zombie && s.alive) { s.protT = 0; kill(s, humans[3]); }
