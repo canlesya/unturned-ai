@@ -30,7 +30,7 @@ MAPS.dev = {
   build: () => buildDev(),
 };
 MAPS.newyork = {
-  id: 'newyork', name: 'New York', tag: 'Enfekte · gece · patlamış cadde', thumb: '/img/newyork.jpg', only: ['inf'],
+  id: 'newyork', name: 'New York', tag: 'Enfekte · gece · patlamış cadde', thumb: '/img/newyork.jpg', only: ['inf'], forceTod: 'night',
   desc: 'Enfekte moduna özel gece haritası: patlamış New York caddesi. Yıkık gökdelenler, yanan araçlar, devrik otobüsler, düşmüş helikopter, kraterler. İnsanlar meydan anıtına, kamyon kasalarına, metro girişlerine, çökmüş kat döşemesine, otoparka ve inşaat iskelesine çıkıp yüksekten savunur; zombiler koşup sıçrayarak peşlerinden gelir.',
   build: () => buildNewYork(),
 };
