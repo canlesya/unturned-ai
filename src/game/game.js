@@ -86,7 +86,13 @@ export class Game {
 
     // ── harita ──
     this.mapDef = MAPS[opts.map] || MAPS[DEFAULT_MAP];
-    this.map = this.mapDef.build();
+    if (headless) {
+      // başsız (sunucu/test): harita bir kez kurulur, odalar arasında paylaşılır (bellek). DM modu spawns/baseZones'u değiştirdiği için yüzeysel kopya alınır; görsel grup gerekmez.
+      const cache = (Game._mapCache ||= new Map());
+      let c = cache.get(opts.map);
+      if (!c) { c = this.mapDef.build(); cache.set(opts.map, c); }
+      this.map = { ...c, spawns: { ...c.spawns }, group: new THREE.Group() };
+    } else this.map = this.mapDef.build();
     this.tod = opts.tod || 'day';
     if (headless) {
       this.night = this.tod === 'night';

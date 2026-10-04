@@ -71,6 +71,11 @@ export class Soldier {
     this.hp = def.hp;
     this.items = makeLoadout(cls, this.team, this.choice);
     this.cur = 0;
+    if (this.game.headless) {                                    // sunucu/test: 3B model kurulmaz (bellek+CPU); yalnızca model alanlarını okuyan mantık için hafif taslak
+      this.model = this.model || { root: { visible: true, rotation: { x: 0 } }, weapon: {}, optic: this.optic, setWeapon() {} };
+      this._modelWeapon = this.items[0].id;
+      return;
+    }
     // görünüm: sınıf teçhizatı değişir → modeli yeniden kur
     if (this.model) this.game.scene.remove(this.model.root);
     this.model = createCharacter({ team: this.team, cls, skinIndex: this.id, weapon: this.items[0].id, optic: this.optic });
@@ -204,7 +209,7 @@ export class Soldier {
   }
 
   muzzleWorld(out) {
-    if (this.isPlayer && !this.game.showSelf) {
+    if ((this.isPlayer && !this.game.showSelf) || this.game.headless) {
       const d = this.aimDir(_d), r = this.right(_v);
       return out.copy(this.eye(_o)).addScaledVector(r, 0.16).addScaledVector(UP, -0.1).addScaledVector(d, 0.8);
     }
@@ -526,6 +531,7 @@ export class Soldier {
 
   // Üçüncü şahıs model senkronu (oyuncu hariç): hıza bağlı adım döngüsü, gövde eğimi, kol sallanması
   syncModel(dt) {
+    if (this.game.headless) return;                                                     // görsel animasyon: sunucuda gerekmez
     const m = this.model, root = m.root, p = m.parts;
     if (this.isPlayer && !this.game.showSelf) { root.visible = false; return; }      // 1. şahıs: kendi gövdeni görmezsin
     if (this.isPlayer) this._syncWeaponModel();                                         // 3. şahıs: elindeki silah modeli güncel olsun

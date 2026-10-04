@@ -7,6 +7,8 @@ import { WebSocketServer } from 'ws';
 import { Room } from './room.js';
 import { OFFICIAL } from './official.js';
 import { DEFAULT_PORT, makeRoomCode, cleanName } from '../src/net/protocol.js';
+import { MapBuilder } from '../src/maps/builder.js';
+MapBuilder.noVisual = true;          // sunucuda görsel geometri kurulmaz
 
 const PORT = +process.env.PORT || DEFAULT_PORT;
 const MAX_ROOMS = +process.env.MAX_ROOMS || 20;

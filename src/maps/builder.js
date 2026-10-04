@@ -328,6 +328,7 @@ export class MapBuilder {
 
   build() {
     this.flushVehicles();
+    if (MapBuilder.noVisual) return new THREE.Group();                 // sunucu: görsel geometri gerekmez (yalnızca çarpışma kutuları + yerleşim)
     if (MapBuilder.zfix) this.zfightReport = this.resolveZFight();
     const group = new THREE.Group();
     for (const b of this.buckets.values()) {
@@ -344,3 +345,4 @@ export class MapBuilder {
 // Tarayıcıda varsayılan açık (görsel); Node'da (sunucu/testler) görsele gerek olmadığından kapalı — denetim betikleri MapBuilder.zfix = true yapar.
 MapBuilder.zfix = typeof window !== 'undefined';
 MapBuilder.zsite = null;
+MapBuilder.noVisual = false;       // true: build() görsel geometriyi birleştirmez (sunucu belleği)

@@ -586,3 +586,7 @@ Otomobil (ve hurdası) camsızdır (kırık cam mantığı): ince sütunlar, tav
 - **Araç çarpışması hatası:** ZPT/tank taret kutuları 4 m yükseklikte çıkıyordu (yanlış boy: 2,5 m). Düzeltildi: ZPT tareti 0,7 m, tank taret 1,0 m.
 
 Z-fighting düzeltmesi notu: bir yüz toplamda en çok 2,7 cm itilir; çimen yaması/asfalt/toprak gibi ince (≤4,5 cm) zemin kaplamaları birbirini itmez (yolun üstüne çim çıkmasın).
+
+### 12.17 Sunucu kapasitesi (24 oda simülasyonu)
+`node scripts/roomsim.mjs` (sunucu `PORT=8788 node server/index.js`) 20 kullanıcı odası kurar (farklı harita/mod/boyut/şifre/gizli/botlu-botsuz), 12 odaya oyuncu sokar ve `/rooms` listesini yazar. `scripts/serverprof.mjs` ağsız CPU ölçümü/profili verir (`node --cpu-prof`).
+Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, DM spawn değişimi için yüzeysel kopya), sunucuda görsel geometri kurulmaz (`MapBuilder.noVisual`), başsız modda 3B karakter modeli/animasyon yoktur (hafif taslak). 24 oda + ~75 oyuncuda: bellek 2,0 GB → 0,43 GB, CPU tek çekirdeğin %77'si → %30. Boşta (4 resmi oda): 414 → 175 MB.
