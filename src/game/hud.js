@@ -102,6 +102,10 @@ const CSS = `
 #scope.chev .mil,#scope.mil .chev{display:none}
 /* katmanlar: duraklat, ölüm, skor, maç sonu */
 .overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;background:rgba(5,8,12,.66);pointer-events:auto}
+.overlay.intro{background-color:#05080c;background-size:cover;background-position:center}
+.overlay.intro .panel{background:rgba(8,11,17,.82);backdrop-filter:blur(3px);min-width:460px;padding:26px 36px}
+.pm{margin:2px 0 10px}.pm b{display:block;font-size:20px;letter-spacing:3px;text-transform:uppercase;color:#ffae3a}.pm span{font-size:12px;letter-spacing:2px;opacity:.7;text-transform:uppercase}
+.pdesc{max-width:520px;font-size:13px;line-height:1.5;opacity:.8;margin:2px 0 14px}
 .panel{background:rgba(11,15,22,.94);border:1px solid rgba(255,255,255,.16);padding:24px 32px;min-width:400px;max-width:94vw;box-shadow:0 14px 50px rgba(0,0,0,.6);clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,0 100%)}
 .panel h2{margin:0 0 6px;font-size:34px;letter-spacing:4px;text-transform:uppercase;font-style:italic}.panel p{margin:4px 0;opacity:.85}
 .btn{pointer-events:auto;cursor:pointer;background:linear-gradient(100deg,#ffb347,#ff7a12);color:#160a02;border:0;padding:11px 26px;font:inherit;font-size:17px;font-weight:800;margin:12px 8px 0 0;letter-spacing:3px;text-transform:uppercase;clip-path:polygon(0 0,100% 0,calc(100% - 10px) 100%,0 100%)}
@@ -167,7 +171,7 @@ export class Hud {
         <div class="card"><h3>Sınıf seç <span style="opacity:.6;letter-spacing:1px;text-transform:none">(1–5)</span></h3><div class="clsrow" id="clsrow"></div></div>
         <div class="card"><h3>Doğma noktası</h3><div id="spawnrow"></div></div></div></div>
       <div id="scoreboard" class="overlay"><div class="panel" style="min-width:760px;text-align:center"><div class="scroll" id="sbbody"></div></div></div>
-      <div id="pause" class="overlay"><div class="panel"><h2 id="ptitle">Hazır mısın?</h2><p id="ptext">Başlamak için tıkla. Fare ekrana kilitlenir, Esc ile duraklatırsın.</p>
+      <div id="pause" class="overlay"><div class="panel"><h2 id="ptitle">Hazır mısın?</h2><div id="pmeta"></div><p id="ptext">Başlamak için tıkla. Fare ekrana kilitlenir, Esc ile duraklatırsın.</p>
         <button class="btn" id="bResume">Başla</button><button class="btn sec" id="bKill" title="Sıkıştıysan kendini öldürüp yeniden doğ">Kill (yeniden doğ)</button><button class="btn sec" id="bQuit">Ana Menü</button></div></div>
       <div id="endscreen" class="overlay"><div class="panel"><h2 id="etitle"></h2><p id="einfo"></p><div id="estats" style="margin:10px 0"></div>
         <button class="btn" id="bAgain">Tekrar Oyna</button><button class="btn sec" id="bMenu">Ana Menü</button></div></div>`;
@@ -371,7 +375,15 @@ export class Hud {
   }
 
   setPaused(v) {
-    this.$('pause').style.display = v ? 'flex' : 'none';
+    const ov = this.$('pause');
+    ov.style.display = v ? 'flex' : 'none';
+    // maça girişte (henüz oynanmadı): sahne arkada görünmesin; harita görseliyle tam ekran kapak
+    const intro = v && this.game.time <= 0.5;
+    ov.classList.toggle('intro', intro);
+    this.$('bKill').style.display = intro ? 'none' : '';             // girişte öldürülecek bir şey yok
+    const m = this.game.mapDef || {};
+    ov.style.backgroundImage = intro && m.thumb ? `linear-gradient(rgba(5,8,12,.35), rgba(5,8,12,.88)), url(${m.thumb})` : '';
+    this.$('pmeta').innerHTML = intro && m.name ? `<div class="pm"><b>${m.name}</b><span>${m.tag || ''}</span></div><div class="pdesc">${m.desc || ''}</div>` : '';
     if (v && this.game.time > 0.5) {
       this.$('ptitle').textContent = 'Duraklatıldı';
       this.$('ptext').textContent = 'Devam etmek için tıkla.';
