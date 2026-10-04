@@ -107,7 +107,7 @@ export class NetClient {
   applyState(s, p, local) {
     if (p.a && !s.alive) s.spawn({ x: p.x, z: p.z, ry: p.yw }, 0);
     else if (!p.a && s.alive) { s.alive = false; s.hp = 0; s.deadT = 0; s.deadDir = Math.random() > 0.5 ? 1 : -1; s.ads = false; s.reloadT = 0; s.vel.set(0, 0, 0); }
-    s.hp = p.hp; if (p.mh) s.maxHp = p.mh;
+    s.hp = p.hp; if (p.mh) s.maxHp = p.mh; if (p.gl !== undefined) s.ggLevel = p.gl;
     if (p.zt || p.bs) {                                                                            // zombi türü / boss durumu değişti: model yenilenir
       const t = ZT_ORDER[p.zt - 1] || s.ztype, bs = !!p.bs;
       if ((t !== s.ztype || bs !== s.boss) && s.def.zombie) { s.ztype = t; s.boss = bs; s.setClass('zombie'); }

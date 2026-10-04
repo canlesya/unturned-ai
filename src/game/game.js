@@ -11,7 +11,7 @@ import { Hud } from './hud.js';
 import { Soldier } from './soldier.js';
 import { Player } from './player.js';
 import { BotBrain } from './bot.js';
-import { CLASS_DEFS, WSTATS, BOT_NAMES, makeLoadout, BLEED_S, ZOMBIE, BOSS, ZTYPES, ZT_ORDER, randomZType } from './stats.js';
+import { CLASS_DEFS, WSTATS, BOT_NAMES, makeLoadout, BLEED_S, ZOMBIE, BOSS, ZTYPES, ZT_ORDER, randomZType, GG_LADDER } from './stats.js';
 import { makeMatch, PRESETS } from './match.js';
 import { Weather } from './weather.js';
 import { rand, pick, clamp } from './util.js';
@@ -121,7 +121,7 @@ export class Game {
     if (this.mode.infection) { opts.diff = 'hard'; this.bossCount = this.mode.total < ZOMBIE.bossSplit ? ZOMBIE.bossCount[0] : ZOMBIE.bossCount[1]; }                                  // Enfekte yalnızca Zor botlarla (menü/sunucu da öyle sabitler)
     // 3. şahıs kamera (H): odada izinli mi? sunucu açıkça true ister; offline varsayılan açık
     this.thirdAllowed = opts.online ? !!opts.online.cfg?.third : headless ? opts.third === true : opts.third !== false;
-    this.ffa = this.mode.type === 'dm';                          // Ölüm Maçı: herkes tek, her savaşçının kendi takım kimliği
+    this.ffa = !!this.mode.ffa;                          // Ölüm Maçı: herkes tek, her savaşçının kendi takım kimliği
     if (this.ffa) {
       // Haritanın doğma noktaları iki üste ait; ölüm maçında bunun yerine TÜM haritadan ulaşılabilir, aralıklı rastgele noktalar kullanılır
       const base = this.map.spawns.blue[0];
@@ -171,7 +171,7 @@ export class Game {
     } else if (this.ffa) {
       for (let i = 0; i < this.mode.perTeam; i++) {
         const isPlayer = !headless && i === 0, team = 'f' + i;
-        const s = new Soldier(this, { id: id++, name: isPlayer ? (opts.playerName || 'Sen') : nameOf(id), team, cls: isPlayer ? opts.cls : order[i % order.length], isPlayer });
+        const s = new Soldier(this, { id: id++, name: isPlayer ? (opts.playerName || 'Sen') : nameOf(id), team, cls: this.mode.gungame ? 'assault' : isPlayer ? opts.cls : order[i % order.length], isPlayer });
         this.soldiers.push(s);
         if (isPlayer) this.playerSoldier = s;
         else this.brains.push(new BotBrain(this, s, opts.diff));
@@ -372,7 +372,7 @@ export class Game {
     s.brain = null; s.dmgMul = 1; s.vacant = false;
     s.human = true; s.name = name;
     s.choice = { primary: choice.primary, secondary: choice.secondary, gadget: choice.gadget, melee: choice.melee };
-    if (!CLASS_DEFS[cls] || cls === 'zombie') cls = s.cls === 'zombie' ? 'zombie' : 'assault';
+    if (!CLASS_DEFS[cls] || cls === 'zombie' || this.mode.gungame) cls = s.cls === 'zombie' ? 'zombie' : 'assault';
     if (s.cls !== cls) s.setClass(cls); else s.items = makeLoadout(cls, s.team, s.choice);
     if (this.mode.infection && this.opts.bots === false && s.team === 'blue') {      // botsuz odada hiç zombi yoksa ikinci oyuncu ilk zombi olur
       const live = this.soldiers.filter((e) => !e.vacant && e !== s);
@@ -621,7 +621,7 @@ export class Game {
     if (this.mode.infection) { if (s.infectNext) this.infect(s); else if (s.willCure) this.cure(s); }
     const ctl = this.ctlOf(s);
     if (ctl && ctl.queue) { ctl.queue.length = 0; ctl.budget = 1; }        // insan: doğmadan önceki eski girdiler (örn. eski silah seçimi) uygulanmasın
-    if (ctl && ctl.pendingLoadout) { s.choice = ctl.pendingLoadout; ctl.pendingLoadout = null; s.items = makeLoadout(s.cls, s.team, s.choice); }
+    if (ctl && ctl.pendingLoadout) { s.choice = ctl.pendingLoadout; ctl.pendingLoadout = null; if (!this.mode.gungame) s.items = makeLoadout(s.cls, s.team, s.choice); }
     if (ctl && ctl.pendingClass && ctl.pendingClass !== s.cls && !s.def.zombie) s.setClass(ctl.pendingClass);
     if (s.def.zombie) {                                                // yeniden doğan zombi: seçtiği tür; botlar her doğuşta rastgele
       const want = s.boss ? null : ctl ? ctl.pendingZ : randomZType();
@@ -855,6 +855,7 @@ export class Game {
           break;
         }
         case 'ab': if (by) this.showAbilityFx(by, ev.k, { x: ev.f[0], y: ev.f[1], z: ev.f[2] }, { x: ev.d[0], y: ev.d[1], z: ev.d[2] }); break;
+        case 'lvl': { const v = this.soldiers[ev.v]; if (v) { const up = ev.l > v.ggLevel; v.ggLevel = ev.l; if (v === me && up) this.showLevel(v, true); else if (v === me) this.hud.toast(`Bıçakla öldürüldün: Seviye ${ev.l + 1}/${GG_LADDER.length}`, '#ff8a6a'); } break; }
         case 'swg': if (by && by !== me) { by.swing = { t: 0, dur: ev.d, kind: ev.k, idx: 0, done: true }; by.comboT = ev.d + 0.38; } break;
       }
     }
@@ -1300,7 +1301,31 @@ export class Game {
     } else if (prev) this.hud.toast(`${o.name} tarafsız oldu`, '#cfd3d8');
   }
 
+  // ───── Silah Yarışı ─────
+  ggAdvance(s) {
+    s.setLevel(s.ggLevel + 1);
+    this.netEvent({ e: 'lvl', v: s.id, l: s.ggLevel });
+    this.showLevel(s, true);
+  }
+  ggDemote(v) {
+    v.ggLevel = Math.max(0, v.ggLevel - 1);                                    // ölü: yeni seviye doğuşta uygulanır (spawn → ggItems)
+    this.netEvent({ e: 'lvl', v: v.id, l: v.ggLevel });
+    if (v.isPlayer && !this.headless) this.hud.toast(`Bıçakla öldürüldün: Seviye ${v.ggLevel + 1}/${GG_LADDER.length}`, '#ff8a6a');
+  }
+  showLevel(s, up) {
+    if (!s.isPlayer || this.headless) return;
+    const nm = WSTATS[GG_LADDER[Math.min(s.ggLevel, GG_LADDER.length - 1)]].name;
+    this.hud.popup(`SEVİYE ${s.ggLevel + 1}/${GG_LADDER.length} · ${nm}`, true);
+    if (up) this.sfx.capture?.();
+  }
+
   onKill(killer, victim, weapon, hs) {
+    if (this.mode.gungame && killer && killer !== victim) {
+      const knife = killer.stat.kind === 'melee';
+      if (killer.ggLevel >= GG_LADDER.length - 1) { if (knife) this.ggWinner = killer; }          // son seviye (bıçak): bıçakla öldüren kazanır
+      else this.ggAdvance(killer);
+      if (knife && victim.ggLevel > 0) this.ggDemote(victim);                                       // bıçakla öldürülen bir seviye geriler
+    }
     if (this.mode.scoreBased) { if (killer && killer.team !== victim.team) this.tickets[killer.team] += 1; }      // TDM: öldürmek takıma 1 skor
     else if (!this.ffa) this.tickets[victim.team] -= 1;
     this.netEvent({ e: 'kill', k: killer ? killer.id : -1, v: victim.id, w: weapon || '', hs: hs ? 1 : 0 });
@@ -1311,14 +1336,19 @@ export class Game {
       else victim.zLives = Math.max(0, victim.zLives - 1);                                         // zombi / boss can hakkı eksilir; 0 olunca insan olarak doğar
       victim.revivable = false;
       victim.respawnT = !victim.def.zombie || victim.zLives <= 0 ? (victim.isPlayer || victim.human ? 5 : rand(3.5, 5)) : victim.boss ? BOSS.respawn : ZOMBIE.respawn;
-    } else victim.respawnT = victim.isPlayer || victim.human ? 5 : rand(3.5, 6);
+    } else if (this.mode.gungame) victim.respawnT = victim.isPlayer || victim.human ? 3 : rand(2.2, 3.6);
+    else victim.respawnT = victim.isPlayer || victim.human ? 5 : rand(3.5, 6);
     if (victim.isPlayer && this.player) this.player.camPos.copy(victim.eye());
   }
 
   checkEnd() {
     if (this.ended) return;
     let w = null, why = '';
-    if (this.ffa) {
+    if (this.mode.gungame) {
+      const best = this.soldiers.filter((s) => !s.vacant).sort((a, b) => b.ggLevel - a.ggLevel || b.kills - a.kills || b.score - a.score)[0];
+      if (this.ggWinner) { w = this.ggWinner.team; why = `${this.ggWinner.name} son silahla (bıçak) kazandı`; }
+      else if (this.timeLeft <= 0 && best) { w = best.team; why = `Süre doldu · ${best.name} seviye ${best.ggLevel + 1}`; }
+    } else if (this.ffa) {
       const best = this.soldiers.filter((s) => !s.vacant).sort((a, b) => b.kills - a.kills || b.score - a.score)[0];
       if (best && best.kills >= this.mode.killLimit) { w = best.team; why = `${best.name} ${best.kills} öldürmeye ulaştı`; }
       else if (this.timeLeft <= 0) { w = best.team; why = 'Süre doldu'; }
@@ -1350,7 +1380,7 @@ export class Game {
     const xp = Math.round(me.score + (win ? 300 : 80));
     const inf = this.mode.infection;
     const wname = this.ffa ? (this.soldiers.find((s) => s.team === w)?.name || '') : inf ? (w === 'red' ? 'Zombiler' : 'İnsanlar') : TEAMS[w].name;
-    const sub = this.ffa ? `Sıralama: ${[...list].sort((a, b) => b.kills - a.kills).slice(0, 3).map((s, i) => `${i + 1}. ${s.name} (${s.kills})`).join(' · ')}` : inf ? `İnsan ${this.tickets.blue} – ${this.tickets.red} Zombi · Takımın en iyisi: ${list[0].name} (${list[0].score})` : `Mavi ${Math.max(0, Math.round(this.tickets.blue))} – ${Math.max(0, Math.round(this.tickets.red))} Kırmızı · Takımın en iyisi: ${list[0].name} (${list[0].score})`;
+    const sub = this.ffa ? `Sıralama: ${[...list].sort((a, b) => (this.mode.gungame ? b.ggLevel - a.ggLevel : 0) || b.kills - a.kills).slice(0, 3).map((s, i) => `${i + 1}. ${s.name} (${s.kills})`).join(' · ')}` : inf ? `İnsan ${this.tickets.blue} – ${this.tickets.red} Zombi · Takımın en iyisi: ${list[0].name} (${list[0].score})` : `Mavi ${Math.max(0, Math.round(this.tickets.blue))} – ${Math.max(0, Math.round(this.tickets.red))} Kırmızı · Takımın en iyisi: ${list[0].name} (${list[0].score})`;
     const rows = `<div class="mvp"><div class="st"><b>${me.kills}</b><small>Öldürme</small></div><div class="st"><b>${me.deaths}</b><small>Ölüm</small></div><div class="st"><b>${me.score}</b><small>Puan</small></div><div class="st"><b>+${xp}</b><small>XP</small></div></div><small style="opacity:.75">${sub}</small>`;
     this.opts.onMatchEnd?.({ score: me.score, kills: me.kills, deaths: me.deaths, win });
     this.hud.showEnd(win, win ? 'ZAFER!' : 'YENİLGİ', this.ffa ? `${why}.` : `${why}. ${wname} kazandı.`, rows);

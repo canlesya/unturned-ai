@@ -11,6 +11,7 @@ const SHOTGUNS = new Set(['shotgun', 'aa12', 'dbl']);
 // Enfekte insan botları ayarları: crowd = aynı hedefe kilitli her ek kişi için isabet düşüşü · desync = yeni hedefte ek tepki gecikmesi (sn) · kite = bu mesafeden yakına gelen zombiden geri çekilir
 export const INF_BOT = { crowd: 0.12, desync: 0.3, kite: 9, kiteBoss: 14, kiteSpeed: 0.8 };
 
+const NOIT = { id: '', mag: 0, reserve: 0 };                       // Silah Yarışı'nda eşya listesi 2 yuvalı: olmayan yuva boş sayılır
 const tA = new THREE.Vector3(), tB = new THREE.Vector3(), tC = new THREE.Vector3();
 
 export class BotBrain {
@@ -322,15 +323,15 @@ export class BotBrain {
     const it = s.item;
     if ((st.kind === 'gun' || st.kind === 'launcher') && it.mag <= 0 && s.reloadT <= 0) {
       if (it.reserve > 0) s.startReload();
-      else if (s.cur === 0 && s.items[1].mag + s.items[1].reserve > 0) s.switchTo(1);
+      else if (s.cur === 0 && !g.mode.gungame && s.items[1].mag + s.items[1].reserve > 0) s.switchTo(1);
     }
     if (!this.target && (st.kind === 'gun') && it.mag < st.mag * 0.4 && it.reserve > 0 && s.reloadT <= 0) s.startReload();
     if (!this.target && s.cur !== 0 && s.items[0].mag + s.items[0].reserve > 0) s.switchTo(0);
-    if (!this.target && s.items[2].id === 'medkit' && s.items[2].mag > 0 && s.useT <= 0 && s.cd <= 0) {
+    if (!this.target && s.items[2]?.id === 'medkit' && s.items[2].mag > 0 && s.useT <= 0 && s.cd <= 0) {
       const body = g.findRevivable(s);
       if (body) { s.useGadget('medkit'); }
     }
-    if (!this.target && s.hp < 45 && s.items[2].id === 'medkit' && s.items[2].mag > 0) s.useGadget('medkit');
+    if (!this.target && s.hp < 45 && s.items[2]?.id === 'medkit' && s.items[2].mag > 0) s.useGadget('medkit');
 
     if (this.target) {
       combat = true;
@@ -340,7 +341,7 @@ export class BotBrain {
       const dist = Math.hypot(dx, dz);
       // sniper yakında tabancaya geç
       const p0 = s.items[0].id;
-      if (SNIPERS.has(p0) && p0 !== 'svd' && dist < 12 && s.cur === 0) s.switchTo(1);
+      if (SNIPERS.has(p0) && p0 !== 'svd' && dist < 12 && s.cur === 0 && !g.mode.gungame) s.switchTo(1);
       else if (s.cur === 1 && SNIPERS.has(p0) && dist > 25) s.switchTo(0);
       // bıçak dövüşü: çok yakında ve silah işe yaramıyorsa (yükleniyor/boş/ağır) bıçağa geç, uzaklaşınca geri dön
       const gunBusy = s.cur === 0 && (s.reloadT > 0.5 || s.item.mag <= 0 || LMGS.has(p0) || SNIPERS.has(p0));
@@ -376,7 +377,7 @@ export class BotBrain {
       // gadget
       this.gadgetT -= dt;
       if (this.gadgetT <= 0 && this.reactT <= 0) {
-        const gid = s.items[2].id;
+        const gid = s.items[2]?.id;
         if ((gid === 'grenade' || gid === 'flash') && dist > (gid === 'flash' ? 6 : 9) && dist < 30) { s.pitch = Math.max(s.pitch, 0.18 + dist * 0.004); if (s.useGadget(gid)) this.gadgetT = rand(14, 25); }
         else if (gid === 'smoke' && s.hp < s.maxHp * 0.55 && dist > 8 && dist < 40) { s.pitch = Math.max(s.pitch, 0.25); if (s.useGadget('smoke')) this.gadgetT = rand(18, 30); }
         else if ((gid === 'rpg' || gid === 'm79') && dist > 14 && dist < (gid === 'rpg' ? 70 : 55) && Math.random() < 0.5) {
@@ -405,7 +406,7 @@ export class BotBrain {
         s.crouching = false;
         let fwd = 0;
         const shotty = SHOTGUNS.has(pid);
-        if (s.cur === 3) fwd = dist > 1.3 ? 0.95 : 0;           // bıçakla yaklaş
+        if (s.cur === 3 || st.kind === 'melee') fwd = dist > 1.3 ? 0.95 : 0;           // bıçakla yaklaş (Silah Yarışı son seviye de)
         else if (dist > (LMGS.has(pid) ? 40 : 28)) fwd = 0.7; else if (dist < 7 && !shotty) fwd = -0.6; else if (shotty && dist > 5) fwd = 0.9;
         moveX = nx * fwd + (-nz) * this.strafeDir * 0.55;
         moveZ = nz * fwd + (nx) * this.strafeDir * 0.55;
@@ -417,7 +418,7 @@ export class BotBrain {
       // sakin anlarda mayın / cephane kutusu kur
       this.gadgetT -= dt * 0.5;
       if (this.gadgetT <= 0) {
-        const gi = s.items[2];
+        const gi = s.items[2] || NOIT;
         if (gi.id === 'claymore' && gi.mag > 0 && this.goal && Math.hypot(this.goal.x - s.pos.x, this.goal.z - s.pos.z) < 7) { if (s.useGadget('claymore')) this.gadgetT = rand(25, 50); else this.gadgetT = 3; }
         else if (gi.id === 'ammobox' && gi.mag > 0 && s.items[0].reserve < WSTATS[s.items[0].id].reserve * 0.5) { if (s.useGadget('ammobox')) this.gadgetT = rand(30, 60); else this.gadgetT = 3; }
         else this.gadgetT = 4;

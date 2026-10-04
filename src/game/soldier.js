@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createCharacter } from '../models/character.js';
-import { WSTATS, CLASS_DEFS, OPTICS, OPTIC_ORDER, OPTIC_ALLOWED, resolveOptic, makeLoadout, TAC_RELOAD, BACKSTAB_DMG, ZOMBIE, ZTYPES, BOSS, ZBOSS } from './stats.js';
+import { WSTATS, CLASS_DEFS, OPTICS, OPTIC_ORDER, OPTIC_ALLOWED, resolveOptic, makeLoadout, TAC_RELOAD, BACKSTAB_DMG, ZOMBIE, ZTYPES, BOSS, ZBOSS, ggItems } from './stats.js';
 import { SWING_HIT_K } from './anim.js';
 import { H_STAND, H_CROUCH, H_PRONE } from './collision.js';
 import { dirFromAngles, clamp, rand, lerp } from './util.js';
@@ -52,6 +52,7 @@ export class Soldier {
     this.stanceLeft = false; this.stanceT = 1;        // 3. şahıs sol omuz duruşu (görsel): hedef ve yumuşatılmış değer (+1 sağ … −1 sol)
     this.shotOff = null;          // 3. şahıs kamerada: kameranın gözden ofseti (nişan noktasını kamera ışını belirler; mermi yine gözden çıkar)
     this.dmgMul = 1;
+    this.ggLevel = 0;                           // Silah Yarışı seviyesi (0..14)
     this.boss = false; this.zLives = 0;       // Enfekte: boss mu, kalan ölüm hakkı (0 = bir sonraki doğuşta insana döner)
     this.ztype = 'walker'; this.abT = 0; this.abActive = 0; this.cloakNet = false;      // Enfekte: zombi türü, özel güç bekleme süresi / etkin süresi, ağdan gelen görünmezlik
     this.model = null;
@@ -104,6 +105,15 @@ export class Soldier {
     return true;
   }
 
+  // Silah Yarışı: seviye yükselince elindeki silah hemen yeni seviyeninkiyle değişir
+  setLevel(n) {
+    this.ggLevel = n;
+    this.items = ggItems(n);
+    this.cur = 0; this.cd = 0.25; this.reloadT = 0; this.useT = 0; this.swing = null; this.burstLeft = 0; this.switchT = 0.3;
+    this._syncWeaponModel(true);
+    this.game.emit('switch', this);
+  }
+
   get opticId() { return resolveOptic(this.item.id, this.optic); }
   get opticDef() { const o = this.opticId; return o ? OPTICS[o] : null; }
   get zoomNow() { const st = this.stat; if (!st.zoom) return 0; return this.opticDef ? this.opticDef.zoom : st.zoom; }
@@ -143,7 +153,7 @@ export class Soldier {
     this.alive = true; this.deadT = 0; this.spawnN = (this.spawnN || 0) + 1;     // spawnN: ağ istemcisi yeniden doğmayı fark etsin
     if (this.def.zombie) { this.maxHp = this.zombieMaxHp(); this.abT = 2.5; this.abActive = 0; this.cloakNet = false; }    // türüne göre can; güç kısa bir bekleme ile başlar
     this.hp = this.maxHp;
-    this.items = makeLoadout(this.cls, this.team, this.choice);
+    this.items = this.game.mode.gungame ? ggItems(this.ggLevel) : makeLoadout(this.cls, this.team, this.choice);
     this.cur = 0;
     this.cd = 0; this.reloadT = 0; this.switchT = 0; this.useT = 0; this.swing = null; this.comboT = 0; this.autoSwitchT = 0; this.blindT = 0; this.burstLeft = 0;
     this.protT = protect;

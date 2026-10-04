@@ -311,6 +311,14 @@ Object.defineProperty(CLASS_DEFS, 'zombie', {
     primaryOptions: ['claws'], secondaryOptions: [], gadgetOptions: [], meleeOptions: ['claws'], defaults: { primary: { blue: 'claws', red: 'claws' }, secondary: 'claws', gadget: 'claws', melee: 'claws' } },
 });
 
+// Silah Yarışı (Gun Game): her öldürmede bir sonraki silah; son seviye bıçak, o seviyede bir öldürme maçı kazandırır.
+// Bıçakla öldürülen oyuncu bir seviye geriler. Eşyalar: [seviye silahı, bıçak] (4 yuvalı yükleme yok).
+export const GG_LADDER = ['m4a1', 'ak47', 'mp5', 'shotgun', 'scarh', 'vector', 'svd', 'aug', 'aa12', 'p90', 'sniper', 'deagle', 'revolver', 'pistol', 'knife'];
+export function ggItems(level) {
+  const id = GG_LADDER[Math.max(0, Math.min(GG_LADDER.length - 1, level))], st = WSTATS[id];
+  return st.kind === 'melee' ? [{ id, mag: 1, reserve: 0 }] : [{ id, mag: st.mag, reserve: st.reserve }, { id: 'knife', mag: 1, reserve: 0 }];      // son seviye: yalnızca bıçak
+}
+
 export const DIFFICULTY = {
   easy: { label: 'Kolay', react: [0.7, 1.2], err: 0.075, turn: 3.6, burst: [2, 5], dmgMul: 0.8 },
   normal: { label: 'Normal', react: [0.4, 0.75], err: 0.04, turn: 5.2, burst: [3, 8], dmgMul: 1.0 },

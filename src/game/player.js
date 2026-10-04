@@ -425,7 +425,7 @@ export class Player {
         if (s.willCure) { if (n >= 0 && ks[n]) this.game.requestClass(ks[n]); }                   // can hakkı bitti: insan olarak doğacaksın → sınıf seç
         else if (!s.boss && n >= 0 && ZT_ORDER[n]) this.game.requestZType(ZT_ORDER[n]);
       }
-      if (!s.alive && this.game.respawnReady() && !this.game.mode.infection) {                                 // ölüm ekranında sınıf seç: yuva tuşları 1-4, Digit5 beşinci sınıf
+      if (!s.alive && this.game.respawnReady() && !this.game.mode.infection && !this.game.mode.gungame) {                                 // ölüm ekranında sınıf seç: yuva tuşları 1-4, Digit5 beşinci sınıf
         const keys = Object.keys(this.game.classDefs);
         const n = slot >= 0 ? slot : code === 'Digit5' ? 4 : -1;
         if (n >= 0 && keys[n]) this.game.requestClass(keys[n]);
