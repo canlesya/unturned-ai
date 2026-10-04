@@ -25,11 +25,14 @@ function car_(b, { x, z, ry = 0, color = '#b33a2a', wreck = false }) {
     const N = { collide: false };
     // şasi + alt etek
     b.box(0, 0.18, 0, 4.3, 0.22, 1.76, '#26282b', N);
-    b.box(0, 0.32, 0, 4.3, 0.55, 1.8, c, N);                       // ana gövde
+    // ana gövde: kabin bölümü OYUK (kapı panelleri + zemin); ön (motor) ve arka (bagaj) bölümler dolu
+    b.box(1.475, 0.32, 0, 1.35, 0.55, 1.8, c, N);                  // ön bölüm
+    b.box(-1.7, 0.32, 0, 0.9, 0.55, 1.8, c, N);                    // arka bölüm
+    for (const sz of [-1, 1]) b.box(-0.225, 0.32, sz * 0.86, 2.05, 0.6, 0.08, c, N);   // kapı panelleri
+    b.box(-0.225, 0.3, 0, 2.05, 0.06, 1.7, '#1d1e21', N);          // kabin zemini
     b.box(1.45, 0.82, 0, 1.3, 0.1, 1.72, c, N);                    // kaput
     b.box(-1.7, 0.82, 0, 0.9, 0.1, 1.72, c, N);                    // bagaj kapağı
     // kabin: camsız (kırık cam) — sütunlar + tavan, boşluklardan içi görünür ve kurşun geçer
-    b.box(-0.3, 0.87, 0, 2.0, 0.06, 1.6, dk, N);                   // kabin tabanı
     b.box(-0.35, 1.5, 0, 1.3, 0.07, 1.58, lt, N);                  // tavan
     for (const sz of [-0.77, 0.77]) {
       b.box(0.55, 0.827, sz, 0.06, 0.77, 0.06, dk, { collide: false, rz: 0.71 });                       // A sütunu (eğik)
@@ -38,16 +41,25 @@ function car_(b, { x, z, ry = 0, color = '#b33a2a', wreck = false }) {
     b.box(0.5, 1.5, 0, 0.1, 0.06, 1.58, dk, { collide: false, rz: 0.71 });                              // ön cam üst kasası
     b.box(0.55, 0.88, 0, 0.1, 0.05, 1.56, dk, N);                                                       // ön cam alt kasası (torpido üstü)
     b.box(-1.15, 0.88, 0, 0.1, 0.05, 1.56, dk, N);                                                      // arka cam alt kasası
-    // iç mekân: torpido, direksiyon, koltuklar
-    const seat = wreck ? '#3a342c' : '#2e3036';
-    b.box(0.45, 0.62, 0, 0.3, 0.28, 1.5, '#23252a', N);                                                 // torpido
-    b.cyl(0.18, 0.95, 0.38, 0.17, 0.17, 0.03, '#1c1c1e', { rz: Math.PI / 2 - 0.5, center: true, seg: 8, collide: false });   // direksiyon
-    for (const sz of [-0.4, 0.4]) {
-      b.box(-0.2, 0.55, sz, 0.55, 0.22, 0.55, seat, N);                                                 // ön koltuk
-      b.box(-0.48, 0.77, sz, 0.12, 0.55, 0.52, seat, { collide: false, rz: 0.15 });                     // sırtlık
+    // iç mekân: torpido + gösterge kapağı, sütunlu direksiyon, tam koltuklar (taban + sırtlık + yastık), arka bank
+    const seat = wreck ? '#4a4034' : '#5a5448', seatDk = mix(seat, 0.7), dash = '#2c2e32';
+    b.box(0.5, 0.36, 0, 0.3, 0.5, 1.56, dash, N);                                                      // torpido gövdesi
+    b.box(0.4, 0.86, 0.38, 0.22, 0.1, 0.55, '#202226', N);                                              // gösterge kapağı
+    b.box(0.34, 0.5, 0, 0.1, 0.1, 0.5, '#202226', N);                                                   // orta konsol
+    b.box(0.32, 0.9, 0.38, 0.28, 0.035, 0.035, '#202226', { collide: false, rz: -0.55 });               // direksiyon mili
+    for (let k = 0; k < 8; k++) {                                                                       // direksiyon simidi (sekizgen halka)
+      const a2 = (k / 8) * Math.PI * 2;
+      b.box(0.12, 0.98 + Math.sin(a2) * 0.15, 0.38 + Math.cos(a2) * 0.15, 0.035, 0.035, 0.12, '#1b1c1f', { collide: false, rx: Math.PI / 2 - a2 });
     }
-    b.box(-0.95, 0.55, 0, 0.5, 0.22, 1.5, seat, N);                                                     // arka bank
-    b.box(-1.18, 0.77, 0, 0.1, 0.5, 1.5, seat, { collide: false, rz: 0.12 });
+    b.box(0.12, 0.95, 0.38, 0.05, 0.07, 0.07, '#1b1c1f', N);                                            // göbek
+    for (const sz of [-0.4, 0.4]) {
+      b.box(-0.18, 0.36, sz, 0.55, 0.2, 0.55, seat, N);                                                 // koltuk tabanı
+      b.box(-0.46, 0.56, sz, 0.14, 0.55, 0.54, seat, { collide: false, rz: 0.14 });                     // sırtlık
+      b.box(-0.5, 1.1, sz, 0.12, 0.17, 0.3, seatDk, { collide: false, rz: 0.14 });                      // başlık
+    }
+    b.box(-0.95, 0.36, 0, 0.5, 0.2, 1.52, seat, N);                                                     // arka bank
+    b.box(-1.16, 0.56, 0, 0.12, 0.5, 1.5, seat, { collide: false, rz: 0.12 });
+    b.box(-0.2, 0.3, 0, 0.3, 0.08, 0.1, seatDk, N);                                                     // vites topuzu zemini
     if (wreck) for (let i = 0; i < 5; i++) b.box(0.55 - i * 0.05 + (i % 2) * 0.1, 0.9 + (i % 3) * 0.07, (i - 2) * 0.28, 0.02, 0.1, 0.07, '#7fa3b8', { collide: false, rz: 0.7 + i * 0.3, o: { transparent: true, opacity: 0.45 } });   // cam kırıkları
     for (const sz of [-1, 1]) {
       b.box(-0.32, 0.9, sz * 0.82, 0.07, 0.6, 0.06, dk, N);                                            // B sütunu
