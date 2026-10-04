@@ -32,7 +32,7 @@ for (const id of Object.keys(WSTATS)) {
   const st = WSTATS[id];
   if (st.kind !== 'gun' || (only && id !== only)) continue;
   for (const optic of OPTIC_ALLOWED[id] || []) {
-    if (optic === 'iron' || optic === 'acog' || optic === 'scope' || optic === 'scope6') continue;   // iron: ön arpacık zaten nişan; dürbünlerde silah gizlenir
+    if (optic === 'acog' || optic === 'scope' || optic === 'scope6') continue;   // dürbünlerde silah gizlenir
     total++;
     vm.setItem(id, 'blue', 'gun', optic);
     vm.raise = 0;
@@ -45,7 +45,8 @@ for (const id of Object.keys(WSTATS)) {
     const blocked = [];
     for (const [dx, dy] of dirs) {
       const h = firstSolid(O, new THREE.Vector3(dx, dy, -1).normalize());
-      if (h) {
+      // demir nişanda ön arpacık nişan noktasının kendisidir; yalnızca arka nişangâhtan ÖNCE (göze yakın) giren parçalar (horoz, kabza, kurma kolu...) engeldir
+      if (h && (optic !== 'iron' || h.distance < (vm.model.userData.dist ?? 0.22) - 0.006)) {
         const bb = new THREE.Box3().setFromObject(h.object), sz = bb.getSize(new THREE.Vector3()), c = bb.getCenter(new THREE.Vector3());
         blocked.push({ dx, dy, d: h.distance, local: vm.model.worldToLocal(h.point.clone()).toArray().map((v) => +v.toFixed(3)), sight: vm.model.userData.sight, boyut: sz.toArray().map((v) => +(v * 100).toFixed(1)).join('x') + ' cm', mesh: h.object });
       }
