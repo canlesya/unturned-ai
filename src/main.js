@@ -80,6 +80,16 @@ async function startOnline() {
 }
 
 if (q.get('online')) startOnline();
+else if (q.get('editor')) {                     // /?editor=colgecidi : doğrudan Harita Editörü bölümü (botsuz, uçuş, panel açık)
+  const p = loadPrefs();
+  document.getElementById('menu').style.display = 'none';
+  start({
+    editor: true, devMode: true, map: q.get('editor'), tod: q.get('tod') || 'day', weather: 'clear', team: 'blue', cls: p.cls || 'assault', diff: 'normal', optic: p.optic || 'reddot',
+    match: { perTeam: 1, type: 'dm', time: 900 }, third: false, keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs, loadout: {},
+    settings: { sens: p.sens, fov: p.fov, volume: 0, shadows: q.get('shadows') !== '0', pixelRatio: +(q.get('pr') || p.quality || 1) },
+    onExit: () => { location.href = location.pathname; },
+  });
+}
 else if (q.get('autostart')) {
   const p = loadPrefs();
   document.getElementById('menu').style.display = 'none';

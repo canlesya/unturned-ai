@@ -877,3 +877,10 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 
 ### 12.73 Harita editörü: kayıtlı düzenlemeleri tek tek geri alma
 - "Geri al" yalnız o oturumdaki işlemleri bilir; önceki oturumdan kalan (tarayıcıda kayıtlı) düzenlemeler panelde liste olarak görünür, her birinin yanında ↶ (kayıttan çıkarır) ve "Haritayı yeniden yükle" düğmesi (`game.restart()`). "Tümünü sıfırla" kaydı silip haritayı hemen yeniden yükler. Oturumda geri alınacak yoksa ne yapılacağını söyleyen uyarı. Test: `scripts/editorrevert.mjs` (havaya kaldırılmış palmiye kayıtla havada → ↶ → yeniden yükle → yerinde; sıfırla).
+
+### 12.74 Harita Editörü ayrı bölüm; düzenlemeler kaydedilmez; gün batımı bulutları
+- Editör artık maçın içinde değil: ana menüde **Harita Editörü** sekmesi (harita kartları, "Editörü aç", "n düzenlemeyi sil"). Açınca harita botsuz (`opts.editor`: diğer askerler `vacant`), uçuş açık, panel hazır açık; `I` paneli gizler. Doğrudan bağlantı: `/?editor=colgecidi`.
+- Maçlarda (geliştirici modu dahil) yerel düzenleme hiç uygulanmaz, `I` editör açmaz: harita hep orijinal + `colgecidiEdits.js`.
+- Düzenlemeler yalnız bellekte (`mapEditor.js` `MEM`): editörden çıkıp girince ve "Haritayı yeniden yükle"de durur, F5'te gider. Eski sürümün `localStorage 'warbyte.harita-duzenleme.*'` kayıtları ilk açılışta silinir.
+- Gün batımı bulutları koyu kahverengi kaya gibi görünüyordu: bulut malzemesine kendi ışığı (`emissive`, `cloudGlow` gün batımı 0,62 / gece 0,25) + daha açık renk.
+- Testler: `scripts/editorsection.mjs` (menü → editör, botsuz, maçta orijinal, F5'te gider, eski kayıt silinir); editortest / editorload / editorrevert yeni modele uyarlandı.

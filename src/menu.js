@@ -2,6 +2,7 @@ import { MAPS, DEFAULT_MAP, mapsFor } from './maps/index.js';
 import { CLASS_DEFS, WSTATS, DIFFICULTY, OPTICS, OPTIC_ORDER } from './game/stats.js';
 import { MATCH_TYPES, TODS_LIST, defaultTickets, defaultScoreLimit, DM_MAX, DM_KILLS, isTotalType as tot, totalMin as totMin, totalMax as totMax, INF_MAX } from './game/match.js';
 import { MENU_CSS } from './menuStyle.js';
+import { loadEdits, clearEdits } from './game/mapEditor.js';
 import { MenuScene } from './menuScene.js';
 import { WEATHERS } from './game/weather.js';
 import { NetClient } from './net/client.js';
@@ -103,7 +104,7 @@ export function showMenu(onStart, onOnline) {
   const tipTimer = setInterval(() => { tipI = (tipI + 1) % TIPS.length; q('#mnTip').innerHTML = TIPS[tipI]; }, 7000);
   q('#mnTip').innerHTML = TIPS[tipI];
 
-  const NAV = [['home', 'Ana Menü', 'Hızlı başla'], ['custom', 'Özel Oyun', 'Harita · mod · boyut'], ['online', 'Çevrimiçi', 'Oda kur · katıl'], ['loadout', 'Sınıf & Silah', 'Teçhizatını seç'], ['settings', 'Ayarlar', 'Ses · görüntü · fare'], ['controls', 'Kontroller', 'Tuş haritası']];
+  const NAV = [['home', 'Ana Menü', 'Hızlı başla'], ['custom', 'Özel Oyun', 'Harita · mod · boyut'], ['online', 'Çevrimiçi', 'Oda kur · katıl'], ['loadout', 'Sınıf & Silah', 'Teçhizatını seç'], ['settings', 'Ayarlar', 'Ses · görüntü · fare'], ['controls', 'Kontroller', 'Tuş haritası'], ['editor', 'Harita Editörü', 'Nesne seç · sil · taşı']];
   const save = () => savePrefs(p);
   const effTickets = () => p.tickets || (p.type === 'tdm' ? defaultScoreLimit(p.perTeam) : defaultTickets(p.perTeam));
   const mapName = () => (p.map === 'random' ? 'Rastgele' : MAPS[p.map].name);
@@ -112,7 +113,7 @@ export function showMenu(onStart, onOnline) {
 
   function bg() {
     if (!scene) return;
-    const m = p.map === 'random' ? (scene.mapId || DEFAULT_MAP) : p.map;
+    const m = screen === 'editor' && MAPS[p.edMap] ? p.edMap : p.map === 'random' ? (scene.mapId || DEFAULT_MAP) : p.map;
     const t = p.tod === 'random' ? (scene.tod || 'day') : p.tod;
     if (screen === 'loadout') {
       scene.setMode('showroom');
@@ -378,7 +379,7 @@ export function showMenu(onStart, onOnline) {
   function render() {
     const keep = stage.querySelector('.scroll')?.scrollTop || 0;
     stage.className = 'mn-stage' + (screen === 'loadout' ? ' right' : '');
-    stage.innerHTML = { home: homeHTML, custom: customHTML, online: onlineHTML, ocreate: ocreateHTML, loadout: loadoutHTML, settings: settingsHTML, controls: controlsHTML }[screen]();
+    stage.innerHTML = { home: homeHTML, custom: customHTML, online: onlineHTML, ocreate: ocreateHTML, loadout: loadoutHTML, settings: settingsHTML, controls: controlsHTML, editor: editorHTML }[screen]();
     const sc = stage.querySelector('.scroll'); if (sc) sc.scrollTop = keep;
     const bsc = stage.querySelector('.bld .scroll');                          // kurucu: kaydırdıkça üstteki adım çubuğunda hangi bölümdeysen vurgulanır
     if (bsc) {
@@ -408,6 +409,29 @@ export function showMenu(onStart, onOnline) {
       stage.querySelectorAll(`img[data-icon="${id}"]`).forEach((im) => im.setAttribute('src', url));
       fillIcons();
     }, 20);
+  }
+
+  // ───── Harita Editörü: oyundan ayrı bölüm. Düzenlemeler yalnız bu tarayıcıda ve yalnız editörde görünür; oyunda harita hep orijinal ─────
+  const edCount = (id) => loadEdits(id).length;
+  const edMaps = () => Object.values(MAPS).filter((m) => !m.dev && !m.only);
+  function editorHTML() {
+    if (!edMaps().some((m) => m.id === p.edMap)) p.edMap = MAPS.colgecidi ? 'colgecidi' : edMaps()[0].id;
+    const m = MAPS[p.edMap], n = edCount(m.id);
+    const cards = edMaps().map((x) => { const k = edCount(x.id); return `<button class="mapc ${x.id === m.id ? 'on' : ''}" data-a="edmap" data-v="${x.id}"><img src="${x.thumb}" alt=""><div class="t"><b>${x.name}</b><small>${k ? k + ' düzenleme' : 'orijinal'}</small></div></button>`; }).join('');
+    return `<div class="scroll"><div class="pan"><h3>Harita seç</h3><div class="maps">${cards}</div></div>
+      <div class="pan"><h3>${m.name}</h3><div class="row"><button class="chip on" data-a="edopen">Editörü aç ›</button>${n ? `<button class="chip" data-a="edclear">${n} düzenlemeyi sil (orijinale dön)</button>` : ''}</div>
+      <div class="hint">Editör haritayı botsuz ve uçarak açar; panel sağda hazır gelir. Nişangâhla bakıp <kbd>sol tık</kbd> seç, <kbd>Delete</kbd> sil, ok tuşları / <kbd>PgUp</kbd> <kbd>PgDn</kbd> taşı, <kbd>+</kbd> <kbd>−</kbd> boyut, <kbd>Backspace</kbd> geri al. Düğmeler için <kbd>Esc</kbd>.</div>
+      <div class="hint">Düzenlemeler <b>kaydedilmez</b>: yalnız editörde görünür, sayfayı yenileyince (F5) hepsi silinir. Maçlarda harita her zaman orijinal hâliyle yüklenir. Kalıcı olmasını istediklerini panelden <b>Düzenlemeleri kopyala</b> ile bana gönder, haritaya işleyeyim.</div></div></div>`;
+  }
+  function launchEditor() {
+    const payload = {
+      editor: true, devMode: true, map: p.edMap, tod: 'day', weather: 'clear', team: 'blue', cls: p.cls, diff: 'normal', optic: p.optic, playerName: p.name,
+      match: { perTeam: 1, type: 'dm', time: 900 }, third: false,
+      keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs, loadout: loadoutOf(p.cls), loadouts: p.loadouts,
+      settings: { sens: p.sens, fov: p.fov, volume: p.volume, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, shadows: p.shadows, adaptive: p.adaptive !== false, fullscreen: p.fullscreen !== false, pixelRatio: p.quality },
+    };
+    cleanup();
+    onStart(payload);
   }
 
   // ───── olaylar ─────
@@ -492,6 +516,9 @@ export function showMenu(onStart, onOnline) {
       case 'weather': p.weather = v; break;
       case 'third': p.third = v === '1'; break;
       case 'devmode': p.devMode = v === '1'; break;
+      case 'edmap': p.edMap = v; break;
+      case 'edopen': launchEditor(); return;
+      case 'edclear': if (confirm(`${MAPS[p.edMap].name}: yaptığın tüm düzenlemeler silinsin mi?`)) { clearEdits(p.edMap); } break;
       case 'type': if (p.type !== v) adv = 'bs2'; p.type = v; if (tot(v)) p.perTeam = Math.max(lo(v), Math.min(hi(v), p.perTeam)); if (v === 'inf') p.map = 'newyork'; else if (MAPS[p.map]?.only && !MAPS[p.map].only.includes(v)) p.map = DEFAULT_MAP; break;
       case 'team': p.team = v; break;
       case 'diff': p.diff = v; break;

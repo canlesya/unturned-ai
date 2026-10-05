@@ -1,18 +1,22 @@
-// Harita editörü (geliştirici modu, çevrimdışı). I: aç / kapa. Nişangâhla bak → sol tık: seç. Seçili nesne: Delete sil · ok tuşları taşı (bakış yönüne göre)
+// Harita editörü (ana menü → Harita Editörü bölümü; oyunda yok). I: paneli aç / kapa. Nişangâhla bak → sol tık: seç. Seçili nesne: Delete sil · ok tuşları taşı (bakış yönüne göre)
 // · PageUp / PageDown yukarı / aşağı · Shift: 1 m adım (yoksa 0,25 m) · + / − büyüt / küçült · ] / [ yalnız yükseklik · Backspace geri al
 // · Home: seçili nesnenin kimliğini kopyala · End: tüm düzenlemeleri kopyala.
 // Nesneler MapBuilder'ın kimlikleridir (bina:12, kasa:40, kenar:7, kapı:Mid Doors, köprü:tabliye, pencere:3:1 …). Düzenlemeler canlı uygulanır
-// (birleşik ağın köşeleri + çarpışma kutuları), tarayıcıya kaydedilir (yeniden yüklemede de görünür) ve "Düzenlemeleri kopyala" ile bana gönderilir:
+// (birleşik ağın köşeleri + çarpışma kutuları), yalnız bellekte tutulur (sayfa yenilenince gider; oyunda harita hep orijinal) ve "Düzenlemeleri kopyala" ile bana gönderilir:
 // ben de harita dosyasına (ör. src/maps/colgecidiEdits.js) işleyip kalıcı yaparım. Botların yol ızgarası canlı güncellenmez (kalıcılaşınca güncellenir).
 import * as THREE from 'three';
 import { MapBuilder } from '../maps/builder.js';
 
-const KEY = (map) => 'warbyte.harita-duzenleme.' + map;
+// Düzenlemeler yalnız bellekte: editörden çıkıp girince / "Haritayı yeniden yükle"de durur, sayfa yenilenince (F5) hepsi gider.
+// Eski sürümler tarayıcıya (localStorage) kaydediyordu: o kayıtlar ilk açılışta silinir.
+const MEM = new Map();
+try { for (let i = localStorage.length - 1; i >= 0; i--) { const k = localStorage.key(i); if (k && k.startsWith('warbyte.harita-duzenleme.')) localStorage.removeItem(k); } } catch { /* erişim yok */ }
 const KINDS = { bina: 'Bina', kasa: 'Kasa / konteyner', kenar: 'Kat kenarı (istinat duvarı)', 'kenar-ç': 'Kat kenarı', kapı: 'Kapı', köprü: 'Köprü parçası', çatı: 'Çatı', sandık: 'Sandık', araç: 'Araç',
   pencere: 'Pencere (süs)', 'süs-kapı': 'Kapı (süs)', cephe: 'Cephe süsü (korniş / kiriş)', pano: 'Pano', tabela: 'Saha tabelası', palmiye: 'Palmiye', çanak: 'Uydu çanağı', çevre: 'Çevre duvarı',
   'B-penceresi': 'B penceresi', 'tünel-ağzı': 'Tünel ağzı', 'dış-çevre': 'Uzak manzara', parça: 'Parça', çarpışma: 'Görünmez çarpışma' };
 
-export function loadEdits(map) { try { return JSON.parse(localStorage.getItem(KEY(map)) || '[]'); } catch { return []; } }
+export function loadEdits(map) { return JSON.parse(JSON.stringify(MEM.get(map) || [])); }
+export function clearEdits(map) { MEM.delete(map); }
 
 const CSS = `
 #med{position:absolute;right:14px;top:120px;width:330px;background:rgba(9,12,18,.9);border:1px solid rgba(255,174,58,.5);color:#e8edf5;font:600 13px Bahnschrift,Rajdhani,'Segoe UI',sans-serif;padding:10px 12px;z-index:25;pointer-events:auto;display:none}
@@ -81,8 +85,8 @@ export class MapEditor {
     const b = this.bbox(id); return [+((b.min.x + b.max.x) / 2).toFixed(3), +b.min.y.toFixed(3), +((b.min.z + b.max.z) / 2).toFixed(3)];
   }
 
-  toggle() {
-    this.active = !this.active; this.el.style.display = this.active ? 'block' : 'none';
+  toggle(on = !this.active) {
+    this.active = on; this.el.style.display = this.active ? 'block' : 'none';
     if (!this.active) { this.boxSel.visible = this.boxHov.visible = false; this.sel = null; }
     this.g.hud.toast(this.active ? 'HARİTA EDİTÖRÜ AÇIK · nişangâhla bak, sol tıkla seç' : 'Harita editörü kapalı', '#ffd27a');
     this.render();
@@ -132,7 +136,7 @@ export class MapEditor {
   undoLast() { const sn = this.undo.pop(); if (!sn) { this.g.hud.toast(this.edits.size ? 'Bu oturumda geri alınacak işlem yok · kayıtlı düzenlemeleri paneldeki listeden ↶ ile tek tek geri al' : 'Geri alınacak bir şey yok', '#ffd27a'); return; } this.restore(sn); this.select(this.edits.get(sn.id)?.del ? null : sn.id); this.g.hud.toast('Geri alındı: ' + sn.id, '#cfe6ff'); }
 
   list() { return [...this.edits.values()].map((e) => { const o = { id: e.id, at: e.at }; if (e.del) o.del = true; else { if (e.d.some((x) => x)) o.d = e.d; if (e.s.some((x) => x !== 1)) o.s = e.s; } return o; }).filter((o) => o.del || o.d || o.s); }
-  save() { try { localStorage.setItem(KEY(this.mapId), JSON.stringify(this.list())); } catch { /* yer yok */ } this.render(); }
+  save() { const l = this.list(); if (l.length) MEM.set(this.mapId, l); else MEM.delete(this.mapId); this.render(); }
   info(id) {
     const b = this.bbox(id), c = b.getCenter(new THREE.Vector3()), s = b.getSize(new THREE.Vector3()), kind = KINDS[id.split(':')[0]] || id.split(':')[0];
     return `${id} · ${kind} · merkez x ${c.x.toFixed(1)} y ${c.y.toFixed(1)} z ${c.z.toFixed(1)} · boyut ${s.x.toFixed(1)}×${s.y.toFixed(1)}×${s.z.toFixed(1)} m · çarpışma ${this.colsOf(id).length}`;
@@ -149,7 +153,7 @@ export class MapEditor {
     else if (c === 'undo') this.undoLast();
     else if (c === 'id' && this.sel) this.copy(this.info(this.sel), 'Kimlik');
     else if (c === 'all') this.copy(this.exportText(), 'Düzenlemeler');
-    else if (c === 'reset') { if (!confirm('Bu haritadaki tüm yerel düzenlemelerin silinsin ve harita yeniden yüklensin mi?')) return; try { localStorage.removeItem(KEY(this.mapId)); } catch { /* */ } this.edits.clear(); this.undo = []; this.g.restart(); }
+    else if (c === 'reset') { if (!confirm('Bu haritadaki tüm düzenlemelerin silinsin ve harita orijinal hâliyle yeniden yüklensin mi?')) return; clearEdits(this.mapId); this.edits.clear(); this.undo = []; this.g.restart(); }
   }
   render() {
     if (!this.active) return;

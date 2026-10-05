@@ -13,11 +13,11 @@ export const TODS = { day: 'Gündüz', sunset: 'Gün batımı', night: 'Gece' };
 const TOD_PRESETS = {
   sunset: {
     sky: ['#2b3a73', '#e0794a', '#ffc47e'], fog: ['#d89c78', 0.55, 0.9], sun: ['#ff9c4e', 2.3], hemi: ['#ffb690', '#4a3a3e', 0.85],
-    cloud: '#ffb48c', sunPos: [-85, 26, 45], envI: 0.3, glow: 0.55,
+    cloud: '#ffc2a0', cloudGlow: 0.62, sunPos: [-85, 26, 45], envI: 0.3, glow: 0.55,
   },
   night: {
     sky: ['#050a18', '#10204a', '#233a68'], fog: ['#13203f', 0.35, 0.6], sun: ['#a9c2ff', 1.25], hemi: ['#6075b8', '#232a40', 1.0],
-    cloud: '#27304d', sunPos: [-45, 70, -35], envI: 0.2, glow: 1.5, stars: true,
+    cloud: '#27304d', cloudGlow: 0.25, sunPos: [-45, 70, -35], envI: 0.2, glow: 1.5, stars: true,
   },
 };
 
@@ -27,7 +27,7 @@ export function todEnv(env = {}, sunPos, tod = 'day') {
   if (!P) return { E, sunPos, envI: 0.5, glow: 0, stars: false };
   const fog = [P.fog[0], Math.max(12, E.fog[1] * P.fog[1]), Math.max(110, E.fog[2] * P.fog[2])];
   return {
-    E: { ...E, sky: P.sky, fog, sun: P.sun, hemi: P.hemi, cloud: P.cloud },
+    E: { ...E, sky: P.sky, fog, sun: P.sun, hemi: P.hemi, cloud: P.cloud, cloudGlow: P.cloudGlow },
     sunPos: P.sunPos, envI: P.envI, glow: P.glow, stars: !!P.stars,
   };
 }
@@ -69,7 +69,7 @@ export function setupEnvironment(scene, renderer, { shadowSize = 85, sunPos: sun
   // alçak poligon bulutlar
   let seed = 11;
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-  const cloudMat = new THREE.MeshStandardMaterial({ color: E.cloud, flatShading: true, roughness: 1, fog: false });
+  const cloudMat = new THREE.MeshStandardMaterial({ color: E.cloud, emissive: E.cloud, emissiveIntensity: E.cloudGlow ?? 0.3, flatShading: true, roughness: 1, fog: false });   // kendi ışığı: alt yüzler koyu kaya gibi görünmesin
   for (let i = 0; i < E.clouds; i++) {
     const cl = new THREE.Group();
     const n = 3 + Math.floor(rnd() * 3);

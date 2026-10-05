@@ -1,18 +1,17 @@
-// Harita editörü testi: geliştirici modu → I → kasaya bak + tıkla (seç) → sil / geri al / taşı / büyüt → kopyala → yenile (kalıcı) → sıfırla.
+// Harita editörü testi (ayrı bölüm ?editor=): kasaya bak + tıkla (seç) → sil / geri al / taşı / büyüt → kopyala → haritayı yeniden yükle (bellekte durur) → sıfırla → F5 (gider).
 import { chromium } from 'playwright';
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
 await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: 'http://127.0.0.1:5180' });
 const page = await ctx.newPage();
 const errs = []; page.on('pageerror', (e) => errs.push(e.message));
-const URL = 'http://127.0.0.1:5180/?autostart=3v3&map=colgecidi&type=tdm&dev=1&debug=1&nolock=1';
+const URL = 'http://127.0.0.1:5180/?editor=colgecidi&debug=1&nolock=1';
 let fail = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'HATA ') + m); if (!c) fail++; };
 const boot = async () => { await page.goto(URL); await page.waitForFunction('window.__game && window.__game.running', null, { timeout: 120000 }); await page.waitForTimeout(1200);
-  await page.evaluate(() => { const g = window.__game; g.brainsOff = g.brains.splice(0); const s = g.playerSoldier; s.fly = true; s.pos.set(-6.5, 1.3, -13.35); s.vel.set(0, 0, 0); s.yaw = -Math.PI / 2; s.pitch = -0.12; }); await page.waitForTimeout(500); };
+  await page.evaluate(() => { const g = window.__game; const s = g.playerSoldier; s.fly = true; s.pos.set(-6.5, 1.3, -13.35); s.vel.set(0, 0, 0); s.yaw = -Math.PI / 2; s.pitch = -0.12; }); await page.waitForTimeout(500); };
 await boot();
 await page.evaluate(() => localStorage.removeItem('warbyte.harita-duzenleme.colgecidi'));
-await page.keyboard.press('KeyI'); await page.waitForTimeout(200);
-ok(await page.isVisible('#med'), 'I ile editör paneli açıldı');
+ok(await page.isVisible('#med'), 'editör bölümünde panel hazır açık');
 await page.mouse.click(640, 360); await page.waitForTimeout(300);
 const sel = await page.evaluate(() => window.__game.mapEditor.sel);
 ok(!!sel, 'tıklanan nesne seçildi: ' + sel);
@@ -35,15 +34,19 @@ ok(txt.startsWith('HARİTA DÜZENLEMESİ colgecidi') && txt.includes(sel), 'düz
 await page.keyboard.press('Home'); await page.waitForTimeout(200);
 ok((await page.evaluate(() => document.querySelector('#med textarea').value)).startsWith(sel), 'kimlik kopyalandı');
 await page.screenshot({ path: 'screenshots/editor-panel.png' });
-// kalıcılık: yeniden yükle → harita kurulurken uygulanmalı
+// "Haritayı yeniden yükle" (aynı sayfa) → düzenleme bellekte durur, harita kurulurken uygulanır
 const want = moved.e;
-await boot();
+await page.evaluate(() => window.__game.mapEditor.cmd('reload'));
+await page.waitForTimeout(500); await page.waitForFunction('window.__game && window.__game.running && window.__game.mapEditor', null, { timeout: 120000 }); await page.waitForTimeout(800);
 const after = await page.evaluate((id) => { const g = window.__game; return { skipped: g.map.editSkipped, cols: g.world.colliders.filter((c) => c.oid === id).map((c) => [c.min.slice(), c.max.slice()]), n: g.mapEditor.list().length }; }, sel);
 ok(after.n === 1, `yeniden yüklemede düzenleme duruyor (${after.n})`);
 ok(before.length === 0 || Math.abs(after.cols[0][0][1] - (before[0][0][1] + 0.25)) < 0.2, 'yeniden yüklemede nesne taşınmış hâlde kuruldu');
 await page.evaluate(() => { window.confirm = () => true; });
-await page.keyboard.press('KeyI'); await page.waitForTimeout(200);
 await page.evaluate(() => window.__game.mapEditor.cmd('reset'));
-ok(await page.evaluate(() => !localStorage.getItem('warbyte.harita-duzenleme.colgecidi')), 'tümünü sıfırla temizledi');
+await page.waitForTimeout(500); await page.waitForFunction('window.__game && window.__game.running && window.__game.mapEditor', null, { timeout: 120000 });
+ok(await page.evaluate(() => window.__game.mapEditor.list().length === 0), 'tümünü sıfırla temizledi');
+// sayfa yenilenince (F5) düzenlemeler gider
+await page.evaluate((id) => window.__game.mapEditor.move(id, [0, 1, 0]), sel); await boot();
+ok(await page.evaluate(() => window.__game.mapEditor.list().length === 0 && !localStorage.getItem('warbyte.harita-duzenleme.colgecidi')), 'F5 sonrası düzenleme yok, tarayıcıya kaydedilmemiş');
 console.log(fail ? `sonuç: HATA (${fail})` : 'sonuç: OK', 'sayfa hatası', errs.length, errs.slice(0, 3));
 await browser.close();

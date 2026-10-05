@@ -100,7 +100,7 @@ export class Game {
       if (!c) { c = this.mapDef.build(); cache.set(opts.map, c); }
       this.map = { ...c, spawns: { ...c.spawns }, group: new THREE.Group() };
     } else {
-      if (opts.devMode && !opts.online) MapBuilder.pendingEdits = loadEdits(this.mapDef.id);         // harita editörü: bu tarayıcıdaki yerel düzenlemeler
+      if (opts.editor && !opts.online) MapBuilder.pendingEdits = loadEdits(this.mapDef.id);          // yalnız Harita Editörü bölümünde: bu tarayıcıdaki yerel düzenlemeler (oyunda harita hep orijinal)
       try { this.map = this.mapDef.build(); } finally { MapBuilder.pendingEdits = null; }
     }
     // Taraf değişimi (asimetrik haritalar): sideSwap haritalarda her maç mavi/kırmızı doğuş tarafları rastgele yer değiştirir; sunucu seçer, istemciler cfg.swap ile aynısını uygular
@@ -202,6 +202,7 @@ export class Game {
       }
     }
     if (opts.autoplay && !headless) this.brains.push(new BotBrain(this, this.playerSoldier, opts.diff));
+    if (opts.editor) { for (const s of this.soldiers) if (s !== this.playerSoldier) { s.vacant = true; s.alive = false; s.brain = null; } this.brains.length = 0; }   // Harita Editörü: bot yok
     if (this.mode.infection) {
       this.map.baseZones = null;                                    // üs cezası yok: zombiler her yerden doğar
       if (!opts.online) this.seedInfection();
@@ -236,10 +237,10 @@ export class Game {
       this.playerSoldier.fly = true; this.devGod = true;
       const bd = document.createElement('div');
       bd.style.cssText = 'position:absolute;left:50%;top:104px;transform:translateX(-50%);padding:3px 14px;background:rgba(255,138,31,.9);color:#160a02;font:700 12px Bahnschrift,Arial Narrow,sans-serif;letter-spacing:3px;text-transform:uppercase;z-index:6';
-      bd.textContent = 'Geliştirici modu · L uçuş · N botlar · O ölümsüz · P konum · I harita editörü · sürüm ' + (typeof __BUILD__ !== 'undefined' ? __BUILD__ : 'dev');
+      bd.textContent = (opts.editor ? `Harita editörü · ${this.mapDef.name} · L uçuş · I paneli gizle · Esc menü` : 'Geliştirici modu · L uçuş · N botlar · O ölümsüz · P konum') + ' · sürüm ' + (typeof __BUILD__ !== 'undefined' ? __BUILD__ : 'dev');
       this.hud.root.appendChild(bd);
-      this.mapEditor = new MapEditor(this);
-      setTimeout(() => this.hud?.toast('Geliştirici modu: uçuyorsun. W/A/S/D + Boşluk yüksel, Ctrl alçal, Shift hızlı, tekerlek hız', '#ffd27a'), 800);
+      if (opts.editor) { this.mapEditor = new MapEditor(this); this.mapEditor.toggle(true); }    // ayrı bölüm (ana menü → Harita Editörü): bot yok, panel açık
+      if (!opts.editor) setTimeout(() => this.hud?.toast('Geliştirici modu: uçuyorsun. W/A/S/D + Boşluk yüksel, Ctrl alçal, Shift hızlı, tekerlek hız', '#ffd27a'), 800);
     }
 
     // olaylar
@@ -293,7 +294,7 @@ export class Game {
         if (this.binds.is('team', e.code) && !e.repeat && !this.ended) { e.preventDefault(); this.toggleTeamMenu(); }
         else if (e.code === 'Escape' && this._tm) this.toggleTeamMenu(false);
       });
-    } else for (const s of this.soldiers) this.respawn(s, true);
+    } else for (const s of this.soldiers) if (!s.vacant) this.respawn(s, true);
     this.running = true;
     this.simulate = !!opts.nolock || !!this.online;
     this.hud.setPaused(!opts.nolock);
