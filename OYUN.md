@@ -884,3 +884,6 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 - Düzenlemeler yalnız bellekte (`mapEditor.js` `MEM`): editörden çıkıp girince ve "Haritayı yeniden yükle"de durur, F5'te gider. Eski sürümün `localStorage 'warbyte.harita-duzenleme.*'` kayıtları ilk açılışta silinir.
 - Gün batımı bulutları koyu kahverengi kaya gibi görünüyordu: bulut malzemesine kendi ışığı (`emissive`, `cloudGlow` gün batımı 0,62 / gece 0,25) + daha açık renk.
 - Testler: `scripts/editorsection.mjs` (menü → editör, botsuz, maçta orijinal, F5'te gider, eski kayıt silinir); editortest / editorload / editorrevert yeni modele uyarlandı.
+
+### 12.75 B penceresi yan boşlukları
+- `B-penceresi:alt/üst` x −37…−36 idi: komşu duvarlar (bina:1, bina:10) B yüzünde x −36,78'de; güneyde 22 cm taşan köşe, kuzeyde bina:10 −54,36'da başladığı için 24 cm boydan boya yarık vardı. Parçalar x −36,78…−36,03'e hizalandı; kuzeye bina:10'a 3 cm giren tam boy `B-penceresi:kuzey-söve` eklendi. Yarıktan geçilemiyor (cgjump), pencereden iki yönde geçiliyor.

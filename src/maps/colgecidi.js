@@ -84,12 +84,15 @@ export function buildColGecidi() {
       if (!MapBuilder.noVisual) { b.box(cx, y + 0.86, cz, sz + 0.06, 0.08, sz + 0.06, '#bf9a62', { collide: false }); b.box(cx, y + 0.4, cz, sz + 0.04, 0.08, sz + 0.04, '#6e5535', { collide: false }); }
     }));
   }
-  // ── B penceresi (B sahası ↔ Window): çerçevesiz düz duvar açıklığı (fotoğraftaki gibi). Duvar x −37…−36 (OVERRIDE_FILL), açıklık arka köşede z −57,4…−54,6;
+  // ── B penceresi (B sahası ↔ Window): çerçevesiz düz duvar açıklığı (fotoğraftaki gibi). Açıklık arka köşede z −57,4…−54,6;
   //    alt kenar B zemininden 1,8 m, açıklık 2,2 m yüksek. B tarafında 3 sandık (biri yerde, ikisi üst üste) basamak, Window tarafında kum yığını.
-  { const wx0 = -37.0, wx1 = -36.0, z0 = -57.4, z1 = -54.6, gB = terrain.heightAt(-38, -56), sill = gB + 1.8, lint = sill + 2.2;     // arka köşe (kullanıcı)
+  //    Komşu duvarlarla hizalı: B yüzü x −36,78 (bina:1 / bina:10 ile aynı), Window yüzü bina:1 gibi −36,03. Kuzeyde tam boy söve bina:10'a kadar
+  //    (−54,36, üst üste binmeden: titreşim olmasın) — eskiden kuzeyde 24 cm boydan boya yarık, güneyde 22 cm taşan köşe vardı (kullanıcı).
+  { const wx0 = -36.78, wx1 = -36.03, z0 = -57.4, z1 = -54.6, gB = terrain.heightAt(-38, -56), sill = gB + 1.8, lint = sill + 2.2;     // arka köşe (kullanıcı)
     const [col, ptop] = polyColorAt(D.polys, -36.5, -50), top = ptop ?? gB + 7.5;
     b.obj('B-penceresi:alt', () => b.box((wx0 + wx1) / 2, gB - 0.6, (z0 + z1) / 2, wx1 - wx0, sill - gB + 0.6, z1 - z0, col, { tag: 'wall' }));
     b.obj('B-penceresi:üst', () => b.box((wx0 + wx1) / 2, lint, (z0 + z1) / 2, wx1 - wx0, top - lint, z1 - z0, col, { tag: 'wall' }));
+    b.obj('B-penceresi:kuzey-söve', () => b.box((wx0 - 35.78) / 2, gB - 0.6, -54.465, -35.78 - wx0, top - gB + 0.6, 0.27, col, { tag: 'wall' }));
     crates([[-39.4, -56.0, 0], [-37.95, -56.0, 0], [-37.95, -56.0, 1]], gB, 'B-penceresi');
   }
   // Xbox: Mid'den catwalk'a 3 sandıkla sıçranarak çıkılır (biri yerde, ikisi üst üste; üstü catwalk kotunda)
