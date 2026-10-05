@@ -326,7 +326,7 @@ export const DIFFICULTY = {
 };
 
 export const BOT_NAMES = ['Kaan', 'Efe', 'Deniz', 'Mert', 'Ada', 'Ege', 'Can', 'Selin', 'Arda', 'Yağız', 'Barış', 'Ceren', 'Emre', 'Zeynep', 'Onur',
-  'Tuna', 'Berk', 'Defne', 'Kerem', 'Ilgaz', 'Sarp', 'Duru', 'Alp', 'Ozan', 'Mina', 'Rüzgar', 'Çınar', 'Toprak', 'Bora', 'Aylin'];
+  'Tuna', 'Berk', 'Defne', 'Kerem', 'Ilgaz', 'Sarp', 'Mehmet', 'Alp', 'Ozan', 'Mina', 'Rüzgar', 'Çınar', 'Toprak', 'Bora', 'Aylin'];
 
 // Nişangâhlar: zoom çarpanı, ADS arayüz örtüsü (none | dot | holo | scope)
 export const OPTICS = {
