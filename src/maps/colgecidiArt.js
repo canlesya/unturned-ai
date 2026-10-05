@@ -237,21 +237,26 @@ export function buildSurround(b, rng) {
 
 // ── çatılı tüneller: bölge dikdörtgenleri içindeki serbest 2 m'lik hücrelere tavan + kemer kirişleri (tavan çarpışmalı, nav'ı etkilemez) ──
 export function roofTunnels(b, terrain, field, regions) {
+  // Kapalı tavan: 0,5 m hücreler, her hücrenin altı kendi zemininden 3,5 m yukarıda, üstü bölge boyunca düz (tavan) → arada boşluk / basamak kalmaz.
+  // Satır boyunca aynı alt kotlu hücreler tek kutuda birleşir. Duvar içine taşan hücreler sorun değil (duvar daha yüksek).
+  const C = 0.5;
   let n = 0;
-  for (const [x0, x1, z0, z1, dirX] of regions) {
-    for (let x = x0; x < x1; x += 2) for (let z = z0; z < z1; z += 2) {
-      const cx = x + 1, cz = z + 1;
-      if (field.isSolid(cx, cz) || field.isSolid(x + 0.1, z + 0.1) || field.isSolid(x + 1.9, z + 1.9) || field.isSolid(x + 0.1, z + 1.9) || field.isSolid(x + 1.9, z + 0.1)) continue;
-      let hi = -1e9;
-      for (const [px, pz] of [[x, z], [x + 2, z], [x, z + 2], [x + 2, z + 2], [cx, cz]]) hi = Math.max(hi, terrain.heightAt(px, pz));
-      b.box(cx, hi + 3.5, cz, 2.0, 0.45, 2.0, '#8a7551', { tag: 'roof' });
-      n++;
-    }
-    // kemer kirişleri: tünel yönüne dik, 4 m'de bir
-    for (let t = dirX ? x0 : z0; t < (dirX ? x1 : z1); t += 4) {
-      const hi = terrain.heightAt(dirX ? t : (x0 + x1) / 2, dirX ? (z0 + z1) / 2 : t);
-      if (dirX) b.box(t + 0.2, hi + 3.1, (z0 + z1) / 2, 0.4, 0.4, z1 - z0, '#6e5a3c', { collide: false });
-      else b.box((x0 + x1) / 2, hi + 3.1, t + 0.2, x1 - x0, 0.4, 0.4, '#6e5a3c', { collide: false });
+  for (const [x0, x1, z0, z1] of regions) {
+    let maxH = -1e9;
+    for (let x = x0; x <= x1; x += C) for (let z = z0; z <= z1; z += C) if (!field.isSolid(x, z)) maxH = Math.max(maxH, terrain.heightAt(x, z));
+    const topY = maxH + 3.5 + 0.6;
+    for (let z = z0; z < z1; z += C) {
+      let run = null;
+      const flush = () => { if (!run) return; const w = run.x1 - run.x0, by = Math.min(run.by, topY - 0.45); b.box((run.x0 + run.x1) / 2, by, z + C / 2, w + 0.02, topY - by, C + 0.02, '#8a7551', { tag: 'roof' }); n++; run = null; };
+      for (let x = x0; x < x1; x += C) {
+        const pts = [[x, z], [x + C, z], [x, z + C], [x + C, z + C], [x + C / 2, z + C / 2]];
+        if (pts.every(([px, pz]) => field.isSolid(px, pz))) { flush(); continue; }
+        let hi = -1e9;
+        for (const [px, pz] of pts) hi = Math.max(hi, terrain.heightAt(px, pz));
+        const by = Math.round((hi + 3.5) * 4) / 4;
+        if (run && run.by === by) run.x1 = x + C; else { flush(); run = { x0: x, x1: x + C, by }; }
+      }
+      flush();
     }
   }
   return n;
@@ -288,13 +293,13 @@ export function hangings(b, terrain, field, rng, max = 22) {
 }
 
 // ── kapı çerçeveleri: bir bölge adının yanındaki en dar geçidi bulur (Long Doors, Mid Doors, B Doors…), iki dikme + lento + açık mavi kapı kanatları ──
-export function findDoor(field, x0, z0, r = 8) {
+export function findDoor(field, x0, z0, r = 8, minW = 2.0) {
   let best = null;
   for (let x = x0 - r; x <= x0 + r; x += 0.5) for (let z = z0 - r; z <= z0 + r; z += 0.5) {
     if (field.isSolid(x, z)) continue;
     const ex = field.clearance(x, z, 1, 0, 14) + field.clearance(x, z, -1, 0, 14), ez = field.clearance(x, z, 0, 1, 14) + field.clearance(x, z, 0, -1, 14);
     const narrow = Math.min(ex, ez), open = Math.max(ex, ez);
-    if (narrow < 2.0 || narrow > 6.0 || open < 9) continue;
+    if (narrow < minW || narrow > 6.0 || open < 9) continue;
     const sc = narrow + Math.hypot(x - x0, z - z0) * 0.12;
     if (!best || sc < best.sc) best = { sc, x, z, alongX: ex < ez, narrow };
   }
@@ -318,6 +323,33 @@ export function doorFrame(b, terrain, d) {
     b.box(0, 3.55, 0, w + 1.6, 0.8, 1.5, sand, NC);                                           // lento
     b.box(0, 4.35, 0, w + 1.9, 0.25, 1.8, sandL, NC);                                         // lento üst çıtası
     b.box(0, 3.4, 0, w + 0.6, 0.16, 1.6, sandD, NC);                                          // lento alt şeridi
+  });
+}
+
+// ── ahşap çift kanatlı kapı (Long / Mid / B Doors): bir kanat kapalı, diğeri sonuna kadar açık (duvara yaslı). Kanatlar çarpışır ama
+//    'wood' etiketli → mermi geçer (game.shootRay, %35 zayıflar). Sunucuda da kurulur (çarpışma). Çerçeve ince ahşap: duvar gibi görünmez.
+export function woodDoor(b, terrain, d, closedSide = -1) {
+  const NC = { collide: false }, g = Math.max(terrain.heightAt(d.x, d.z), terrain.heightAt(d.x + (d.alongX ? d.w / 2 : 0), d.z + (d.alongX ? 0 : d.w / 2)), terrain.heightAt(d.x - (d.alongX ? d.w / 2 : 0), d.z - (d.alongX ? 0 : d.w / 2)));
+  const w = d.w, hw = w / 2, H = 3.1, T = 0.14, wood = '#7a5130', woodD = '#5a3a20', woodL = '#946640', iron = '#3b3530';
+  b.with(d.x, g, d.z, d.alongX ? 0 : Math.PI / 2, () => {           // yerel x: geçidin dar ekseni; yerel z: geçiş yönü
+    const cs = closedSide, os = -closedSide;
+    // kapalı kanat: geçidin yarısı
+    b.box(cs * hw / 2, -0.05, 0, hw, H, T, wood, { tag: 'wood' });
+    // açık kanat: menteşe tarafında duvara yaslı (geçiş yönünde)
+    b.box(os * (hw - T / 2 - 0.02), -0.05, hw / 2 + 0.1, T, H, hw, wood, { tag: 'wood' });
+    // tahta görünümü: dikey tahta çizgileri, demir kuşaklar, kulp
+    for (let k = 1; k < 4; k++) {
+      b.box(cs * (hw * k) / 4, 0, 0, 0.04, H - 0.1, T + 0.02, woodD, NC);
+      b.box(os * (hw - T / 2 - 0.02), 0, 0.1 + (hw * k) / 4, T + 0.02, H - 0.1, 0.04, woodD, NC);
+    }
+    for (const y of [0.5, H - 0.7]) {
+      b.box(cs * hw / 2, y, 0, hw - 0.1, 0.12, T + 0.04, iron, NC);
+      b.box(os * (hw - T / 2 - 0.02), y, hw / 2 + 0.1, T + 0.04, 0.12, hw - 0.1, iron, NC);
+    }
+    b.box(cs * 0.25, 1.3, 0, 0.08, 0.3, T + 0.12, iron, NC);                                    // kulp
+    // ince ahşap kasa: iki dikme + üst kiriş (lento yok, üst açık)
+    for (const s of [-1, 1]) b.box(s * (hw + 0.12), -0.1, 0, 0.3, H + 0.45, 0.4, woodD, NC);
+    b.box(0, H + 0.05, 0, w + 0.6, 0.32, 0.42, woodL, NC);
   });
 }
 

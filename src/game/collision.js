@@ -130,13 +130,14 @@ export class World {
     return !this._hits(list, s.pos.x, s.pos.y, s.pos.z, h);
   }
 
-  // Işın: en yakın çarpışma kutusu ya da zemin. d normalize olmalı.
-  raycast(o, d, maxT = 300, out = {}) {
+  // Işın: en yakın çarpışma kutusu ya da zemin. d normalize olmalı. skipTag: bu etiketli kutular yok sayılır (mermi ahşap kapıdan geçer: 'wood').
+  raycast(o, d, maxT = 300, out = {}, skipTag = null) {
     let best = maxT, bn = null, bc = null;
     const inv = [1 / (d.x || 1e-9), 1 / (d.y || 1e-9), 1 / (d.z || 1e-9)];
     const ex = o.x + d.x * maxT, ez = o.z + d.z * maxT;
     const list = this.query(Math.min(o.x, ex) - 0.1, Math.min(o.z, ez) - 0.1, Math.max(o.x, ex) + 0.1, Math.max(o.z, ez) + 0.1, (this._tmp3 ||= []));
     for (const c of list) {
+      if (skipTag && c.tag === skipTag) continue;
       let t0 = 0, t1 = best, axisHit = -1, sgn = 0;
       const oo = [o.x, o.y, o.z];
       for (let a = 0; a < 3; a++) {

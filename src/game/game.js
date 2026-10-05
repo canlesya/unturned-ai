@@ -1082,7 +1082,7 @@ export class Game {
       // 3. şahıs iki aşamalı atış: (1) kamera ışını neye çarpıyor (duvar ya da düşman) → nişan noktası P; (2) mermi GÖZDEN P'ye gider
       // ve gerçek yolundaki ilk engelde durur. Kameranın köşeden gördüğü yere duvarın arkasından ateş edilemez.
       let tc = maxT;
-      const wc = this.world.raycast(camO, dir, maxT, (this._wc ||= {}));
+      const wc = this.world.raycast(camO, dir, maxT, (this._wc ||= {}), 'wood');
       if (wc) tc = wc.t;
       for (const e of this.soldiers) {
         if (e === shooter || !e.alive || e.team === shooter.team) continue;
@@ -1092,8 +1092,11 @@ export class Game {
       const nd = camO.clone().addScaledVector(dir, tc).sub(origin).normalize();
       if (nd.dot(dir) > 0.9) dir = nd;                                    // ~25°'den fazla sapma (çok yakın hedef) → gözden düz (kamera hilesi için tavan)
     }
-    const wh = this.world.raycast(origin, dir, maxT, (this._wh ||= {}));
+    // ahşap kapılar ('wood') mermiyi durdurmaz: arkasındaki ilk sert engel / asker aranır, kapıdan geçen mermi %35 zayıflar
+    const wh = this.world.raycast(origin, dir, maxT, (this._wh ||= {}), 'wood');
     const tw = wh ? wh.t : Infinity;
+    const wd = this.world.raycast(origin, dir, Math.min(tw, maxT), (this._wd ||= {}));
+    const woodT = wd && wd.collider && wd.collider.tag === 'wood' ? wd.t : Infinity;
     let bestE = null, bestT = Infinity, bestZ = null;
     for (const e of this.soldiers) {
       if (e === shooter || !e.alive || e.team === shooter.team) continue;
@@ -1113,9 +1116,12 @@ export class Game {
       this.effects.blood(pt, 7, dir.clone().negate());
       if (Math.random() < 0.6 || (st.pellets || 1) === 1) this.effects.tracer(muzzle, pt, st.tracer);
       // çevrimiçi istemcide hasar yok: sunucu hesaplar, sonucu olay olarak yollar
-      if (!this.online) bestE.takeDamage(st.dmg * f * zm * (shooter.dmgMul || 1), shooter, bestZ, shooter.pos, st.name);
+      const wm = bestT > woodT ? 0.65 : 1;
+      if (wm < 1) { const wp = wd.point.clone(); this.effects.spark(wp, 3, wd.normal); this.effects.decal(wp, wd.normal); }
+      if (!this.online) bestE.takeDamage(st.dmg * f * zm * wm * (shooter.dmgMul || 1), shooter, bestZ, shooter.pos, st.name);
       if (ev) { ev.k = 'f'; ev.p = [q2(pt.x), q2(pt.y), q2(pt.z)]; }
     } else if (wh) {
+      if (woodT < tw) { const wp = wd.point.clone(); this.effects.spark(wp, 3, wd.normal); this.effects.decal(wp, wd.normal); }
       const pt = wh.point.clone();
       if (Math.random() < 0.7) this.effects.tracer(muzzle, pt, st.tracer);
       this.effects.spark(pt, 4, wh.normal);
@@ -1124,6 +1130,7 @@ export class Game {
       if (shooter.isPlayer || pt.distanceTo(this.camera.position) < 25) this.sfx.impact(pt);
       if (ev) { ev.k = 'w'; ev.p = [q2(pt.x), q2(pt.y), q2(pt.z)]; ev.n = [q2(wh.normal.x), q2(wh.normal.y), q2(wh.normal.z)]; }
     } else {
+      if (woodT < Infinity) { const wp = wd.point.clone(); this.effects.spark(wp, 3, wd.normal); this.effects.decal(wp, wd.normal); }
       const end = origin.clone().addScaledVector(dir, 120);
       this.effects.tracer(muzzle, end, st.tracer);
       if (ev) { ev.k = 'a'; ev.p = [q2(end.x), q2(end.y), q2(end.z)]; }

@@ -329,6 +329,8 @@ for (_x, _z) in [(16.4, -57.1), (17.4, -57.4), (18.5, -57.3), (17.0, -56.0), (18
                  (34.7, -57.4), (34.8, -56.4), (33.8, -55.5), (35.4, -55.3), (23.9, -52.3), (24.8, -50.9)]:
     EXTRA_BOXES.append([_x, _z, 0.95, 0.95, 0.0, 1.1])
 boxes += EXTRA_BOXES
+for _b in boxes:                                             # A sahası kasaları: ayaktayken üstünden Short görünür (göz 1,6 m), çömelince siper
+    if 38 <= _b[0] <= 48 and -53 <= _b[1] <= -42 and _b[5] > 1.2: _b[5] = 1.2
 print('kutu', len(boxes))
 
 # yükseklik ızgarası (0,5 m): CS2 genel bakış görseli zemini YÜKSEKLİĞE göre boyar → düz alanlar sabit renk (katlar), rampa / merdivenler gradyan.

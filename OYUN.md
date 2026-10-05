@@ -737,3 +737,10 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 - Radar hataları `OVERRIDE_CARVE` ile temizlendi: avludaki iki sahte sütun; Short merdiven rampasının ortasındaki duvar parçası; Short tepesindeki kasanın 12 m duvar olması (artık `EXTRA_BOXES` kasası); **A platosu kuzeyi (Ninja)**: fıçı / kasa gölgeleri bina kütlesine karışıp 6 m'lik şeridi gömmüştü (yoldaki 14 m'lik ince duvar dahil) → z −59,4'e kadar açık, düz 4,6 m, fıçı kümeleri `EXTRA_BOXES`'ta. Köprü altı tamamı CT kotunda (1 m'lik basamak kalktı).
 - Yeni araçlar: `scripts/cgwalk.mjs` (fizikle W yürüyüşü, takılma + y izi), `scripts/cgplot_dump.mjs` (bölge üstten görünüm verisi); `cgview` 7. alan mutlak y.
 - Short merdiveni → Short → köprü → A kuzeyi → A sahası ve CT → kemer → avlu → Ramp → A yürüyüşleri takılmasız, hep 4,6 m (A kotu).
+
+### 12.43 Çöl Geçidi: A korkuluğu, A kutusu, CT köprü altı, ahşap kapılar (mermi geçer), kapalı tünel tavanı
+- A yolu ile avlu arasındaki korkuluk boşluğu (X 23–29, Z −47) kapandı (kemer üstüne kadar).
+- A sahası kutuları en çok 1,2 m: ayaktayken arkasından Short görünür, çömelince siper.
+- Köprü altının kuzey yarısı (ayaklara hizalı, Z −42,65'e kadar) dolu duvar; CT ↔ kemer geçidi yalnız ayakların güneyinde.
+- **Ahşap çift kanatlı kapılar** (Long / Mid / B Doors, `woodDoor`): bir kanat kapalı, biri duvara yaslı açık; çarpışma sunucuda da var. Etiket `'wood'` → `World.raycast(..., skipTag)` ile mermi geçer, kapıdan geçen mermi %35 zayıflar (kıvılcım + iz). Botların görüşü (`clear`) kapıdan geçmez. Kapı yeri en az 2,8 m geçitte aranır.
+- Tünel tavanı: 0,5 m hücreli, altı zeminden 3,5 m, üstü bölge boyunca düz → boşluksuz kapalı tavan (eski 2 m karolar + kirişler basamaklı / delikliydi).
