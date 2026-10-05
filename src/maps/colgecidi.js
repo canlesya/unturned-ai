@@ -89,18 +89,19 @@ export function buildColGecidi() {
   if (BR) {
     const [bx0, bz0, bx1, bz1, top] = BR, bcx = (bx0 + bx1) / 2, bcz = (bz0 + bz1) / 2, bw = bx1 - bx0, bd = bz1 - bz0;
     const wallc = wallTop(bx0, bcz), wood = '#7a5b3a', woodD = '#5e4529', NC = { collide: false };
-    const WT = 11.5, rz0 = -47.1, rz1 = bz1 + 0.3, rh = 1.7;
+    const WT = top + 3.4, rz0 = -47.1, rz1 = bz1 + 0.3, rh = 1.7, COL_N = -43.35;     // batı duvarı tabliyeden 3,4 m (Short'tan gelen üstünden görünür); COL_N: CT'deki kolonun kuzey yüzü
     b.box(bcx, top - 0.45, bcz, bw, 0.45, bd + 2.4, '#c2a46f', { tag: 'plat' });                          // tabliye (uçlarda 1,2 m bindirme: kat kenarı bandını örter)
     b.box(bx0 + 0.25, top - 0.45, bcz, 0.5, WT - top + 0.45, bd + 0.6, wallc, { tag: 'wall' });             // batı duvarı
     b.box(bx1 - 0.25, top - 0.45, (rz0 + rz1) / 2, 0.5, rh + 0.45, rz1 - rz0, wallc, { tag: 'wall' });      // doğu korkuluk duvarı
     for (const sx of [bx0 + 0.35, bx1 - 0.35]) { const gy = terrain.heightAt(sx, bcz); b.box(sx, gy - 0.3, bcz, 0.7, top - 0.45 - gy + 0.3, 0.7, '#b8996a', { tag: 'wall' }); }   // orta ayaklar
-    { const nz0 = bz0 - 1.2, nz1 = -46.3; b.box(bcx + 0.25, -0.5, (nz0 + nz1) / 2, bw + 0.5, top - 0.45 + 0.5, nz1 - nz0, wallc, { tag: 'wall' }); }           // kuzey ucu dolu
+    { const nz0 = bz0 - 1.2, nz1 = COL_N; b.box(bcx + 0.14, -0.5, (nz0 + nz1) / 2, bw + 0.28, top - 0.45 + 0.5, nz1 - nz0, wallc, { tag: 'wall' }); }          // kuzey kısmı kolona kadar dolu (ön yüz ahşap çerçeveyle aynı hizada)
+    { const sx0 = bx1 - 0.1, sx1 = bx1 + 0.28, sz0 = -34.95, sz1 = -33.9; b.box((sx0 + sx1) / 2, -0.5, (sz0 + sz1) / 2, sx1 - sx0, WT + 0.5, sz1 - sz0, wallc, { tag: 'wall' }); }   // kemerin güney direği ile güney bina arası yarık kapalı
     if (!MapBuilder.noVisual) {
       b.box(bx0 + 0.25, WT - 0.07, bcz, 0.78, 0.14, bd + 0.74, '#d9c08c', NC);                           // üst şeritler (duvarla tek gövde gibi)
       b.box(bx1 - 0.25, top + rh - 0.07, (rz0 + rz1) / 2, 0.78, 0.14, rz1 - rz0 + 0.14, '#d9c08c', NC);
       b.box(bcx, top - 0.6, bcz, bw + 0.3, 0.16, bd + 0.6, '#9c8156', NC);                                 // tabliye alt kirişi
-      for (let zz = -45.8; zz < bz1; zz += 1.1) b.box(bcx, top - 0.62, zz, bw - 0.4, 0.12, 0.16, woodD, NC);   // tavan kirişleri (yalnız açık kısım)
-      const ax = bx1 + 0.05, az0 = -46.3, az1 = -34.9, gy = Math.min(terrain.heightAt(ax + 0.6, az0), terrain.heightAt(ax + 0.6, az1));
+      for (let zz = COL_N + 0.5; zz < bz1; zz += 1.1) b.box(bcx, top - 0.62, zz, bw - 0.4, 0.12, 0.16, woodD, NC);   // tavan kirişleri (yalnız açık kısım)
+      const ax = bx1 + 0.05, az0 = COL_N, az1 = -34.9, gy = Math.min(terrain.heightAt(ax + 0.6, az0), terrain.heightAt(ax + 0.6, az1));
       for (const zz of [az0 + 0.22, az1 - 0.22]) b.box(ax, gy - 0.2, zz, 0.45, top - 0.45 - gy + 0.2, 0.45, wood, NC);   // direkler
       b.box(ax, top - 1.0, (az0 + az1) / 2, 0.5, 0.4, az1 - az0, wood, NC);                              // üst kiriş
     }

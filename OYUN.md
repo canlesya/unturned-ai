@@ -789,3 +789,6 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 - **Köprü** yeniden yazıldı (tek yapı: batı duvarı, 1,7 m doğu korkuluğu, orta ayaklar, kuzey ucu dolu, doğu yüzünde dikdörtgen ahşap çerçeve).
 - **B doğu duvarı** tek temiz duvar (`OVERRIDE_CARVE 'hard'` + `OVERRIDE_FILL`), çerçevesiz düz pencere açıklığı; Window tarafında kum yığını.
 - Bilinen: Xbox ↔ Short botlar için dolambaçlı (catwalk'a 3 sandıkla çıkış yalnız oyuncu); CT Spawn ↔ Elevator botlar için uzun.
+
+### 12.50 Çöl Geçidi: köprü / kemer ince ayarı
+- Kullanıcı fotoğraf+not yöntemi: kemerin kuzey yarısı CT'deki kolona kadar dolu duvar (`COL_N` = −43,35, kolonun kuzey yüzü; ön yüz ahşap çerçeveyle aynı hizada, üst üste binmez); kemerin güney direği ile güney bina arasındaki yarık kapatıldı; köprünün batı duvarı yarıya indi (tabliyeden 6,9 → 3,4 m: göz hizası 1,6 m, Short'tan gelen üstünden görünür).
