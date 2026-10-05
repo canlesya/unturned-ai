@@ -844,3 +844,7 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 ### 12.65 Çöl Geçidi: kasa boyutları, P konum etiketine uçuş durumu
 - Xbox ve catwalk girişlerinde yığın = 2 kasa: alttaki büyük (1,5 m), üstteki küçük (1,0 m, duvara yakın tarafa kaydırılmış). `crates(list, g)` artık `[x, z, kat, boyut]` alır. Sıçrama (cgjump) 3 farklı z için doğrulandı.
 - Pit'te "kuma girebiliyorum" şikâyeti: çizilen arazi ağı ile oyun fiziği arasındaki fark gerçek ağ üzerinde ölçüldü (`scripts/cgmesh.mjs`, Pit: 0,00001 m) ve yürünebilir noktalarda engel içinde durma yok (`cgsink`). Geliştirici modunda varsayılan UÇUŞ açıktır (çarpışma yok): P etiketi artık "UÇUŞ AÇIK (çarpışma yok)" / "yürüyorsun" yazar. `scripts/cgcover.mjs`: görünen kat kenarı duvarlarının çarpışması var mı denetler.
+
+### 12.66 Çöl Geçidi: sınır dışı kum düzlemi Pit tabanını örtüyordu
+- Kullanıcı: Pit'te zemin doğru ama üstü kum dokusuyla kaplı, içine giriliyor. Sebep: `buildSurround` sınır dışı sonsuz kum kutusunun tepesi y = +0,2 idi; Pit tabanı −1,2 (ve kuzey rampanın alt kısmı) bu düzlemin ALTINDA kalıyordu → düz kum yüzeyi tabanı örtüyor, oyuncu "kumun içinde" görünüyordu. Düzlem tepesi −2,5'e indirildi (en alçak zemin −1,2). Yalnız görsel; fizik değişmedi.
+- Canlı kontrol: warbyte.site / www / IP aynı paketi sunuyor (cf-cache-status DYNAMIC, no-cache); canlı siteden çekilen kareler yerel ile aynı.

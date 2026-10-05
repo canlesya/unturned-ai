@@ -252,7 +252,7 @@ export function buildSurround(b, rng) {
   const NC = { collide: false };
   const SAND = ['#dcc08a', '#cfae72', '#e3cc9a', '#c7a46a', '#d7b97f'];
   const pick = (a) => a[Math.floor(rng() * a.length)];
-  b.box(0, -6, 0, 900, 6.2, 900, '#d8c08c', NC);                                      // sınır dışı: sonsuz kum zemin (arazi ağının dışı boş görünmesin)
+  b.box(0, -8, 0, 900, 5.5, 900, '#d8c08c', NC);                                      // sınır dışı: sonsuz kum zemin; tepesi −2,5 m = haritadaki en alçak zeminin (Pit −1,2) ALTINDA (önceden +0,2'deydi: Pit tabanını örtüyordu)
   const N = 46;
   for (let i = 0; i < N; i++) {
     const th = (i / N) * Math.PI * 2 + (rng() - 0.5) * 0.08, rx = 92 + rng() * 18, rz = 102 + rng() * 18;
