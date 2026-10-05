@@ -585,7 +585,6 @@ OVERRIDE_FILL = [
     [-53.1, -10.7, -52.1, -9.7],   # Upper Tunnels ince kolon
     [-37.0, -58.6, -36.0, -49.0],  # B sahası doğu duvarı (kuzey bina ile pencere arası)
     [-37.0, -46.2, -36.0, -42.0],  # B sahası doğu duvarı (pencere ile B Doors arası)
-    [-10.0, 52.0, 5.0, 52.7],      # T Spawn rampasının kuzey kenarı: eğik istinat duvarı yerine düz bina duvarı
     [6.5, -51.6, 15.0, -42.65],    # CT Spawn kuzey cebi (kapılı bina önü): kullanıcı kolona kadar kapalı istedi
 ]
 for (fx0, fz0, fx1, fz1) in OVERRIDE_FILL:

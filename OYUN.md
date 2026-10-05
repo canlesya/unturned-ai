@@ -796,3 +796,6 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 ### 12.51 Çöl Geçidi: köprü altı boş, kemer cephe duvarı, doğu korkuluk alçak
 - Köprü altı yeniden tamamen boş (kolon arası + kuzeyi dolgu kaldırıldı). Kemerin kuzey yarısı yalnız ince cephe duvarı (x 22,83–23,28, ahşap çerçeveyle aynı hizada, z −52,2 … −43,35 = CT'deki kolonun kuzey yüzü), tabliye altına kadar.
 - Köprünün doğu korkuluğu 1,7 → 0,95 m (A platosu parapetiyle aynı yükseklik). Batı duvarı tabliyeden 3,4 m.
+
+### 12.52 Çöl Geçidi: T çıkışı açıldı
+- T rampasının kuzey ucundaki ince bina şeridi (`OVERRIDE_FILL` [−10, 52, 5, 52.7]) kaldırıldı: Suicide sokağının girişini kapatıyordu. Artık T Spawn'dan Top Mid / Mid / Mid Doors'a görüş hattı açık (x −8…−6, 83 m; `scripts/cglos.mjs` ile ölçülür).
