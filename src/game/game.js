@@ -231,7 +231,7 @@ export class Game {
       this.playerSoldier.fly = true; this.devGod = true;
       const bd = document.createElement('div');
       bd.style.cssText = 'position:absolute;left:50%;top:104px;transform:translateX(-50%);padding:3px 14px;background:rgba(255,138,31,.9);color:#160a02;font:700 12px Bahnschrift,Arial Narrow,sans-serif;letter-spacing:3px;text-transform:uppercase;z-index:6';
-      bd.textContent = 'Geliştirici modu · L uçuş · N botlar · O ölümsüz · P konum';
+      bd.textContent = 'Geliştirici modu · L uçuş · N botlar · O ölümsüz · P konum · sürüm ' + (typeof __BUILD__ !== 'undefined' ? __BUILD__ : 'dev');
       this.hud.root.appendChild(bd);
       setTimeout(() => this.hud?.toast('Geliştirici modu: uçuyorsun. W/A/S/D + Boşluk yüksel, Ctrl alçal, Shift hızlı, tekerlek hız', '#ffd27a'), 800);
     }
