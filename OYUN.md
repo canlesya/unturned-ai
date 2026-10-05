@@ -766,3 +766,15 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 - **Kat kenarları**: birim parçalar zincirlenip (x, z, üst kot) uzayında sadeleşir (`cliffv`, 0,4 m) → tek düz / çapraz istinat duvarı, rampa kenarında eğik tepe; düz gölge normalleri. Çarpışma ızgara parçalarıyla (`cliffs`, görünmez). Yürünemeyecek dik eğimler (> 0,9) en yakın kata oturtulur (testere dişi zemin yok). Zemin ağı köşeleri yükseklik ızgarasıyla hizalandı (kayık ağ her kenarı 1 m'lik eğime yayıyordu).
 - **Tüneller**: Upper Tunnels / Outside Tunnels düz kot, aradaki merdiven radardaki açıklıkta tek rampa; spiral iki rampa + sahanlık; tavan bölge başına tek düz kot.
 - **Long Doors** kapısı T tarafına (Outside Long → Long koridoru, z 22,4) taşındı; Outside Tunnels'taki kapısız çerçeve kaldırıldı.
+
+### 12.48 Çöl Geçidi: kullanıcı turu düzeltmeleri (B Plat, pencere, Pit, Titanic, kapılar, kasalar, süs çakışması)
+- **B Plat / Back Plat** tek kot (2,9), güney kenarı temiz; dar sırt / hendek temizliği (1–2 hücrelik radar çizgisi kotları komşu kata oturur); `OVERRIDE_LEVELS` ızgara dışına taşan dikdörtgen kırpılır (negatif indis dilimi boşaltıyordu).
+- **Bina içi kot eşitleme**: binanın içindeki yükseklik noktaları en yakın sokak kotunu alır → bina diplerinde sahte kat kenarı / alçak duvar yok. Cephe kaidesi artık çıkıntısız renk bandı.
+- **B penceresi** (B sahası ↔ Window, x −36, z −47,5): `'hard'` oyma (radarda siyah olsa da açar), pencere altı / üstü bina renginde (`polyColorAt`), ahşap kasa; B tarafında 3 sandık, Window tarafında kum yığını (`SAND_PILES`).
+- **Kapılar**: kaide şeridi kapı açıklığından geçmiyor; kanat çarpışması kanat şeklinde (`obbCollide`); Long Doors iki kapı (z 7,6 iç, kanatlar Long'a açılır · z 22,4 T tarafı) + aradaki oda çatılı ve düz; B Doors altı düz.
+- **CT**: kuzey cebi `OVERRIDE_FILL` ile bina hattında (tek tip); köprü güney ağzındaki kolon kaldırıldı; köprü altının kuzey ucu kemer direğine hizalı duvar.
+- **Pit** taban −1,2 m (veri `hoff` −2, `hscale` 25 → −2…8,2 m; `terrain.deepWater` kapalı), Long Corner'dan dik iniş; doğu sahanlığı 2,9 m (Long'dan 1 m). **Titanic** kenarındaki sahte bina kaldırıldı → T'den Outside Tunnels'a atlanır. **T Spawn rampası** kuzey kenarı düz bina duvarı.
+- **Tüneller**: Outside Tunnels merdiveninin üstü çatılı, Upper Tunnels kalın bloğu ince kolon, B Tunnels çıkışı duvardan duvara tek rampa.
+- **Xbox**: Mid → catwalk 3 sandıkla sıçranarak (rampa kaldırıldı; botlar Short'a dolaşarak gider).
+- **Kasalar**: döndürülmüş kasa çarpışması n×n alt kutu (eski tek AABB kasadan çok büyüktü); iç içe kasalar yığılır / atılır; binaya giren kasalar dışarı itilir (16) ya da atılır (5).
+- **Süs çakışması**: cephe süsü en son kurulur; önü dolu (başka bina, kapı, çatı, köprü, kat kenarı, sandık, yükselen zemin) dilime kaide / pencere / kapı / tente / pano / tabela konmaz (`frontBlocked`), süsler birbirine binmez (`OCC`).

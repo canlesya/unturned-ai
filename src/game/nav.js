@@ -40,7 +40,7 @@ export class NavGrid {
     if (terrain) {
       for (let z = 0; z < this.h; z++) for (let x = 0; x < this.w; x++) {
         const wx = this.minX + (x + 0.5) * CELL, wz = this.minZ + (z + 0.5) * CELL;
-        if (terrain.heightAt(wx, wz) < DEEP_WATER + 0.05 || terrain.slopeAt(wx, wz, 0.6) > 0.95) this.blocked[z * this.w + x] = 1;
+        if (terrain.heightAt(wx, wz) < (terrain.deepWater ?? DEEP_WATER) + 0.05 || terrain.slopeAt(wx, wz, 0.6) > 0.95) this.blocked[z * this.w + x] = 1;
       }
     }
     // köprü tabliyesi vb.: araziden bağımsız yürünebilir

@@ -71,7 +71,7 @@ export class World {
       if (T) {
         // çok dik yamaç ya da derin suya yürüme engellenir
         const g1 = T.heightAt(p.x, p.z);
-        if (p.y <= g0 + 0.08 && (g1 > g0 + 1.2 * Math.abs(d) || (g1 < DEEP_WATER && g0 >= DEEP_WATER))) { p[axis] -= d; v[axis] = 0; continue; }
+        if (p.y <= g0 + 0.08 && (g1 > g0 + 1.2 * Math.abs(d) || (g1 < (T.deepWater ?? DEEP_WATER) && g0 >= (T.deepWater ?? DEEP_WATER)))) { p[axis] -= d; v[axis] = 0; continue; }
       }
       let guard = 0;
       let c;

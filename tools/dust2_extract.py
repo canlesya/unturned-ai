@@ -141,11 +141,16 @@ OVERRIDE_CARVE = [
     [-37.6, -41.5, -33.2, -35.6],  # B Doors: aynı
     [24.6, 5.4, 31.4, 8.9],        # Long koridoru kuzey ucu: radar çizgileri (kapı T tarafında)
     [23.6, 20.2, 31.4, 24.6],      # Long Doors (T tarafı): kanat çizgileri sütun olmuştu → GATES
+    [-37.3, -48.4, -34.4, -46.6, 'hard'],  # B penceresi (B sahası ↔ Window): duvar boşluğu; pencere altı / üstü colgecidi.js'te
+    [14.3, -38.4, 16.2, -35.4],    # CT Spawn: köprü güney ağzındaki tek kolon (kullanıcı: kaldır)
+    [-52.6, 33.8, -41.0, 36.7, 'hard'],  # Titanic kenarı: gölge bandı bina olmuştu → T'den Outside Tunnels'a atlanır
+    [-54.2, -11.2, -49.4, -7.0, 'hard'],  # Upper Tunnels: kasa gölgesi ile kolon birleşip kalın blok olmuştu → ince kolon OVERRIDE_FILL
     [-6.0, 52.6, 6.0, 66.8],       # T Spawn doğusu: radarda bina yok, aşağı inen yokuş (gölge şeritleri bina olmuştu)
     [45.0, 6.5, 48.9, 25.0],       # Pit ↔ Side Pit: bina duvarı değil, alçak duvar (colgecidi.js 'PIT_WALL')
 ]
-for (ox0, oz0, ox1, oz1) in OVERRIDE_CARVE:
+for (ox0, oz0, ox1, oz1, *_hard) in OVERRIDE_CARVE:
     c0, c1 = int((ox0 - X0) / CELL), int(np.ceil((ox1 - X0) / CELL)); r0, r1 = int((oz0 - Z0) / CELL), int(np.ceil((oz1 - Z0) / CELL))
+    if _hard: c_void[r0:r1, c0:c1] = False                    # 'hard': radarda boşluk (siyah) olsa da aç
     sub = solid[r0:r1, c0:c1]; sub &= c_void[r0:r1, c0:c1]
     low_c[r0:r1, c0:c1] = False
 
@@ -341,12 +346,39 @@ for (_x, _z) in [(16.4, -57.1), (17.4, -57.4), (18.5, -57.3), (17.0, -56.0), (18
 boxes += EXTRA_BOXES
 for _b in boxes:                                             # A sahası kasaları: ayaktayken üstünden Short görünür (göz 1,6 m), çömelince siper
     if 38 <= _b[0] <= 48 and -53 <= _b[1] <= -42 and _b[5] > 1.2: _b[5] = 1.2
+# iç içe kasalar: küçüğü büyüğün üstüne yığılır (7. alan: taban yüksekliği), benzer boyda olanlardan küçüğü atılır
+def _obb_pts(bx, n=5):
+    cx, cz, w, d, ry = bx[:5]; c, s_ = np.cos(ry), np.sin(ry); out = []
+    for i in range(n):
+        for j in range(n):
+            u = (i + 0.5) / n * w - w / 2; v = (j + 0.5) / n * d - d / 2
+            out.append((cx + u * c + v * s_, cz - u * s_ + v * c))
+    return out
+def _inside(bx, x, z):
+    cx, cz, w, d, ry = bx[:5]; c, s_ = np.cos(ry), np.sin(ry); dx, dz = x - cx, z - cz
+    u = dx * c - dz * s_; v = dx * s_ + dz * c
+    return abs(u) <= w / 2 and abs(v) <= d / 2
+boxes.sort(key=lambda q: -q[2] * q[3])
+_keep = []
+for bx in boxes:
+    bx = list(bx) + [0.0] if len(bx) < 7 else list(bx)
+    drop = False
+    for big in _keep:
+        f = np.mean([_inside(big, x, z) for (x, z) in _obb_pts(bx)])
+        if f < 0.12: continue
+        if bx[2] * bx[3] < 0.6 * big[2] * big[3] and big[6] == 0 and big[5] < 2.5: bx[6] = big[5]          # üstüne yığ
+        else: drop = True
+        break
+    if not drop: _keep.append(bx)
+print('kasa çakışma: atılan', len(boxes) - len(_keep), 'yığılan', sum(1 for q in _keep if q[6] > 0))
+boxes = _keep
 print('kutu', len(boxes))
 
 # yükseklik ızgarası (0,5 m): CS2 genel bakış görseli zemini YÜKSEKLİĞE göre boyar → düz alanlar sabit renk (katlar), rampa / merdivenler gradyan.
 # Ölçülen katlar (r−b): −44 Mid Doors / CT Mid / Lower Tunnels · −35 Mid · −25 Long / Short / Outside Long · −11 B Site · +3 A Site / Upper Tunnels / B Plat · +23 T Spawn.
 # Doğrusal: −44 → 0 m, +23 → 6,6 m (Source: ~260 birim). Yumuşatma yok: kat sınırları keskin sahanlık (geçilemez), gradyanlar rampa.
 HCELL = 0.5
+HOFF = -2.0
 NHX = int(np.ceil(PW * S / HCELL)) + 1; NHZ = int(np.ceil(PH * S / HCELL)) + 1
 hmask = (~void) & (rot(sat) >= 6) & (~orange) & (~green)          # rampa gradyanının ortası düşük doygunluklu: 'floor' maskesi onu dışlıyordu
 _rg = rot(rgb).astype(int)
@@ -403,16 +435,19 @@ OVERRIDE_LEVELS = [
     [38.0, -60.0, 48.0, -53.0, 'flat', 4.6],
     [48.0, -59.0, 57.5, -45.0, 'zramp', 4.6, 1.9],
     # B: fotoğraflardaki gibi tek kotlu avlu (saha + kapı önü + doğu çıkıntısı 1,9 m); B Plat / Back Plat 1 m yüksek, sahaya 5 m'lik basamaksız iniş
-    [-64.0, -68.0, -52.5, -47.5, 'flat', 2.9],
+    [-67.0, -73.0, -52.5, -47.5, 'flat', 2.9],          # B Plat + Back Plat tek kot (duvar içleri dahil: içeride kat kenarı kalmasın)
     [-52.5, -61.0, -34.5, -48.5, 'flat', 1.9],
     [-52.5, -48.5, -36.6, -36.0, 'flat', 1.9],
     [-52.5, -66.0, -38.0, -61.0, 'flat', 1.9],          # sahanın arka duvar önü (raf gibi yüksek şerit kalmasın)
+    [-64.0, -47.6, -50.5, -45.5, 'flat', 1.9],          # B Plat güney kenarı: radar duvar çizgisi dar sırt olmuştu → temiz 1 m'lik kenar
     [-54.5, -56.5, -51.0, -51.5, 'xramp', 2.9, 1.9],
+    [-40.0, -42.5, -34.0, -35.0, 'flat', 1.9],          # B Doors kapısı altı düz (kanatlar eğimde havada / gömülü kalıyordu)
+    [-34.0, -42.5, -28.0, -35.0, 'xramp', 1.9, 1.1],
     # Mid catwalk: Mid'in doğu kenarında yükseltilmiş şerit (radarda batı kenarı ince duvar çizgisi). Güneyde Top Mid'den, kuzeyde Short'tan rampa.
     [-1.3, -8.5, 3.6, 7.5, 'flat', 2.6],
     [-1.3, 7.5, 3.6, 12.0, 'zramp', 2.6, 1.9],
     [-1.3, -12.5, 3.6, -8.5, 'zramp', 1.9, 2.6],      # kuzey ucu: Short'a ve Xbox önünden Mid'e (z −14…−12 basamaksız)
-    [-5.5, -12.5, -1.3, -10.0, 'xramp', 0.4, 2.1],     # Xbox'ın güneyinde Mid → catwalk çıkışı (Xbox ↔ Short)
+    [-5.5, -12.5, -1.3, -9.0, 'flat', 0.2],            # Xbox önü Mid kotunda: catwalk'a 3 sandıkla çıkılır (colgecidi.js)
     # T Spawn doğusu: avludan Outside Long / Top Mid kotuna düzgün yokuş
     [-6.0, 52.5, 6.0, 67.0, 'xramp', 6.6, 1.9],
     # Tüneller: Upper Tunnels düz 4,6; Outside Tunnels düz 1,9; aradaki merdiven radardaki açıklık boyunca tek eğim
@@ -426,23 +461,46 @@ OVERRIDE_LEVELS = [
     [-36.5, -6.0, -31.5, -1.5, 'xramp', 4.6, 2.3],
     [-31.5, -6.0, -27.5, -1.5, 'flat', 2.3],
     [-31.5, -12.5, -27.5, -6.0, 'zramp', 0.0, 2.3],
+    # B Tunnels çıkışı: koridor duvardan duvara tek rampa (Upper Tunnels 4,6 → B önü 1,9)
+    [-62.5, -29.5, -53.5, -20.0, 'zramp', 1.9, 4.6],
+    [23.5, 5.0, 32.5, 24.5, 'flat', 1.9],               # Long Doors odası: iki kapı arası düz (kapı altında kum tümseği kalmasın)
+    # Titanic altı şerit (eski sahte bina yeri) Outside Tunnels kotunda
+    [-52.5, 33.5, -41.3, 36.0, 'flat', 1.9],
+    # Pit: Long Corner'dan dik iniş, taban −1,2 m; doğusundaki sahanlık Long'dan bir basamak boyu (1 m) yüksek
+    [47.5, 4.5, 58.5, 9.0, 'zramp', 1.9, -1.2],
+    [47.5, 9.0, 58.5, 26.5, 'flat', -1.2],
+    [58.5, 7.5, 64.5, 23.5, 'flat', 2.9],
     # Side Pit şeridi (eski kalın duvarın yeri) Side Pit kotunda; Pit'e geçiş alçak duvarla
     [44.5, 7.5, 47.5, 25.0, 'flat', 1.9],
-    [47.5, 7.5, 49.0, 14.0, 'zramp', 1.2, 0.2],       # Pit'in batı kenarı (eski duvar yeri) Pit eğimiyle
-    [47.5, 14.0, 49.0, 25.0, 'flat', 0.0],
 ]
 ovr_ramp = np.zeros(h.shape, bool)                  # elle rampa hücreleri (dik eğim temizliği dokunmaz)
 for L in OVERRIDE_LEVELS:
     (ra, ca_), (rb, cb_) = (int(round((L[1] - Z0) / HCELL)), int(round((L[0] - X0) / HCELL))), (int(round((L[3] - Z0) / HCELL)), int(round((L[2] - X0) / HCELL)))
+    ra0, ca0 = ra, ca_; ra, ca_ = max(0, ra), max(0, ca_)                  # ızgara dışına taşan uç: kırp (negatif indis dilimi boşaltıyordu)
     if L[4] != 'flat': ovr_ramp[ra:rb + 1, ca_:cb_ + 1] = True
     if L[4] == 'flat': h[ra:rb + 1, ca_:cb_ + 1] = CT_LEVEL if L[5] == 'CT' else L[5]
     elif L[4] == 'xramp':
-        for c in range(ca_, cb_ + 1): h[ra:rb + 1, c] = L[5] + (L[6] - L[5]) * (c - ca_) / max(1, cb_ - ca_)
+        for c in range(ca_, cb_ + 1): h[ra:rb + 1, c] = L[5] + (L[6] - L[5]) * (c - ca0) / max(1, cb_ - ca0)
     else:
-        for r in range(ra, rb + 1): h[r, ca_:cb_ + 1] = L[5] + (L[6] - L[5]) * (r - ra) / max(1, rb - ra)
+        for r in range(ra, rb + 1): h[r, ca_:cb_ + 1] = L[5] + (L[6] - L[5]) * (r - ra0) / max(1, rb - ra0)
+
+# kum yığınları: duvar dibindeki bir doğru parçasından uzaklaştıkça alçalan koni (yürünebilir eğim). [x0, z0, x1, z1 (parça), tepe kotu, eğim]
+SAND_PILES = [
+    [-34.75, -48.0, -34.75, -47.0, 2.9, 0.38],          # Window tarafı: B penceresine çıkış (pencere altı 3,7 m; yığın tepesinden ~0,8 m sıçrama)
+]
+for (sx0, sz0, sx1, sz1, top_, k_) in SAND_PILES:
+    R_ = (top_ - 0.0) / k_
+    r0 = max(0, int((min(sz0, sz1) - R_ - Z0) / HCELL)); r1 = min(NHZ, int((max(sz0, sz1) + R_ - Z0) / HCELL) + 2)
+    c0 = max(0, int((min(sx0, sx1) - R_ - X0) / HCELL)); c1 = min(NHX, int((max(sx0, sx1) + R_ - X0) / HCELL) + 2)
+    for r in range(r0, r1):
+        for c in range(c0, c1):
+            px, pz = X0 + c * HCELL, Z0 + r * HCELL
+            t = np.clip(((px - sx0) * (sx1 - sx0) + (pz - sz0) * (sz1 - sz0)) / max((sx1 - sx0) ** 2 + (sz1 - sz0) ** 2, 1e-9), 0, 1)
+            d = np.hypot(px - (sx0 + t * (sx1 - sx0)), pz - (sz0 + t * (sz1 - sz0)))
+            v = top_ - k_ * d
+            if v > h[r, c] + 0.02 and px > sx0 - 0.3: h[r, c] = v; ovr_ramp[r, c] = True
 
 OVERRIDE_RAMPS = [
-    [-60.0, -31.0, -55.0, -23.0, 'z'],  # Upper Tunnels → B (B Tunnels çıkışı) merdiveni
 ]
 def hcell(x, z): return int(round((z - Z0) / HCELL)), int(round((x - X0) / HCELL))
 for (rx0, rz0, rx1, rz1, ax) in OVERRIDE_RAMPS:
@@ -510,6 +568,24 @@ for (na, nb_) in RAMP_PAIRS:
     ramps.append((na, nb_, ch))
 print('kat geçişi rampası', len(ramps), ramps)
 
+# elle doldurulan bina kütleleri (aynı çokgen hattından geçer: tek tip bina, ayrı yama kutusu değil) [x0, z0, x1, z1]
+OVERRIDE_FILL = [
+    [-53.1, -10.7, -52.1, -9.7],   # Upper Tunnels ince kolon
+    [-10.0, 52.0, 5.0, 52.7],      # T Spawn rampasının kuzey kenarı: eğik istinat duvarı yerine düz bina duvarı
+    [6.5, -51.6, 15.0, -42.65],    # CT Spawn kuzey cebi (kapılı bina önü): kullanıcı kolona kadar kapalı istedi
+]
+for (fx0, fz0, fx1, fz1) in OVERRIDE_FILL:
+    solid[int(round((fz0 - Z0) / CELL)):int(round((fz1 - Z0) / CELL)), int(round((fx0 - X0) / CELL)):int(round((fx1 - X0) / CELL))] = True
+# ── bina içi kotları: binanın içindeki yükseklik noktaları en yakın sokak kotunu alır. Yoksa bina dibi boyunca (radarın iç rengi farklı) sahte
+#    kat kenarı → binanın önünde alçak duvar şeridi çıkıyordu.
+_sp = np.pad(solid, ((1, NHZ - NZ), (1, NHX - NX)), constant_values=False)[:NHZ + 1, :NHX + 1]
+_in = _sp[:-1, :-1] & _sp[1:, :-1] & _sp[:-1, 1:] & _sp[1:, 1:]          # köşe (r, c): çevresindeki 4 hücre de katı
+_in = _in[:NHZ, :NHX]
+if _in.any():
+    _ix = ndi.distance_transform_edt(_in, return_distances=False, return_indices=True)
+    h = h[_ix[0], _ix[1]]
+print('bina içi kot eşitleme', int(_in.sum()))
+
 # ── dik eğim temizliği: yürünemeyecek kadar dik (> 0,9) ama tek basamak olmayan eğimler testere dişi görünüyordu → en yakın kata oturtulur,
 #    keskin kat kenarı olur (istinat duvarı alır). Gerçek rampalar (≤ 0,5) etkilenmez.
 for _pass in range(3):
@@ -519,6 +595,31 @@ for _pass in range(3):
     _hmax = ndi.maximum_filter(h, size=5); _hmin = ndi.minimum_filter(h, size=5)
     h = np.where(_st & ~ramp_mask & ~ovr_ramp, np.where(h - _hmin > _hmax - h, _hmax, _hmin), h)
 print('dik eğim temizliği tamam')
+# ── dar sırt / hendek temizliği: iki yanı da > 0,6 m alçak (ya da yüksek) 1–2 hücrelik şeritler (radar çizgisi / gölge) iç içe iki istinat duvarı
+#    üretiyordu → komşu kata oturtulur.
+_nr = 0
+for _pass in range(3):
+    ch = 0
+    for ax in (0, 1):
+        for w in (1, 2):
+            a = np.roll(h, w, axis=ax); b2 = np.roll(h, -1, axis=ax) if w == 1 else np.roll(h, -2, axis=ax)
+            if w == 2:                                                        # 2 hücre: kendisi ve +1 komşusu birlikte sırt
+                mid2 = np.roll(h, -1, axis=ax)
+                lo_side = np.minimum(np.roll(h, 1, axis=ax), b2)
+                ridge = (np.minimum(h, mid2) - np.maximum(np.roll(h, 1, axis=ax), b2) > 0.6)
+                trench = (np.minimum(np.roll(h, 1, axis=ax), b2) - np.maximum(h, mid2) > 0.6)
+            else:
+                ridge = (h - np.maximum(a, b2) > 0.6); trench = (np.minimum(a, b2) - h > 0.6)
+            m = (ridge | trench) & ~ovr_ramp
+            if m.any():
+                tgt = np.where(ridge, np.maximum(np.roll(h, 1, axis=ax), b2 if w == 1 else b2), np.minimum(np.roll(h, 1, axis=ax), b2))
+                h = np.where(m, tgt, h)
+                if w == 2:
+                    m1 = np.roll(m, 1, axis=ax); h = np.where(m1 & ~ovr_ramp, np.roll(tgt, 1, axis=ax), h)
+                ch += int(m.sum())
+    _nr += ch
+    if not ch: break
+print('dar sırt / hendek temizliği', _nr)
 
 # ── kat kenarları (sahanlık / istinat duvarı): komşu iki yükseklik noktası arasında > 0,6 m fark → dikey taş duvar parçası
 # [yön (0: x sınırı, 1: z sınırı), düzlem koordinatı, başlangıç, bitiş, alt kot, üst kot]
@@ -617,7 +718,7 @@ print('yükseklik', h.min(), h.max())
 # Görsel: çokgen duvar + çatı (colgecidi.js). Çarpışma: aynı çokgenlerin 0,25 m'lik raster dikdörtgenleri. Süs: yalnız çokgen kenarları (fedges).
 TILE = 32
 protect = np.zeros_like(solid)
-for (ox0, oz0, ox1, oz1) in OVERRIDE_CARVE:
+for (ox0, oz0, ox1, oz1, *_h) in OVERRIDE_CARVE:
     protect[int((oz0 - Z0) / CELL):int(np.ceil((oz1 - Z0) / CELL)), int((ox0 - X0) / CELL):int(np.ceil((ox1 - X0) / CELL))] = True
 Bm = solid.copy()
 for _ in range(3):
@@ -719,6 +820,24 @@ for tr in range(0, NZ, TILE):
                         cc, rr = int((qx - X0) / CELL), int((qz - Z0) / CELL)
                         if 0 <= rr < NZ and 0 <= cc < NX and free_c[rr, cc]: ok += 1
                     if ok >= 2: fedges.append([p0[0], p0[1], p1[0], p1[1], top])
+# kasalar binaların içine girmesin: kasa noktaları katı hücreye düşüyorsa katıdan uzağa (en çok 1,6 m) itilir; olmazsa atılır
+def _solid_at(x, z):
+    c, r = int((x - X0) / CELL), int((z - Z0) / CELL)
+    return 0 <= r < NZ and 0 <= c < NX and Bm[r, c]
+_pushed = 0; _dropped = 0; _nb = []
+for bx in boxes:
+    pts = _obb_pts(bx, 6); hit = [(x, z) for (x, z) in pts if _solid_at(x, z)]
+    if hit:
+        ok = False
+        hx, hz = np.mean([p[0] for p in hit]), np.mean([p[1] for p in hit])
+        vx, vz = bx[0] - hx, bx[1] - hz; L = np.hypot(vx, vz) or 1.0; vx, vz = vx / L, vz / L
+        for st in np.arange(0.1, 1.65, 0.1):
+            cand = [bx[0] + vx * st, bx[1] + vz * st] + list(bx[2:])
+            if not any(_solid_at(x, z) for (x, z) in _obb_pts(cand, 6)): bx = [round(float(cand[0]), 2), round(float(cand[1]), 2)] + list(bx[2:]); ok = True; _pushed += 1; break
+        if not ok: _dropped += 1; continue
+    _nb.append(bx)
+boxes = _nb
+print('kasa-bina çakışması: itilen', _pushed, 'atılan', _dropped)
 print('bina parçası', len(polys), 'çarpışma dikdörtgeni', len(crects), 'cephe kenarı', len(fedges))
 
 data = {
@@ -730,7 +849,7 @@ data = {
     'cliffv': cliffv,                             # görsel [x0, z0, x1, z1, alt, üst0, üst1, alçak taraf (normal yönü ±1)]
     'bridge': BRIDGE,
     'boxes': boxes, 'hx0': round(X0, 3), 'hz0': round(Z0, 3), 'hnx': NHX, 'hnz': NHZ, 'hcell': HCELL,
-    'h': base64.b64encode(np.round(h * 35).clip(0, 255).astype(np.uint8).tobytes()).decode(), 'hscale': 35,
+    'h': base64.b64encode(np.round((h - HOFF) * 25).clip(0, 255).astype(np.uint8).tobytes()).decode(), 'hscale': 25, 'hoff': HOFF,      # −2 … 8,2 m, 4 cm adım;      # kot = bayt / 35 + hoff (Pit sıfırın altında)
     'zones': zones,
 }
 with open('src/maps/colgecidiData.js', 'w', encoding='utf-8') as f:
