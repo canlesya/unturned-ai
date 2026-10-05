@@ -8,7 +8,7 @@ from scipy import ndimage as ndi
 SCALE = 1.3                      # radar pikseli = 4.4 hu = 0.11 m; oyun hızı CS'ten yavaş → harita 1.3× büyütülür
 S = 0.11 * SCALE                 # m / piksel
 CELL = 0.5                       # duvar ızgarası (m)
-HCELL = 1.0                      # yükseklik ızgarası (m)
+HCELL = 0.5                      # yükseklik ızgarası (m)
 SOLID_BAND = 4                   # dış duvar kalınlığı (hücre) = 2 m
 
 im = np.array(Image.open('tools_ref/dust2_radar_ref.png').convert('RGBA')).astype(int)[14:1005, 54:974]
@@ -124,7 +124,8 @@ print('hücre', NX, NZ, 'yürünebilir', free.sum(), 'katı', solid.sum())
 # ── elle açılan geçitler (radar çizgisi yanlış kapatıyor): dünya metresi [x0, z0, x1, z1] ──
 OVERRIDE_CARVE = [
     [14.0, -48.0, 16.6, -38.0],
-    [-35.0, -9.6, -25.5, -3.0],    # Lower ↔ Upper Tunnels: spiral merdiven (radarda kıvrık çizgiler duvar sanılıyor)    # CT doğuş avlusu: yeşil kutu ile taralı (çatı altı) bölme arasındaki duvar, 10 m'lik geniş geçit
+    [-35.0, -9.6, -25.5, -3.0],    # Lower ↔ Upper Tunnels: spiral merdiven (radarda kıvrık çizgiler duvar sanılıyor)
+    [19.0, -43.5, 22.5, -35.0],    # CT avlusu doğu kenarı (taralı bölge çizgisi) → Elevator tarafına açık    # CT doğuş avlusu: yeşil kutu ile taralı (çatı altı) bölme arasındaki duvar, 10 m'lik geniş geçit
 ]
 for (ox0, oz0, ox1, oz1) in OVERRIDE_CARVE:
     c0, c1 = int((ox0 - X0) / CELL), int(np.ceil((ox1 - X0) / CELL)); r0, r1 = int((oz0 - Z0) / CELL), int(np.ceil((oz1 - Z0) / CELL))
@@ -168,13 +169,13 @@ def route(a_, b_, allow_solid):
     path = [b_]
     while path[-1] in prev: path.append(prev[path[-1]])
     return dist[b_], path[::-1]
-def nearest_open(cell, R=14):
+def nearest_open(cell, R=14, avoid=None):
     r0, c0 = cell
     for rad in range(0, R):
         for dr in range(-rad, rad + 1):
             for dc in range(-rad, rad + 1):
                 r, c = r0 + dr, c0 + dc
-                if 0 <= r < NZ and 0 <= c < NX and not solid[r, c] and not c_void[r, c]: return (r, c)
+                if 0 <= r < NZ and 0 <= c < NX and not solid[r, c] and not c_void[r, c] and (avoid is None or not avoid[r, c]): return (r, c)
     return cell
 req_carved = []
 for (na, nb_) in REQUIRED:
@@ -317,27 +318,144 @@ for i in range(1, n + 1):
     boxes.append([round(float(X0 + cc[0]), 2), round(float(Z0 + cc[1]), 2), round(float(ext[0]), 2), round(float(ext[1]), 2), round(-ang, 3), h])
 print('kutu', len(boxes))
 
-# yükseklik ızgarası (1 m): zemin renginden (sarı-yeşil yüksek, mavi alçak)
+# yükseklik ızgarası (0,5 m): CS2 genel bakış görseli zemini YÜKSEKLİĞE göre boyar → düz alanlar sabit renk (katlar), rampa / merdivenler gradyan.
+# Ölçülen katlar (r−b): −44 Mid Doors / CT Mid / Lower Tunnels · −35 Mid · −25 Long / Short / Outside Long · −11 B Site · +3 A Site / Upper Tunnels / B Plat · +23 T Spawn.
+# Doğrusal: −44 → 0 m, +23 → 6,6 m (Source: ~260 birim). Yumuşatma yok: kat sınırları keskin sahanlık (geçilemez), gradyanlar rampa.
+HCELL = 0.5
 NHX = int(np.ceil(PW * S / HCELL)) + 1; NHZ = int(np.ceil(PH * S / HCELL)) + 1
-fl = floor.astype(float)
-num = frac(np.where(floor, score + 100, 0).clip(0, 255) / 255.0 * 0 + 0, NHX, NHZ) * 0
-sc_img = Image.fromarray(np.where(floor, score + 100, 0).clip(0, 255).astype(np.uint8))
-sc_s = np.array(sc_img.resize((NHX, NHZ), Image.BOX)).astype(float)
-fl_s = frac(floor, NHX, NHZ)
-valid = fl_s > 0.25
-avg = np.where(valid, sc_s / np.maximum(fl_s, 1e-3) - 100, np.nan)
+hmask = (~void) & (rot(sat) >= 6) & (~orange) & (~green)          # rampa gradyanının ortası düşük doygunluklu: 'floor' maskesi onu dışlıyordu
+hmask &= ~ndi.binary_dilation(void | (rot(sat) < 6) | box | thin_light | orange | green, iterations=3)   # duvar / kutu / çizgi kenarının karışık renkli pikselleri (sahte tümsek) alınmaz
+# Parlaklıktan bağımsız ton oranı q = (r−b)/(r+g+b): radar duvar diplerini koyulaştırıyor (gölge) → r−b kullanılınca duvar diplerinde sahte kum tepeleri çıkıyordu.
+_rgbr = rot(rgb).astype(float)
+qpx = (_rgbr[..., 0] - _rgbr[..., 2]) / (_rgbr.sum(-1) + 1.0)
+_rr, _cc = np.nonzero(hmask)
+_ci = np.minimum((_rr * S / HCELL).astype(int), NHZ - 1) * NHX + np.minimum((_cc * S / HCELL).astype(int), NHX - 1)
+_sum = np.bincount(_ci, weights=qpx[_rr, _cc], minlength=NHX * NHZ); _cnt = np.bincount(_ci, minlength=NHX * NHZ)
+_px_per_cell = (HCELL / S) ** 2
+valid = (_cnt > 0.4 * _px_per_cell).reshape(NHZ, NHX)
+avg = np.where(valid, (_sum / np.maximum(_cnt, 1)).reshape(NHZ, NHX), np.nan)
 idx = ndi.distance_transform_edt(~valid, return_distances=False, return_indices=True)
 avg = avg[idx[0], idx[1]]
-H_LO, H_HI, S_LO, S_HI = 0.0, 3.4, -60.0, 36.0
-h = np.clip((avg - S_LO) / (S_HI - S_LO), 0, 1) * (H_HI - H_LO) + H_LO
-h = ndi.gaussian_filter(h, 1.6)
-# eğim sınırı (tırmanılabilir): komşuya göre en çok SMAX * hücre
-SMAX = 0.34
-for _ in range(60):
-    for ax_ in (0, 1):
-        for sh in (1, -1):
-            nb = np.roll(h, sh, axis=ax_)
-            h = np.minimum(h, nb + SMAX * HCELL)
+avg = ndi.median_filter(avg, size=3)
+# kat düzlükleri (radarın en sık 5 rengi) ve ara Mid eğimi → metre; aralarında doğrusal (rampa)
+Q_LV = [-0.209, -0.150, -0.102, -0.043, 0.011, 0.081]
+H_LV = [0.0, 0.9, 1.9, 3.2, 4.6, 6.6]
+h = np.interp(avg, Q_LV, H_LV)
+
+# doğuş (alım) bölgeleri: taralı CT bölgesinin çizgileri yükseklik gürültüsü yaratıyordu → geniş medyan süzgeci
+_ctv = []
+for (gx0, gz0, gx1, gz1) in zones['green']:
+    if (gz0 + gz1) / 2 < 0:
+        c0, c1 = int((gx0 - X0) / HCELL), int(np.ceil((gx1 - X0) / HCELL)); r0, r1 = int((gz0 - Z0) / HCELL), int(np.ceil((gz1 - Z0) / HCELL))
+        _ctv.append(h[max(0, r0):r1, max(0, c0):c1].ravel())
+CT_LEVEL = float(np.percentile(np.concatenate(_ctv), 15)) if _ctv else 0.0
+for (gx0, gz0, gx1, gz1) in zones['green']:
+    c0, c1 = int((gx0 - X0) / HCELL), int(np.ceil((gx1 - X0) / HCELL)); r0, r1 = int((gz0 - Z0) / HCELL), int(np.ceil((gz1 - Z0) / HCELL))
+    blk = h[max(0, r0):r1, max(0, c0):c1]
+    if not blk.size: continue
+    if (gz0 + gz1) / 2 < 0: blk[:] = CT_LEVEL                            # CT avlusu: taralı kısım üst katın (köprü) gölgesi; zemin tek kotta düz
+    else: blk[:] = ndi.median_filter(blk, size=9)
+
+# ── elle rampalar (radarda merdiven gradyanı görünmeyen yerler: çatı altında kalan merdivenler) [x0, z0, x1, z1, eksen] ──
+# eksen 'z': z0 kenarındaki kottan z1 kenarındaki kota doğrusal; 'x' benzer
+OVERRIDE_RAMPS = [
+    [-51.0, 9.0, -46.5, 19.0, 'z'],     # Upper Tunnels → Outside Tunnels merdiveni (iki sahanlık çubuğu arasındaki açıklık)
+    [-60.0, -31.0, -55.0, -23.0, 'z'],  # Upper Tunnels → B (B Tunnels çıkışı) merdiveni
+    [16.5, -40.5, 20.5, -31.0, 'z'],    # CT Spawn → Short Stairs (A kısa merdiveni)
+]
+def hcell(x, z): return int(round((z - Z0) / HCELL)), int(round((x - X0) / HCELL))
+for (rx0, rz0, rx1, rz1, ax) in OVERRIDE_RAMPS:
+    (ra, ca_), (rb, cb_) = hcell(rx0, rz0), hcell(rx1, rz1)
+    if ax == 'z':
+        h_a = np.median(h[max(0, ra - 2):ra + 1, ca_:cb_ + 1]); h_b = np.median(h[rb:rb + 3, ca_:cb_ + 1])
+        for r in range(ra, rb + 1): h[r, ca_:cb_ + 1] = h_a + (h_b - h_a) * (r - ra) / max(1, rb - ra)
+    else:
+        h_a = np.median(h[ra:rb + 1, max(0, ca_ - 2):ca_ + 1]); h_b = np.median(h[ra:rb + 1, cb_:cb_ + 3])
+        for c in range(ca_, cb_ + 1): h[ra:rb + 1, c] = h_a + (h_b - h_a) * (c - ca_) / max(1, cb_ - ca_)
+
+# ── kat geçişi onarımı: gerekli komşu bölgeler arasında yalnızca dik kenar (oyunda yürünmez: eğim > 0,95) varsa, en ucuz yol boyunca
+#    ~4 m genişliğinde rampa açılır (gerçek haritada orada merdiven / rampa var: spiral, Short merdiveni, Cat…). Rampa eğimi ≤ 0,5.
+STEP_MAX = 0.25
+def steep_mask():
+    gy, gx = np.gradient(h, HCELL)
+    m = np.hypot(gx, gy) > 0.95                                             # oyundaki eşikle aynı (NavGrid: eğim > 0,95 geçilmez)
+    e = np.zeros_like(m)                                                    # kat kenarı duvarı konacak yerler (komşu fark > 0,6 m) ve 1 hücre payı da geçilmez
+    e[:, :-1] |= np.abs(np.diff(h, axis=1)) > 0.6; e[:, 1:] |= np.abs(np.diff(h, axis=1)) > 0.6
+    e[:-1, :] |= np.abs(np.diff(h, axis=0)) > 0.6; e[1:, :] |= np.abs(np.diff(h, axis=0)) > 0.6
+    return m | e
+def hroute(a_, b_, allow_steep, B):
+    INF = 1e18; H_, W_ = solid.shape; dist = np.full((H_, W_), INF); prev = {}
+    dist[a_] = 0; pq = [(0.0, a_[0], a_[1])]
+    while pq:
+        d, r, c = _hq.heappop(pq)
+        if d > dist[r, c]: continue
+        if (r, c) == b_: break
+        for dr, dc in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            r2, c2 = r + dr, c + dc
+            if r2 < 0 or c2 < 0 or r2 >= H_ or c2 >= W_ or solid[r2, c2]: continue
+            if B[r2, c2] and not allow_steep: continue
+            nd = d + 1 + (25 if B[r2, c2] else 0)
+            if nd < dist[r2, c2]: dist[r2, c2] = nd; prev[(r2, c2)] = (r, c); _hq.heappush(pq, (nd, r2, c2))
+    if dist[b_] >= INF: return INF, []
+    path = [b_]
+    while path[-1] in prev: path.append(prev[path[-1]])
+    return dist[b_], path[::-1]
+ramps = []
+ramp_mask = np.zeros_like(h, dtype=bool)                               # rampa yapılan hücreler: kat kenarı duvarı konmaz
+# Hangi çiftlere rampa açılacağı OYUNUN yol bulucusuna göre belirlenir: scripts/cglinks.mjs WRITE=1 kopuk çiftleri tools/ramp_pairs.json'a yazar.
+import os as _os
+RAMP_PAIRS = [tuple(x) for x in json.load(open('tools/ramp_pairs.json', encoding='utf-8'))] if _os.path.exists('tools/ramp_pairs.json') else []
+for (na, nb_) in RAMP_PAIRS:
+    B = steep_mask()
+    ca, cb = nearest_open(call_cell(na), avoid=B), nearest_open(call_cell(nb_), avoid=B)
+    _, pth = hroute(ca, cb, True, B)
+    if not pth: continue
+    h_orig = h.copy()
+    hp = np.array([h[q] for q in pth])
+    for _it in range(400):
+        old = hp.copy()
+        for i in range(1, len(hp)): hp[i] = np.clip(hp[i], hp[i - 1] - STEP_MAX, hp[i - 1] + STEP_MAX)
+        for i in range(len(hp) - 2, -1, -1): hp[i] = np.clip(hp[i], hp[i + 1] - STEP_MAX, hp[i + 1] + STEP_MAX)
+        if np.abs(hp - old).max() < 1e-4: break
+    ch = 0
+    for k, (q, hn) in enumerate(zip(pth, hp)):
+        if abs(hn - h_orig[q]) < 1e-3: continue
+        ch += 1
+        for dr in range(-5, 6):
+            for dc in range(-5, 6):
+                r2, c2 = q[0] + dr, q[1] + dc
+                if 0 <= r2 < h.shape[0] and 0 <= c2 < h.shape[1] and r2 < NZ and c2 < NX and not solid[r2, c2] and abs(h_orig[r2, c2] - h_orig[q]) < 0.6:
+                    if dr * dr + dc * dc <= 25: h[r2, c2] = hn; ramp_mask[r2, c2] = True
+    ramps.append((na, nb_, ch))
+print('kat geçişi rampası', len(ramps), ramps)
+
+# ── kat kenarları (sahanlık / istinat duvarı): komşu iki yükseklik noktası arasında > 0,6 m fark → dikey taş duvar parçası
+# [yön (0: x sınırı, 1: z sınırı), düzlem koordinatı, başlangıç, bitiş, alt kot, üst kot]
+cliffs = []
+CL = 0.6
+def merge_runs(items):
+    out = []
+    for it in items:
+        if out and out[-1][0] == it[0] and abs(out[-1][1] - it[1]) < 1e-6 and abs(out[-1][3] - it[2]) < 1e-6 and abs(out[-1][4] - it[4]) < 0.35 and abs(out[-1][5] - it[5]) < 0.35:
+            o = out[-1]; o[3] = it[3]; o[4] = min(o[4], it[4]); o[5] = max(o[5], it[5])
+        else: out.append(list(it))
+    return out
+_free_v = lambda r, c: (r < NZ and c < NX and not solid[min(r, NZ - 1), min(c, NX - 1)])
+_it = []
+for c in range(NHX - 1):                                       # x sınırları: sütun boyunca dikey koşular
+    for r in range(NHZ):
+        d = h[r, c + 1] - h[r, c]
+        if abs(d) > CL and (_free_v(r, c) or _free_v(r, c + 1)) and not (ramp_mask[r, c] or ramp_mask[r, c + 1]):
+            _it.append((0, round(X0 + (c + 0.5) * HCELL, 2), round(Z0 + (r - 0.5) * HCELL, 2), round(Z0 + (r + 0.5) * HCELL, 2), round(float(min(h[r, c], h[r, c + 1])), 2), round(float(max(h[r, c], h[r, c + 1])), 2)))
+cliffs += merge_runs(_it)
+_it = []
+for r in range(NHZ - 1):
+    for c in range(NHX):
+        d = h[r + 1, c] - h[r, c]
+        if abs(d) > CL and (_free_v(r, c) or _free_v(r + 1, c)) and not (ramp_mask[r, c] or ramp_mask[r + 1, c]):
+            _it.append((1, round(Z0 + (r + 0.5) * HCELL, 2), round(X0 + (c - 0.5) * HCELL, 2), round(X0 + (c + 0.5) * HCELL, 2), round(float(min(h[r, c], h[r + 1, c])), 2), round(float(max(h[r, c], h[r + 1, c])), 2)))
+cliffs += merge_runs(_it)
+print('kat kenarı parçası', len(cliffs))
 print('yükseklik', h.min(), h.max())
 
 
@@ -347,8 +465,9 @@ data = {
     'lows': [[round(X0 + c0 * CELL, 2), round(Z0 + r0 * CELL, 2), round(X0 + c1 * CELL, 2), round(Z0 + r1 * CELL, 2)] for (c0, r0, c1, r1) in RL],
     'divs': [[round(X0 + c0 * CELL, 2), round(Z0 + r0 * CELL, 2), round(X0 + c1 * CELL, 2), round(Z0 + r1 * CELL, 2)] for (c0, r0, c1, r1) in RD],
     'faces': faces,
+    'cliffs': cliffs,
     'boxes': boxes, 'hx0': round(X0, 3), 'hz0': round(Z0, 3), 'hnx': NHX, 'hnz': NHZ, 'hcell': HCELL,
-    'h': base64.b64encode(np.round(h * 50).clip(0, 255).astype(np.uint8).tobytes()).decode(), 'hscale': 50,
+    'h': base64.b64encode(np.round(h * 35).clip(0, 255).astype(np.uint8).tobytes()).decode(), 'hscale': 35,
     'zones': zones,
 }
 with open('src/maps/colgecidiData.js', 'w', encoding='utf-8') as f:
@@ -365,3 +484,12 @@ big = np.array(Image.fromarray(solid.astype(np.uint8) * 255).resize((PW, PH), Im
 ov = rgb_rot.copy()
 ov[big & ~void] = ov[big & ~void] * 0.4 + np.array([255, 90, 40]) * 0.6
 Image.fromarray(ov.astype(np.uint8)).save('tools_ref/dust2_overlay.png')
+
+# hata ayıklama: yükseklik haritası (renkli) + dik kenarlar (kırmızı: eğim > 0,95 → geçilemez)
+_gy, _gx = np.gradient(h, HCELL)
+_sl = np.hypot(_gx, _gy)
+_n = (h / max(h.max(), 1e-3))
+_img = np.stack([_n * 200 + 30, _n * 160 + 60, (1 - _n) * 200 + 30], -1)
+_img[_sl > 0.95] = [255, 40, 40]
+Image.fromarray(_img.clip(0, 255).astype(np.uint8)).resize((NHX * 3, NHZ * 3), Image.NEAREST).save('tools_ref/height.png')
+

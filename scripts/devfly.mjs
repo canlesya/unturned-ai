@@ -14,7 +14,7 @@ let b = await st(); check(b.y > a.y + 8, `Boşluk ile yükseldi (${a.y} → ${b.
 await page.evaluate(() => { window.__game.playerSoldier.pitch = 0; window.__game.playerSoldier.yaw = 0; });
 await page.keyboard.down('KeyW'); await page.waitForFunction(([x, z]) => Math.hypot(window.__game.playerSoldier.pos.x - x, window.__game.playerSoldier.pos.z - z) > 8, [b.x, b.z], { timeout: 60000 }).catch(() => {}); await page.keyboard.up('KeyW');
 let c = await st(); check(Math.hypot(c.x - b.x, c.z - b.z) > 8, `W ile ileri uçtu (${Math.hypot(c.x - b.x, c.z - b.z).toFixed(1)} m, duvarları geçerek)`);
-await page.mouse.move(640, 360); await page.mouse.wheel(0, -100); await page.waitForTimeout(600);
+await page.evaluate(() => window.dispatchEvent(new WheelEvent('wheel', { deltaY: -100 }))); await page.waitForTimeout(400);       // tarayıcısız Chromium'da fare tekerleği olayı tuvale her zaman ulaşmıyor
 let d = await st(); check(d.speed > 13, `tekerlek uçuş hızını artırdı (${d.speed.toFixed(1)})`);
 await page.keyboard.press('KeyN'); await page.waitForTimeout(200);
 let e = await st(); check(e.brains === 0, 'N botları dondurdu');

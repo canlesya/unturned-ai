@@ -115,6 +115,7 @@ export function decorateFaces(b, D, terrain, field, rng) {
 export function floorColor(field, D) {
   const sand = new THREE.Color('#dcc592'), sand2 = new THREE.Color('#cfb27a'), dirt = new THREE.Color('#bf9f68'), cool = new THREE.Color('#b9ab8d'), tile1 = new THREE.Color('#d6c29a'), tile2 = new THREE.Color('#c8b185');
   const sites = (D.zones.orange || []).filter((z) => z[2] - z[0] > 6);
+  const ledge = new THREE.Color('#c7a56c'), ledgeD = new THREE.Color('#a8885a');
   const tmp = new THREE.Color();
   return (x, z, h, slope, c, n) => {
     c.copy(sand).lerp(sand2, n);
@@ -127,6 +128,7 @@ export function floorColor(field, D) {
     const dw = field.dist(x, z);                                                                       // duvar dibi: koyulaşma
     if (dw < 2.6) c.multiplyScalar(0.74 + 0.26 * (dw / 2.6));
     if (slope > 0.22) c.multiplyScalar(0.92);
+    if (slope > 1.0) { c.copy(ledge).lerp(ledgeD, Math.min(1, (slope - 1) * 0.4)); c.multiplyScalar(0.92 + 0.12 * n); }        // kat kenarı (istinat duvarı): taş sıva
   };
 }
 

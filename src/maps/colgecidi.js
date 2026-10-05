@@ -29,11 +29,11 @@ export function buildColGecidi() {
   const b = new MapBuilder();
   const hb = B64(D.h);
   const hAt = (i, j) => hb[Math.max(0, Math.min(D.hnz - 1, j)) * D.hnx + Math.max(0, Math.min(D.hnx - 1, i))] / D.hscale;
-  const height = (x, z) => {                                         // 1 m'lik ızgaradan çift doğrusal örnekleme
+  const height = (x, z) => {                                         // yükseklik ızgarasından çift doğrusal örnekleme
     const fx = (x - D.hx0) / D.hcell, fz = (z - D.hz0) / D.hcell, i = Math.floor(fx), j = Math.floor(fz), u = fx - i, v = fz - j;
     return (hAt(i, j) * (1 - u) + hAt(i + 1, j) * u) * (1 - v) + (hAt(i, j + 1) * (1 - u) + hAt(i + 1, j + 1) * u) * v;
   };
-  const terrain = new Terrain({ minX: CG_BOUNDS.minX, maxX: CG_BOUNDS.maxX, minZ: CG_BOUNDS.minZ, maxZ: CG_BOUNDS.maxZ, cell: 1, height });
+  const terrain = new Terrain({ minX: CG_BOUNDS.minX, maxX: CG_BOUNDS.maxX, minZ: CG_BOUNDS.minZ, maxZ: CG_BOUNDS.maxZ, cell: 0.5, height });                      // 0,5 m: kat kenarları keskin kalsın
 
   // ── duvarlar: açgözlü dikdörtgenler. Bina kütleleri yerel zemin + 5,5–9 m (12 m'lik bloklara göre değişir), bölme duvarları + 3 m ──
   const field = makeSolidField(D);
@@ -49,6 +49,13 @@ export function buildColGecidi() {
   }
 
   // ── sandık / konteyner / fıçı gövdeleri (radar kutuları); sunucuda yalnızca çarpışma gövdesi ──
+  // ── kat kenarları: radar yüksekliğindeki keskin geçişler (sahanlık, çukur, platform kenarı) → taş istinat duvarı + üst kenar şeridi ──
+  for (const [dir, p, a0, a1, lo, hi] of D.cliffs || []) {
+    const L = a1 - a0, c = (a0 + a1) / 2, x = dir === 0 ? p : c, z = dir === 0 ? c : p, w = dir === 0 ? 0.55 : L + 0.02, d = dir === 0 ? L + 0.02 : 0.55;
+    b.box(x, lo - 0.35, z, w, hi - lo + 0.39, d, '#b8996a', { tag: 'ledge' });
+    if (!MapBuilder.noVisual) b.box(x, hi - 0.02, z, dir === 0 ? 0.7 : L + 0.04, 0.14, dir === 0 ? L + 0.04 : 0.7, '#d9c08c', { collide: false });
+  }
+
   // Arabalar (Long ve B) ve Long'daki mavi konteyner: radar kutusu yerine model / özel renk
   const nearBox = (name, minArea) => { const c = CALLOUTS.find((q) => q.name === name); let best = -1, bd = 7; D.boxes.forEach((q, i) => { const d = Math.hypot(q[0] - c.x, q[1] - c.z); if (q[2] * q[3] >= minArea && d < bd) { bd = d; best = i; } }); return best; };
   const CARS = [[nearBox('Car (Long)', 6), '#5fa6a0'], [nearBox('Car (B)', 6), '#e9e6dc']].filter((q) => q[0] >= 0), BLUE = nearBox('Blue', 8);
