@@ -1,3 +1,4 @@
+import { InGameSettings } from './ingameSettings.js';
 import { TEAMS } from '../core/palette.js';
 import { WSTATS, CLASS_DEFS, BLEED_S, ZTYPES, ZT_ORDER } from './stats.js';
 import { clamp } from './util.js';
@@ -186,7 +187,7 @@ export class Hud {
         <div class="card"><h3>Doğma noktası <span id="spkeys" style="opacity:.6;letter-spacing:1px;text-transform:none"></span></h3><div id="spawnrow"></div></div></div></div>
       <div id="scoreboard" class="overlay"><div class="panel" style="min-width:760px;text-align:center"><div class="scroll" id="sbbody"></div></div></div>
       <div id="pause" class="overlay"><div class="panel"><h2 id="ptitle">Hazır mısın?</h2><div id="pmeta"></div><p id="ptext">Başlamak için tıkla. Fare ekrana kilitlenir, Esc ile duraklatırsın.</p>
-        <button class="btn" id="bResume">Başla</button><button class="btn sec" id="bKill" title="Sıkıştıysan kendini öldürüp yeniden doğ">Kill (yeniden doğ)</button><button class="btn sec" id="bQuit">Ana Menü</button></div></div>
+        <button class="btn" id="bResume">Başla</button><button class="btn sec" id="bKill" title="Sıkıştıysan kendini öldürüp yeniden doğ">Kill (yeniden doğ)</button><button class="btn sec" id="bSet">Ayarlar</button><button class="btn sec" id="bCtl">Kontroller</button><button class="btn sec" id="bQuit">Ana Menü</button></div></div>
       <div id="endscreen" class="overlay"><div class="panel"><h2 id="etitle"></h2><p id="einfo"></p><div id="estats" style="margin:10px 0"></div>
         <button class="btn" id="bAgain">Tekrar Oyna</button><button class="btn sec" id="bMenu">Ana Menü</button></div></div>`;
     document.body.appendChild(el);
@@ -214,7 +215,9 @@ export class Hud {
       this._rowMode = null;                                                // ölüm ekranı satırı: 'z' zombi türü · 'cls' insan sınıfı · 'boss' (seçim yok)
     }
     if (game.ffa) { this.root.querySelector('.tk.blue small').textContent = 'SEN'; this.root.querySelector('.tk.red small').textContent = 'LİDER'; }
-    this.$('bResume').onclick = () => game.requestLock();
+    this.$('bResume').onclick = () => { this.igs?.close(); game.requestLock(); };
+    this.$('bSet').onclick = () => (this.igs ||= new InGameSettings(game)).show('settings');
+    this.$('bCtl').onclick = () => (this.igs ||= new InGameSettings(game)).show('controls');
     this.$('bKill').onclick = () => { game.requestKill(); game.requestLock(); };
     this.$('bQuit').onclick = () => game.exit();
     this.$('bAgain').onclick = () => game.restart();
@@ -222,7 +225,7 @@ export class Hud {
     this.$('pause').addEventListener('mousedown', (e) => { if (e.target.id === 'pause') game.requestLock(); });
   }
 
-  dispose() { this.root.remove(); this.st.remove(); }
+  dispose() { this.igs?.dispose(); this.root.remove(); this.st.remove(); }
 
   // Enfekte: ölüm ekranında zombi türü seçimi (1–5)
   buildZRow() {
@@ -431,6 +434,7 @@ export class Hud {
 
   setPaused(v) {
     const ov = this.$('pause');
+    if (!v) this.igs?.close();
     ov.style.display = v ? 'flex' : 'none';
     // maça girişte (henüz oynanmadı): sahne arkada görünmesin; harita görseliyle tam ekran kapak
     const intro = v && this.game.time <= 0.5;

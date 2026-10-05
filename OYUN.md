@@ -848,3 +848,8 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 ### 12.66 Çöl Geçidi: sınır dışı kum düzlemi Pit tabanını örtüyordu
 - Kullanıcı: Pit'te zemin doğru ama üstü kum dokusuyla kaplı, içine giriliyor. Sebep: `buildSurround` sınır dışı sonsuz kum kutusunun tepesi y = +0,2 idi; Pit tabanı −1,2 (ve kuzey rampanın alt kısmı) bu düzlemin ALTINDA kalıyordu → düz kum yüzeyi tabanı örtüyor, oyuncu "kumun içinde" görünüyordu. Düzlem tepesi −2,5'e indirildi (en alçak zemin −1,2). Yalnız görsel; fizik değişmedi.
 - Canlı kontrol: warbyte.site / www / IP aynı paketi sunuyor (cf-cache-status DYNAMIC, no-cache); canlı siteden çekilen kareler yerel ile aynı.
+
+### 12.67 Oyun içi Ayarlar ve Kontroller (Esc menüsü)
+- Duraklatma menüsüne **Ayarlar** ve **Kontroller** düğmeleri (`src/game/ingameSettings.js`). Ana menüdeki iki ekranın tamamı: hassasiyet, görüş açısı, ana / efekt / müzik / ortam sesi, yağmur sesi, grafik kalitesi, gölgeler, otomatik çözünürlük, tam ekran + Ctrl+W koruması; silahı tutan el, nişan alma (basılı tut / aç-kapa), tüm tuş atamaları (2 yuva, Geri tuşu temizler, Esc vazgeçer, çakışan tuş öbür eylemden alınır), varsayılana dön.
+- Değişiklikler maç sırasında anında uygulanır (renderer piksel oranı, gölge haritası + malzeme yenileme, ses yolları, müzik, `game.binds` yerinde güncellenir — oyuncu aynı nesneyi okur) ve `opts.onPref` → `patchPrefs` ile tercihlere kaydedilir (ana menüde de görünür). Panel açıkken oyun kısayolları çalışmaz; Esc paneli kapatır, duraklatma menüsünde kalır; Devam'a basınca kapanır.
+- Test: `scripts/igstest.mjs` (13 kontrol: panel, FOV / hassasiyet / ses / gölge / kalite uygulanıyor, kayıt, kamera FOV, tuş atama + kayıt, sol el, varsayılana dön, Esc).
