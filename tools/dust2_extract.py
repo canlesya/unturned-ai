@@ -856,7 +856,7 @@ for tr in range(0, NZ, TILE):
                     if zs[k] == zj[k]: continue
                     inside ^= ((zs[k] > GZ) != (zj[k] > GZ)) & (GX < (xj[k] - xs[k]) * (GZ - zs[k]) / (zj[k] - zs[k]) + xs[k])
             for (a0, b0, a1, b1) in rects(inside):
-                crects.append([round(x0_ + a0 * CELL / FINE, 3), round(z0_ + b0 * CELL / FINE, 3), round(x0_ + a1 * CELL / FINE, 3), round(z0_ + b1 * CELL / FINE, 3), top, base, comp])     # 7.: bina bileşeni (editör kimliği bina:<comp>)
+                crects.append([round(x0_ + a0 * CELL / FINE, 3), round(z0_ + b0 * CELL / FINE, 3), round(x0_ + a1 * CELL / FINE, 3), round(z0_ + b1 * CELL / FINE, 3), top, base, comp, len(polys) - 1])     # 7.: bina bileşeni (renk) · 8.: çokgen sırası (editör kimliği bina:<çokgen>)
             # süs kenarları: dışı yürünebilir zemine bakan, ≥ 1,2 m kenarlar
             for R in W:
                 for k in range(len(R)):

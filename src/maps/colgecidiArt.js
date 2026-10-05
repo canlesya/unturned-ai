@@ -57,7 +57,7 @@ export function polyColorAt(polys, x, z) {                                      
 }
 export function buildPolys(b, polys) {
   const I = new THREE.Matrix4();
-  for (let k = 0; k < polys.length; k++) b.obj('bina:' + (polys[k][3] ?? k), () => {
+  for (let k = 0; k < polys.length; k++) b.obj('bina:' + k, () => {                    // editör: çokgen başına (16 m'lik bölümdeki tek kütle); renk bileşene göre
     const [top, base, rings] = polys[k];
     const R = rings.map((f) => { const a = []; for (let i = 0; i < f.length; i += 2) a.push([f[i], f[i + 1]]); return a; });
     const col = WALLC[(polys[k][3] ?? k) % WALLC.length], roof = DARK(col, 0.82);

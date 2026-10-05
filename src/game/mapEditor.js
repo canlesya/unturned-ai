@@ -82,7 +82,7 @@ export class MapEditor {
     this.g.hud.toast(this.active ? 'HARİTA EDİTÖRÜ AÇIK · nişangâhla bak, sol tıkla seç' : 'Harita editörü kapalı', '#ffd27a');
     this.render();
   }
-  updateHover() { const id = this.pick(); this.hover = id; if (id && id !== this.sel) { this.boxHov.box.copy(this.bbox(id)); this.boxHov.visible = true; } else this.boxHov.visible = false; }
+  updateHover() { const id = this.pick(); const ch = id !== this.hover; this.hover = id; if (ch) this.render(); if (id && id !== this.sel) { this.boxHov.box.copy(this.bbox(id)); this.boxHov.visible = true; } else this.boxHov.visible = false; }
   select(id) { this.sel = id; if (id) { this.boxSel.box.copy(this.bbox(id)); this.boxSel.visible = true; } else this.boxSel.visible = false; this.render(); }
 
   // ── işlemler ──
@@ -134,7 +134,7 @@ export class MapEditor {
   }
   exportText() { return `HARİTA DÜZENLEMESİ ${this.mapId} (${this.list().length})\n` + JSON.stringify(this.list()); }
   copy(text, what) {
-    const ta = this.el.querySelector('textarea'); ta.value = text; ta.style.display = 'block'; ta.select();
+    this.copyText = text; this.render(); const ta = this.el.querySelector('textarea'); if (ta) ta.select();
     (navigator.clipboard?.writeText(text) || Promise.reject()).then(() => this.g.hud.toast(what + ' kopyalandı · bana yapıştır', '#9be07f'), () => { try { document.execCommand('copy'); this.g.hud.toast(what + ' kopyalandı', '#9be07f'); } catch { this.g.hud.toast('Kopyalanamadı: paneldeki metni seçip Ctrl+C', '#ffd27a'); } });
   }
   cmd(c) {
@@ -151,7 +151,8 @@ export class MapEditor {
       <div class="sel">${sel ? '<b>Seçili:</b> ' + this.info(sel) : 'Nesne seçilmedi · nişangâhla bak, <b>sol tık</b>'}${this.hover && this.hover !== sel ? `<br><span style="opacity:.6">İmleç: ${this.hover}</span>` : ''}</div>
       <div class="row"><button data-c="del" ${sel ? '' : 'disabled'}>Sil</button><button data-c="undo">Geri al</button><button data-c="id" ${sel ? '' : 'disabled'}>Kimliği kopyala</button><button class="hot" data-c="all">Düzenlemeleri kopyala (${n})</button><button data-c="reset">Tümünü sıfırla</button></div>
       <div class="k" style="margin-top:6px"><kbd>Sol tık</kbd> seç · <kbd>Delete</kbd> sil · <kbd>Backspace</kbd> geri al<br><kbd>Ok tuşları</kbd> taşı (bakış yönü) · <kbd>PgUp</kbd>/<kbd>PgDn</kbd> yukarı/aşağı · <kbd>Shift</kbd> 1 m adım<br><kbd>+</kbd>/<kbd>−</kbd> büyüt/küçült · <kbd>]</kbd>/<kbd>[</kbd> yükseklik · <kbd>Home</kbd> kimliği kopyala · <kbd>End</kbd> hepsini kopyala<br>Esc ile duraklatınca düğmelere tıklayabilirsin.</div>
-      ${this.warn ? `<div class="w">${this.warn}</div>` : ''}<textarea readonly></textarea>`;
+      ${this.warn ? `<div class="w">${this.warn}</div>` : ''}<textarea readonly style="display:${this.copyText ? 'block' : 'none'}"></textarea>`;
+    if (this.copyText) this.el.querySelector('textarea').value = this.copyText;
   }
 
   // ── girdi ──

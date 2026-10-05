@@ -52,7 +52,7 @@ export function buildColGecidi() {
     wall(X1, Z0 - E, X1 + E, Z1 + E, 'doğu');
     wall(X0 - E, Z0 - E, X0, Z1 + E, 'batı');
   }
-  for (const [x0, z0, x1, z1, top, base, comp] of D.rects) b.obj('bina:' + comp, () => b.collide((x0 + x1) / 2, base, (z0 + z1) / 2, x1 - x0, top - base, z1 - z0, 'wall'));
+  for (const [x0, z0, x1, z1, top, base, , pi] of D.rects) b.obj('bina:' + pi, () => b.collide((x0 + x1) / 2, base, (z0 + z1) / 2, x1 - x0, top - base, z1 - z0, 'wall'));
   if (!MapBuilder.noVisual) buildPolys(b, D.polys);
 
   // ── sandık / konteyner / fıçı gövdeleri (radar kutuları); sunucuda yalnızca çarpışma gövdesi ──
