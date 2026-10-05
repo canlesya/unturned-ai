@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { MapBuilder } from './builder.js';
 import { Terrain, fbm } from './terrain.js';
 import DATA from './colgecidiData.js';
+import EDITS from './colgecidiEdits.js';
 import { car } from './kit.js';
 import { makeSolidField, floorColor, decorateEdges, buildPolys, polyColorAt, rngOf, wallTop, propBox, obbCollide, scatterPalms, buildSurround, roofTunnels, findDoor, doorFrame, gateDoor, dishes, ads, siteSign } from './colgecidiArt.js';
 
@@ -45,13 +46,13 @@ export function buildColGecidi() {
   // ── çevre duvarı: radar kapsamının dışı (arazi sınırlara kadar uzanır) tek parça yüksek duvarla kapalı. Güney kenar 1 m içeriden başlar (T Spawn'ın
   //    güney binası bu çizgide). Harita dışına çıkış olmasın: scripts/cgleak.mjs denetler.
   { const X0 = D.x0, X1 = D.x0 + D.nx * D.cell, Z0 = D.z0, Z1 = D.z0 + D.nz * D.cell, H = 16, col = wallTop(0, 0), E = 8;
-    const wall = (x0, z0, x1, z1) => { b.collide((x0 + x1) / 2, -2, (z0 + z1) / 2, x1 - x0, H, z1 - z0, 'wall'); if (!MapBuilder.noVisual) b.box((x0 + x1) / 2, -2, (z0 + z1) / 2, x1 - x0, H, z1 - z0, col, { collide: false }); };
-    wall(X0 - E, Z1 - 1.0, X1 + E, Z1 + E);       // güney
-    wall(X0 - E, Z0 - E, X1 + E, Z0);             // kuzey
-    wall(X1, Z0 - E, X1 + E, Z1 + E);             // doğu
-    wall(X0 - E, Z0 - E, X0, Z1 + E);             // batı
+    const wall = (x0, z0, x1, z1, nm) => b.obj('çevre:' + nm, () => { b.collide((x0 + x1) / 2, -2, (z0 + z1) / 2, x1 - x0, H, z1 - z0, 'wall'); if (!MapBuilder.noVisual) b.box((x0 + x1) / 2, -2, (z0 + z1) / 2, x1 - x0, H, z1 - z0, col, { collide: false }); });
+    wall(X0 - E, Z1 - 1.0, X1 + E, Z1 + E, 'güney');
+    wall(X0 - E, Z0 - E, X1 + E, Z0, 'kuzey');
+    wall(X1, Z0 - E, X1 + E, Z1 + E, 'doğu');
+    wall(X0 - E, Z0 - E, X0, Z1 + E, 'batı');
   }
-  for (const [x0, z0, x1, z1, top, base] of D.rects) b.collide((x0 + x1) / 2, base, (z0 + z1) / 2, x1 - x0, top - base, z1 - z0, 'wall');
+  for (const [x0, z0, x1, z1, top, base, comp] of D.rects) b.obj('bina:' + comp, () => b.collide((x0 + x1) / 2, base, (z0 + z1) / 2, x1 - x0, top - base, z1 - z0, 'wall'));
   if (!MapBuilder.noVisual) buildPolys(b, D.polys);
 
   // ── sandık / konteyner / fıçı gövdeleri (radar kutuları); sunucuda yalnızca çarpışma gövdesi ──
@@ -63,37 +64,38 @@ export function buildColGecidi() {
   const isPara = (x, z, lo, hi, alongX) => hi >= 4.0 && hi - lo >= 1.5 && (x > 28 || (alongX && x > 22.9)) && x < 62 && z > -62 && z < -38;
   const isTRim = (x, z, alongX) => alongX && x > -11.5 && x < -4.5 && z > 51.5 && z < 53.8;           // T platosunun kuzey kenarı (Mid'e bakan): çömelince arkasından nişan alınır
   const extra = (x, z, lo, hi, alongX) => (isPara(x, z, lo, hi, alongX) ? 0.95 : !alongX && isPit(x, z) ? 0.7 : isTRim(x, z, alongX) ? 0.8 : 0.04);
+  const cliffId = (x, z) => { let bi = -1, bd = 1e9; (D.cliffv || []).forEach(([x0, z0, x1, z1], i) => { const dx = x1 - x0, dz = z1 - z0, t = Math.max(0, Math.min(1, ((x - x0) * dx + (z - z0) * dz) / (dx * dx + dz * dz || 1))), d = Math.hypot(x - x0 - dx * t, z - z0 - dz * t); if (d < bd) { bd = d; bi = i; } }); return bd < 0.8 ? 'kenar:' + bi : 'kenar-ç:' + x.toFixed(1) + ',' + z.toFixed(1); };
   for (const [dir, p, a0, a1, lo, hi] of D.cliffs || []) {
     const L = a1 - a0, c = (a0 + a1) / 2, x = dir === 0 ? p : c, z = dir === 0 ? c : p, ex = extra(x, z, lo, hi, dir !== 0);
-    b.collide(x, lo - 0.35, z, dir === 0 ? 0.55 : L + 0.02, hi + ex - lo + 0.35, dir === 0 ? L + 0.02 : 0.55, ex > 0.5 ? 'rail' : 'ledge');
+    b.objStack.push(cliffId(x, z)); b.collide(x, lo - 0.35, z, dir === 0 ? 0.55 : L + 0.02, hi + ex - lo + 0.35, dir === 0 ? L + 0.02 : 0.55, ex > 0.5 ? 'rail' : 'ledge'); b.objStack.pop();
   }
-  if (!MapBuilder.noVisual) for (const [x0, z0, x1, z1, lo, hi] of D.cliffv || []) {
+  if (!MapBuilder.noVisual) (D.cliffv || []).forEach(([x0, z0, x1, z1, lo, hi], ci) => b.obj('kenar:' + ci, () => {
     const dx = x1 - x0, dz = z1 - z0, L = Math.hypot(dx, dz), mx = (x0 + x1) / 2, mz = (z0 + z1) / 2, alongX = Math.abs(dx) >= Math.abs(dz);
     const top = hi + extra(mx, mz, lo, hi, alongX), ry = Math.atan2(-dz, dx), low = hi - lo < 0.9;
     b.box(mx, lo - 0.35, mz, L + 0.3, top - lo + 0.35, 0.58, low ? '#d9c38f' : '#b8996a', { ry, collide: false });          // gövde: tek parça, düz tepe (alçak basamak = kum rengi)
     if (!low) b.box(mx, top - 0.02, mz, L + 0.34, 0.14, 0.78, '#d9c08c', { ry, collide: false });                       // üst şerit yalnız yüksek duvarda
-  }
+  }));
 
   // sandık yığını: [x, z, kat] (kat başına 0,9 m, 1,2 m'lik küp), g taban kotu
-  function crates(list, g) {
-    for (const [cx, cz, lvl, sz = 1.2] of list) {
+  function crates(list, g, nm) {
+    list.forEach(([cx, cz, lvl, sz = 1.2], j) => b.obj(`sandık:${nm}:${j}`, () => {
       const y = g + lvl * 0.9;
       b.box(cx, y - (lvl ? 0 : 0.3), cz, sz, 0.9 + (lvl ? 0 : 0.3), sz, lvl ? '#a6834f' : '#9b7a4a', { tag: 'prop' });
       if (!MapBuilder.noVisual) { b.box(cx, y + 0.86, cz, sz + 0.06, 0.08, sz + 0.06, '#bf9a62', { collide: false }); b.box(cx, y + 0.4, cz, sz + 0.04, 0.08, sz + 0.04, '#6e5535', { collide: false }); }
-    }
+    }));
   }
   // ── B penceresi (B sahası ↔ Window): çerçevesiz düz duvar açıklığı (fotoğraftaki gibi). Duvar x −37…−36 (OVERRIDE_FILL), açıklık arka köşede z −57,4…−54,6;
   //    alt kenar B zemininden 1,8 m, açıklık 2,2 m yüksek. B tarafında 3 sandık (biri yerde, ikisi üst üste) basamak, Window tarafında kum yığını.
   { const wx0 = -37.0, wx1 = -36.0, z0 = -57.4, z1 = -54.6, gB = terrain.heightAt(-38, -56), sill = gB + 1.8, lint = sill + 2.2;     // arka köşe (kullanıcı)
     const [col, ptop] = polyColorAt(D.polys, -36.5, -50), top = ptop ?? gB + 7.5;
-    b.box((wx0 + wx1) / 2, gB - 0.6, (z0 + z1) / 2, wx1 - wx0, sill - gB + 0.6, z1 - z0, col, { tag: 'wall' });
-    b.box((wx0 + wx1) / 2, lint, (z0 + z1) / 2, wx1 - wx0, top - lint, z1 - z0, col, { tag: 'wall' });
-    crates([[-39.4, -56.0, 0], [-37.95, -56.0, 0], [-37.95, -56.0, 1]], gB);
+    b.obj('B-penceresi:alt', () => b.box((wx0 + wx1) / 2, gB - 0.6, (z0 + z1) / 2, wx1 - wx0, sill - gB + 0.6, z1 - z0, col, { tag: 'wall' }));
+    b.obj('B-penceresi:üst', () => b.box((wx0 + wx1) / 2, lint, (z0 + z1) / 2, wx1 - wx0, top - lint, z1 - z0, col, { tag: 'wall' }));
+    crates([[-39.4, -56.0, 0], [-37.95, -56.0, 0], [-37.95, -56.0, 1]], gB, 'B-penceresi');
   }
   // Xbox: Mid'den catwalk'a 3 sandıkla sıçranarak çıkılır (biri yerde, ikisi üst üste; üstü catwalk kotunda)
   // Xbox (Mid → Short koridoru): duvar dibinde düzgün kasa yığını (CS2 Xbox gibi): tek taban kasa duvara bitişik, üstüne yarım kaydırılmış ikinci kasa (üst üste 2 kasa).
   //   Tepe 1,8 m, koridor kotu 1,9 m: sıçrayarak koridora / duvar tepesine çıkılır. Hepsi eksen hizalı, birbirine bitişik (rastgele dağınık değil).
-  crates([[-2.55, -13.35, 0, 1.5], [-2.3, -13.35, 1, 1.0]], terrain.heightAt(-3, -13.4));
+  crates([[-2.55, -13.35, 0, 1.5], [-2.3, -13.35, 1, 1.0]], terrain.heightAt(-3, -13.4), 'Xbox');
 
   // ── Short köprüsü: tek yapı. Tabliye (yürünür 'plat') x 15…23, z −51…−35, üstü 4,6 m. Batı: tabliyeden 11,5 m'ye dolu duvar (Short'tan CT
   //    görünmez). Doğu: 1,7 m'lik tek parça korkuluk duvarı (üstüne çıkılamaz), kuzeyde A yoluna geçiş açık. Altı: ortada iki taş ayak, kuzey ucu dolu,
@@ -103,14 +105,14 @@ export function buildColGecidi() {
     const [bx0, bz0, bx1, bz1, top] = BR, bcx = (bx0 + bx1) / 2, bcz = (bz0 + bz1) / 2, bw = bx1 - bx0, bd = bz1 - bz0;
     const wallc = wallTop(bx0, bcz), wood = '#7a5b3a', woodD = '#5e4529', NC = { collide: false };
     const WT = top + 3.4, rz0 = -47.1, rz1 = bz1 + 0.3, rh = 0.95, COL_N = -43.35;     // batı duvarı tabliyeden 3,4 m (Short'tan gelen üstünden görünür); COL_N: CT'deki kolonun kuzey yüzü
-    b.box(bcx, top - 0.45, bcz, bw, 0.45, bd + 2.4, '#c2a46f', { tag: 'plat' });                          // tabliye (uçlarda 1,2 m bindirme: kat kenarı bandını örter)
-    b.box(bx0 + 0.25, top - 0.45, bcz, 0.5, WT - top + 0.45, bd + 0.6, wallc, { tag: 'wall' });             // batı duvarı
-    b.box(bx1 - 0.25, top - 0.45, (rz0 + rz1) / 2, 0.5, rh + 0.45, rz1 - rz0, wallc, { tag: 'wall' });      // doğu korkuluk duvarı (A platosu parapetiyle aynı yükseklik)
-    for (const sx of [bx0 + 0.35, bx1 - 0.35]) { const gy = terrain.heightAt(sx, bcz); b.box(sx, gy - 0.3, bcz, 0.7, top - 0.45 - gy + 0.3, 0.7, '#b8996a', { tag: 'wall' }); }   // orta ayaklar
+    b.obj('köprü:tabliye', () => b.box(bcx, top - 0.45, bcz, bw, 0.45, bd + 2.4, '#c2a46f', { tag: 'plat' }));                          // tabliye (uçlarda 1,2 m bindirme: kat kenarı bandını örter)
+    b.obj('köprü:batı-duvar', () => b.box(bx0 + 0.25, top - 0.45, bcz, 0.5, WT - top + 0.45, bd + 0.6, wallc, { tag: 'wall' }));
+    b.obj('köprü:doğu-korkuluk', () => b.box(bx1 - 0.25, top - 0.45, (rz0 + rz1) / 2, 0.5, rh + 0.45, rz1 - rz0, wallc, { tag: 'wall' }));      // doğu korkuluk duvarı (A platosu parapetiyle aynı yükseklik)
+    for (const sx of [bx0 + 0.35, bx1 - 0.35]) b.obj('köprü:ayak-' + (sx < bcx ? 'batı' : 'doğu'), () => { const gy = terrain.heightAt(sx, bcz); b.box(sx, gy - 0.3, bcz, 0.7, top - 0.45 - gy + 0.3, 0.7, '#b8996a', { tag: 'wall' }); });   // orta ayaklar
     // Kemerin kuzey yarısı: yalnız ince cephe duvarı (ahşap çerçeveyle aynı hizada, x 22,83–23,28); arkası (köprü altı) boş kalır.
-    { const fz0 = bz0 - 1.2, fx0 = bx1 - 0.17, fx1 = bx1 + 0.28; b.box((fx0 + fx1) / 2, -0.5, (fz0 + COL_N) / 2, fx1 - fx0, top - 0.45 + 0.5, COL_N - fz0, wallc, { tag: 'wall' }); }
-    { const sx0 = bx1 - 0.1, sx1 = bx1 + 0.28, sz0 = -34.95, sz1 = -33.9; b.box((sx0 + sx1) / 2, -0.5, (sz0 + sz1) / 2, sx1 - sx0, WT + 0.5, sz1 - sz0, wallc, { tag: 'wall' }); }   // kemerin güney direği ile güney bina arası yarık kapalı
-    if (!MapBuilder.noVisual) {
+    b.obj('köprü:kemer-duvarı', () => { const fz0 = bz0 - 1.2, fx0 = bx1 - 0.17, fx1 = bx1 + 0.28; b.box((fx0 + fx1) / 2, -0.5, (fz0 + COL_N) / 2, fx1 - fx0, top - 0.45 + 0.5, COL_N - fz0, wallc, { tag: 'wall' }); });
+    b.obj('köprü:güney-dolgu', () => { const sx0 = bx1 - 0.1, sx1 = bx1 + 0.28, sz0 = -34.95, sz1 = -33.9; b.box((sx0 + sx1) / 2, -0.5, (sz0 + sz1) / 2, sx1 - sx0, WT + 0.5, sz1 - sz0, wallc, { tag: 'wall' }); });   // kemerin güney direği ile güney bina arası yarık kapalı
+    if (!MapBuilder.noVisual) b.obj('köprü:süs', () => {
       b.box(bx0 + 0.25, WT - 0.07, bcz, 0.78, 0.14, bd + 0.74, '#d9c08c', NC);                           // üst şeritler (duvarla tek gövde gibi)
       b.box(bx1 - 0.25, top + rh - 0.07, (rz0 + rz1) / 2, 0.78, 0.14, rz1 - rz0 + 0.14, '#d9c08c', NC);
       b.box(bcx, top - 0.6, bcz, bw + 0.3, 0.16, bd + 0.6, '#9c8156', NC);                                 // tabliye alt kirişi
@@ -118,23 +120,25 @@ export function buildColGecidi() {
       const ax = bx1 + 0.05, az0 = COL_N, az1 = -34.9, gy = Math.min(terrain.heightAt(ax + 0.6, az0), terrain.heightAt(ax + 0.6, az1));
       for (const zz of [az0 + 0.22, az1 - 0.22]) b.box(ax, gy - 0.2, zz, 0.45, top - 0.45 - gy + 0.2, 0.45, wood, NC);   // direkler
       b.box(ax, top - 1.0, (az0 + az1) / 2, 0.5, 0.4, az1 - az0, wood, NC);                              // üst kiriş
-    }
+    });
   }
 
   // Arabalar (Long ve B) ve Long'daki mavi konteyner: radar kutusu yerine model / özel renk
   const nearBox = (name, minArea) => { const c = CALLOUTS.find((q) => q.name === name); let best = -1, bd = 7; D.boxes.forEach((q, i) => { const d = Math.hypot(q[0] - c.x, q[1] - c.z); if (q[2] * q[3] >= minArea && d < bd) { bd = d; best = i; } }); return best; };
   const CARS = [[nearBox('Car (Long)', 6), '#5fa6a0'], [nearBox('Car (B)', 6), '#e9e6dc']].filter((q) => q[0] >= 0), BLUE = nearBox('Blue', 8);
-  for (const [bi, col] of CARS) { const [cx, cz, , , ry] = D.boxes[bi]; b.with(0, terrain.heightAt(cx, cz), 0, 0, () => car(b, { x: cx, z: cz, ry, color: col })); }
+  for (const [bi, col] of CARS) { const [cx, cz, , , ry] = D.boxes[bi]; b.obj('araç:' + bi, () => b.with(0, terrain.heightAt(cx, cz), 0, 0, () => car(b, { x: cx, z: cz, ry, color: col }))); }
   const isCar = new Set(CARS.map((q) => q[0]));
   for (let i = 0; i < D.boxes.length; i++) {
     if (isCar.has(i)) continue;
-    if (!MapBuilder.noVisual) { propBox(b, terrain, i, D.boxes[i], i === BLUE ? '#2f6aa8' : null); continue; }
+    b.objStack.push('kasa:' + i);
+    if (!MapBuilder.noVisual) { propBox(b, terrain, i, D.boxes[i], i === BLUE ? '#2f6aa8' : null); b.objStack.pop(); continue; }
     const [cx, cz, w, d, ry, h, yoff = 0] = D.boxes[i];
     let lo = 1e9;
     for (const [px, pz] of [[cx, cz], [cx - w / 2, cz], [cx + w / 2, cz], [cx, cz - d / 2], [cx, cz + d / 2]]) lo = Math.min(lo, terrain.heightAt(px, pz));
     if (yoff) lo = Math.max(lo, terrain.heightAt(cx, cz)) + yoff + 0.3;
     if (w * d < 1.5 && Math.max(w, d) < 1.3) b.cyl(cx, lo - 0.05, cz, Math.min(w, d) / 2, Math.min(w, d) / 2, h + 0.05, '#000', { seg: 10 });
     else obbCollide(b, cx, lo - 0.3, cz, w, h + 0.3, d, ry);
+    b.objStack.pop();
   }
 
   // ── arazi: kum, bölge tonları ──
@@ -192,28 +196,28 @@ export function buildColGecidi() {
     { name: 'Long Doors (iç)', axis: 'x', z: 7.6, a0: 24.2, a1: 31.9, c: 27.0, W: 4.4, swing: -1, aL: 24, aR: 70 },      // kanatlar Long'a açılır (oda içindeki sandıklara değil)
     { name: 'Long Doors', axis: 'x', z: 22.4, a0: 22.4, a1: 31.9, c: 27.4, W: 4.6, swing: -1, aL: 24, aR: 68 },      // Outside Long → Long koridoru girişi (T tarafı)
   ];
-  for (const g of GATES) gateDoor(b, terrain, g);
+  for (const g of GATES) b.obj('kapı:' + g.name, () => gateDoor(b, terrain, g));
   // çatılı tüneller (radar koordinatından: alt tüneller = orta ile B arası teal şerit, üst tüneller = T'den B'ye zeytin kanal)
   const TUNNELS = [[-33, -10.5, -18, -10, true], [-64, -35, -13.6, -0.5, true], [-60, -54, -27, -9, false], [-53, -43.5, -0.5, 13.0, false], [-37, -26, -10.5, -1.0, true]];
   roofTunnels(b, terrain, field, TUNNELS);
   // Lower Tunnels'ın Mid tarafındaki ağzı: güneydeki yüksek bina (7,5 m) ağzın üstünden kuzeydeki binaya uzar (üst kapalı; geçit çatı hizasından 4,05 m'ye kadar açık).
   //   Aynı duvar rengi / çatı rengi / korniş (decorateEdges ile aynı dil): sonradan eklenmiş yama gibi durmaz.
-  { const lx0 = -11.0, lx1 = -9.3, lz0 = -15.95, lz1 = -12.35, [lcol, ltop] = polyColorAt(D.polys, -10.5, -10), top = ltop ?? 7.5, y0 = 4.05;
+  b.obj('tünel-ağzı', () => { const lx0 = -11.0, lx1 = -9.3, lz0 = -15.95, lz1 = -12.35, [lcol, ltop] = polyColorAt(D.polys, -10.5, -10), top = ltop ?? 7.5, y0 = 4.05;
     b.collide((lx0 + lx1) / 2, y0, (lz0 + lz1) / 2, lx1 - lx0, top - y0, lz1 - lz0, 'wall');
     if (!MapBuilder.noVisual) {
       b.box((lx0 + lx1) / 2, y0, (lz0 + lz1) / 2, lx1 - lx0, top - y0, lz1 - lz0, lcol, { collide: false });
       b.box((lx0 + lx1) / 2, top - 0.01, (lz0 + lz1) / 2, lx1 - lx0, 0.02, lz1 - lz0, wallTop(0, 0), { collide: false });                    // üst yüz (bina çatı tonu)
       b.box(lx1 + 0.08, top - 0.45, (lz0 + lz1) / 2, 0.2, 0.3, lz1 - lz0 + 0.04, '#e2c995', { collide: false });                              // korniş
       b.box(lx1 - 0.2, top - 0.02, (lz0 + lz1) / 2, 0.66, 0.14, lz1 - lz0 + 0.04, '#c9ad78', { collide: false });                             // duvar tepesi şeridi
-    } }
+    } });
   // spiral çatısı (7,9 m) ile Lower Tunnels çatısı (4,3 m) birleşim yerindeki dikey aralık: ince duvar panelini çatılar arasına (4,5 → 8,0 m) koy
-  { const gy = terrain.heightAt(-28, -10.5); b.box(-28.25, 4.5, -10.45, 7.5, 3.55, 0.35, '#8a7551', { tag: 'roof' }); void gy; }
+  b.obj('çatı:birleşim', () => b.box(-28.25, 4.5, -10.45, 7.5, 3.55, 0.35, '#8a7551', { tag: 'roof' }));
   // süs konmayan alanlar: çatılı tüneller + Long Doors odası + kapıların çevresi (pano / pencere / tente kapıya ya da tavana binmesin)
   const NODECOR = [...TUNNELS.map(([x0, x1, z0, z1]) => [x0 - 0.5, z0 - 0.5, x1 + 0.5, z1 + 0.5]), [22, 5, 34, 24.5],
     ...GATES.map((g) => (g.axis === 'x' ? [g.c - 3.8, g.z - 2.8, g.c + 3.8, g.z + 2.8] : [g.x - 2.8, g.c - 3.8, g.x + 2.8, g.c + 3.8]))];
   // Long Doors: iki kapı arasındaki oda çatılı (kapı lentosu üstünden)
-  { const gy = terrain.heightAt(28, 15); b.box(28, gy + 5.6, 15, 9.6, 0.5, 15.6, '#8a7551', { tag: 'roof' });
-    if (!MapBuilder.noVisual) for (let z = 9; z < 22; z += 2.2) b.box(28, gy + 5.3, z, 9.6, 0.3, 0.3, '#6e5a3c', { collide: false }); }
+  b.obj('çatı:long-odası', () => { const gy = terrain.heightAt(28, 15); b.box(28, gy + 5.6, 15, 9.6, 0.5, 15.6, '#8a7551', { tag: 'roof' });
+    if (!MapBuilder.noVisual) for (let z = 9; z < 22; z += 2.2) b.box(28, gy + 5.3, z, 9.6, 0.3, 0.3, '#6e5a3c', { collide: false }); });
   // süs en sonda: kapı / çatı / köprü / kat kenarı gibi tüm gövdeler kurulduktan sonra, önü dolu cepheye pencere / kapı / pano konmaz
   if (!MapBuilder.noVisual) {                                                       // süs yalnızca görsel (sunucuda kurulmaz)
     const rng = rngOf(20241005);
@@ -223,14 +227,17 @@ export function buildColGecidi() {
     dishes(b, terrain, D.rects, rng, 30);
     ads(b, terrain, D.fedges, field, rng, 14, NODECOR);
     siteSign(b, terrain, D.fedges, CALLOUTS.find((q) => q.name === 'A Site'), 'A', NODECOR); siteSign(b, terrain, D.fedges, CALLOUTS.find((q) => q.name === 'B Site'), 'B', NODECOR);
-    buildSurround(b, rng);
+    b.obj('dış-çevre', () => buildSurround(b, rng));
   }
+  b.applyEdits(EDITS);                                                // kalıcı harita düzenlemeleri (editörden: colgecidiEdits.js)
   const group = b.build();
+  const editSkipped = b.editSkipped || [];
   group.add(terrainMesh);
 
   return {
     id: 'colgecidi',
     name: 'Çöl Geçidi',
+    editSkipped,
     group,
     colliders: b.colliders,
     bounds: CG_BOUNDS,

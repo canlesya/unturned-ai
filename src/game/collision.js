@@ -31,6 +31,24 @@ export class World {
     }
   }
 
+  // çarpışma kutuları değişince (harita editörü: taşı / sil / boyutla) ızgarayı yeniden kur
+  reindex() {
+    this.grid = new Map();
+    for (let i = 0; i < this.colliders.length; i++) {
+      const c = this.colliders[i];
+      c._i = i; c._s = 0;
+      const x0 = Math.floor(c.min[0] / this.cell), x1 = Math.floor(c.max[0] / this.cell);
+      const z0 = Math.floor(c.min[2] / this.cell), z1 = Math.floor(c.max[2] / this.cell);
+      if (x1 - x0 > 200 || z1 - z0 > 200) continue;
+      for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) {
+        const k = x + ',' + z;
+        let a = this.grid.get(k);
+        if (!a) this.grid.set(k, (a = []));
+        a.push(c);
+      }
+    }
+  }
+
   query(minx, minz, maxx, maxz, out = []) {
     out.length = 0;
     this.stamp++;

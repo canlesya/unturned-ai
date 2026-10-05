@@ -57,7 +57,7 @@ export function polyColorAt(polys, x, z) {                                      
 }
 export function buildPolys(b, polys) {
   const I = new THREE.Matrix4();
-  for (let k = 0; k < polys.length; k++) {
+  for (let k = 0; k < polys.length; k++) b.obj('bina:' + (polys[k][3] ?? k), () => {
     const [top, base, rings] = polys[k];
     const R = rings.map((f) => { const a = []; for (let i = 0; i < f.length; i += 2) a.push([f[i], f[i + 1]]); return a; });
     const col = WALLC[(polys[k][3] ?? k) % WALLC.length], roof = DARK(col, 0.82);
@@ -90,7 +90,7 @@ export function buildPolys(b, polys) {
       rg.setAttribute('position', new THREE.Float32BufferAttribute(rp, 3)); rg.setAttribute('normal', new THREE.Float32BufferAttribute(rn, 3));
       b.addGeo(rg, roof, I);
     }
-  }
+  });
 }
 
 // ── cephe süsü (tek tip): her çokgen kenarı ~3 m'lik dilimlere bölünür; kaide, korniş, duvar tepesi şeridi her dilimde; kiriş uçları korniş altında,
@@ -114,7 +114,7 @@ export function decorateEdges(b, edges, terrain, field, rng, noDecor = []) {
   const NC = { collide: false }, LIGHT = '#e2c995', COPE = '#c9ad78', BEAM = '#7a5b3a';
   let nWin = 0, nDoor = 0;
   OCC.length = 0;
-  for (const [x0, z0, x1, z1, top] of edges) {
+  edges.forEach(([x0, z0, x1, z1, top], ei) => {
     const dx = x1 - x0, dz = z1 - z0, L = Math.hypot(dx, dz), nx = dz / L, nz = -dx / L, th = Math.atan2(nx, nz);
     const n = Math.max(1, Math.round(L / 3)), seg = L / n;
     const wide = field.clearance((x0 + x1) / 2 + nx * 0.8, (z0 + z1) / 2 + nz * 0.8, nx, nz, 12);
@@ -126,8 +126,9 @@ export function decorateEdges(b, edges, terrain, field, rng, noDecor = []) {
       for (const t of [t0 + 0.02, tm, t1 - 0.02]) g = Math.min(g, terrain.heightAt(x0 + dx * t + nx * 0.4, z0 + dz * t + nz * 0.4));
       const H = top - g;
       if (H < 1.5) continue;
+      b.objStack.push(`cephe:${ei}:${s}`);
       const ux = dx / L, uz = dz / L, fb = (y0, y1, hw = seg / 2 - 0.1, dep = 0.9) => frontBlocked(b, terrain, wx, wz, nx, nz, ux, uz, hw, dep, g + y0, g + y1);
-      if (fb(0.3, H - 0.2, seg / 2 - 0.05, 0.25)) continue;                                           // dilimin önü bir şeyle dolu: hiç süs yok (iç içe görünür)
+      if (fb(0.3, H - 0.2, seg / 2 - 0.05, 0.25)) { b.objStack.pop(); continue; }                     // dilimin önü bir şeyle dolu: hiç süs yok (iç içe görünür)
       const r = rng();
       b.with(wx, g, wz, th, () => {
         b.box(0, H - 0.45, 0.1, seg + 0.02, 0.3, 0.2, LIGHT, NC);                                        // korniş
@@ -136,21 +137,22 @@ export function decorateEdges(b, edges, terrain, field, rng, noDecor = []) {
         if (wide < 3.2 || seg < 2.4 || inNo(wx, wz)) return;
         const cOff = (s + 0.5) * seg, edgeOk = (need) => cOff >= need && L - cOff >= need;                // süs duvar ucundan yeterince içeride (köşede kesilmesin)
         if (H > 5.4 && r > 0.2 && r < 0.6 && edgeOk(1.35) && !fb(2.4, 5.0, 0.95, 1.0)) {                               // pencere
-          const wy = 3.0; OCC.push([wx, wz, 0.9]);
+          const wy = 3.0; OCC.push([wx, wz, 0.9]); b.objStack.push(`pencere:${ei}:${s}`);
           b.box(0, wy - 0.1, 0.04, 1.5, 2.1, 0.07, '#b69a68', NC);
           b.box(0, wy, 0.08, 1.1, 1.7, 0.06, rng() < 0.25 ? '#f0c46e' : '#232a31', NC);
           b.box(0, wy - 0.22, 0.18, 1.7, 0.14, 0.36, LIGHT, NC);
-          nWin++;
+          b.objStack.pop(); nWin++;
         } else if (H > 3.6 && r >= 0.6 && r < 0.76 && edgeOk(1.55) && !fb(0.2, 2.7, 1.1, 1.0)) {                        // kapı
-          const dc = DOOR[hsh % DOOR.length]; OCC.push([wx, wz, 1.1]);
+          const dc = DOOR[hsh % DOOR.length]; OCC.push([wx, wz, 1.1]); b.objStack.push(`süs-kapı:${ei}:${s}`);
           b.box(0, -0.35, 0.05, 2.0, 3.1, 0.08, '#9c7a4c', NC);
           b.box(0, -0.35, 0.1, 1.55, 2.75, 0.07, dc, NC);
           b.box(0, 2.4, 0.1, 2.3, 0.22, 0.18, LIGHT, NC);
-          nDoor++;
+          b.objStack.pop(); nDoor++;
         }
       });
+      b.objStack.pop();
     }
-  }
+  });
   return { nWin, nDoor };
 }
 
@@ -242,7 +244,7 @@ export function scatterPalms(b, terrain, field, avoid, rng, n = 10) {
     if (avoid.some(([ax, az, r]) => Math.hypot(ax - x, az - z) < r)) continue;
     if (picked.some(([px, pz]) => Math.hypot(px - x, pz - z) < 14)) continue;
     picked.push([x, z]);
-    palm(b, x, z, 0.9 + rng() * 0.35, terrain.heightAt(x, z) - 0.05);
+    b.obj('palmiye:' + picked.length, () => palm(b, x, z, 0.9 + rng() * 0.35, terrain.heightAt(x, z) - 0.05));
   }
   return picked;
 }
@@ -292,7 +294,7 @@ export function roofTunnels(b, terrain, field, regions) {
   // Tavan kotu: bölgedeki en yüksek zeminden 3,3 m. Satır koşuları aynı koşu dikey birleştirilir (az kutu).
   const C = 0.5;
   let n = 0;
-  for (const [x0, x1, z0, z1, dirX] of regions) {
+  for (const [x0, x1, z0, z1, dirX] of regions) b.obj('çatı:' + regions.findIndex((r) => r[0] === x0 && r[2] === z0), () => {
     let maxH = -1e9;
     const nx = Math.round((x1 - x0) / C), nz = Math.round((z1 - z0) / C), free = [];
     for (let j = 0; j < nz; j++) { free.push([]); for (let i = 0; i < nx; i++) { const x = x0 + (i + 0.5) * C, z = z0 + (j + 0.5) * C, f = !field.isSolid(x, z); free[j].push(f); if (f) maxH = Math.max(maxH, terrain.heightAt(x, z)); } }
@@ -314,7 +316,7 @@ export function roofTunnels(b, terrain, field, regions) {
         b.box(cx, by - 0.25, cz, dirX ? 0.3 : C + 0.02, 0.25, dirX ? C + 0.02 : 0.3, '#6e5a3c', { collide: false });
       }
     }
-  }
+  });
   return n;
 }
 
@@ -431,11 +433,13 @@ export function dishes(b, terrain, rects, rng, n = 34) {
   for (let t = 0; t < n * 6 && placed < n && cand.length; t++) {
     const [x0, z0, x1, z1, top] = cand[Math.floor(rng() * cand.length)];
     const cx = x0 + 1.0 + rng() * (x1 - x0 - 2.0), cz = z0 + 1.0 + rng() * (z1 - z0 - 2.0);
+    b.objStack.push('çanak:' + placed);
     b.with(cx, top, cz, rng() * Math.PI * 2, () => {
       b.cyl(0, 0, 0, 0.05, 0.05, 1.2, '#8a8f94', { seg: 5, collide: false });
       b.cyl(0.35, 1.5, 0, 0.9, 0.9, 0.1, '#e9e6dc', { seg: 12, collide: false, rz: 0.75 });
       b.box(0.55, 1.45, 0, 0.7, 0.05, 0.05, '#555a5f', NC);
     });
+    b.objStack.pop();
     placed++;
   }
 }
@@ -455,12 +459,14 @@ export function ads(b, terrain, edges, field, rng, n = 14, noDecor = []) {
     if (top - g < 5.2 || inNo(wx, wz) || !occFree(wx, wz, 2.2) || frontBlocked(b, terrain, wx, wz, nx, nz, dx / L, dz / L, 2.2, 0.8, g + 1.5, g + 4.7)) continue;
     OCC.push([wx, wz, 2.2]);
     const col = ['#e9e2d2', '#cfe3ee', '#efe0b8'][Math.floor(rng() * 3)], acc = ['#2d6fa8', '#b5402e', '#2f7a6e'][Math.floor(rng() * 3)];
+    b.objStack.push('pano:' + placed);
     b.with(wx, g, wz, Math.atan2(nx, nz), () => {
       b.box(0, 1.6, 0.04, 4.2, 3.0, 0.05, acc, NC);
       b.box(0, 1.75, 0.08, 3.8, 2.7, 0.04, col, NC);
       for (let k = 0; k < 4; k++) b.box(-0.2 + (k % 2) * 0.1, 3.2 - k * 0.42, 0.12, 2.6 - (k === 3 ? 1.1 : 0), 0.18, 0.03, '#3a3f45', NC);
       b.box(0.6, 1.95, 0.12, 1.5, 0.1, 0.03, '#b5402e', NC); b.box(1.2, 1.95, 0.12, 0.3, 0.3, 0.03, '#b5402e', { ...NC, rz: 0.8 });
     });
+    b.objStack.pop();
     placed++;
   }
 }
@@ -481,11 +487,13 @@ export function siteSign(b, terrain, edges, call, letter, noDecor = []) {
   }
   if (!best) return false;
   OCC.push([best.wx, best.wz, 2.1]);
+  b.objStack.push('tabela:' + letter);
   b.with(best.wx, best.g, best.wz, Math.atan2(best.nx, best.nz), () => {
     b.box(0, 1.4, 0.04, 4.0, 4.0, 0.1, '#2f7a6e', NC); b.box(0, 1.6, 0.1, 3.6, 3.6, 0.08, '#efe6cc', NC);
     const K = '#2b3036';
     if (letter === 'A') { b.box(-0.55, 2.1, 0.17, 0.4, 2.6, 0.06, K, { ...NC, rz: -0.28 }); b.box(0.55, 2.1, 0.17, 0.4, 2.6, 0.06, K, { ...NC, rz: 0.28 }); b.box(0, 2.0, 0.17, 1.1, 0.35, 0.06, K, NC); }
     else { b.box(-0.7, 2.1, 0.17, 0.4, 2.7, 0.06, K, NC); for (const y of [0, 1.15, 2.3]) b.box(0.05, 2.1 + y, 0.17, 1.4, 0.4, 0.06, K, NC); for (const y of [0.6, 1.75]) b.box(0.6, 2.25 + y - 0.15, 0.17, 0.4, 1.0, 0.06, K, NC); }
   });
+  b.objStack.pop();
   return true;
 }

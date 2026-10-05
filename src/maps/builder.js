@@ -26,7 +26,14 @@ export class MapBuilder {
     this.pendingVeh = [];
     this.vehicles = [];            // araç ayak izleri (dünya OBB): denetim için scripts/vehaudit.mjs
     this.stack = [new THREE.Matrix4()];
+    this.objStack = [];            // harita editörü: o an kurulan mantıksal nesnenin kimliği (obj()); yoksa her parça kendi otomatik kimliğini alır
+    this._autoN = 0; this._lastOid = null;
   }
+
+  // ── harita editörü desteği ──
+  // obj(id, fn): fn içinde eklenen tüm görsel parçalar ve çarpışma kutuları bu kimliği taşır (seç / sil / taşı / boyutla tek nesne olarak).
+  obj(id, fn) { this.objStack.push(id); try { return fn(); } finally { this.objStack.pop(); } }
+  get curOid() { return this.objStack.length ? this.objStack[this.objStack.length - 1] : null; }
 
   get M() { return this.stack[this.stack.length - 1]; }
 
@@ -43,6 +50,8 @@ export class MapBuilder {
     if (!b) { b = { color, o: o || {}, geos: [] }; this.buckets.set(key, b); }
     const g = geometry.index ? geometry.toNonIndexed() : geometry;
     g.applyMatrix4(this.M.clone().multiply(local));
+    g.userData.oid = this.curOid || 'parça:' + this._autoN++;
+    this._lastOid = g.userData.oid;
     g.deleteAttribute('uv');
     b.geos.push(g);
     return { g, key };
@@ -56,7 +65,7 @@ export class MapBuilder {
       mn[0] = Math.min(mn[0], _p.x); mn[1] = Math.min(mn[1], _p.y); mn[2] = Math.min(mn[2], _p.z);
       mx[0] = Math.max(mx[0], _p.x); mx[1] = Math.max(mx[1], _p.y); mx[2] = Math.max(mx[2], _p.z);
     }
-    this.colliders.push({ min: mn, max: mx, tag });
+    this.colliders.push({ min: mn, max: mx, tag, oid: this.curOid || this._lastOid || 'çarpışma:' + this._autoN++ });
   }
 
   _local(x, y, z, rx = 0, ry = 0, rz = 0, scale = _s) {
@@ -137,6 +146,7 @@ export class MapBuilder {
 
   // Yalnızca çarpışma kutusu (görünmez)
   collide(x, y, z, w, h, d, tag) {
+    this._lastOid = null;                                    // yalnız çarpışma: önceki görsel parçanın kimliğini almasın
     this._aabb(w, h, d, this._local(x, y + h / 2, z), tag);
   }
 
@@ -328,8 +338,44 @@ export class MapBuilder {
     }
   }
 
+  // Düzenlemeleri uygula (harita editörü çıktısı; kurulumun SONUNDA, build()'den önce — sunucu ve istemci aynı sonucu alır).
+  // e = { id, at:[x,y,z] (nesnenin ilk taban-merkezi, doğrulama), del?:true, d?:[dx,dy,dz], s?:[sx,sy,sz] }. Kimlik bulunamaz ya da konum 1,5 m'den
+  // fazla kaymışsa (harita verisi değişmiş) düzenleme atlanır ve this.editSkipped'e yazılır.
+  applyEdits(list) {
+    this.editSkipped ||= [];
+    if (!list || !list.length) return;
+    const geos = []; for (const b of this.buckets.values()) for (const g of b.geos) geos.push([b, g]);
+    for (const e of list) {
+      const cs = this.colliders.filter((c) => c.oid === e.id), gs = geos.filter(([, g]) => g.userData.oid === e.id);
+      if (!cs.length && !gs.length) { this.editSkipped.push(e.id + ' (yok)'); continue; }
+      const piv = MapBuilder.pivotOf(cs, gs.map(([, g]) => g));
+      if (e.at && Math.hypot(piv[0] - e.at[0], piv[1] - e.at[1], piv[2] - e.at[2]) > 1.5) { this.editSkipped.push(e.id + ' (konum değişmiş)'); continue; }
+      if (e.del) {
+        this.colliders = this.colliders.filter((c) => c.oid !== e.id);
+        for (const [b, g] of gs) b.geos.splice(b.geos.indexOf(g), 1);
+        continue;
+      }
+      const m = MapBuilder.editMatrix(piv, e.d, e.s);
+      for (const [, g] of gs) g.applyMatrix4(m);
+      for (const c of cs) MapBuilder.editBox(c, piv, e.d, e.s);
+    }
+  }
+  static pivotOf(cs, gs) {                                    // nesnenin taban-merkezi: çarpışma kutuları varsa onlardan (sunucu = istemci), yoksa görsel
+    const mn = [1e9, 1e9, 1e9], mx = [-1e9, -1e9, -1e9];
+    if (cs.length) for (const c of cs) for (let a = 0; a < 3; a++) { mn[a] = Math.min(mn[a], c.min[a]); mx[a] = Math.max(mx[a], c.max[a]); }
+    else for (const g of gs) { g.computeBoundingBox(); const bb = g.boundingBox; mn[0] = Math.min(mn[0], bb.min.x); mn[1] = Math.min(mn[1], bb.min.y); mn[2] = Math.min(mn[2], bb.min.z); mx[0] = Math.max(mx[0], bb.max.x); mx[1] = Math.max(mx[1], bb.max.y); mx[2] = Math.max(mx[2], bb.max.z); }
+    return [+((mn[0] + mx[0]) / 2).toFixed(3), +mn[1].toFixed(3), +((mn[2] + mx[2]) / 2).toFixed(3)];
+  }
+  static editMatrix(p, d = [0, 0, 0], s = [1, 1, 1]) {
+    return new THREE.Matrix4().makeTranslation(p[0] + d[0], p[1] + d[1], p[2] + d[2]).multiply(new THREE.Matrix4().makeScale(s[0], s[1], s[2])).multiply(new THREE.Matrix4().makeTranslation(-p[0], -p[1], -p[2]));
+  }
+  static editBox(c, p, d = [0, 0, 0], s = [1, 1, 1]) {
+    for (let a = 0; a < 3; a++) { const lo = p[a] + d[a] + (c.min[a] - p[a]) * s[a], hi = p[a] + d[a] + (c.max[a] - p[a]) * s[a]; c.min[a] = Math.min(lo, hi); c.max[a] = Math.max(lo, hi); }
+  }
+
   build() {
     this.flushVehicles();
+    if (MapBuilder.pendingEdits) this.applyEdits(MapBuilder.pendingEdits);
     if (MapBuilder.noVisual) return new THREE.Group();                 // sunucu: görsel geometri gerekmez (yalnızca çarpışma kutuları + yerleşim)
     if (MapBuilder.zfix) this.zfightReport = this.resolveZFight();
     const group = new THREE.Group();
@@ -347,22 +393,32 @@ export class MapBuilder {
         }
         continue;
       }
+      if (!b.geos.length) continue;
       const merged = mergeGeometries(b.geos, false);
       const mesh = new THREE.Mesh(merged, mat(b.color, { ...b.o }));
+      mesh.userData.ranges = MapBuilder.rangesOf(b.geos);
       mesh.castShadow = !b.o.transparent;
       mesh.receiveShadow = true;
       group.add(mesh);
     }
     if (plainGeos.length) {
       const merged = mergeGeometries(plainGeos, false);
+      const ranges = MapBuilder.rangesOf(plainGeos);
       const c32 = merged.attributes.color.array, c16 = new Uint16Array(c32.length);            // bellek: köşe rengi 12 → 6 bayt (yarım duyarlık)
       for (let i = 0; i < c32.length; i++) c16[i] = THREE.DataUtils.toHalfFloat(c32[i]);
       merged.setAttribute('color', new THREE.Float16BufferAttribute(c16, 3));
       const mesh = new THREE.Mesh(merged, VC_MAP);
+      mesh.userData.ranges = ranges;
       mesh.castShadow = true; mesh.receiveShadow = true;
       group.add(mesh);
     }
     return group;
+  }
+  // birleşik ağda her parçanın köşe aralığı: [{oid, start, count}] (editör: üçgen → nesne kimliği, nesnenin köşeleri)
+  static rangesOf(geos) {
+    const out = []; let at = 0;
+    for (const g of geos) { const n = g.attributes.position.count; out.push({ oid: g.userData.oid, start: at, count: n }); at += n; }
+    return out;
   }
 }
 
@@ -370,3 +426,4 @@ export class MapBuilder {
 MapBuilder.zfix = typeof window !== 'undefined';
 MapBuilder.zsite = null;
 MapBuilder.noVisual = false;       // true: build() görsel geometriyi birleştirmez (sunucu belleği)
+MapBuilder.pendingEdits = null;    // harita editörü (geliştirici modu, yerel): sonraki build()'de uygulanacak düzenlemeler
