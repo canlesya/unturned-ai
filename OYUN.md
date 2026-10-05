@@ -792,3 +792,7 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 
 ### 12.50 Çöl Geçidi: köprü / kemer ince ayarı
 - Kullanıcı fotoğraf+not yöntemi: kemerin kuzey yarısı CT'deki kolona kadar dolu duvar (`COL_N` = −43,35, kolonun kuzey yüzü; ön yüz ahşap çerçeveyle aynı hizada, üst üste binmez); kemerin güney direği ile güney bina arasındaki yarık kapatıldı; köprünün batı duvarı yarıya indi (tabliyeden 6,9 → 3,4 m: göz hizası 1,6 m, Short'tan gelen üstünden görünür).
+
+### 12.51 Çöl Geçidi: köprü altı boş, kemer cephe duvarı, doğu korkuluk alçak
+- Köprü altı yeniden tamamen boş (kolon arası + kuzeyi dolgu kaldırıldı). Kemerin kuzey yarısı yalnız ince cephe duvarı (x 22,83–23,28, ahşap çerçeveyle aynı hizada, z −52,2 … −43,35 = CT'deki kolonun kuzey yüzü), tabliye altına kadar.
+- Köprünün doğu korkuluğu 1,7 → 0,95 m (A platosu parapetiyle aynı yükseklik). Batı duvarı tabliyeden 3,4 m.
