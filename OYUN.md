@@ -778,3 +778,14 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 - **Xbox**: Mid → catwalk 3 sandıkla sıçranarak (rampa kaldırıldı; botlar Short'a dolaşarak gider).
 - **Kasalar**: döndürülmüş kasa çarpışması n×n alt kutu (eski tek AABB kasadan çok büyüktü); iç içe kasalar yığılır / atılır; binaya giren kasalar dışarı itilir (16) ya da atılır (5).
 - **Süs çakışması**: cephe süsü en son kurulur; önü dolu (başka bina, kapı, çatı, köprü, kat kenarı, sandık, yükselen zemin) dilime kaide / pencere / kapı / tente / pano / tabela konmaz (`frontBlocked`), süsler birbirine binmez (`OCC`).
+
+### 12.49 Çöl Geçidi: sistematik tarama + kök neden düzeltmeleri (kat kenarı, süs, kasa, Pit, köprü)
+- **Yöntem**: `scripts/cgsweep.mjs` (yürünebilir noktalardan 4 yöne kare, SPACING m aralık) → `scripts/cgsheets.py` / `cgregions.py` (etiketli kontak sayfaları, bölge gruplu) → alt ajanlar bölge bölge inceler. İki tam tur (138 + 93 nokta) yapıldı; ikinci turda ağır hata sayısı 0.
+- **Kat kenarları** (`dust2_extract.py`): zincirleme + `CL` 0,3; her duvar parçasının tepesi DÜZ (parçadaki en yüksek üst kot); çarpışma = görsel; 0,9 m altı basamaklar yalnız ≥ 3 m ve eksene hizalıysa duvar olur (çapraz / kısa şeritler zemine yatmış levha gibi görünüyordu). Alçak basamak duvarı kum rengi, üst şeritsiz. Zemin rengi: yalnız eğim > 1,5'te taş tonu.
+- **Pit**: özel kutu yerine standart istinat duvarı + 0,7 m korkuluk (`extra()`); çarpışma/görsel aynı yükseklik.
+- **Süs** (`decorateEdges`): kaide şeridi (çıkıntı) kaldırıldı; hangings (ip/flama) ve tenteler kaldırıldı; pencere/kapı/pano duvar ucundan ≥ 1,35–2,7 m içeride; çatılı tüneller, Long odası ve kapı çevresi `NODECOR` (süs yok); varil bandı halka.
+- **Binalar**: bileşen başına tek tepe kotu (karo sınırında dikiş yok), bileşen başına tek renk.
+- **Kasalar**: bina/kat kenarı/kasa-kasa çakışması çözülür (1 m'lik pay 0,2 m); `obbCollide`.
+- **Köprü** yeniden yazıldı (tek yapı: batı duvarı, 1,7 m doğu korkuluğu, orta ayaklar, kuzey ucu dolu, doğu yüzünde dikdörtgen ahşap çerçeve).
+- **B doğu duvarı** tek temiz duvar (`OVERRIDE_CARVE 'hard'` + `OVERRIDE_FILL`), çerçevesiz düz pencere açıklığı; Window tarafında kum yığını.
+- Bilinen: Xbox ↔ Short botlar için dolambaçlı (catwalk'a 3 sandıkla çıkış yalnız oyuncu); CT Spawn ↔ Elevator botlar için uzun.

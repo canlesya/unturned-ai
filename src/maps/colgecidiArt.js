@@ -51,7 +51,7 @@ export function polyColorAt(polys, x, z) {                                      
   for (let k = 0; k < polys.length; k++) {
     const f = polys[k][2][0]; let inside = false;
     for (let i = 0, j = f.length - 2; i < f.length; j = i, i += 2) if ((f[i + 1] > z) !== (f[j + 1] > z) && x < ((f[j] - f[i]) * (z - f[i + 1])) / (f[j + 1] - f[i + 1]) + f[i]) inside = !inside;
-    if (inside) return [WALLC[k % WALLC.length], polys[k][0]];
+    if (inside) return [WALLC[(polys[k][3] ?? k) % WALLC.length], polys[k][0]];
   }
   return [WALLC[0], null];
 }
@@ -60,7 +60,7 @@ export function buildPolys(b, polys) {
   for (let k = 0; k < polys.length; k++) {
     const [top, base, rings] = polys[k];
     const R = rings.map((f) => { const a = []; for (let i = 0; i < f.length; i += 2) a.push([f[i], f[i + 1]]); return a; });
-    const col = WALLC[k % WALLC.length], roof = DARK(col, 0.82);
+    const col = WALLC[(polys[k][3] ?? k) % WALLC.length], roof = DARK(col, 0.82);
     const pos = [], nor = [];
     const tri = (a, n) => { for (const v of a) pos.push(v[0], v[1], v[2]); for (let i = 0; i < 3; i++) nor.push(n[0], n[1], n[2]); };
     for (const ring of R) for (let i = 0; i < ring.length; i++) {
@@ -93,22 +93,6 @@ export function buildPolys(b, polys) {
   }
 }
 
-// ── istinat duvarı (görsel): p0→p1 çizgisi boyunca, normal × side yönünde uLow (alçak taraf yüzü) ile uHigh (üst kata gömülü) arası,
-//    alt kot sabit, üst kot uçlar arasında doğrusal (rampa kenarında eğik). capMode: alt kot da doğrusal (y0a→y0b) ve üst (y1a→y1b) — kenar şeridi.
-export function cliffWall(b, x0, z0, x1, z1, side, uLow, uHigh, ya, yb, yc, yd, color, capMode = false) {
-  const L = Math.hypot(x1 - x0, z1 - z0); if (L < 1e-6) return;
-  const dx = (x1 - x0) / L, dz = (z1 - z0) / L, nx = (dz) * side, nz = (-dx) * side;
-  const g = new THREE.BoxGeometry(1, 1, 1).toNonIndexed(), P = g.attributes.position, N = g.attributes.normal, sg = Math.sign(uLow - uHigh);
-  for (let i = 0; i < P.count; i++) {
-    const t = P.getX(i) + 0.5, u = uHigh + (P.getZ(i) + 0.5) * (uLow - uHigh), up = P.getY(i) > 0;
-    const y = capMode ? (up ? yc + (yd - yc) * t : ya + (yb - ya) * t) : (up ? yb + (yc - yb) * t : ya);
-    P.setXYZ(i, x0 + dx * t * L + nx * u, y, z0 + dz * t * L + nz * u);
-    const a = N.getX(i), bb = N.getY(i), c = N.getZ(i);                         // düz gölge: yüz normali kutunun dönüşüyle (eğik tepe olsa da yüzler düz görünür)
-    N.setXYZ(i, a * dx + c * sg * nx, bb, a * dz + c * sg * nz);
-  }
-  b.addGeo(g, color, new THREE.Matrix4());
-}
-
 // ── cephe süsü (tek tip): her çokgen kenarı ~3 m'lik dilimlere bölünür; kaide, korniş, duvar tepesi şeridi her dilimde; kiriş uçları korniş altında,
 //    pencere / kapı / tente yalnız geniş sokaklarda. Hepsi duvar yüzüne yapışık (yerel z ≥ 0), yükseklikler duvar tepesine göre.
 // cephenin önü dolu mu: kenar orta noktası (wx, wz), normal (nx, nz), kenar yönü (dx, dz); yarım genişlik hw, derinlik dep, kot y0..y1.
@@ -125,8 +109,9 @@ function frontBlocked(b, terrain, wx, wz, nx, nz, dx, dz, hw, dep, y0, y1) {
 }
 export const OCC = [];                                                            // cephede dolu yerler (pencere / kapı / tente / pano): üst üste binmesin
 const occFree = (x, z, r) => OCC.every((q) => Math.hypot(q[0] - x, q[1] - z) >= r + q[2]);
-export function decorateEdges(b, edges, terrain, field, rng) {
-  const NC = { collide: false }, BASE = '#a88a5c', LIGHT = '#e2c995', COPE = '#c9ad78', BEAM = '#7a5b3a';
+export function decorateEdges(b, edges, terrain, field, rng, noDecor = []) {
+  const inNo = (x, z) => noDecor.some(([a, c, d, e]) => x >= a && x <= d && z >= c && z <= e);
+  const NC = { collide: false }, LIGHT = '#e2c995', COPE = '#c9ad78', BEAM = '#7a5b3a';
   let nWin = 0, nDoor = 0;
   OCC.length = 0;
   for (const [x0, z0, x1, z1, top] of edges) {
@@ -145,26 +130,23 @@ export function decorateEdges(b, edges, terrain, field, rng) {
       if (fb(0.3, H - 0.2, seg / 2 - 0.05, 0.25)) continue;                                           // dilimin önü bir şeyle dolu: hiç süs yok (iç içe görünür)
       const r = rng();
       b.with(wx, g, wz, th, () => {
-        b.box(0, -0.4, 0.015, seg + 0.02, 1.35, 0.03, BASE, NC);                                        // kaide (duvarla düz renk bandı; çıkıntı yok)
         b.box(0, H - 0.45, 0.1, seg + 0.02, 0.3, 0.2, LIGHT, NC);                                        // korniş
         b.box(0, H - 0.02, -0.18, seg + 0.04, 0.14, 0.46, COPE, NC);                                     // duvar tepesi şeridi
         if (H > 4.6 && seg > 2.2 && r < 0.38 && !fb(H - 1.0, H - 0.5, 1.1, 0.6)) for (const k of [-1, 0, 1]) b.box(k * 0.9, H - 0.85, 0.25, 0.2, 0.2, 0.5, BEAM, NC);   // kiriş uçları
-        if (wide < 3.2 || seg < 2.4) return;
-        if (H > 5.4 && r > 0.2 && r < 0.6 && !fb(2.4, 5.0, 0.95, 1.0)) {                               // pencere
+        if (wide < 3.2 || seg < 2.4 || inNo(wx, wz)) return;
+        const cOff = (s + 0.5) * seg, edgeOk = (need) => cOff >= need && L - cOff >= need;                // süs duvar ucundan yeterince içeride (köşede kesilmesin)
+        if (H > 5.4 && r > 0.2 && r < 0.6 && edgeOk(1.35) && !fb(2.4, 5.0, 0.95, 1.0)) {                               // pencere
           const wy = 3.0; OCC.push([wx, wz, 0.9]);
           b.box(0, wy - 0.1, 0.04, 1.5, 2.1, 0.07, '#b69a68', NC);
           b.box(0, wy, 0.08, 1.1, 1.7, 0.06, rng() < 0.25 ? '#f0c46e' : '#232a31', NC);
           b.box(0, wy - 0.22, 0.18, 1.7, 0.14, 0.36, LIGHT, NC);
           nWin++;
-        } else if (H > 3.6 && r >= 0.6 && r < 0.76 && !fb(0.2, 2.7, 1.1, 1.0)) {                        // kapı
+        } else if (H > 3.6 && r >= 0.6 && r < 0.76 && edgeOk(1.55) && !fb(0.2, 2.7, 1.1, 1.0)) {                        // kapı
           const dc = DOOR[hsh % DOOR.length]; OCC.push([wx, wz, 1.1]);
           b.box(0, -0.35, 0.05, 2.0, 3.1, 0.08, '#9c7a4c', NC);
           b.box(0, -0.35, 0.1, 1.55, 2.75, 0.07, dc, NC);
           b.box(0, 2.4, 0.1, 2.3, 0.22, 0.18, LIGHT, NC);
           nDoor++;
-        } else if (wide >= 5 && seg > 2.8 && H > 4 && r >= 0.76 && r < 0.86 && !fb(2.6, 3.6, seg / 2, 1.5)) {   // tente
-          const [c1, c2] = AWN[hsh % AWN.length]; OCC.push([wx, wz, seg / 2]);
-          b.with(0, 3.0, 0.05, 0, () => { for (let k = -3; k <= 3; k++) b.box(k * (seg / 7), 0, 0.7, seg / 7 + 0.01, 0.07, 1.4, k % 2 ? c2 : c1, { ...NC, rx: 0.3 }); });
         }
       });
     }
@@ -189,7 +171,7 @@ export function floorColor(field, D) {
     const dw = field.dist(x, z);                                                                       // duvar dibi: koyulaşma
     if (dw < 2.6) c.multiplyScalar(0.74 + 0.26 * (dw / 2.6));
     if (slope > 0.22) c.multiplyScalar(0.92);
-    if (slope > 1.0) { c.copy(ledge).lerp(ledgeD, Math.min(1, (slope - 1) * 0.4)); c.multiplyScalar(0.92 + 0.12 * n); }        // kat kenarı (istinat duvarı): taş sıva
+    if (slope > 1.5) { c.copy(ledge).lerp(ledgeD, Math.min(1, (slope - 1.5) * 0.4)); c.multiplyScalar(0.92 + 0.12 * n); }        // kat kenarı (istinat duvarı): taş sıva
   };
 }
 
@@ -198,7 +180,7 @@ const CRATE = ['#9b7a4a', '#8a6a3f', '#a6834f'], CONT = ['#2f6a9a', '#a0522d', '
 // döndürülmüş kasanın çarpışması: tek dev AABB yerine n×n alt kutunun AABB'leri (kasa şeklini izler)
 export function obbCollide(b, cx, y, cz, w, h, d, ry, tag = 'prop') {
   const a = Math.abs(((ry % (Math.PI / 2)) + Math.PI / 2) % (Math.PI / 2)), skew = Math.min(a, Math.PI / 2 - a);
-  const n = skew < 0.05 ? 1 : Math.max(2, Math.min(6, Math.ceil(Math.max(w, d) / 0.6)));
+  const n = skew < 0.05 ? 1 : Math.max(2, Math.min(5, Math.ceil(Math.max(w, d) / 0.6)));
   b.with(cx, y, cz, ry, () => { for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) b.collide(-w / 2 + (i + 0.5) * w / n, 0, -d / 2 + (j + 0.5) * d / n, w / n, h, d / n, tag); });
 }
 export function propBox(b, terrain, i, [cx, cz, w, d, ry, h, yoff = 0], colorOverride = null) {
@@ -209,7 +191,7 @@ export function propBox(b, terrain, i, [cx, cz, w, d, ry, h, yoff = 0], colorOve
   const area = w * d;
   if (area < 1.5 && Math.max(w, d) < 1.3) {                                           // fıçı
     b.cyl(cx, lo - 0.05, cz, Math.min(w, d) / 2, Math.min(w, d) / 2, h + 0.05, i % 2 ? '#7d5a36' : '#9a3b2b', { seg: 10 });
-    b.with(cx, lo, cz, 0, () => { b.box(0, h * 0.35, 0, Math.min(w, d) + 0.06, 0.07, Math.min(w, d) + 0.06, '#3a3a3a', NC); b.box(0, h * 0.7, 0, Math.min(w, d) + 0.06, 0.07, Math.min(w, d) + 0.06, '#3a3a3a', NC); });
+    for (const f of [0.3, 0.68]) b.cyl(cx, lo + h * f, cz, Math.min(w, d) / 2 + 0.025, Math.min(w, d) / 2 + 0.025, 0.07, '#3a3a3a', { seg: 10, collide: false });          // bant: halka
     return;
   }
   const base = colorOverride || (h >= 2.5 ? CONT[i % CONT.length] : CRATE[i % CRATE.length]);
@@ -306,18 +288,31 @@ export function buildSurround(b, rng) {
 
 // ── çatılı tüneller: bölge dikdörtgenleri içindeki serbest 2 m'lik hücrelere tavan + kemer kirişleri (tavan çarpışmalı, nav'ı etkilemez) ──
 export function roofTunnels(b, terrain, field, regions) {
-  // Kapalı tavan: 0,5 m hücreler, her hücrenin altı kendi zemininden 3,5 m yukarıda, üstü bölge boyunca düz (tavan) → arada boşluk / basamak kalmaz.
-  // Satır boyunca aynı alt kotlu hücreler tek kutuda birleşir. Duvar içine taşan hücreler sorun değil (duvar daha yüksek).
+  // Düz tavan: bölge içinde yalnızca SERBEST hücreler (+ komşu duvara 1 hücre taşan bindirme) kaplanır → tavan iki duvar arasında kalır, dışarı taşmaz.
+  // Tavan kotu: bölgedeki en yüksek zeminden 3,3 m. Satır koşuları aynı koşu dikey birleştirilir (az kutu).
   const C = 0.5;
   let n = 0;
   for (const [x0, x1, z0, z1, dirX] of regions) {
     let maxH = -1e9;
-    for (let x = x0; x <= x1; x += C) for (let z = z0; z <= z1; z += C) if (!field.isSolid(x, z)) maxH = Math.max(maxH, terrain.heightAt(x, z));
-    const by = maxH + 3.3;                                                     // tek düz tavan: bölgenin en yüksek zemininden 3,3 m (basamaklı tavan yok)
-    b.box((x0 + x1) / 2, by, (z0 + z1) / 2, x1 - x0, 0.5, z1 - z0, '#8a7551', { tag: 'roof' }); n++;
-    for (let t = (dirX ? x0 : z0) + 1.5; t < (dirX ? x1 : z1) - 1; t += 3) {      // tavan kirişleri (tavana yapışık)
-      if (dirX) b.box(t, by - 0.25, (z0 + z1) / 2, 0.3, 0.25, z1 - z0, '#6e5a3c', { collide: false });
-      else b.box((x0 + x1) / 2, by - 0.25, t, x1 - x0, 0.25, 0.3, '#6e5a3c', { collide: false });
+    const nx = Math.round((x1 - x0) / C), nz = Math.round((z1 - z0) / C), free = [];
+    for (let j = 0; j < nz; j++) { free.push([]); for (let i = 0; i < nx; i++) { const x = x0 + (i + 0.5) * C, z = z0 + (j + 0.5) * C, f = !field.isSolid(x, z); free[j].push(f); if (f) maxH = Math.max(maxH, terrain.heightAt(x, z)); } }
+    const by = maxH + 3.3;
+    const cover = free.map((row, j) => row.map((f, i) => f || (i > 0 && row[i - 1]) || (i < nx - 1 && row[i + 1]) || (j > 0 && free[j - 1][i]) || (j < nz - 1 && free[j + 1][i])));   // 1 hücre bindirme
+    const used = cover.map((r) => r.map(() => false));
+    for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+      if (!cover[j][i] || used[j][i]) continue;
+      let i2 = i; while (i2 + 1 < nx && cover[j][i2 + 1] && !used[j][i2 + 1]) i2++;
+      let j2 = j; while (j2 + 1 < nz && (() => { for (let k = i; k <= i2; k++) if (!cover[j2 + 1][k] || used[j2 + 1][k]) return false; return true; })()) j2++;
+      for (let jj = j; jj <= j2; jj++) for (let ii = i; ii <= i2; ii++) used[jj][ii] = true;
+      b.box(x0 + (i + i2 + 1) * C / 2, by, z0 + (j + j2 + 1) * C / 2, (i2 - i + 1) * C, 0.5, (j2 - j + 1) * C, '#8a7551', { tag: 'roof' }); n++;
+    }
+    for (let t = (dirX ? x0 : z0) + 1.5; t < (dirX ? x1 : z1) - 1; t += 3) {                                  // tavan kirişleri (yalnız serbest hücre koşularında)
+      for (let u = 0; u < (dirX ? nz : nx); u++) {
+        const i = dirX ? Math.floor((t - x0) / C) : u, j = dirX ? u : Math.floor((t - z0) / C);
+        if (!free[j]?.[i]) continue;
+        const cx = x0 + (i + 0.5) * C, cz = z0 + (j + 0.5) * C;
+        b.box(cx, by - 0.25, cz, dirX ? 0.3 : C + 0.02, 0.25, dirX ? C + 0.02 : 0.3, '#6e5a3c', { collide: false });
+      }
     }
   }
   return n;
@@ -446,17 +441,18 @@ export function dishes(b, terrain, rects, rng, n = 34) {
 }
 
 // ── duvar reklamı (mavi çerçeveli beyaz pano + kırmızı ok) ──
-export function ads(b, terrain, edges, field, rng, n = 14) {
+export function ads(b, terrain, edges, field, rng, n = 14, noDecor = []) {
+  const inNo = (x, z) => noDecor.some(([a, c, d, e]) => x >= a && x <= d && z >= c && z <= e);
   const NC = { collide: false };
-  const cand = edges.filter(([x0, z0, x1, z1]) => Math.hypot(x1 - x0, z1 - z0) >= 5.5);
+  const cand = edges.filter(([x0, z0, x1, z1]) => Math.hypot(x1 - x0, z1 - z0) >= 6.0);
   let placed = 0;
   for (let t = 0; t < n * 12 && placed < n && cand.length; t++) {
     const [x0, z0, x1, z1, top] = cand[Math.floor(rng() * cand.length)];
-    const dx = x1 - x0, dz = z1 - z0, L = Math.hypot(dx, dz), nx = dz / L, nz = -dx / L, tt = (1.8 + rng() * (L - 3.6)) / L;
+    const dx = x1 - x0, dz = z1 - z0, L = Math.hypot(dx, dz), nx = dz / L, nz = -dx / L, tt = (2.7 + rng() * (L - 5.4)) / L;
     const wx = x0 + dx * tt, wz = z0 + dz * tt;
     if (field.clearance(wx + nx * 0.6, wz + nz * 0.6, nx, nz, 12) < 4) continue;
     const g = terrain.heightAt(wx + nx * 0.4, wz + nz * 0.4);
-    if (top - g < 5.2 || !occFree(wx, wz, 2.2) || frontBlocked(b, terrain, wx, wz, nx, nz, dx / L, dz / L, 2.2, 0.8, g + 1.5, g + 4.7)) continue;
+    if (top - g < 5.2 || inNo(wx, wz) || !occFree(wx, wz, 2.2) || frontBlocked(b, terrain, wx, wz, nx, nz, dx / L, dz / L, 2.2, 0.8, g + 1.5, g + 4.7)) continue;
     OCC.push([wx, wz, 2.2]);
     const col = ['#e9e2d2', '#cfe3ee', '#efe0b8'][Math.floor(rng() * 3)], acc = ['#2d6fa8', '#b5402e', '#2f7a6e'][Math.floor(rng() * 3)];
     b.with(wx, g, wz, Math.atan2(nx, nz), () => {
@@ -470,16 +466,17 @@ export function ads(b, terrain, edges, field, rng, n = 14) {
 }
 
 // ── saha tabelası: duvara büyük harf (A / B) ──
-export function siteSign(b, terrain, edges, call, letter) {
+export function siteSign(b, terrain, edges, call, letter, noDecor = []) {
+  const inNo = (x, z) => noDecor.some(([a, c, d, e]) => x >= a && x <= d && z >= c && z <= e);
   const NC = { collide: false };
   let best = null, bs = -1e9;
   for (const [x0, z0, x1, z1, top] of edges) {
     const dx = x1 - x0, dz = z1 - z0, L = Math.hypot(dx, dz);
-    if (L < 4) continue;
+    if (L < 5.5) continue;
     const nx = dz / L, nz = -dx / L, wx = (x0 + x1) / 2, wz = (z0 + z1) / 2, ex = call.x - wx, ez = call.z - wz, dist = Math.hypot(ex, ez);
     if (dist > 16 || (ex * nx + ez * nz) / (dist + 1e-6) < 0.7) continue;
     const g = terrain.heightAt(wx + nx * 0.4, wz + nz * 0.4);
-    if (top - g < 5.5 || !occFree(wx, wz, 2.1) || frontBlocked(b, terrain, wx, wz, nx, nz, dx / L, dz / L, 2.1, 0.8, g + 1.3, g + 5.5)) continue;
+    if (top - g < 5.5 || inNo(wx, wz) || !occFree(wx, wz, 2.1) || frontBlocked(b, terrain, wx, wz, nx, nz, dx / L, dz / L, 2.1, 0.8, g + 1.3, g + 5.5)) continue;
     const sc = -dist + L * 0.3; if (sc > bs) { bs = sc; best = { wx, wz, nx, nz, g }; }
   }
   if (!best) return false;
