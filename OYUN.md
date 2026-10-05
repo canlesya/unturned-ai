@@ -874,3 +874,6 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 
 ### 12.72 Harita editörü: kayıtlı düzenlemeyle panel boş açılıyordu
 - Kayıtta yalnız değişen alanlar tutuluyor (`d` ya da `s` olmayabilir); yeniden yüklemede eksik alan okununca `render()` çöküyor, panel boş kutu kalıyordu (yalnız taşıma ya da yalnız boyut kaydında; testim ikisini birlikte yaptığı için yakalamadı). Yüklemede eksikler tamamlanıyor; panel çizimi hata verirse panelde hata mesajı + "Tümünü sıfırla". `scripts/editorload.mjs` üç kayıt türüyle denetler (eski kodda HATA verir).
+
+### 12.73 Harita editörü: kayıtlı düzenlemeleri tek tek geri alma
+- "Geri al" yalnız o oturumdaki işlemleri bilir; önceki oturumdan kalan (tarayıcıda kayıtlı) düzenlemeler panelde liste olarak görünür, her birinin yanında ↶ (kayıttan çıkarır) ve "Haritayı yeniden yükle" düğmesi (`game.restart()`). "Tümünü sıfırla" kaydı silip haritayı hemen yeniden yükler. Oturumda geri alınacak yoksa ne yapılacağını söyleyen uyarı. Test: `scripts/editorrevert.mjs` (havaya kaldırılmış palmiye kayıtla havada → ↶ → yeniden yükle → yerinde; sıfırla).

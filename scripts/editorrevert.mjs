@@ -1,0 +1,33 @@
+// Harita editörü: kayıtlı (önceki oturum) düzenlemeleri listeden tek tek geri alma + haritayı yeniden yükleme + tümünü sıfırla.  node scripts/editorrevert.mjs
+import { chromium } from 'playwright';
+const b = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const p = await b.newPage({ viewport: { width: 1280, height: 720 } });
+const errs = []; p.on('pageerror', (e) => errs.push(e.message));
+let fail = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'HATA ') + m); if (!c) fail++; };
+const URL = 'http://127.0.0.1:5180/?autostart=3v3&map=colgecidi&type=tdm&dev=1&debug=1&nolock=1';
+const ready = async () => { await p.waitForFunction('window.__game && window.__game.running && window.__game.mapEditor', null, { timeout: 120000 }); await p.waitForTimeout(800); };
+// palmiye kimliği + taban-merkezi (gerçek haritadan)
+await p.goto(URL); await ready();
+const palm = await p.evaluate(() => { const e = window.__game.mapEditor; const id = [...e.ranges.keys()].find((k) => k.startsWith('palmiye:')); return { id, at: e.pivot(id) }; });
+const saved = [{ id: palm.id, at: palm.at, d: [0, 3, 0] }, { id: 'kenar:18', at: [-1.413, -0.35, -11.742], s: [1.1, 1.1, 1.1] }, { id: 'kasa:3', del: true }];
+await p.evaluate((v) => localStorage.setItem('warbyte.harita-duzenleme.colgecidi', JSON.stringify(v)), saved);
+await p.goto(URL); await ready();
+const y0 = await p.evaluate((id) => window.__game.mapEditor.bbox(id).min.y, palm.id);
+ok(y0 > palm.at[1] + 2.5, `palmiye kayıtlı düzenlemeyle havada (taban ${y0.toFixed(2)}, olması gereken ${palm.at[1]})`);
+await p.keyboard.press('KeyI'); await p.waitForTimeout(250);
+ok((await p.$$('#med .ed')).length === 3, 'panelde 3 kayıtlı düzenleme listelendi');
+await p.keyboard.press('Backspace'); await p.waitForTimeout(150);
+await p.click(`#med button[data-c=revert][data-id="${palm.id}"]`); await p.waitForTimeout(200);
+ok(await p.isVisible('#med button[data-c=reload]'), '"Haritayı yeniden yükle" düğmesi çıktı');
+ok(await p.evaluate(() => JSON.parse(localStorage.getItem('warbyte.harita-duzenleme.colgecidi')).length === 2), 'palmiye düzenlemesi kayıttan çıktı (2 kaldı)');
+await p.screenshot({ path: 'screenshots/editor-revert.png' });
+await p.click('#med button[data-c=reload]');
+await p.waitForTimeout(500); await ready();
+const y1 = await p.evaluate((id) => window.__game.mapEditor.bbox(id).min.y, palm.id);
+ok(Math.abs(y1 - palm.at[1]) < 0.3, `yeniden yüklemede palmiye yerinde (taban ${y1.toFixed(2)})`);
+await p.evaluate(() => { window.confirm = () => true; });
+await p.keyboard.press('KeyI'); await p.waitForTimeout(200);
+await p.click('#med button[data-c=reset]'); await p.waitForTimeout(500); await ready();
+ok(await p.evaluate(() => window.__game.mapEditor.edits.size === 0 && !JSON.parse(localStorage.getItem('warbyte.harita-duzenleme.colgecidi') || '[]').length), 'tümünü sıfırla: kayıt boş, harita yeniden yüklendi');
+console.log(fail ? `sonuç: HATA (${fail})` : 'sonuç: OK', 'sayfa hatası', errs.length, errs.slice(0, 2));
+await b.close();

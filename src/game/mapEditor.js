@@ -26,6 +26,11 @@ const CSS = `
 #med button.hot{background:linear-gradient(100deg,#ffb347,#ff7a12);color:#160a02}
 #med textarea{width:100%;height:70px;margin-top:6px;background:#0d1219;color:#cfe6ff;border:1px solid rgba(255,255,255,.15);font:11px Consolas,monospace;display:none}
 #med .w{color:#ff9a88;font-size:11.5px}
+#med .list{max-height:150px;overflow-y:auto;margin-top:6px;border-top:1px solid rgba(255,255,255,.1);padding-top:4px}
+#med .ed{display:flex;align-items:center;gap:6px;font-size:11.5px;padding:2px 0}
+#med .ed span{flex:1;opacity:.85;word-break:break-all}
+#med .ed button{padding:2px 7px}
+#med .rl{background:#2f7a4a}
 `;
 
 export class MapEditor {
@@ -38,7 +43,7 @@ export class MapEditor {
     const st = (this.st = document.createElement('style')); st.textContent = CSS; document.head.appendChild(st);
     const el = (this.el = document.createElement('div')); el.id = 'med'; game.hud.root.appendChild(el);
     el.addEventListener('mousedown', (e) => e.stopPropagation());
-    el.addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) this.cmd(b.dataset.c); });
+    el.addEventListener('click', (e) => { const b = e.target.closest('button'); if (b && !b.disabled) this.cmd(b.dataset.c, b.dataset.id); });
     this.boxSel = new THREE.Box3Helper(new THREE.Box3(), 0xffa62b); this.boxHov = new THREE.Box3Helper(new THREE.Box3(), 0x9fd0ff);
     for (const h of [this.boxSel, this.boxHov]) { h.visible = false; h.material.depthTest = false; h.renderOrder = 999; game.scene.add(h); }
     this._k = (e) => this.onKey(e); this._m = (e) => this.onMouse(e);
@@ -124,7 +129,7 @@ export class MapEditor {
     for (const c of this.colsOf(id)) MapBuilder.editBox(c, p, [0, 0, 0], f);
     this.g.world.reindex(); this.save(); this.select(id);
   }
-  undoLast() { const sn = this.undo.pop(); if (!sn) { this.g.hud.toast('Geri alınacak bir şey yok'); return; } this.restore(sn); this.select(this.edits.get(sn.id)?.del ? null : sn.id); this.g.hud.toast('Geri alındı: ' + sn.id, '#cfe6ff'); }
+  undoLast() { const sn = this.undo.pop(); if (!sn) { this.g.hud.toast(this.edits.size ? 'Bu oturumda geri alınacak işlem yok · kayıtlı düzenlemeleri paneldeki listeden ↶ ile tek tek geri al' : 'Geri alınacak bir şey yok', '#ffd27a'); return; } this.restore(sn); this.select(this.edits.get(sn.id)?.del ? null : sn.id); this.g.hud.toast('Geri alındı: ' + sn.id, '#cfe6ff'); }
 
   list() { return [...this.edits.values()].map((e) => { const o = { id: e.id, at: e.at }; if (e.del) o.del = true; else { if (e.d.some((x) => x)) o.d = e.d; if (e.s.some((x) => x !== 1)) o.s = e.s; } return o; }).filter((o) => o.del || o.d || o.s); }
   save() { try { localStorage.setItem(KEY(this.mapId), JSON.stringify(this.list())); } catch { /* yer yok */ } this.render(); }
@@ -137,12 +142,14 @@ export class MapEditor {
     this.copyText = text; this.render(); const ta = this.el.querySelector('textarea'); if (ta) ta.select();
     (navigator.clipboard?.writeText(text) || Promise.reject()).then(() => this.g.hud.toast(what + ' kopyalandı · bana yapıştır', '#9be07f'), () => { try { document.execCommand('copy'); this.g.hud.toast(what + ' kopyalandı', '#9be07f'); } catch { this.g.hud.toast('Kopyalanamadı: paneldeki metni seçip Ctrl+C', '#ffd27a'); } });
   }
-  cmd(c) {
+  cmd(c, id) {
+    if (c === 'revert' && id) { this.edits.delete(id); this.undo = this.undo.filter((u) => u.id !== id); this.needReload = true; this.save(); this.g.hud.toast(id + ' eski hâline dönecek · "Haritayı yeniden yükle"', '#ffd27a'); return; }
+    if (c === 'reload') { this.g.restart(); return; }
     if (c === 'del') this.del(this.sel);
     else if (c === 'undo') this.undoLast();
     else if (c === 'id' && this.sel) this.copy(this.info(this.sel), 'Kimlik');
     else if (c === 'all') this.copy(this.exportText(), 'Düzenlemeler');
-    else if (c === 'reset') { if (!confirm('Bu haritadaki tüm düzenlemeleri sil? (Sayfa yenilenince eski hâline döner)')) return; localStorage.removeItem(KEY(this.mapId)); this.edits.clear(); this.undo = []; this.g.hud.toast('Düzenlemeler silindi · haritayı yeniden başlat', '#ffd27a'); this.render(); }
+    else if (c === 'reset') { if (!confirm('Bu haritadaki tüm yerel düzenlemelerin silinsin ve harita yeniden yüklensin mi?')) return; try { localStorage.removeItem(KEY(this.mapId)); } catch { /* */ } this.edits.clear(); this.undo = []; this.g.restart(); }
   }
   render() {
     if (!this.active) return;
@@ -152,7 +159,8 @@ export class MapEditor {
     const n = this.list().length, sel = this.sel;
     this.el.innerHTML = `<h4>Harita editörü <span style="opacity:.6">(I)</span></h4>
       <div class="sel">${sel ? '<b>Seçili:</b> ' + this.info(sel) : 'Nesne seçilmedi · nişangâhla bak, <b>sol tık</b>'}${this.hover && this.hover !== sel ? `<br><span style="opacity:.6">İmleç: ${this.hover}</span>` : ''}</div>
-      <div class="row"><button data-c="del" ${sel ? '' : 'disabled'}>Sil</button><button data-c="undo">Geri al</button><button data-c="id" ${sel ? '' : 'disabled'}>Kimliği kopyala</button><button class="hot" data-c="all">Düzenlemeleri kopyala (${n})</button><button data-c="reset">Tümünü sıfırla</button></div>
+      <div class="row"><button data-c="del" ${sel ? '' : 'disabled'}>Sil</button><button data-c="undo">Geri al</button><button data-c="id" ${sel ? '' : 'disabled'}>Kimliği kopyala</button><button class="hot" data-c="all">Düzenlemeleri kopyala (${n})</button><button data-c="reset">Tümünü sıfırla</button>${this.needReload ? '<button class="rl" data-c="reload">Haritayı yeniden yükle</button>' : ''}</div>
+      ${n ? `<div class="list">${this.list().map((e) => `<div class="ed"><span>${e.id} · ${e.del ? 'silindi' : [e.d ? 'taşındı ' + e.d.map((v) => v.toFixed(2)).join(', ') : '', e.s ? 'boyut ×' + e.s.map((v) => v.toFixed(2)).join('/') : ''].filter(Boolean).join(' · ')}</span><button data-c="revert" data-id="${e.id}" title="Bu düzenlemeyi geri al (yeniden yüklemede)">↶</button></div>`).join('')}</div>` : ''}
       <div class="k" style="margin-top:6px"><kbd>Sol tık</kbd> seç · <kbd>Delete</kbd> sil · <kbd>Backspace</kbd> geri al<br><kbd>Ok tuşları</kbd> taşı (bakış yönü) · <kbd>PgUp</kbd>/<kbd>PgDn</kbd> yukarı/aşağı · <kbd>Shift</kbd> 1 m adım<br><kbd>+</kbd>/<kbd>−</kbd> büyüt/küçült · <kbd>]</kbd>/<kbd>[</kbd> yükseklik · <kbd>Home</kbd> kimliği kopyala · <kbd>End</kbd> hepsini kopyala<br>Esc ile duraklatınca düğmelere tıklayabilirsin.</div>
       ${this.warn ? `<div class="w">${this.warn}</div>` : ''}<textarea readonly style="display:${this.copyText ? 'block' : 'none'}"></textarea>`;
     if (this.copyText) this.el.querySelector('textarea').value = this.copyText;
