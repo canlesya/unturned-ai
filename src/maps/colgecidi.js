@@ -66,10 +66,15 @@ export function buildColGecidi() {
   if (BR) {
     const [bx0, bz0, bx1, bz1, top] = BR, bcx = (bx0 + bx1) / 2, bcz = (bz0 + bz1) / 2, bw = bx1 - bx0, bd = bz1 - bz0;
     b.box(bcx, top - 0.45, bcz, bw, 0.45, bd + 2.4, '#c2a46f', { tag: 'plat' });                       // uçlarda 1,2 m bindirme: kat kenarı (uçurum) bandını örter
-    for (const sx of [bx0 + 0.15, bx1 - 0.15]) b.box(sx, top, bcz, 0.3, 1.05, bd + 0.6, '#cdb07a', { tag: 'rail' });
+    // Batı yüzü: tabliyeden yukarı dolu bina duvarı (Short'tan CT Spawn görünmez); altı açık kalır (CT ↔ kemer geçidi)
+    const WT = 11.5, rz0 = -47.1, rz1 = bz1 + 0.3;                                                     // doğu korkuluğu yalnız avlunun üstünde: kuzeyde A yoluna (z < −47) geçiş açık
+    b.box(bx0 + 0.25, top - 0.45, bcz, 0.5, WT - top + 0.45, bd + 0.6, wallTop(bx0, bcz), { tag: 'wall' });
+    b.box(bx1 - 0.15, top, (rz0 + rz1) / 2, 0.3, 1.05, rz1 - rz0, '#cdb07a', { tag: 'rail' });
     if (!MapBuilder.noVisual) {
       b.box(bcx, top - 0.6, bcz, bw + 0.3, 0.16, bd + 0.6, '#9c8156', { collide: false });                 // tabliye alt kirişi
-      for (const sx of [bx0 + 0.15, bx1 - 0.15]) b.box(sx, top + 1.05, bcz, 0.42, 0.1, bd + 0.6, '#e2c995', { collide: false });
+      b.box(bx1 - 0.15, top + 1.05, (rz0 + rz1) / 2, 0.42, 0.1, rz1 - rz0, '#e2c995', { collide: false });
+      b.box(bx0 + 0.1, top - 0.75, bcz, 0.4, 0.35, bd + 0.6, '#7a5b3a', { collide: false });             // batı duvarının altında ahşap lento (CT tarafından)
+      b.box(bx0 + 0.55, WT - 0.3, bcz, 0.2, 0.3, bd + 0.6, '#e2c995', { collide: false });               // duvar tepesi şeridi
     }
     for (const sx of [bx0 + 0.35, bx1 - 0.35]) { const gy = terrain.heightAt(sx, bcz); b.box(sx, gy - 0.3, bcz, 0.7, top - 0.45 - gy + 0.3, 0.7, '#b8996a', { tag: 'wall' }); }
     // Doğu yüzü: A önü avluya açılan ahşap kemerli geçit (A'dan CT Spawn görünür). Kemer üstü duvar köprü korkuluğuna kadar.

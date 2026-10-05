@@ -730,3 +730,10 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 - Kullanıcı (geliştirici modunda P ile): X 26.3 Z −38.6'daki duvar olmamalı; A'dan bakınca CT Spawn görünmeli; Short ile A arasında yıkık / basamaklı yer olmamalı.
 - Köprünün doğu yüzü artık **ahşap kemerli geçit** (direkler, üst kiriş, kemer, kemer üstü duvar, köprü altında tavan kirişleri). Duvar `OVERRIDE_CARVE` ile açıldı; A önündeki kemer avlusu, A platosu ve A Default platformu dikdörtgen kotlarla (`OVERRIDE_LEVELS`, yeni `xramp`) yeniden yapıldı → kenarlar düz istinat duvarı. Avlu doğuda Long / A Ramp kotuna yükselir (A'ya oradan çıkılır).
 - CT doğuşlarının yarısı kemer avlusunda (botlar köprü altını yol bulmada göremediği için A'ya buradan çıkarlar). Yanlışlıkla eklenen avlu→A rampaları kaldırıldı (`ramp_pairs.json` boş).
+
+### 12.42 Çöl Geçidi: Short batı duvarı, sahte sütun / duvar temizliği, A kuzeyi açıldı
+- Kullanıcı: köprünün batı korkuluğu (X 15 Z −41.3) yukarı büyüsün, Short'tan CT görünmesin; Short → A yolu A ile aynı kotta olsun, bir yerde duvar hatası var; X 29 Z −42.4'teki iki sütun kalksın.
+- Köprü batı yüzü tabliyeden 11,5 m'ye kadar dolu duvar (altı açık: CT ↔ kemer geçidi; CT tarafında ahşap lento). Doğu korkuluğu yalnız avlunun üstünde (z > −47), kuzeyde A yoluna geçiş açık.
+- Radar hataları `OVERRIDE_CARVE` ile temizlendi: avludaki iki sahte sütun; Short merdiven rampasının ortasındaki duvar parçası; Short tepesindeki kasanın 12 m duvar olması (artık `EXTRA_BOXES` kasası); **A platosu kuzeyi (Ninja)**: fıçı / kasa gölgeleri bina kütlesine karışıp 6 m'lik şeridi gömmüştü (yoldaki 14 m'lik ince duvar dahil) → z −59,4'e kadar açık, düz 4,6 m, fıçı kümeleri `EXTRA_BOXES`'ta. Köprü altı tamamı CT kotunda (1 m'lik basamak kalktı).
+- Yeni araçlar: `scripts/cgwalk.mjs` (fizikle W yürüyüşü, takılma + y izi), `scripts/cgplot_dump.mjs` (bölge üstten görünüm verisi); `cgview` 7. alan mutlak y.
+- Short merdiveni → Short → köprü → A kuzeyi → A sahası ve CT → kemer → avlu → Ramp → A yürüyüşleri takılmasız, hep 4,6 m (A kotu).

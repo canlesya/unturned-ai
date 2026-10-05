@@ -129,6 +129,10 @@ OVERRIDE_CARVE = [
     [15.0, -35.6, 23.0, -33.9],    # Short köprüsünün güney ağzı (taralı bölgenin kenar çizgisi duvar sanılıyordu)
     [15.0, -52.0, 23.0, -50.4],    # köprünün kuzey ağzı (A platosuna iniş)
     [23.3, -46.5, 26.5, -34.7],    # köprü altı → A önü avlu: kemerli geçit (A'dan CT Spawn görünür; kullanıcı: X 26.3 Z −38.6 duvarı olmamalı)
+    [26.4, -44.7, 31.6, -41.5],    # A önü avlu ortasındaki iki sahte sütun (radar kasa gölgesi; kullanıcı: X 29 Z −42.4)
+    [15.0, -25.8, 23.0, -23.4],    # Short merdiven rampasının ortasındaki duvar parçası (Short şeridinin radardaki kenar çizgisi)
+    [16.2, -34.0, 23.0, -29.3],    # Short şeridi: kasa 12 m duvar olmuştu + batı duvarı 1 m fazla kalın → kasa EXTRA_BOXES'ta
+    [16.0, -59.4, 38.4, -51.0],    # A platosu kuzeyi (Ninja): fıçı / kasa gölgeleri bina kütlesine karışmış, 6 m şerit gömülüydü → kasalar EXTRA_BOXES'ta
 ]
 for (ox0, oz0, ox1, oz1) in OVERRIDE_CARVE:
     c0, c1 = int((ox0 - X0) / CELL), int(np.ceil((ox1 - X0) / CELL)); r0, r1 = int((oz0 - Z0) / CELL), int(np.ceil((oz1 - Z0) / CELL))
@@ -319,6 +323,12 @@ for i in range(1, n + 1):
     # boyut → yükseklik: küçük sandık 1,0–1,4 · orta 2,0 · büyük (konteyner / araç) 2,6
     h = 1.0 if area < 1.5 else 1.1 if area < 6 else 2.0 if area < 18 else 2.6
     boxes.append([round(float(X0 + cc[0]), 2), round(float(Z0 + cc[1]), 2), round(float(ext[0]), 2), round(float(ext[1]), 2), round(-ang, 3), h])
+EXTRA_BOXES = [[21.85, -32.7, 2.3, 2.2, 0.0, 1.1]]     # elle: radarda duvara karışan kasalar [cx, cz, w, d, ry, h] (Short tepesindeki kasa)
+# A platosu kuzeyindeki fıçı kümeleri (radarda daireler; 1 m çap → fıçı)
+for (_x, _z) in [(16.4, -57.1), (17.4, -57.4), (18.5, -57.3), (17.0, -56.0), (18.2, -56.1), (19.4, -56.5),
+                 (34.7, -57.4), (34.8, -56.4), (33.8, -55.5), (35.4, -55.3), (23.9, -52.3), (24.8, -50.9)]:
+    EXTRA_BOXES.append([_x, _z, 0.95, 0.95, 0.0, 1.1])
+boxes += EXTRA_BOXES
 print('kutu', len(boxes))
 
 # yükseklik ızgarası (0,5 m): CS2 genel bakış görseli zemini YÜKSEKLİĞE göre boyar → düz alanlar sabit renk (katlar), rampa / merdivenler gradyan.
@@ -370,9 +380,10 @@ OVERRIDE_LEVELS = [
     [15.0, -59.5, 23.5, -51.0, 'flat', 4.6],          # köprünün kuzey ucu: A platosu
     [15.0, -35.0, 23.0, -27.5, 'flat', 4.6],          # köprünün güney ucu: Short şeridi
     [15.0, -27.5, 23.0, -21.5, 'zramp', 4.6, 1.9],    # Short merdiveni: şeritten Short / Cat seviyesine
-    [15.0, -38.5, 23.0, -35.0, 'flat', 'CT'],         # köprü altı: CT avlusu kotu
+    [13.5, -50.0, 23.0, -35.0, 'flat', 'CT'],         # köprü altı: CT avlusu kotu (batı ağzındaki 1 m'lik basamak kalksın)
     # A önü (kemer avlusu): düzgün dikdörtgen kotlar → kenarlar düz istinat duvarı olur (önceden radar gürültüsüyle basamaklı / yıkık görünüyordu)
     [23.0, -51.0, 38.0, -47.0, 'flat', 4.6],          # A platosu: köprü inişi ile A Default arası
+    [23.5, -59.5, 38.5, -51.0, 'flat', 4.6],          # A platosu kuzeyi (Ninja tarafı, bina duvarına kadar)
     [38.0, -53.0, 48.0, -42.0, 'flat', 4.6],          # A Default platformu (bomba noktası)
     [23.3, -47.0, 38.0, -34.7, 'xramp', 0.4, 1.3],    # kemer avlusu: CT kotundan doğuya hafif yükselir
     [38.0, -42.0, 47.5, -34.7, 'xramp', 1.3, 1.9],    # avlunun doğu ucu → Long / A Ramp kotu
