@@ -809,3 +809,6 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 
 ### 12.55 Çöl Geçidi: çevre duvarı (harita dışına çıkış kapandı)
 - Radar kapsamının dışı (arazi ±70 × ±76 sınırına kadar uzanır) açıktı: güney kenar boyunca ve doğuda 1500+ erişilebilir hücre. Dört kenara tek parça 16 m çevre duvarı eklendi (güney kenar T Spawn'ın güney binası hizasında, 1 m içeriden). `scripts/cgleak.mjs` yürünebilir alanın kapsam dışına taşmasını denetler (sonuç: 0).
+
+### 12.56 Çöl Geçidi: Outside Tunnels merdiveni
+- Outside Tunnels → Upper Tunnels merdiveni (x −62…−34, z 12…18,5) koridorun tam genişliğinde tek rampa; yan platformlar / uçurum kenarları / taş basamaklar kalktı. Giriş ortasındaki 1×1 m, 11 m yüksekliğinde dikme ve arkasındaki uzun bölme duvarı (x −49,95…−48,1, z −2…10,3) `OVERRIDE_CARVE` ile silindi.

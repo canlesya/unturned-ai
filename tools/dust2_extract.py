@@ -144,6 +144,7 @@ OVERRIDE_CARVE = [
     [-39.5, -57.6, -33.5, -42.0, 'hard'],  # B sahası doğu duvarı: radar parçalı / delikli (anlamsız geçit) → OVERRIDE_FILL ile tek temiz duvar, 2 açıklık: pencere + B Doors
     [14.3, -38.4, 16.2, -35.4],    # CT Spawn: köprü güney ağzındaki tek kolon (kullanıcı: kaldır)
     [-52.6, 33.8, -41.0, 36.7, 'hard'],  # Titanic kenarı: gölge bandı bina olmuştu → T'den Outside Tunnels'a atlanır
+    [-49.95, -2.0, -48.1, 10.3],   # Outside Tunnels girişi: 1×1 m 11 m yüksekliğinde dikme + arkasındaki uzun bölme duvarı (kullanıcı: uzun sütun kalkacak)
     [-54.2, -11.2, -49.4, -7.0, 'hard'],  # Upper Tunnels: kasa gölgesi ile kolon birleşip kalın blok olmuştu → ince kolon OVERRIDE_FILL
     [-2.8, 66.2, 13.1, 71.2],      # T rampasının güney nişleri: yan saklanma yeri / taş basamaklı kenar → rampa yüzeyine katıldı
     [-6.0, 52.6, 12.0, 66.8],      # T Spawn doğusu: radarda bina yok, aşağı inen yokuş (gölge şeritleri bina olmuştu)
@@ -469,9 +470,9 @@ OVERRIDE_LEVELS = [
     [-64.0, -15.0, -36.5, -0.5, 'flat', 4.6],
     [-36.5, -10.5, -31.5, -6.0, 'flat', 4.6],          # spiralin iç bloğu (üst kat)
     [-52.5, -0.5, -44.0, 8.5, 'flat', 4.6],
-    [-61.5, 8.5, -35.5, 15.5, 'flat', 4.6],
-    [-62.0, 15.5, -34.0, 26.0, 'flat', 1.9],
-    [-51.5, 12.0, -42.5, 18.5, 'zramp', 4.6, 1.9],
+    [-61.5, 8.5, -35.5, 12.0, 'flat', 4.6],
+    [-62.0, 18.5, -34.0, 26.0, 'flat', 1.9],
+    [-62.0, 12.0, -34.0, 18.5, 'zramp', 4.6, 1.9],     # Outside Tunnels merdiveni: koridorun TAM genişliği tek rampa (yan platform / uçurum kenarı / taş basamak yok)
     # Spiral (Upper → Lower Tunnels): doğuya iniş + sahanlık + kuzeye iniş
     [-36.5, -6.0, -31.5, -1.5, 'xramp', 4.6, 2.3],
     [-31.5, -6.0, -27.5, -1.5, 'flat', 2.3],
