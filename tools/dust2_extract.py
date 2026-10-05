@@ -128,6 +128,7 @@ OVERRIDE_CARVE = [
     [19.0, -43.5, 22.5, -35.0],    # CT avlusu doğu kenarı (taralı bölge çizgisi) → Elevator tarafına açık
     [15.0, -35.6, 23.0, -33.9],    # Short köprüsünün güney ağzı (taralı bölgenin kenar çizgisi duvar sanılıyordu)
     [15.0, -52.0, 23.0, -50.4],    # köprünün kuzey ağzı (A platosuna iniş)
+    [23.3, -46.5, 26.5, -34.7],    # köprü altı → A önü avlu: kemerli geçit (A'dan CT Spawn görünür; kullanıcı: X 26.3 Z −38.6 duvarı olmamalı)
 ]
 for (ox0, oz0, ox1, oz1) in OVERRIDE_CARVE:
     c0, c1 = int((ox0 - X0) / CELL), int(np.ceil((ox1 - X0) / CELL)); r0, r1 = int((oz0 - Z0) / CELL), int(np.ceil((oz1 - Z0) / CELL))
@@ -370,10 +371,17 @@ OVERRIDE_LEVELS = [
     [15.0, -35.0, 23.0, -27.5, 'flat', 4.6],          # köprünün güney ucu: Short şeridi
     [15.0, -27.5, 23.0, -21.5, 'zramp', 4.6, 1.9],    # Short merdiveni: şeritten Short / Cat seviyesine
     [15.0, -38.5, 23.0, -35.0, 'flat', 'CT'],         # köprü altı: CT avlusu kotu
+    # A önü (kemer avlusu): düzgün dikdörtgen kotlar → kenarlar düz istinat duvarı olur (önceden radar gürültüsüyle basamaklı / yıkık görünüyordu)
+    [23.0, -51.0, 38.0, -47.0, 'flat', 4.6],          # A platosu: köprü inişi ile A Default arası
+    [38.0, -53.0, 48.0, -42.0, 'flat', 4.6],          # A Default platformu (bomba noktası)
+    [23.3, -47.0, 38.0, -34.7, 'xramp', 0.4, 1.3],    # kemer avlusu: CT kotundan doğuya hafif yükselir
+    [38.0, -42.0, 47.5, -34.7, 'xramp', 1.3, 1.9],    # avlunun doğu ucu → Long / A Ramp kotu
 ]
 for L in OVERRIDE_LEVELS:
     (ra, ca_), (rb, cb_) = (int(round((L[1] - Z0) / HCELL)), int(round((L[0] - X0) / HCELL))), (int(round((L[3] - Z0) / HCELL)), int(round((L[2] - X0) / HCELL)))
     if L[4] == 'flat': h[ra:rb + 1, ca_:cb_ + 1] = CT_LEVEL if L[5] == 'CT' else L[5]
+    elif L[4] == 'xramp':
+        for c in range(ca_, cb_ + 1): h[ra:rb + 1, c] = L[5] + (L[6] - L[5]) * (c - ca_) / max(1, cb_ - ca_)
     else:
         for r in range(ra, rb + 1): h[r, ca_:cb_ + 1] = L[5] + (L[6] - L[5]) * (r - ra) / max(1, rb - ra)
 

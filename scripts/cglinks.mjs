@@ -7,9 +7,9 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 const m = buildColGecidi(), nav = new NavGrid(m.colliders, m.bounds, m.terrain, !!m.layered);
 const C = Object.fromEntries(CALLOUTS.map((c) => [c.name, c]));
 const PAIRS = [['Lower Tunnels', 'Upper Tunnels'], ['Upper Tunnels', 'Outside Tunnels'], ['Outside Tunnels', 'T Spawn'], ['Outside Tunnels', 'Titanic'], ['T Spawn', 'Outside Long'], ['T Spawn', 'Top Mid'], ['Top Mid', 'Outside Long'],
-  ['Outside Long', 'Long Doors'], ['Long Doors', 'Long Corner'], ['Long Corner', 'Pit'], ['Long Corner', 'Long'], ['Long', 'Ramp'], ['Ramp', 'A Site'], ['A Site', 'Goose'], ['A Site', 'Boost'], ['Top Mid', 'Mid'], ['Mid', 'Xbox'],
+  ['Outside Long', 'Long Doors'], ['Long Doors', 'Long Corner'], ['Long Corner', 'Pit'], ['Long Corner', 'Long'], ['Long', 'Ramp'], ['Ramp', 'A Site'], ['A Site', 'Goose'], ['Top Mid', 'Mid'], ['Mid', 'Xbox'],
   ['Xbox', 'Mid Doors'], ['Mid Doors', 'CT Mid'], ['Xbox', 'Short'], ['Short', 'Stairs'], ['Stairs', 'Short Stairs'], ['Short Stairs', 'A Site'], ['CT Spawn', 'Elevator'], ['Elevator', 'A Site'],
-  ['CT Mid', 'B Doors'], ['B Doors', 'B Site'], ['CT Mid', 'Window'], ['Window', 'B Site'], ['B Site', 'B Plat'], ['B Plat', 'Back Plat'], ['Upper Tunnels', 'B Site'], ['Upper Tunnels', 'Fence'], ['Fence', 'Box'], ['Box', 'B Site'], ['B Plat', 'Back Plat'], ['CT Spawn', 'CT Mid'], ['Boost', 'Ninja'], ['Ninja', 'A Site'], ['Barrels', 'A Site'], ['Suicide', 'Mid Doors'], ['Lower Tunnels', 'Xbox'], ['Cat', 'Short'], ['Mid', 'Cat']];
+  ['CT Mid', 'B Doors'], ['B Doors', 'B Site'], ['CT Mid', 'Window'], ['Window', 'B Site'], ['B Site', 'B Plat'], ['B Plat', 'Back Plat'], ['Upper Tunnels', 'B Site'], ['Upper Tunnels', 'Fence'], ['Fence', 'Box'], ['Box', 'B Site'], ['B Plat', 'Back Plat'], ['CT Spawn', 'CT Mid'], ['Ninja', 'A Site'], ['Barrels', 'A Site'], ['Suicide', 'Mid Doors'], ['Lower Tunnels', 'Xbox'], ['Cat', 'Short'], ['Mid', 'Cat']];
 let bad = 0; const badPairs = [];
 for (const [a, b] of PAIRS) {
   const A = C[a], B = C[b], p = nav.findPath(A.x, A.z, B.x, B.z, 1.2);

@@ -72,6 +72,16 @@ export function buildColGecidi() {
       for (const sx of [bx0 + 0.15, bx1 - 0.15]) b.box(sx, top + 1.05, bcz, 0.42, 0.1, bd + 0.6, '#e2c995', { collide: false });
     }
     for (const sx of [bx0 + 0.35, bx1 - 0.35]) { const gy = terrain.heightAt(sx, bcz); b.box(sx, gy - 0.3, bcz, 0.7, top - 0.45 - gy + 0.3, 0.7, '#b8996a', { tag: 'wall' }); }
+    // Doğu yüzü: A önü avluya açılan ahşap kemerli geçit (A'dan CT Spawn görünür). Kemer üstü duvar köprü korkuluğuna kadar.
+    if (!MapBuilder.noVisual) {
+      const ax = bx1 + 0.25, az0 = -46.3, az1 = -34.9, span = az1 - az0, amid = (az0 + az1) / 2, wood = '#7a5b3a', woodD = '#5e4529';
+      const gy = Math.min(terrain.heightAt(ax + 0.6, az0), terrain.heightAt(ax + 0.6, az1));
+      for (const zz of [az0 + 0.2, az1 - 0.2]) b.box(ax, gy - 0.2, zz, 0.45, top - gy - 0.2, 0.45, wood, { collide: false });        // direkler
+      b.box(ax, top - 0.75, amid, 0.5, 0.35, span, wood, { collide: false });                                                           // üst kiriş
+      for (let k = 0; k < 7; k++) { const t = (k + 0.5) / 7, zz = az0 + t * span, y = top - 1.25 + Math.sin(t * Math.PI) * 0.55; b.box(ax + 0.05, y, zz, 0.42, 0.28, span / 7 + 0.05, woodD, { collide: false, rx: Math.cos(t * Math.PI) * 0.35 }); }   // kemer
+      b.box(ax - 0.05, top - 0.45, amid, 0.35, 1.6, span + 0.6, '#cdb07a', { collide: false });                                         // kemer üstü duvar (korkuluğa kadar)
+      for (let zz = bz0 + 0.5; zz < bz1; zz += 1.1) b.box(bcx, top - 0.62, zz, bw - 0.4, 0.12, 0.16, woodD, { collide: false });        // köprü altı tavan kirişleri
+    }
   }
 
   // Arabalar (Long ve B) ve Long'daki mavi konteyner: radar kutusu yerine model / özel renk
@@ -124,6 +134,8 @@ export function buildColGecidi() {
   };
   pickSpawns(T_ZONE, 'blue', 0, 3, [(T_ZONE[0] + T_ZONE[2]) / 2, T_ZONE[3] + 2]);               // T kuzeye (orta / uzun) bakar; avlunun arka ucundan seçilir
   pickSpawns(CT_ZONE, 'red', PI);                                                                // CT güneye bakar
+  // CT avlusu iki parça: yeşil kutu + köprünün doğusundaki kemer avlusu (A'ya Elevator'dan çıkış). Doğuşların yarısı avluya.
+  if (D.bridge) { const all = spawns.red; spawns.red = all.slice(0, 12); pickSpawns([26.5, -46, 36.5, -36], 'red', PI, 0); spawns.red = spawns.red.slice(0, 24); for (const p of all.slice(12)) if (spawns.red.length < 24) spawns.red.push(p); }
 
   // ── hedefler: B (KD), A (GD), Orta; büyük maçlarda Uzun A ve Tüneller ──
   const site = (k) => { const o = D.zones.orange.filter((z) => z[2] - z[0] > 6).sort((p, q) => (k === 'A' ? q[1] - p[1] : p[1] - q[1]))[0]; return [(o[0] + o[2]) / 2, (o[1] + o[3]) / 2]; };

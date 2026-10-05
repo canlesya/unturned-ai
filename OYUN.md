@@ -725,3 +725,8 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 - Şimdi: Short merdiveni (1,9 → 4,6 m) → Short şeridi → **köprü tabliyesi** (`D.bridge`, 'plat' kutusu, iki yanda korkuluk, altta iki ayak) → A platosu (Ninja). Altında CT avlusu (zemin kotu), CT'ler köprünün altından doğu (Elevator) ve batıya (CT Mid) çıkar. Harita `layered` (yol bulma hücre başına zemin kotu tutar). Köprü ağızlarındaki radar çizgileri `OVERRIDE_CARVE`, köprü altına doğuş konmaz, `CT Spawn` bölge adı yeşil kutuya alındı.
 - **A sahası:** bomba alanı çerçevesinin turuncu kenar pikselleri 6,6 m (T Spawn kotu) okunuyordu → A'da yükseltilmiş sahte halka. Turuncu / yeşil çerçeve haleleri yükseklik hesabından çıkarıldı. A platosu kenarlarına ~0,9 m alçak parapet (fotoğraftaki A Default / A Plat duvarı).
 - Bilinen: yol bulma tek katlı olduğundan botlar köprünün ÜSTÜNÜ kullanır, ALTINDAN (CT → Elevator) geçemez, dolanır (127 m). Oyuncular her iki yoldan geçebilir.
+
+### 12.41 Çöl Geçidi: CT kemeri + A önü düz duvarlar
+- Kullanıcı (geliştirici modunda P ile): X 26.3 Z −38.6'daki duvar olmamalı; A'dan bakınca CT Spawn görünmeli; Short ile A arasında yıkık / basamaklı yer olmamalı.
+- Köprünün doğu yüzü artık **ahşap kemerli geçit** (direkler, üst kiriş, kemer, kemer üstü duvar, köprü altında tavan kirişleri). Duvar `OVERRIDE_CARVE` ile açıldı; A önündeki kemer avlusu, A platosu ve A Default platformu dikdörtgen kotlarla (`OVERRIDE_LEVELS`, yeni `xramp`) yeniden yapıldı → kenarlar düz istinat duvarı. Avlu doğuda Long / A Ramp kotuna yükselir (A'ya oradan çıkılır).
+- CT doğuşlarının yarısı kemer avlusunda (botlar köprü altını yol bulmada göremediği için A'ya buradan çıkarlar). Yanlışlıkla eklenen avlu→A rampaları kaldırıldı (`ramp_pairs.json` boş).
