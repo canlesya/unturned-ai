@@ -830,3 +830,8 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 
 ### 12.62 Çöl Geçidi: spiral rampası duvardan duvara
 - Spiral rampa (Upper → Lower Tunnels, z −12,5…−1,5) x −31,5…−27,5 ile bitiyor, doğu duvarı −26'da başlıyordu: arada ~1,3 m'lik alçak şerit + taş kenar (insan girebilen boşluk). Rampa / sahanlık x −25,9'a kadar genişletildi → kenar duvarı ve boşluk yok.
+
+### 12.63 Çöl Geçidi: Xbox / Short koridoru girişi
+- Xbox yanındaki kum rampası ve kesik duvar parçaları (0,7 / 2,0 m) kaldırıldı: Mid kotu (0) x −1,78'e, koridor kotu (1,9) x −1,28'den doğuya; arada **tek düz istinat duvarı** (x −1,53, tepe 2,6 m catwalk duvarıyla aynı: `SMOOTH_TOP` bölgesinde zincir tek parça, tepe kotu eşit). Duvar önünde 1,5 m'lik kısa parça bina kütlesine katıldı (sütun gibi duruyordu).
+- Radardaki rastgele Xbox kasası kaldırıldı (`REMOVE_BOXES`). Yerine CS2'deki gibi duvar dibinde düzgün yığın (`crates()`): iki taban kasa duvara bitişik (x −2,35; z −13,95 / −12,75), üstte bir kasa ikisine yaslanır (z −13,35), önde bir basamak kasa (x −3,55). Tepe 1,8 m, koridor 1,9 m. Catwalk girişi (z −10,7) aynı düzende. Sıçrama yüksekliği ≈ 0,93 m (JUMP_SPEED 5,4, GRAV 15): her adım ≤ 0,9 m.
+- `scripts/cgjump.mjs`: W + Boşluk ile sıçrayarak hedefe ulaşma testi (negatif kontrol: kasasız satırda duvarı aşamaz).

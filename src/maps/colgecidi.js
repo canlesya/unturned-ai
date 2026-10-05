@@ -90,7 +90,10 @@ export function buildColGecidi() {
     crates([[-39.4, -47.6, 0], [-37.95, -47.6, 0], [-37.95, -47.6, 1]], gB);
   }
   // Xbox: Mid'den catwalk'a 3 sandıkla sıçranarak çıkılır (biri yerde, ikisi üst üste; üstü catwalk kotunda)
-  crates([[-4.0, -10.7, 0], [-2.35, -10.7, 0], [-2.35, -10.7, 1]], terrain.heightAt(-3, -10.7));
+  crates([[-3.55, -10.7, 0], [-2.35, -10.7, 0], [-2.35, -10.7, 1]], terrain.heightAt(-3, -10.7));
+  // Xbox (Mid → Short koridoru): duvar dibinde düzgün kasa yığını (CS2 Xbox gibi): iki taban kasa duvara bitişik, üstte bir kasa iki tabana yaslanır, önde basamak kasa.
+  //   Tepe 1,8 m, koridor kotu 1,9 m: sıçrayarak koridora / duvar tepesine çıkılır. Hepsi eksen hizalı, birbirine bitişik (rastgele dağınık değil).
+  crates([[-2.35, -13.95, 0], [-2.35, -12.75, 0], [-2.35, -13.35, 1], [-3.55, -13.35, 0]], terrain.heightAt(-3, -13.4));
 
   // ── Short köprüsü: tek yapı. Tabliye (yürünür 'plat') x 15…23, z −51…−35, üstü 4,6 m. Batı: tabliyeden 11,5 m'ye dolu duvar (Short'tan CT
   //    görünmez). Doğu: 1,7 m'lik tek parça korkuluk duvarı (üstüne çıkılamaz), kuzeyde A yoluna geçiş açık. Altı: ortada iki taş ayak, kuzey ucu dolu,

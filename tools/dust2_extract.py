@@ -385,7 +385,7 @@ for bx in boxes:
         else: drop = True
         break
     if not drop: _keep.append(bx)
-REMOVE_BOXES = [(-46.05, 38.55)]                              # elle: duvara / yamaca gömülü kasa (kullanıcı: Titanic yanındaki büyük kasa)
+REMOVE_BOXES = [(-46.05, 38.55), (-4.61, -13.87)]                              # elle: duvara / yamaca gömülü kasa (kullanıcı: Titanic yanındaki büyük kasa)
 _keep = [b_ for b_ in _keep if not any(abs(b_[0] - rx) < 0.6 and abs(b_[1] - rz) < 0.6 for (rx, rz) in REMOVE_BOXES)]
 print('kasa çakışma: atılan', len(boxes) - len(_keep), 'yığılan', sum(1 for q in _keep if q[6] > 0))
 boxes = _keep
@@ -464,7 +464,11 @@ OVERRIDE_LEVELS = [
     [-1.3, -8.5, 3.6, 7.5, 'flat', 2.6],
     [-1.3, 7.5, 3.6, 12.0, 'zramp', 2.6, 1.9],
     [-1.3, -12.5, 3.6, -8.5, 'zramp', 1.9, 2.6],      # kuzey ucu: Short'a ve Xbox önünden Mid'e (z −14…−12 basamaksız)
-    [-5.5, -12.5, -1.3, -9.0, 'flat', 0.2],            # Xbox önü Mid kotunda: catwalk'a 3 sandıkla çıkılır (colgecidi.js)
+    [-5.5, -12.5, -1.78, -9.0, 'flat', 0.2],           # Xbox önü Mid kotunda: catwalk'a 3 sandıkla çıkılır (colgecidi.js)
+    # Xbox / Short koridoru girişi: kum rampası kaldırıldı. Mid kotu (0) x −1,78'e, koridor kotu (1,9) x −1,28'den doğuya; arada TEK düz istinat duvarı (x −1,53).
+    # Çıkış yalnız kasa yığınıyla sıçrayarak (colgecidi.js XBOX). Duvar tepesi koridor kotu: yığının üstünden duvar tepesine / koridora geçilir.
+    [-8.0, -19.5, -1.78, -12.4, 'flat', 0.0],
+    [-1.28, -19.5, 6.0, -12.4, 'flat', 1.9],
     # T Spawn doğusu: avludan Outside Long / Top Mid kotuna düzgün yokuş
     [-31.0, 52.5, -5.0, 66.6, 'flat', 6.6],            # T Spawn platosu: tek düz kot (çıkıntı / kırık parça yok)
     [-5.0, 52.5, 11.0, 71.2, 'xramp', 6.6, 1.9],       # T rampası: 16 m'de 4,7 m (~16°); güneydeki nişler dahil bina duvarına (z 71,2) kadar aynı eğim (yan saklanma yeri yok)
@@ -590,6 +594,7 @@ print('kat geçişi rampası', len(ramps), ramps)
 # elle doldurulan bina kütleleri (aynı çokgen hattından geçer: tek tip bina, ayrı yama kutusu değil) [x0, z0, x1, z1]
 OVERRIDE_FILL = [
     [-53.1, -10.7, -52.1, -9.7],   # Upper Tunnels ince kolon
+    [-2.0, -17.9, -0.4, -16.0],    # Xbox koridoru girişi: binanın dili ile kuzey bina arasındaki 1,5 m'lik kısa duvar parçası (sütun gibi duruyordu) → bina kütlesi
     [-37.0, -58.6, -36.0, -49.0],  # B sahası doğu duvarı (kuzey bina ile pencere arası)
     [-37.0, -46.2, -36.0, -42.0],  # B sahası doğu duvarı (pencere ile B Doors arası)
     [6.5, -51.6, 15.0, -42.65],    # CT Spawn kuzey cebi (kapılı bina önü): kullanıcı kolona kadar kapalı istedi
@@ -697,14 +702,17 @@ def _dp2(P, tol):
     if best <= tol: return [0, len(P) - 1]
     L1 = _dp2(P[:bi + 1], tol); L2 = _dp2(P[bi:], tol)
     return L1[:-1] + [q + bi for q in L2]
+SMOOTH_TOP = [(-1.7, -15.0, -1.35, 10.0)]                           # Short koridoru / catwalk batı duvarı: kot farkı 0,7 m ama tek duvar (kullanıcı)
 cliffs = []; cliffv = []; _seg_top = {}
 for pts, segs in _chains:
     if not segs: continue
     # zinciri üst kot sıçramalarında (> 0,6) böl: tek düz tepe iki ayrı katı kapatmasın
+    _cx = np.mean([q[0] for q in pts]); _cz = np.mean([q[1] for q in pts])
+    TSPLIT = 1.0 if any(a <= _cx <= c_ and b <= _cz <= d for (a, b, c_, d) in SMOOTH_TOP) else 0.6      # SMOOTH_TOP: bu bölgelerde zincir tek duvar (tepe en yüksek kot)
     pieces = []; cur = [0]; tmn = tmx = _us[segs[0]][5]                                   # üst kot aralığı > 0,6 olunca parça bölünür: rampa boyunca duvar BASAMAK BASAMAK alçalır
     for q in range(1, len(segs)):
         t_ = _us[segs[q]][5]
-        if max(tmx, t_) - min(tmn, t_) > 0.6 or abs(t_ - _us[segs[q - 1]][5]) > 0.6: pieces.append(cur); cur = [q]; tmn = tmx = t_
+        if max(tmx, t_) - min(tmn, t_) > TSPLIT or abs(t_ - _us[segs[q - 1]][5]) > TSPLIT: pieces.append(cur); cur = [q]; tmn = tmx = t_
         else: cur.append(q); tmn = min(tmn, t_); tmx = max(tmx, t_)
     pieces.append(cur)
     for pc in pieces:
@@ -736,6 +744,15 @@ for k, u in enumerate(_us):
     if k in _seg_top: _cl.append((u[0], round(u[1], 2), round(u[2], 2), round(u[3], 2), round(u[4], 2), _seg_top[k]))
 _cl.sort(key=lambda t: (t[0], t[1], t[2]))
 cliffs = merge_runs(_cl)
+for (ra, rb, rc, rd) in SMOOTH_TOP:                                                       # bölgedeki tüm duvarlar aynı tepe kotu (komşu parçalar arasında basamak / dikiş yok)
+    mt = [c[5] for c in cliffv if ra <= (c[0] + c[2]) / 2 <= rc and rb <= (c[1] + c[3]) / 2 <= rd]
+    if not mt: continue
+    T_ = max(mt)
+    for c in cliffv:
+        if ra <= (c[0] + c[2]) / 2 <= rc and rb <= (c[1] + c[3]) / 2 <= rd: c[5] = T_
+    for c in cliffs:
+        mx_, mz_ = (c[1], (c[2] + c[3]) / 2) if c[0] == 0 else ((c[2] + c[3]) / 2, c[1])
+        if ra <= mx_ <= rc and rb <= mz_ <= rd: c[5] = T_
 print('kat kenarı çarpışma', len(cliffs), 'görsel duvar', len(cliffv), '(birim', len(_us), ')')
 print('yükseklik', h.min(), h.max())
 
