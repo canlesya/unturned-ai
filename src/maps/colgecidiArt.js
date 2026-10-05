@@ -45,75 +45,107 @@ const THETA = [Math.PI / 2, -Math.PI / 2, 0, Math.PI];                         /
 export const plasterAt = (x, z) => PLASTER[(Math.abs(Math.floor(x / 9) * 73856093 ^ Math.floor(z / 9) * 19349663) >>> 0) % PLASTER.length];
 export const wallTop = (x, z) => DARK(plasterAt(x, z), 0.8);
 
-export function decorateFaces(b, D, terrain, field, rng) {
-  const NC = { collide: false };
-  let nWin = 0, nDoor = 0, nAwn = 0;
-  // yüzün hemen içindeki duvar kutusunun tepesi (süs bu yüksekliği aşmasın: havada korniş / kiriş kalmasın). Yoksa −∞ → yüz süslenmez.
-  const walls = b.colliders.filter((c) => c.tag === 'wall');
-  const topAt = (x, z) => { let t = -1e9; for (const c of walls) if (x >= c.min[0] && x <= c.max[0] && z >= c.min[2] && z <= c.max[2]) t = Math.max(t, c.max[1]); return t; };
-  for (const [d, p, a, e, kind] of D.faces) {
-    const len = e - a, th = THETA[d];
-    const alongX = d >= 2;                                                        // koşu x ekseni boyunca mı (z yüzleri)
-    const SEG = 3.0, n = Math.max(1, Math.round(len / SEG)), seg = len / n;
-    const nrm = [d === 0 ? 1 : d === 1 ? -1 : 0, d === 2 ? 1 : d === 3 ? -1 : 0];  // dış normal (x, z)
-    // koşu başına tek sıva rengi (8 m bloklara göre): komşu yüzler aynı rengi paylaşır
-    const mx = alongX ? (a + e) / 2 : p, mz = alongX ? p : (a + e) / 2;
-    const hsh = Math.abs(Math.floor(mx / 9) * 73856093 ^ Math.floor(mz / 9) * 19349663) >>> 0;
-    const col = PLASTER[hsh % PLASTER.length];
-    const dark = DARK(col, 0.78), light = DARK(col, 1.1);
-    const wide = field.clearance(mx + nrm[0] * 0.6, mz + nrm[1] * 0.6, nrm[0], nrm[1], 12);              // karşı duvara serbest uzaklık: dar geçitlerde süs azalır
+// ── binalar: çokgen duvarlar + düz çatı (tek tip kum taşı). Çarpışma ayrı (colgecidi.js: D.rects). Halka kenarı p→q için dış normal (dz, −dx).
+const WALLC = ['#d4b273', '#cda968', '#d9bb80', '#c9a46a'];
+export function buildPolys(b, polys) {
+  const I = new THREE.Matrix4();
+  for (let k = 0; k < polys.length; k++) {
+    const [top, base, rings] = polys[k];
+    const R = rings.map((f) => { const a = []; for (let i = 0; i < f.length; i += 2) a.push([f[i], f[i + 1]]); return a; });
+    const col = WALLC[k % WALLC.length], roof = DARK(col, 0.82);
+    const pos = [], nor = [];
+    const tri = (a, n) => { for (const v of a) pos.push(v[0], v[1], v[2]); for (let i = 0; i < 3; i++) nor.push(n[0], n[1], n[2]); };
+    for (const ring of R) for (let i = 0; i < ring.length; i++) {
+      const p = ring[i], q = ring[(i + 1) % ring.length], ex = q[0] - p[0], ez = q[1] - p[1], L = Math.hypot(ex, ez);
+      if (L < 1e-6) continue;
+      const n = [ez / L, 0, -ex / L], A = [p[0], base, p[1]], B = [q[0], base, q[1]], C = [q[0], top, q[1]], Dd = [p[0], top, p[1]];
+      tri([A, C, B], n); tri([A, Dd, C], n);
+    }
+    const wg = new THREE.BufferGeometry();
+    wg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); wg.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+    b.addGeo(wg, col, I);
+    // çatı: en büyük halka dış, diğerleri delik
+    const area = (r) => { let a = 0; for (let i = 0; i < r.length; i++) { const p = r[i], q = r[(i + 1) % r.length]; a += p[0] * q[1] - q[0] * p[1]; } return a / 2; };
+    let oi = 0; for (let i = 1; i < R.length; i++) if (Math.abs(area(R[i])) > Math.abs(area(R[oi]))) oi = i;
+    const outer = R[oi].map(([x, z]) => new THREE.Vector2(x, z)), holes = R.filter((_, i) => i !== oi).map((r) => r.map(([x, z]) => new THREE.Vector2(x, z)));
+    let tris;
+    try { tris = THREE.ShapeUtils.triangulateShape(outer, holes); } catch { tris = []; }
+    const all = [...outer, ...holes.flat()], rp = [], rn = [];
+    for (const [a, c, d] of tris) {
+      const A = all[a], C = all[c], E = all[d];
+      const cy = (C.y - A.y) * (E.x - A.x) - (C.x - A.x) * (E.y - A.y);
+      const T = cy >= 0 ? [A, C, E] : [A, E, C];
+      for (const v of T) { rp.push(v.x, top, v.y); rn.push(0, 1, 0); }
+    }
+    if (rp.length) {
+      const rg = new THREE.BufferGeometry();
+      rg.setAttribute('position', new THREE.Float32BufferAttribute(rp, 3)); rg.setAttribute('normal', new THREE.Float32BufferAttribute(rn, 3));
+      b.addGeo(rg, roof, I);
+    }
+  }
+}
+
+// ── istinat duvarı (görsel): p0→p1 çizgisi boyunca, normal × side yönünde uLow (alçak taraf yüzü) ile uHigh (üst kata gömülü) arası,
+//    alt kot sabit, üst kot uçlar arasında doğrusal (rampa kenarında eğik). capMode: alt kot da doğrusal (y0a→y0b) ve üst (y1a→y1b) — kenar şeridi.
+export function cliffWall(b, x0, z0, x1, z1, side, uLow, uHigh, ya, yb, yc, yd, color, capMode = false) {
+  const L = Math.hypot(x1 - x0, z1 - z0); if (L < 1e-6) return;
+  const dx = (x1 - x0) / L, dz = (z1 - z0) / L, nx = (dz) * side, nz = (-dx) * side;
+  const g = new THREE.BoxGeometry(1, 1, 1).toNonIndexed(), P = g.attributes.position, N = g.attributes.normal, sg = Math.sign(uLow - uHigh);
+  for (let i = 0; i < P.count; i++) {
+    const t = P.getX(i) + 0.5, u = uHigh + (P.getZ(i) + 0.5) * (uLow - uHigh), up = P.getY(i) > 0;
+    const y = capMode ? (up ? yc + (yd - yc) * t : ya + (yb - ya) * t) : (up ? yb + (yc - yb) * t : ya);
+    P.setXYZ(i, x0 + dx * t * L + nx * u, y, z0 + dz * t * L + nz * u);
+    const a = N.getX(i), bb = N.getY(i), c = N.getZ(i);                         // düz gölge: yüz normali kutunun dönüşüyle (eğik tepe olsa da yüzler düz görünür)
+    N.setXYZ(i, a * dx + c * sg * nx, bb, a * dz + c * sg * nz);
+  }
+  b.addGeo(g, color, new THREE.Matrix4());
+}
+
+// ── cephe süsü (tek tip): her çokgen kenarı ~3 m'lik dilimlere bölünür; kaide, korniş, duvar tepesi şeridi her dilimde; kiriş uçları korniş altında,
+//    pencere / kapı / tente yalnız geniş sokaklarda. Hepsi duvar yüzüne yapışık (yerel z ≥ 0), yükseklikler duvar tepesine göre.
+export function decorateEdges(b, edges, terrain, field, rng) {
+  const NC = { collide: false }, BASE = '#a88a5c', LIGHT = '#e2c995', COPE = '#c9ad78', BEAM = '#7a5b3a';
+  let nWin = 0, nDoor = 0;
+  for (const [x0, z0, x1, z1, top] of edges) {
+    const dx = x1 - x0, dz = z1 - z0, L = Math.hypot(dx, dz), nx = dz / L, nz = -dx / L, th = Math.atan2(nx, nz);
+    const n = Math.max(1, Math.round(L / 3)), seg = L / n;
+    const wide = field.clearance((x0 + x1) / 2 + nx * 0.8, (z0 + z1) / 2 + nz * 0.8, nx, nz, 12);
+    const hsh = Math.abs(Math.floor(x0 * 7 + z0 * 13)) % 97;
     for (let s = 0; s < n; s++) {
-      const c = a + (s + 0.5) * seg;
-      const wx = alongX ? c : p, wz = alongX ? p : c;
-      const gx = wx + nrm[0] * 0.4, gz = wz + nrm[1] * 0.4;
-      const g0 = Math.min(terrain.heightAt(alongX ? c - seg / 2 : gx, alongX ? gz : c - seg / 2), terrain.heightAt(alongX ? c + seg / 2 : gx, alongX ? gz : c + seg / 2), terrain.heightAt(gx, gz));
-      const wt = Math.min(topAt(wx - nrm[0] * 0.25, wz - nrm[1] * 0.25), topAt(alongX ? c - seg / 2 + 0.1 : wx - nrm[0] * 0.25, alongX ? wz - nrm[1] * 0.25 : c - seg / 2 + 0.1), topAt(alongX ? c + seg / 2 - 0.1 : wx - nrm[0] * 0.25, alongX ? wz - nrm[1] * 0.25 : c + seg / 2 - 0.1));
-      const H = Math.min(kind ? 2.7 : 6.0, wt - g0 - 0.45);                                          // bölme duvarı alçak, bina yüksek; duvar tepesini aşmaz
-      if (H < 1.6) continue;                                                                         // duvar yok / çok alçak: süs yok
-      b.with(wx, g0, wz, th, () => {
-        // sıva katmanı + kaide + korniş
-        b.box(0, -0.35, 0.02, seg + 0.02, H + 0.35, 0.04, col, NC);                                   // tüm yüz: tek ton
-        b.box(0, -0.35, 0.07, seg + 0.02, 1.35, 0.1, dark, NC);                                       // kaide (kirli alt şerit)
-        b.box(0, 1.0, 0.1, seg + 0.02, 0.1, 0.16, light, NC);                                         // kaide üst çıtası
-        b.box(0, H - 0.1, 0.12, seg + 0.02, 0.32, 0.28, light, NC);                                   // korniş
-        b.box(0, H + 0.2, 0.08, seg + 0.02, 0.2, 0.16, dark, NC);                                     // korniş üst dudağı
-        const r = rng();
-        // kiriş uçları (geleneksel çatı kirişleri) – bazı yüzlerde
-        if (!kind && r < 0.4 && H > 4.5) for (let k = -1; k <= 1; k++) b.box(k * 1.0, H - 0.65, 0.3, 0.2, 0.2, 0.55, '#7a5b3a', NC);
-        const roomy = wide >= 3.5 && H > 5;
-        // pencere
-        if (kind) { /* bölme duvarı: yalnızca sıva + korniş */ } else if (roomy && seg > 2.4 && r > 0.18 && r < 0.62) {
-          const wy = 3.2 + (r < 0.4 ? 0 : 0.35);
-          b.box(0, wy - 0.1, 0.12, 1.5, 2.1, 0.07, '#b69a68', NC);                                    // çerçeve
-          if (rng() < 0.25) b.box(0, wy, 0.17, 1.1, 1.7, 0.06, '#f0c46e', { ...NC, o: { glow: true } });   // yanık pencere (gece / gün batımında parlar; gündüz perdeli pencere gibi görünür)
-          else b.box(0, wy, 0.17, 1.1, 1.7, 0.06, '#232a31', NC);                                    // cam
-          b.box(0, wy + 0.82, 0.2, 1.0, 0.05, 0.05, '#394450', NC);                                   // çıta
-          b.box(0, wy - 0.22, 0.26, 1.7, 0.14, 0.42, light, NC);                                      // denizlik
+      const t0 = s / n, t1 = (s + 1) / n, tm = (t0 + t1) / 2;
+      const wx = x0 + dx * tm, wz = z0 + dz * tm;
+      let g = 1e9;
+      for (const t of [t0 + 0.02, tm, t1 - 0.02]) g = Math.min(g, terrain.heightAt(x0 + dx * t + nx * 0.4, z0 + dz * t + nz * 0.4));
+      const H = top - g;
+      if (H < 1.5) continue;
+      const r = rng();
+      b.with(wx, g, wz, th, () => {
+        b.box(0, -0.4, 0.05, seg + 0.02, 1.35, 0.1, BASE, NC);                                          // kaide
+        b.box(0, 0.93, 0.08, seg + 0.02, 0.1, 0.16, LIGHT, NC);                                          // kaide çıtası
+        b.box(0, H - 0.45, 0.1, seg + 0.02, 0.3, 0.2, LIGHT, NC);                                        // korniş
+        b.box(0, H - 0.02, -0.18, seg + 0.04, 0.14, 0.46, COPE, NC);                                     // duvar tepesi şeridi
+        if (H > 4.6 && seg > 2.2 && r < 0.38) for (const k of [-1, 0, 1]) b.box(k * 0.9, H - 0.85, 0.25, 0.2, 0.2, 0.5, BEAM, NC);   // kiriş uçları
+        if (wide < 3.2 || seg < 2.4) return;
+        if (H > 5.4 && r > 0.2 && r < 0.6) {                                                            // pencere
+          const wy = 3.0;
+          b.box(0, wy - 0.1, 0.04, 1.5, 2.1, 0.07, '#b69a68', NC);
+          b.box(0, wy, 0.08, 1.1, 1.7, 0.06, rng() < 0.25 ? '#f0c46e' : '#232a31', NC);
+          b.box(0, wy - 0.22, 0.18, 1.7, 0.14, 0.36, LIGHT, NC);
           nWin++;
-        } else if (roomy && seg > 2.6 && r >= 0.62 && r < 0.78) {                                    // kapı (mavi / kahve / yeşil), üstü kemerli
-          const dc = DOOR[(hsh >> 3) % DOOR.length];
-          b.box(0, -0.35, 0.1, 2.0, 3.1, 0.08, '#9c7a4c', NC);                                        // söve
-          b.box(0, -0.35, 0.16, 1.55, 2.75, 0.07, dc, NC);                                            // kapı kanadı
-          b.box(0, 1.1, 0.2, 0.06, 1.3, 0.04, DARK(dc, 0.7), NC);                                     // orta çıta
-          b.box(0, 2.4, 0.12, 2.3, 0.22, 0.18, light, NC);                                            // lento
+        } else if (H > 3.6 && r >= 0.6 && r < 0.76) {                                                   // kapı
+          const dc = DOOR[hsh % DOOR.length];
+          b.box(0, -0.35, 0.05, 2.0, 3.1, 0.08, '#9c7a4c', NC);
+          b.box(0, -0.35, 0.1, 1.55, 2.75, 0.07, dc, NC);
+          b.box(0, 2.4, 0.1, 2.3, 0.22, 0.18, LIGHT, NC);
           nDoor++;
-        } else if (wide >= 5 && seg > 2.8 && r >= 0.78 && r < 0.9) {                                  // tente
-          const [c1, c2] = AWN[(hsh >> 5) % AWN.length];
-          b.with(0, 3.1, 0.1, 0, () => {
-            for (let k = -3; k <= 3; k++) b.box(k * (seg / 7), 0.0, 0.7, seg / 7 + 0.01, 0.07, 1.4, k % 2 ? c2 : c1, { ...NC, rx: 0.3 });
-          });
-          nAwn++;
+        } else if (wide >= 5 && seg > 2.8 && H > 4 && r >= 0.76 && r < 0.86) {                           // tente
+          const [c1, c2] = AWN[hsh % AWN.length];
+          b.with(0, 3.0, 0.05, 0, () => { for (let k = -3; k <= 3; k++) b.box(k * (seg / 7), 0, 0.7, seg / 7 + 0.01, 0.07, 1.4, k % 2 ? c2 : c1, { ...NC, rx: 0.3 }); });
         }
       });
     }
-    // uzun yüzlerde dikme (pilaster)
-    if (!kind && len >= 7) for (let t = a + 3.5; t < e - 2; t += 7) {
-      const wx = alongX ? t : p, wz = alongX ? p : t;
-      const g0 = terrain.heightAt(wx + nrm[0] * 0.4, wz + nrm[1] * 0.4), ph = Math.min(6.0, topAt(wx - nrm[0] * 0.25, wz - nrm[1] * 0.25) - g0 - 0.45);
-      if (ph > 1.6) b.with(wx, g0, wz, th, () => b.box(0, -0.35, 0.16, 0.5, ph + 0.35, 0.2, DARK(col, 0.92), NC));
-    }
   }
-  return { windows: nWin, doors: nDoor, awnings: nAwn };
+  return { nWin, nDoor };
 }
 
 // zemin rengi: kum + duvar dibi gölgesi (AO) + yükseklik tonu + saha deseni
@@ -246,22 +278,14 @@ export function roofTunnels(b, terrain, field, regions) {
   // Satır boyunca aynı alt kotlu hücreler tek kutuda birleşir. Duvar içine taşan hücreler sorun değil (duvar daha yüksek).
   const C = 0.5;
   let n = 0;
-  for (const [x0, x1, z0, z1] of regions) {
+  for (const [x0, x1, z0, z1, dirX] of regions) {
     let maxH = -1e9;
     for (let x = x0; x <= x1; x += C) for (let z = z0; z <= z1; z += C) if (!field.isSolid(x, z)) maxH = Math.max(maxH, terrain.heightAt(x, z));
-    const topY = maxH + 3.5 + 0.6;
-    for (let z = z0; z < z1; z += C) {
-      let run = null;
-      const flush = () => { if (!run) return; const w = run.x1 - run.x0, by = Math.min(run.by, topY - 0.45); b.box((run.x0 + run.x1) / 2, by, z + C / 2, w + 0.02, topY - by, C + 0.02, '#8a7551', { tag: 'roof' }); n++; run = null; };
-      for (let x = x0; x < x1; x += C) {
-        const pts = [[x, z], [x + C, z], [x, z + C], [x + C, z + C], [x + C / 2, z + C / 2]];
-        if (pts.every(([px, pz]) => field.isSolid(px, pz))) { flush(); continue; }
-        let hi = -1e9;
-        for (const [px, pz] of pts) hi = Math.max(hi, terrain.heightAt(px, pz));
-        const by = Math.round((hi + 3.5) * 4) / 4;
-        if (run && run.by === by) run.x1 = x + C; else { flush(); run = { x0: x, x1: x + C, by }; }
-      }
-      flush();
+    const by = maxH + 3.3;                                                     // tek düz tavan: bölgenin en yüksek zemininden 3,3 m (basamaklı tavan yok)
+    b.box((x0 + x1) / 2, by, (z0 + z1) / 2, x1 - x0, 0.5, z1 - z0, '#8a7551', { tag: 'roof' }); n++;
+    for (let t = (dirX ? x0 : z0) + 1.5; t < (dirX ? x1 : z1) - 1; t += 3) {      // tavan kirişleri (tavana yapışık)
+      if (dirX) b.box(t, by - 0.25, (z0 + z1) / 2, 0.3, 0.25, z1 - z0, '#6e5a3c', { collide: false });
+      else b.box((x0 + x1) / 2, by - 0.25, t, x1 - x0, 0.25, 0.3, '#6e5a3c', { collide: false });
     }
   }
   return n;
@@ -376,60 +400,60 @@ export function dishes(b, terrain, rects, rng, n = 34) {
   const NC = { collide: false };
   const cand = rects.filter(([x0, z0, x1, z1]) => x1 - x0 >= 3 && z1 - z0 >= 3);
   let placed = 0;
-  for (let t = 0; t < n * 6 && placed < n; t++) {
-    const [x0, z0, x1, z1] = cand[Math.floor(rng() * cand.length)];
-    const cx = x0 + 0.8 + rng() * (x1 - x0 - 1.6), cz = z0 + 0.8 + rng() * (z1 - z0 - 1.6);
-    const g = Math.max(terrain.heightAt(x0, z0), terrain.heightAt(x1, z1), terrain.heightAt(cx, cz)), top = Math.ceil((g + 5.5) * 2) / 2;   // alt sınır: en alçak çatı üstü
-    const y = top + 6.0 + 0.0;                                                                                                              // çatı kotu rect'e göre değişir; yalnızca yaklaşık, direk alttan uzar
-    b.with(cx, 0, cz, rng() * Math.PI * 2, () => {
-      b.cyl(0, y - 3.4, 0, 0.05, 0.05, 3.4, '#8a8f94', { seg: 5, collide: false });
-      b.cyl(0.35, y + 0.35, 0, 0.9, 0.9, 0.1, '#e9e6dc', { seg: 12, collide: false, rz: 0.75 });
-      b.box(0.55, y + 0.3, 0, 0.7, 0.05, 0.05, '#555a5f', NC);
+  for (let t = 0; t < n * 6 && placed < n && cand.length; t++) {
+    const [x0, z0, x1, z1, top] = cand[Math.floor(rng() * cand.length)];
+    const cx = x0 + 1.0 + rng() * (x1 - x0 - 2.0), cz = z0 + 1.0 + rng() * (z1 - z0 - 2.0);
+    b.with(cx, top, cz, rng() * Math.PI * 2, () => {
+      b.cyl(0, 0, 0, 0.05, 0.05, 1.2, '#8a8f94', { seg: 5, collide: false });
+      b.cyl(0.35, 1.5, 0, 0.9, 0.9, 0.1, '#e9e6dc', { seg: 12, collide: false, rz: 0.75 });
+      b.box(0.55, 1.45, 0, 0.7, 0.05, 0.05, '#555a5f', NC);
     });
     placed++;
   }
 }
 
 // ── duvar reklamı (mavi çerçeveli beyaz pano + kırmızı ok) ──
-export function ads(b, terrain, faces, field, rng, n = 14) {
+export function ads(b, terrain, edges, field, rng, n = 14) {
   const NC = { collide: false };
-  const cand = faces.filter(([d, p, a, e, kind]) => !kind && e - a >= 5.5 && field.clearance(0, 0, 0, 0, 1) >= 0);
+  const cand = edges.filter(([x0, z0, x1, z1]) => Math.hypot(x1 - x0, z1 - z0) >= 5.5);
   let placed = 0;
-  for (let t = 0; t < n * 12 && placed < n; t++) {
-    const [d, p, a, e] = cand[Math.floor(rng() * cand.length)];
-    const alongX = d >= 2, c = a + 1.6 + rng() * (e - a - 3.2), nrm = [d === 0 ? 1 : d === 1 ? -1 : 0, d === 2 ? 1 : d === 3 ? -1 : 0];
-    const wx = alongX ? c : p, wz = alongX ? p : c;
-    if (field.clearance(wx + nrm[0] * 0.6, wz + nrm[1] * 0.6, nrm[0], nrm[1], 12) < 4) continue;
-    const g = terrain.heightAt(wx + nrm[0] * 0.4, wz + nrm[1] * 0.4);
+  for (let t = 0; t < n * 12 && placed < n && cand.length; t++) {
+    const [x0, z0, x1, z1, top] = cand[Math.floor(rng() * cand.length)];
+    const dx = x1 - x0, dz = z1 - z0, L = Math.hypot(dx, dz), nx = dz / L, nz = -dx / L, tt = (1.8 + rng() * (L - 3.6)) / L;
+    const wx = x0 + dx * tt, wz = z0 + dz * tt;
+    if (field.clearance(wx + nx * 0.6, wz + nz * 0.6, nx, nz, 12) < 4) continue;
+    const g = terrain.heightAt(wx + nx * 0.4, wz + nz * 0.4);
+    if (top - g < 5.2) continue;
     const col = ['#e9e2d2', '#cfe3ee', '#efe0b8'][Math.floor(rng() * 3)], acc = ['#2d6fa8', '#b5402e', '#2f7a6e'][Math.floor(rng() * 3)];
-    b.with(wx, g, wz, THETA[d], () => {
-      b.box(0, 2.4, 0.2, 4.2, 3.0, 0.05, acc, NC);                                            // çerçeve
-      b.box(0, 2.55, 0.24, 3.8, 2.7, 0.04, col, NC);                                          // zemin
-      for (let k = 0; k < 4; k++) b.box(-0.2 + (k % 2) * 0.1, 4.0 - k * 0.42, 0.28, 2.6 - (k === 3 ? 1.1 : 0), 0.18, 0.03, '#3a3f45', NC);   // yazı çizgileri
-      b.box(0.6, 2.75, 0.28, 1.5, 0.1, 0.03, '#b5402e', NC); b.box(1.2, 2.75, 0.28, 0.3, 0.3, 0.03, '#b5402e', { ...NC, rz: 0.8 });             // ok
+    b.with(wx, g, wz, Math.atan2(nx, nz), () => {
+      b.box(0, 1.6, 0.04, 4.2, 3.0, 0.05, acc, NC);
+      b.box(0, 1.75, 0.08, 3.8, 2.7, 0.04, col, NC);
+      for (let k = 0; k < 4; k++) b.box(-0.2 + (k % 2) * 0.1, 3.2 - k * 0.42, 0.12, 2.6 - (k === 3 ? 1.1 : 0), 0.18, 0.03, '#3a3f45', NC);
+      b.box(0.6, 1.95, 0.12, 1.5, 0.1, 0.03, '#b5402e', NC); b.box(1.2, 1.95, 0.12, 0.3, 0.3, 0.03, '#b5402e', { ...NC, rz: 0.8 });
     });
     placed++;
   }
 }
 
 // ── saha tabelası: duvara büyük harf (A / B) ──
-export function siteSign(b, terrain, faces, call, letter) {
+export function siteSign(b, terrain, edges, call, letter) {
   const NC = { collide: false };
   let best = null, bs = -1e9;
-  for (const [d, p, a, e, kind] of faces) {
-    if (kind || e - a < 4) continue;
-    const alongX = d >= 2, nrm = [d === 0 ? 1 : d === 1 ? -1 : 0, d === 2 ? 1 : d === 3 ? -1 : 0], mid = (a + e) / 2;
-    const wx = alongX ? mid : p, wz = alongX ? p : mid, dx = call.x - wx, dz = call.z - wz, dist = Math.hypot(dx, dz);
-    if (dist > 16 || (dx * nrm[0] + dz * nrm[1]) / (dist + 1e-6) < 0.7) continue;
-    const sc = -dist + (e - a) * 0.3; if (sc > bs) { bs = sc; best = { d, wx, wz }; }
+  for (const [x0, z0, x1, z1, top] of edges) {
+    const dx = x1 - x0, dz = z1 - z0, L = Math.hypot(dx, dz);
+    if (L < 4) continue;
+    const nx = dz / L, nz = -dx / L, wx = (x0 + x1) / 2, wz = (z0 + z1) / 2, ex = call.x - wx, ez = call.z - wz, dist = Math.hypot(ex, ez);
+    if (dist > 16 || (ex * nx + ez * nz) / (dist + 1e-6) < 0.7) continue;
+    const g = terrain.heightAt(wx + nx * 0.4, wz + nz * 0.4);
+    if (top - g < 5.5) continue;
+    const sc = -dist + L * 0.3; if (sc > bs) { bs = sc; best = { wx, wz, nx, nz, g }; }
   }
   if (!best) return false;
-  const g = terrain.heightAt(best.wx + [1, -1, 0, 0][best.d] * 0.4, best.wz + [0, 0, 1, -1][best.d] * 0.4);
-  b.with(best.wx, g, best.wz, THETA[best.d], () => {
-    b.box(0, 2.9, 0.22, 4.0, 4.0, 0.1, '#2f7a6e', NC); b.box(0, 3.1, 0.3, 3.6, 3.6, 0.08, '#efe6cc', NC);
+  b.with(best.wx, best.g, best.wz, Math.atan2(best.nx, best.nz), () => {
+    b.box(0, 1.4, 0.04, 4.0, 4.0, 0.1, '#2f7a6e', NC); b.box(0, 1.6, 0.1, 3.6, 3.6, 0.08, '#efe6cc', NC);
     const K = '#2b3036';
-    if (letter === 'A') { b.box(-0.55, 3.6, 0.38, 0.4, 2.6, 0.06, K, { ...NC, rz: -0.28 }); b.box(0.55, 3.6, 0.38, 0.4, 2.6, 0.06, K, { ...NC, rz: 0.28 }); b.box(0, 3.5, 0.38, 1.1, 0.35, 0.06, K, NC); }
-    else { b.box(-0.7, 3.6, 0.38, 0.4, 2.7, 0.06, K, NC); for (const y of [0, 1.15, 2.3]) b.box(0.05, 3.6 + y, 0.38, 1.4, 0.4, 0.06, K, NC); for (const y of [0.6, 1.75]) b.box(0.6, 3.75 + y - 0.15, 0.38, 0.4, 1.0, 0.06, K, NC); }
+    if (letter === 'A') { b.box(-0.55, 2.1, 0.17, 0.4, 2.6, 0.06, K, { ...NC, rz: -0.28 }); b.box(0.55, 2.1, 0.17, 0.4, 2.6, 0.06, K, { ...NC, rz: 0.28 }); b.box(0, 2.0, 0.17, 1.1, 0.35, 0.06, K, NC); }
+    else { b.box(-0.7, 2.1, 0.17, 0.4, 2.7, 0.06, K, NC); for (const y of [0, 1.15, 2.3]) b.box(0.05, 2.1 + y, 0.17, 1.4, 0.4, 0.06, K, NC); for (const y of [0.6, 1.75]) b.box(0.6, 2.25 + y - 0.15, 0.17, 0.4, 1.0, 0.06, K, NC); }
   });
   return true;
 }

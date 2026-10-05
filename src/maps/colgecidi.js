@@ -3,7 +3,7 @@ import { MapBuilder } from './builder.js';
 import { Terrain, fbm } from './terrain.js';
 import DATA from './colgecidiData.js';
 import { car } from './kit.js';
-import { makeSolidField, floorColor, decorateFaces, rngOf, wallTop, propBox, scatterPalms, buildSurround, roofTunnels, hangings, findDoor, doorFrame, gateDoor, dishes, ads, siteSign } from './colgecidiArt.js';
+import { makeSolidField, floorColor, decorateEdges, buildPolys, cliffWall, rngOf, wallTop, propBox, scatterPalms, buildSurround, roofTunnels, hangings, findDoor, doorFrame, gateDoor, dishes, ads, siteSign } from './colgecidiArt.js';
 
 // Çöl Geçidi: üç hatlı (uzun koridor / orta / tüneller), iki hedef alanlı (A, B) klasik çöl haritası.
 // Yapı tools/dust2_extract.py ile radar şemasından çıkarılır (colgecidiData.js); bu dosya veriyi oyuna çevirir:
@@ -33,33 +33,35 @@ export function buildColGecidi() {
     const fx = (x - D.hx0) / D.hcell, fz = (z - D.hz0) / D.hcell, i = Math.floor(fx), j = Math.floor(fz), u = fx - i, v = fz - j;
     return (hAt(i, j) * (1 - u) + hAt(i + 1, j) * u) * (1 - v) + (hAt(i, j + 1) * (1 - u) + hAt(i + 1, j + 1) * u) * v;
   };
-  const terrain = new Terrain({ minX: CG_BOUNDS.minX, maxX: CG_BOUNDS.maxX, minZ: CG_BOUNDS.minZ, maxZ: CG_BOUNDS.maxZ, cell: 0.5, height });                      // 0,5 m: kat kenarları keskin kalsın
+  // zemin ağı köşeleri yükseklik verisinin köşeleriyle çakışır (kayık olursa her keskin kat kenarı 1 m'lik eğime yayılıp istinat duvarının önüne taşar)
+  const al = (v, o) => o - Math.ceil((o - v) / D.hcell) * D.hcell;
+  const terrain = new Terrain({ minX: al(CG_BOUNDS.minX, D.hx0), maxX: CG_BOUNDS.maxX, minZ: al(CG_BOUNDS.minZ, D.hz0), maxZ: CG_BOUNDS.maxZ, cell: D.hcell, height });
 
-  // ── duvarlar: açgözlü dikdörtgenler. Bina kütleleri yerel zemin + 5,5–9 m (12 m'lik bloklara göre değişir), bölme duvarları + 3 m ──
+  // ── binalar: tek tip kum taşı kütleler. Görsel = sadeleştirilmiş çokgen (düz / çapraz kenar, tek tepe kotu); çarpışma = aynı çokgenin 0,25 m'lik
+  //    raster dikdörtgenleri (görünmez). Süsler yalnızca çokgen kenarlarına (decorateEdges). Bkz. tools/dust2_extract.py "BİNA KÜTLELERİ".
   const field = makeSolidField(D);
-  const bh = (x, z) => 5.5 + ((Math.abs(Math.floor(x / 12) * 83492791 ^ Math.floor(z / 12) * 29647) >>> 0) % 8) * 0.5;
-  for (let i = 0; i < D.rects.length + D.divs.length; i++) {
-    const div = i >= D.rects.length, [x0, z0, x1, z1] = div ? D.divs[i - D.rects.length] : D.rects[i];
-    const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, w = x1 - x0, d = z1 - z0;
-    let lo = 1e9, hi = -1e9;
-    for (const [px, pz] of [[x0, z0], [x1, z0], [x0, z1], [x1, z1], [cx, cz]]) { const g = terrain.heightAt(px, pz); lo = Math.min(lo, g); hi = Math.max(hi, g); }
-    for (const [px, pz] of [[x0 - 1.5, cz], [x1 + 1.5, cz], [cx, z0 - 1.5], [cx, z1 + 1.5]]) hi = Math.max(hi, terrain.heightAt(px, pz));
-    const top = div ? Math.ceil((lo + 3.0) * 2) / 2 : Math.ceil((hi + bh(Math.round(cx / 12) * 12, Math.round(cz / 12) * 12)) * 2) / 2, y0 = lo - 0.5;
-    b.box(cx, y0, cz, w, top - y0, d, wallTop(cx, cz), { tag: 'wall' });
-  }
+  for (const [x0, z0, x1, z1, top, base] of D.rects) b.collide((x0 + x1) / 2, base, (z0 + z1) / 2, x1 - x0, top - base, z1 - z0, 'wall');
+  if (!MapBuilder.noVisual) buildPolys(b, D.polys);
 
   // ── sandık / konteyner / fıçı gövdeleri (radar kutuları); sunucuda yalnızca çarpışma gövdesi ──
   // ── kat kenarları: radar yüksekliğindeki keskin geçişler (sahanlık, çukur, platform kenarı) → taş istinat duvarı + üst kenar şeridi ──
-  // A platosu kenarında (A Default / A Plat) istinat duvarı tek parça ~0,95 m yukarı uzar (parapet; üstüne ayrı duvar konmaz).
-  // Pit ↔ Side Pit çizgisindeki kenarlar atlanır: orada baştan sona tek alçak duvar var (aşağıda).
+  // ── kat kenarları (istinat duvarı). Çarpışma: ızgara parçaları (görünmez). Görsel: zincirlenip sadeleştirilmiş tek duvarlar (cliffWall), tepesi kotu
+  //    izler; A platosu kenarında duvarın kendisi ~0,95 m yukarı uzar (parapet, üstüne ayrı duvar konmaz). Pit ↔ Side Pit çizgisi atlanır (aşağıda tek duvar).
   const PIT = [46.6, 6.8, 48.4, 25.6];
+  const isPara = (x, z, lo, hi, alongX) => hi >= 4.0 && hi - lo >= 1.5 && (x > 28 || (alongX && x > 22.9)) && x < 62 && z > -62 && z < -38;
+  const inPit = (x, z, alongZ) => alongZ && x > PIT[0] && x < PIT[2] && z > PIT[1] && z < PIT[3];
   for (const [dir, p, a0, a1, lo, hi] of D.cliffs || []) {
-    const L = a1 - a0, c = (a0 + a1) / 2, x = dir === 0 ? p : c, z = dir === 0 ? c : p, w = dir === 0 ? 0.55 : L + 0.02, d = dir === 0 ? L + 0.02 : 0.55;
-    if (dir === 0 && x > PIT[0] && x < PIT[2] && z > PIT[1] && z < PIT[3]) continue;
-    const para = hi >= 4.0 && hi - lo >= 1.5 && (x > 28 || (dir !== 0 && x > 22.9)) && x < 62 && z > -62 && z < -38;
-    const top = hi + (para ? 0.95 : 0.04);
-    b.box(x, lo - 0.35, z, w, top - lo + 0.35, d, '#b8996a', { tag: para ? 'rail' : 'ledge' });
-    if (!MapBuilder.noVisual) b.box(x, top - 0.06, z, dir === 0 ? 0.7 : L + 0.04, 0.14, dir === 0 ? L + 0.04 : 0.7, '#d9c08c', { collide: false });
+    const L = a1 - a0, c = (a0 + a1) / 2, x = dir === 0 ? p : c, z = dir === 0 ? c : p;
+    if (inPit(x, z, dir === 0)) continue;
+    const top = hi + (isPara(x, z, lo, hi, dir !== 0) ? 0.95 : 0.04);
+    b.collide(x, lo - 0.35, z, dir === 0 ? 0.55 : L + 0.02, top - lo + 0.35, dir === 0 ? L + 0.02 : 0.55, isPara(x, z, lo, hi, dir !== 0) ? 'rail' : 'ledge');
+  }
+  if (!MapBuilder.noVisual) for (const [x0, z0, x1, z1, lo, h0, h1, side] of D.cliffv || []) {
+    const mx = (x0 + x1) / 2, mz = (z0 + z1) / 2, alongX = Math.abs(x1 - x0) >= Math.abs(z1 - z0);
+    if (inPit(mx, mz, !alongX)) continue;
+    const add = isPara(mx, mz, lo, Math.max(h0, h1), alongX) ? 0.95 : 0.04;
+    cliffWall(b, x0, z0, x1, z1, side, 0.5, -0.8, lo - 0.35, h0 + add, h1 + add, 0, '#b8996a');
+    cliffWall(b, x0, z0, x1, z1, side, 0.6, -0.82, h0 + add - 0.06, h1 + add - 0.06, h0 + add + 0.08, h1 + add + 0.08, '#d9c08c', true);
   }
 
   // ── Pit ↔ Side Pit: radardaki ince çizgi → baştan sona tek alçak taş duvar (Side Pit'ten 0,7 m, Pit'ten kat farkıyla yüksek) ──
@@ -169,21 +171,20 @@ export function buildColGecidi() {
 
   if (!MapBuilder.noVisual) {                                                       // süs yalnızca görsel (sunucuda kurulmaz)
     const rng = rngOf(20241005);
-    decorateFaces(b, D, terrain, field, rng);
+    decorateEdges(b, D.fedges, terrain, field, rng);
     const avoid = [...objectives.map((o) => [o.x, o.z, 9]), ...[...spawns.blue, ...spawns.red].map((p) => [p.x, p.z, 5])];
     scatterPalms(b, terrain, field, avoid, rng, 10);
     hangings(b, terrain, field, rng, 26);
     dishes(b, terrain, D.rects, rng, 30);
-    ads(b, terrain, D.faces, field, rng, 14);
-    siteSign(b, terrain, D.faces, CALLOUTS.find((q) => q.name === 'A Site'), 'A'); siteSign(b, terrain, D.faces, CALLOUTS.find((q) => q.name === 'B Site'), 'B');
-    { const c = CALLOUTS.find((q) => q.name === 'Outside Tunnels'), dr = c && findDoor(field, c.x, c.z, 14); if (dr) doorFrame(b, terrain, dr); }
+    ads(b, terrain, D.fedges, field, rng, 14);
+    siteSign(b, terrain, D.fedges, CALLOUTS.find((q) => q.name === 'A Site'), 'A'); siteSign(b, terrain, D.fedges, CALLOUTS.find((q) => q.name === 'B Site'), 'B');
     buildSurround(b, rng);
   }
   // büyük ahşap kapılar (radardaki kanat çizgilerinin yerinde; koridoru kesen alçak duvar + taş çerçeve + aralık kanatlar). Çarpışma sunucuda da.
   const GATES = [
     { name: 'Mid Doors', axis: 'x', z: -21.4, a0: -12.4, a1: -3.3, c: -7.8, W: 4.4, swing: 1, aL: 22, aR: 68 },
     { name: 'B Doors', axis: 'z', x: -36.5, a0: -42.0, a1: -35.3, c: -38.6, W: 4.6, swing: 1, aL: 28, aR: 66 },
-    { name: 'Long Doors', axis: 'x', z: 7.6, a0: 24.2, a1: 31.9, c: 28.0, W: 4.4, swing: -1, aL: 24, aR: 70 },
+    { name: 'Long Doors', axis: 'x', z: 22.4, a0: 22.4, a1: 31.9, c: 27.4, W: 4.6, swing: -1, aL: 24, aR: 68 },      // Outside Long → Long koridoru girişi (T tarafı)
   ];
   for (const g of GATES) gateDoor(b, terrain, g);
   // çatılı tüneller (radar koordinatından: alt tüneller = orta ile B arası teal şerit, üst tüneller = T'den B'ye zeytin kanal)

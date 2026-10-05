@@ -139,7 +139,8 @@ OVERRIDE_CARVE = [
     [27.4, 8.8, 30.2, 10.3],       # Long Doors önündeki sütun
     [-12.0, -23.2, -3.7, -19.4],   # Mid Doors: radardaki açık kanat çizgileri sütun olmuştu → colgecidi.js GATES kapısı
     [-37.6, -41.5, -33.2, -35.6],  # B Doors: aynı
-    [24.6, 5.4, 31.4, 8.9],        # Long Doors: aynı
+    [24.6, 5.4, 31.4, 8.9],        # Long koridoru kuzey ucu: radar çizgileri (kapı T tarafında)
+    [23.6, 20.2, 31.4, 24.6],      # Long Doors (T tarafı): kanat çizgileri sütun olmuştu → GATES
     [-6.0, 52.6, 6.0, 66.8],       # T Spawn doğusu: radarda bina yok, aşağı inen yokuş (gölge şeritleri bina olmuştu)
     [45.0, 6.5, 48.9, 25.0],       # Pit ↔ Side Pit: bina duvarı değil, alçak duvar (colgecidi.js 'PIT_WALL')
 ]
@@ -414,13 +415,26 @@ OVERRIDE_LEVELS = [
     [-5.5, -12.5, -1.3, -10.0, 'xramp', 0.4, 2.1],     # Xbox'ın güneyinde Mid → catwalk çıkışı (Xbox ↔ Short)
     # T Spawn doğusu: avludan Outside Long / Top Mid kotuna düzgün yokuş
     [-6.0, 52.5, 6.0, 67.0, 'xramp', 6.6, 1.9],
+    # Tüneller: Upper Tunnels düz 4,6; Outside Tunnels düz 1,9; aradaki merdiven radardaki açıklık boyunca tek eğim
+    [-64.0, -15.0, -36.5, -0.5, 'flat', 4.6],
+    [-36.5, -10.5, -31.5, -6.0, 'flat', 4.6],          # spiralin iç bloğu (üst kat)
+    [-52.5, -0.5, -44.0, 8.5, 'flat', 4.6],
+    [-61.5, 8.5, -35.5, 15.5, 'flat', 4.6],
+    [-62.0, 15.5, -34.0, 26.0, 'flat', 1.9],
+    [-51.5, 12.0, -42.5, 18.5, 'zramp', 4.6, 1.9],
+    # Spiral (Upper → Lower Tunnels): doğuya iniş + sahanlık + kuzeye iniş
+    [-36.5, -6.0, -31.5, -1.5, 'xramp', 4.6, 2.3],
+    [-31.5, -6.0, -27.5, -1.5, 'flat', 2.3],
+    [-31.5, -12.5, -27.5, -6.0, 'zramp', 0.0, 2.3],
     # Side Pit şeridi (eski kalın duvarın yeri) Side Pit kotunda; Pit'e geçiş alçak duvarla
     [44.5, 7.5, 47.5, 25.0, 'flat', 1.9],
     [47.5, 7.5, 49.0, 14.0, 'zramp', 1.2, 0.2],       # Pit'in batı kenarı (eski duvar yeri) Pit eğimiyle
     [47.5, 14.0, 49.0, 25.0, 'flat', 0.0],
 ]
+ovr_ramp = np.zeros(h.shape, bool)                  # elle rampa hücreleri (dik eğim temizliği dokunmaz)
 for L in OVERRIDE_LEVELS:
     (ra, ca_), (rb, cb_) = (int(round((L[1] - Z0) / HCELL)), int(round((L[0] - X0) / HCELL))), (int(round((L[3] - Z0) / HCELL)), int(round((L[2] - X0) / HCELL)))
+    if L[4] != 'flat': ovr_ramp[ra:rb + 1, ca_:cb_ + 1] = True
     if L[4] == 'flat': h[ra:rb + 1, ca_:cb_ + 1] = CT_LEVEL if L[5] == 'CT' else L[5]
     elif L[4] == 'xramp':
         for c in range(ca_, cb_ + 1): h[ra:rb + 1, c] = L[5] + (L[6] - L[5]) * (c - ca_) / max(1, cb_ - ca_)
@@ -428,7 +442,6 @@ for L in OVERRIDE_LEVELS:
         for r in range(ra, rb + 1): h[r, ca_:cb_ + 1] = L[5] + (L[6] - L[5]) * (r - ra) / max(1, rb - ra)
 
 OVERRIDE_RAMPS = [
-    [-51.0, 9.0, -46.5, 19.0, 'z'],     # Upper Tunnels → Outside Tunnels merdiveni (iki sahanlık çubuğu arasındaki açıklık)
     [-60.0, -31.0, -55.0, -23.0, 'z'],  # Upper Tunnels → B (B Tunnels çıkışı) merdiveni
 ]
 def hcell(x, z): return int(round((z - Z0) / HCELL)), int(round((x - X0) / HCELL))
@@ -497,6 +510,16 @@ for (na, nb_) in RAMP_PAIRS:
     ramps.append((na, nb_, ch))
 print('kat geçişi rampası', len(ramps), ramps)
 
+# ── dik eğim temizliği: yürünemeyecek kadar dik (> 0,9) ama tek basamak olmayan eğimler testere dişi görünüyordu → en yakın kata oturtulur,
+#    keskin kat kenarı olur (istinat duvarı alır). Gerçek rampalar (≤ 0,5) etkilenmez.
+for _pass in range(3):
+    _gy, _gx = np.gradient(h, HCELL)
+    _st = np.hypot(_gx, _gy) > 0.9
+    if not _st.any(): break
+    _hmax = ndi.maximum_filter(h, size=5); _hmin = ndi.minimum_filter(h, size=5)
+    h = np.where(_st & ~ramp_mask & ~ovr_ramp, np.where(h - _hmin > _hmax - h, _hmax, _hmin), h)
+print('dik eğim temizliği tamam')
+
 # ── kat kenarları (sahanlık / istinat duvarı): komşu iki yükseklik noktası arasında > 0,6 m fark → dikey taş duvar parçası
 # [yön (0: x sınırı, 1: z sınırı), düzlem koordinatı, başlangıç, bitiş, alt kot, üst kot]
 cliffs = []
@@ -524,16 +547,187 @@ for r in range(NHZ - 1):
             _it.append((1, round(Z0 + (r + 0.5) * HCELL, 2), round(X0 + (c - 0.5) * HCELL, 2), round(X0 + (c + 0.5) * HCELL, 2), round(float(min(h[r, c], h[r + 1, c])), 2), round(float(max(h[r, c], h[r + 1, c])), 2)))
 cliffs += merge_runs(_it)
 print('kat kenarı parçası', len(cliffs))
+
+# ── kat kenarı GÖRSELİ: birim kenar parçaları uç uca zincirlenir, (x, z, üst kot) uzayında sadeleştirilir → düz / çapraz tek duvar,
+#    tepesi kotu takip eder (rampa kenarında eğik). Çarpışma yukarıdaki ızgara parçalarıyla (cliffs) kalır.
+_us = []                                                        # birim parçalar: (p0, p1, lo, hi)
+for c in range(NHX - 1):
+    for r in range(NHZ):
+        if abs(h[r, c + 1] - h[r, c]) > CL and (_free_v(r, c) or _free_v(r, c + 1)) and not (ramp_mask[r, c] or ramp_mask[r, c + 1]):
+            x = round(X0 + (c + 0.5) * HCELL, 3)
+            _us.append(((x, round(Z0 + (r - 0.5) * HCELL, 3)), (x, round(Z0 + (r + 0.5) * HCELL, 3)), float(min(h[r, c], h[r, c + 1])), float(max(h[r, c], h[r, c + 1]))))
+for r in range(NHZ - 1):
+    for c in range(NHX):
+        if abs(h[r + 1, c] - h[r, c]) > CL and (_free_v(r, c) or _free_v(r + 1, c)) and not (ramp_mask[r, c] or ramp_mask[r + 1, c]):
+            z = round(Z0 + (r + 0.5) * HCELL, 3)
+            _us.append(((round(X0 + (c - 0.5) * HCELL, 3), z), (round(X0 + (c + 0.5) * HCELL, 3), z), float(min(h[r, c], h[r + 1, c])), float(max(h[r, c], h[r + 1, c]))))
+from collections import defaultdict as _dd
+_adj = _dd(list)
+for k, (a, b2, lo, hi) in enumerate(_us): _adj[a].append(k); _adj[b2].append(k)
+_used = [False] * len(_us); _chains = []
+def _walk(start, k0):
+    pts = [start]; segs = []; v = start; k = k0
+    while k is not None and not _used[k]:
+        _used[k] = True; segs.append(k)
+        a, b2 = _us[k][0], _us[k][1]; v = b2 if a == v else a; pts.append(v)
+        nk = [q for q in _adj[v] if not _used[q]]
+        k = nk[0] if len(_adj[v]) == 2 and nk else None
+    return pts, segs
+for v, ks in list(_adj.items()):
+    if len(ks) != 2:
+        for k in ks:
+            if not _used[k]: _chains.append(_walk(v, k))
+for k in range(len(_us)):
+    if not _used[k]: _chains.append(_walk(_us[k][0], k))
+cliffv = []
+def _dp3(P, tol):
+    if len(P) < 3: return [0, len(P) - 1]
+    A = np.array(P[0]); Bq = np.array(P[-1]); best = -1; bi = 0
+    for i in range(1, len(P) - 1):
+        t = np.clip(np.dot(np.array(P[i]) - A, Bq - A) / max(np.dot(Bq - A, Bq - A), 1e-9), 0, 1)
+        d = np.linalg.norm(np.array(P[i]) - (A + t * (Bq - A)))
+        if d > best: best, bi = d, i
+    if best <= tol: return [0, len(P) - 1]
+    L1 = _dp3(P[:bi + 1], tol); L2 = _dp3(P[bi:], tol)
+    return L1[:-1] + [q + bi for q in L2]
+for pts, segs in _chains:
+    if not segs: continue
+    # nokta başına üst / alt kot: komşu parçaların ortalaması
+    his = []; los = []
+    for i in range(len(pts)):
+        ks = [segs[j] for j in (i - 1, i) if 0 <= j < len(segs)]
+        his.append(np.mean([_us[k][3] for k in ks])); los.append(min(_us[k][2] for k in ks))
+    P3 = [(pts[i][0], pts[i][1], his[i]) for i in range(len(pts))]
+    idx = _dp3(P3, 0.4)
+    for a, b2 in zip(idx[:-1], idx[1:]):
+        x0, z0 = pts[a]; x1, z1 = pts[b2]
+        if np.hypot(x1 - x0, z1 - z0) < 0.2: continue
+        # alçak taraf: orta noktanın iki yanındaki kot
+        mx, mz = (x0 + x1) / 2, (z0 + z1) / 2; L = np.hypot(x1 - x0, z1 - z0); nx, nz = (z1 - z0) / L, -(x1 - x0) / L
+        def _hh(x, z): return h[int(np.clip(round((z - Z0) / HCELL), 0, NHZ - 1)), int(np.clip(round((x - X0) / HCELL), 0, NHX - 1))]
+        side = 1 if _hh(mx + nx * 0.6, mz + nz * 0.6) < _hh(mx - nx * 0.6, mz - nz * 0.6) else -1     # +1: normal yönü alçak taraf
+        cliffv.append([round(x0, 3), round(z0, 3), round(x1, 3), round(z1, 3), round(float(min(los[a:b2 + 1])), 2), round(float(his[a]), 2), round(float(his[b2]), 2), side])
+print('kat kenarı görseli', len(cliffv), '(birim', len(_us), ')')
 print('yükseklik', h.min(), h.max())
 
 
+# ══ BİNA KÜTLELERİ → DÜZGÜN ÇOKGENLER ══
+# Katı maske temizlenir (1 hücrelik çentik / çıkıntı / köşegen temas), 16 m'lik bloklara bölünür (her blok parçası tek yükseklikte bir bina),
+# parçanın kenar çizgisi izlenir ve sadeleştirilir (0,5 m'lik basamaklar düz çizgi; merdiven gibi çapraz duvarlar gerçek çapraz kenar).
+# Görsel: çokgen duvar + çatı (colgecidi.js). Çarpışma: aynı çokgenlerin 0,25 m'lik raster dikdörtgenleri. Süs: yalnız çokgen kenarları (fedges).
+TILE = 32
+protect = np.zeros_like(solid)
+for (ox0, oz0, ox1, oz1) in OVERRIDE_CARVE:
+    protect[int((oz0 - Z0) / CELL):int(np.ceil((oz1 - Z0) / CELL)), int((ox0 - X0) / CELL):int(np.ceil((ox1 - X0) / CELL))] = True
+Bm = solid.copy()
+for _ in range(3):
+    P_ = np.pad(Bm, 1, constant_values=True)
+    nb = P_[:-2, 1:-1].astype(int) + P_[2:, 1:-1] + P_[1:-1, :-2] + P_[1:-1, 2:]
+    Bm = (Bm | ((~Bm) & (nb >= 3) & ~protect)) & ~(Bm & (nb <= 1) & ~c_void)
+    a_, b_, c_, d_ = Bm[:-1, :-1].copy(), Bm[:-1, 1:].copy(), Bm[1:, :-1].copy(), Bm[1:, 1:].copy()
+    cb1 = a_ & d_ & ~b_ & ~c_; cb2 = b_ & c_ & ~a_ & ~d_
+    Bm[:-1, 1:] |= cb1; Bm[1:, :-1] |= cb1; Bm[:-1, :-1] |= cb2; Bm[1:, 1:] |= cb2
+print('temizlik: katı', int(solid.sum()), '→', int(Bm.sum()))
+
+def _trace(m, r0, c0):
+    P_ = np.pad(m, 1); nxt = {}
+    for r, c in zip(*np.nonzero(m)):
+        R, C = r + 1, c + 1; gr, gc = r + r0, c + c0
+        if not P_[R - 1, C]: nxt[(gc, gr)] = (gc + 1, gr)
+        if not P_[R, C + 1]: nxt[(gc + 1, gr)] = (gc + 1, gr + 1)
+        if not P_[R + 1, C]: nxt[(gc + 1, gr + 1)] = (gc, gr + 1)
+        if not P_[R, C - 1]: nxt[(gc, gr + 1)] = (gc, gr)
+    seen = set(); loops = []
+    for s0 in list(nxt):
+        if s0 in seen: continue
+        L = []; v = s0
+        while v not in seen and v in nxt: seen.add(v); L.append(v); v = nxt[v]
+        if len(L) >= 4: loops.append(L)
+    return loops
+
+def _dp(pts, tol):
+    if len(pts) < 3: return list(pts)
+    A = np.array(pts[0], float); Bp = np.array(pts[-1], float); d = Bp - A; Ln = np.hypot(*d)
+    Pp = np.array(pts, float)
+    dist = np.abs(d[0] * (Pp[:, 1] - A[1]) - d[1] * (Pp[:, 0] - A[0])) / Ln if Ln > 1e-9 else np.hypot(Pp[:, 0] - A[0], Pp[:, 1] - A[1])
+    i = int(np.argmax(dist))
+    if dist[i] <= tol: return [pts[0], pts[-1]]
+    return _dp(pts[:i + 1], tol)[:-1] + _dp(pts[i:], tol)
+
+def _simplify(L, tol=0.9):
+    n = len(L)
+    keep = [L[i] for i in range(n) if (L[i][0] - L[i - 1][0], L[i][1] - L[i - 1][1]) != (L[(i + 1) % n][0] - L[i][0], L[(i + 1) % n][1] - L[i][1]) and
+            not ((L[i][0] - L[i - 1][0]) * (L[(i + 1) % n][1] - L[i][1]) == (L[i][1] - L[i - 1][1]) * (L[(i + 1) % n][0] - L[i][0]))]
+    if len(keep) < 3: return keep
+    n = len(keep)
+    anc = [i for i in range(n) if keep[i][0] % TILE == 0 or keep[i][1] % TILE == 0]
+    if len(anc) < 2:
+        far = max(range(n), key=lambda i: (keep[i][0] - keep[0][0]) ** 2 + (keep[i][1] - keep[0][1]) ** 2)
+        anc = sorted(set([0, far] + anc))
+    out = []
+    for k in range(len(anc)):
+        i0, i1 = anc[k], anc[(k + 1) % len(anc)]
+        chain = [keep[j % n] for j in range(i0, (i1 if i1 > i0 else i1 + n) + 1)]
+        out += _dp(chain, tol)[:-1]
+    return out
+
+def _area(R): return 0.5 * sum(R[i][0] * R[(i + 1) % len(R)][1] - R[(i + 1) % len(R)][0] * R[i][1] for i in range(len(R)))
+
+FINE = 2                                         # çarpışma rasteri: hücre başına 2 (0,25 m)
+polys = []; crects = []; fedges = []
+hpad = np.pad(h, 0)
+hdil_max = ndi.maximum_filter(h, size=13); hdil_min = ndi.minimum_filter(h, size=5)
+free_c = ~Bm & ~c_void
+for tr in range(0, NZ, TILE):
+    for tc in range(0, NX, TILE):
+        sub = Bm[tr:tr + TILE, tc:tc + TILE]
+        lab_, n_ = ndi.label(sub)
+        for i in range(1, n_ + 1):
+            m = lab_ == i
+            if m.sum() < 2: continue
+            rings = [_simplify(L) for L in _trace(m, tr, tc)]
+            rings = [R for R in rings if len(R) >= 3 and abs(_area(R)) > 0.3]
+            if not rings: continue
+            rs, cs = np.nonzero(m); rs = rs + tr; cs = cs + tc
+            hr, hc = np.clip(rs, 0, h.shape[0] - 1), np.clip(cs, 0, h.shape[1] - 1)
+            gmax = float(hdil_max[hr, hc].max()); gmin = float(hdil_min[hr, hc].min())
+            vary = ((tr // TILE) * 7 + (tc // TILE) * 3 + i) % 3 * 0.5
+            top = float(np.ceil((gmax + 6.0) * 2) / 2 + vary); base = round(gmin - 0.6, 2)
+            W = [[[round(X0 + v[0] * CELL, 3), round(Z0 + v[1] * CELL, 3)] for v in R] for R in rings]
+            polys.append([top, base, [[c for p_ in R for c in p_] for R in W]])
+            # çarpışma: çokgenin 0,25 m'lik raster dikdörtgenleri
+            x0_, x1_ = X0 + (cs.min() - 1) * CELL, X0 + (cs.max() + 2) * CELL; z0_, z1_ = Z0 + (rs.min() - 1) * CELL, Z0 + (rs.max() + 2) * CELL
+            fx = np.arange(x0_ + CELL / FINE / 2, x1_, CELL / FINE); fz = np.arange(z0_ + CELL / FINE / 2, z1_, CELL / FINE)
+            GX, GZ = np.meshgrid(fx, fz); inside = np.zeros(GX.shape, bool)
+            for R in W:
+                xs = np.array([q[0] for q in R]); zs = np.array([q[1] for q in R]); xj = np.roll(xs, 1); zj = np.roll(zs, 1)
+                for k in range(len(xs)):
+                    if zs[k] == zj[k]: continue
+                    inside ^= ((zs[k] > GZ) != (zj[k] > GZ)) & (GX < (xj[k] - xs[k]) * (GZ - zs[k]) / (zj[k] - zs[k]) + xs[k])
+            for (a0, b0, a1, b1) in rects(inside):
+                crects.append([round(x0_ + a0 * CELL / FINE, 3), round(z0_ + b0 * CELL / FINE, 3), round(x0_ + a1 * CELL / FINE, 3), round(z0_ + b1 * CELL / FINE, 3), top, base])
+            # süs kenarları: dışı yürünebilir zemine bakan, ≥ 1,2 m kenarlar
+            for R in W:
+                for k in range(len(R)):
+                    p0, p1 = R[k], R[(k + 1) % len(R)]
+                    dx, dz = p1[0] - p0[0], p1[1] - p0[1]; Ln = np.hypot(dx, dz)
+                    if Ln < 1.2: continue
+                    nx_, nz_ = dz / Ln, -dx / Ln
+                    ok = 0
+                    for t in (0.25, 0.5, 0.75):
+                        qx, qz = p0[0] + dx * t + nx_ * 0.7, p0[1] + dz * t + nz_ * 0.7
+                        cc, rr = int((qx - X0) / CELL), int((qz - Z0) / CELL)
+                        if 0 <= rr < NZ and 0 <= cc < NX and free_c[rr, cc]: ok += 1
+                    if ok >= 2: fedges.append([p0[0], p0[1], p1[0], p1[1], top])
+print('bina parçası', len(polys), 'çarpışma dikdörtgeni', len(crects), 'cephe kenarı', len(fedges))
+
 data = {
     'S': round(S, 5), 'cell': CELL, 'x0': round(X0, 3), 'z0': round(Z0, 3), 'nx': NX, 'nz': NZ,
-    'rects': [[round(X0 + c0 * CELL, 2), round(Z0 + r0 * CELL, 2), round(X0 + c1 * CELL, 2), round(Z0 + r1 * CELL, 2)] for (c0, r0, c1, r1) in R],
-    'lows': [[round(X0 + c0 * CELL, 2), round(Z0 + r0 * CELL, 2), round(X0 + c1 * CELL, 2), round(Z0 + r1 * CELL, 2)] for (c0, r0, c1, r1) in RL],
-    'divs': [[round(X0 + c0 * CELL, 2), round(Z0 + r0 * CELL, 2), round(X0 + c1 * CELL, 2), round(Z0 + r1 * CELL, 2)] for (c0, r0, c1, r1) in RD],
-    'faces': faces,
-    'cliffs': cliffs,
+    'rects': crects,                              # çarpışma dikdörtgenleri [x0, z0, x1, z1, tepe, taban]
+    'polys': polys,                               # bina çokgenleri [tepe, taban, [halka (x,z düz liste)…]] (ilk halka dış, gerisi delik olabilir)
+    'fedges': fedges,                             # cephe kenarları [x0, z0, x1, z1, tepe]; dış normal (dz, −dx)
+    'cliffs': cliffs,                             # çarpışma (ızgara parçaları, görünmez)
+    'cliffv': cliffv,                             # görsel [x0, z0, x1, z1, alt, üst0, üst1, alçak taraf (normal yönü ±1)]
     'bridge': BRIDGE,
     'boxes': boxes, 'hx0': round(X0, 3), 'hz0': round(Z0, 3), 'hnx': NHX, 'hnz': NHZ, 'hcell': HCELL,
     'h': base64.b64encode(np.round(h * 35).clip(0, 255).astype(np.uint8).tobytes()).decode(), 'hscale': 35,
