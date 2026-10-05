@@ -403,7 +403,7 @@ export class Player {
       if (kb.is('leftHand', code)) this.toggleHand();
       if (this.devTools() && s.alive) {
         if (e.code === 'KeyL') { s.fly = !s.fly; if (!s.fly) s.vel.set(0, 0, 0); this.game.hud.toast(s.fly ? 'Uçuş AÇIK · W/A/S/D + Boşluk yüksel · Ctrl alçal · Shift hızlı · tekerlek hız' : 'Uçuş kapalı'); }
-        if (e.code === 'KeyP') { const g = this.game, c = g.map.callouts, p = s.pos; let nm = ''; if (c) { let bd = 1e9; for (const q of c) { const d = Math.hypot(q.x - p.x, q.z - p.z); if (d < bd) { bd = d; nm = q.name; } } } const t = `Konum x ${p.x.toFixed(1)} · y ${p.y.toFixed(1)} · z ${p.z.toFixed(1)}${nm ? ' · ' + nm : ''}`; console.log('[geliştirici]', t); g.hud.toast(t, '#cfe6ff'); }
+        if (e.code === 'KeyP') { const g = this.game, c = g.map.callouts, p = s.pos; let nm = ''; if (c) { let bd = 1e9; for (const q of c) { const d = Math.hypot(q.x - p.x, q.z - p.z); if (d < bd) { bd = d; nm = q.name; } } } const t = `Konum x ${p.x.toFixed(1)} · y ${p.y.toFixed(1)} · z ${p.z.toFixed(1)}${nm ? ' · ' + nm : ''} · ${s.fly ? 'UÇUŞ AÇIK (çarpışma yok)' : 'yürüyorsun'}`; console.log('[geliştirici]', t); g.hud.toast(t, '#cfe6ff'); }
         if (e.code === 'KeyN') { const g = this.game; if (g.brainsOff) { g.brains.push(...g.brainsOff); g.brainsOff = null; g.hud.toast('Botlar AÇIK', '#9fe6a8'); } else { g.brainsOff = g.brains.splice(0); g.hud.toast('Botlar DONDURULDU (N: tekrar aç)', '#ffd27a'); } }
         if (e.code === 'KeyO') { const g = this.game; g.devGod = !g.devGod; g.hud.toast(g.devGod ? 'Ölümsüzlük AÇIK' : 'Ölümsüzlük kapalı', '#cfe6ff'); }
         if (e.code === 'KeyJ') this.cycleWeapon(-1);

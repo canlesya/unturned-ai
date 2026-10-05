@@ -76,10 +76,10 @@ export function buildColGecidi() {
 
   // sandık yığını: [x, z, kat] (kat başına 0,9 m, 1,2 m'lik küp), g taban kotu
   function crates(list, g) {
-    for (const [cx, cz, lvl] of list) {
+    for (const [cx, cz, lvl, sz = 1.2] of list) {
       const y = g + lvl * 0.9;
-      b.box(cx, y - (lvl ? 0 : 0.3), cz, 1.2, 0.9 + (lvl ? 0 : 0.3), 1.2, lvl ? '#a6834f' : '#9b7a4a', { tag: 'prop' });
-      if (!MapBuilder.noVisual) { b.box(cx, y + 0.86, cz, 1.26, 0.08, 1.26, '#bf9a62', { collide: false }); b.box(cx, y + 0.4, cz, 1.24, 0.08, 1.24, '#6e5535', { collide: false }); }
+      b.box(cx, y - (lvl ? 0 : 0.3), cz, sz, 0.9 + (lvl ? 0 : 0.3), sz, lvl ? '#a6834f' : '#9b7a4a', { tag: 'prop' });
+      if (!MapBuilder.noVisual) { b.box(cx, y + 0.86, cz, sz + 0.06, 0.08, sz + 0.06, '#bf9a62', { collide: false }); b.box(cx, y + 0.4, cz, sz + 0.04, 0.08, sz + 0.04, '#6e5535', { collide: false }); }
     }
   }
   // ── B penceresi (B sahası ↔ Window): çerçevesiz düz duvar açıklığı (fotoğraftaki gibi). Duvar x −37…−36 (OVERRIDE_FILL), açıklık z −49…−46,2;
@@ -91,10 +91,10 @@ export function buildColGecidi() {
     crates([[-39.4, -47.6, 0], [-37.95, -47.6, 0], [-37.95, -47.6, 1]], gB);
   }
   // Xbox: Mid'den catwalk'a 3 sandıkla sıçranarak çıkılır (biri yerde, ikisi üst üste; üstü catwalk kotunda)
-  crates([[-3.55, -10.7, 0], [-2.35, -10.7, 0], [-2.35, -10.7, 1]], terrain.heightAt(-3, -10.7));
+  crates([[-2.55, -10.7, 0, 1.5], [-2.3, -10.7, 1, 1.0]], terrain.heightAt(-3, -10.7));          // catwalk girişi: alttaki büyük, üstteki küçük (2 kasa)
   // Xbox (Mid → Short koridoru): duvar dibinde düzgün kasa yığını (CS2 Xbox gibi): tek taban kasa duvara bitişik, üstüne yarım kaydırılmış ikinci kasa (üst üste 2 kasa).
   //   Tepe 1,8 m, koridor kotu 1,9 m: sıçrayarak koridora / duvar tepesine çıkılır. Hepsi eksen hizalı, birbirine bitişik (rastgele dağınık değil).
-  crates([[-2.35, -13.35, 0], [-2.35, -12.75, 1]], terrain.heightAt(-3, -13.4));
+  crates([[-2.55, -13.35, 0, 1.5], [-2.3, -13.35, 1, 1.0]], terrain.heightAt(-3, -13.4));
 
   // ── Short köprüsü: tek yapı. Tabliye (yürünür 'plat') x 15…23, z −51…−35, üstü 4,6 m. Batı: tabliyeden 11,5 m'ye dolu duvar (Short'tan CT
   //    görünmez). Doğu: 1,7 m'lik tek parça korkuluk duvarı (üstüne çıkılamaz), kuzeyde A yoluna geçiş açık. Altı: ortada iki taş ayak, kuzey ucu dolu,
