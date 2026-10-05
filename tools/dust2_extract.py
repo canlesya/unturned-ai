@@ -712,7 +712,14 @@ for pts, segs in _chains:
         if hmax_ < 0.9:                                                                         # alçak basamak (oyuncu 0,5 m'ye kadar kendiliğinden çıkar): yalnız uzun ve eksene hizalı ise kenar olur
             x_a, z_a = pp[0]; x_b, z_b = pp[-1]; ang_ = abs(np.degrees(np.arctan2(z_b - z_a, x_b - x_a))) % 90
             if length < 3.0 or 8 < ang_ < 82: continue                                           # kısa parça ya da çapraz şerit: zemine yatmış levha gibi görünür → kenar yapma
-        idx = _dp2(pp, 0.35)
+        idx = _dp2(pp, 0.5)
+        while len(idx) > 2:                                                                      # < 1,2 m'lik kısa kenarlar sütun / basamak gibi görünür: kısa kenarın iç ucu atılır (komşusuna katılır)
+            sl = [(np.hypot(pp[idx[k + 1]][0] - pp[idx[k]][0], pp[idx[k + 1]][1] - pp[idx[k]][1]), k) for k in range(len(idx) - 1)]
+            ln, k = min(sl)
+            if ln >= 1.2: break
+            if k == 0: idx.pop(1)
+            elif k == len(idx) - 2: idx.pop(k)
+            else: idx.pop(k if np.hypot(pp[idx[k]][0] - pp[idx[k - 1]][0], pp[idx[k]][1] - pp[idx[k - 1]][1]) < np.hypot(pp[idx[k + 2]][0] - pp[idx[k + 1]][0], pp[idx[k + 2]][1] - pp[idx[k + 1]][1]) else k + 1)
         for a, b2 in zip(idx[:-1], idx[1:]):
             sub = ks[a:b2]
             if not sub: continue

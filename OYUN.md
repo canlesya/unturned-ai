@@ -812,3 +812,6 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 
 ### 12.56 Çöl Geçidi: Outside Tunnels merdiveni
 - Outside Tunnels → Upper Tunnels merdiveni (x −62…−34, z 12…18,5) koridorun tam genişliğinde tek rampa; yan platformlar / uçurum kenarları / taş basamaklar kalktı. Giriş ortasındaki 1×1 m, 11 m yüksekliğinde dikme ve arkasındaki uzun bölme duvarı (x −49,95…−48,1, z −2…10,3) `OVERRIDE_CARVE` ile silindi.
+
+### 12.57 Çöl Geçidi: kat kenarı poligonu sadeleşti (Titanic)
+- Kat kenarı zincirleri artık 0,5 m toleransla sadeleşir ve 1,2 m'den kısa kenarlar komşusuna katılır (görsel duvar 92 → 68 parça; 1,3 m altı parça 35 → 8). Diyagonal kenarlardaki basamaklı köşeler ve ince "sütun" gibi duran kısa parçalar gitti. Çarpışma birim parçalardan gelmeye devam eder (görünmez).
