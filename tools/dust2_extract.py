@@ -478,8 +478,8 @@ OVERRIDE_LEVELS = [
     [-62.0, 12.0, -34.0, 18.5, 'zramp', 4.6, 1.9],     # Outside Tunnels merdiveni: koridorun TAM genişliği tek rampa (yan platform / uçurum kenarı / taş basamak yok)
     # Spiral (Upper → Lower Tunnels): doğuya iniş + sahanlık + kuzeye iniş
     [-36.5, -6.0, -31.5, -1.5, 'xramp', 4.6, 2.3],
-    [-31.5, -6.0, -27.5, -1.5, 'flat', 2.3],
-    [-31.5, -12.5, -27.5, -6.0, 'zramp', 0.0, 2.3],
+    [-31.5, -6.0, -25.9, -1.5, 'flat', 2.3],
+    [-31.5, -12.5, -25.9, -6.0, 'zramp', 0.0, 2.3],       # spiral rampası duvardan duvara (doğu tarafında insanın girebileceği boşluk kalmasın)
     # B Tunnels çıkışı: koridor duvardan duvara tek rampa (Upper Tunnels 4,6 → B önü 1,9)
     [-62.5, -29.5, -53.5, -20.0, 'zramp', 1.9, 4.6],
     [23.5, 5.0, 32.5, 24.5, 'flat', 1.9],               # Long Doors odası: iki kapı arası düz (kapı altında kum tümseği kalmasın)

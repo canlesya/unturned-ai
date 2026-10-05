@@ -827,3 +827,6 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 
 ### 12.61 Çöl Geçidi: Lower Tunnels ağzı (Mid tarafı) üstü kapalı
 - Lower Tunnels'ın Mid'e açılan ağzı (x −11…−9,3, z −15,95…−12,35) üstü açıktı: iki bina arasında gökyüzü görünüyordu. Güneydeki yüksek bina (7,5 m) ağzın üstünden kuzeydeki binaya uzatıldı (alt 4,05 m = çatı altı; geçit açık). Aynı duvar rengi (`polyColorAt`), çatı tonu, korniş ve tepe şeridi; çarpışma sunucuda da.
+
+### 12.62 Çöl Geçidi: spiral rampası duvardan duvara
+- Spiral rampa (Upper → Lower Tunnels, z −12,5…−1,5) x −31,5…−27,5 ile bitiyor, doğu duvarı −26'da başlıyordu: arada ~1,3 m'lik alçak şerit + taş kenar (insan girebilen boşluk). Rampa / sahanlık x −25,9'a kadar genişletildi → kenar duvarı ve boşluk yok.
