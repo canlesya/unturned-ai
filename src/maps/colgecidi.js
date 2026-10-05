@@ -191,8 +191,10 @@ export function buildColGecidi() {
   ];
   for (const g of GATES) gateDoor(b, terrain, g);
   // çatılı tüneller (radar koordinatından: alt tüneller = orta ile B arası teal şerit, üst tüneller = T'den B'ye zeytin kanal)
-  const TUNNELS = [[-33, -10.5, -18, -10, true], [-64, -35, -13.6, -0.5, true], [-60, -54, -27, -9, false], [-53, -43.5, -0.5, 13.0, false]];
+  const TUNNELS = [[-33, -10.5, -18, -10, true], [-64, -35, -13.6, -0.5, true], [-60, -54, -27, -9, false], [-53, -43.5, -0.5, 13.0, false], [-37, -26, -10.5, -1.0, true]];
   roofTunnels(b, terrain, field, TUNNELS);
+  // spiral çatısı (7,9 m) ile Lower Tunnels çatısı (4,3 m) birleşim yerindeki dikey aralık: ince duvar panelini çatılar arasına (4,5 → 8,0 m) koy
+  { const gy = terrain.heightAt(-28, -10.5); b.box(-28.25, 4.5, -10.45, 7.5, 3.55, 0.35, '#8a7551', { tag: 'roof' }); void gy; }
   // süs konmayan alanlar: çatılı tüneller + Long Doors odası + kapıların çevresi (pano / pencere / tente kapıya ya da tavana binmesin)
   const NODECOR = [...TUNNELS.map(([x0, x1, z0, z1]) => [x0 - 0.5, z0 - 0.5, x1 + 0.5, z1 + 0.5]), [22, 5, 34, 24.5],
     ...GATES.map((g) => (g.axis === 'x' ? [g.c - 3.8, g.z - 2.8, g.c + 3.8, g.z + 2.8] : [g.x - 2.8, g.c - 3.8, g.x + 2.8, g.c + 3.8]))];

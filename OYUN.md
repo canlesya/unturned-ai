@@ -821,3 +821,6 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 
 ### 12.59 Çöl Geçidi: Upper Tunnels çatısı kuzeye uzatıldı
 - Upper Tunnels çatı bölgesi kuzeye z −9,5'ten −13,6'ya uzatıldı (aynı çatı, ayrı yama yok): yürünebilir alan bu kadar kuzeye uzanıyordu ve tepesi açıktı. `scripts/cgsky.mjs x0 z0 x1 z1` yürünebilir hücrelerin tepesinin açık olup olmadığını ölçer (bölge: 0 açık).
+
+### 12.60 Çöl Geçidi: spiral çatısı, çatı birleşim paneli
+- Spiral merdiven (Upper → Lower Tunnels, x −37…−26, z −10,5…−1) çatısızdı (tepesi gökyüzüne açık, çatıya çıkılabiliyordu): aynı düz çatı (7,9 m, Upper ile aynı kot) bölgesi eklendi. Spiral çatısı (7,9) ile Lower Tunnels çatısı (4,3) birleşiminde ince dikey çatı paneli (z −10,45, x −32…−24,5, y 4,5…8,0). `scripts/cgsky2.mjs`: 8 yön × 3 eğimle yürünebilir hücrelerden gökyüzü sızıntısı ölçer (tünel bölgeleri: 0). Bilinen açık uçlar: Outside Tunnels merdiveni üstü (z 13) ve B tüneli çıkışı (z −27) — bilerek.
