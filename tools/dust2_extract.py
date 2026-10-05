@@ -144,6 +144,7 @@ OVERRIDE_CARVE = [
     [-39.5, -57.6, -33.5, -42.0, 'hard'],  # B sahası doğu duvarı: radar parçalı / delikli (anlamsız geçit) → OVERRIDE_FILL ile tek temiz duvar, 2 açıklık: pencere + B Doors
     [14.3, -38.4, 16.2, -35.4],    # CT Spawn: köprü güney ağzındaki tek kolon (kullanıcı: kaldır)
     [-52.6, 33.8, -41.0, 36.7, 'hard'],  # Titanic kenarı: gölge bandı bina olmuştu → T'den Outside Tunnels'a atlanır
+    [-53.0, 36.9, -51.1, 42.9],    # Titanic yanında 1,5×5,5 m'lik serbest duran 11,7 m'lik blok (kolon; kullanıcı: kaldır)
     [-49.95, -2.0, -48.1, 10.3],   # Outside Tunnels girişi: 1×1 m 11 m yüksekliğinde dikme + arkasındaki uzun bölme duvarı (kullanıcı: uzun sütun kalkacak)
     [-54.2, -11.2, -49.4, -7.0, 'hard'],  # Upper Tunnels: kasa gölgesi ile kolon birleşip kalın blok olmuştu → ince kolon OVERRIDE_FILL
     [-2.8, 66.2, 13.1, 71.2],      # T rampasının güney nişleri: yan saklanma yeri / taş basamaklı kenar → rampa yüzeyine katıldı
@@ -384,6 +385,8 @@ for bx in boxes:
         else: drop = True
         break
     if not drop: _keep.append(bx)
+REMOVE_BOXES = [(-46.05, 38.55)]                              # elle: duvara / yamaca gömülü kasa (kullanıcı: Titanic yanındaki büyük kasa)
+_keep = [b_ for b_ in _keep if not any(abs(b_[0] - rx) < 0.6 and abs(b_[1] - rz) < 0.6 for (rx, rz) in REMOVE_BOXES)]
 print('kasa çakışma: atılan', len(boxes) - len(_keep), 'yığılan', sum(1 for q in _keep if q[6] > 0))
 boxes = _keep
 print('kutu', len(boxes))

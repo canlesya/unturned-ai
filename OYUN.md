@@ -815,3 +815,6 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 
 ### 12.57 Çöl Geçidi: kat kenarı poligonu sadeleşti (Titanic)
 - Kat kenarı zincirleri artık 0,5 m toleransla sadeleşir ve 1,2 m'den kısa kenarlar komşusuna katılır (görsel duvar 92 → 68 parça; 1,3 m altı parça 35 → 8). Diyagonal kenarlardaki basamaklı köşeler ve ince "sütun" gibi duran kısa parçalar gitti. Çarpışma birim parçalardan gelmeye devam eder (görünmez).
+
+### 12.58 Çöl Geçidi: Titanic kolonu ve duvara gömülü kasa
+- Titanic yanındaki serbest duran 1,5×5,5 m, 11,7 m yüksekliğindeki kolon (x −52,8…−51,3, z 37…42,6) `OVERRIDE_CARVE` ile silindi. Yamaca gömülü büyük kasa (−46,05, 38,55) `REMOVE_BOXES` ile kaldırıldı (elle kasa silme listesi).
