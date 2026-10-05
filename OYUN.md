@@ -806,3 +806,6 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 
 ### 12.54 Çöl Geçidi: T rampasının güney nişleri rampaya katıldı
 - Rampanın güneyindeki (z 66,6–71,2) yan nişler ve onları ayıran taş basamaklı kenar (saklanma yeri) kaldırıldı: `OVERRIDE_CARVE` [−2,8, 66,2, 13,1, 71,2] + rampa seviyesi z 71,2'ye (bina duvarı) kadar uzatıldı. Kum aynı eğimle bina duvarına kadar iner; yalnız kuzey kenar (Mid'e bakan taraf) basamaklı alçalan duvar ve korkuluk.
+
+### 12.55 Çöl Geçidi: çevre duvarı (harita dışına çıkış kapandı)
+- Radar kapsamının dışı (arazi ±70 × ±76 sınırına kadar uzanır) açıktı: güney kenar boyunca ve doğuda 1500+ erişilebilir hücre. Dört kenara tek parça 16 m çevre duvarı eklendi (güney kenar T Spawn'ın güney binası hizasında, 1 m içeriden). `scripts/cgleak.mjs` yürünebilir alanın kapsam dışına taşmasını denetler (sonuç: 0).

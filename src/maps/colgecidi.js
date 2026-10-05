@@ -41,6 +41,15 @@ export function buildColGecidi() {
   // ── binalar: tek tip kum taşı kütleler. Görsel = sadeleştirilmiş çokgen (düz / çapraz kenar, tek tepe kotu); çarpışma = aynı çokgenin 0,25 m'lik
   //    raster dikdörtgenleri (görünmez). Süsler yalnızca çokgen kenarlarına (decorateEdges). Bkz. tools/dust2_extract.py "BİNA KÜTLELERİ".
   const field = makeSolidField(D);
+  // ── çevre duvarı: radar kapsamının dışı (arazi sınırlara kadar uzanır) tek parça yüksek duvarla kapalı. Güney kenar 1 m içeriden başlar (T Spawn'ın
+  //    güney binası bu çizgide). Harita dışına çıkış olmasın: scripts/cgleak.mjs denetler.
+  { const X0 = D.x0, X1 = D.x0 + D.nx * D.cell, Z0 = D.z0, Z1 = D.z0 + D.nz * D.cell, H = 16, col = wallTop(0, 0), E = 8;
+    const wall = (x0, z0, x1, z1) => { b.collide((x0 + x1) / 2, -2, (z0 + z1) / 2, x1 - x0, H, z1 - z0, 'wall'); if (!MapBuilder.noVisual) b.box((x0 + x1) / 2, -2, (z0 + z1) / 2, x1 - x0, H, z1 - z0, col, { collide: false }); };
+    wall(X0 - E, Z1 - 1.0, X1 + E, Z1 + E);       // güney
+    wall(X0 - E, Z0 - E, X1 + E, Z0);             // kuzey
+    wall(X1, Z0 - E, X1 + E, Z1 + E);             // doğu
+    wall(X0 - E, Z0 - E, X0, Z1 + E);             // batı
+  }
   for (const [x0, z0, x1, z1, top, base] of D.rects) b.collide((x0 + x1) / 2, base, (z0 + z1) / 2, x1 - x0, top - base, z1 - z0, 'wall');
   if (!MapBuilder.noVisual) buildPolys(b, D.polys);
 
