@@ -594,6 +594,7 @@ print('kat geçişi rampası', len(ramps), ramps)
 # elle doldurulan bina kütleleri (aynı çokgen hattından geçer: tek tip bina, ayrı yama kutusu değil) [x0, z0, x1, z1]
 OVERRIDE_FILL = [
     [-53.1, -10.7, -52.1, -9.7],   # Upper Tunnels ince kolon
+    [58.5, 23.0, 62.5, 27.3],      # Pit güneydoğu cebi: Pit tabanının dışına taşan kum tümseği (kullanıcı: girilebiliyor) → bina kütlesi, Pit doğu duvarı z 27'ye kadar düz
     [-2.0, -17.9, -0.4, -16.0],    # Xbox koridoru girişi: binanın dili ile kuzey bina arasındaki 1,5 m'lik kısa duvar parçası (sütun gibi duruyordu) → bina kütlesi
     [-37.0, -58.6, -36.0, -49.0],  # B sahası doğu duvarı (kuzey bina ile pencere arası)
     [-37.0, -46.2, -36.0, -42.0],  # B sahası doğu duvarı (pencere ile B Doors arası)

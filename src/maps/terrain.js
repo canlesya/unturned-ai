@@ -169,6 +169,10 @@ export class Terrain {
     fx = Math.max(0, Math.min(this.nx - 1.001, fx)); fz = Math.max(0, Math.min(this.nz - 1.001, fz));
     const i = Math.floor(fx), j = Math.floor(fz), u = fx - i, v = fz - j, n = this.nx, h = this.h;
     const a = h[j * n + i], b = h[j * n + i + 1], c = h[(j + 1) * n + i], d = h[(j + 1) * n + i + 1];
+    if (this.tri) {                                                  // çizilen ağ ile AYNI üçgenleme (hücre başına iki düz üçgen): oyuncunun ayağı görünen kuma gömülmez / kumun üstünde asılı kalmaz
+      if ((i + j) & 1) return u + v <= 1 ? a + (b - a) * u + (c - a) * v : d + (c - d) * (1 - u) + (b - d) * (1 - v);   // köşegen b–c
+      return u >= v ? a + (b - a) * u + (d - b) * v : a + (d - c) * u + (c - a) * v;                                    // köşegen a–d
+    }
     return (a + (b - a) * u) * (1 - v) + (c + (d - c) * u) * v;
   }
 

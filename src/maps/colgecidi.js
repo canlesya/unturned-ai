@@ -36,6 +36,7 @@ export function buildColGecidi() {
   // zemin ağı köşeleri yükseklik verisinin köşeleriyle çakışır (kayık olursa her keskin kat kenarı 1 m'lik eğime yayılıp istinat duvarının önüne taşar)
   const al = (v, o) => o - Math.ceil((o - v) / D.hcell) * D.hcell;
   const terrain = new Terrain({ minX: al(CG_BOUNDS.minX, D.hx0), maxX: CG_BOUNDS.maxX, minZ: al(CG_BOUNDS.minZ, D.hz0), maxZ: CG_BOUNDS.maxZ, cell: D.hcell, height });
+  terrain.tri = true;                                                                  // fizik yüksekliği = çizilen üçgen ağ (bilinear ile ağ arasında 0,4 m'ye varan fark kuma gömülme / havada kalma yapıyordu)
   terrain.deepWater = -1e9;                                                         // su yok: Pit sıfırın altında yürünür
 
   // ── binalar: tek tip kum taşı kütleler. Görsel = sadeleştirilmiş çokgen (düz / çapraz kenar, tek tepe kotu); çarpışma = aynı çokgenin 0,25 m'lik
@@ -91,9 +92,9 @@ export function buildColGecidi() {
   }
   // Xbox: Mid'den catwalk'a 3 sandıkla sıçranarak çıkılır (biri yerde, ikisi üst üste; üstü catwalk kotunda)
   crates([[-3.55, -10.7, 0], [-2.35, -10.7, 0], [-2.35, -10.7, 1]], terrain.heightAt(-3, -10.7));
-  // Xbox (Mid → Short koridoru): duvar dibinde düzgün kasa yığını (CS2 Xbox gibi): iki taban kasa duvara bitişik, üstte bir kasa iki tabana yaslanır, önde basamak kasa.
+  // Xbox (Mid → Short koridoru): duvar dibinde düzgün kasa yığını (CS2 Xbox gibi): tek taban kasa duvara bitişik, üstüne yarım kaydırılmış ikinci kasa (üst üste 2 kasa).
   //   Tepe 1,8 m, koridor kotu 1,9 m: sıçrayarak koridora / duvar tepesine çıkılır. Hepsi eksen hizalı, birbirine bitişik (rastgele dağınık değil).
-  crates([[-2.35, -13.95, 0], [-2.35, -12.75, 0], [-2.35, -13.35, 1], [-3.55, -13.35, 0]], terrain.heightAt(-3, -13.4));
+  crates([[-2.35, -13.35, 0], [-2.35, -12.75, 1]], terrain.heightAt(-3, -13.4));
 
   // ── Short köprüsü: tek yapı. Tabliye (yürünür 'plat') x 15…23, z −51…−35, üstü 4,6 m. Batı: tabliyeden 11,5 m'ye dolu duvar (Short'tan CT
   //    görünmez). Doğu: 1,7 m'lik tek parça korkuluk duvarı (üstüne çıkılamaz), kuzeyde A yoluna geçiş açık. Altı: ortada iki taş ayak, kuzey ucu dolu,
