@@ -4,7 +4,7 @@ MapBuilder.noVisual = true;
 import { buildColGecidi } from '../src/maps/colgecidi.js';
 import { NavGrid } from '../src/game/nav.js';
 const m = buildColGecidi();
-const nav = new NavGrid(m.colliders, m.bounds, m.terrain, false);
+const nav = new NavGrid(m.colliders, m.bounds, m.terrain, !!m.layered);
 const W = nav.w, H = nav.h, C = 0.5;
 const mean = (a) => [a.reduce((s, p) => s + p.x, 0) / a.length, a.reduce((s, p) => s + p.z, 0) / a.length];
 const field = (srcs) => {                                           // Dijkstra (8 komşu)

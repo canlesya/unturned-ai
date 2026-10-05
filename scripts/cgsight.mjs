@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { buildColGecidi } from '../src/maps/colgecidi.js';
 import { NavGrid } from '../src/game/nav.js';
 import { World } from '../src/game/collision.js';
-const m = buildColGecidi(), nav = new NavGrid(m.colliders, m.bounds, m.terrain, false), w = new World(m.colliders, m.bounds, m.terrain);
+const m = buildColGecidi(), nav = new NavGrid(m.colliders, m.bounds, m.terrain, !!m.layered), w = new World(m.colliders, m.bounds, m.terrain);
 const base = m.spawns.blue[0], seen = nav.reachable(base.x, base.z);
 const pts = []; for (let i = 0; i < nav.w * nav.h; i += 7) if (!nav.blocked[i] && seen[i]) pts.push([nav.cx(i), nav.cz(i)]);
 const o = new THREE.Vector3(), d = new THREE.Vector3(), L = [];

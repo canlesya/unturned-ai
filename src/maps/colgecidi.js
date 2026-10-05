@@ -18,7 +18,7 @@ const B64 = (s) => Uint8Array.from(typeof atob === 'function' ? atob(s) : Buffer
 const CALL_PX = [
   ['T Spawn', 570, 882, 1], ['Titanic', 447, 800], ['Outside Tunnels', 387, 660, 1], ['Suicide', 633, 748], ['Outside Long', 806, 728, 1], ['Top Mid', 702, 637, 1], ['Palm', 684, 593], ['Green', 590, 628],
   ['Long Doors', 842, 617], ['Side Pit', 931, 620], ['Pit', 997, 620], ['Blue', 875, 495], ['Long Corner', 977, 480], ['Long', 997, 390, 1], ['Car (Long)', 1056, 312], ['Ramp', 995, 230], ['Barrels', 1003, 155], ['Goose', 945, 118],
-  ['A Site', 933, 226, 1], ['Ninja', 807, 174], ['Boost', 871, 256], ['Elevator', 892, 293], ['CT Spawn', 775, 246, 1], ['Short Stairs', 797, 330], ['Stairs', 792, 380], ['Short', 753, 436, 1], ['Xbox', 660, 438], ['Cat', 680, 523], ['Mid', 640, 515, 1],
+  ['A Site', 933, 226, 1], ['Ninja', 807, 174], ['Boost', 871, 256], ['Elevator', 892, 293], ['CT Spawn', 747, 255, 1], ['Short Stairs', 797, 330], ['Stairs', 792, 380], ['Short', 753, 436, 1], ['Xbox', 660, 438], ['Cat', 680, 523], ['Mid', 640, 515, 1],
   ['Mid Doors', 640, 398], ['Lower Tunnels', 554, 438], ['Upper Tunnels', 350, 480, 1], ['CT Mid', 590, 267, 1], ['B Doors', 447, 284], ['Window', 505, 192], ['B Site', 402, 204, 1], ['B Plat', 343, 182], ['Back Plat', 318, 118], ['Box', 344, 251], ['Fence', 285, 293], ['Car (B)', 415, 355],
 ];
 const px2w = (x, y) => [((x - 277) / 0.87 - 460) * 0.143, ((y - 94.5) / 0.87 - 495.5) * 0.143];
@@ -54,6 +54,24 @@ export function buildColGecidi() {
     const L = a1 - a0, c = (a0 + a1) / 2, x = dir === 0 ? p : c, z = dir === 0 ? c : p, w = dir === 0 ? 0.55 : L + 0.02, d = dir === 0 ? L + 0.02 : 0.55;
     b.box(x, lo - 0.35, z, w, hi - lo + 0.39, d, '#b8996a', { tag: 'ledge' });
     if (!MapBuilder.noVisual) b.box(x, hi - 0.02, z, dir === 0 ? 0.7 : L + 0.04, 0.14, dir === 0 ? L + 0.04 : 0.7, '#d9c08c', { collide: false });
+    // A platosunun kenarı (A Default / A Plat): üstte ~0,9 m korkuluk duvarı (fotoğraflardaki alçak parapet)
+    if (hi >= 4.0 && hi - lo >= 1.5 && x > 28 && x < 62 && z > -62 && z < -38) {
+      b.box(x, hi, z, dir === 0 ? 0.4 : L + 0.02, 0.95, dir === 0 ? L + 0.02 : 0.4, '#cfb27c', { tag: 'rail' });
+      if (!MapBuilder.noVisual) b.box(x, hi + 0.95, z, dir === 0 ? 0.55 : L + 0.06, 0.1, dir === 0 ? L + 0.06 : 0.55, '#e6cf9c', { collide: false });
+    }
+  }
+
+  // ── Short köprüsü: CT Spawn'ın üstünden A platosuna geçen tabliye (yürünür 'plat'), iki yanda korkuluk, altta iki ayak ──
+  const BR = D.bridge;
+  if (BR) {
+    const [bx0, bz0, bx1, bz1, top] = BR, bcx = (bx0 + bx1) / 2, bcz = (bz0 + bz1) / 2, bw = bx1 - bx0, bd = bz1 - bz0;
+    b.box(bcx, top - 0.45, bcz, bw, 0.45, bd + 2.4, '#c2a46f', { tag: 'plat' });                       // uçlarda 1,2 m bindirme: kat kenarı (uçurum) bandını örter
+    for (const sx of [bx0 + 0.15, bx1 - 0.15]) b.box(sx, top, bcz, 0.3, 1.05, bd + 0.6, '#cdb07a', { tag: 'rail' });
+    if (!MapBuilder.noVisual) {
+      b.box(bcx, top - 0.6, bcz, bw + 0.3, 0.16, bd + 0.6, '#9c8156', { collide: false });                 // tabliye alt kirişi
+      for (const sx of [bx0 + 0.15, bx1 - 0.15]) b.box(sx, top + 1.05, bcz, 0.42, 0.1, bd + 0.6, '#e2c995', { collide: false });
+    }
+    for (const sx of [bx0 + 0.35, bx1 - 0.35]) { const gy = terrain.heightAt(sx, bcz); b.box(sx, gy - 0.3, bcz, 0.7, top - 0.45 - gy + 0.3, 0.7, '#b8996a', { tag: 'wall' }); }
   }
 
   // Arabalar (Long ve B) ve Long'daki mavi konteyner: radar kutusu yerine model / özel renk
@@ -93,7 +111,8 @@ export function buildColGecidi() {
   const pickSpawns = (zone0, team, ry, pad = 3, anchor = null) => {
     const zone = [zone0[0] - pad, zone0[1] - pad, zone0[2] + pad, zone0[3] + pad];
     const [x0, z0, x1, z1] = zone, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, cands = [];
-    for (let x = x0 + 1; x <= x1 - 1; x += 1) for (let z = z0 + 1; z <= z1 - 1; z += 1) if (!blocked(x, z)) cands.push([x, z]);
+    const underBridge = (x, z) => D.bridge && x > D.bridge[0] - 1 && x < D.bridge[2] + 1 && z > D.bridge[1] - 1 && z < D.bridge[3] + 1;     // köprü altına doğuş yok (yol bulma köprü katını görür)
+    for (let x = x0 + 1; x <= x1 - 1; x += 1) for (let z = z0 + 1; z <= z1 - 1; z += 1) if (!blocked(x, z) && !underBridge(x, z)) cands.push([x, z]);
     const [ax, az] = anchor || [cx, cz];                          // doğuşlar bu noktaya yakın seçilir (T avlusunun arka ucu: ortaya yol uzunluğunu CT ile dengeler)
     cands.sort((p, q) => Math.hypot(p[0] - ax, p[1] - az) - Math.hypot(q[0] - ax, q[1] - az));
     const picked = [];
@@ -125,7 +144,7 @@ export function buildColGecidi() {
     dishes(b, terrain, D.rects, rng, 30);
     ads(b, terrain, D.faces, field, rng, 14);
     siteSign(b, terrain, D.faces, CALLOUTS.find((q) => q.name === 'A Site'), 'A'); siteSign(b, terrain, D.faces, CALLOUTS.find((q) => q.name === 'B Site'), 'B');
-    for (const nm of ['Long Doors', 'Mid Doors', 'B Doors', 'Outside Tunnels', 'Short Stairs']) { const c = CALLOUTS.find((q) => q.name === nm), dr = c && findDoor(field, c.x, c.z, nm === 'Outside Tunnels' ? 14 : 8); if (dr) doorFrame(b, terrain, dr); }
+    for (const nm of ['Long Doors', 'Mid Doors', 'B Doors', 'Outside Tunnels']) { const c = CALLOUTS.find((q) => q.name === nm), dr = c && findDoor(field, c.x, c.z, nm === 'Outside Tunnels' ? 14 : 8); if (dr) doorFrame(b, terrain, dr); }
     buildSurround(b, rng);
   }
   // çatılı tüneller (radar koordinatından: alt tüneller = orta ile B arası teal şerit, üst tüneller = T'den B'ye zeytin kanal)
@@ -141,6 +160,7 @@ export function buildColGecidi() {
     bounds: CG_BOUNDS,
     terrain,
     sideSwap: true,
+    layered: true,                                                  // Short köprüsü üst üste iki kat: yol bulma hücre başına zemin kotu tutar
     callouts: CALLOUTS,
     // takım çatışmasında botlar için hat noktaları (iki doğuşa dengeli dağılım): Orta, Uzun, Tüneller, Kısa, A rampası, B kapısı, CT orta, dış T alanları
     roamPoints: [[-6.4, 3.5], [-6, -20], [14, -28], [54, 15], [53, -3.6], [41, -28], [-55.8, -6.5], [-27, -16.5], [-30, -40], [-8, -38], [50, 30], [-30, 40]],

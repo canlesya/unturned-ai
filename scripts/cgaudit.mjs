@@ -4,7 +4,7 @@ MapBuilder.noVisual = true;
 import { buildColGecidi } from '../src/maps/colgecidi.js';
 import { NavGrid } from '../src/game/nav.js';
 const m = buildColGecidi();
-const nav = new NavGrid(m.colliders, m.bounds, m.terrain, false);
+const nav = new NavGrid(m.colliders, m.bounds, m.terrain, !!m.layered);
 let fail = 0; const check = (ok, msg) => { console.log((ok ? 'OK    ' : 'HATA  ') + msg); if (!ok) fail++; };
 const s0 = m.spawns.blue[0];
 const seen = nav.reachable(s0.x, s0.z);

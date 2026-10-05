@@ -4,7 +4,7 @@ MapBuilder.noVisual = true;
 import { buildColGecidi } from '../src/maps/colgecidi.js';
 import { NavGrid } from '../src/game/nav.js';
 const [cx, cz, R = 8] = process.argv.slice(2).map(Number);
-const m = buildColGecidi(); const nav = new NavGrid(m.colliders, m.bounds, m.terrain, false);
+const m = buildColGecidi(); const nav = new NavGrid(m.colliders, m.bounds, m.terrain, !!m.layered);
 let out = '';
 for (let z = cz - R; z <= cz + R; z += 0.5) {
   let row = '';

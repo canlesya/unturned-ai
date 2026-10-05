@@ -123,9 +123,11 @@ print('hücre', NX, NZ, 'yürünebilir', free.sum(), 'katı', solid.sum())
 
 # ── elle açılan geçitler (radar çizgisi yanlış kapatıyor): dünya metresi [x0, z0, x1, z1] ──
 OVERRIDE_CARVE = [
-    [14.0, -48.0, 16.6, -38.0],
+    [14.0, -48.0, 16.6, -38.0],    # CT avlusu: yeşil kutu ile taralı (köprü altı) bölme arasındaki duvar
     [-35.0, -9.6, -25.5, -3.0],    # Lower ↔ Upper Tunnels: spiral merdiven (radarda kıvrık çizgiler duvar sanılıyor)
-    [19.0, -43.5, 22.5, -35.0],    # CT avlusu doğu kenarı (taralı bölge çizgisi) → Elevator tarafına açık    # CT doğuş avlusu: yeşil kutu ile taralı (çatı altı) bölme arasındaki duvar, 10 m'lik geniş geçit
+    [19.0, -43.5, 22.5, -35.0],    # CT avlusu doğu kenarı (taralı bölge çizgisi) → Elevator tarafına açık
+    [15.0, -35.6, 23.0, -33.9],    # Short köprüsünün güney ağzı (taralı bölgenin kenar çizgisi duvar sanılıyordu)
+    [15.0, -52.0, 23.0, -50.4],    # köprünün kuzey ağzı (A platosuna iniş)
 ]
 for (ox0, oz0, ox1, oz1) in OVERRIDE_CARVE:
     c0, c1 = int((ox0 - X0) / CELL), int(np.ceil((ox1 - X0) / CELL)); r0, r1 = int((oz0 - Z0) / CELL), int(np.ceil((oz1 - Z0) / CELL))
@@ -134,7 +136,7 @@ for (ox0, oz0, ox1, oz1) in OVERRIDE_CARVE:
 
 # ── adlandırılmış bölgeler arası gerekli bağlantılar (gerçek haritadaki komşuluklar) ──
 CALL_PX = {'T Spawn': (570, 882), 'Titanic': (447, 800), 'Outside Tunnels': (387, 660), 'Suicide': (633, 748), 'Outside Long': (806, 728), 'Top Mid': (702, 637), 'Long Doors': (842, 617), 'Pit': (997, 620), 'Long Corner': (977, 480),
-    'Long': (997, 390), 'Ramp': (995, 230), 'A Site': (933, 226), 'Goose': (945, 118), 'Boost': (871, 256), 'Elevator': (892, 293), 'CT Spawn': (775, 246), 'Short Stairs': (797, 330), 'Stairs': (792, 380), 'Short': (753, 436), 'Xbox': (660, 438),
+    'Long': (997, 390), 'Ramp': (995, 230), 'A Site': (933, 226), 'Goose': (945, 118), 'Boost': (871, 256), 'Elevator': (892, 293), 'CT Spawn': (747, 255), 'Short Stairs': (797, 330), 'Stairs': (792, 380), 'Short': (753, 436), 'Xbox': (660, 438),
     'Cat': (680, 523), 'Mid': (640, 515), 'Mid Doors': (640, 398), 'Lower Tunnels': (554, 438), 'Upper Tunnels': (350, 480), 'CT Mid': (590, 267), 'B Doors': (447, 284), 'Window': (505, 192), 'B Site': (402, 204), 'B Plat': (343, 182),
     'Back Plat': (318, 118), 'Box': (344, 251), 'Fence': (285, 293), 'Ninja': (807, 174), 'Barrels': (1003, 155), 'Blue': (875, 495), 'Side Pit': (931, 620), 'Car (B)': (415, 355), 'Car (Long)': (1056, 312), 'Palm': (684, 593), 'Green': (590, 628)}
 def call_cell(nm):
@@ -142,7 +144,7 @@ def call_cell(nm):
     return int(np.clip((v * S + Z0 + PH * S / 2 - 0) , 0, 1e9) * 0) + int(np.clip(((v - 0) * S) / CELL, 0, NZ - 1)), int(np.clip((u * S) / CELL, 0, NX - 1))
 REQUIRED = [('Lower Tunnels', 'Upper Tunnels'), ('Upper Tunnels', 'Outside Tunnels'), ('Outside Tunnels', 'T Spawn'), ('Outside Tunnels', 'Titanic'), ('Titanic', 'T Spawn'), ('T Spawn', 'Outside Long'), ('T Spawn', 'Top Mid'),
     ('Outside Long', 'Long Doors'), ('Long Doors', 'Long Corner'), ('Long Corner', 'Pit'), ('Long Corner', 'Long'), ('Long', 'Ramp'), ('Ramp', 'A Site'), ('A Site', 'Goose'), ('A Site', 'Boost'), ('Top Mid', 'Mid'), ('Mid', 'Xbox'),
-    ('Xbox', 'Mid Doors'), ('Mid Doors', 'CT Mid'), ('Xbox', 'Short'), ('Short', 'Stairs'), ('Stairs', 'Short Stairs'), ('Short Stairs', 'A Site'), ('Short Stairs', 'CT Spawn'), ('CT Spawn', 'Elevator'), ('Elevator', 'A Site'),
+    ('Xbox', 'Mid Doors'), ('Mid Doors', 'CT Mid'), ('Xbox', 'Short'), ('Short', 'Stairs'), ('Stairs', 'Short Stairs'), ('Short Stairs', 'A Site'), ('CT Spawn', 'Elevator'), ('Elevator', 'A Site'),
     ('CT Mid', 'B Doors'), ('B Doors', 'B Site'), ('CT Mid', 'Window'), ('Window', 'B Site'), ('B Site', 'B Plat'), ('B Plat', 'Back Plat'), ('Box', 'B Site'), ('Suicide', 'Mid Doors'), ('Lower Tunnels', 'Xbox'), ('Cat', 'Short'), ('Mid', 'Cat'), ('Upper Tunnels', 'B Site'), ('Upper Tunnels', 'Fence'), ('Upper Tunnels', 'Car (B)'), ('Car (B)', 'B Doors'), ('CT Spawn', 'CT Mid'), ('Long Corner', 'Blue'), ('Blue', 'Long Doors'), ('Pit', 'Side Pit'), ('Side Pit', 'Long Doors'),
     ('Boost', 'Ninja'), ('Ninja', 'A Site'), ('Barrels', 'A Site'), ('Long', 'Car (Long)'), ('Car (Long)', 'Ramp'), ('Palm', 'Top Mid'), ('Green', 'Top Mid'), ('Palm', 'Mid')]
 import heapq as _hq
@@ -324,7 +326,9 @@ print('kutu', len(boxes))
 HCELL = 0.5
 NHX = int(np.ceil(PW * S / HCELL)) + 1; NHZ = int(np.ceil(PH * S / HCELL)) + 1
 hmask = (~void) & (rot(sat) >= 6) & (~orange) & (~green)          # rampa gradyanının ortası düşük doygunluklu: 'floor' maskesi onu dışlıyordu
-hmask &= ~ndi.binary_dilation(void | (rot(sat) < 6) | box | thin_light | orange | green, iterations=3)   # duvar / kutu / çizgi kenarının karışık renkli pikselleri (sahte tümsek) alınmaz
+_rg = rot(rgb).astype(int)
+_halo = ((_rg[..., 0] - _rg[..., 1]) > 4) | ((_rg[..., 1] - _rg[..., 0]) > 40)     # turuncu (bomba alanı) / yeşil (alım) çerçevenin karışık renkli kenarı: zemin r<g ve g−r<~25
+hmask &= ~ndi.binary_dilation(void | (rot(sat) < 6) | box | thin_light | orange | green | _halo, iterations=3)   # duvar / kutu / çizgi kenarının karışık renkli pikselleri (sahte tümsek) alınmaz
 # Parlaklıktan bağımsız ton oranı q = (r−b)/(r+g+b): radar duvar diplerini koyulaştırıyor (gölge) → r−b kullanılınca duvar diplerinde sahte kum tepeleri çıkıyordu.
 _rgbr = rot(rgb).astype(float)
 qpx = (_rgbr[..., 0] - _rgbr[..., 2]) / (_rgbr.sum(-1) + 1.0)
@@ -358,10 +362,24 @@ for (gx0, gz0, gx1, gz1) in zones['green']:
 
 # ── elle rampalar (radarda merdiven gradyanı görünmeyen yerler: çatı altında kalan merdivenler) [x0, z0, x1, z1, eksen] ──
 # eksen 'z': z0 kenarındaki kottan z1 kenarındaki kota doğrusal; 'x' benzer
+# ── Short köprüsü: radardaki taralı alan CT Spawn'ın ÜSTÜNDEN geçen Short (catwalk) köprüsüdür. Altında CT avlusu (zemin), üstünde
+#    köprü tabliyesi (colgecidi.js'te 'plat' kutusu). Köprü uçları: güneyde Short şeridi (4,6 m, merdivenle Short'a iner), kuzeyde A platosu.
+BRIDGE = [15.0, -51.0, 23.0, -35.0, 4.6]
+OVERRIDE_LEVELS = [
+    [15.0, -59.5, 23.5, -51.0, 'flat', 4.6],          # köprünün kuzey ucu: A platosu
+    [15.0, -35.0, 23.0, -27.5, 'flat', 4.6],          # köprünün güney ucu: Short şeridi
+    [15.0, -27.5, 23.0, -21.5, 'zramp', 4.6, 1.9],    # Short merdiveni: şeritten Short / Cat seviyesine
+    [15.0, -38.5, 23.0, -35.0, 'flat', 'CT'],         # köprü altı: CT avlusu kotu
+]
+for L in OVERRIDE_LEVELS:
+    (ra, ca_), (rb, cb_) = (int(round((L[1] - Z0) / HCELL)), int(round((L[0] - X0) / HCELL))), (int(round((L[3] - Z0) / HCELL)), int(round((L[2] - X0) / HCELL)))
+    if L[4] == 'flat': h[ra:rb + 1, ca_:cb_ + 1] = CT_LEVEL if L[5] == 'CT' else L[5]
+    else:
+        for r in range(ra, rb + 1): h[r, ca_:cb_ + 1] = L[5] + (L[6] - L[5]) * (r - ra) / max(1, rb - ra)
+
 OVERRIDE_RAMPS = [
     [-51.0, 9.0, -46.5, 19.0, 'z'],     # Upper Tunnels → Outside Tunnels merdiveni (iki sahanlık çubuğu arasındaki açıklık)
     [-60.0, -31.0, -55.0, -23.0, 'z'],  # Upper Tunnels → B (B Tunnels çıkışı) merdiveni
-    [16.5, -40.5, 20.5, -31.0, 'z'],    # CT Spawn → Short Stairs (A kısa merdiveni)
 ]
 def hcell(x, z): return int(round((z - Z0) / HCELL)), int(round((x - X0) / HCELL))
 for (rx0, rz0, rx1, rz1, ax) in OVERRIDE_RAMPS:
@@ -466,6 +484,7 @@ data = {
     'divs': [[round(X0 + c0 * CELL, 2), round(Z0 + r0 * CELL, 2), round(X0 + c1 * CELL, 2), round(Z0 + r1 * CELL, 2)] for (c0, r0, c1, r1) in RD],
     'faces': faces,
     'cliffs': cliffs,
+    'bridge': BRIDGE,
     'boxes': boxes, 'hx0': round(X0, 3), 'hz0': round(Z0, 3), 'hnx': NHX, 'hnz': NHZ, 'hcell': HCELL,
     'h': base64.b64encode(np.round(h * 35).clip(0, 255).astype(np.uint8).tobytes()).decode(), 'hscale': 35,
     'zones': zones,
