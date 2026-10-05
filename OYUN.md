@@ -824,3 +824,6 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 
 ### 12.60 Çöl Geçidi: spiral çatısı, çatı birleşim paneli
 - Spiral merdiven (Upper → Lower Tunnels, x −37…−26, z −10,5…−1) çatısızdı (tepesi gökyüzüne açık, çatıya çıkılabiliyordu): aynı düz çatı (7,9 m, Upper ile aynı kot) bölgesi eklendi. Spiral çatısı (7,9) ile Lower Tunnels çatısı (4,3) birleşiminde ince dikey çatı paneli (z −10,45, x −32…−24,5, y 4,5…8,0). `scripts/cgsky2.mjs`: 8 yön × 3 eğimle yürünebilir hücrelerden gökyüzü sızıntısı ölçer (tünel bölgeleri: 0). Bilinen açık uçlar: Outside Tunnels merdiveni üstü (z 13) ve B tüneli çıkışı (z −27) — bilerek.
+
+### 12.61 Çöl Geçidi: Lower Tunnels ağzı (Mid tarafı) üstü kapalı
+- Lower Tunnels'ın Mid'e açılan ağzı (x −11…−9,3, z −15,95…−12,35) üstü açıktı: iki bina arasında gökyüzü görünüyordu. Güneydeki yüksek bina (7,5 m) ağzın üstünden kuzeydeki binaya uzatıldı (alt 4,05 m = çatı altı; geçit açık). Aynı duvar rengi (`polyColorAt`), çatı tonu, korniş ve tepe şeridi; çarpışma sunucuda da.

@@ -193,6 +193,16 @@ export function buildColGecidi() {
   // çatılı tüneller (radar koordinatından: alt tüneller = orta ile B arası teal şerit, üst tüneller = T'den B'ye zeytin kanal)
   const TUNNELS = [[-33, -10.5, -18, -10, true], [-64, -35, -13.6, -0.5, true], [-60, -54, -27, -9, false], [-53, -43.5, -0.5, 13.0, false], [-37, -26, -10.5, -1.0, true]];
   roofTunnels(b, terrain, field, TUNNELS);
+  // Lower Tunnels'ın Mid tarafındaki ağzı: güneydeki yüksek bina (7,5 m) ağzın üstünden kuzeydeki binaya uzar (üst kapalı; geçit çatı hizasından 4,05 m'ye kadar açık).
+  //   Aynı duvar rengi / çatı rengi / korniş (decorateEdges ile aynı dil): sonradan eklenmiş yama gibi durmaz.
+  { const lx0 = -11.0, lx1 = -9.3, lz0 = -15.95, lz1 = -12.35, [lcol, ltop] = polyColorAt(D.polys, -10.5, -10), top = ltop ?? 7.5, y0 = 4.05;
+    b.collide((lx0 + lx1) / 2, y0, (lz0 + lz1) / 2, lx1 - lx0, top - y0, lz1 - lz0, 'wall');
+    if (!MapBuilder.noVisual) {
+      b.box((lx0 + lx1) / 2, y0, (lz0 + lz1) / 2, lx1 - lx0, top - y0, lz1 - lz0, lcol, { collide: false });
+      b.box((lx0 + lx1) / 2, top - 0.01, (lz0 + lz1) / 2, lx1 - lx0, 0.02, lz1 - lz0, wallTop(0, 0), { collide: false });                    // üst yüz (bina çatı tonu)
+      b.box(lx1 + 0.08, top - 0.45, (lz0 + lz1) / 2, 0.2, 0.3, lz1 - lz0 + 0.04, '#e2c995', { collide: false });                              // korniş
+      b.box(lx1 - 0.2, top - 0.02, (lz0 + lz1) / 2, 0.66, 0.14, lz1 - lz0 + 0.04, '#c9ad78', { collide: false });                             // duvar tepesi şeridi
+    } }
   // spiral çatısı (7,9 m) ile Lower Tunnels çatısı (4,3 m) birleşim yerindeki dikey aralık: ince duvar panelini çatılar arasına (4,5 → 8,0 m) koy
   { const gy = terrain.heightAt(-28, -10.5); b.box(-28.25, 4.5, -10.45, 7.5, 3.55, 0.35, '#8a7551', { tag: 'roof' }); void gy; }
   // süs konmayan alanlar: çatılı tüneller + Long Doors odası + kapıların çevresi (pano / pencere / tente kapıya ya da tavana binmesin)
