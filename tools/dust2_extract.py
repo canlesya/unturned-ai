@@ -145,7 +145,7 @@ OVERRIDE_CARVE = [
     [14.3, -38.4, 16.2, -35.4],    # CT Spawn: köprü güney ağzındaki tek kolon (kullanıcı: kaldır)
     [-52.6, 33.8, -41.0, 36.7, 'hard'],  # Titanic kenarı: gölge bandı bina olmuştu → T'den Outside Tunnels'a atlanır
     [-54.2, -11.2, -49.4, -7.0, 'hard'],  # Upper Tunnels: kasa gölgesi ile kolon birleşip kalın blok olmuştu → ince kolon OVERRIDE_FILL
-    [-6.0, 52.6, 6.0, 66.8],       # T Spawn doğusu: radarda bina yok, aşağı inen yokuş (gölge şeritleri bina olmuştu)
+    [-6.0, 52.6, 12.0, 66.8],      # T Spawn doğusu: radarda bina yok, aşağı inen yokuş (gölge şeritleri bina olmuştu)
     [45.0, 6.5, 48.9, 25.0],       # Pit ↔ Side Pit: bina duvarı değil, alçak duvar (colgecidi.js 'PIT_WALL')
 ]
 for (ox0, oz0, ox1, oz1, *_hard) in OVERRIDE_CARVE:
@@ -461,7 +461,9 @@ OVERRIDE_LEVELS = [
     [-1.3, -12.5, 3.6, -8.5, 'zramp', 1.9, 2.6],      # kuzey ucu: Short'a ve Xbox önünden Mid'e (z −14…−12 basamaksız)
     [-5.5, -12.5, -1.3, -9.0, 'flat', 0.2],            # Xbox önü Mid kotunda: catwalk'a 3 sandıkla çıkılır (colgecidi.js)
     # T Spawn doğusu: avludan Outside Long / Top Mid kotuna düzgün yokuş
-    [-6.0, 52.5, 6.0, 67.0, 'xramp', 6.6, 1.9],
+    [-31.0, 52.5, -5.0, 66.6, 'flat', 6.6],            # T Spawn platosu: tek düz kot (çıkıntı / kırık parça yok)
+    [-5.0, 52.5, 11.0, 66.6, 'xramp', 6.6, 1.9],       # T rampası: 16 m'de 4,7 m (~16°; eskiden 12 m / 21° idi)
+    [11.0, 52.5, 16.0, 66.6, 'flat', 1.9],
     # Tüneller: Upper Tunnels düz 4,6; Outside Tunnels düz 1,9; aradaki merdiven radardaki açıklık boyunca tek eğim
     [-64.0, -15.0, -36.5, -0.5, 'flat', 4.6],
     [-36.5, -10.5, -31.5, -6.0, 'flat', 4.6],          # spiralin iç bloğu (üst kat)
@@ -694,10 +696,11 @@ cliffs = []; cliffv = []; _seg_top = {}
 for pts, segs in _chains:
     if not segs: continue
     # zinciri üst kot sıçramalarında (> 0,6) böl: tek düz tepe iki ayrı katı kapatmasın
-    pieces = []; cur = [0]
+    pieces = []; cur = [0]; tmn = tmx = _us[segs[0]][5]                                   # üst kot aralığı > 0,6 olunca parça bölünür: rampa boyunca duvar BASAMAK BASAMAK alçalır
     for q in range(1, len(segs)):
-        if abs(_us[segs[q]][5] - _us[segs[q - 1]][5]) > 0.6: pieces.append(cur); cur = [q]
-        else: cur.append(q)
+        t_ = _us[segs[q]][5]
+        if max(tmx, t_) - min(tmn, t_) > 0.6 or abs(t_ - _us[segs[q - 1]][5]) > 0.6: pieces.append(cur); cur = [q]; tmn = tmx = t_
+        else: cur.append(q); tmn = min(tmn, t_); tmx = max(tmx, t_)
     pieces.append(cur)
     for pc in pieces:
         pp = [pts[pc[0]]] + [pts[q + 1] for q in pc]

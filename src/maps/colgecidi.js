@@ -51,7 +51,8 @@ export function buildColGecidi() {
   // Pit'in batı kenarı (Side Pit ↔ Pit, x ≈ 48): standart istinat duvarı + 0,7 m korkuluk (Side Pit tarafında bel hizası duvar).
   const isPit = (x, z) => x > 46.6 && x < 48.8 && z > 6.8 && z < 26.0;
   const isPara = (x, z, lo, hi, alongX) => hi >= 4.0 && hi - lo >= 1.5 && (x > 28 || (alongX && x > 22.9)) && x < 62 && z > -62 && z < -38;
-  const extra = (x, z, lo, hi, alongX) => (isPara(x, z, lo, hi, alongX) ? 0.95 : !alongX && isPit(x, z) ? 0.7 : 0.04);
+  const isTRim = (x, z, alongX) => alongX && x > -11.5 && x < -4.5 && z > 51.5 && z < 53.8;           // T platosunun kuzey kenarı (Mid'e bakan): çömelince arkasından nişan alınır
+  const extra = (x, z, lo, hi, alongX) => (isPara(x, z, lo, hi, alongX) ? 0.95 : !alongX && isPit(x, z) ? 0.7 : isTRim(x, z, alongX) ? 0.8 : 0.04);
   for (const [dir, p, a0, a1, lo, hi] of D.cliffs || []) {
     const L = a1 - a0, c = (a0 + a1) / 2, x = dir === 0 ? p : c, z = dir === 0 ? c : p, ex = extra(x, z, lo, hi, dir !== 0);
     b.collide(x, lo - 0.35, z, dir === 0 ? 0.55 : L + 0.02, hi + ex - lo + 0.35, dir === 0 ? L + 0.02 : 0.55, ex > 0.5 ? 'rail' : 'ledge');
