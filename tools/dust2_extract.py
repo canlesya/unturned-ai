@@ -135,6 +135,11 @@ OVERRIDE_CARVE = [
     [16.0, -59.4, 38.4, -51.0],    # A platosu kuzeyi (Ninja): fıçı / kasa gölgeleri bina kütlesine karışmış, 6 m şerit gömülüydü → kasalar EXTRA_BOXES'ta
     [-51.0, -60.5, -49.6, -48.0],  # B Plat ↔ B sahası: turuncu saha çizgisi duvar olmuştu (radarda duvar yok)
     [-51.0, -47.9, -37.3, -46.2],  # B sahası güney kenarı: aynı (saha → Box / B Doors inişi)
+    [-8.6, -19.6, -5.8, -18.4],    # Mid Doors önündeki sütun
+    [27.4, 8.8, 30.2, 10.3],       # Long Doors önündeki sütun
+    [-12.0, -23.2, -3.7, -19.4],   # Mid Doors: radardaki açık kanat çizgileri sütun olmuştu → colgecidi.js GATES kapısı
+    [-37.6, -41.5, -33.2, -35.6],  # B Doors: aynı
+    [24.6, 5.4, 31.4, 8.9],        # Long Doors: aynı
     [-6.0, 52.6, 6.0, 66.8],       # T Spawn doğusu: radarda bina yok, aşağı inen yokuş (gölge şeritleri bina olmuştu)
     [45.0, 6.5, 48.9, 25.0],       # Pit ↔ Side Pit: bina duvarı değil, alçak duvar (colgecidi.js 'PIT_WALL')
 ]
@@ -396,11 +401,12 @@ OVERRIDE_LEVELS = [
     # A sahası ↔ A Ramp: düz kot + tek eğim → aradaki kenar düz tek istinat duvarı (ara kotlardan iç içe kırık parçalar oluşuyordu)
     [38.0, -60.0, 48.0, -53.0, 'flat', 4.6],
     [48.0, -59.0, 57.5, -45.0, 'zramp', 4.6, 1.9],
-    # B sahası: düz kotlar (radar halkası / gürültüsü basamaklı, iç içe kırık kenarlar üretiyordu)
-    [-63.5, -63.0, -52.5, -47.5, 'flat', 4.6],         # B Plat
-    [-52.5, -61.0, -49.5, -48.0, 'xramp', 4.6, 3.4],   # B Plat → saha geniş basamaksız iniş
-    [-49.5, -61.0, -34.5, -48.5, 'flat', 3.4],         # B sahası + doğu çıkıntısı (pencere kenarı)
-    [-49.5, -48.5, -37.0, -44.5, 'zramp', 3.4, 1.9],   # sahadan güneye (Box / B Doors tarafı) iniş
+    # B: fotoğraflardaki gibi tek kotlu avlu (saha + kapı önü + doğu çıkıntısı 1,9 m); B Plat / Back Plat 1 m yüksek, sahaya 5 m'lik basamaksız iniş
+    [-64.0, -68.0, -52.5, -47.5, 'flat', 2.9],
+    [-52.5, -61.0, -34.5, -48.5, 'flat', 1.9],
+    [-52.5, -48.5, -36.6, -36.0, 'flat', 1.9],
+    [-52.5, -66.0, -38.0, -61.0, 'flat', 1.9],          # sahanın arka duvar önü (raf gibi yüksek şerit kalmasın)
+    [-54.5, -56.5, -51.0, -51.5, 'xramp', 2.9, 1.9],
     # Mid catwalk: Mid'in doğu kenarında yükseltilmiş şerit (radarda batı kenarı ince duvar çizgisi). Güneyde Top Mid'den, kuzeyde Short'tan rampa.
     [-1.3, -8.5, 3.6, 7.5, 'flat', 2.6],
     [-1.3, 7.5, 3.6, 12.0, 'zramp', 2.6, 1.9],

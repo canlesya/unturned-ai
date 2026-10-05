@@ -3,7 +3,7 @@ import { MapBuilder } from './builder.js';
 import { Terrain, fbm } from './terrain.js';
 import DATA from './colgecidiData.js';
 import { car } from './kit.js';
-import { makeSolidField, floorColor, decorateFaces, rngOf, wallTop, propBox, scatterPalms, buildSurround, roofTunnels, hangings, findDoor, doorFrame, woodDoor, dishes, ads, siteSign } from './colgecidiArt.js';
+import { makeSolidField, floorColor, decorateFaces, rngOf, wallTop, propBox, scatterPalms, buildSurround, roofTunnels, hangings, findDoor, doorFrame, gateDoor, dishes, ads, siteSign } from './colgecidiArt.js';
 
 // Çöl Geçidi: üç hatlı (uzun koridor / orta / tüneller), iki hedef alanlı (A, B) klasik çöl haritası.
 // Yapı tools/dust2_extract.py ile radar şemasından çıkarılır (colgecidiData.js); bu dosya veriyi oyuna çevirir:
@@ -50,22 +50,22 @@ export function buildColGecidi() {
 
   // ── sandık / konteyner / fıçı gövdeleri (radar kutuları); sunucuda yalnızca çarpışma gövdesi ──
   // ── kat kenarları: radar yüksekliğindeki keskin geçişler (sahanlık, çukur, platform kenarı) → taş istinat duvarı + üst kenar şeridi ──
+  // A platosu kenarında (A Default / A Plat) istinat duvarı tek parça ~0,95 m yukarı uzar (parapet; üstüne ayrı duvar konmaz).
+  // Pit ↔ Side Pit çizgisindeki kenarlar atlanır: orada baştan sona tek alçak duvar var (aşağıda).
+  const PIT = [46.6, 6.8, 48.4, 25.6];
   for (const [dir, p, a0, a1, lo, hi] of D.cliffs || []) {
     const L = a1 - a0, c = (a0 + a1) / 2, x = dir === 0 ? p : c, z = dir === 0 ? c : p, w = dir === 0 ? 0.55 : L + 0.02, d = dir === 0 ? L + 0.02 : 0.55;
-    b.box(x, lo - 0.35, z, w, hi - lo + 0.39, d, '#b8996a', { tag: 'ledge' });
-    if (!MapBuilder.noVisual) b.box(x, hi - 0.02, z, dir === 0 ? 0.7 : L + 0.04, 0.14, dir === 0 ? L + 0.04 : 0.7, '#d9c08c', { collide: false });
-    // A platosunun kenarı (A Default / A Plat): üstte ~0,9 m korkuluk duvarı (fotoğraflardaki alçak parapet)
-    // (z yönlü kenarda köprüye kadar: kemer üstü boşluk; x yönlü köprü kenarında yok — köprüden A yoluna geçiş)
-    if (hi >= 4.0 && hi - lo >= 1.5 && (x > 28 || (dir !== 0 && x > 22.9)) && x < 62 && z > -62 && z < -38) {
-      b.box(x, hi, z, dir === 0 ? 0.4 : L + 0.02, 0.95, dir === 0 ? L + 0.02 : 0.4, '#cfb27c', { tag: 'rail' });
-      if (!MapBuilder.noVisual) b.box(x, hi + 0.95, z, dir === 0 ? 0.55 : L + 0.06, 0.1, dir === 0 ? L + 0.06 : 0.55, '#e6cf9c', { collide: false });
-    }
+    if (dir === 0 && x > PIT[0] && x < PIT[2] && z > PIT[1] && z < PIT[3]) continue;
+    const para = hi >= 4.0 && hi - lo >= 1.5 && (x > 28 || (dir !== 0 && x > 22.9)) && x < 62 && z > -62 && z < -38;
+    const top = hi + (para ? 0.95 : 0.04);
+    b.box(x, lo - 0.35, z, w, top - lo + 0.35, d, '#b8996a', { tag: para ? 'rail' : 'ledge' });
+    if (!MapBuilder.noVisual) b.box(x, top - 0.06, z, dir === 0 ? 0.7 : L + 0.04, 0.14, dir === 0 ? L + 0.04 : 0.7, '#d9c08c', { collide: false });
   }
 
-  // ── Pit ↔ Side Pit: radardaki ince çizgi → Side Pit tarafında 0,7 m alçak taş duvar (Pit tarafında kat kenarıyla birlikte yüksek) ──
-  { const x0 = 47.2, x1 = 47.7, z0 = 7.4, z1 = 21.6, top = 2.6;
-    b.box((x0 + x1) / 2, -0.3, (z0 + z1) / 2, x1 - x0, top + 0.3, z1 - z0, '#b8996a', { tag: 'wall' });
-    if (!MapBuilder.noVisual) b.box((x0 + x1) / 2, top - 0.02, (z0 + z1) / 2, 0.7, 0.12, z1 - z0 + 0.1, '#d9c08c', { collide: false }); }
+  // ── Pit ↔ Side Pit: radardaki ince çizgi → baştan sona tek alçak taş duvar (Side Pit'ten 0,7 m, Pit'ten kat farkıyla yüksek) ──
+  { const x0 = 47.2, x1 = 47.75, z0 = 7.2, z1 = 25.3, top = 2.6;
+    b.box((x0 + x1) / 2, -0.4, (z0 + z1) / 2, x1 - x0, top + 0.4, z1 - z0, '#b8996a', { tag: 'wall' });
+    if (!MapBuilder.noVisual) b.box((x0 + x1) / 2, top - 0.06, (z0 + z1) / 2, 0.7, 0.14, z1 - z0 + 0.04, '#d9c08c', { collide: false }); }
 
   // ── Short köprüsü: CT Spawn'ın üstünden A platosuna geçen tabliye (yürünür 'plat'), iki yanda korkuluk, altta iki ayak ──
   const BR = D.bridge;
@@ -179,9 +179,13 @@ export function buildColGecidi() {
     { const c = CALLOUTS.find((q) => q.name === 'Outside Tunnels'), dr = c && findDoor(field, c.x, c.z, 14); if (dr) doorFrame(b, terrain, dr); }
     buildSurround(b, rng);
   }
-  // ahşap çift kanatlı kapılar (Long / Mid / B): çarpışma sunucuda da gerekir → süs bloğunun dışında
-  const DOORS = [];
-  for (const nm of ['Long Doors', 'Mid Doors', 'B Doors']) { const c = CALLOUTS.find((q) => q.name === nm), dr = c && findDoor(field, c.x, c.z, 8, 2.8); if (dr) { woodDoor(b, terrain, dr); DOORS.push({ name: nm, ...dr }); } }
+  // büyük ahşap kapılar (radardaki kanat çizgilerinin yerinde; koridoru kesen alçak duvar + taş çerçeve + aralık kanatlar). Çarpışma sunucuda da.
+  const GATES = [
+    { name: 'Mid Doors', axis: 'x', z: -21.4, a0: -12.4, a1: -3.3, c: -7.8, W: 4.4, swing: 1, aL: 22, aR: 68 },
+    { name: 'B Doors', axis: 'z', x: -36.5, a0: -42.0, a1: -35.3, c: -38.6, W: 4.6, swing: 1, aL: 28, aR: 66 },
+    { name: 'Long Doors', axis: 'x', z: 7.6, a0: 24.2, a1: 31.9, c: 28.0, W: 4.4, swing: -1, aL: 24, aR: 70 },
+  ];
+  for (const g of GATES) gateDoor(b, terrain, g);
   // çatılı tüneller (radar koordinatından: alt tüneller = orta ile B arası teal şerit, üst tüneller = T'den B'ye zeytin kanal)
   roofTunnels(b, terrain, field, [[-33, -10.5, -18, -10, true], [-64, -35, -9.5, -0.5, true], [-60, -54, -27, -9, false]]);
   const group = b.build();

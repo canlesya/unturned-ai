@@ -754,3 +754,8 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 
 ### 12.45 Çöl Geçidi: CT kuzey cebi kapandı, köprü altı yeniden açık
 - Kullanıcı düzeltmesi: kapatılması istenen yer köprü altı değil, köprünün batısındaki CT kuzey cebi (kapılı bina önü, X 6,5–15, Z −51,6…−42,65). Burası bina kütlesi oldu; güney yüzü köprü ayağına hizalı (kaide, korniş, iki pencere). Köprü altı ve kemer eskisi gibi tam açık.
+
+### 12.46 Çöl Geçidi: gerçek kapılar (Mid / B / Long), duvar üstüne duvar yok, Pit tek duvar, B tek kotlu avlu
+- Kullanıcı: "kapı" dediği radardaki sütunlar (açık kanat çizgileri duvara dönmüştü). Yerlerine `gateDoor`: koridoru kesen alçak duvar (5,6 m) + taş dikmeler + lento + lento üstü duvar + iki ahşap kanat (menteşeden 22–28° ve 66–70° açık, ortada ~1,6 m geçit). Kanat çarpışması döndürülmüş kutunun AABB'si, etiket `'wood'` (mermi geçer). Konumlar `colgecidi.js` `GATES` (Mid z −21,4 · B x −36,5 · Long z 7,6); radar kanat çizgileri `OVERRIDE_CARVE` ile kesildi.
+- Duvar üstüne duvar: A platosu parapeti artık istinat duvarının kendisi (tek kutu, ~0,95 m yukarı uzar, tek kenar şeridi). Pit ↔ Side Pit kenarları atlanır; yerine baştan sona (z 7,2–25,3) tek alçak taş duvar.
+- B: saha + kapı önü + doğu çıkıntısı + arka duvar önü tek kot (1,9 m); B Plat / Back Plat 2,9 m, sahaya 5 m'lik iniş. Eski 3,4 / 4,6 m katlar ve rampalar kaldırıldı.

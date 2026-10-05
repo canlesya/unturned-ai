@@ -331,30 +331,43 @@ export function doorFrame(b, terrain, d) {
   });
 }
 
-// ── ahşap çift kanatlı kapı (Long / Mid / B Doors): bir kanat kapalı, diğeri sonuna kadar açık (duvara yaslı). Kanatlar çarpışır ama
-//    'wood' etiketli → mermi geçer (game.shootRay, %35 zayıflar). Sunucuda da kurulur (çarpışma). Çerçeve ince ahşap: duvar gibi görünmez.
-export function woodDoor(b, terrain, d, closedSide = -1) {
-  const NC = { collide: false }, g = Math.max(terrain.heightAt(d.x, d.z), terrain.heightAt(d.x + (d.alongX ? d.w / 2 : 0), d.z + (d.alongX ? 0 : d.w / 2)), terrain.heightAt(d.x - (d.alongX ? d.w / 2 : 0), d.z - (d.alongX ? 0 : d.w / 2)));
-  const w = d.w, hw = w / 2, H = 3.1, T = 0.14, wood = '#7a5130', woodD = '#5a3a20', woodL = '#946640', iron = '#3b3530';
-  b.with(d.x, g, d.z, d.alongX ? 0 : Math.PI / 2, () => {           // yerel x: geçidin dar ekseni; yerel z: geçiş yönü
-    const cs = closedSide, os = -closedSide;
-    // kapalı kanat: geçidin yarısı
-    b.box(cs * hw / 2, -0.05, 0, hw, H, T, wood, { tag: 'wood' });
-    // açık kanat: menteşe tarafında duvara yaslı (geçiş yönünde)
-    b.box(os * (hw - T / 2 - 0.02), -0.05, hw / 2 + 0.1, T, H, hw, wood, { tag: 'wood' });
-    // tahta görünümü: dikey tahta çizgileri, demir kuşaklar, kulp
-    for (let k = 1; k < 4; k++) {
-      b.box(cs * (hw * k) / 4, 0, 0, 0.04, H - 0.1, T + 0.02, woodD, NC);
-      b.box(os * (hw - T / 2 - 0.02), 0, 0.1 + (hw * k) / 4, T + 0.02, H - 0.1, 0.04, woodD, NC);
-    }
-    for (const y of [0.5, H - 0.7]) {
-      b.box(cs * hw / 2, y, 0, hw - 0.1, 0.12, T + 0.04, iron, NC);
-      b.box(os * (hw - T / 2 - 0.02), y, hw / 2 + 0.1, T + 0.04, 0.12, hw - 0.1, iron, NC);
-    }
-    b.box(cs * 0.25, 1.3, 0, 0.08, 0.3, T + 0.12, iron, NC);                                    // kulp
-    // ince ahşap kasa: iki dikme + üst kiriş (lento yok, üst açık)
-    for (const s of [-1, 1]) b.box(s * (hw + 0.12), -0.1, 0, 0.3, H + 0.45, 0.4, woodD, NC);
-    b.box(0, H + 0.05, 0, w + 0.6, 0.32, 0.42, woodL, NC);
+// ── büyük ahşap kapı (Dust 2 Mid / B / Long Doors): koridoru kesen alçak duvar + taş çerçeve + lento + iki kanat.
+//    Kanatlar menteşeden aralık açık (biri az, biri çok) → ortada ~1,6 m geçit. Kanatlar 'wood': çarpışır, mermi geçer.
+//    g = { x, z, axis: 'x' | 'z' (duvarın uzandığı eksen), a0, a1 (duvar ucu, dünya), c (kapı ortası, dünya), W (açıklık), swing: ±1 (dünya yönü), aL, aR (derece) }
+export function gateDoor(b, terrain, g) {
+  const NC = { collide: false }, H = 5.6, P = 0.65, LT = 4.0, T = 0.9;
+  const stone = '#cdb487', stoneD = '#b39a6c', plaster = '#cfa766', wood = '#8a7455', woodD = '#65533a', iron = '#3b3530';
+  const ax = g.axis === 'x';
+  const cx = ax ? g.c : g.x, cz = ax ? g.z : g.c;
+  const gy = Math.min(terrain.heightAt(cx, cz), terrain.heightAt(ax ? cx - g.W / 2 : cx, ax ? cz : cz - g.W / 2), terrain.heightAt(ax ? cx + g.W / 2 : cx, ax ? cz : cz + g.W / 2));
+  const u0 = (ax ? g.a0 : g.a0) - g.c, u1 = g.a1 - g.c, hw = g.W / 2, sw = ax ? g.swing : -g.swing;
+  b.with(cx, gy, cz, ax ? 0 : -Math.PI / 2, () => {            // yerel x: duvar boyunca (kapı ortası 0), yerel z: duvara dik (sw tarafına açılır)
+    // yan duvarlar (koridor kenarına kadar)
+    const l0 = u0, l1 = -hw - P, r0 = hw + P, r1 = u1;
+    if (l1 - l0 > 0.05) b.box((l0 + l1) / 2, -0.5, 0, l1 - l0, H + 0.5, T, plaster, { tag: 'wall' });
+    if (r1 - r0 > 0.05) b.box((r0 + r1) / 2, -0.5, 0, r1 - r0, H + 0.5, T, plaster, { tag: 'wall' });
+    // dikmeler + lento + lento üstü duvar
+    for (const s of [-1, 1]) b.box(s * (hw + P / 2), -0.5, 0, P, H + 0.5, T + 0.3, stone, { tag: 'wall' });
+    b.box(0, LT, 0, g.W + 2 * P, 0.6, T + 0.3, stone, { tag: 'wall' });
+    b.box(0, LT + 0.6, 0, g.W, H - LT - 0.6, T, plaster, { tag: 'wall' });
+    // görsel: kaide, üst kenar, kemer altı, dikme başlıkları
+    for (const s of [-1, 1]) for (const zz of [-1, 1]) b.box(0, -0.4, zz * (T / 2 + 0.03), (u1 - u0) + 0.02, 1.0, 0.06, stoneD, NC);
+    b.box((u0 + u1) / 2, H, 0, (u1 - u0) + 0.1, 0.18, T + 0.25, '#e2c995', NC);
+    for (let k = 0; k < 5; k++) { const t = (k + 0.5) / 5, uu = -hw + t * g.W, yy = LT - 0.05 - Math.sin(t * Math.PI) * 0.0 + (1 - Math.sin(t * Math.PI)) * -0.25; b.box(uu, yy, 0, g.W / 5 + 0.02, 0.3, T + 0.32, stoneD, { ...NC, rz: 0 }); }
+    for (const s of [-1, 1]) b.box(s * (hw + P / 2), H - 0.2, 0, P + 0.2, 0.35, T + 0.5, '#e2c995', NC);
+    // kanatlar
+    const leaf = (side, deg) => {
+      const a = (deg * Math.PI) / 180, L = hw - 0.04, hu = side * (hw - 0.02);
+      const du = -side * Math.cos(a), dv = sw * Math.sin(a), mu = hu + du * L / 2, mv = dv * L / 2, ry = Math.atan2(-dv, du);
+      const LH = LT - 0.05;
+      b.box(mu, 0.02, mv, L, LH, 0.14, wood, { tag: 'wood', ry });
+      b.with(mu, 0, mv, ry, () => {
+        for (let k = 1; k < 6; k++) b.box(-L / 2 + (L * k) / 6, 0.05, 0, 0.04, LH - 0.1, 0.17, woodD, NC);   // tahta araları
+        for (const y of [0.45, LH / 2, LH - 0.55]) b.box(0, y, 0, L - 0.1, 0.16, 0.2, woodD, NC);         // kuşaklar
+        for (const y of [0.6, LH - 0.7]) b.box(-side * (L / 2 - 0.35), y, 0, 0.5, 0.1, 0.22, iron, NC);   // menteşe
+      });
+    };
+    leaf(-1, g.aL ?? 25); leaf(1, g.aR ?? 70);
   });
 }
 
