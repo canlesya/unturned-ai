@@ -887,3 +887,7 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 
 ### 12.75 B penceresi yan boşlukları
 - `B-penceresi:alt/üst` x −37…−36 idi: komşu duvarlar (bina:1, bina:10) B yüzünde x −36,78'de; güneyde 22 cm taşan köşe, kuzeyde bina:10 −54,36'da başladığı için 24 cm boydan boya yarık vardı. Parçalar x −36,78…−36,03'e hizalandı; kuzeye bina:10'a 3 cm giren tam boy `B-penceresi:kuzey-söve` eklendi. Yarıktan geçilemiyor (cgjump), pencereden iki yönde geçiliyor.
+
+### 12.76 Kullanıcının 39 editör düzenlemesi kalıcı
+- `src/maps/colgecidiEdits.js`'e işlendi (Xbox sandıkları, Mid/Cat, Titanic/T çevresi kenar duvarları, Pit kenarları, kasalar, palmiye:6 taşındı, palmiye:7 silindi). Tümü uygulanıyor (`editSkipped` boş); cgleak 0, cgmodes OK, cglinks önceki gibi (Xbox↔Short 64→59 m).
+- Not: kenar:19 gömülünce altında kalan kenar:17 (x −2, z −2,1, Mid/Cat) kumdan ince şerit olarak görünüyor — kullanıcıya soruldu.
