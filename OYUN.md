@@ -744,3 +744,10 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 - Köprü altının kuzey yarısı (ayaklara hizalı, Z −42,65'e kadar) dolu duvar; CT ↔ kemer geçidi yalnız ayakların güneyinde.
 - **Ahşap çift kanatlı kapılar** (Long / Mid / B Doors, `woodDoor`): bir kanat kapalı, biri duvara yaslı açık; çarpışma sunucuda da var. Etiket `'wood'` → `World.raycast(..., skipTag)` ile mermi geçer, kapıdan geçen mermi %35 zayıflar (kıvılcım + iz). Botların görüşü (`clear`) kapıdan geçmez. Kapı yeri en az 2,8 m geçitte aranır.
 - Tünel tavanı: 0,5 m hücreli, altı zeminden 3,5 m, üstü bölge boyunca düz → boşluksuz kapalı tavan (eski 2 m karolar + kirişler basamaklı / delikliydi).
+
+### 12.44 Çöl Geçidi: Mid catwalk, T Spawn yokuşu, Pit alçak duvarı, havada süs, A ve B düz kotlar
+- **Mid catwalk** (X −1,3…3,6, Z −8,5…7,5): 2,6 m düz şerit, batı kenarı taş istinat duvarı boyunca; güneyde Top Mid'den, kuzeyde Short'a rampa; Xbox'ın güneyinde Mid → catwalk çıkışı (Xbox ↔ Short).
+- **T Spawn doğusu**: gölgeden çıkmış iki bina şeridi kaldırıldı; avludan (6,6 m) doğuya 1,9 m'ye düz yokuş.
+- **Pit ↔ Side Pit**: kalın bina duvarı yerine Side Pit tarafında 0,7 m alçak taş duvar (`colgecidi.js`).
+- **Havada süs**: `decorateFaces` her yüzde arkadaki duvar kutusunun tepesini okur; korniş / kiriş ucu / pencere / dikme duvar tepesini aşmaz, duvar yoksa süs yok.
+- **A**: A ↔ A Ramp kenarı düz kot + tek eğim (iç içe kırık duvar parçaları gitti). **B**: B Plat 4,6, saha 3,4 düz; Plat → saha geniş iniş, sahadan güneye rampa; turuncu saha çizgisinden doğan sahte duvarlar kesildi.

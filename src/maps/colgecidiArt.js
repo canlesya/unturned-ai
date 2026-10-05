@@ -48,6 +48,9 @@ export const wallTop = (x, z) => DARK(plasterAt(x, z), 0.8);
 export function decorateFaces(b, D, terrain, field, rng) {
   const NC = { collide: false };
   let nWin = 0, nDoor = 0, nAwn = 0;
+  // yüzün hemen içindeki duvar kutusunun tepesi (süs bu yüksekliği aşmasın: havada korniş / kiriş kalmasın). Yoksa −∞ → yüz süslenmez.
+  const walls = b.colliders.filter((c) => c.tag === 'wall');
+  const topAt = (x, z) => { let t = -1e9; for (const c of walls) if (x >= c.min[0] && x <= c.max[0] && z >= c.min[2] && z <= c.max[2]) t = Math.max(t, c.max[1]); return t; };
   for (const [d, p, a, e, kind] of D.faces) {
     const len = e - a, th = THETA[d];
     const alongX = d >= 2;                                                        // koşu x ekseni boyunca mı (z yüzleri)
@@ -64,7 +67,9 @@ export function decorateFaces(b, D, terrain, field, rng) {
       const wx = alongX ? c : p, wz = alongX ? p : c;
       const gx = wx + nrm[0] * 0.4, gz = wz + nrm[1] * 0.4;
       const g0 = Math.min(terrain.heightAt(alongX ? c - seg / 2 : gx, alongX ? gz : c - seg / 2), terrain.heightAt(alongX ? c + seg / 2 : gx, alongX ? gz : c + seg / 2), terrain.heightAt(gx, gz));
-      const H = kind ? 2.7 : 6.0;                                                                    // bölme duvarı alçak, bina yüksek
+      const wt = Math.min(topAt(wx - nrm[0] * 0.25, wz - nrm[1] * 0.25), topAt(alongX ? c - seg / 2 + 0.1 : wx - nrm[0] * 0.25, alongX ? wz - nrm[1] * 0.25 : c - seg / 2 + 0.1), topAt(alongX ? c + seg / 2 - 0.1 : wx - nrm[0] * 0.25, alongX ? wz - nrm[1] * 0.25 : c + seg / 2 - 0.1));
+      const H = Math.min(kind ? 2.7 : 6.0, wt - g0 - 0.45);                                          // bölme duvarı alçak, bina yüksek; duvar tepesini aşmaz
+      if (H < 1.6) continue;                                                                         // duvar yok / çok alçak: süs yok
       b.with(wx, g0, wz, th, () => {
         // sıva katmanı + kaide + korniş
         b.box(0, -0.35, 0.02, seg + 0.02, H + 0.35, 0.04, col, NC);                                   // tüm yüz: tek ton
@@ -74,8 +79,8 @@ export function decorateFaces(b, D, terrain, field, rng) {
         b.box(0, H + 0.2, 0.08, seg + 0.02, 0.2, 0.16, dark, NC);                                     // korniş üst dudağı
         const r = rng();
         // kiriş uçları (geleneksel çatı kirişleri) – bazı yüzlerde
-        if (!kind && r < 0.4) for (let k = -1; k <= 1; k++) b.box(k * 1.0, H - 0.65, 0.3, 0.2, 0.2, 0.55, '#7a5b3a', NC);
-        const roomy = wide >= 3.5;
+        if (!kind && r < 0.4 && H > 4.5) for (let k = -1; k <= 1; k++) b.box(k * 1.0, H - 0.65, 0.3, 0.2, 0.2, 0.55, '#7a5b3a', NC);
+        const roomy = wide >= 3.5 && H > 5;
         // pencere
         if (kind) { /* bölme duvarı: yalnızca sıva + korniş */ } else if (roomy && seg > 2.4 && r > 0.18 && r < 0.62) {
           const wy = 3.2 + (r < 0.4 ? 0 : 0.35);
@@ -104,8 +109,8 @@ export function decorateFaces(b, D, terrain, field, rng) {
     // uzun yüzlerde dikme (pilaster)
     if (!kind && len >= 7) for (let t = a + 3.5; t < e - 2; t += 7) {
       const wx = alongX ? t : p, wz = alongX ? p : t;
-      const g0 = terrain.heightAt(wx + nrm[0] * 0.4, wz + nrm[1] * 0.4);
-      b.with(wx, g0, wz, th, () => b.box(0, -0.35, 0.16, 0.5, 6.35, 0.2, DARK(col, 0.92), NC));
+      const g0 = terrain.heightAt(wx + nrm[0] * 0.4, wz + nrm[1] * 0.4), ph = Math.min(6.0, topAt(wx - nrm[0] * 0.25, wz - nrm[1] * 0.25) - g0 - 0.45);
+      if (ph > 1.6) b.with(wx, g0, wz, th, () => b.box(0, -0.35, 0.16, 0.5, ph + 0.35, 0.2, DARK(col, 0.92), NC));
     }
   }
   return { windows: nWin, doors: nDoor, awnings: nAwn };

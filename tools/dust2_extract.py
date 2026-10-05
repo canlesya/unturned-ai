@@ -133,6 +133,10 @@ OVERRIDE_CARVE = [
     [15.0, -25.8, 23.0, -23.4],    # Short merdiven rampasının ortasındaki duvar parçası (Short şeridinin radardaki kenar çizgisi)
     [16.2, -34.0, 23.0, -29.3],    # Short şeridi: kasa 12 m duvar olmuştu + batı duvarı 1 m fazla kalın → kasa EXTRA_BOXES'ta
     [16.0, -59.4, 38.4, -51.0],    # A platosu kuzeyi (Ninja): fıçı / kasa gölgeleri bina kütlesine karışmış, 6 m şerit gömülüydü → kasalar EXTRA_BOXES'ta
+    [-51.0, -60.5, -49.6, -48.0],  # B Plat ↔ B sahası: turuncu saha çizgisi duvar olmuştu (radarda duvar yok)
+    [-51.0, -47.9, -37.3, -46.2],  # B sahası güney kenarı: aynı (saha → Box / B Doors inişi)
+    [-6.0, 52.6, 6.0, 66.8],       # T Spawn doğusu: radarda bina yok, aşağı inen yokuş (gölge şeritleri bina olmuştu)
+    [45.0, 6.5, 48.9, 25.0],       # Pit ↔ Side Pit: bina duvarı değil, alçak duvar (colgecidi.js 'PIT_WALL')
 ]
 for (ox0, oz0, ox1, oz1) in OVERRIDE_CARVE:
     c0, c1 = int((ox0 - X0) / CELL), int(np.ceil((ox1 - X0) / CELL)); r0, r1 = int((oz0 - Z0) / CELL), int(np.ceil((oz1 - Z0) / CELL))
@@ -389,6 +393,25 @@ OVERRIDE_LEVELS = [
     [38.0, -53.0, 48.0, -42.0, 'flat', 4.6],          # A Default platformu (bomba noktası)
     [23.3, -47.0, 38.0, -34.7, 'xramp', 0.4, 1.3],    # kemer avlusu: CT kotundan doğuya hafif yükselir
     [38.0, -42.0, 47.5, -34.7, 'xramp', 1.3, 1.9],    # avlunun doğu ucu → Long / A Ramp kotu
+    # A sahası ↔ A Ramp: düz kot + tek eğim → aradaki kenar düz tek istinat duvarı (ara kotlardan iç içe kırık parçalar oluşuyordu)
+    [38.0, -60.0, 48.0, -53.0, 'flat', 4.6],
+    [48.0, -59.0, 57.5, -45.0, 'zramp', 4.6, 1.9],
+    # B sahası: düz kotlar (radar halkası / gürültüsü basamaklı, iç içe kırık kenarlar üretiyordu)
+    [-63.5, -63.0, -52.5, -47.5, 'flat', 4.6],         # B Plat
+    [-52.5, -61.0, -49.5, -48.0, 'xramp', 4.6, 3.4],   # B Plat → saha geniş basamaksız iniş
+    [-49.5, -61.0, -34.5, -48.5, 'flat', 3.4],         # B sahası + doğu çıkıntısı (pencere kenarı)
+    [-49.5, -48.5, -37.0, -44.5, 'zramp', 3.4, 1.9],   # sahadan güneye (Box / B Doors tarafı) iniş
+    # Mid catwalk: Mid'in doğu kenarında yükseltilmiş şerit (radarda batı kenarı ince duvar çizgisi). Güneyde Top Mid'den, kuzeyde Short'tan rampa.
+    [-1.3, -8.5, 3.6, 7.5, 'flat', 2.6],
+    [-1.3, 7.5, 3.6, 12.0, 'zramp', 2.6, 1.9],
+    [-1.3, -12.5, 3.6, -8.5, 'zramp', 1.9, 2.6],      # kuzey ucu: Short'a ve Xbox önünden Mid'e (z −14…−12 basamaksız)
+    [-5.5, -12.5, -1.3, -10.0, 'xramp', 0.4, 2.1],     # Xbox'ın güneyinde Mid → catwalk çıkışı (Xbox ↔ Short)
+    # T Spawn doğusu: avludan Outside Long / Top Mid kotuna düzgün yokuş
+    [-6.0, 52.5, 6.0, 67.0, 'xramp', 6.6, 1.9],
+    # Side Pit şeridi (eski kalın duvarın yeri) Side Pit kotunda; Pit'e geçiş alçak duvarla
+    [44.5, 7.5, 47.5, 25.0, 'flat', 1.9],
+    [47.5, 7.5, 49.0, 14.0, 'zramp', 1.2, 0.2],       # Pit'in batı kenarı (eski duvar yeri) Pit eğimiyle
+    [47.5, 14.0, 49.0, 25.0, 'flat', 0.0],
 ]
 for L in OVERRIDE_LEVELS:
     (ra, ca_), (rb, cb_) = (int(round((L[1] - Z0) / HCELL)), int(round((L[0] - X0) / HCELL))), (int(round((L[3] - Z0) / HCELL)), int(round((L[2] - X0) / HCELL)))

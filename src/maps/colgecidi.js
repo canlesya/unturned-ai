@@ -62,6 +62,11 @@ export function buildColGecidi() {
     }
   }
 
+  // ── Pit ↔ Side Pit: radardaki ince çizgi → Side Pit tarafında 0,7 m alçak taş duvar (Pit tarafında kat kenarıyla birlikte yüksek) ──
+  { const x0 = 47.2, x1 = 47.7, z0 = 7.4, z1 = 21.6, top = 2.6;
+    b.box((x0 + x1) / 2, -0.3, (z0 + z1) / 2, x1 - x0, top + 0.3, z1 - z0, '#b8996a', { tag: 'wall' });
+    if (!MapBuilder.noVisual) b.box((x0 + x1) / 2, top - 0.02, (z0 + z1) / 2, 0.7, 0.12, z1 - z0 + 0.1, '#d9c08c', { collide: false }); }
+
   // ── Short köprüsü: CT Spawn'ın üstünden A platosuna geçen tabliye (yürünür 'plat'), iki yanda korkuluk, altta iki ayak ──
   const BR = D.bridge;
   if (BR) {
