@@ -751,3 +751,6 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 - **Pit ↔ Side Pit**: kalın bina duvarı yerine Side Pit tarafında 0,7 m alçak taş duvar (`colgecidi.js`).
 - **Havada süs**: `decorateFaces` her yüzde arkadaki duvar kutusunun tepesini okur; korniş / kiriş ucu / pencere / dikme duvar tepesini aşmaz, duvar yoksa süs yok.
 - **A**: A ↔ A Ramp kenarı düz kot + tek eğim (iç içe kırık duvar parçaları gitti). **B**: B Plat 4,6, saha 3,4 düz; Plat → saha geniş iniş, sahadan güneye rampa; turuncu saha çizgisinden doğan sahte duvarlar kesildi.
+
+### 12.45 Çöl Geçidi: CT kuzey cebi kapandı, köprü altı yeniden açık
+- Kullanıcı düzeltmesi: kapatılması istenen yer köprü altı değil, köprünün batısındaki CT kuzey cebi (kapılı bina önü, X 6,5–15, Z −51,6…−42,65). Burası bina kütlesi oldu; güney yüzü köprü ayağına hizalı (kaide, korniş, iki pencere). Köprü altı ve kemer eskisi gibi tam açık.

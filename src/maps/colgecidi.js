@@ -83,18 +83,24 @@ export function buildColGecidi() {
       b.box(bx0 + 0.55, WT - 0.3, bcz, 0.2, 0.3, bd + 0.6, '#e2c995', { collide: false });               // duvar tepesi şeridi
     }
     for (const sx of [bx0 + 0.35, bx1 - 0.35]) { const gy = terrain.heightAt(sx, bcz); b.box(sx, gy - 0.3, bcz, 0.7, top - 0.45 - gy + 0.3, 0.7, '#b8996a', { tag: 'wall' }); }
-    // Köprü altının kuzey yarısı dolu (kullanıcı: kapılı boşluk kapalı olmalı, kolonlara hizalı). Geçit yalnız ayakların güneyinde: CT ↔ kemer.
-    const CF = bcz + 0.35, fz0 = bz0 - 0.3;
-    b.box(bcx, -0.3, (fz0 + CF) / 2, bw, top - 0.45 + 0.3, CF - fz0, wallTop(bcx, bz0), { tag: 'wall' });
+    // CT Spawn'ın kuzey cebi (köprünün batısı, kapılı bina önü) dolu bina kütlesi: güney yüzü köprü ayağına hizalı (kullanıcı: kolona kadar kapat)
+    const CF = bcz + 0.35, cx0 = 6.5, cz0 = -51.6;
+    b.box((cx0 + bx0) / 2, -0.5, (cz0 + CF) / 2, bx0 - cx0, 9.0, CF - cz0, wallTop(10, -47), { tag: 'wall' });
+    if (!MapBuilder.noVisual) {                                                                          // güney yüzü: kaide, korniş, pencere
+      const fw = bx0 - cx0, fx = (cx0 + bx0) / 2;
+      b.box(fx, -0.3, CF + 0.05, fw, 1.3, 0.1, '#a88a5c', { collide: false });
+      b.box(fx, 7.6, CF + 0.12, fw + 0.2, 0.32, 0.26, '#e2c995', { collide: false });
+      for (const wx of [9.5, 12.8]) { b.box(wx, 3.4, CF + 0.04, 1.5, 2.1, 0.07, '#b69a68', { collide: false }); b.box(wx, 3.5, CF + 0.09, 1.1, 1.7, 0.06, '#232a31', { collide: false }); b.box(wx, 3.28, CF + 0.2, 1.7, 0.14, 0.4, '#e2c995', { collide: false }); }
+    }
     // Doğu yüzü: A önü avluya açılan ahşap kemerli geçit (A'dan CT Spawn görünür). Kemer üstü duvar köprü korkuluğuna kadar.
     if (!MapBuilder.noVisual) {
-      const ax = bx1 + 0.25, az0 = CF - 0.25, az1 = -34.9, span = az1 - az0, amid = (az0 + az1) / 2, wood = '#7a5b3a', woodD = '#5e4529';
+      const ax = bx1 + 0.25, az0 = -46.3, az1 = -34.9, span = az1 - az0, amid = (az0 + az1) / 2, wood = '#7a5b3a', woodD = '#5e4529';
       const gy = Math.min(terrain.heightAt(ax + 0.6, az0), terrain.heightAt(ax + 0.6, az1));
       for (const zz of [az0 + 0.2, az1 - 0.2]) b.box(ax, gy - 0.2, zz, 0.45, top - gy - 0.2, 0.45, wood, { collide: false });        // direkler
       b.box(ax, top - 0.75, amid, 0.5, 0.35, span, wood, { collide: false });                                                           // üst kiriş
       for (let k = 0; k < 7; k++) { const t = (k + 0.5) / 7, zz = az0 + t * span, y = top - 1.25 + Math.sin(t * Math.PI) * 0.55; b.box(ax + 0.05, y, zz, 0.42, 0.28, span / 7 + 0.05, woodD, { collide: false, rx: Math.cos(t * Math.PI) * 0.35 }); }   // kemer
       b.box(ax - 0.05, top - 0.45, amid, 0.35, 1.6, span + 0.6, '#cdb07a', { collide: false });                                         // kemer üstü duvar (korkuluğa kadar)
-      for (let zz = CF + 0.5; zz < bz1; zz += 1.1) b.box(bcx, top - 0.62, zz, bw - 0.4, 0.12, 0.16, woodD, { collide: false });        // köprü altı tavan kirişleri
+      for (let zz = bz0 + 0.5; zz < bz1; zz += 1.1) b.box(bcx, top - 0.62, zz, bw - 0.4, 0.12, 0.16, woodD, { collide: false });        // köprü altı tavan kirişleri
     }
   }
 
