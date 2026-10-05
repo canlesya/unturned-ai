@@ -856,3 +856,6 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 
 ### 12.68 Çöl Geçidi: B penceresi arka köşeye taşındı
 - B sahası doğu duvarındaki çerçevesiz açıklık (pencere) B kapısı yakınından (z −49…−46,2) duvarın arka köşesine (z −57,4…−54,6) taşındı; arkası Window sokağına bağlanan dar cep. B tarafındaki 3 kasa ve Window tarafındaki kum yığını da taşındı; iki yönde sıçrayarak geçiş cgjump ile doğrulandı. Catwalk girişindeki iki kasa da kaldırıldı (12.67 sonrası).
+
+### 12.69 Çöl Geçidi: Window cebi kenar basamağı
+- B sahasının düz kotu (1,9) duvarın arkasındaki Window cebine taşıyordu → cep sokaktan (1,3) yüksek, aralarında x −34 boyunca 0,6–0,9 m'lik kenar basamağı (kullanıcı: "tam önümde çıkıntı"). B kotu duvarda (x −36) bitirildi, cep 1,3'e sabitlendi (radar orayı 6,4 m çatı sanıyordu). Kum yığını duvar dibine kadar uzatıldı (yığınla duvar arasındaki basamak da gitti). Bölgede kat kenarı kalmadı; pencereden iki yönde geçiş cgjump ile doğrulandı.

@@ -453,7 +453,8 @@ OVERRIDE_LEVELS = [
     [48.0, -59.0, 57.5, -45.0, 'zramp', 4.6, 1.9],
     # B: fotoğraflardaki gibi tek kotlu avlu (saha + kapı önü + doğu çıkıntısı 1,9 m); B Plat / Back Plat 1 m yüksek, sahaya 5 m'lik basamaksız iniş
     [-67.0, -73.0, -52.5, -47.5, 'flat', 2.9],          # B Plat + Back Plat tek kot (duvar içleri dahil: içeride kat kenarı kalmasın)
-    [-52.5, -61.0, -34.5, -48.5, 'flat', 1.9],
+    [-52.5, -61.0, -36.0, -48.5, 'flat', 1.9],          # B sahası (doğu duvarında biter: duvarın arkasındaki Window cebine taşmasın)
+    [-35.95, -58.2, -32.0, -50.0, 'flat', 1.3],          # Window cebi (B penceresinin arkası): Window sokağıyla aynı kot, kenar basamağı yok
     [-52.5, -48.5, -36.6, -36.0, 'flat', 1.9],
     [-52.5, -66.0, -38.0, -61.0, 'flat', 1.9],          # sahanın arka duvar önü (raf gibi yüksek şerit kalmasın)
     [-64.0, -47.6, -50.5, -45.5, 'flat', 1.9],          # B Plat güney kenarı: radar duvar çizgisi dar sırt olmuştu → temiz 1 m'lik kenar
@@ -521,7 +522,7 @@ for (sx0, sz0, sx1, sz1, top_, k_) in SAND_PILES:
             t = np.clip(((px - sx0) * (sx1 - sx0) + (pz - sz0) * (sz1 - sz0)) / max((sx1 - sx0) ** 2 + (sz1 - sz0) ** 2, 1e-9), 0, 1)
             d = np.hypot(px - (sx0 + t * (sx1 - sx0)), pz - (sz0 + t * (sz1 - sz0)))
             v = top_ - k_ * d
-            if v > h[r, c] + 0.02 and px > sx0 - 0.3: h[r, c] = v; ovr_ramp[r, c] = True
+            if v > h[r, c] + 0.02 and px > sx0 - 1.0: h[r, c] = v; ovr_ramp[r, c] = True          # duvar dibine kadar (yığınla duvar arasında basamak kalmasın)
 
 OVERRIDE_RAMPS = [
 ]
