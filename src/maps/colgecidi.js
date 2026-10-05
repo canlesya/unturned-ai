@@ -191,7 +191,7 @@ export function buildColGecidi() {
   ];
   for (const g of GATES) gateDoor(b, terrain, g);
   // çatılı tüneller (radar koordinatından: alt tüneller = orta ile B arası teal şerit, üst tüneller = T'den B'ye zeytin kanal)
-  const TUNNELS = [[-33, -10.5, -18, -10, true], [-64, -35, -9.5, -0.5, true], [-60, -54, -27, -9, false], [-53, -43.5, -0.5, 13.0, false]];
+  const TUNNELS = [[-33, -10.5, -18, -10, true], [-64, -35, -13.6, -0.5, true], [-60, -54, -27, -9, false], [-53, -43.5, -0.5, 13.0, false]];
   roofTunnels(b, terrain, field, TUNNELS);
   // süs konmayan alanlar: çatılı tüneller + Long Doors odası + kapıların çevresi (pano / pencere / tente kapıya ya da tavana binmesin)
   const NODECOR = [...TUNNELS.map(([x0, x1, z0, z1]) => [x0 - 0.5, z0 - 0.5, x1 + 0.5, z1 + 0.5]), [22, 5, 34, 24.5],

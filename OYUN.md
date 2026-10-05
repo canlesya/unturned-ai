@@ -818,3 +818,6 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 
 ### 12.58 Çöl Geçidi: Titanic kolonu ve duvara gömülü kasa
 - Titanic yanındaki serbest duran 1,5×5,5 m, 11,7 m yüksekliğindeki kolon (x −52,8…−51,3, z 37…42,6) `OVERRIDE_CARVE` ile silindi. Yamaca gömülü büyük kasa (−46,05, 38,55) `REMOVE_BOXES` ile kaldırıldı (elle kasa silme listesi).
+
+### 12.59 Çöl Geçidi: Upper Tunnels çatısı kuzeye uzatıldı
+- Upper Tunnels çatı bölgesi kuzeye z −9,5'ten −13,6'ya uzatıldı (aynı çatı, ayrı yama yok): yürünebilir alan bu kadar kuzeye uzanıyordu ve tepesi açıktı. `scripts/cgsky.mjs x0 z0 x1 z1` yürünebilir hücrelerin tepesinin açık olup olmadığını ölçer (bölge: 0 açık).
