@@ -91,7 +91,6 @@ export function buildColGecidi() {
     crates([[-39.4, -47.6, 0], [-37.95, -47.6, 0], [-37.95, -47.6, 1]], gB);
   }
   // Xbox: Mid'den catwalk'a 3 sandıkla sıçranarak çıkılır (biri yerde, ikisi üst üste; üstü catwalk kotunda)
-  crates([[-2.55, -10.7, 0, 1.5], [-2.3, -10.7, 1, 1.0]], terrain.heightAt(-3, -10.7));          // catwalk girişi: alttaki büyük, üstteki küçük (2 kasa)
   // Xbox (Mid → Short koridoru): duvar dibinde düzgün kasa yığını (CS2 Xbox gibi): tek taban kasa duvara bitişik, üstüne yarım kaydırılmış ikinci kasa (üst üste 2 kasa).
   //   Tepe 1,8 m, koridor kotu 1,9 m: sıçrayarak koridora / duvar tepesine çıkılır. Hepsi eksen hizalı, birbirine bitişik (rastgele dağınık değil).
   crates([[-2.55, -13.35, 0, 1.5], [-2.3, -13.35, 1, 1.0]], terrain.heightAt(-3, -13.4));
