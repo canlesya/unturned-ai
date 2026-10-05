@@ -803,3 +803,6 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 ### 12.53 Çöl Geçidi: T Spawn platosu ve rampası
 - T platosu (x −31…−5, z 52,5…66,6) tek düz kot 6,6 m (çıkıntı / kırık parça yok). Rampa 16 m'ye uzatıldı (x −5…11; 4,7 m düşüş, ~16°; eskiden 12 m / 21°). Kuzey kenarındaki duvar rampa alçaldıkça basamak basamak iner: genel kural — kat kenarı zinciri üst kot aralığı 0,6 m'yi aşınca bölünür (tüm haritada).
 - Mid'e bakan kenar (x −11,5…−4,5, z ≈ 52,4) platodan 0,8 m yüksek korkuluk: çömelince arkasından nişan alınır, ayakta üstünden görünür; T → Mid Doors görüş hattı hâlâ açık.
+
+### 12.54 Çöl Geçidi: T rampasının güney nişleri rampaya katıldı
+- Rampanın güneyindeki (z 66,6–71,2) yan nişler ve onları ayıran taş basamaklı kenar (saklanma yeri) kaldırıldı: `OVERRIDE_CARVE` [−2,8, 66,2, 13,1, 71,2] + rampa seviyesi z 71,2'ye (bina duvarı) kadar uzatıldı. Kum aynı eğimle bina duvarına kadar iner; yalnız kuzey kenar (Mid'e bakan taraf) basamaklı alçalan duvar ve korkuluk.
