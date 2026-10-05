@@ -871,3 +871,6 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 - Bina kimliği bağlı bina kütlesi başınaydı (`bina:<bileşen>`): kütleler birbirine değdiği için `bina:1` 132×142 m'lik dev tek nesneydi, ince bir köşe ayrı seçilemiyordu. Artık çokgen başına (`bina:<çokgen>`, 16 m'lik bölümdeki tek kütle; en büyük 16 m). Veri: `rects` 8. alan = çokgen sırası. Renk hâlâ bileşene göre.
 - İlk kalıcı düzenleme (`colgecidiEdits.js`): Window cebi yanındaki 0,5×1 m'lik ince bina köşesi `bina:11` silindi (kullanıcı).
 - Panel: imleç değişince güncellenir; kopyalanan metin kutuda kalır (pano izni yoksa elle kopyalanır).
+
+### 12.72 Harita editörü: kayıtlı düzenlemeyle panel boş açılıyordu
+- Kayıtta yalnız değişen alanlar tutuluyor (`d` ya da `s` olmayabilir); yeniden yüklemede eksik alan okununca `render()` çöküyor, panel boş kutu kalıyordu (yalnız taşıma ya da yalnız boyut kaydında; testim ikisini birlikte yaptığı için yakalamadı). Yüklemede eksikler tamamlanıyor; panel çizimi hata verirse panelde hata mesajı + "Tümünü sıfırla". `scripts/editorload.mjs` üç kayıt türüyle denetler (eski kodda HATA verir).

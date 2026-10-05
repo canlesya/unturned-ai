@@ -32,7 +32,7 @@ export class MapEditor {
   constructor(game) {
     this.g = game; this.active = false; this.sel = null; this.hover = null;
     this.mapId = game.mapDef?.id || game.opts.map;
-    this.edits = new Map(loadEdits(this.mapId).map((e) => [e.id, e]));
+    this.edits = new Map(loadEdits(this.mapId).filter((e) => e && e.id).map((e) => [e.id, { ...e, d: e.d || [0, 0, 0], s: e.s || [1, 1, 1] }]));   // kayıtta yalnız değişen alanlar var: eksikleri tamamla
     this.undo = [];
     this.index();
     const st = (this.st = document.createElement('style')); st.textContent = CSS; document.head.appendChild(st);
@@ -146,6 +146,9 @@ export class MapEditor {
   }
   render() {
     if (!this.active) return;
+    try { this._render(); } catch (err) { console.error('[harita editörü]', err); this.el.innerHTML = `<h4>Harita editörü</h4><div class="w">Panel hatası: ${String(err.message || err)}</div><div class="row"><button data-c="reset">Tümünü sıfırla</button></div>`; }
+  }
+  _render() {
     const n = this.list().length, sel = this.sel;
     this.el.innerHTML = `<h4>Harita editörü <span style="opacity:.6">(I)</span></h4>
       <div class="sel">${sel ? '<b>Seçili:</b> ' + this.info(sel) : 'Nesne seçilmedi · nişangâhla bak, <b>sol tık</b>'}${this.hover && this.hover !== sel ? `<br><span style="opacity:.6">İmleç: ${this.hover}</span>` : ''}</div>
