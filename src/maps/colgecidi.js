@@ -82,13 +82,13 @@ export function buildColGecidi() {
       if (!MapBuilder.noVisual) { b.box(cx, y + 0.86, cz, sz + 0.06, 0.08, sz + 0.06, '#bf9a62', { collide: false }); b.box(cx, y + 0.4, cz, sz + 0.04, 0.08, sz + 0.04, '#6e5535', { collide: false }); }
     }
   }
-  // ── B penceresi (B sahası ↔ Window): çerçevesiz düz duvar açıklığı (fotoğraftaki gibi). Duvar x −37…−36 (OVERRIDE_FILL), açıklık z −49…−46,2;
+  // ── B penceresi (B sahası ↔ Window): çerçevesiz düz duvar açıklığı (fotoğraftaki gibi). Duvar x −37…−36 (OVERRIDE_FILL), açıklık arka köşede z −57,4…−54,6;
   //    alt kenar B zemininden 1,8 m, açıklık 2,2 m yüksek. B tarafında 3 sandık (biri yerde, ikisi üst üste) basamak, Window tarafında kum yığını.
-  { const wx0 = -37.0, wx1 = -36.0, z0 = -49.0, z1 = -46.2, gB = terrain.heightAt(-38, -47.5), sill = gB + 1.8, lint = sill + 2.2;
-    const [col, ptop] = polyColorAt(D.polys, -36.5, -52), top = ptop ?? gB + 7.5;
+  { const wx0 = -37.0, wx1 = -36.0, z0 = -57.4, z1 = -54.6, gB = terrain.heightAt(-38, -56), sill = gB + 1.8, lint = sill + 2.2;     // arka köşe (kullanıcı)
+    const [col, ptop] = polyColorAt(D.polys, -36.5, -50), top = ptop ?? gB + 7.5;
     b.box((wx0 + wx1) / 2, gB - 0.6, (z0 + z1) / 2, wx1 - wx0, sill - gB + 0.6, z1 - z0, col, { tag: 'wall' });
     b.box((wx0 + wx1) / 2, lint, (z0 + z1) / 2, wx1 - wx0, top - lint, z1 - z0, col, { tag: 'wall' });
-    crates([[-39.4, -47.6, 0], [-37.95, -47.6, 0], [-37.95, -47.6, 1]], gB);
+    crates([[-39.4, -56.0, 0], [-37.95, -56.0, 0], [-37.95, -56.0, 1]], gB);
   }
   // Xbox: Mid'den catwalk'a 3 sandıkla sıçranarak çıkılır (biri yerde, ikisi üst üste; üstü catwalk kotunda)
   // Xbox (Mid → Short koridoru): duvar dibinde düzgün kasa yığını (CS2 Xbox gibi): tek taban kasa duvara bitişik, üstüne yarım kaydırılmış ikinci kasa (üst üste 2 kasa).

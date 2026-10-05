@@ -509,7 +509,7 @@ for L in OVERRIDE_LEVELS:
 
 # kum yığınları: duvar dibindeki bir doğru parçasından uzaklaştıkça alçalan koni (yürünebilir eğim). [x0, z0, x1, z1 (parça), tepe kotu, eğim]
 SAND_PILES = [
-    [-35.45, -48.4, -35.45, -46.8, 2.6, 0.55],          # Window tarafı: B penceresine çıkış (pencere altı 3,7 m; yığın tepesinden ~0,8 m sıçrama)
+    [-35.45, -56.8, -35.45, -55.2, 2.6, 0.55],          # Window tarafı (arka köşedeki cep): B penceresine çıkış (pencere altı 3,7 m; yığın tepesinden ~0,8 m sıçrama)
 ]
 for (sx0, sz0, sx1, sz1, top_, k_) in SAND_PILES:
     R_ = (top_ - 0.0) / k_
@@ -596,8 +596,8 @@ OVERRIDE_FILL = [
     [-53.1, -10.7, -52.1, -9.7],   # Upper Tunnels ince kolon
     [58.5, 23.0, 62.5, 27.3],      # Pit güneydoğu cebi: Pit tabanının dışına taşan kum tümseği (kullanıcı: girilebiliyor) → bina kütlesi, Pit doğu duvarı z 27'ye kadar düz
     [-2.0, -17.9, -0.4, -16.0],    # Xbox koridoru girişi: binanın dili ile kuzey bina arasındaki 1,5 m'lik kısa duvar parçası (sütun gibi duruyordu) → bina kütlesi
-    [-37.0, -58.6, -36.0, -49.0],  # B sahası doğu duvarı (kuzey bina ile pencere arası)
-    [-37.0, -46.2, -36.0, -42.0],  # B sahası doğu duvarı (pencere ile B Doors arası)
+    [-37.0, -58.6, -36.0, -57.4],  # B sahası doğu duvarı (arka köşe ile pencere arası)
+    [-37.0, -54.6, -36.0, -42.0],  # B sahası doğu duvarı (pencere ile B Doors arası) — pencere arka köşede (kullanıcı)
     [6.5, -51.6, 15.0, -42.65],    # CT Spawn kuzey cebi (kapılı bina önü): kullanıcı kolona kadar kapalı istedi
 ]
 for (fx0, fz0, fx1, fz1) in OVERRIDE_FILL:
