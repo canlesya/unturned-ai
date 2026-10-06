@@ -1,5 +1,5 @@
 // Çöl Geçidi kalıcı harita düzenlemeleri (ana menü → Harita Editörü → "Düzenlemeleri kopyala"). Kurulumun sonunda uygulanır (sunucu + istemci).
-// Biçim: { id, at:[x,y,z], del?:true, d?:[dx,dy,dz], s?:[sx,sy,sz], clip?:[x0,x1,y0,y1,z0,z1] (yalnız çarpışmayı kırpar; null = sınırsız) } — at: nesnenin düzenlemeden önceki taban-merkezi (veri değişirse yanlış nesneye uygulanmasın).
+// Biçim: { id, at:[x,y,z], del?:true, d?:[dx,dy,dz], s?:[sx,sy,sz], clip?:[x0,x1,y0,y1,z0,z1] (yalnız çarpışmayı kırpar; null = sınırsız), trim?:true (üst şerit / korniş ölçeklenmez) } — at: nesnenin düzenlemeden önceki taban-merkezi (veri değişirse yanlış nesneye uygulanmasın).
 export default [
   { id: 'bina:11', at: [-33.03, 0.7, -54.482], del: true },          // Window cebi yanında 0,5 × 1 m'lik ince bina köşesi (kullanıcı, 2026-10-05)
   // Kullanıcının Harita Editörü çıktısı (39 düzenleme, 2026-10-06): Xbox sandıkları, Mid / Short / B / Long / CT çevresi kenar duvarları, kasalar, palmiyeler
@@ -23,15 +23,15 @@ export default [
   { id: 'kenar:13', at: [-49.28, 1.55, 36.39], del: true },
   { id: 'kenar:46', at: [-49.03, 1.44, 32.39], del: true },
   { id: 'kenar:47', at: [-44.53, 1.44, 32.39], del: true },
-  { id: 'kenar:14', at: [-43.53, 1.55, 36.523], d: [-1.3, -3.5, 0.5], s: [1.8797, 1.923, 1.7716] },
+  { id: 'kenar:14', at: [-43.53, 1.55, 36.523], d: [-1.3, -3.5, 0.5], s: [1.8797, 1.923, 1.7716], trim: true },
   { id: 'kenar:12', at: [-47.398, 1.55, 37.273], del: true },
   { id: 'kenar:10', at: [-49.53, 2.4, 38.39], del: true },
   { id: 'kenar:5', at: [-50.53, 2.91, 41.39], del: true },
-  { id: 'kenar:6', at: [-51.03, 3.83, 44.89], d: [1.25, -16.5, 5.715], s: [1, 7.3, 6.87], clip: [null, null, null, null, null, 55.6] },
+  { id: 'kenar:6', at: [-51.03, 3.83, 44.89], d: [1.25, -16.5, 5.715], s: [1, 7.3, 6.87], trim: true, clip: [null, null, null, null, null, 55.3] },
   { id: 'kenar:8', at: [-51.03, 4.77, 48.89], del: true },
   { id: 'kenar:9', at: [-51.03, 4.77, 50.393], del: true },
   { id: 'kenar:7', at: [-51.03, 3.83, 46.143], del: true },
-  { id: 'kasa:7', at: [-48.68, 6.26, 41.16], d: [-0.25, 1.58, -3] },
+  { id: 'kasa:7', at: [-48.68, 6.26, 41.16], d: [-0.25, 1.7, -3] },
   { id: 'palmiye:6', at: [-45, 2.127, 18], d: [6.25, 0, -0.75] },
   { id: 'kasa:15', at: [-19.95, -0.3, -11.72], d: [0, 0.5, 0] },
   { id: 'bina:37', at: [-25.78, -0.6, -16.357], d: [0, 0, 0.25] },

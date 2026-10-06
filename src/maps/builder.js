@@ -358,8 +358,25 @@ export class MapBuilder {
         continue;
       }
       const m = MapBuilder.editMatrix(piv, e.d, e.s);
-      for (const [, g] of gs) g.applyMatrix4(m);
+      let ext = 0;
+      if (e.trim && cs.length) {                                    // süs (korniş / üst şerit) doğal kalınlığında kalır: çarpışma gövdesinin dışına taşan her köşe ölçeklenmez, yalnız kaydırılır
+        const lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9];
+        for (const c of cs) for (let a = 0; a < 3; a++) { lo[a] = Math.min(lo[a], c.min[a]); hi[a] = Math.max(hi[a], c.max[a]); }
+        const S = (a, v) => piv[a] + e.d[a] + (v - piv[a]) * e.s[a];
+        let top0 = hi[1];
+        for (const [, g] of gs) {
+          const P = g.attributes.position;
+          for (let i = 0; i < P.count; i++) for (let a = 0; a < 3; a++) {
+            const v = P.getComponent(i, a);
+            if (a === 1 && v > top0) top0 = v;
+            P.setComponent(i, a, v > hi[a] + 1e-4 ? S(a, hi[a]) + (v - hi[a]) : v < lo[a] - 1e-4 && a !== 1 ? S(a, lo[a]) - (lo[a] - v) : S(a, v));
+          }
+          P.needsUpdate = true; g.computeBoundingBox(); g.computeBoundingSphere();
+        }
+        ext = top0 - hi[1];                                         // görsel tepe çarpışma tepesinden bu kadar yüksekti: çarpışmayı da o kadar uzat (üst şeride girilemesin)
+      } else for (const [, g] of gs) g.applyMatrix4(m);
       for (const c of cs) MapBuilder.editBox(c, piv, e.d, e.s);
+      if (ext > 1e-4) { let top = -1e9; for (const c of cs) top = Math.max(top, c.max[1]); for (const c of cs) if (c.max[1] > top - 1e-6) c.max[1] += ext; }
       if (e.clip) {                                                // yalnız çarpışmayı [x0,x1,y0,y1,z0,z1] kutusuna kırp (null = sınırsız): görünmeyen uzantıyı kaldırır
         const k = e.clip;
         for (const c of cs) for (let a = 0; a < 3; a++) { if (k[a * 2] != null) c.min[a] = Math.max(c.min[a], k[a * 2]); if (k[a * 2 + 1] != null) c.max[a] = Math.min(c.max[a], k[a * 2 + 1]); }
