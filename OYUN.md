@@ -898,3 +898,7 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 - Hata düzeltmeleri: ortak kenarlı komşu çokgenlerin iç yüzleri çizilmiyor (ince dikey dikiş / ışık sızıntısı); palmiye sandığa denk gelirse en yakın boşluğa kaydırılıyor (>1,3 m ise yerinde); sınır dışı kum düzlemi 900 → 4200 m (ufuk çizgisi).
 - Test/araçlar: `scripts/cgshot.mjs` (+ `doku-views.json`) sabit bakışlardan görüntü, `scripts/cgmontage.py` önce/sonra tablosu.
 - Bilinen: Car (B) çağrısında araç yok (`nearBox` 6 m² eşiği 4,2 m²'lik kutuyu eliyor) — oynanış değişikliği olacağı için dokunulmadı.
+
+### 12.78 Düzenleme biçimine `clip` (yalnız çarpışmayı kırpma)
+- `{ id, at, d?, s?, clip?: [x0,x1,y0,y1,z0,z1] }` (null = sınırsız): düzenleme uygulandıktan sonra nesnenin ÇARPIŞMA kutuları bu kutuya kırpılır (görsel değişmez). `kenar:6` büyütülünce çarpışma kutusu görünen duvardan 9 m uzundu (görünen duvar z 55,6'da bitiyor, kutu 64,4'e kadar) → kumun üstünde 1,2 m'lik görünmez engel; `clip: z ≤ 55,6` ile kırpıldı. Editör panelinin dışa aktarımı `clip`'i yazmaz; bir duvarı yeniden dışa aktarırsan clip'i elle koru.
+- `kenar:6` / `kenar:14` / `kasa:7`: duvarlar Titanic plato kumunun 1,2 m üstüne çıkarıldı (kum duvarı örtmesin).

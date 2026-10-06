@@ -1,5 +1,5 @@
 // Çöl Geçidi kalıcı harita düzenlemeleri (ana menü → Harita Editörü → "Düzenlemeleri kopyala"). Kurulumun sonunda uygulanır (sunucu + istemci).
-// Biçim: { id, at:[x,y,z], del?:true, d?:[dx,dy,dz], s?:[sx,sy,sz] } — at: nesnenin düzenlemeden önceki taban-merkezi (veri değişirse yanlış nesneye uygulanmasın).
+// Biçim: { id, at:[x,y,z], del?:true, d?:[dx,dy,dz], s?:[sx,sy,sz], clip?:[x0,x1,y0,y1,z0,z1] (yalnız çarpışmayı kırpar; null = sınırsız) } — at: nesnenin düzenlemeden önceki taban-merkezi (veri değişirse yanlış nesneye uygulanmasın).
 export default [
   { id: 'bina:11', at: [-33.03, 0.7, -54.482], del: true },          // Window cebi yanında 0,5 × 1 m'lik ince bina köşesi (kullanıcı, 2026-10-05)
   // Kullanıcının Harita Editörü çıktısı (39 düzenleme, 2026-10-06): Xbox sandıkları, Mid / Short / B / Long / CT çevresi kenar duvarları, kasalar, palmiyeler
@@ -27,7 +27,7 @@ export default [
   { id: 'kenar:12', at: [-47.398, 1.55, 37.273], del: true },
   { id: 'kenar:10', at: [-49.53, 2.4, 38.39], del: true },
   { id: 'kenar:5', at: [-50.53, 2.91, 41.39], del: true },
-  { id: 'kenar:6', at: [-51.03, 3.83, 44.89], d: [1.25, -16.5, 5.715], s: [1, 7.3, 6.87] },
+  { id: 'kenar:6', at: [-51.03, 3.83, 44.89], d: [1.25, -16.5, 5.715], s: [1, 7.3, 6.87], clip: [null, null, null, null, null, 55.6] },
   { id: 'kenar:8', at: [-51.03, 4.77, 48.89], del: true },
   { id: 'kenar:9', at: [-51.03, 4.77, 50.393], del: true },
   { id: 'kenar:7', at: [-51.03, 3.83, 46.143], del: true },

@@ -360,6 +360,11 @@ export class MapBuilder {
       const m = MapBuilder.editMatrix(piv, e.d, e.s);
       for (const [, g] of gs) g.applyMatrix4(m);
       for (const c of cs) MapBuilder.editBox(c, piv, e.d, e.s);
+      if (e.clip) {                                                // yalnız çarpışmayı [x0,x1,y0,y1,z0,z1] kutusuna kırp (null = sınırsız): görünmeyen uzantıyı kaldırır
+        const k = e.clip;
+        for (const c of cs) for (let a = 0; a < 3; a++) { if (k[a * 2] != null) c.min[a] = Math.max(c.min[a], k[a * 2]); if (k[a * 2 + 1] != null) c.max[a] = Math.min(c.max[a], k[a * 2 + 1]); }
+        this.colliders = this.colliders.filter((c) => c.oid !== e.id || (c.max[0] > c.min[0] && c.max[1] > c.min[1] && c.max[2] > c.min[2]));
+      }
     }
   }
   static pivotOf(cs, gs) {                                    // nesnenin taban-merkezi: çarpışma kutuları varsa onlardan (sunucu = istemci), yoksa görsel
