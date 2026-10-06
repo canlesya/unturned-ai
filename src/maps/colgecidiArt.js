@@ -149,6 +149,20 @@ export function decorateEdges(b, edges, terrain, field, rng, noDecor = []) {
         b.box(0, H - 0.45, 0.1, seg + 0.02, 0.3, 0.2, LIGHT, NC);                                        // korniş
         b.box(0, H - 0.02, -0.18, seg + 0.04, 0.14, 0.46, COPE, NC);                                     // duvar tepesi şeridi
         if (H > 4.6 && seg > 2.2 && r < 0.38 && !fb(H - 1.0, H - 0.5, 1.1, 0.6)) for (const k of [-1, 0, 1]) b.box(k * 0.9, H - 0.85, 0.25, 0.2, 0.2, 0.5, BEAM, NC);   // kiriş uçları
+        const hq = (k) => { const v = Math.sin((ei * 97 + s * 31 + k * 5.71) * 12.9898) * 43758.5453; return v - Math.floor(v); };         // kararlı rastgelelik (ana akış kaymaz)
+        if (H > 3.2 && seg > 2.8 && hq(1) < 0.16 && !inNo(wx, wz)) {                                  // yağmur borusu: tepeden zemine, dirsek + huni
+          const px = (hq(2) < 0.5 ? -1 : 1) * (seg / 2 - 0.32);
+          OCC.push([wx + ux * px, wz + uz * px, 0.6]);                                              // pano / pencere bu borunun üstüne binmesin
+          b.cyl(px, 0, 0.12, 0.065, 0.065, H - 0.55, '#6b6f72', { seg: 6, collide: false });
+          b.box(px, H - 0.62, 0.16, 0.22, 0.2, 0.24, '#5a5e61', NC); b.box(px, H - 0.5, 0.02, 0.2, 0.12, 0.26, '#5a5e61', NC);
+          for (const yy of [0.9, 2.2, Math.max(2.4, H - 1.4)]) b.box(px, yy, 0.12, 0.16, 0.05, 0.04, '#3b3e41', NC);       // kelepçeler
+          b.box(px, 0, 0.14, 0.2, 0.18, 0.2, '#4b4e51', NC);
+        }
+        if (H > 4.2 && seg > 2.2 && hq(3) < 0.14 && !inNo(wx, wz)) {                                   // duvar lambası (gece yanar)
+          const lx = (hq(4) < 0.5 ? -1 : 1) * (seg * 0.25);
+          OCC.push([wx + ux * lx, wz + uz * lx, 0.5]);
+          b.box(lx, 2.75, 0.2, 0.1, 0.1, 0.16, '#2a2c2e', NC); b.box(lx, 2.55, 0.26, 0.18, 0.3, 0.14, '#ffd98a', { collide: false, o: { glow: true } }); b.box(lx, 2.52, 0.2, 0.26, 0.04, 0.26, '#2a2c2e', NC);
+        }
         if (wide < 3.2 || seg < 2.4 || inNo(wx, wz)) return;
         const cOff = (s + 0.5) * seg, edgeOk = (need) => cOff >= need && L - cOff >= need;                // süs duvar ucundan yeterince içeride (köşede kesilmesin)
         if (H > 5.4 && r > 0.2 && r < 0.6 && edgeOk(1.35) && !fb(2.4, 5.0, 0.95, 1.0)) {                               // pencere
@@ -213,10 +227,10 @@ const BARRELS = ['#9a3b2b', '#7d5a36', '#3d6a8a', '#5a6b3c', '#8a8f94', '#9a3b2b
 
 // sandık süsü (yerel çerçeve: taban y=0, merkez x/z=0): yan yüzlere çapraz destek, köşe metal kuşak, bazılarına beyaz stencil. Görsel, çarpışmasız.
 export function crateDeco(b, w, h, d, base, i = 0) {
-  const NC = { collide: false }, dk = DARK(base, 0.6), steel = '#4a4d50', paint = '#d6d9d4';
+  const NC = { collide: false }, dk = DARK(base, 0.6), steel = '#7c8083', paint = '#d6d9d4';
   if (h < 0.5) return;
   const hh = Math.max(0.2, h - 0.2);
-  const brace = (zz, L) => { const run = Math.max(0.2, L - 0.2); b.box(0, h / 2 - 0.045, zz, Math.hypot(run, hh), 0.09, 0.045, dk, { ...NC, rz: Math.atan2(hh, run) }); };
+  const brace = (zz, L) => { const run = Math.max(0.2, L - 0.3), hz = Math.max(0.2, hh - 0.1); b.box(0, h / 2 - 0.045, zz, Math.hypot(run, hz), 0.09, 0.045, dk, { ...NC, rz: Math.atan2(hz, run) }); };
   for (const sz of [-1, 1]) brace(sz * (d / 2 + 0.03), w);
   b.with(0, 0, 0, Math.PI / 2, () => { for (const sx of [-1, 1]) brace(sx * (w / 2 + 0.03), d); });
   for (const sx of [-1, 1]) for (const sz of [-1, 1]) {                                          // köşe kuşakları (üst köşelerde metal)
@@ -327,7 +341,7 @@ export function buildSurround(b, rng) {
   const NC = { collide: false };
   const SAND = ['#dcc08a', '#cfae72', '#e3cc9a', '#c7a46a', '#d7b97f'];
   const pick = (a) => a[Math.floor(rng() * a.length)];
-  b.box(0, -8, 0, 900, 5.5, 900, '#d8c08c', NC);                                      // sınır dışı: sonsuz kum zemin; tepesi −2,5 m = haritadaki en alçak zeminin (Pit −1,2) ALTINDA (önceden +0,2'deydi: Pit tabanını örtüyordu)
+  b.box(0, -8, 0, 4200, 5.5, 4200, '#d8c08c', NC);                                      // sınır dışı: sonsuz kum zemin; tepesi −2,5 m = haritadaki en alçak zeminin (Pit −1,2) ALTINDA (önceden +0,2'deydi: Pit tabanını örtüyordu)
   const N = 46;
   for (let i = 0; i < N; i++) {
     const th = (i / N) * Math.PI * 2 + (rng() - 0.5) * 0.08, rx = 92 + rng() * 18, rz = 102 + rng() * 18;
@@ -337,7 +351,22 @@ export function buildSurround(b, rng) {
       const w = 10 + rng() * 14, d = 9 + rng() * 10, h = 11 + rng() * 15;
       b.with(x, 0, z, th + Math.PI / 2, () => {
         b.box(0, -1, 0, w, h + 1, d, col, NC); b.box(0, h, 0, w + 0.6, 0.6, d + 0.6, dk, NC);
-        for (let f = 0; f < Math.floor(h / 4.2); f++) for (let k = -1; k <= 1; k++) b.box(k * (w / 3.4), 3 + f * 4.2, d / 2 + 0.03, 1.2, 1.8, 0.06, '#2a3038', NC);
+        const sty = Math.floor(rng() * 3), lt = '#ece0c0', sh = ['#4f6b55', '#3d5f7a', '#8a4a37', '#6e5a3c'][Math.floor(rng() * 4)];
+        for (let f = 0; f < Math.floor(h / 4.2); f++) for (let k = -1; k <= 1; k++) {
+          if (sty === 2 && rng() < 0.4) continue;                                                 // seyrek pencereli düz cephe
+          const wx = k * (w / 3.4), wy = 3 + f * 4.2;
+          b.box(wx, wy, d / 2 + 0.03, 1.2, 1.8, 0.06, '#2a3038', NC);
+          b.box(wx, wy - 0.2, d / 2 + 0.07, 1.6, 0.14, 0.14, lt, NC);                             // denizlik
+          if (sty === 0) { b.box(wx - 0.85, wy, d / 2 + 0.08, 0.45, 1.8, 0.05, sh, NC); b.box(wx + 0.85, wy, d / 2 + 0.08, 0.45, 1.8, 0.05, sh, NC); }   // kepenk
+        }
+        if (sty === 1) for (let f = 1; f < Math.floor(h / 4.2); f++) {                           // balkon sırası
+          b.box(0, 2.6 + f * 4.2, d / 2 + 0.55, w * 0.7, 0.18, 1.1, dk, NC);
+          for (let k = -4; k <= 4; k++) b.box(k * (w * 0.7 / 9), 2.8 + f * 4.2, d / 2 + 1.05, 0.05, 0.9, 0.05, '#2a2c2e', NC);
+        }
+        if (h > 14) b.box(0, h * 0.5, 0, w + 0.25, 0.4, d + 0.25, lt, NC);                       // kat bandı
+        b.box(0, 0, d / 2 + 0.04, 1.6, 2.6, 0.08, ['#2d6fa8', '#7a4a2a', '#9a3b2b'][Math.floor(rng() * 3)], NC);   // zemin kat kapısı
+        if (rng() < 0.55) { b.box((rng() - 0.5) * w * 0.4, h + 0.6, (rng() - 0.5) * d * 0.4, 2.4, 1.8, 2.2, col, NC); }       // çatı kulübesi
+        if (rng() < 0.35) b.cyl((rng() - 0.5) * w * 0.5, h + 0.6, -d * 0.25, 0.9, 0.9, 1.6, '#9db4c4', { seg: 8, collide: false });   // çatı su deposu
       });
     } else if (r < 0.68) {                                                           // minare
       const h = 26 + rng() * 10;
@@ -625,8 +654,25 @@ export function ads(b, terrain, edges, field, rng, n = 14, noDecor = []) {
     b.with(wx, g, wz, Math.atan2(nx, nz), () => {
       b.box(0, 1.6, 0.04, 4.2, 3.0, 0.05, acc, NC);
       b.box(0, 1.75, 0.08, 3.8, 2.7, 0.04, col, NC);
-      for (let k = 0; k < 4; k++) b.box(-0.2 + (k % 2) * 0.1, 3.2 - k * 0.42, 0.12, 2.6 - (k === 3 ? 1.1 : 0), 0.18, 0.03, '#3a3f45', NC);
-      b.box(0.6, 1.95, 0.12, 1.5, 0.1, 0.03, '#b5402e', NC); b.box(1.2, 1.95, 0.12, 0.3, 0.3, 0.03, '#b5402e', { ...NC, rz: 0.8 });
+      const variant = placed % 5, ink = '#3a3f45';                                               // 5 farklı pano: yazı + ok / logo / şeritli afiş / ilan tablosu / uyarı
+      if (variant === 0) {
+        for (let k = 0; k < 4; k++) b.box(-0.2 + (k % 2) * 0.1, 3.2 - k * 0.42, 0.12, 2.6 - (k === 3 ? 1.1 : 0), 0.18, 0.03, ink, NC);
+        b.box(0.6, 1.95, 0.12, 1.5, 0.1, 0.03, '#b5402e', NC); b.box(1.2, 1.95, 0.12, 0.3, 0.3, 0.03, '#b5402e', { ...NC, rz: 0.8 });
+      } else if (variant === 1) {                                                                // yuvarlak logo + iki satır
+        b.cyl(-1.0, 2.85, 0.1, 0.62, 0.62, 0.03, acc, { seg: 14, collide: false, rx: Math.PI / 2 }); b.cyl(-1.0, 2.85, 0.13, 0.4, 0.4, 0.03, col, { seg: 14, collide: false, rx: Math.PI / 2 });
+        b.cyl(-1.0, 2.85, 0.15, 0.2, 0.2, 0.03, acc, { seg: 14, collide: false, rx: Math.PI / 2 });
+        b.box(0.5, 3.0, 0.12, 1.9, 0.26, 0.03, ink, NC); b.box(0.3, 2.55, 0.12, 1.5, 0.14, 0.03, ink, NC); b.box(0.5, 1.9, 0.12, 2.2, 0.5, 0.03, acc, NC); b.box(0.5, 1.95, 0.14, 1.6, 0.1, 0.03, col, NC);
+      } else if (variant === 2) {                                                                // üç şeritli afiş
+        for (const [yy, hh, cc] of [[3.05, 0.45, acc], [2.45, 0.45, col], [1.85, 0.45, acc]]) b.box(0, yy, 0.12, 3.5, hh, 0.03, cc, NC);
+        b.box(-0.9, 2.5, 0.15, 1.2, 0.12, 0.03, ink, NC); b.box(0.9, 2.5, 0.15, 0.7, 0.12, 0.03, ink, NC);
+      } else if (variant === 3) {                                                                // ilan tablosu: küçük kâğıtlar
+        const PC = ['#f2ead2', '#e6c36b', '#cfe3ee', '#e9b6a0', '#f2ead2', '#b9d3b0'];
+        for (let r = 0; r < 2; r++) for (let c2 = 0; c2 < 3; c2++) { const px = -1.25 + c2 * 1.25, py = 3.0 - r * 1.05; b.box(px, py, 0.12, 0.9, 0.85, 0.03, PC[r * 3 + c2], { ...NC, rz: ((r + c2) % 3 - 1) * 0.05 }); b.box(px, py + 0.55, 0.15, 0.55, 0.06, 0.03, ink, NC); b.box(px, py + 0.38, 0.15, 0.7, 0.05, 0.03, ink, NC); }
+      } else {                                                                                   // uyarı: eşkenar dörtgen + ünlem
+        b.box(0, 2.35, 0.12, 1.5, 1.5, 0.03, '#d9a52b', { ...NC, rz: Math.PI / 4 }); b.box(0, 2.35, 0.14, 1.05, 1.05, 0.03, col, { ...NC, rz: Math.PI / 4 });
+        b.box(0, 2.35, 0.17, 0.13, 0.7, 0.03, ink, NC); b.box(0, 1.85, 0.17, 0.14, 0.14, 0.03, ink, NC);
+        b.box(0, 1.2, 0.12, 2.8, 0.32, 0.03, ink, NC);
+      }
     });
     b.objStack.pop();
     placed++;
