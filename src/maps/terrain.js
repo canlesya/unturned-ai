@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { applyDesertGround } from './surface.js';
 
 // Arazi yükseklik haritası: düzenli ızgara, bilinear örnekleme, düşük poligon (yüzey başına renk) mesh.
 // Fizik / ışın / yol bulma bu sınıfın heightAt() fonksiyonunu kullanır.
@@ -220,7 +221,7 @@ export class Terrain {
   // Düşük poligon mesh: üçgen başına renk (colorFn(x, z, h, slope) → THREE.Color)
   buildMesh(colorFn, opts = {}) {
     const { nx, nz, cell, minX, minZ } = this;
-    const pos = [], col = [];
+    const pos = [], col = [], aux = [];
     const c = new THREE.Color();
     const V = (i, j) => [minX + i * cell, this.h[j * nx + i], minZ + j * cell];
     const tri = (a, b, d) => {
@@ -243,7 +244,7 @@ export class Terrain {
       const T3 = (i0, j0, i1, j1, i2, j2) => {
         const v = [[i0, j0], [i1, j1], [i2, j2]];
         const f = 1 + jit * (hash(i0 * 3 + i1 + i2 * 7, j0 * 5 + j1 + j2 * 11, 5) - 0.5) * 2;
-        for (const [ii, jj] of v) { const k = (jj * nx + ii) * 3; pos.push(minX + ii * cell, this.h[jj * nx + ii], minZ + jj * cell); col.push(nc[k] * f, nc[k + 1] * f, nc[k + 2] * f); }
+        for (const [ii, jj] of v) { const k = (jj * nx + ii) * 3; pos.push(minX + ii * cell, this.h[jj * nx + ii], minZ + jj * cell); col.push(nc[k] * f, nc[k + 1] * f, nc[k + 2] * f); if (opts.aux) aux.push(...opts.aux(minX + ii * cell, minZ + jj * cell, this.h[jj * nx + ii])); }
       };
       for (let j = 0; j < nz - 1; j++) for (let i = 0; i < nx - 1; i++) {
         if ((i + j) & 1) { T3(i, j, i, j + 1, i + 1, j); T3(i + 1, j, i, j + 1, i + 1, j + 1); }
@@ -257,9 +258,11 @@ export class Terrain {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    if (aux.length) g.setAttribute('aAux', new THREE.Float32BufferAttribute(aux, 3));
     g.computeVertexNormals();
     const material = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 1, metalness: 0 });
     if (opts.detail) applyDetail(material, opts.detail);
+    else if (aux.length && opts.desert) applyDesertGround(material);
     const m = new THREE.Mesh(g, material);
     m.receiveShadow = true;
     return m;

@@ -4,7 +4,7 @@ import { Terrain, fbm } from './terrain.js';
 import DATA from './colgecidiData.js';
 import EDITS from './colgecidiEdits.js';
 import { car } from './kit.js';
-import { makeSolidField, floorColor, decorateEdges, buildPolys, polyColorAt, rngOf, wallTop, propBox, obbCollide, scatterPalms, buildSurround, roofTunnels, findDoor, doorFrame, gateDoor, dishes, ads, siteSign } from './colgecidiArt.js';
+import { makeSolidField, crateDeco, floorColor, decorateEdges, buildPolys, polyColorAt, rngOf, wallTop, propBox, obbCollide, scatterPalms, buildSurround, roofTunnels, findDoor, doorFrame, gateDoor, dishes, roofClutter, groundClutter, ads, siteSign } from './colgecidiArt.js';
 
 // Çöl Geçidi: üç hatlı (uzun koridor / orta / tüneller), iki hedef alanlı (A, B) klasik çöl haritası.
 // Yapı tools/dust2_extract.py ile radar şemasından çıkarılır (colgecidiData.js); bu dosya veriyi oyuna çevirir:
@@ -37,6 +37,7 @@ export function buildColGecidi() {
   // zemin ağı köşeleri yükseklik verisinin köşeleriyle çakışır (kayık olursa her keskin kat kenarı 1 m'lik eğime yayılıp istinat duvarının önüne taşar)
   const al = (v, o) => o - Math.ceil((o - v) / D.hcell) * D.hcell;
   const terrain = new Terrain({ minX: al(CG_BOUNDS.minX, D.hx0), maxX: CG_BOUNDS.maxX, minZ: al(CG_BOUNDS.minZ, D.hz0), maxZ: CG_BOUNDS.maxZ, cell: D.hcell, height });
+  b.surface = { ground: (x, z) => terrain.heightAt(x, z) };                           // yüzey detayı (sıva lekesi, tuğla, ahşap, kum): maps/surface.js
   terrain.tri = true;                                                                  // fizik yüksekliği = çizilen üçgen ağ (bilinear ile ağ arasında 0,4 m'ye varan fark kuma gömülme / havada kalma yapıyordu)
   terrain.deepWater = -1e9;                                                         // su yok: Pit sıfırın altında yürünür
 
@@ -82,6 +83,7 @@ export function buildColGecidi() {
       const y = g + lvl * 0.9;
       b.box(cx, y - (lvl ? 0 : 0.3), cz, sz, 0.9 + (lvl ? 0 : 0.3), sz, lvl ? '#a6834f' : '#9b7a4a', { tag: 'prop' });
       if (!MapBuilder.noVisual) { b.box(cx, y + 0.86, cz, sz + 0.06, 0.08, sz + 0.06, '#bf9a62', { collide: false }); b.box(cx, y + 0.4, cz, sz + 0.04, 0.08, sz + 0.04, '#6e5535', { collide: false }); }
+      if (!MapBuilder.noVisual) b.with(cx, y, cz, 0, () => crateDeco(b, sz, 0.9, sz, lvl ? '#a6834f' : '#9b7a4a', j + 3));
     }));
   }
   // ── B penceresi (B sahası ↔ Window): çerçevesiz düz duvar açıklığı (fotoğraftaki gibi). Açıklık arka köşede z −57,4…−54,6;
@@ -146,7 +148,11 @@ export function buildColGecidi() {
 
   // ── arazi: kum, bölge tonları ──
   const fc = floorColor(field, D);
-  const terrainMesh = terrain.buildMesh((x, z, h, slope, c) => fc(x, z, h, slope, c, fbm(x * 0.09, z * 0.09, 5, 3)), { smooth: true });
+  const sites = (D.zones.orange || []).filter((z) => z[2] - z[0] > 6);                              // saha (A / B) taş döşemesi: aux = 1
+  const yards = D.zones.green || [];                                                                 // T / CT avlusu: iri levha
+  const inR = (x, z, [a, bb, e, f], m) => x > a - m && x < e + m && z > bb - m && z < f + m;
+  const paveAt = (x, z) => [sites.some((r) => inR(x, z, r, 1)) ? 1 : 0, (x > 42 && x < 62 && z > -52 && z < 3) ? 1 : 0, yards.some((r) => inR(x, z, r, 0.5)) ? 1 : 0];   // [saha levhası, Long kaldırım taşı, avlu levhası]
+  const terrainMesh = terrain.buildMesh((x, z, h, slope, c) => fc(x, z, h, slope, c, fbm(x * 0.09, z * 0.09, 5, 3)), { smooth: true, aux: paveAt, desert: true });
 
 
   // ── doğuş: T avlusu (mavi, güney) ve CT avlusu (kırmızı, kuzey) ──
@@ -228,6 +234,8 @@ export function buildColGecidi() {
     const avoid = [...objectives.map((o) => [o.x, o.z, 9]), ...[...spawns.blue, ...spawns.red].map((p) => [p.x, p.z, 5])];
     scatterPalms(b, terrain, field, avoid, rng, 10);
     dishes(b, terrain, D.rects, rng, 30);
+    roofClutter(b, D.polys);
+    groundClutter(b, terrain, field, [...avoid.map(([ax, az]) => [ax, az, 3.5]), ...NODECOR.map(([x0, z0, x1, z1]) => [(x0 + x1) / 2, (z0 + z1) / 2, Math.hypot(x1 - x0, z1 - z0) / 2])]);
     ads(b, terrain, D.fedges, field, rng, 14, NODECOR);
     siteSign(b, terrain, D.fedges, CALLOUTS.find((q) => q.name === 'A Site'), 'A', NODECOR); siteSign(b, terrain, D.fedges, CALLOUTS.find((q) => q.name === 'B Site'), 'B', NODECOR);
     b.obj('dış-çevre', () => buildSurround(b, rng));

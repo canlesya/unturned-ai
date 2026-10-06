@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { mat } from '../core/geo.js';
+import { makeDesertMaterial, kindOfColor } from './surface.js';
 
 const VC_MAP = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.82, metalness: 0 });     // mat() düz malzemesiyle aynı, rengi köşelerden alır
 
@@ -22,6 +23,7 @@ export class MapBuilder {
   constructor() {
     this.buckets = new Map();
     this.colliders = [];
+    this.surface = null;           // { ground(x, z) }: Çöl Geçidi yüzey detayı (aKind + aGnd öznitelikleri, desert malzemesi); null = düz köşe rengi
     this.autoPlace = false;        // true: araçlar ertelenir, flushVehicles() çakışmayanı en yakın boş yere koyar
     this.pendingVeh = [];
     this.vehicles = [];            // araç ayak izleri (dünya OBB): denetim için scripts/vehaudit.mjs
@@ -384,11 +386,17 @@ export class MapBuilder {
     const plainGeos = [];
     for (const b of this.buckets.values()) {
       if (Object.keys(b.o).length === 0 && !MapBuilder.noVC) {
-        const c = new THREE.Color(b.color);
+        const c = new THREE.Color(b.color), kind = this.surface ? kindOfColor(b.color) : 0;
         for (const g of b.geos) {
           const n = g.attributes.position.count, arr = new Float32Array(n * 3);
           for (let i = 0; i < n; i++) { arr[i * 3] = c.r; arr[i * 3 + 1] = c.g; arr[i * 3 + 2] = c.b; }
           g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+          if (this.surface) {
+            const P = g.attributes.position, kd = new Uint8Array(n), gd = new Float32Array(n);
+            const oid = g.userData.oid || '', kk = /^palmiye/.test(oid) ? 3 : kind === 1 && /^(kasa|sandık|araç|fıçı|varil)/.test(oid) ? 2 : kind;       // açık renkli sandıklar sıva değil ahşap
+            for (let i = 0; i < n; i++) { kd[i] = kk; gd[i] = this.surface.ground(P.getX(i), P.getZ(i)); }
+            g.setAttribute('aKind', new THREE.BufferAttribute(kd, 1)); g.setAttribute('aGnd', new THREE.BufferAttribute(gd, 1));
+          }
           plainGeos.push(g);
         }
         continue;
@@ -407,7 +415,7 @@ export class MapBuilder {
       const c32 = merged.attributes.color.array, c16 = new Uint16Array(c32.length);            // bellek: köşe rengi 12 → 6 bayt (yarım duyarlık)
       for (let i = 0; i < c32.length; i++) c16[i] = THREE.DataUtils.toHalfFloat(c32[i]);
       merged.setAttribute('color', new THREE.Float16BufferAttribute(c16, 3));
-      const mesh = new THREE.Mesh(merged, VC_MAP);
+      const mesh = new THREE.Mesh(merged, this.surface ? (this._desertMat ||= makeDesertMaterial()) : VC_MAP);
       mesh.userData.ranges = ranges;
       mesh.castShadow = true; mesh.receiveShadow = true;
       group.add(mesh);
