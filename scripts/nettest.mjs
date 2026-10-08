@@ -1,5 +1,6 @@
 // Sunucu protokol testi (tarayıcısız): node scripts/nettest.mjs  (önce: npm run server)
 import WebSocket from 'ws';
+import { WALK_SPEED } from '../src/sim/input.js';
 const URL = process.env.WS || 'ws://127.0.0.1:8787';
 const open = (name) => new Promise((res) => { const ws = new WebSocket(URL); ws.msgs = []; ws.on('message', (d) => ws.msgs.push(JSON.parse(d))); ws.on('open', () => res(ws)); });
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -49,7 +50,8 @@ const dNormal = await walk(yawBest, 60, 2000); await walk(yawBest + Math.PI, 60,
 const dFlood = await walk(yawBest, 240, 2000);
 console.log(`      2 sn yürüyüş: normal (60/sn) ${dNormal.toFixed(2)} m · flood (240/sn) ${dFlood.toFixed(2)} m`);
 // 2 sn'de 480 girdi yollandı; korumasız sunucu ~35 m yürütürdü. Sınır: 2 sn gerçek + 0,5 sn bir kerelik pay, 4,4 m/s * 1,1
-check(dFlood < 4.4 * 1.1 * 2.7, `girdi flood saldırısıyla hızlanma yok (${dFlood.toFixed(1)} m < ${(4.4 * 1.1 * 2.7).toFixed(1)} m)`);
+const FLOOD_LIM = WALK_SPEED * 1.1 * 2.7;                           // yürüme hızı × silah çarpanı × 2,7 sn (flood'da sunucu gerçek zamanı aşan adım atmaz)
+check(dFlood < FLOOD_LIM, `girdi flood saldırısıyla hızlanma yok (${dFlood.toFixed(1)} m < ${FLOOD_LIM.toFixed(1)} m)`);
 await wait(1200);
 
 await wait(300);
