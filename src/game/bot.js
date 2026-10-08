@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { DIFFICULTY, WSTATS } from './stats.js';
-import { JUMP_SPEED } from '../sim/input.js';
+import { JUMP_SPEED, WALK_SPEED } from '../sim/input.js';
 import { clamp, rand, angleDiff, yawFromDir, lerp, pick } from './util.js';
 
 // silah rolleri (bot davranışı)
@@ -242,7 +242,7 @@ export class BotBrain {
       this.target = best; this.tDist = bd;
     }
     const tg = this.target && this.target.alive ? this.target : null;
-    let moveX = 0, moveZ = 0, speed = 4.4 * s.spd * (s.stat.move || 1);
+    let moveX = 0, moveZ = 0, speed = WALK_SPEED * s.spd * (s.stat.move || 1);
     s.ads = false; s.crouching = false; s.botExtraSpread = 0;
     if (s.blindT > 0 || g.graceLeft > 0) { if (s.blindT > 0) s.yaw += Math.sin(this.t * 2.2 + s.id) * dt * 1.4; s.vel.x *= 0.5; s.vel.z *= 0.5; return; }       // kör ya da hazırlık süresi: bekle
     if (tg) {
@@ -320,7 +320,7 @@ export class BotBrain {
 
     const st = s.stat;
     const eye = s.eye(tA);
-    let moveX = 0, moveZ = 0, speed = 4.4 * s.spd * (st.move || 1);
+    let moveX = 0, moveZ = 0, speed = WALK_SPEED * s.spd * (st.move || 1);
     let combat = false;
 
     // ── reload / silah yönetimi ──

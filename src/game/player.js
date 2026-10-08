@@ -6,7 +6,7 @@ import { WSTATS, OPTICS, OPTIC_ALLOWED, ZT_ORDER } from './stats.js';
 import { reloadAnim, meleePose } from './anim.js';
 import { box } from '../core/geo.js';
 import { clamp, lerp, V3 } from './util.js';
-import { applyInput } from '../sim/input.js';
+import { applyInput, WALK_SPEED } from '../sim/input.js';
 import { norm, codeLabel } from '../core/keybinds.js';
 
 const VM_SCALE = 0.92;
@@ -626,7 +626,7 @@ export class Player {
       // adım sesi
       const sp = Math.hypot(s.vel.x, s.vel.z);
       if (s.onGround && sp > 1.5 && !s.crouching && !s.prone) {
-        s.stepT -= dt * (sp / 4.4);
+        s.stepT -= dt * (sp / WALK_SPEED);
         if (s.stepT <= 0) { s.stepT = 0.42; g.sfx.step(null); }
       }
     }

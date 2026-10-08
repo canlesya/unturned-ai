@@ -4,13 +4,14 @@ import { WSTATS, CLASS_DEFS, OPTICS, OPTIC_ORDER, OPTIC_ALLOWED, resolveOptic, m
 import { SWING_HIT_K } from './anim.js';
 import { H_STAND, H_CROUCH, H_PRONE } from './collision.js';
 import { dirFromAngles, clamp, rand, lerp } from './util.js';
+import { WALK_SPEED } from '../sim/input.js';
 
 const _v = new THREE.Vector3();
 const _d = new THREE.Vector3();
 const _o = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
 // Koşarken / havadayken ateş serbest ama isabetsiz: ek saçılma (rad). 0,085 ≈ 4,9° → 20 m'de ~1,7 m, 50 m'de ~4,3 m (koşarak zıplayınca ikisi toplanır ≈ 9°).
-const SPRINT_SPREAD = 0.085, AIR_SPREAD = 0.075, SPRINT_SPEED = 5.8;
+const SPRINT_SPREAD = 0.085, AIR_SPREAD = 0.075, SPRINT_SPEED = WALK_SPEED * 1.32;      // yürüme hızının 1,32 katı (eskiden 4,4 × 1,32 = 5,8): yürürken koşu cezası uygulanmaz
 
 export const EYE_STAND = 1.62;
 export const EYE_CROUCH = 1.16;

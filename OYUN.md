@@ -905,3 +905,6 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 
 ### 12.79 Düzenlemeye `trim` (üst şerit ölçeklenmesin)
 - `{ …, trim: true }`: çarpışma gövdesinin DIŞINA taşan görsel köşeler (korniş, üst şerit, kenar taşması) ölçeklenmez, yalnız kaydırılır; çarpışmanın tepesi görsel tepeye kadar uzatılır. `kenar:6` / `kenar:14` 7,3× / 1,9× büyütülünce 0,12 m'lik üst şerit 0,9 m olmuş ve çarpışmasız kalmıştı (içine girilebiliyordu). Artık şerit 0,12 m, görsel tepe = çarpışma tepesi (7,96 m).
+
+### 12.80 Yürüme hızı 4,4 → 5,6 m/sn
+- `src/sim/input.js` `WALK_SPEED`: 4,4 → 5,6 (yürüme ≈5,5, koşu ≈8,2, çömelme ≈2,9 m/sn ölçüldü). Oyuncu, sunucu, istemci tahmini ve botlar (`bot.js` iki yerde sabit 4,4 yazılıydı) aynı sabiti kullanır; ayak sesi temposu (`player.js`) ve koşu isabetsizliği eşiği (`soldier.js` `SPRINT_SPEED` = WALK_SPEED × 1,32) buna bağlandı, yoksa yürürken "koşu cezası" uygulanırdı. Daha da hızlandırmak ya da yavaşlatmak için yalnız bu sabit değişir.

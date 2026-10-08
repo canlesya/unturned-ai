@@ -3,7 +3,7 @@
 // input: { f: -1|0|1 (ileri/geri), r: -1|0|1 (sağ/sol), lean: -1|0|1 (Q/E), sprint: bool (Shift basılı), jump: bool }
 // Etkiler: s.leanDir, s.sprinting, s.crouching/prone (koşarken kalkar), s.vel.x/z (yatay), s.vel.y + s.onGround (zıplama)
 export const JUMP_SPEED = 5.4;
-export const WALK_SPEED = 4.4;
+export const WALK_SPEED = 5.6;          // m/sn yürüme (koşu ×1,5, çömelme ×0,52). Oyuncu, botlar, sunucu ve istemci tahmini aynı sabiti kullanır; eskiden 4,4 idi ('çok yavaş' geri bildirimi)
 
 export function applyInput(s, input, dt) {
   const { f, r, lean } = input;
