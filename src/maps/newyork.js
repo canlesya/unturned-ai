@@ -306,6 +306,7 @@ export function buildNewYork() {
     name: 'New York',
     group,
     colliders: b.colliders,
+    sight: b.sight,
     bounds: NEWYORK_BOUNDS,
     baseZones: null,
     roads,

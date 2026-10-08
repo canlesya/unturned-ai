@@ -251,6 +251,7 @@ export function buildColGecidi() {
     editSkipped,
     group,
     colliders: b.colliders,
+    sight: b.sight,
     bounds: CG_BOUNDS,
     terrain,
     sideSwap: true,

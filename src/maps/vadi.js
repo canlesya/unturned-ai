@@ -500,6 +500,7 @@ export function buildVadi() {
     name: 'Vadi',
     group,
     colliders: b.colliders,
+    sight: b.sight,
     bounds: VADI_BOUNDS,
     terrain,
     spawns,

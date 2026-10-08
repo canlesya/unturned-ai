@@ -1,4 +1,5 @@
 import { MapBuilder } from '../maps/builder.js';
+import { SightMap } from './sight.js';
 import { MapEditor, loadEdits } from './mapEditor.js';
 import * as THREE from 'three';
 import { setupEnvironment } from '../maps/environment.js';
@@ -127,6 +128,7 @@ export class Game {
     }
     this.terrain = this.map.terrain || null;
     this.world = new World(this.map.colliders, this.map.bounds, this.terrain);
+    this.sightMap = this.map.sight && this.map.sight.length ? new SightMap(this.map.sight) : null;                // bot görüşü için yaprak / çalı ızgarası
     this.nav = new NavGrid(this.map.colliders, this.map.bounds, this.terrain, !!this.map.layered);
 
     // opts.match: özel maç ayarları; opts.mode: '3v3' | '10v10' hazır ayarı (test/uyumluluk)
@@ -1171,6 +1173,8 @@ export class Game {
 
   // Duman: iki nokta arası görüş çizgisi (dünya + duman). Botların algısı bunu kullanır.
   losClear(a, b) { return this.world.clear(a, b) && !smokeBlocks(this, a, b); }
+  // botların görüşü: LOS + duman + yaprak / çalı (mermi geçer ama bot görmez)
+  botSees(a, b) { return this.losClear(a, b) && !(this.sightMap && this.sightMap.blocked(a, b)); }
   smokeDensity(p) { return smokeDensity(this, p); }
   placeDeployable(s, st) { return placeDeployable(this, s, st); }
 

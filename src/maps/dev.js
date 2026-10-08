@@ -163,6 +163,7 @@ export function buildDev() {
     name: 'Geliştirici Atölyesi',
     group,
     colliders: b.colliders,
+    sight: b.sight,
     bounds: DEV_BOUNDS,
     baseZones: { blue: { minX: -92, maxX: -80, minZ: -20, maxZ: 20 }, red: { minX: 80, maxX: 92, minZ: -20, maxZ: 20 } },
     spawns,

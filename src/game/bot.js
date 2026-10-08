@@ -198,7 +198,7 @@ export class BotBrain {
       if (dist > vis * (g.visMul || 1)) continue;
       if (!alerted && (fwd.x * dx + fwd.z * dz) / (dist + 1e-6) < 0.3) continue;
       if (dist > 22 && e.crouching) { if (Math.random() < 0.3) continue; }
-      if (!g.losClear(eye, tc)) continue;                  // duman görüşü de keser
+      if (!g.botSees(eye, tc)) continue;                   // duman ve yaprak / çalı görüşü de keser (mermi geçer, bot görmez)
       const sc = g.mode.infection ? dist + this.crowd(e) * 12 + Math.random() * 6 : dist;      // Enfekte: herkes aynı zombiyi seçmesin (yük dağılımı)
       if (sc < bd) { bd = sc; best = e; }
     }
@@ -248,7 +248,7 @@ export class BotBrain {
     if (tg) {
       const dx = tg.pos.x - s.pos.x, dz = tg.pos.z - s.pos.z, dist = Math.hypot(dx, dz);
       const eye = s.eye(tA), tc = tg.center(tC);
-      const los = dist < 22 && g.losClear(eye, tc);
+      const los = dist < 22 && g.botSees(eye, tc);
       const want = yawFromDir(dx, dz);
       const high = tg.pos.y - s.pos.y > 0.6;                          // hedef yüksekte (platform): düz koşma, rampa/basamaktan ya da sıçrayarak çık
       if (dist < 3.2 || (los && !high)) {

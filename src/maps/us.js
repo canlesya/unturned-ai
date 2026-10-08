@@ -457,6 +457,7 @@ export function buildUs() {
     name: 'Askeri Üs',
     group: b.build(),
     colliders: b.colliders,
+    sight: b.sight,
     bounds: US_BOUNDS,
     spawns,
     // kamp avlusu + kapı koridorları (şikan duvarlarının içi): düşman girerse ceza

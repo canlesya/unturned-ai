@@ -24,6 +24,7 @@ export class MapBuilder {
     this.buckets = new Map();
     this.colliders = [];
     this.surface = null;           // { ground(x, z) }: Çöl Geçidi yüzey detayı (aKind + aGnd öznitelikleri, desert malzemesi); null = düz köşe rengi
+    this.sight = [];               // botların görüşünü kesen yumuşak örtüler [x, y, z, r] (ağaç tepesi, çalı): çarpışma / görünüm değil, yalnız bot görüşü (game/sight.js)
     this.autoPlace = false;        // true: araçlar ertelenir, flushVehicles() çakışmayanı en yakın boş yere koyar
     this.pendingVeh = [];
     this.vehicles = [];            // araç ayak izleri (dünya OBB): denetim için scripts/vehaudit.mjs
@@ -36,6 +37,8 @@ export class MapBuilder {
   // obj(id, fn): fn içinde eklenen tüm görsel parçalar ve çarpışma kutuları bu kimliği taşır (seç / sil / taşı / boyutla tek nesne olarak).
   obj(id, fn) { this.objStack.push(id); try { return fn(); } finally { this.objStack.pop(); } }
   get curOid() { return this.objStack.length ? this.objStack[this.objStack.length - 1] : null; }
+
+  softCover(x, y, z, r) { this.sight.push([+x.toFixed(2), +y.toFixed(2), +z.toFixed(2), +r.toFixed(2)]); }
 
   get M() { return this.stack[this.stack.length - 1]; }
 

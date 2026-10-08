@@ -908,3 +908,7 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 
 ### 12.80 Yürüme hızı 4,4 → 5,6 m/sn
 - `src/sim/input.js` `WALK_SPEED`: 4,4 → 5,6 (yürüme ≈5,5, koşu ≈8,2, çömelme ≈2,9 m/sn ölçüldü). Oyuncu, sunucu, istemci tahmini ve botlar (`bot.js` iki yerde sabit 4,4 yazılıydı) aynı sabiti kullanır; ayak sesi temposu (`player.js`) ve koşu isabetsizliği eşiği (`soldier.js` `SPRINT_SPEED` = WALK_SPEED × 1,32) buna bağlandı, yoksa yürürken "koşu cezası" uygulanırdı. Daha da hızlandırmak ya da yavaşlatmak için yalnız bu sabit değişir.
+
+### 12.81 Botlar yaprak / çalı arkasından görmez (mermi geçer)
+- Ağaç tepeleri ve çalılar çarpışmasız olduğundan `world.clear` botların görüş ışınına engel olmuyordu (Vadi'de dağdaki botlar çam aralarından tarıyordu). Varlıklara (görünüm / çarpışma / mermi) DOKUNULMADI: `kit.js` çam / meşe / çalı yalnız `b.softCover(x, y, z, r)` ile küre kaydeder (`map.sight`). `game/sight.js` `SightMap`: görüş hattının kürelerin içinden geçen toplam uzunluğu 1,1 m'yi aşarsa `game.botSees(a, b)` false döner (kenardan sıyıran hat görünür; bot kendi çalısının içindeyse dışarıyı görür). Botların hedef seçimi ve `los` kararı (`bot.js` 2 yer) bunu kullanır; mermi / oyuncu / gadget hâlâ yalnız `losClear`.
+- Ölçüm (`scripts/sighttest.mjs`, Vadi): açık görüş hatlarının %24'ü (80 m+ %43) yapraktan geçiyor → artık görülmüyor.

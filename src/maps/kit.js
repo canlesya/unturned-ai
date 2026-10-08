@@ -167,6 +167,7 @@ export function pine(b, rng, x, z, s = 1, y = 0, collide = true) {
   const col = PINES[Math.floor(rng() * PINES.length)];
   for (let i = 0; i < 4; i++) {
     const r = (1.55 - i * 0.34) * s;
+    b.softCover?.(x, y + (1.4 + i * 1.05) * s + 0.6 * s, z, r * 0.62);                               // bot görüşü: koni tepesi yaprak sayılır
     b.cyl(x, y + (1.4 + i * 1.05) * s, z, 0.02, r, 1.7 * s, i % 2 ? col : PINES[(PINES.indexOf(col) + 1) % PINES.length], { seg: 7, collide: false, ry: rng() * 3 });
   }
 }
@@ -174,12 +175,14 @@ export function pine(b, rng, x, z, s = 1, y = 0, collide = true) {
 export function oak(b, rng, x, z, s = 1, y = 0, collide = true) {
   b.cyl(x, y, z, 0.2 * s, 0.3 * s, 2.4 * s, '#5e4026', { seg: 6, collide });
   const col = OAKS[Math.floor(rng() * OAKS.length)];
+  b.softCover?.(x, y + 3.6 * s, z, 1.6 * s); b.softCover?.(x + 0.9 * s, y + 3.1 * s, z + 0.4 * s, 1.0 * s); b.softCover?.(x - 0.8 * s, y + 3.3 * s, z - 0.5 * s, 1.1 * s);     // bot görüşü
   b.ico(x, y + 3.6 * s, z, 1.9 * s, col, { detail: 1, scale: [1, 0.85, 1] });
   b.ico(x + 0.9 * s, y + 3.1 * s, z + 0.4 * s, 1.2 * s, OAKS[(OAKS.indexOf(col) + 1) % OAKS.length], { detail: 0 });
   b.ico(x - 0.8 * s, y + 3.3 * s, z - 0.5 * s, 1.3 * s, col, { detail: 0 });
 }
 
 export function bush(b, rng, x, z, s = 1) {
+  b.softCover?.(x, 0.4 * s, z, 0.62 * s);
   b.ico(x, 0.4 * s, z, 0.7 * s, rng() > 0.5 ? '#4f7a33' : '#5d8a3a', { scale: [1.2, 0.8, 1.2] });
 }
 

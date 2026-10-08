@@ -69,6 +69,7 @@ export function buildKasaba() {
     name: 'Kasaba',
     group: b.build(),
     colliders: b.colliders,
+    sight: b.sight,
     bounds: KASABA_BOUNDS,
     baseZones: { blue: { ...BLUE_ZONE }, red: { ...RED_ZONE } },
     roads,
