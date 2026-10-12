@@ -228,3 +228,7 @@ svg.i{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stro
 .rbtn .btn{width:30px;padding:0;justify-content:center}
 .btn:disabled{opacity:.35;cursor:default}
 @media (max-width:860px){.two{grid-template-columns:1fr}}
+.srv[draggable]{cursor:grab}
+.srv.drag{opacity:.35;outline:2px dashed var(--or);outline-offset:2px}
+.simg .code{display:flex;align-items:center;gap:4px}
+.simg .code .grip{width:14px;height:14px;stroke-width:2.6}

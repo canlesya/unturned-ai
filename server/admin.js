@@ -8,7 +8,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { DATA, currentBalance, balanceMeta, balanceHistory, saveBalance } from './balanceStore.js';
 import { defaults, LIMITS } from '../src/game/balance.js';
-import { officialList, upsertOfficial, removeOfficial, setOfficialEnabled, OFFICIAL_MAX } from './officialStore.js';
+import { officialList, upsertOfficial, removeOfficial, setOfficialEnabled, reorderOfficial, OFFICIAL_MAX } from './officialStore.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'dist-admin');
@@ -136,6 +136,7 @@ export function startAdmin({ rooms, syncOfficial = () => {}, port = +process.env
       return { ok: true, code: s.code, ...officialState() };
     },
     'POST /api/official/delete': (b) => { removeOfficial(String(b.code || '')); syncOfficial(); return { ok: true, ...officialState() }; },
+    'POST /api/official/order': (b) => { reorderOfficial(b.codes); return { ok: true, ...officialState() }; },
     'POST /api/official/toggle': (b) => { setOfficialEnabled(String(b.code || ''), !!b.enabled); syncOfficial(); return { ok: true, ...officialState() }; },
     'POST /api/announce': (b) => {
       const txt = String(b.text || '').replace(/[\p{Cc}\p{Cf}]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);

@@ -925,3 +925,7 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 - Sunucu: ad, açıklama, açık/kapalı, mod, kişi sayısı (moda göre sınır: `LIMITS`), süre, bilet/skor sınırı (0 = otomatik), bot zorluğu, botlar, 3. şahıs, harita sırası (1–8 × harita / gün saati / hava). Doğrulama `sanitizeCfg` ile oyuncu odalarıyla aynı; Enfekte = New York, gece, zor bot.
 - `index.js` `syncOfficial()`: açık olan kurulur, kapatılan/silinen `room.shutdown()` ile kapanır (oyuncuya mesaj, bağlantı 4001 → ana menü), değişen `room.setOfficial()`: oda boşsa hemen yeni maç, doluysa sonraki maçta (denge ayarlarıyla aynı kural). Denge paneli "Modlar"daki eski resmi oda alanları (`ofc.*`) kaldırıldı.
 - Panel: "Sunucular" sayfası (harita resimli kartlar, açma/kapama anahtarı, düzenleme penceresi).
+
+### 12.84 Resmi sunucu sırası (sürükle-bırak) + rastgele harita
+- Ana menüde resmi sunucular karışık diziliyordu: `/rooms` resmi odaları oyuncu sayısına göre sıralıyor, eşitlikte `rooms` haritasına ekleniş sırası kalıyordu (düzenlenen oda sona kayıyordu). Artık resmi odalar `data/official.json` liste sırasında, oyuncu odaları kalabalık önce. Panelde kartlar sürüklenip bırakılır → `POST /api/official/order`.
+- Sunucuya `shuffle` (Harita düzeni: Sırayla / Rastgele). Rastgelede her yeni maçta listeden rastgele harita, bir önceki harita üst üste gelmez (`room.js` `_rotIdx`, yalnız `rot` değişince yeniden seçilir). Menü başlığı "harita sırayla döner" → "her maçta harita döner".

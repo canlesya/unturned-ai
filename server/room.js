@@ -60,7 +60,13 @@ export class Room {
     this.bal = currentBalance(); this.balVer = balanceMeta().version;   // admin değişiklikleri yeni maçta geçerli olur
     this.activate();
     if (this.official) {
-      const o = this.official, r = o.rotation[this.rot % o.rotation.length];                   // sıradaki harita
+      const o = this.official, n = o.rotation.length;
+      if (this._rotSeen !== this.rot || this._rotIdx == null || this._rotIdx >= n) {          // yeni maç: sıradaki ya da rastgele harita (aynısı üst üste gelmez)
+        const prev = this._rotIdx;
+        this._rotIdx = o.shuffle && n > 1 ? (prev == null ? Math.floor(Math.random() * n) : (prev + 1 + Math.floor(Math.random() * (n - 1))) % n) : this.rot % n;
+        this._rotSeen = this.rot;
+      }
+      const r = o.rotation[this._rotIdx];
       Object.assign(c, sanitizeCfg({ type: o.type, perTeam: o.perTeam, time: o.time, diff: o.diff, tickets: o.tickets, bots: o.bots, third: o.third, ...r }), { name: o.name, listed: true, pw: '' });
       if (o.type === 'inf') c.tod = r.tod;
     }
@@ -90,7 +96,7 @@ export class Room {
   // Admin panelinden resmi sunucu ayarı değişti: boşsa hemen yeni maç, içinde oyuncu varsa sonraki maçta
   setOfficial(o) {
     this.official = o;
-    if (!this.clients.size) { this.rot = 0; this.game.dispose(); this.newGame(); }
+    if (!this.clients.size) { this.rot = 0; this._rotIdx = null; this.game.dispose(); this.newGame(); }
   }
 
   // Odayı kapat (admin): oyunculara mesaj, bağlantılar kesilir (istemci ana menüye döner)

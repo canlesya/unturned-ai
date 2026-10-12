@@ -1,5 +1,6 @@
 // Resmi sunucu listesi: data/official.json (admin panelinden yönetilir). Dosya yoksa server/official.js varsayılanları.
-// Sunucu: { code, name, desc, enabled, type, perTeam, time, diff, tickets (0 = otomatik), bots, third, rotation:[{ map, tod, weather }] }
+// Sunucu: { code, name, desc, enabled, type, perTeam, time, diff, tickets (0 = otomatik), bots, third, shuffle (harita rastgele), rotation:[{ map, tod, weather }] }
+// Liste sırası = oyundaki sunucu listesinin sırası (panelde sürükle-bırak).
 import fs from 'node:fs';
 import path from 'node:path';
 import { DATA } from './balanceStore.js';
@@ -24,7 +25,7 @@ export function sanitizeOfficial(o, code) {
   if (!rotation.length) rotation.push({ map: maps[0], tod: base.type === 'inf' ? 'night' : 'day', weather: 'clear' });
   return {
     code, name: clean(o.name, 32) || 'Resmi Sunucu', desc: clean(o.desc, 60), enabled: o.enabled !== false,
-    type: base.type, perTeam: base.perTeam, time: base.time, diff: base.diff, tickets: base.tickets, bots: base.bots, third: base.third, rotation,
+    type: base.type, perTeam: base.perTeam, time: base.time, diff: base.diff, tickets: base.tickets, bots: base.bots, third: base.third, shuffle: o.shuffle === true, rotation,
   };
 }
 
@@ -56,6 +57,13 @@ export function removeOfficial(code) {
   const L = officialList(), i = L.findIndex((x) => x.code === code);
   if (i < 0) throw Object.assign(new Error('Sunucu bulunamadı'), { code: 404 });
   L.splice(i, 1);
+  persist();
+}
+// Yeni sıra: bilinmeyen kodlar atılır, listede unutulanlar sona eklenir
+export function reorderOfficial(codes) {
+  const L = officialList(), want = Array.isArray(codes) ? codes.map(String) : [];
+  const next = [...want.map((c) => L.find((o) => o.code === c)).filter(Boolean), ...L.filter((o) => !want.includes(o.code))];
+  list = [...new Set(next)];
   persist();
 }
 export function setOfficialEnabled(code, on) {

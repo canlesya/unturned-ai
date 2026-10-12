@@ -48,8 +48,10 @@ const server = http.createServer((req, res) => {
   }
   if (req.url === '/rooms') {
     // oda listesi: resmi odalar önce, sonra herkese açık oyuncu odaları (şifre yok, yalnızca "kilitli mi" bilgisi)
+    // resmi odalar panelde belirlenen sırada, sonra oyuncu odaları (kalabalık önce)
+    const ord = new Map(officialList().map((o, i) => [o.code, i]));
     const all = [...rooms.values()].filter((r) => r.official || r.cfg.listed).map((r) => r.info());
-    all.sort((x, y) => (y.official - x.official) || (y.humans - x.humans));
+    all.sort((x, y) => (y.official - x.official) || (x.official ? (ord.get(x.code) ?? 99) - (ord.get(y.code) ?? 99) : y.humans - x.humans));
     res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*', 'cache-control': 'no-store' });
     res.end(JSON.stringify(all));
     return;

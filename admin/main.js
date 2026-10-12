@@ -378,25 +378,45 @@ const timeTxt = (t) => (t ? `${Math.round(t / 60)} dk` : 'süresiz');
 
 async function loadServers() {
   try { S.off = await api('GET', '/api/official'); } catch { return; }
-  if (S.view === 'servers' && !document.querySelector('.modal')) renderServers(document.getElementById('main'));
+  if (S.view === 'servers' && !document.querySelector('.modal') && !S.dragging) renderServers(document.getElementById('main'));
 }
 function renderServers(main) {
   const O = S.off;
   if (!O) { main.innerHTML = '<div class="page"><div class="empty">Yükleniyor…</div></div>'; return; }
-  main.innerHTML = `<div class="page"><h2>Resmi sunucular</h2><p class="lead">Ana menüdeki sunucu listesinde herkese açık, botlu, sürekli açık odalar. Kapalı sunucu listede görünmez. Ayar değişikliği sunucu boşsa hemen, içinde oyuncu varsa sonraki maçta geçerli olur.</p>
-    <div class="grid">${O.list.map((o) => {
+  main.innerHTML = `<div class="page"><h2>Resmi sunucular</h2><p class="lead">Ana menüdeki sunucu listesinde herkese açık, botlu, sürekli açık odalar. Kapalı sunucu listede görünmez. Ayar değişikliği sunucu boşsa hemen, içinde oyuncu varsa sonraki maçta geçerli olur.<br><b style="color:var(--or2);font-weight:500">Kartları sürükleyip bırakarak oyundaki sırayı belirle.</b></p>
+    <div class="grid" id="srvGrid">${O.list.map((o, idx) => {
       const m = o.live ? o.live.map : o.rotation[0].map;
-      return `<div class="card srv ${o.enabled ? '' : 'off'}">
-        <div class="simg" style="background-image:url('${MAPIMG[m]}')"><span class="code">${esc(o.code)}</span>
+      return `<div class="card srv ${o.enabled ? '' : 'off'}" draggable="true" data-code="${esc(o.code)}">
+        <div class="simg" style="background-image:url('${MAPIMG[m]}')"><span class="code" title="Sürükle"><svg class="i grip" viewBox="0 0 24 24"><circle cx="9" cy="6" r="1"/><circle cx="15" cy="6" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="18" r="1"/><circle cx="15" cy="18" r="1"/></svg>${idx + 1} · ${esc(o.code)}</span>
           <label class="sw" title="${o.enabled ? 'Açık' : 'Kapalı'}"><input type="checkbox" data-tg="${esc(o.code)}" ${o.enabled ? 'checked' : ''}><i></i></label>
           <span class="st">${o.enabled && o.live ? `<b class="on"></b>${o.live.humans}/${o.live.cap} oyuncu · ${esc(MAPN[o.live.map])}${o.live.ended ? ' · maç bitti' : o.live.tl >= 0 ? ` · ${Math.floor(o.live.tl / 60)} dk kaldı` : ''}` : '<b></b>Kapalı'}</span></div>
         <div class="sb"><div class="nm">${esc(o.name)}</div><div class="ds">${esc(o.desc || ' ')}</div>
           <div class="chips"><span class="tag or">${esc(lbl(MODES, o.type))}</span><span class="tag">${sizeTxt(o)}</span><span class="tag">${timeTxt(o.time)}</span><span class="tag">${o.bots ? lbl(DIFFS, o.diff) + ' bot' : 'Botsuz'}</span></div>
-          <div class="rot">${o.rotation.map((r, i) => `<span class="rm" title="${esc(MAPN[r.map])} · ${esc(lbl(TODS, r.tod))} · ${esc(lbl(WEATHERS, r.weather))}" style="background-image:url('${MAPIMG[r.map]}')"><i>${i + 1}</i></span>`).join('')}</div>
+          <div class="rot">${o.rotation.map((r, i) => `<span class="rm" title="${esc(MAPN[r.map])} · ${esc(lbl(TODS, r.tod))} · ${esc(lbl(WEATHERS, r.weather))}" style="background-image:url('${MAPIMG[r.map]}')"><i>${o.shuffle ? '?' : i + 1}</i></span>`).join('')}<span class="tag" style="align-self:center">${o.rotation.length < 2 ? 'Tek harita' : o.shuffle ? 'Rastgele' : 'Sırayla'}</span></div>
           <button class="btn sm" data-ed="${esc(o.code)}" style="margin-top:12px">Düzenle</button></div></div>`;
     }).join('')}
     ${O.list.length < O.max ? '<button class="card srvnew" id="srvNew"><span>+</span>Yeni resmi sunucu</button>' : ''}</div></div>`;
   main.querySelectorAll('[data-ed]').forEach((b) => (b.onclick = () => openServer(O.list.find((o) => o.code === b.dataset.ed))));
+  // Sürükle-bırak: bırakınca yeni sıra sunucuya yazılır (oyundaki liste aynı sırada)
+  const grid = document.getElementById('srvGrid');
+  let dragEl = null;
+  grid.querySelectorAll('.srv').forEach((card) => {
+    card.ondragstart = (e) => { if (e.target.closest('input,button')) { e.preventDefault(); return; } dragEl = card; S.dragging = true; card.classList.add('drag'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', card.dataset.code); };
+    card.ondragover = (e) => {
+      e.preventDefault();
+      if (!dragEl || dragEl === card) return;
+      const r = card.getBoundingClientRect(), after = e.clientY > r.bottom - r.height * 0.25 || (e.clientY > r.top + r.height * 0.25 && e.clientX > r.left + r.width / 2);
+      card.parentNode.insertBefore(dragEl, after ? card.nextSibling : card);
+    };
+    card.ondragend = async () => {
+      card.classList.remove('drag'); dragEl = null;
+      const codes = [...grid.querySelectorAll('.srv')].map((c) => c.dataset.code);
+      if (codes.join() === O.list.map((o) => o.code).join()) { S.dragging = false; return; }
+      try { S.off = await api('POST', '/api/official/order', { codes }); toast('Sıralama kaydedildi · oyundaki liste güncellendi'); } catch (e) { toast(e.message, true); }
+      S.dragging = false; renderServers(main);
+    };
+  });
+  grid.ondragover = (e) => e.preventDefault();
   const nb = document.getElementById('srvNew');
   if (nb) nb.onclick = () => openServer(null);
   main.querySelectorAll('[data-tg]').forEach((cb) => (cb.onchange = async () => {
@@ -437,8 +457,9 @@ function openServer(src) {
           <input class="inp" id="sTk" type="number" min="20" max="1000" value="${E.tickets || ''}" style="width:110px" ${E.tickets ? '' : 'disabled'}></div></div>` : ''}
         <div class="two"><div class="fld"><span>Bot zorluğu${inf ? ' (Enfekte: zor)' : ''}</span>${seg('diff', DIFFS, inf ? 'hard' : E.diff, inf)}</div>
           <div class="fld"><span>Seçenekler</span><label class="chk"><input type="checkbox" id="sBots" ${E.bots ? 'checked' : ''}> Botlar boş yerleri doldursun</label><label class="chk"><input type="checkbox" id="sThird" ${E.third ? 'checked' : ''}> 3. şahıs kamera serbest</label></div></div>
-        <div class="fld"><span>Harita sırası · her maç bitince sıradakine geçer${inf ? ' (Enfekte yalnız New York, gece)' : ''}</span>
-          ${E.rotation.map((r, i) => `<div class="rrow" data-i="${i}"><span class="ri">${i + 1}</span>
+        <div class="fld"><span>Harita düzeni${inf ? ' (Enfekte yalnız New York, gece)' : ''}</span>${seg('shuf', [['seq', 'Sırayla'], ['rnd', 'Rastgele']], E.shuffle ? 'rnd' : 'seq')}
+          <div style="font-size:12px;color:var(--tx3);margin:6px 0 10px">${E.shuffle ? 'Her maçta listedeki haritalardan biri rastgele seçilir; aynı harita üst üste gelmez.' : 'Her maç bitince listedeki sıradaki haritaya geçer.'}</div>
+          ${E.rotation.map((r, i) => `<div class="rrow" data-i="${i}"><span class="ri">${E.shuffle ? '?' : i + 1}</span>
             <div class="mpick">${mapsFor(E.type).map((k) => `<button type="button" data-map="${k}" class="${k === r.map ? 'on' : ''}" style="background-image:url('${MAPIMG[k]}')"><span>${esc(MAPN[k])}</span></button>`).join('')}</div>
             <div class="rset">${seg('tod', TODS, r.tod, inf)}${seg('weather', WEATHERS, r.weather)}</div>
             <div class="rbtn"><button type="button" class="btn sm" data-up ${i ? '' : 'disabled'} title="Yukarı">↑</button><button type="button" class="btn sm" data-down ${i < E.rotation.length - 1 ? '' : 'disabled'} title="Aşağı">↓</button><button type="button" class="btn sm dan" data-rm ${E.rotation.length > 1 ? '' : 'disabled'} title="Kaldır">✕</button></div></div>`).join('')}
@@ -454,6 +475,7 @@ function openServer(src) {
   function bind() {
     m.querySelectorAll('[data-mode]').forEach((b) => (b.onclick = () => { keep(); E.type = b.dataset.mode; if (E.type === 'inf') E.diff = 'hard'; draw(); }));
     m.querySelectorAll('[data-diff]').forEach((b) => (b.onclick = () => { keep(); E.diff = b.dataset.diff; draw(); }));
+    m.querySelectorAll('[data-shuf]').forEach((b) => (b.onclick = () => { keep(); E.shuffle = b.dataset.shuf === 'rnd'; draw(); }));
     const sz = m.querySelector('#sSize'), tm = m.querySelector('#sTime');
     sz.oninput = () => { E.perTeam = +sz.value; m.querySelector('#sSizeV').textContent = sizeTxt(E); sz.style.setProperty('--p', ((sz.value - sz.min) / Math.max(1, sz.max - sz.min)) * 100 + '%'); };
     tm.oninput = () => { E.time = +tm.value * 60; m.querySelector('#sTimeV').textContent = timeTxt(E.time); tm.style.setProperty('--p', ((tm.value - 1) / 59) * 100 + '%'); };

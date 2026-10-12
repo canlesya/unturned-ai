@@ -238,7 +238,7 @@ export function showMenu(onStart, onOnline) {
   function roomListHTML() {
     if (!ol.rooms) return '<div class="hint">Oda listesi yükleniyor…</div>';
     const off = ol.rooms.filter((r) => r.official), usr = ol.rooms.filter((r) => !r.official);
-    return `<h3 class="sub">Resmi sunucular <em>7/24 açık · hep bot destekli · harita sırayla döner</em></h3><div class="rgrid">${off.map(roomCard).join('') || '<div class="hint">Resmi oda yok.</div>'}</div>
+    return `<h3 class="sub">Resmi sunucular <em>7/24 açık · hep bot destekli · her maçta harita döner</em></h3><div class="rgrid">${off.map(roomCard).join('') || '<div class="hint">Resmi oda yok.</div>'}</div>
       <h3 class="sub" style="margin-top:16px">Oyuncu odaları <em>${usr.length} oda</em></h3><div class="rgrid">${usr.map(roomCard).join('') || '<div class="hint">Şu an açık oda yok. İlk odayı sen kur!</div>'}</div>`;
   }
   function pwPromptHTML() {
