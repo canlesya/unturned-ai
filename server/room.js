@@ -200,7 +200,7 @@ export class Room {
     if (h.queue.length > 60) return;      // taşma koruması
     h.queue.push({
       q: m.q,
-      f: Math.round(num(m.f, -1, 1)), r: Math.round(num(m.r, -1, 1)), l: Math.round(num(m.l, -1, 1)),
+      f: Math.round(num(m.f, -1, 1) * 100) / 100, r: Math.round(num(m.r, -1, 1) * 100) / 100, l: Math.round(num(m.l, -1, 1)),     // f / r analog (dokunmatik joystick)
       s: m.s ? 1 : 0, j: m.j ? 1 : 0, a: m.a ? 1 : 0,
       yw: num(m.yw, -1e4, 1e4), pt: num(m.pt, -1.5, 1.5),
       w: Math.round(num(m.w, 0, 3)),

@@ -1,6 +1,6 @@
 // Girdi → hareket (saf mantık; DOM/THREE/ses yok). Offline Player, sunucu ve istemci tahmini aynı fonksiyonu kullanır.
 //
-// input: { f: -1|0|1 (ileri/geri), r: -1|0|1 (sağ/sol), lean: -1|0|1 (Q/E), sprint: bool (Shift basılı), jump: bool }
+// input: { f: −1..1 (ileri/geri), r: −1..1 (sağ/sol; klavye tam sayı, dokunmatik joystick analog — hız itme miktarıyla orantılı), lean: -1|0|1 (Q/E), sprint: bool (Shift basılı), jump: bool }
 // Etkiler: s.leanDir, s.sprinting, s.crouching/prone (koşarken kalkar), s.vel.x/z (yatay), s.vel.y + s.onGround (zıplama)
 import { TUNE } from '../game/balance.js';
 
@@ -23,7 +23,7 @@ export function applyInput(s, input, dt) {
   const fx = -Math.sin(s.yaw), fz = -Math.cos(s.yaw), rx = Math.cos(s.yaw), rz = -Math.sin(s.yaw);
   let wx = fx * f + rx * r, wz = fz * f + rz * r;
   const wl = Math.hypot(wx, wz);
-  if (wl > 0) { wx = (wx / wl) * spd; wz = (wz / wl) * spd; }
+  if (wl > 0) { const m = Math.min(1, wl); wx = (wx / wl) * spd * m; wz = (wz / wl) * spd * m; }     // çapraz (klavye) normalize; analog joystick yarım itilirse yarım hız
   const acc = s.onGround ? 14 : 2.2;
   const a = 1 - Math.exp(-acc * dt);
   s.vel.x += (wx - s.vel.x) * a;
