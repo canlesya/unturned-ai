@@ -7,7 +7,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { DATA, currentBalance, balanceMeta, balanceHistory, saveBalance } from './balanceStore.js';
-import { defaults } from '../src/game/balance.js';
+import { defaults, LIMITS } from '../src/game/balance.js';
+import { officialList, upsertOfficial, removeOfficial, setOfficialEnabled, OFFICIAL_MAX } from './officialStore.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DIST = path.join(ROOT, 'dist-admin');
@@ -78,11 +79,19 @@ function readBody(req) {
 }
 
 // rooms: index.js'teki oda haritası (canlı)
-export function startAdmin({ rooms, port = +process.env.ADMIN_PORT || 8788 }) {
+export function startAdmin({ rooms, syncOfficial = () => {}, port = +process.env.ADMIN_PORT || 8788 }) {
   const roomList = () => [...rooms.values()].map((r) => ({
     ...r.info(), balVer: r.balVer || 0,
     players: [...r.clients.values()].map((c) => { const s = r.game.soldiers[c.id]; return { id: c.id, name: c.name, team: s.team, cls: s.cls, kills: s.kills || 0, deaths: s.deaths || 0 }; }),
   }));
+
+  const officialState = () => ({
+    max: OFFICIAL_MAX, limits: { ...LIMITS },
+    list: officialList().map((o) => {
+      const r = rooms.get(o.code);
+      return { ...o, live: r && r.official ? { humans: r.humanCount, cap: r.cap, map: r.cfg.map, tod: r.cfg.tod, weather: r.cfg.weather, ended: r.game.ended, tl: r.game.timeLeft === Infinity ? -1 : Math.round(r.game.timeLeft) } : null };
+    }),
+  });
 
   const api = {
     'GET /api/me': () => ({ ok: true }),
@@ -106,9 +115,7 @@ export function startAdmin({ rooms, port = +process.env.ADMIN_PORT || 8788 }) {
       const r = rooms.get(String(b.code || ''));
       if (!r) throw herr(404, 'Oda yok');
       if (r.official) throw herr(400, 'Resmi odalar kapatılamaz');
-      r.sys('Oda yönetici tarafından kapatıldı');
-      for (const c of r.clients.values()) { c.ws.ctx = null; try { c.ws.close(4001, 'closed'); } catch { /* yok say */ } }
-      r.clients.clear(); r.dispose(); rooms.delete(r.code);
+      r.shutdown('Oda yönetici tarafından kapatıldı'); rooms.delete(r.code);
       console.log(`[admin] ${r.code} kapatıldı`);
       return { ok: true };
     },
@@ -119,6 +126,17 @@ export function startAdmin({ rooms, port = +process.env.ADMIN_PORT || 8788 }) {
       try { c.ws.send(JSON.stringify({ t: 'chat', sys: 1, m: 'Yönetici tarafından odadan çıkarıldın' })); c.ws.close(4002, 'kicked'); } catch { /* yok say */ }
       return { ok: true };
     },
+    // Resmi sunucular: liste + canlı durum; kaydet / sil / aç-kapat sonrası odalar hemen eşitlenir
+    'GET /api/official': () => officialState(),
+    'POST /api/official/save': (b) => {
+      if (!b.server || typeof b.server !== 'object') throw herr(400, 'Geçersiz veri');
+      const s = upsertOfficial(b.server, new Set([...rooms.keys()].filter((c) => !rooms.get(c).official)));
+      syncOfficial();
+      console.log(`[admin] resmi sunucu kaydedildi: ${s.code} ${s.name}`);
+      return { ok: true, code: s.code, ...officialState() };
+    },
+    'POST /api/official/delete': (b) => { removeOfficial(String(b.code || '')); syncOfficial(); return { ok: true, ...officialState() }; },
+    'POST /api/official/toggle': (b) => { setOfficialEnabled(String(b.code || ''), !!b.enabled); syncOfficial(); return { ok: true, ...officialState() }; },
     'POST /api/announce': (b) => {
       const txt = String(b.text || '').replace(/[\p{Cc}\p{Cf}]/gu, ' ').replace(/\s+/g, ' ').trim().slice(0, 160);
       if (!txt) throw herr(400, 'Mesaj boş');

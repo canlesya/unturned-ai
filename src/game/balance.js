@@ -15,10 +15,8 @@ export const TUNE = {
 };
 // Oyun modu sınırları (oda kurulumu + menü)
 export const LIMITS = { maxPerTeam: 32, dmMax: 10, dmKills: 40, infMin: 4, infMax: 24, time: 900 };
-// Resmi oda ayarları (server/official.js varsayılanları; sunucu açılışında doldurulur)
-export const OFC = {};
 
-const ROOTS = { tune: TUNE, mode: LIMITS, w: WSTATS, cls: CLASS_DEFS, diff: DIFFICULTY, zombie: ZOMBIE, boss: BOSS, zt: ZTYPES, ofc: OFC };
+const ROOTS = { tune: TUNE, mode: LIMITS, w: WSTATS, cls: CLASS_DEFS, diff: DIFFICULTY, zombie: ZOMBIE, boss: BOSS, zt: ZTYPES };
 
 // ───────── Alan listesi (panelde gösterim + doğrulama) ─────────
 // f(yol, etiket, min, max, adım, birim, ölçek?) — ölçek: panelde değer × ölçek gösterilir (0,017 → 17)
@@ -116,9 +114,6 @@ export function balanceSections() {
         f('mode.maxPerTeam', 'Takım başına en çok oyuncu', 1, 32), f('mode.dmMax', 'Ölüm maçı / silah yarışı en çok', 2, 16),
         f('mode.dmKills', 'Ölüm maçı öldürme hedefi', 5, 200), f('mode.infMin', 'Enfekte en az oyuncu', 2, 24, 2), f('mode.infMax', 'Enfekte en çok oyuncu', 4, 32, 2),
         f('mode.time', 'Varsayılan maç süresi', 60, 3600, 30, 'sn'), f('tune.captureRate', 'Bayrak ele geçirme hızı', 0.01, 0.5, 0.005), f('tune.bleed', 'Bilet kanaması aralığı', 1, 60, 1, 'sn')] },
-      ...Object.keys(OFC).map((code) => ({ id: code, name: OFC[code].name, preview: { kind: 'icon', icon: 'server' }, fields: [
-        f(`ofc.${code}.perTeam`, OFC[code].type === 'dm' ? 'Toplam oyuncu' : 'Takım başına oyuncu', 1, 32), f(`ofc.${code}.time`, 'Maç süresi', 60, 3600, 30, 'sn'),
-        sel(`ofc.${code}.diff`, 'Bot zorluğu', ['easy', 'normal', 'hard'])] })),
     ] },
     { id: 'bots', label: 'Botlar', icon: 'robot', items: [
       ...Object.keys(DIFFICULTY).map((k) => ({ id: k, name: DIFFICULTY[k].label + ' bot', preview: { kind: 'char', cls: 'assault', team: 'red' }, fields: [
@@ -159,11 +154,6 @@ let DEFAULTS = null;            // { yol: varsayılan değer } — ilk çağrıd
 export function defaults() {
   if (!DEFAULTS) { DEFAULTS = {}; for (const fd of allFields()) DEFAULTS[fd.path] = getPath(fd.path); }
   return DEFAULTS;
-}
-// Resmi odalar sonradan kaydolur (sunucu); varsayılan listesi yenilensin
-export function registerOfficial(list) {
-  for (const o of list) OFC[o.code] = { name: o.name, type: o.type, perTeam: o.perTeam, time: o.time, diff: o.diff };
-  DEFAULTS = null;
 }
 
 // Geçersiz kılmayı doğrula: bilinmeyen yol / aralık dışı / listede olmayan seçim atılır. Çıktı: temiz harita

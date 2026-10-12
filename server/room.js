@@ -3,7 +3,7 @@ import { Game } from '../src/game/game.js';
 import { SIM_DT, SIM_HZ, SNAP_EVERY, packSoldier, slowSig, cleanName } from '../src/net/protocol.js';
 import { CLASS_DEFS, WSTATS, ZTYPES } from '../src/game/stats.js';
 import { defaultTickets } from '../src/game/match.js';
-import { LIMITS, OFC, useBalance } from '../src/game/balance.js';
+import { LIMITS, useBalance } from '../src/game/balance.js';
 import { currentBalance, balanceMeta } from './balanceStore.js';
 import { MAPS } from '../src/maps/index.js';
 
@@ -34,7 +34,7 @@ export function sanitizeCfg(c = {}) {
 const cleanRoomName = (n) => String(n || '').replace(/[<>&"'`]/g, '').trim().slice(0, 24);
 
 export class Room {
-  // opts.official: { name, desc, rotation:[{map,tod,weather}] } — kalıcı, harita dönen resmi oda
+  // opts.official: officialStore kaydı { name, desc, type, perTeam, time, diff, tickets, bots, third, rotation:[{map,tod,weather}] } — harita dönen resmi oda
   constructor(code, cfg, opts = {}) {
     this.code = code;
     this.official = opts.official || null;
@@ -60,9 +60,9 @@ export class Room {
     this.bal = currentBalance(); this.balVer = balanceMeta().version;   // admin değişiklikleri yeni maçta geçerli olur
     this.activate();
     if (this.official) {
-      Object.assign(c, this.official.rotation[this.rot % this.official.rotation.length]);   // sıradaki harita
-      const o = OFC[this.code];
-      if (o) Object.assign(c, sanitizeCfg({ ...c, perTeam: o.perTeam, time: o.time, diff: o.diff }), { name: this.official.name, listed: true, pw: '' });
+      const o = this.official, r = o.rotation[this.rot % o.rotation.length];                   // sıradaki harita
+      Object.assign(c, sanitizeCfg({ type: o.type, perTeam: o.perTeam, time: o.time, diff: o.diff, tickets: o.tickets, bots: o.bots, third: o.third, ...r }), { name: o.name, listed: true, pw: '' });
+      if (o.type === 'inf') c.tod = r.tod;
     }
     this.swap = this._swapNext ?? Math.random() < 0.5;                  // asimetrik haritalarda bu maçın taraf dağılımı (sideSwap): ilki rastgele, sonraki maçlar sırayla yer değiştirir
     this._swapNext = !this.swap;
@@ -85,6 +85,20 @@ export class Room {
     if (this.official && this.game.ended) this.rot++;       // resmi odada sıradaki haritaya geç
     this.game.dispose();
     this.newGame();
+  }
+
+  // Admin panelinden resmi sunucu ayarı değişti: boşsa hemen yeni maç, içinde oyuncu varsa sonraki maçta
+  setOfficial(o) {
+    this.official = o;
+    if (!this.clients.size) { this.rot = 0; this.game.dispose(); this.newGame(); }
+  }
+
+  // Odayı kapat (admin): oyunculara mesaj, bağlantılar kesilir (istemci ana menüye döner)
+  shutdown(msg) {
+    this.sys(msg);
+    for (const c of this.clients.values()) { c.ws.ctx = null; try { c.ws.close(4001, 'closed'); } catch { /* yok say */ } }
+    this.clients.clear();
+    this.dispose();
   }
 
   // Listede gösterilen özet (şifre asla yok)

@@ -5,10 +5,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { Room } from './room.js';
-import { OFFICIAL } from './official.js';
+import { officialList } from './officialStore.js';
 import { DEFAULT_PORT, makeRoomCode, cleanName } from '../src/net/protocol.js';
 import { MapBuilder } from '../src/maps/builder.js';
-import { registerOfficial, useBalance } from '../src/game/balance.js';
+import { useBalance } from '../src/game/balance.js';
 import { loadBalance, currentBalance } from './balanceStore.js';
 import { startAdmin } from './admin.js';
 MapBuilder.noVisual = true;          // sunucuda görsel geometri kurulmaz
@@ -16,7 +16,6 @@ MapBuilder.noVisual = true;          // sunucuda görsel geometri kurulmaz
 const PORT = +process.env.PORT || DEFAULT_PORT;
 const MAX_ROOMS = +process.env.MAX_ROOMS || 20;
 const rooms = new Map();
-registerOfficial(OFFICIAL);           // resmi oda ayarları panelde düzenlenebilir
 loadBalance();
 
 // Derlenmiş istemci (npm run build → dist/) aynı porttan servis edilir; dist yoksa yalnızca WebSocket sunucusu olarak çalışır
@@ -84,7 +83,7 @@ wss.on('connection', (ws) => {
     if (ws.ctx) return err(ws, 'Zaten bir odadasın');
     if (m.t === 'create') {
       if ([...rooms.values()].filter((r) => !r.official).length >= MAX_ROOMS) return err(ws, 'Sunucu dolu, sonra tekrar dene');
-      let code; do code = makeRoomCode(); while (rooms.has(code));
+      let code; do code = makeRoomCode(); while (rooms.has(code) || /^OFC\d/.test(code));            // OFC* resmi sunuculara ayrılmış
       const owner = cleanName(m.name);
       useBalance(currentBalance());                     // yeni oda: güncel sınırlarla doğrulanır
       const cfg = { ...(m.cfg || {}) };
@@ -115,12 +114,20 @@ function enter(ws, room, m) {
   console.log(`[${room.code}] ${c.name} katıldı (${room.humanCount} oyuncu)`);
 }
 
-// Resmi odalar: sunucu açılışında kurulur, kapanmaz
-useBalance(currentBalance());
-for (const o of OFFICIAL) {
-  rooms.set(o.code, new Room(o.code, { perTeam: o.perTeam, type: o.type, time: o.time, diff: o.diff, bots: true }, { official: o }));
-  console.log(`[${o.code}] ${o.name} hazır`);
+// Resmi odalar (admin panelinden yönetilir): açık olanlar kurulur, kapatılan / silinen kapanır, değişen sonraki maçta (boşsa hemen) uygulanır
+function syncOfficial() {
+  useBalance(currentBalance());
+  const want = new Map(officialList().filter((o) => o.enabled).map((o) => [o.code, o]));
+  for (const [code, r] of rooms) {
+    if (r.official && !want.has(code)) { r.shutdown('Bu sunucu yönetici tarafından kapatıldı'); rooms.delete(code); console.log(`[${code}] resmi sunucu kapatıldı`); }
+  }
+  for (const o of want.values()) {
+    const r = rooms.get(o.code);
+    if (!r) { rooms.set(o.code, new Room(o.code, { perTeam: o.perTeam, type: o.type, time: o.time, diff: o.diff, bots: o.bots }, { official: o })); console.log(`[${o.code}] ${o.name} hazır`); }
+    else if (r.official) { r.activate(); r.setOfficial(o); }
+  }
 }
+syncOfficial();
 
 // boş oyuncu odalarını temizle (resmi odalar hariç)
 setInterval(() => {
@@ -130,4 +137,4 @@ setInterval(() => {
 }, 10000);
 
 server.listen(PORT, () => console.log(`WarByte sunucusu :${PORT} üzerinde dinliyor`));
-startAdmin({ rooms });
+startAdmin({ rooms, syncOfficial });

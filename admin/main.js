@@ -1,11 +1,9 @@
 // WarByte admin paneli: denge ayarları (3D önizlemeli), odalar, duyuru, sürüm geçmişi.
 // Değerler: S.defs (koddaki varsayılan) ← S.saved (sunucudaki geçersiz kılmalar) ← S.draft (kaydedilmemiş taslak)
-import { balanceSections, registerOfficial, GROUP_LABELS, WEAPON_GROUPS } from '../src/game/balance.js';
+import { balanceSections, GROUP_LABELS, WEAPON_GROUPS } from '../src/game/balance.js';
 import { WSTATS, CLASS_DEFS, DIFFICULTY } from '../src/game/stats.js';
-import { OFFICIAL } from '../server/official.js';
 import { Preview, thumb } from './preview.js';
 
-registerOfficial(OFFICIAL);
 const SECTIONS = balanceSections();
 const FIELD = new Map();               // yol → { fd, item, sec }
 for (const sec of SECTIONS) for (const item of sec.items) for (const fd of item.fields) FIELD.set(fd.path, { fd, item, sec });
@@ -90,6 +88,7 @@ function renderLogin() {
 const PAGES = [
   ...SECTIONS.map((s) => ({ id: s.id, label: s.label, icon: s.icon, sec: s })),
   { sep: true },
+  { id: 'servers', label: 'Sunucular', icon: 'server' },
   { id: 'rooms', label: 'Odalar', icon: 'door' },
   { id: 'announce', label: 'Duyuru', icon: 'speaker' },
   { id: 'history', label: 'Geçmiş', icon: 'history' },
@@ -117,6 +116,7 @@ function shell() {
   bindPending();
   const main = document.getElementById('main');
   if (pg.sec) renderEditor(main, pg.sec);
+  else if (S.view === 'servers') renderServers(main);
   else if (S.view === 'rooms') renderRooms(main);
   else if (S.view === 'announce') renderAnnounce(main);
   else if (S.view === 'history') renderHistory(main);
@@ -137,7 +137,7 @@ function refreshPending() {
     if (!has && dot) dot.remove();
   });
 }
-function go(v) { S.view = v; if (location.hash !== '#' + v) history.pushState(null, '', '#' + v); shell(); if (v === 'rooms' || v === 'announce') loadRooms(); if (v === 'history') loadHistory(); }
+function go(v) { S.view = v; if (location.hash !== '#' + v) history.pushState(null, '', '#' + v); shell(); if (v === 'rooms' || v === 'announce') loadRooms(); if (v === 'history') loadHistory(); if (v === 'servers') loadServers(); }
 
 // ───────── Düzenleyici ─────────
 function curItem(sec) {
@@ -354,6 +354,147 @@ function renderRooms(main) {
   }));
 }
 
+// ───────── Resmi sunucular ─────────
+const MAPN = { kasaba: 'Kasaba', vadi: 'Vadi', us: 'Askeri Üs', colgecidi: 'Çöl Geçidi', newyork: 'New York' };
+const MAPIMG = {
+  kasaba: new URL('../public/img/kasaba.jpg', import.meta.url).href, vadi: new URL('../public/img/vadi.jpg', import.meta.url).href,
+  us: new URL('../public/img/us.jpg', import.meta.url).href, colgecidi: new URL('../public/img/colgecidi.jpg', import.meta.url).href,
+  newyork: new URL('../public/img/newyork.jpg', import.meta.url).href,
+};
+const MODES = [['conquest', 'Ele Geçirme'], ['tdm', 'Takım Çatışması'], ['dm', 'Ölüm Maçı'], ['gg', 'Silah Yarışı'], ['inf', 'Enfekte']];
+const TODS = [['day', 'Gündüz'], ['sunset', 'Gün batımı'], ['night', 'Gece']];
+const WEATHERS = [['clear', 'Açık'], ['rain', 'Yağmur'], ['fog', 'Sis']];
+const DIFFS = [['easy', 'Kolay'], ['normal', 'Normal'], ['hard', 'Zor']];
+const lbl = (L, v) => (L.find((x) => x[0] === v) || [, v])[1];
+const isTotal = (t) => t === 'dm' || t === 'gg' || t === 'inf';
+const mapsFor = (t) => (t === 'inf' ? ['newyork'] : ['kasaba', 'vadi', 'us', 'colgecidi']);
+function sizeRange(t, L) {
+  if (t === 'inf') return [L.infMin, L.infMax, 2];
+  if (t === 'dm' || t === 'gg') return [2, L.dmMax, 1];
+  return [1, L.maxPerTeam, 1];
+}
+const sizeTxt = (o) => (isTotal(o.type) ? `${o.perTeam} kişi` : `${o.perTeam}v${o.perTeam}`);
+const timeTxt = (t) => (t ? `${Math.round(t / 60)} dk` : 'süresiz');
+
+async function loadServers() {
+  try { S.off = await api('GET', '/api/official'); } catch { return; }
+  if (S.view === 'servers' && !document.querySelector('.modal')) renderServers(document.getElementById('main'));
+}
+function renderServers(main) {
+  const O = S.off;
+  if (!O) { main.innerHTML = '<div class="page"><div class="empty">Yükleniyor…</div></div>'; return; }
+  main.innerHTML = `<div class="page"><h2>Resmi sunucular</h2><p class="lead">Ana menüdeki sunucu listesinde herkese açık, botlu, sürekli açık odalar. Kapalı sunucu listede görünmez. Ayar değişikliği sunucu boşsa hemen, içinde oyuncu varsa sonraki maçta geçerli olur.</p>
+    <div class="grid">${O.list.map((o) => {
+      const m = o.live ? o.live.map : o.rotation[0].map;
+      return `<div class="card srv ${o.enabled ? '' : 'off'}">
+        <div class="simg" style="background-image:url('${MAPIMG[m]}')"><span class="code">${esc(o.code)}</span>
+          <label class="sw" title="${o.enabled ? 'Açık' : 'Kapalı'}"><input type="checkbox" data-tg="${esc(o.code)}" ${o.enabled ? 'checked' : ''}><i></i></label>
+          <span class="st">${o.enabled && o.live ? `<b class="on"></b>${o.live.humans}/${o.live.cap} oyuncu · ${esc(MAPN[o.live.map])}${o.live.ended ? ' · maç bitti' : o.live.tl >= 0 ? ` · ${Math.floor(o.live.tl / 60)} dk kaldı` : ''}` : '<b></b>Kapalı'}</span></div>
+        <div class="sb"><div class="nm">${esc(o.name)}</div><div class="ds">${esc(o.desc || ' ')}</div>
+          <div class="chips"><span class="tag or">${esc(lbl(MODES, o.type))}</span><span class="tag">${sizeTxt(o)}</span><span class="tag">${timeTxt(o.time)}</span><span class="tag">${o.bots ? lbl(DIFFS, o.diff) + ' bot' : 'Botsuz'}</span></div>
+          <div class="rot">${o.rotation.map((r, i) => `<span class="rm" title="${esc(MAPN[r.map])} · ${esc(lbl(TODS, r.tod))} · ${esc(lbl(WEATHERS, r.weather))}" style="background-image:url('${MAPIMG[r.map]}')"><i>${i + 1}</i></span>`).join('')}</div>
+          <button class="btn sm" data-ed="${esc(o.code)}" style="margin-top:12px">Düzenle</button></div></div>`;
+    }).join('')}
+    ${O.list.length < O.max ? '<button class="card srvnew" id="srvNew"><span>+</span>Yeni resmi sunucu</button>' : ''}</div></div>`;
+  main.querySelectorAll('[data-ed]').forEach((b) => (b.onclick = () => openServer(O.list.find((o) => o.code === b.dataset.ed))));
+  const nb = document.getElementById('srvNew');
+  if (nb) nb.onclick = () => openServer(null);
+  main.querySelectorAll('[data-tg]').forEach((cb) => (cb.onchange = async () => {
+    const o = O.list.find((x) => x.code === cb.dataset.tg);
+    if (!cb.checked && o.live && o.live.humans && !confirm(`${o.name} kapatılsın mı? İçindeki ${o.live.humans} oyuncu ana menüye düşer.`)) { cb.checked = true; return; }
+    try { S.off = await api('POST', '/api/official/toggle', { code: o.code, enabled: cb.checked }); toast(`${o.name} ${cb.checked ? 'açıldı' : 'kapatıldı'}`); renderServers(main); } catch (e) { toast(e.message, true); cb.checked = !cb.checked; }
+  }));
+}
+
+function openServer(src) {
+  const L = S.off.limits;
+  const E = src ? JSON.parse(JSON.stringify(src)) : { name: 'Yeni Resmi Sunucu', desc: '', enabled: true, type: 'tdm', perTeam: 8, time: 600, diff: 'normal', tickets: 0, bots: true, third: false, rotation: [{ map: 'kasaba', tod: 'day', weather: 'clear' }] };
+  delete E.live;
+  const m = document.createElement('div');
+  m.className = 'modal';
+  document.body.appendChild(m);
+  const seg = (name, L2, v, dis) => `<div class="seg">${L2.map(([k, t]) => `<button type="button" data-${name}="${k}" class="${k === v ? 'on' : ''}" ${dis ? 'disabled' : ''}>${esc(t)}</button>`).join('')}</div>`;
+  function fix() {
+    const [lo, hi, st] = sizeRange(E.type, L);
+    E.perTeam = Math.max(lo, Math.min(hi, Math.round(E.perTeam / st) * st));
+    const ms = mapsFor(E.type);
+    for (const r of E.rotation) { if (!ms.includes(r.map)) r.map = ms[0]; if (E.type === 'inf') r.tod = 'night'; }
+    if (!isTotal(E.type) || E.type === 'dm') { /* bilet / skor sınırı yalnız ele geçirme ve takım çatışmasında */ }
+  }
+  function draw() {
+    fix();
+    const [lo, hi, st] = sizeRange(E.type, L), inf = E.type === 'inf', lim = E.type === 'conquest' || E.type === 'tdm';
+    m.innerHTML = `<div class="box wide"><div class="bh"><div class="h" style="font-size:18px">${src ? esc(src.code) + ' · Sunucuyu düzenle' : 'Yeni resmi sunucu'}</div></div>
+      <div class="bb sform">
+        <div class="two"><label class="fld"><span>Sunucu adı</span><input class="inp" id="sName" maxlength="32" value="${esc(E.name)}"></label>
+          <label class="fld"><span>Kısa açıklama</span><input class="inp" id="sDesc" maxlength="60" value="${esc(E.desc)}" placeholder="Ele Geçirme · 10v10 · bot destekli"></label></div>
+        <div class="fld"><span>Oyun modu</span>${seg('mode', MODES, E.type)}</div>
+        <div class="fld"><span>${isTotal(E.type) ? 'Toplam oyuncu' : 'Takım başına oyuncu'}: <b id="sSizeV">${sizeTxt(E)}</b></span>
+          <div class="trk"><input type="range" id="sSize" min="${lo}" max="${hi}" step="${st}" value="${E.perTeam}" style="--p:${((E.perTeam - lo) / Math.max(1, hi - lo)) * 100}%"></div></div>
+        <div class="fld"><span>Maç süresi: <b id="sTimeV">${timeTxt(E.time)}</b></span>
+          <div class="trk"><input type="range" id="sTime" min="1" max="60" step="1" value="${Math.max(1, Math.round(E.time / 60))}" style="--p:${((Math.max(1, Math.round(E.time / 60)) - 1) / 59) * 100}%"></div></div>
+        ${lim ? `<div class="fld"><span>${E.type === 'tdm' ? 'Skor sınırı' : 'Bilet sayısı'}</span><div class="row2"><label class="chk"><input type="checkbox" id="sAuto" ${E.tickets ? '' : 'checked'}> Otomatik (kişi sayısına göre)</label>
+          <input class="inp" id="sTk" type="number" min="20" max="1000" value="${E.tickets || ''}" style="width:110px" ${E.tickets ? '' : 'disabled'}></div></div>` : ''}
+        <div class="two"><div class="fld"><span>Bot zorluğu${inf ? ' (Enfekte: zor)' : ''}</span>${seg('diff', DIFFS, inf ? 'hard' : E.diff, inf)}</div>
+          <div class="fld"><span>Seçenekler</span><label class="chk"><input type="checkbox" id="sBots" ${E.bots ? 'checked' : ''}> Botlar boş yerleri doldursun</label><label class="chk"><input type="checkbox" id="sThird" ${E.third ? 'checked' : ''}> 3. şahıs kamera serbest</label></div></div>
+        <div class="fld"><span>Harita sırası · her maç bitince sıradakine geçer${inf ? ' (Enfekte yalnız New York, gece)' : ''}</span>
+          ${E.rotation.map((r, i) => `<div class="rrow" data-i="${i}"><span class="ri">${i + 1}</span>
+            <div class="mpick">${mapsFor(E.type).map((k) => `<button type="button" data-map="${k}" class="${k === r.map ? 'on' : ''}" style="background-image:url('${MAPIMG[k]}')"><span>${esc(MAPN[k])}</span></button>`).join('')}</div>
+            <div class="rset">${seg('tod', TODS, r.tod, inf)}${seg('weather', WEATHERS, r.weather)}</div>
+            <div class="rbtn"><button type="button" class="btn sm" data-up ${i ? '' : 'disabled'} title="Yukarı">↑</button><button type="button" class="btn sm" data-down ${i < E.rotation.length - 1 ? '' : 'disabled'} title="Aşağı">↓</button><button type="button" class="btn sm dan" data-rm ${E.rotation.length > 1 ? '' : 'disabled'} title="Kaldır">✕</button></div></div>`).join('')}
+          ${E.rotation.length < 8 ? '<button type="button" class="btn sm" id="sAdd" style="margin-top:8px">+ Harita ekle</button>' : ''}</div>
+        <div class="err" id="sErr"></div></div>
+      <div class="bf">${src ? '<button class="btn dan" id="sDel" style="margin-right:auto">Sunucuyu sil</button>' : ''}<button class="btn" id="sCancel">Vazgeç</button><button class="btn pri" id="sSave">${src ? 'Kaydet' : 'Oluştur ve aç'}</button></div></div>`;
+    bind();
+  }
+  const keep = () => {           // metin alanlarını yeniden çizimden önce oku
+    const n = m.querySelector('#sName'), d = m.querySelector('#sDesc');
+    if (n) E.name = n.value; if (d) E.desc = d.value;
+  };
+  function bind() {
+    m.querySelectorAll('[data-mode]').forEach((b) => (b.onclick = () => { keep(); E.type = b.dataset.mode; if (E.type === 'inf') E.diff = 'hard'; draw(); }));
+    m.querySelectorAll('[data-diff]').forEach((b) => (b.onclick = () => { keep(); E.diff = b.dataset.diff; draw(); }));
+    const sz = m.querySelector('#sSize'), tm = m.querySelector('#sTime');
+    sz.oninput = () => { E.perTeam = +sz.value; m.querySelector('#sSizeV').textContent = sizeTxt(E); sz.style.setProperty('--p', ((sz.value - sz.min) / Math.max(1, sz.max - sz.min)) * 100 + '%'); };
+    tm.oninput = () => { E.time = +tm.value * 60; m.querySelector('#sTimeV').textContent = timeTxt(E.time); tm.style.setProperty('--p', ((tm.value - 1) / 59) * 100 + '%'); };
+    const au = m.querySelector('#sAuto'), tk = m.querySelector('#sTk');
+    if (au) { au.onchange = () => { tk.disabled = au.checked; if (au.checked) { E.tickets = 0; tk.value = ''; } else { tk.value = tk.value || (E.type === 'tdm' ? 50 : 200); E.tickets = +tk.value; tk.focus(); } }; tk.onchange = () => { E.tickets = Math.max(20, Math.min(1000, Math.round(+tk.value) || 0)); tk.value = E.tickets; }; }
+    m.querySelector('#sBots').onchange = (e) => { E.bots = e.target.checked; };
+    m.querySelector('#sThird').onchange = (e) => { E.third = e.target.checked; };
+    m.querySelectorAll('.rrow').forEach((row) => {
+      const i = +row.dataset.i, r = E.rotation[i];
+      row.querySelectorAll('[data-map]').forEach((b) => (b.onclick = () => { keep(); r.map = b.dataset.map; draw(); }));
+      row.querySelectorAll('[data-tod]').forEach((b) => (b.onclick = () => { keep(); r.tod = b.dataset.tod; draw(); }));
+      row.querySelectorAll('[data-weather]').forEach((b) => (b.onclick = () => { keep(); r.weather = b.dataset.weather; draw(); }));
+      const sw = (j) => { keep(); [E.rotation[i], E.rotation[j]] = [E.rotation[j], E.rotation[i]]; draw(); };
+      row.querySelector('[data-up]').onclick = () => sw(i - 1);
+      row.querySelector('[data-down]').onclick = () => sw(i + 1);
+      row.querySelector('[data-rm]').onclick = () => { keep(); E.rotation.splice(i, 1); draw(); };
+    });
+    const add = m.querySelector('#sAdd');
+    if (add) add.onclick = () => { keep(); const last = E.rotation[E.rotation.length - 1]; E.rotation.push({ map: mapsFor(E.type).find((k) => !E.rotation.some((r) => r.map === k)) || last.map, tod: last.tod, weather: 'clear' }); draw(); };
+    m.querySelector('#sCancel').onclick = () => m.remove();
+    const del = m.querySelector('#sDel');
+    if (del) del.onclick = async () => {
+      const lv = src.live && src.live.humans ? ` İçindeki ${src.live.humans} oyuncu ana menüye düşer.` : '';
+      if (!confirm(`${src.name} kalıcı olarak silinsin mi?${lv}`)) return;
+      try { S.off = await api('POST', '/api/official/delete', { code: src.code }); m.remove(); toast('Sunucu silindi'); renderServers(document.getElementById('main')); } catch (e) { toast(e.message, true); }
+    };
+    m.querySelector('#sSave').onclick = async () => {
+      keep();
+      const er = m.querySelector('#sErr');
+      if (!E.name.trim()) { er.textContent = 'Sunucuya bir ad ver'; m.querySelector('#sName').focus(); return; }
+      try {
+        const r = await api('POST', '/api/official/save', { server: E });
+        S.off = r; m.remove(); renderServers(document.getElementById('main'));
+        const o = r.list.find((x) => x.code === r.code);
+        toast(src ? (o && o.live && o.live.humans ? 'Kaydedildi · içinde oyuncu var, sonraki maçta geçerli' : 'Kaydedildi · hemen geçerli') : `${r.code} oluşturuldu ve açıldı`);
+      } catch (e) { er.textContent = e.message; }
+    };
+  }
+  draw();
+}
+
 // ───────── Duyuru ─────────
 function renderAnnounce(main) {
   main.innerHTML = `<div class="page"><div class="ann"><h2>Duyuru</h2><p class="lead">Oyunculara sohbet kutusunda sistem mesajı olarak görünür.</p>
@@ -419,8 +560,9 @@ async function boot() {
   try { S.rooms = await api('GET', '/api/rooms'); } catch { /* yok */ }
   shell();
   if (S.view === 'history') loadHistory();
+  if (S.view === 'servers') loadServers();
   clearInterval(roomTimer);
-  roomTimer = setInterval(() => { if (S.view === 'rooms' || document.querySelector('.pill.live')) loadRooms(); }, 3000);
+  roomTimer = setInterval(() => { if (S.view === 'servers' && !document.querySelector('.modal')) loadServers(); else if (S.view === 'rooms' || document.querySelector('.pill.live')) loadRooms(); }, 3000);
 }
 addEventListener('hashchange', () => { const h = location.hash.slice(1); if (h !== S.view && PAGES.some((p) => p.id === h) && S.defs && Object.keys(S.defs).length) go(h); });
 addEventListener('beforeunload', (e) => { if (pending().length) { e.preventDefault(); e.returnValue = ''; } });

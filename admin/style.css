@@ -175,3 +175,56 @@ svg.i{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stro
   .cap .n{font-size:28px}
   .fields{border-left:0}
 }
+
+/* resmi sunucular */
+.srv{padding:0;overflow:hidden}
+.srv.off .simg{filter:grayscale(1) brightness(.5)}
+.srv.off .sb{opacity:.6}
+.simg{height:120px;background:center/cover no-repeat;position:relative}
+.simg::after{content:'';position:absolute;inset:0;background:linear-gradient(to top,rgba(10,11,13,.85),rgba(10,11,13,0) 60%)}
+.simg .code{position:absolute;left:12px;top:10px;z-index:1;font-family:var(--font);letter-spacing:.12em;font-size:12px;background:rgba(0,0,0,.55);padding:2px 8px;border-radius:6px}
+.simg .st{position:absolute;left:12px;bottom:9px;z-index:1;font-size:12px;color:var(--tx);display:flex;align-items:center;gap:6px}
+.simg .st b{width:8px;height:8px;border-radius:50%;background:var(--tx3)}
+.simg .st b.on{background:var(--ok)}
+.sw{position:absolute;right:12px;top:10px;z-index:2;cursor:pointer}
+.sw input{position:absolute;opacity:0}
+.sw i{display:block;width:44px;height:24px;border-radius:12px;background:rgba(0,0,0,.6);border:1px solid var(--line2);position:relative;transition:.15s}
+.sw i::after{content:'';position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:var(--tx3);transition:.15s}
+.sw input:checked+i{background:var(--or);border-color:var(--or)}
+.sw input:checked+i::after{left:23px;background:#16171a}
+.sb{padding:12px 16px 14px}
+.sb .nm{font-weight:600;font-size:15px}
+.sb .ds{color:var(--tx2);font-size:12px;min-height:18px}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.rot{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.rm{width:46px;height:28px;border-radius:5px;background:center/cover;position:relative;border:1px solid var(--line2)}
+.rm i{position:absolute;left:2px;top:1px;font-style:normal;font-size:10px;background:rgba(0,0,0,.6);border-radius:3px;padding:0 3px}
+.srvnew{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;min-height:250px;border:1.5px dashed var(--line2);background:transparent;color:var(--tx2);font-size:14px}
+.srvnew span{font-size:34px;color:var(--or);line-height:1}
+.srvnew:hover{border-color:var(--or);color:var(--tx)}
+.modal .box.wide{width:min(820px,96vw);max-height:92vh}
+.sform .fld{margin-top:16px}
+.sform .fld>span{display:block;font-size:12px;color:var(--tx2);margin-bottom:8px}
+.sform .fld>span b{color:var(--or2);font-weight:600}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.seg{display:inline-flex;flex-wrap:wrap;background:var(--bg);border:1px solid var(--line2);border-radius:9px;padding:3px;gap:2px}
+.seg button{border:0;background:transparent;padding:6px 12px;border-radius:7px;color:var(--tx2);font-size:13px}
+.seg button:hover:not(:disabled){color:var(--tx);background:var(--card2)}
+.seg button.on{background:var(--or);color:#16171a;font-weight:600}
+.seg button:disabled{cursor:default;opacity:.5}
+.seg button.on:disabled{opacity:1}
+.chk{display:flex;align-items:center;gap:8px;font-size:13px;margin:4px 0;cursor:pointer}
+.chk input{accent-color:var(--or);width:16px;height:16px}
+.row2{display:flex;align-items:center;gap:14px}
+.rrow{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:6px 10px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:var(--card)}
+.rrow .ri{font-family:var(--font);color:var(--or);font-size:18px;text-align:center;grid-row:1/3}
+.mpick{display:flex;gap:6px;flex-wrap:wrap}
+.mpick button{width:96px;height:54px;border-radius:7px;border:2px solid transparent;background:center/cover;position:relative;padding:0;filter:brightness(.6)}
+.mpick button span{position:absolute;left:0;right:0;bottom:0;font-size:11px;background:rgba(0,0,0,.6);padding:2px 0;border-radius:0 0 5px 5px;color:#fff}
+.mpick button.on{border-color:var(--or);filter:none}
+.mpick button:hover{filter:none}
+.rset{display:flex;gap:8px;flex-wrap:wrap;grid-column:2}
+.rbtn{grid-row:1/3;grid-column:3;display:flex;flex-direction:column;gap:4px}
+.rbtn .btn{width:30px;padding:0;justify-content:center}
+.btn:disabled{opacity:.35;cursor:default}
+@media (max-width:860px){.two{grid-template-columns:1fr}}
