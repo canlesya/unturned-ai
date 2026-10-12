@@ -10,12 +10,13 @@ import { NetClient } from './net/client.js';
 import { defaultServerUrl, healthUrl } from './net/protocol.js';
 import { Binds, ACTIONS, GROUPS, codeLabel, RESERVED, norm } from './core/keybinds.js';
 import { music } from './game/music.js';
+import { isTouch } from './game/touch.js';
 
 const KEY = 'warbyte.v2';
 export const DEFAULTS = {
   map: DEFAULT_MAP, tod: 'day', weather: 'clear', type: 'conquest', perTeam: 10, tickets: 0, time: 900,
   team: 'blue', cls: 'assault', diff: 'normal', optic: 'reddot', loadouts: {}, name: 'Sen',
-  sens: 0.0022, fov: 75, volume: 0.6, shadows: true, quality: 1.5, adaptive: true, fullscreen: true, devMode: false,
+  sens: 0.0022, fov: 75, volume: 0.6, shadows: !isTouch(), quality: isTouch() ? 1 : 1.5, adaptive: true, fullscreen: true, devMode: false,   // telefonda: gölgesiz, 1× çözünürlük
   xp: 0, stats: { matches: 0, wins: 0, kills: 0, deaths: 0 },
   server: '', room: '', olTeam: 'auto', third: true,
   keys: {}, leftHand: false, adsToggle: false, vSfx: 0.9, vMusic: 0.5, vAmb: 0.8, rainSound: true,   // tuş atamaları, silah eli, ses kanalları

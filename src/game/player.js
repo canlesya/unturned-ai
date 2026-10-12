@@ -8,6 +8,7 @@ import { box } from '../core/geo.js';
 import { clamp, lerp, V3 } from './util.js';
 import { applyInput } from '../sim/input.js';
 import { TUNE } from './balance.js';
+import { TouchControls, isTouch } from './touch.js';
 import { norm, codeLabel } from '../core/keybinds.js';
 
 const VM_SCALE = 0.92;
@@ -334,6 +335,7 @@ export class Player {
     this.deathCamT = 0;
     this._bound = [];
     this.bind();
+    if (isTouch()) { game.noPointerLock = true; this.touch = new TouchControls(this); }      // telefon / tablet: fare kilidi yok, ekran kontrolleri
     this.refreshWeapon();
     game.on('switch', (s) => { if (s === this.s) this.refreshWeapon(); });
     game.on('spawn', (s) => { if (s === this.s) this.refreshWeapon(); });
@@ -593,7 +595,7 @@ export class Player {
     s.pitch = clamp(s.pitch - dy, -1.5, 1.5);
   }
 
-  dispose() { this.closeWheel(); for (const [t, ev, fn, opt] of this._bound) t.removeEventListener(ev, fn, opt); this._bound = []; this.fx?.remove(); this.fxSmoke?.remove(); }
+  dispose() { this.closeWheel(); for (const [t, ev, fn, opt] of this._bound) t.removeEventListener(ev, fn, opt); this._bound = []; this.fx?.remove(); this.fxSmoke?.remove(); this.touch?.dispose(); }
 
   update(dt) {
     const s = this.s, g = this.game;
@@ -607,14 +609,14 @@ export class Player {
     }
     if (s.alive && !g.opts.autoplay) {
       const k = this.keys;
-      const kb = this.kb;
+      const kb = this.kb, T = this.touch;
       if (g.opts.adsToggle && (s.sprinting || s.cur !== this._adsCur)) s.ads = false;           // aç-kapa nişan: koşmak ve silah değiştirmek nişanı kapatır
       this._adsCur = s.cur;
-      const f = (kb.held('forward', k) ? 1 : 0) - (kb.held('back', k) ? 1 : 0);
-      const r = (kb.held('right', k) ? 1 : 0) - (kb.held('left', k) ? 1 : 0);
+      const f = (kb.held('forward', k) ? 1 : 0) - (kb.held('back', k) ? 1 : 0) || (T ? T.f : 0);
+      const r = (kb.held('right', k) ? 1 : 0) - (kb.held('left', k) ? 1 : 0) || (T ? T.r : 0);
       const st = s.stat;
       const lean = (kb.held('leanRight', k) ? 1 : 0) - (kb.held('leanLeft', k) ? 1 : 0);                 // 3. şahısta da Q/E yatar (ve omuzu değiştirir)
-      const inp = { f, r, lean, sprint: kb.held('sprint', k), jump: kb.held('jump', k) && !this.spaceLatch };
+      const inp = { f, r, lean, sprint: kb.held('sprint', k) || !!(T && T.sprint), jump: (kb.held('jump', k) && !this.spaceLatch) || !!(T && T.jump) };
       if (s.fly) this.flyMove(f, r, k, dt); else applyInput(s, inp, dt);
       if (g.online) g.online.pushInput(inp, s, this.fireHeld);
       if (!kb.held('jump', k)) this.spaceLatch = false;

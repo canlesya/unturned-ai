@@ -137,6 +137,20 @@ const CSS = `
 .cc:hover{background:rgba(255,255,255,.13)}
 .cc.dis{opacity:.4;pointer-events:none}
 #spawnrow{display:flex;flex-direction:column;gap:6px}
+/* küçük ekran (telefon yatay): ölüm ekranı ve skor tablosu sığsın */
+@media (max-height:520px){
+#respawn .dep{grid-template-columns:150px minmax(0,1fr) 170px;gap:8px;width:96vw;max-height:94vh}
+#respawn .card{padding:8px 10px;overflow:auto;max-height:94vh}
+#respawn h3{font-size:10px;letter-spacing:2px;margin-bottom:6px}
+#rtitle{font-size:18px}#rinfo{font-size:12px;margin:4px 0}#rcount{font-size:34px}
+#respawn .clsrow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+#respawn .cc{padding:6px 8px;font-size:11px}#respawn .cc b{font-size:12px;letter-spacing:1px}#respawn .cc small{font-size:10px;line-height:1.2}
+#spawnrow{gap:4px}#spawnrow .cc{padding:6px 8px}
+#scoreboard .panel{min-width:0!important;width:96vw;max-height:92vh;padding:10px 12px}
+#scoreboard table{font-size:11px}
+#scoreboard .scroll{max-height:80vh;overflow:auto}
+.overlay .panel{max-width:96vw}
+}
 #scoreboard table{border-collapse:collapse;width:100%;font-size:15px}
 #scoreboard td,#scoreboard th{padding:4px 10px;text-align:right}
 #scoreboard th{font-size:11px;letter-spacing:2px;opacity:.6;text-transform:uppercase}

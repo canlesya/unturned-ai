@@ -214,4 +214,14 @@ export const MENU_CSS = `
 #menu .pvbtn .back{width:100%;text-align:center}
 @media(max-width:1180px){#menu .bld{grid-template-columns:1fr}#menu .bld-side{display:none}#menu .bld-mini{display:flex;gap:10px;padding:10px 0 4px;position:sticky;bottom:0;background:linear-gradient(0deg,rgba(7,10,16,.95),transparent)}}
 @media(max-width:760px){#menu .sgrid{grid-template-columns:1fr}#menu .mdgrid{grid-template-columns:1fr}}
+/* yatay telefon (kısa ekran): küçük logo, solda dar dikey menü, sağda kayan içerik */
+@media(max-height:520px){
+#menu .mn-top{left:12px;right:12px;top:8px}#menu .mn-logo{font-size:24px;letter-spacing:3px}#menu .mn-logo small{font-size:8px;letter-spacing:3px;margin-top:3px}#menu .mn-user{display:none}
+#menu .mn-side{left:max(10px,env(safe-area-inset-left));top:58px;bottom:24px;right:auto;width:150px;flex-direction:column;overflow-y:auto;overflow-x:hidden;gap:2px}
+#menu .mn-nav{font-size:13px;padding:7px 10px;letter-spacing:1px}#menu .mn-nav small{display:none}
+#menu .mn-stage,#menu .mn-stage.right{left:calc(max(10px,env(safe-area-inset-left)) + 162px);right:max(10px,env(safe-area-inset-right));top:10px;bottom:22px;width:auto;overflow-y:auto}
+#menu .mn-foot{left:12px;right:12px;bottom:4px;font-size:10px}
+#menu .play{font-size:22px;min-width:0}
+#menu .split,#menu .split3{grid-template-columns:1fr}
+}
 `;
