@@ -50,23 +50,23 @@ const CSS = `
 #tc.edit .b,#tc.edit .jb{outline:2px dashed rgba(255,255,255,.45);outline-offset:3px;pointer-events:auto;cursor:move}
 #tc.edit .b.hid{display:grid;opacity:.25!important}
 #tc.edit .sel{outline-color:#ff8a1f}
-#tc .ep{position:absolute;left:50%;top:8px;transform:translateX(-50%);width:min(560px,70vw);max-height:calc(100vh - 16px);overflow:auto;background:rgba(9,13,19,.94);border:1px solid rgba(255,255,255,.18);padding:10px 14px;color:#e8edf5;font-size:12px;display:none;pointer-events:auto;z-index:2;transition:opacity .15s}
-#tc.edit .ep{display:block}
-#tc.edit.dragging .ep{opacity:.12;pointer-events:none}
-#tc .ep.min .body{display:none}
-#tc .ep.min{top:50%;left:41%;transform:translate(-50%,-50%);width:auto}#tc .ep.min h4{display:none}
-#tc .ep h4{margin:0;font-size:13px;letter-spacing:3px;color:#ffb347;text-transform:uppercase;flex:1}
-#tc .ep .row{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
-#tc .ep .lb{width:118px;opacity:.8}
-#tc .ep input[type=range]{flex:1;min-width:120px;accent-color:#ff8a1f}
-#tc .ep .v{width:40px;text-align:right}
-#tc .ep .seg{display:inline-flex;border:1px solid rgba(255,255,255,.2)}
-#tc .ep .seg button,#tc .ep .tb{background:transparent;border:0;color:#cfd6e0;padding:6px 10px;font:inherit;font-size:12px;letter-spacing:1px}
-#tc .ep .seg button.on{background:#ff8a1f;color:#160a02;font-weight:700}
-#tc .ep .tb{border:1px solid rgba(255,255,255,.25)}
-#tc .ep .tb.pri{background:#ff8a1f;color:#160a02;font-weight:700;border-color:#ff8a1f}
-#tc .ep .tabs{display:flex;gap:6px}
-#tc .ep .hint{opacity:.6;margin-top:6px}
+#tcEd .ep{position:fixed;z-index:41;touch-action:auto;font-family:Bahnschrift,'Rajdhani','Arial Narrow',system-ui,sans-serif;left:50%;top:8px;transform:translateX(-50%);width:min(560px,70vw);max-height:calc(100vh - 16px);overflow:auto;background:rgba(9,13,19,.94);border:1px solid rgba(255,255,255,.18);padding:10px 14px;color:#e8edf5;font-size:12px;display:none;pointer-events:auto;transition:opacity .15s}
+#tcEd.on .ep{display:block}
+#tcEd.dragging .ep{opacity:.12;pointer-events:none}
+#tcEd .ep.min .body{display:none}
+#tcEd .ep.min{top:50%;left:41%;transform:translate(-50%,-50%);width:auto}#tcEd .ep.min h4{display:none}
+#tcEd .ep h4{margin:0;font-size:13px;letter-spacing:3px;color:#ffb347;text-transform:uppercase;flex:1}
+#tcEd .ep .row{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
+#tcEd .ep .lb{width:118px;opacity:.8}
+#tcEd .ep input[type=range]{flex:1;min-width:120px;accent-color:#ff8a1f}
+#tcEd .ep .v{width:40px;text-align:right}
+#tcEd .ep .seg{display:inline-flex;border:1px solid rgba(255,255,255,.2)}
+#tcEd .ep .seg button,#tcEd .ep .tb{background:transparent;border:0;color:#cfd6e0;padding:6px 10px;font:inherit;font-size:12px;letter-spacing:1px}
+#tcEd .ep .seg button.on{background:#ff8a1f;color:#160a02;font-weight:700}
+#tcEd .ep .tb{border:1px solid rgba(255,255,255,.25)}
+#tcEd .ep .tb.pri{background:#ff8a1f;color:#160a02;font-weight:700;border-color:#ff8a1f}
+#tcEd .ep .tabs{display:flex;gap:6px}
+#tcEd .ep .hint{opacity:.6;margin-top:6px}
 /* telefon HUD'u: masaüstü boyutundaki öğeler orantılı küçülür; mermi sağ üste, öldürme bildirimi mini haritanın altına (butonlara binmesin) */
 body.mob #mmwrap{zoom:.5;left:10px;top:10px}
 body.mob #topbar{zoom:.62;top:6px}
@@ -98,10 +98,13 @@ export class TouchControls {
     const el = (this.el = document.createElement('div'));
     el.id = 'tc'; el.className = 'off';
     el.innerHTML = `<div class="jb" data-k="joy"><div class="jk"></div><div class="lock"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></div><div class="runlock">KOŞU KİLİTLİ</div></div>
-      <div class="rot">Telefonu yan çevir<br><small style="opacity:.6;font-size:13px">Oyun yatay ekranda oynanır</small></div><div class="ep"></div>`;
+      <div class="rot">Telefonu yan çevir<br><small style="opacity:.6;font-size:13px">Oyun yatay ekranda oynanır</small></div>`;
     document.body.appendChild(el);
+    // ayar paneli oyun katmanının DIŞINDA: #tc'nin touch-action:none'ı ve dokunma engeli panelin düğme / kaydırıcılarına geçmesin
+    this.ed = document.createElement('div'); this.ed.id = 'tcEd'; this.ed.innerHTML = '<div class="ep"></div>';
+    document.body.appendChild(this.ed);
     document.body.classList.add('mob');
-    this.jb = el.querySelector('.jb'); this.jk = el.querySelector('.jk'); this.ep = el.querySelector('.ep');
+    this.jb = el.querySelector('.jb'); this.jk = el.querySelector('.jk'); this.ep = this.ed.querySelector('.ep');
     this.b = {};
     for (const id of Object.keys(LAYOUT)) {
       if (id === 'joy') continue;
@@ -154,8 +157,8 @@ export class TouchControls {
   homeJoy() { const L = this.pos('joy'), H = innerHeight, sz = L.s * H; Object.assign(this.jb.style, { width: sz + 'px', height: sz + 'px', left: L.x * innerWidth - sz / 2 + 'px', top: L.y * H - sz / 2 + 'px' }); this.jbc = { x: L.x * innerWidth, y: L.y * H }; }
 
   start(e) {
+    if (this.editing) return;                               // düzenleyicide panel düğmelerinin tıklaması (click) üretilmeli: varsayılanı engelleme
     e.preventDefault();                                     // kaydırma / yakınlaştırma / sahte fare olayı yok
-    if (this.editing) return;
     this.g.sfx?.init?.();
     if (!document.fullscreenElement && document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().then(() => screen.orientation?.lock?.('landscape').catch(() => {})).catch(() => {});
     for (const t of e.changedTouches) {
@@ -174,8 +177,8 @@ export class TouchControls {
   }
 
   move(e) {
-    e.preventDefault();
     if (this.editing) return;
+    e.preventDefault();
     for (const t of e.changedTouches) {
       if (this.joy && t.identifier === this.joy.id) { this.setJoy(t.clientX - this.jbc.x, t.clientY - this.jbc.y); continue; }
       const L = this.looks.get(t.identifier);
@@ -187,8 +190,8 @@ export class TouchControls {
   }
 
   end(e) {
-    e.preventDefault();
     if (this.editing) return;
+    e.preventDefault();
     for (const t of e.changedTouches) {
       const bid = this.btnTouch.get(t.identifier);
       if (bid) { this.btnTouch.delete(t.identifier); this.press(bid, false, t); continue; }
@@ -287,19 +290,19 @@ export class TouchControls {
     if (this.editing) return;
     this.editing = true; this.sel = 'fire'; this.tab = 'layout';
     this.backup = JSON.parse(JSON.stringify(this.cfg));
-    this.el.classList.remove('off'); this.el.classList.add('edit');
+    this.el.classList.remove('off'); this.el.classList.add('edit'); this.ed.classList.add('on');
     this.layout();
     this.drawPanel();
     this._pd = (e) => {
       const tgt = e.target.closest('[data-k]');
-      if (!tgt || e.target.closest('.ep')) return;
+      if (!tgt) return;
       e.preventDefault();
       const id = tgt.dataset.k, L = this.pos(id);
       this.sel = id; this.drawPanel(); this.layout();
       const ox = e.clientX - L.x * innerWidth, oy = e.clientY - L.y * innerHeight;
-      this.el.classList.add('dragging');
+      this.el.classList.add('dragging'); this.ed.classList.add('dragging');
       const mv = (ev) => { this.cfg.layout[id] = { ...this.pos(id), x: Math.max(0.03, Math.min(0.97, (ev.clientX - ox) / innerWidth)), y: Math.max(0.04, Math.min(0.96, (ev.clientY - oy) / innerHeight)) }; this.layout(); };
-      const up = () => { this.el.classList.remove('dragging'); removeEventListener('pointermove', mv); removeEventListener('pointerup', up); };
+      const up = () => { this.el.classList.remove('dragging'); this.ed.classList.remove('dragging'); removeEventListener('pointermove', mv); removeEventListener('pointerup', up); };
       addEventListener('pointermove', mv); addEventListener('pointerup', up);
     };
     this.el.addEventListener('pointerdown', this._pd);
@@ -346,7 +349,7 @@ export class TouchControls {
   }
   closeEditor() {
     this.editing = false;
-    this.el.classList.remove('edit');
+    this.el.classList.remove('edit'); this.ed.classList.remove('on', 'dragging');
     this.el.removeEventListener('pointerdown', this._pd);
     this.layout();
   }
@@ -371,5 +374,5 @@ export class TouchControls {
     this.b.third.classList.toggle('on', !!p.third);
   }
 
-  dispose() { cancelAnimationFrame(this._raf); removeEventListener('resize', this.h.rs); removeEventListener('devicemotion', this._gy); this.el.remove(); document.body.classList.remove('mob'); document.getElementById('bTouch')?.remove(); }
+  dispose() { cancelAnimationFrame(this._raf); removeEventListener('resize', this.h.rs); removeEventListener('devicemotion', this._gy); this.el.remove(); this.ed.remove(); document.body.classList.remove('mob'); document.getElementById('bTouch')?.remove(); }
 }
