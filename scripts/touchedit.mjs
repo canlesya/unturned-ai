@@ -47,20 +47,30 @@ await tapEl('[data-act=save]');
 const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('warbyte.touch') || 'null'));
 check(saved && saved.joy === 'float' && saved.gyro === 'ads', 'Kaydet: ayarlar kaydedildi');
 check(!(await page.evaluate(() => document.getElementById('tc').classList.contains('edit'))), 'panel kapandı');
-// jiroskop yönü (kullanıcı geri bildirimi, yatay tutuş): aşağı eğme → aşağı bakış; sağa çevirme → sağa bakış
+// jiroskop: cihaz yönelimi (deviceorientation) → kamera. Yatay tutuş, dik (gamma −85) ve geriye yatık (gamma −45) iki duruşta:
+// pusula yönü (alpha) değişimi = yalnız sağa/sola dönüş (alpha artınca sola), eğme = yalnız yukarı/aşağı
 await tapEl('#bResume');
 const gy = await page.evaluate(async () => {
   const g = window.__game, s = g.player.s, TC = g.player.touch; TC.cfg.gyro = 'on'; g.brainsOff = g.brains.splice(0);
-  const send = async (rr) => { for (let i = 0; i < 10; i++) { dispatchEvent(new DeviceMotionEvent('devicemotion', { rotationRate: { alpha: 0, beta: 0, gamma: 0, ...rr }, interval: 16 })); await new Promise((r) => setTimeout(r, 16)); } };
-  const ang = (screen.orientation && screen.orientation.angle) ?? 90, sg = ang === 270 ? -1 : 1;
-  let y0 = s.yaw, p0 = s.pitch; await send({ beta: 60 * sg });              // eski kodda sola dönüş üreten hareket = aşağı eğme
-  const down = { dyaw: s.yaw - y0, dpitch: s.pitch - p0 };
-  y0 = s.yaw; p0 = s.pitch; await send({ gamma: 60 * sg });                 // eski kodda yukarı bakış üreten hareket = sağa çevirme
-  const right = { dyaw: s.yaw - y0, dpitch: s.pitch - p0 };
-  return { down, right };
+  const ang = (screen.orientation && screen.orientation.angle) || 0;
+  const send = async (o) => { dispatchEvent(new DeviceOrientationEvent('deviceorientation', o)); await new Promise((r) => setTimeout(r, 20)); };
+  const out = { ang };
+  for (const gamma of [-85, -45]) {
+    const tilt = ang === 270 ? -gamma : gamma;                       // diğer yatay yönde aynı duruş
+    TC._gp = null; await send({ alpha: 100, beta: 0, gamma: tilt });
+    let y0 = s.yaw, p0 = s.pitch; for (let i = 1; i <= 10; i++) await send({ alpha: 100 + i, beta: 0, gamma: tilt });
+    out['sola_cevir_' + gamma] = { dyaw: +(s.yaw - y0).toFixed(3), dpitch: +(s.pitch - p0).toFixed(3) };
+    y0 = s.yaw; p0 = s.pitch; for (let i = 1; i <= 10; i++) await send({ alpha: 110, beta: 0, gamma: tilt + (ang === 270 ? -i : i) });
+    out['eg_' + gamma] = { dyaw: +(s.yaw - y0).toFixed(3), dpitch: +(s.pitch - p0).toFixed(3) };
+  }
+  return out;
 });
-check(gy.down.dpitch < -0.01 && Math.abs(gy.down.dyaw) < 1e-6, `jiroskop: aşağı eğme → aşağı bakış (pitch ${gy.down.dpitch.toFixed(3)}, yaw ${gy.down.dyaw.toFixed(3)})`);
-check(gy.right.dyaw < -0.01 && Math.abs(gy.right.dpitch) < 1e-6, `jiroskop: sağa çevirme → sağa bakış (yaw ${gy.right.dyaw.toFixed(3)}, pitch ${gy.right.dpitch.toFixed(3)})`);
+console.log('      ekran açısı', gy.ang, JSON.stringify(gy));
+for (const gm of [-85, -45]) {
+  const L = gy['sola_cevir_' + gm], E = gy['eg_' + gm];
+  check(L.dyaw > 0.15 && Math.abs(L.dpitch) < 0.02, `jiroskop (gamma ${gm}): 10° sola çevirme → sola dönüş ${L.dyaw} rad, eğim ${L.dpitch}`);
+  check(Math.abs(E.dpitch) > 0.15 && Math.abs(E.dyaw) < 0.02, `jiroskop (gamma ${gm}): 10° eğme → yalnız yukarı/aşağı ${E.dpitch} rad, dönüş ${E.dyaw}`);
+}
 await page.screenshot({ path: 'screenshots/touchedit.png' });
 await browser.close();
 console.log(fail ? `sonuç: ${fail} HATA` : 'sonuç: OK');

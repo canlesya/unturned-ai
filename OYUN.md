@@ -949,3 +949,7 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 
 ### 12.88 Jiroskop eksenleri düzeltildi
 - Gerçek telefonda (yatay): aşağı eğince sola, yukarı eğince sağa dönüyor, sağa çevirince yukarı bakıyordu → eksenler yer değiştirmiş ve işaretler ters. Artık `yaw = −gamma`, `pitch = −beta` (× yön işareti `sg`, ekran açısı 270'te −1; ayardaki "ters" seçenekleri yine çarpan). `scripts/touchedit.mjs` sanal `devicemotion` ile iki hareketi doğrular (eski kodda sola dönüş üreten sinyal → aşağı bakış; yukarı bakış üreten → sağa bakış).
+
+### 12.89 Jiroskop: dönüş hızı yerine cihaz yönelimi
+- 12.88'den sonra yukarı / aşağı doğru ama sağa / sola hiç dönmüyordu: ham dönüş hızının (devicemotion.rotationRate) hangi eksende ölçüldüğü tutuşa (dik / yatık) ve platforma göre değişiyor; tek eksene bağlamak bir tutuşta çalışıp diğerinde çalışmıyor. Artık `deviceorientation` (dünya Z-yukarı, ZXY Euler): yönelim → ekran açısıyla düzeltilmiş kamera (three.js DeviceOrientationControls yöntemi) → bakış yönünden yaw / pitch; her olayda öncekinden fark uygulanır (±180° sarması, ani sıçrama yok sayılır, tam dik bakışta yaw atlanır). Telefonu kamera / pencere gibi tutarsın: sola çevir → sola, ekran göğe dönecek şekilde yatır → aşağı. iOS'ta DeviceOrientation ve DeviceMotion izni ayrı istenir.
+- `scripts/touchedit.mjs`: dik (gamma −85) ve yatık (gamma −45) iki duruşta 10° pusula dönüşü = 10° yaw (eğim 0), 10° eğme = yalnız pitch.

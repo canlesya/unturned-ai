@@ -6,6 +6,8 @@
 //   silah değiştir, ekipman, 3. şahıs, skor, duraklat. HUD'daki silah adına dokununca o silaha geçer.
 // · Düzen düzenleyici (duraklat → Dokunmatik ayarlar): butonları sürükle, boyutlandır, saydamlık; ayarlar localStorage'da (cihaza özel).
 // Masaüstünde denemek için: ?touch=1
+import * as THREE from 'three';
+
 const KEY = 'warbyte.touch';
 const DEF = { joy: 'fixed', fire: 'fixed', leftFire: true, opacity: 0.8, sens: 1, adsSens: 0.75, gyro: 'off', gyroSens: 1, gyroInvX: false, gyroInvY: false, layout: {} };
 // Varsayılan düzen: merkez (x, y: ekranın oranı), boyut s (ekran yüksekliğinin oranı)
@@ -265,24 +267,37 @@ export class TouchControls {
   anyFire() { for (const v of this.btnTouch.values()) if (v === 'fire' || v === 'fire2') return true; return false; }
 
   // ── Jiroskop: telefonu çevirerek nişan (kapalı / yalnız nişandayken / hep). iOS izin ister (ayarlarda açarken). ──
+  // Ham dönüş hızı (devicemotion.rotationRate) eksenleri tutuşa (dik / yatık) ve platforma (iOS ↔ Android) göre değişiyor: sağa-sola
+  // çevirme bir tutuşta hiç ölçülmüyordu. Bunun yerine cihaz YÖNELİMİ (deviceorientation, dünya Z-yukarı, ZXY Euler) → kameranın
+  // baktığı yön (ekran açısı dahil; three.js DeviceOrientationControls yöntemi) → yaw / pitch; her olayda bir öncekiyle farkı uygulanır.
   gyroOn() {
     if (this._gy) return;
+    this._gq = new THREE.Quaternion(); this._ge = new THREE.Euler(); this._gf = new THREE.Vector3();
+    this._gq1 = new THREE.Quaternion(-Math.sqrt(0.5), 0, 0, Math.sqrt(0.5)); this._gq0 = new THREE.Quaternion(); this._gz = new THREE.Vector3(0, 0, 1);
     this._gy = (e) => {
-      const c = this.cfg, s = this.p.s, rr = e.rotationRate;
-      if (c.gyro === 'off' || !rr || !this.p.locked || !s.alive || this.editing) return;
-      if (c.gyro === 'ads' && !s.ads) return;
-      const now = performance.now(), dt = Math.min(0.05, (now - (this._gt || now)) / 1000); this._gt = now;
-      const ang = (screen.orientation && screen.orientation.angle) ?? window.orientation ?? 90, sg = ang === 270 || ang === -90 ? -1 : 1;
-      const k = c.gyroSens * Math.PI / 180 * dt;
-      // yatay tutuşta (gerçek cihaz geri bildirimi): gamma = sağa/sola çevirme, beta = yukarı/aşağı eğme. Sağa çevirince yaw azalır (sağa bakış), aşağı eğince pitch azalır.
-      const yaw = -(rr.gamma || 0) * sg * (c.gyroInvX ? -1 : 1), pitch = -(rr.beta || 0) * sg * (c.gyroInvY ? -1 : 1);
-      s.yaw += yaw * k; s.pitch = Math.max(-1.5, Math.min(1.5, s.pitch + pitch * k));
+      const c = this.cfg, s = this.p.s;
+      if (e.alpha == null || e.beta == null || e.gamma == null) return;
+      const D = Math.PI / 180, ang = ((screen.orientation && screen.orientation.angle) ?? window.orientation ?? 0) * D;
+      this._ge.set(e.beta * D, e.alpha * D, -e.gamma * D, 'YXZ');
+      this._gq.setFromEuler(this._ge).multiply(this._gq1).multiply(this._gq0.setFromAxisAngle(this._gz, -ang));
+      const f = this._gf.set(0, 0, -1).applyQuaternion(this._gq);
+      const yaw = Math.atan2(-f.x, -f.z), pitch = Math.asin(Math.max(-1, Math.min(1, f.y)));
+      const prev = this._gp; this._gp = { yaw, pitch };
+      const active = c.gyro !== 'off' && this.p.locked && s.alive && !this.editing && (c.gyro !== 'ads' || s.ads);
+      if (!prev || !active) return;
+      let dy = yaw - prev.yaw; dy -= Math.round(dy / (2 * Math.PI)) * 2 * Math.PI;      // ±180° sarması
+      const dp = pitch - prev.pitch;
+      if (Math.abs(dy) > 0.5 || Math.abs(dp) > 0.5) return;                           // sıçrama (ilk olay / yön değişimi) yok sayılır
+      const k = c.gyroSens;
+      if (Math.abs(pitch) < 1.35) s.yaw += dy * k * (c.gyroInvX ? -1 : 1);           // tam yukarı / aşağı bakarken yaw kararsız
+      s.pitch = Math.max(-1.5, Math.min(1.5, s.pitch + dp * k * (c.gyroInvY ? -1 : 1)));
     };
-    addEventListener('devicemotion', this._gy);
+    addEventListener('deviceorientation', this._gy);
   }
   async gyroPermission() {
-    const DM = window.DeviceMotionEvent;
-    if (DM && typeof DM.requestPermission === 'function') { try { return (await DM.requestPermission()) === 'granted'; } catch { return false; } }
+    for (const E of [window.DeviceOrientationEvent, window.DeviceMotionEvent]) {
+      if (E && typeof E.requestPermission === 'function') { try { if ((await E.requestPermission()) !== 'granted') return false; } catch { return false; } }
+    }
     return true;
   }
 
@@ -375,5 +390,5 @@ export class TouchControls {
     this.b.third.classList.toggle('on', !!p.third);
   }
 
-  dispose() { cancelAnimationFrame(this._raf); removeEventListener('resize', this.h.rs); removeEventListener('devicemotion', this._gy); this.el.remove(); this.ed.remove(); document.body.classList.remove('mob'); document.getElementById('bTouch')?.remove(); }
+  dispose() { cancelAnimationFrame(this._raf); removeEventListener('resize', this.h.rs); removeEventListener('deviceorientation', this._gy); this.el.remove(); this.ed.remove(); document.body.classList.remove('mob'); document.getElementById('bTouch')?.remove(); }
 }
