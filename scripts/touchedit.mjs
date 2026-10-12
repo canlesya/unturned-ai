@@ -47,6 +47,20 @@ await tapEl('[data-act=save]');
 const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('warbyte.touch') || 'null'));
 check(saved && saved.joy === 'float' && saved.gyro === 'ads', 'Kaydet: ayarlar kaydedildi');
 check(!(await page.evaluate(() => document.getElementById('tc').classList.contains('edit'))), 'panel kapandı');
+// jiroskop yönü (kullanıcı geri bildirimi, yatay tutuş): aşağı eğme → aşağı bakış; sağa çevirme → sağa bakış
+await tapEl('#bResume');
+const gy = await page.evaluate(async () => {
+  const g = window.__game, s = g.player.s, TC = g.player.touch; TC.cfg.gyro = 'on'; g.brainsOff = g.brains.splice(0);
+  const send = async (rr) => { for (let i = 0; i < 10; i++) { dispatchEvent(new DeviceMotionEvent('devicemotion', { rotationRate: { alpha: 0, beta: 0, gamma: 0, ...rr }, interval: 16 })); await new Promise((r) => setTimeout(r, 16)); } };
+  const ang = (screen.orientation && screen.orientation.angle) ?? 90, sg = ang === 270 ? -1 : 1;
+  let y0 = s.yaw, p0 = s.pitch; await send({ beta: 60 * sg });              // eski kodda sola dönüş üreten hareket = aşağı eğme
+  const down = { dyaw: s.yaw - y0, dpitch: s.pitch - p0 };
+  y0 = s.yaw; p0 = s.pitch; await send({ gamma: 60 * sg });                 // eski kodda yukarı bakış üreten hareket = sağa çevirme
+  const right = { dyaw: s.yaw - y0, dpitch: s.pitch - p0 };
+  return { down, right };
+});
+check(gy.down.dpitch < -0.01 && Math.abs(gy.down.dyaw) < 1e-6, `jiroskop: aşağı eğme → aşağı bakış (pitch ${gy.down.dpitch.toFixed(3)}, yaw ${gy.down.dyaw.toFixed(3)})`);
+check(gy.right.dyaw < -0.01 && Math.abs(gy.right.dpitch) < 1e-6, `jiroskop: sağa çevirme → sağa bakış (yaw ${gy.right.dyaw.toFixed(3)}, pitch ${gy.right.dpitch.toFixed(3)})`);
 await page.screenshot({ path: 'screenshots/touchedit.png' });
 await browser.close();
 console.log(fail ? `sonuç: ${fail} HATA` : 'sonuç: OK');

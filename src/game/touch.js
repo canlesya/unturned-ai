@@ -274,7 +274,8 @@ export class TouchControls {
       const now = performance.now(), dt = Math.min(0.05, (now - (this._gt || now)) / 1000); this._gt = now;
       const ang = (screen.orientation && screen.orientation.angle) ?? window.orientation ?? 90, sg = ang === 270 || ang === -90 ? -1 : 1;
       const k = c.gyroSens * Math.PI / 180 * dt;
-      const yaw = (rr.beta || 0) * sg * (c.gyroInvX ? -1 : 1), pitch = (rr.gamma || 0) * sg * (c.gyroInvY ? -1 : 1);       // yatay tutuşta: beta = sola/sağa dönüş, gamma = yukarı/aşağı eğme
+      // yatay tutuşta (gerçek cihaz geri bildirimi): gamma = sağa/sola çevirme, beta = yukarı/aşağı eğme. Sağa çevirince yaw azalır (sağa bakış), aşağı eğince pitch azalır.
+      const yaw = -(rr.gamma || 0) * sg * (c.gyroInvX ? -1 : 1), pitch = -(rr.beta || 0) * sg * (c.gyroInvY ? -1 : 1);
       s.yaw += yaw * k; s.pitch = Math.max(-1.5, Math.min(1.5, s.pitch + pitch * k));
     };
     addEventListener('devicemotion', this._gy);
