@@ -3,6 +3,7 @@ import { TEAMS } from '../core/palette.js';
 import { WSTATS, CLASS_DEFS, BLEED_S, ZTYPES, ZT_ORDER } from './stats.js';
 import { clamp } from './util.js';
 import { codeLabel } from '../core/keybinds.js';
+import { TUNE } from './balance.js';
 
 const CSS = `
 #hud{position:fixed;inset:0;pointer-events:none;font-family:Bahnschrift,'Rajdhani','Arial Narrow','Segoe UI',system-ui,sans-serif;color:#fff;user-select:none;z-index:5;letter-spacing:.5px}
@@ -488,7 +489,7 @@ export class Hud {
       const mine = p.team === 'blue' ? bb : br, key = mine + ':' + (p.team === 'blue' ? br : bb);
       if (key !== this._bleedKey) {
         this._bleedKey = key;
-        if (mine) this.toast(`Rakip ${mine} bayrak önde: biletin ${BLEED_S} sn'de ${mine} azalıyor`, '#ff8a6a');
+        if (mine) this.toast(`Rakip ${mine} bayrak önde: biletin ${TUNE.bleed} sn'de ${mine} azalıyor`, '#ff8a6a');
         else if (p.team === 'blue' ? br : bb) this.toast('Bayrak üstünlüğün var: rakip bileti azalıyor', '#9fe6a8');
       }
     }

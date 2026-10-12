@@ -3,11 +3,12 @@ import { Game } from '../src/game/game.js';
 import { SIM_DT, SIM_HZ, SNAP_EVERY, packSoldier, slowSig, cleanName } from '../src/net/protocol.js';
 import { CLASS_DEFS, WSTATS, ZTYPES } from '../src/game/stats.js';
 import { defaultTickets } from '../src/game/match.js';
+import { LIMITS, OFC, useBalance } from '../src/game/balance.js';
+import { currentBalance, balanceMeta } from './balanceStore.js';
 import { MAPS } from '../src/maps/index.js';
 
 const RESTART_MS = +process.env.BF_RESTART_MS || 15000;      // maç bitince sonuç ekranı süresi, sonra oda sıfırlanır
 
-const MAX_PER_TEAM = 32;
 const num = (v, lo, hi, d = 0) => (Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d);
 
 export function sanitizeCfg(c = {}) {
@@ -19,9 +20,9 @@ export function sanitizeCfg(c = {}) {
     weather: pick(c.weather, ['clear', 'rain', 'fog'], 'clear'),
     type: type0,
     diff: type0 === 'inf' ? 'hard' : pick(c.diff, ['easy', 'normal', 'hard'], 'normal'),                   // Enfekte yalnızca Zor botlarla
-    perTeam: c.type === 'dm' || c.type === 'gg' ? Math.round(num(c.perTeam, 2, 10, 10)) : c.type === 'inf' ? Math.round(num(c.perTeam, 4, 24, 12)) : Math.round(num(c.perTeam, 1, MAX_PER_TEAM, 5)),     // ölüm maçında ve enfektede perTeam = toplam oyuncu
+    perTeam: c.type === 'dm' || c.type === 'gg' ? Math.round(num(c.perTeam, 2, LIMITS.dmMax, LIMITS.dmMax)) : c.type === 'inf' ? Math.round(num(c.perTeam, LIMITS.infMin, LIMITS.infMax, 12)) : Math.round(num(c.perTeam, 1, LIMITS.maxPerTeam, 5)),     // ölüm maçında ve enfektede perTeam = toplam oyuncu
     tickets: Number.isFinite(c.tickets) && c.tickets > 0 ? Math.round(num(c.tickets, 20, 1000, 200)) : 0,   // 0 = boyuta göre otomatik
-    time: Math.round(num(c.time, 0, 3600, 900)),
+    time: Math.round(num(c.time, 0, 3600, LIMITS.time)),
     bots: c.bots !== false,
     name: cleanRoomName(c.name),
     pw: typeof c.pw === 'string' ? c.pw.slice(0, 16) : '',
@@ -51,9 +52,18 @@ export class Room {
     this._timer = setInterval(() => this.loop(), 4);
   }
 
+  // Bu odanın denge sürümünü etkin yap (tüm odalar aynı süreçte, WSTATS vb. ortak nesneler: oda adımından önce çağrılır)
+  activate() { useBalance(this.bal); }
+
   newGame() {
     const c = this.cfg;
-    if (this.official) Object.assign(c, this.official.rotation[this.rot % this.official.rotation.length]);   // sıradaki harita
+    this.bal = currentBalance(); this.balVer = balanceMeta().version;   // admin değişiklikleri yeni maçta geçerli olur
+    this.activate();
+    if (this.official) {
+      Object.assign(c, this.official.rotation[this.rot % this.official.rotation.length]);   // sıradaki harita
+      const o = OFC[this.code];
+      if (o) Object.assign(c, sanitizeCfg({ ...c, perTeam: o.perTeam, time: o.time, diff: o.diff }), { name: this.official.name, listed: true, pw: '' });
+    }
     this.swap = this._swapNext ?? Math.random() < 0.5;                  // asimetrik haritalarda bu maçın taraf dağılımı (sideSwap): ilki rastgele, sonraki maçlar sırayla yer değiştirir
     this._swapNext = !this.swap;
     this.game = new Game(null, {
@@ -121,6 +131,7 @@ export class Room {
   }
 
   join(ws, name, team, cls, loadout) {
+    if (!this.clients.size && this.bal !== currentBalance()) { this.game.dispose(); this.newGame(); }     // boş odaya ilk giren: maç sıfırdan, güncel denge ayarlarıyla
     const g = this.game;
     const counts = { blue: this.humansOf('blue'), red: this.humansOf('red') }, cap = this.cfg.perTeam;
     let t = team === 'blue' || team === 'red' ? team : counts.blue <= counts.red ? 'blue' : 'red';
@@ -141,7 +152,7 @@ export class Room {
     this.emptySince = 0;
     this._forceSlow = true;
     const deps = g.deployables.map((d) => ({ e: 'dep', id: d.id, ty: d.type === 'claymore' ? 'c' : 'a', p: [d.pos.x, d.mesh.position.y - (d.type === 'claymore' ? 0.15 : 0), d.pos.z], ry: d.ry, tm: d.team, by: d.owner.id }));
-    ws.send(JSON.stringify({ t: 'welcome', id: s.id, room: this.code, cfg: this.publicCfg(), roster: this.roster(), hz: SIM_HZ, deps }));
+    ws.send(JSON.stringify({ t: 'welcome', id: s.id, room: this.code, cfg: this.publicCfg(), roster: this.roster(), hz: SIM_HZ, deps, bal: this.bal || {} }));
     this.broadcast({ t: 'roster', roster: this.roster() }, ws);
     this.sys(`${s.name} odaya katıldı`);
     return c;
@@ -243,6 +254,7 @@ export class Room {
   loop() {
     const now = performance.now();
     if (!this.clients.size) { this._last = now; this._acc = 0; return; }       // izleyen yok: simülasyonu durdur (CPU)
+    this.activate();
     this._acc = Math.min(this._acc + (now - this._last) / 1000, 0.25);
     this._last = now;
     while (this._acc >= SIM_DT) { this._acc -= SIM_DT; this.step(); }

@@ -1,6 +1,7 @@
 import { MAPS, DEFAULT_MAP, mapsFor } from './maps/index.js';
 import { CLASS_DEFS, WSTATS, DIFFICULTY, OPTICS, OPTIC_ORDER } from './game/stats.js';
-import { MATCH_TYPES, TODS_LIST, defaultTickets, defaultScoreLimit, DM_MAX, DM_KILLS, isTotalType as tot, totalMin as totMin, totalMax as totMax, INF_MAX } from './game/match.js';
+import { MATCH_TYPES, TODS_LIST, defaultTickets, defaultScoreLimit, isTotalType as tot, totalMin as totMin, totalMax as totMax } from './game/match.js';
+import { LIMITS } from './game/balance.js';
 import { MENU_CSS } from './menuStyle.js';
 import { loadEdits, clearEdits } from './game/mapEditor.js';
 import { MenuScene } from './menuScene.js';
@@ -62,9 +63,9 @@ const SIZE_PRESETS = [[1, '1v1'], [3, '3v3'], [5, '5v5'], [10, '10v10'], [16, '1
 const TIME_OPTS = [[300, '5 dk'], [600, '10 dk'], [900, '15 dk'], [1200, '20 dk'], [1800, '30 dk'], [0, '∞']];
 const TICKET_OPTS = [[0, 'Otomatik'], [50, '50'], [100, '100'], [200, '200'], [400, '400'], [800, '800']];
 // oyuncu sayısı 'toplam' olan modlarda (Ölüm Maçı, Enfekte) alt/üst sınır ve hızlı seçimler
-const lo = (t) => (tot(t) ? totMin(t) : 1), hi = (t) => (tot(t) ? totMax(t) : 32);
+const lo = (t) => (tot(t) ? totMin(t) : 1), hi = (t) => (tot(t) ? totMax(t) : LIMITS.maxPerTeam);
 const TOT_PRESETS = { dm: [[2, '2'], [4, '4'], [6, '6'], [8, '8'], [10, '10']], gg: [[2, '2'], [4, '4'], [6, '6'], [8, '8'], [10, '10']], inf: [[6, '6'], [8, '8'], [12, '12'], [16, '16'], [24, '24']] };
-const totTx = (t, n) => (t === 'gg' ? `${n} savaşçı, herkes tek. Her öldürmede yeni silah; 15. silah bıçak: bıçakla ilk öldüren kazanır.` : t === 'inf' ? `${n} savaşçı: ${Math.max(1, Math.round(n / 8))} ilk zombi, kalanı insan. Zombi öldürdüğü insanı enfekte eder.` : `${n} savaşçı, herkes tek. İlk ${DM_KILLS} öldürmeye ulaşan kazanır.`);
+const totTx = (t, n) => (t === 'gg' ? `${n} savaşçı, herkes tek. Her öldürmede yeni silah; 15. silah bıçak: bıçakla ilk öldüren kazanır.` : t === 'inf' ? `${n} savaşçı: ${Math.max(1, Math.round(n / 8))} ilk zombi, kalanı insan. Zombi öldürdüğü insanı enfekte eder.` : `${n} savaşçı, herkes tek. İlk ${LIMITS.dmKills} öldürmeye ulaşan kazanır.`);
 const SCORE_OPTS = [[0, 'Otomatik'], [30, '30'], [50, '50'], [75, '75'], [100, '100'], [150, '150'], [200, '200']];
 const SLOTS = [['primary', 'Ana silah', 'primaryOptions'], ['secondary', 'Yedek', 'secondaryOptions'], ['gadget', 'Gadget', 'gadgetOptions'], ['melee', 'Yakın dövüş', 'meleeOptions']];
 const rnd = (a) => a[Math.floor(Math.random() * a.length)];
@@ -161,7 +162,7 @@ export function showMenu(onStart, onOnline) {
     const ftod = cm && cm.forceTod;
     const eff = c.tickets || (tp === 'tdm' ? defaultScoreLimit(c.perTeam) : defaultTickets(c.perTeam));
     const limitTitle = tp === 'inf' ? 'Hayatta kalma' : tp === 'gg' ? 'Silah merdiveni' : tp === 'dm' ? 'Öldürme sınırı' : tp === 'tdm' ? 'Skor sınırı' : 'Bilet';
-    const limitSum = tp === 'inf' ? 'Son insan / süre' : tp === 'gg' ? '15 silah' : tp === 'dm' ? `${DM_KILLS} öldürme` : tp === 'tdm' ? `${eff} skor` : `${eff} bilet`;
+    const limitSum = tp === 'inf' ? 'Son insan / süre' : tp === 'gg' ? '15 silah' : tp === 'dm' ? `${LIMITS.dmKills} öldürme` : tp === 'tdm' ? `${eff} skor` : `${eff} bilet`;
     const n = c.perTeam, sizeTxt = tot(tp) ? `${n} kişi` : `${n} vs ${n}`;
     const diffKey = tp === 'inf' ? 'hard' : c.diff, botsOn = online ? c.bots : true;
     const timeLbl = (TIME_OPTS.find((t) => t[0] === c.time) || [0, '∞'])[1];
@@ -178,7 +179,7 @@ export function showMenu(onStart, onOnline) {
       : `<div class="tods">${TODS_LIST.map(([k, nm]) => `<button class="tod ${k} ${c.tod === k ? 'on' : ''}" ${at('tod', k)}><span>${nm}</span></button>`).join('')}<button class="tod rnd ${c.tod === 'random' ? 'on' : ''}" ${at('tod', 'random')}><span>🎲 Rastgele</span></button></div>`;
     const limitBody = tp === 'inf' ? '<div class="hint">Süre dolana kadar hayatta kalan insanlar kazanır; son insan enfekte olursa zombiler. 1–2 BOSS zombi başlar.</div>'
       : tp === 'gg' ? '<div class="hint">15 silahı sırayla bitir: her öldürme bir sonraki silah. Bıçakla öldürülen bir seviye geriler. Süre dolarsa en yüksek seviye kazanır.</div>'
-      : tp === 'dm' ? `<div class="hint">İlk <b>${DM_KILLS}</b> öldürmeye ulaşan kazanır; süre dolarsa en çok öldüren.</div>`
+      : tp === 'dm' ? `<div class="hint">İlk <b>${LIMITS.dmKills}</b> öldürmeye ulaşan kazanır; süre dolarsa en çok öldüren.</div>`
       : `<div class="row">${(tp === 'tdm' ? SCORE_OPTS : TICKET_OPTS).map(([v, l]) => `<button class="chip ${c.tickets === v ? 'on' : ''}" ${at('tickets', v)}>${l}</button>`).join('')}</div><div class="hint">Şu an: <b>${eff}</b></div>`;
     const sizeAttrs = online ? { id: 'ocSize', num: 'ocSizeV' } : { id: 'rSize', num: 'vSize' };
     const sizeCard = `<div class="sc wide"><h4>Oyuncu sayısı <em>${tot(tp) ? `toplam, sen dahil · en çok ${hi(tp)}` : 'takım başına, sen dahil'}${botsOn ? ' · kalanı botlar' : ' · botsuz'}</em></h4>

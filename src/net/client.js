@@ -3,6 +3,7 @@
 import { SIM_HZ, SIM_DT, applyFlags, F_LEFT, F_PROT } from './protocol.js';
 import { applyInput } from '../sim/input.js';
 import { WSTATS, ZT_ORDER } from '../game/stats.js';
+import { sanitizeBalance, useBalance } from '../game/balance.js';
 
 const INTERP_DELAY_TICKS = 6;          // 100 ms geriden göster (20 Hz snapshot'ta iki örnek arası interpolasyon)
 const POS_EPS = 0.05;                  // tahmin–sunucu farkı bunu aşarsa düzelt (m)
@@ -48,7 +49,7 @@ export class NetClient {
 
   onMessage(m) {
     if (m.t === 'pong') { const r = performance.now() - m.c; this.stats.rtt = this.stats.rtt ? this.stats.rtt * 0.7 + r * 0.3 : r; return; }
-    if (m.t === 'welcome') return this.onWelcome?.(m);
+    if (m.t === 'welcome') { useBalance(sanitizeBalance(m.bal)); return this.onWelcome?.(m); }       // odanın denge sürümü (admin paneli)
     if (m.t === 'err') return this.onError?.(m.msg);
     if (!this.game) { (this.queued ||= []).push(m); return; }
     if (m.t === 'snap') return this.onSnap(m);

@@ -6,13 +6,14 @@
   "description": "Three.js ile Unturned/BattleBit tarzı takım tabanlı FPS (3v3, 10v10, botlar)",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && vite build -c vite.admin.config.js",
     "shots": "node scripts/screenshot.mjs",
     "preview": "vite preview",
     "single": "vite build && node scripts/build-single.mjs",
     "server": "node server/index.js",
     "nettest": "node scripts/nettest.mjs",
-    "start": "node server/index.js"
+    "start": "node server/index.js",
+    "admin": "vite -c vite.admin.config.js"
   },
   "dependencies": {
     "three": "^0.186.1",

@@ -8,11 +8,16 @@ import { Room } from './room.js';
 import { OFFICIAL } from './official.js';
 import { DEFAULT_PORT, makeRoomCode, cleanName } from '../src/net/protocol.js';
 import { MapBuilder } from '../src/maps/builder.js';
+import { registerOfficial, useBalance } from '../src/game/balance.js';
+import { loadBalance, currentBalance } from './balanceStore.js';
+import { startAdmin } from './admin.js';
 MapBuilder.noVisual = true;          // sunucuda görsel geometri kurulmaz
 
 const PORT = +process.env.PORT || DEFAULT_PORT;
 const MAX_ROOMS = +process.env.MAX_ROOMS || 20;
 const rooms = new Map();
+registerOfficial(OFFICIAL);           // resmi oda ayarları panelde düzenlenebilir
+loadBalance();
 
 // Derlenmiş istemci (npm run build → dist/) aynı porttan servis edilir; dist yoksa yalnızca WebSocket sunucusu olarak çalışır
 const DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
@@ -37,6 +42,11 @@ const server = http.createServer((req, res) => {
     res.end(JSON.stringify({ ok: true, rooms: rooms.size, players: [...rooms.values()].reduce((a, r) => a + r.humanCount, 0) }));
     return;
   }
+  if (req.url === '/balance') {          // istemci: çevrimdışı maçlar için güncel denge ayarları
+    res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*', 'cache-control': 'no-store' });
+    res.end(JSON.stringify(currentBalance()));
+    return;
+  }
   if (req.url === '/rooms') {
     // oda listesi: resmi odalar önce, sonra herkese açık oyuncu odaları (şifre yok, yalnızca "kilitli mi" bilgisi)
     const all = [...rooms.values()].filter((r) => r.official || r.cfg.listed).map((r) => r.info());
@@ -59,6 +69,7 @@ wss.on('connection', (ws) => {
     try { m = JSON.parse(data); } catch { return; }
     if (!m || typeof m.t !== 'string') return;
     if (m.t === 'ping') { ws.send(JSON.stringify({ t: 'pong', c: m.c })); return; }
+    if (ws.ctx) ws.ctx.room.activate();                 // odanın denge sürümü (WSTATS vb. ortak)
     if (m.t === 'in') { if (ws.ctx) ws.ctx.room.input(ws.ctx.id, m); return; }
     if (m.t === 'kill') { if (ws.ctx) ws.ctx.room.suicide(ws.ctx.id); return; }
     if (m.t === 'chat') { if (ws.ctx) ws.ctx.room.chat(ws.ctx.id, m); return; }
@@ -75,6 +86,7 @@ wss.on('connection', (ws) => {
       if ([...rooms.values()].filter((r) => !r.official).length >= MAX_ROOMS) return err(ws, 'Sunucu dolu, sonra tekrar dene');
       let code; do code = makeRoomCode(); while (rooms.has(code));
       const owner = cleanName(m.name);
+      useBalance(currentBalance());                     // yeni oda: güncel sınırlarla doğrulanır
       const cfg = { ...(m.cfg || {}) };
       if (!cfg.name || !String(cfg.name).trim()) cfg.name = `${owner}'in odası`;
       const room = new Room(code, cfg, { owner });
@@ -91,11 +103,12 @@ wss.on('connection', (ws) => {
       enter(ws, room, m);
     }
   });
-  ws.on('close', () => { if (ws.ctx) ws.ctx.room.leave(ws.ctx.id); });
+  ws.on('close', () => { if (ws.ctx) { ws.ctx.room.activate(); ws.ctx.room.leave(ws.ctx.id); } });
   ws.on('error', () => {});
 });
 
 function enter(ws, room, m) {
+  room.activate();
   const c = room.join(ws, cleanName(m.name), m.team, m.cls, m.loadout);
   if (!c) return err(ws, 'Oda dolu');
   ws.ctx = { room, id: c.id };
@@ -103,6 +116,7 @@ function enter(ws, room, m) {
 }
 
 // Resmi odalar: sunucu açılışında kurulur, kapanmaz
+useBalance(currentBalance());
 for (const o of OFFICIAL) {
   rooms.set(o.code, new Room(o.code, { perTeam: o.perTeam, type: o.type, time: o.time, diff: o.diff, bots: true }, { official: o }));
   console.log(`[${o.code}] ${o.name} hazır`);
@@ -116,3 +130,4 @@ setInterval(() => {
 }, 10000);
 
 server.listen(PORT, () => console.log(`WarByte sunucusu :${PORT} üzerinde dinliyor`));
+startAdmin({ rooms });

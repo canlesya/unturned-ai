@@ -21,7 +21,7 @@ export const BOSS = {
   speed: 1.2, dmg: 46, lives: 3, armor: 0.7, respawn: 9, scale: [1.6, 1.4, 1.6], jump: 1.35,       // scale = model (ve vuruş kutusu) ölçeği x/y/z · jump = zıplama çarpanı
   rageSpd: 1.25, rageDmg: 1.4,
 };
-export const ZBOSS = { label: 'BOSS', desc: 'Dev can, çok hızlı, öfkeli.', hp: 0, speed: BOSS.speed, dmg: BOSS.dmg, scale: 1.0, eye: '#ff2a1a', skin: '#8a5e55',
+export const ZBOSS = { label: 'BOSS', desc: 'Dev can, çok hızlı, öfkeli.', hp: 0, get speed() { return BOSS.speed; }, get dmg() { return BOSS.dmg; }, scale: 1.0, eye: '#ff2a1a', skin: '#8a5e55',
   ability: { id: 'shadow', label: 'Gölge Sıçrayışı', cd: 7, dur: 2, range: 15 } };
 // Zombi türleri: can / hız çarpanı (insan 1.0) / pençe hasarı / model ölçeği / göz rengi / özel güç (tuş: F ya da sağ tık)
 // Güçler: rage = hız+hasar artışı · burst = kısa süre çok hızlı koşu · shield = az hasar alma · cloak = görünmezlik (saldırınca/hasar alınca biter) · blink = ileri ışınlanma

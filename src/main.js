@@ -2,11 +2,14 @@ import { Game } from './game/game.js';
 import { showMenu, loadPrefs, recordMatch, patchPrefs } from './menu.js';
 import { MENU_CSS } from './menuStyle.js';
 import { NetClient } from './net/client.js';
-import { defaultServerUrl } from './net/protocol.js';
+import { defaultServerUrl, healthUrl } from './net/protocol.js';
+import { fetchBalance, useBalance } from './game/balance.js';
 
 const q = new URLSearchParams(location.search);
 const loading = document.getElementById('loading');
 let game = null;
+// Çevrimdışı maçlar da admin panelindeki denge ayarlarını kullanır (sunucuya ulaşılamazsa koddaki varsayılanlar)
+const balReady = fetchBalance(healthUrl(q.get('server') || loadPrefs().server || defaultServerUrl()).replace(/\/health$/, ''));
 
 const TIPS = ['Bayrağın çevresinde kal: sıhhiye yakınındaysa canın yenilenir.', 'Köşeden Q / E ile eğilerek ateş et.', 'Gece fenerini F ile aç.', 'Ele geçirdiğin bayrakta yeniden doğabilirsin.', 'Keskin nişancılar yüksek noktaları sever.'];
 function showLoading() {
@@ -18,7 +21,8 @@ const st = document.createElement('style'); st.textContent = MENU_CSS; document.
 function start(opts) {
   showLoading();
   // arayüz boyansın, sonra ağır kurulum
-  setTimeout(() => {
+  const go = opts.online ? Promise.resolve() : balReady.then((b) => useBalance(b));
+  go.then(() => setTimeout(() => {
     try {
       game = new Game(document.body, {
         ...opts,
@@ -35,7 +39,7 @@ function start(opts) {
       return;
     }
     loading.style.display = 'none';
-  }, 60);
+  }, 60));
 }
 
 // Çevrimiçi: bağlantı kurulduktan sonra (menüden ya da URL'den) oyunu başlat

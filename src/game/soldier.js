@@ -4,14 +4,14 @@ import { WSTATS, CLASS_DEFS, OPTICS, OPTIC_ORDER, OPTIC_ALLOWED, resolveOptic, m
 import { SWING_HIT_K } from './anim.js';
 import { H_STAND, H_CROUCH, H_PRONE } from './collision.js';
 import { dirFromAngles, clamp, rand, lerp } from './util.js';
-import { WALK_SPEED } from '../sim/input.js';
+import { TUNE } from './balance.js';
 
 const _v = new THREE.Vector3();
 const _d = new THREE.Vector3();
 const _o = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
 // Koşarken / havadayken ateş serbest ama isabetsiz: ek saçılma (rad). 0,085 ≈ 4,9° → 20 m'de ~1,7 m, 50 m'de ~4,3 m (koşarak zıplayınca ikisi toplanır ≈ 9°).
-const SPRINT_SPREAD = 0.085, AIR_SPREAD = 0.075, SPRINT_SPEED = WALK_SPEED * 1.32;      // yürüme hızının 1,32 katı (eskiden 4,4 × 1,32 = 5,8): yürürken koşu cezası uygulanmaz
+const SPRINT_SPREAD = 0.085, AIR_SPREAD = 0.075, sprintSpeed = () => TUNE.walkSpeed * 1.32;      // yürüme hızının 1,32 katı (eskiden 4,4 × 1,32 = 5,8): yürürken koşu cezası uygulanmaz
 
 export const EYE_STAND = 1.62;
 export const EYE_CROUCH = 1.16;
@@ -260,7 +260,7 @@ export class Soldier {
     let s = lerp(hipv, adsv, this.adsT);
     s += Math.min(speed * 0.0007, 0.0045) * (1 - this.adsT * 0.65);   // hareket cezası
     if (!this.onGround) s += AIR_SPREAD * (1 - this.adsT * 0.5);            // havadayken (zıplarken) atış çok dağılır
-    if (this.firedSprinting || speed > SPRINT_SPEED) s += SPRINT_SPREAD * (1 - this.adsT);   // koşarken (Shift) atış serbest ama isabetsiz
+    if (this.firedSprinting || speed > sprintSpeed()) s += SPRINT_SPREAD * (1 - this.adsT);   // koşarken (Shift) atış serbest ama isabetsiz
     if (this.blindT > 0.5) s += 0.04;
     if (this.crouching) s *= 0.7;
     s += this.bloom;                                                   // seri atışta açılma
@@ -409,7 +409,7 @@ export class Soldier {
       const mul = (sw.kind === 'stab' ? st.stabMul : 1) * (zb ? this.zt.dmg / st.dmg * ((this.boss || (this.abActive > 0 && this.zt.ability.id === 'rage')) ? BOSS.rageDmg : 1) : 1);
       g.effects.blood(hit.point, back ? 14 : 8, d.clone().negate());
       g.sfx.knifeHit(hit.point, back);
-      v.takeDamage((back ? BACKSTAB_DMG : st.dmg * mul) * this.dmgMul, this, 'body', this.pos, back ? st.name + ' · arkadan' : st.name);
+      v.takeDamage((back ? TUNE.backstab : st.dmg * mul) * this.dmgMul, this, 'body', this.pos, back ? st.name + ' · arkadan' : st.name);
       if (this.isPlayer) { g.effects.shake = Math.max(g.effects.shake, back ? 0.9 : 0.55); g.emit('meleehit', { flesh: true, back }); }
     } else if (hit && hit.wall) {
       g.effects.spark(hit.point, 7, hit.normal, '#ffe9a0', 5);

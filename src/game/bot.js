@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { DIFFICULTY, WSTATS } from './stats.js';
-import { JUMP_SPEED, WALK_SPEED } from '../sim/input.js';
+import { TUNE } from './balance.js';
 import { clamp, rand, angleDiff, yawFromDir, lerp, pick } from './util.js';
 
 // silah rolleri (bot davranışı)
@@ -194,7 +194,7 @@ export class BotBrain {
       const tc = e.center(tC);
       const dx = tc.x - eye.x, dz = tc.z - eye.z;
       const dist = Math.hypot(dx, dz);
-      const vis = g.night ? (e.flashOn || e.flashT > 0 ? 130 : 62) : g.tod === 'sunset' ? 105 : 130;
+      const vis = g.night ? (e.flashOn || e.flashT > 0 ? TUNE.sightDay : TUNE.sightNight) : g.tod === 'sunset' ? TUNE.sightSunset : TUNE.sightDay;
       if (dist > vis * (g.visMul || 1)) continue;
       if (!alerted && (fwd.x * dx + fwd.z * dz) / (dist + 1e-6) < 0.3) continue;
       if (dist > 22 && e.crouching) { if (Math.random() < 0.3) continue; }
@@ -242,7 +242,7 @@ export class BotBrain {
       this.target = best; this.tDist = bd;
     }
     const tg = this.target && this.target.alive ? this.target : null;
-    let moveX = 0, moveZ = 0, speed = WALK_SPEED * s.spd * (s.stat.move || 1);
+    let moveX = 0, moveZ = 0, speed = TUNE.walkSpeed * s.spd * (s.stat.move || 1);
     s.ads = false; s.crouching = false; s.botExtraSpread = 0;
     if (s.blindT > 0 || g.graceLeft > 0) { if (s.blindT > 0) s.yaw += Math.sin(this.t * 2.2 + s.id) * dt * 1.4; s.vel.x *= 0.5; s.vel.z *= 0.5; return; }       // kör ya da hazırlık süresi: bekle
     if (tg) {
@@ -259,8 +259,8 @@ export class BotBrain {
         if (dist < 2.2 && Math.abs(angleDiff(s.yaw, want)) < 0.5) s.tryFire();
         this.path = null;
         this.useZAbility(dist, los, true);
-        if (s.onGround && dist > 3 && dist < 14 && Math.random() < 0.012) { s.vel.y = JUMP_SPEED * s.jumpMul; s.onGround = false; }       // zombiler koşarken ara sıra yükseğe sıçrar
-        if (s.onGround && high && dist < 4) { s.vel.y = JUMP_SPEED * s.jumpMul; s.onGround = false; }                                       // platformdaki hedefe sıçrayarak vurur
+        if (s.onGround && dist > 3 && dist < 14 && Math.random() < 0.012) { s.vel.y = TUNE.jumpSpeed * s.jumpMul; s.onGround = false; }       // zombiler koşarken ara sıra yükseğe sıçrar
+        if (s.onGround && high && dist < 4) { s.vel.y = TUNE.jumpSpeed * s.jumpMul; s.onGround = false; }                                       // platformdaki hedefe sıçrayarak vurur
       } else {
         this.repathT -= dt;
         if ((!this.path || this.repathT <= 0) && g.pathBudget > 0) {
@@ -273,7 +273,7 @@ export class BotBrain {
           while (this.path.length > 1 && Math.hypot(wp.x - s.pos.x, wp.z - s.pos.z) < 0.9) { this.path.shift(); wp = this.path[0]; }
           const wd = Math.hypot(wp.x - s.pos.x, wp.z - s.pos.z);
           moveX = (wp.x - s.pos.x) / (wd + 1e-6); moveZ = (wp.z - s.pos.z) / (wd + 1e-6);
-          if (s.onGround && g.nav.floor && g.nav.floorAt(s.pos.x + moveX * 0.9, s.pos.z + moveZ * 0.9) - s.pos.y > 0.5) { s.vel.y = JUMP_SPEED * s.jumpMul; s.onGround = false; }      // önünde yüksek basamak: sıçra
+          if (s.onGround && g.nav.floor && g.nav.floorAt(s.pos.x + moveX * 0.9, s.pos.z + moveZ * 0.9) - s.pos.y > 0.5) { s.vel.y = TUNE.jumpSpeed * s.jumpMul; s.onGround = false; }      // önünde yüksek basamak: sıçra
           s.yaw += clamp(angleDiff(s.yaw, yawFromDir(moveX, moveZ)), -8 * dt, 8 * dt);
           s.pitch += (0 - s.pitch) * Math.min(1, dt * 4);
           this.useZAbility(dist, false, false);
@@ -320,7 +320,7 @@ export class BotBrain {
 
     const st = s.stat;
     const eye = s.eye(tA);
-    let moveX = 0, moveZ = 0, speed = WALK_SPEED * s.spd * (st.move || 1);
+    let moveX = 0, moveZ = 0, speed = TUNE.walkSpeed * s.spd * (st.move || 1);
     let combat = false;
 
     // ── reload / silah yönetimi ──

@@ -6,13 +6,15 @@ export const MATCH_TYPES = {
   gg: { label: 'Silah Yarışı', desc: 'Herkes tek. Her öldürmede bir sonraki silah; 15. silah bıçak. Bıçakla öldürülen bir seviye geriler; bıçakla ilk öldüren kazanır (en çok 10 kişi).' },
   dm: { label: 'Ölüm Maçı', desc: 'Herkes tek. Rastgele doğ, ilk 40 öldürmeye ulaşan kazanır (en çok 10 kişi).' },
 };
-export const DM_KILLS = 40, DM_MAX = 10;
+import { LIMITS } from './balance.js';
+
+export const DM_KILLS = 40, DM_MAX = 10;                 // varsayılanlar; oyun LIMITS'i okur (admin paneli)
 export const GG_LEN = 15;                                    // stats.js → GG_LADDER.length (bağımlılık olmasın diye sabit; test eşitliği doğrular)
 export const INF_MAX = 24, INF_MIN = 4;                                  // Enfekte: toplam oyuncu (çift sayı)
 // Oyuncu sayısı seçici 'takım başına' değil 'toplam' olan modlar (cfg.perTeam = toplam)
 export const isTotalType = (t) => t === 'dm' || t === 'inf' || t === 'gg';
-export const totalMax = (t) => (t === 'inf' ? INF_MAX : DM_MAX);
-export const totalMin = (t) => (t === 'inf' ? INF_MIN : 2);
+export const totalMax = (t) => (t === 'inf' ? LIMITS.infMax : LIMITS.dmMax);
+export const totalMin = (t) => (t === 'inf' ? LIMITS.infMin : 2);
 export const TODS_LIST = [['day', 'Gündüz'], ['sunset', 'Gün batımı'], ['night', 'Gece']];
 export const PRESETS = {
   '3v3': { label: 'Hızlı Maç 3v3', perTeam: 3, tickets: 60, time: 600 },
@@ -25,19 +27,19 @@ export function defaultTickets(perTeam) { return Math.max(40, Math.round(perTeam
 export function makeMatch(o = {}) {
   const dm = o.type === 'dm' || o.type === 'gg', inf = o.type === 'inf', gg = o.type === 'gg';
   // Ölüm maçında perTeam = toplam oyuncu sayısı (2–10)
-  const total = inf ? Math.max(INF_MIN, Math.min(INF_MAX, Math.round((o.perTeam || 12) / 2) * 2)) : 0;           // Enfekte: toplam oyuncu (çift)
-  const perTeam = dm ? Math.max(2, Math.min(DM_MAX, Math.round(o.perTeam || DM_MAX))) : inf ? total / 2 : Math.max(1, Math.min(32, Math.round(o.perTeam || 10)));   // inf: motor için iki yarı
+  const total = inf ? Math.max(LIMITS.infMin, Math.min(LIMITS.infMax, Math.round((o.perTeam || 12) / 2) * 2)) : 0;           // Enfekte: toplam oyuncu (çift)
+  const perTeam = dm ? Math.max(2, Math.min(LIMITS.dmMax, Math.round(o.perTeam || LIMITS.dmMax))) : inf ? total / 2 : Math.max(1, Math.min(LIMITS.maxPerTeam, Math.round(o.perTeam || 10)));   // inf: motor için iki yarı
   return {
     type: gg ? 'gg' : dm ? 'dm' : inf ? 'inf' : o.type === 'tdm' ? 'tdm' : 'conquest',
     infection: inf,
     total: inf ? total : 0,
     ffa: dm,                                                        // Ölüm Maçı + Silah Yarışı: herkes tek
     gungame: gg,
-    killLimit: gg ? GG_LEN : dm ? DM_KILLS : 0,
+    killLimit: gg ? GG_LEN : dm ? LIMITS.dmKills : 0,
     perTeam,
     tickets: o.tickets || (o.type === 'tdm' ? defaultScoreLimit(perTeam) : defaultTickets(perTeam)),
     scoreBased: o.type === 'tdm',                                // true: tickets = skor sınırı, takım sayaçları yukarı sayar
-    time: o.time === undefined ? 900 : o.time,
+    time: o.time === undefined ? LIMITS.time : o.time,
     label: o.label || (dm ? `${perTeam} kişilik` : inf ? `${total} kişilik` : `${perTeam}v${perTeam}`),
     allFlags: o.allFlags ?? perTeam >= 8,
   };

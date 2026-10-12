@@ -17,6 +17,7 @@ import { Player } from './player.js';
 import { BotBrain } from './bot.js';
 import { CLASS_DEFS, WSTATS, BOT_NAMES, makeLoadout, BLEED_S, ZOMBIE, BOSS, ZTYPES, ZT_ORDER, randomZType, GG_LADDER } from './stats.js';
 import { makeMatch, PRESETS } from './match.js';
+import { TUNE } from './balance.js';
 import { Weather } from './weather.js';
 import { rand, pick, clamp } from './util.js';
 import { TEAMS } from '../core/palette.js';
@@ -63,7 +64,7 @@ export class Game {
     this.classDefs = CLASS_DEFS;
     this.pendingClass = null;
     this.pathBudget = 3;
-    this.medicT = 0; this.resupplyT = 0; this.bleedT = BLEED_S; this.capT = 0;
+    this.medicT = 0; this.resupplyT = 0; this.bleedT = TUNE.bleed; this.capT = 0;
 
     // ── renderer ──
     let r = null;
@@ -666,7 +667,7 @@ export class Game {
       if (want && want !== s.ztype) { s.ztype = want; s.setClass('zombie'); }
       if (ctl) ctl.pendingZ = null;
     }
-    s.spawn(s.def.zombie && this.infPool ? this.pickZombieSpawn(s, first) : this.pickSpawn(s.team, s), first ? 1 : 2);
+    s.spawn(s.def.zombie && this.infPool ? this.pickZombieSpawn(s, first) : this.pickSpawn(s.team, s), first ? TUNE.firstProtect : TUNE.spawnProtect);
     this.world.settle(s);
     s.zoneT = 0;
     if (s.brain) s.brain.reset();
@@ -716,7 +717,7 @@ export class Game {
     const at = { x: v.pos.x, z: v.pos.z, ry: v.yaw };
     v.spawn(at, 2.5);
     this.world.settle(v);
-    v.hp = v.maxHp * 0.55;
+    v.hp = v.maxHp * TUNE.reviveHp;
     v.revivable = false;
     this.tickets[v.team] += 1;
     if (v.brain) v.brain.reset();
@@ -1121,11 +1122,11 @@ export class Game {
       const pt = origin.clone().addScaledVector(dir, bestT);
       const r0 = st.range[0], r1 = st.range[1];
       const f = bestT <= r0 ? 1 : lerpClamp(1, st.minMul, (bestT - r0) / (r1 - r0));
-      const zm = bestZ === 'head' ? 2.1 : bestZ === 'legs' ? 0.8 : 1;
+      const zm = bestZ === 'head' ? TUNE.headMul : bestZ === 'legs' ? TUNE.legMul : 1;
       this.effects.blood(pt, 7, dir.clone().negate());
       if (Math.random() < 0.6 || (st.pellets || 1) === 1) this.effects.tracer(muzzle, pt, st.tracer);
       // çevrimiçi istemcide hasar yok: sunucu hesaplar, sonucu olay olarak yollar
-      const wm = bestT > woodT ? 0.65 : 1;
+      const wm = bestT > woodT ? TUNE.woodMul : 1;
       if (wm < 1) { const wp = wd.point.clone(); this.effects.spark(wp, 3, wd.normal); this.effects.decal(wp, wd.normal); }
       if (!this.online) bestE.takeDamage(st.dmg * f * zm * wm * (shooter.dmgMul || 1), shooter, bestZ, shooter.pos, st.name);
       if (ev) { ev.k = 'f'; ev.p = [q2(pt.x), q2(pt.y), q2(pt.z)]; }
@@ -1305,7 +1306,7 @@ export class Game {
       if (d > radius) continue;
       if (!this.world.clear(o, c)) continue;
       let a = dmg * (1 - (d / radius) ** 2);
-      if (e === owner) a *= 0.55;
+      if (e === owner) a *= TUNE.selfBlast;
       e.takeDamage(a, owner, 'body', pos, name);
       e.vel.x += (c.x - pos.x) / (d + 0.5) * 3; e.vel.z += (c.z - pos.z) / (d + 0.5) * 3;
     }
@@ -1338,7 +1339,7 @@ export class Game {
         const net = clamp(b - r, -3, 3);
         if (net !== 0) {
           const prev = o.owner;
-          o.p = clamp(o.p + net * 0.085 * step, -1, 1);
+          o.p = clamp(o.p + net * TUNE.captureRate * step, -1, 1);
           if (o.p >= 1 && o.owner !== 'blue') o.owner = 'blue';
           else if (o.p <= -1 && o.owner !== 'red') o.owner = 'red';
           else if (o.owner === 'blue' && o.p <= 0) o.owner = null;
@@ -1349,7 +1350,7 @@ export class Game {
     }
     this.bleedT -= dt;
     if (this.bleedT <= 0) {
-      this.bleedT = BLEED_S;
+      this.bleedT = TUNE.bleed;
       const nb = this.mode.objectives.filter((o) => o.owner === 'blue').length;
       const nr = this.mode.objectives.filter((o) => o.owner === 'red').length;
       if (nb > nr) this.tickets.red -= nb - nr;
@@ -1363,7 +1364,7 @@ export class Game {
         if (!m.alive || m.cls !== 'medic') continue;
         for (const a of this.soldiers) {
           if (a === m || !a.alive || a.team !== m.team || a.hp >= a.maxHp) continue;
-          if (Math.hypot(a.pos.x - m.pos.x, a.pos.z - m.pos.z) < 6) a.heal(2.5);
+          if (Math.hypot(a.pos.x - m.pos.x, a.pos.z - m.pos.z) < TUNE.medicRadius) a.heal(TUNE.medicHeal);
         }
       }
     }
@@ -1379,7 +1380,7 @@ export class Game {
         if (!home && !own) continue;
         for (const it of s.items) {
           const st = WSTATS[it.id];
-          if ((st.kind === 'gun' || st.kind === 'launcher') && st.reserve) it.reserve = Math.min(st.reserve, it.reserve + Math.ceil(st.reserve * 0.12));
+          if ((st.kind === 'gun' || st.kind === 'launcher') && st.reserve) it.reserve = Math.min(st.reserve, it.reserve + Math.ceil(st.reserve * TUNE.resupply));
         }
       }
     }
@@ -1431,9 +1432,9 @@ export class Game {
       if (!victim.def.zombie) victim.infectNext = true;                                            // her insan ölümü enfekte eder
       else victim.zLives = Math.max(0, victim.zLives - 1);                                         // zombi / boss can hakkı eksilir; 0 olunca insan olarak doğar
       victim.revivable = false;
-      victim.respawnT = !victim.def.zombie || victim.zLives <= 0 ? (victim.isPlayer || victim.human ? 5 : rand(3.5, 5)) : victim.boss ? BOSS.respawn : ZOMBIE.respawn;
-    } else if (this.mode.gungame) victim.respawnT = victim.isPlayer || victim.human ? 3 : rand(2.2, 3.6);
-    else victim.respawnT = victim.isPlayer || victim.human ? 5 : rand(3.5, 6);
+      victim.respawnT = !victim.def.zombie || victim.zLives <= 0 ? (victim.isPlayer || victim.human ? TUNE.respawn : rand(TUNE.botRespawnMin, Math.min(TUNE.botRespawnMax, 5))) : victim.boss ? BOSS.respawn : ZOMBIE.respawn;
+    } else if (this.mode.gungame) victim.respawnT = victim.isPlayer || victim.human ? TUNE.respawnGG : rand(2.2, 3.6);
+    else victim.respawnT = victim.isPlayer || victim.human ? TUNE.respawn : rand(TUNE.botRespawnMin, TUNE.botRespawnMax);
     if (victim.isPlayer && this.player) this.player.camPos.copy(victim.eye());
   }
 

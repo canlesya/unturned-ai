@@ -7,7 +7,8 @@ export const H_STAND = 1.78;
 export const H_CROUCH = 1.3;
 export const H_PRONE = 0.55;
 const STEP = 0.5;
-const GRAV = 15;
+import { TUNE } from './balance.js';
+const GRAV = 15;                 // varsayılan; TUNE.gravity kullanılır
 
 export class World {
   constructor(colliders, bounds, terrain = null) {
@@ -77,7 +78,7 @@ export class World {
     if (s.fly) { p.x += v.x * dt; p.y += v.y * dt; p.z += v.z * dt; s.onGround = false; return; }   // geliştirici haritası: serbest uçuş (çarpışmasız)
     const wasOnGround = s.onGround;
     const list = this.query(p.x - 2, p.z - 2, p.x + 2, p.z + 2, (this._tmp ||= []));
-    v.y -= GRAV * dt;
+    v.y -= TUNE.gravity * dt;
     if (v.y < -40) v.y = -40;
     let stepped = false;
 
