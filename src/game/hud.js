@@ -5,6 +5,8 @@ import { clamp } from './util.js';
 import { codeLabel } from '../core/keybinds.js';
 import { TUNE } from './balance.js';
 import { ffaRanking, ffaMetric } from './match.js';
+import { ScreenPaint } from './screenPaint.js';
+import { paintColorOf, paintIndexOf } from './paint.js';
 
 const CSS = `
 #hud{position:fixed;inset:0;pointer-events:none;font-family:Bahnschrift,'Rajdhani','Arial Narrow','Segoe UI',system-ui,sans-serif;color:#fff;user-select:none;z-index:5;letter-spacing:.5px}
@@ -109,6 +111,20 @@ const CSS = `
 #holo i:nth-child(2){left:50%;bottom:-12px;width:2px;height:10px;margin-left:-1px}
 #holo i:nth-child(3){top:50%;left:-12px;height:2px;width:10px;margin-top:-1px}
 #holo i:nth-child(4){top:50%;right:-12px;height:2px;width:10px;margin-top:-1px}
+/* paintball halka nişangâhı (nişanda): halka = topun o anki sapması (seri atışta büyür), ortada nokta, altta 20 / 30 / 40 m düşüş çizgileri */
+#pbret{position:absolute;left:50%;top:50%;width:0;height:0;display:none;--c:#ffe014;--r:10px}
+#pbret .rg{position:absolute;left:calc(-1 * var(--r));top:calc(-1 * var(--r));width:calc(2 * var(--r));height:calc(2 * var(--r));border-radius:50%;border:2px solid var(--c);box-sizing:border-box;box-shadow:0 0 0 1px rgba(0,0,0,.55),inset 0 0 0 1px rgba(0,0,0,.45);transition:width .06s,height .06s,left .06s,top .06s}
+#pbret .dt{position:absolute;left:-2px;top:-2px;width:4px;height:4px;border-radius:50%;background:var(--c);box-shadow:0 0 0 1px rgba(0,0,0,.7)}
+#pbret .m{position:absolute;height:2px;background:var(--c);box-shadow:0 0 0 1px rgba(0,0,0,.55)}
+#pbret .m span{position:absolute;top:-6px;font:700 9px/1 Bahnschrift,Arial Narrow,sans-serif;letter-spacing:0;color:var(--c);text-shadow:0 0 2px #000,0 0 2px #000,0 1px 1px #000}
+#pbret .m.r span{left:calc(100% + 3px)}#pbret .m.l span{right:calc(100% + 3px)}
+body.mob #pbret .rg{border-width:2px}body.mob #pbret .dt{width:4px;height:4px;left:-2px;top:-2px}body.mob #pbret .m span{font-size:10px;top:-6px}
+/* paintball: elenince ekranda "BOYANDIN!" */
+#pbdead{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%) rotate(-6deg);font:900 76px/1 Bahnschrift,'Arial Black',Arial,sans-serif;letter-spacing:4px;font-style:italic;-webkit-text-stroke:3px #10131a;paint-order:stroke;text-shadow:0 6px 0 rgba(0,0,0,.35);opacity:0;pointer-events:none;white-space:nowrap}
+#pbdead.on{animation:pbd 1.6s forwards}
+@keyframes pbd{0%{opacity:0;transform:translate(-50%,-50%) rotate(-6deg) scale(1.6)}10%{opacity:1;transform:translate(-50%,-50%) rotate(-6deg) scale(.95)}16%{transform:translate(-50%,-50%) rotate(-6deg) scale(1)}75%{opacity:1}100%{opacity:0}}
+body.mob #pbdead{font-size:48px;-webkit-text-stroke:2px #10131a}
+.toast.pk{font-size:21px;letter-spacing:2px;border-color:currentColor;background:rgba(9,13,19,.8)}
 #advig{position:absolute;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,transparent 45%,rgba(0,0,0,.55) 100%)}
 #scope{position:absolute;inset:0;display:none}
 #scope .bl{position:absolute;inset:0;backdrop-filter:blur(9px) brightness(.5);-webkit-backdrop-filter:blur(9px) brightness(.5);
@@ -199,7 +215,7 @@ export class Hud {
       <div id="advig"></div>
 
       <div id="cross"><span class="h l"></span><span class="h r"></span><span class="v t"></span><span class="v b"></span><span class="dot"></span></div>
-      <div id="rdot"></div><div id="holo"><i></i><i></i><i></i><i></i></div><div id="hitm"></div>
+      <div id="pbret"><i class="rg"></i><i class="dt"></i><b class="m r"><span>20</span></b><b class="m l"><span>30</span></b><b class="m r"><span>40</span></b></div><div id="rdot"></div><div id="holo"><i></i><i></i><i></i><i></i></div><div id="hitm"></div>
       <div id="pops"></div><div id="zonew">DÜŞMAN ÜSSÜNE GİRDİN!<small id="zonet"></small></div><div id="msg"></div>
       <div id="vitals"><div class="cls" id="clsname"></div><div class="row"><div id="hpnum">100</div><div id="hpbar"><div id="hpfill"></div></div></div><div id="stance"></div></div>
       <div id="abil"><div class="an"><b id="abk">F</b><span id="abn"></span></div><div class="bar"><i id="abbar"></i></div></div>
@@ -246,6 +262,18 @@ export class Hud {
     this.$('bAgain').onclick = () => game.restart();
     this.$('bMenu').onclick = () => game.exit();
     this.$('pause').addEventListener('mousedown', (e) => { if (e.target.id === 'pause') game.requestLock(); });
+    this.pbMarks = [...this.root.querySelectorAll('#pbret .m')]; this._pbKey = '';
+    game.on('spawn', (s) => { if (s === game.playerSoldier) this._sp?.clear(); });
+  }
+
+  // Paintball ekran boyası (ilk boya isabetinde kurulur; normal modlarda hiç oluşmaz)
+  get sp() { return this._sp || (this._sp = new ScreenPaint(this.game, this.root)); }
+  paintHit(by, zone, col) { this.sp.hit(by, zone, col); }
+  paintNear(sx, sy, col) { this.sp.nearMiss(sx, sy, col); }
+  pickupToast(text, color) {
+    const t = document.createElement('div'); t.className = 'toast pk'; t.textContent = text; t.style.color = color;
+    this.$('toasts').prepend(t);
+    setTimeout(() => t.remove(), 3300);
   }
 
   dispose() { this.igs?.dispose(); this.root.remove(); this.st.remove(); }
@@ -577,20 +605,25 @@ export class Hud {
     cross.classList.toggle('ads', ads > 0.5 && !tp);
     const spread = p.spreadNow(st) * 900;
     cross.style.setProperty('--g', clamp(3 + spread, 3, 60) + 'px');
+    this.pbReticle(p, st, ov === 'pbring' && p.alive && !tp && ads > 0.55);
     $('rdot').style.display = p.alive && !tp && ov === 'dot' && ads > 0.6 ? 'block' : 'none';
     $('holo').style.display = p.alive && !tp && ov === 'holo' && ads > 0.6 ? 'block' : 'none';
     const sc = $('scope');
     sc.style.display = scopeOn ? 'block' : 'none';
     if (scopeOn) sc.className = (p.opticDef.reticle === 'chevron') ? 'chev' : 'mil';
     $('advig').style.opacity = p.alive && ov !== 'scope' && !tp ? (ads * 0.55).toFixed(2) : 0;
-    const stTxt = [p.prone ? 'Yatıyor' : p.crouching ? 'Çömelmiş' : '', p.leanT > 0.3 ? 'Sağa eğik' : p.leanT < -0.3 ? 'Sola eğik' : '', p.opticDef && st.kind === 'gun' ? p.opticDef.label : '', st.kind === 'gun' && st.auto ? ({ semi: 'Tek atış [X]', burst: 'Seri [X]', auto: 'Otomatik [X]' }[p.fireModeNow]) : ''].filter(Boolean).join(' · ');
+    const stTxt = [p.prone ? 'Yatıyor' : p.crouching ? 'Çömelmiş' : '', p.leanT > 0.3 ? 'Sağa eğik' : p.leanT < -0.3 ? 'Sola eğik' : '', st.ball ? 'Halka nişangâh' : p.opticDef && st.kind === 'gun' ? p.opticDef.label : '', st.kind === 'gun' && st.auto ? ({ semi: 'Tek atış [X]', burst: 'Seri [X]', auto: 'Otomatik [X]' }[p.fireModeNow]) : ''].filter(Boolean).join(' · ');
     $('stance').textContent = stTxt;
     if (this.hitT > 0) { this.hitT -= dt; if (this.hitT <= 0) $('hitm').style.opacity = 0; }
     if (this.vigT > 0) { this.vigT -= dt; if (this.vigT <= 0) $('vig').style.opacity = 0; }
     $('vig').style.opacity = p.alive && p.hp < 30 ? 0.55 : $('vig').style.opacity;
+    // paintball: boyayla elendin → ekran boyanır, "BOYANDIN!", ölüm ekranı kısa bir süre sonra
+    if (this._wasAlive && !p.alive && this._sp && g.time - this._sp.lastHitT < 0.8) this._sp.death(p.lastHit && p.lastHit !== p ? paintIndexOf(p.lastHit) : this._sp.lastCol ?? 0);
+    this._wasAlive = p.alive;
+    if (this._sp) this._sp.update(dt);
     // ölüm ekranı
     const rs = $('respawn');
-    if (!p.alive && !g.ended) {
+    if (!p.alive && !g.ended && !(this._sp && this._sp.deathT > 0)) {
       rs.style.display = 'flex';
       const k = p.lastHit && p.lastHit !== p ? p.lastHit : null;
       $('rtitle').textContent = k ? 'Öldürüldün' : 'Öldün';
@@ -618,6 +651,22 @@ export class Hud {
     $('msg').textContent = msg;
     if (this.sbShown) this.renderScoreboard();
     this.drawMinimap();
+  }
+
+  // Paintball halka nişangâhı: halka yarıçapı = o anki top sapması (ekran pikseli), düşüş çizgileri topun hızı / yerçekiminden (20 / 30 / 40 m'de top
+  // nişan noktasının ne kadar altına düşer). Kamera FOV'u (nişan yakınlaştırması dahil) her karede okunur; stil yalnız değişince yazılır.
+  pbReticle(p, st, on) {
+    const el = this.$('pbret');
+    if (!on) { if (this._pbOn) { el.style.display = 'none'; this._pbOn = false; } return; }
+    if (!this._pbOn) { el.style.display = 'block'; this._pbOn = true; }
+    const k = innerHeight / 2 / Math.tan((this.game.camera.fov * Math.PI) / 360);           // piksel / tan(açı)
+    const R = Math.round(6 + Math.tan(p.spreadNow(st)) * k), col = paintColorOf(p);
+    const ys = [20, 30, 40].map((d) => { const t = d / (st.speed || 70); return Math.round(((0.5 * (st.grav || 0) * t * t) / d) * k); });
+    const key = R + '|' + ys.join(',') + col;
+    if (key === this._pbKey) return;
+    this._pbKey = key;
+    el.style.setProperty('--r', R + 'px'); el.style.setProperty('--c', col);
+    this.pbMarks.forEach((m, i) => { const w = [12, 9, 7][i]; m.style.width = w + 'px'; m.style.left = -w / 2 + 'px'; m.style.top = ys[i] - 1 + 'px'; m.style.display = ys[i] > 3 ? 'block' : 'none'; });
   }
 
   // Bulunduğun bölgenin adı (haritada callouts varsa): minimap altındaki başlıkta "HARİTA · Bölge"

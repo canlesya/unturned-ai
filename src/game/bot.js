@@ -344,6 +344,11 @@ export class BotBrain {
     if (this.senseT <= 0) { this.senseT = 0.2 + Math.random() * 0.08; this.sense(); }
     this.goalT -= dt;
     if (!this.goal || this.goalT <= 0) this.pickGoal();
+    if (g.pickups.list.length && (this.pkT = (this.pkT ?? rand(0, 1.5)) - dt) <= 0) {        // paintball: canı / cephanesi azsa yakındaki kutuya git (çatışma yokken)
+      this.pkT = 1.5;
+      const pk = !this.target && g.pickups.botWant(s);
+      if (pk && (!this.goal || Math.hypot(this.goal.x - pk.x, this.goal.z - pk.z) > 1)) { this.setGoal(pk.x, pk.z, 12, pk.y); this.via = null; this.perching = false; }
+    }
     if (this.target && !this.target.alive) { this.target = null; this.lostT = 0; }
 
     // flaşbang: kör, şaşkın; hedefsiz, kısa süre dönüp durur

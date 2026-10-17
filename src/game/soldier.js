@@ -124,8 +124,8 @@ export class Soldier {
 
   get opticId() { return resolveOptic(this.item.id, this.optic); }
   get opticDef() { const o = this.opticId; return o ? OPTICS[o] : null; }
-  get zoomNow() { const st = this.stat; if (!st.zoom) return 0; return this.opticDef ? this.opticDef.zoom : st.zoom; }
-  get overlay() { return this.opticDef ? this.opticDef.overlay : 'none'; }
+  get zoomNow() { const st = this.stat; if (!st.zoom) return 0; return this.opticDef && !st.ball ? this.opticDef.zoom : st.zoom; }      // paintball: nişangâhtan bağımsız hafif yakınlaştırma
+  get overlay() { return this.stat.ball ? 'pbring' : this.opticDef ? this.opticDef.overlay : 'none'; }          // paintball: HUD'da halka nişangâh (#pbret)
 
   setClass(cls) {
     this.cls = cls;
@@ -261,6 +261,7 @@ export class Soldier {
   spreadNow(st) {
     const hipv = st.hip ?? 0.01, adsv = st.ads ?? 0.002;
     const speed = Math.hypot(this.vel.x, this.vel.z);
+    if (st.ball) return this._ballSpread(st, hipv, adsv, speed);
     let s = lerp(hipv, adsv, this.adsT);
     s += Math.min(speed * 0.0007, 0.0045) * (1 - this.adsT * 0.65);   // hareket cezası
     if (!this.onGround) s += AIR_SPREAD * (1 - this.adsT * 0.5);            // havadayken (zıplarken) atış çok dağılır
@@ -270,6 +271,19 @@ export class Soldier {
     s += this.bloom;                                                   // seri atışta açılma
     // duran oyuncunun ilk atışı (kısa bir aradan sonra) isabetli olsun
     if (this.sinceShot > 0.3 && speed < 1.5 && this.onGround) s *= 0.2;
+    return s + this.botExtraSpread;
+  }
+
+  // Paintball topu: her topta doğal sapma (ilk top da tam isabetli değil) + seri atışta büyüyen açılma (bloom). Nişan / çömelme / durma ikisini de küçültür.
+  // Tamamen durum + tohumlu rastgele (Paint.rngFor) → istemci tahmini ile sunucu aynı yöne atar.
+  _ballSpread(st, hipv, adsv, speed) {
+    const a = this.adsT, still = speed < 1.5 && this.onGround;
+    let s = lerp(hipv, adsv, a) * (still ? 0.8 : 1) * (this.crouching || this.prone ? 0.75 : 1);
+    s += Math.min(speed * 0.0011, 0.007) * (1 - a * 0.5);                                   // koşarken / yürürken top dağılır
+    if (!this.onGround) s += AIR_SPREAD * (1 - a * 0.5);
+    if (this.firedSprinting || speed > sprintSpeed()) s += SPRINT_SPREAD * (1 - a);
+    if (this.blindT > 0.5) s += 0.04;
+    s += this.bloom * (1 - a * 0.25) * (this.crouching || this.prone ? 0.7 : 1) * (still ? 0.9 : 1);
     return s + this.botExtraSpread;
   }
 
@@ -331,7 +345,7 @@ export class Soldier {
     g.sfx.shot(st.sound, this.pos);
     this.flashT = 0.06;
     this.sinceShot = 0;
-    this.bloom = Math.min(this.bloom + (st.kickV || 0.01) * 0.07, 0.005);
+    this.bloom = st.ball ? Math.min(this.bloom + (st.bloom ?? 0.003), st.bloomMax ?? 0.03) : Math.min(this.bloom + (st.kickV || 0.01) * 0.07, 0.005);
     if (this.isPlayer || this.human) {
       const k = (st.kickV || 0.01) * (this.adsT > 0.5 ? 0.7 : 1);
       this.pitch = Math.min(1.45, this.pitch + k * 0.55);   // kalıcı tırmanma: oyuncu aşağı çekerek telafi eder
@@ -570,7 +584,7 @@ export class Soldier {
       if (sw.t >= sw.dur) this.swing = null;
     }
     this.sinceShot += dt;
-    this.bloom = Math.max(0, this.bloom - dt * 0.05);
+    { const st = this.stat; this.bloom = Math.max(0, this.bloom - dt * (st.ball ? (this.sinceShot > 0.12 ? st.bloomRec ?? 0.06 : 0.006) : 0.05)); }      // paintball: seri sürerken açılma neredeyse sönmez, bırakınca toparlanır
     this.recoilP = Math.max(0, this.recoilP - dt * (0.06 + this.recoilP * 4.5));
     if (this.reloadT > 0) {
       const it = this.item, st = this.stat;

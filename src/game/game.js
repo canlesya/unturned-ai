@@ -28,6 +28,7 @@ import { applyInput } from '../sim/input.js';
 import { SIM_DT } from '../net/protocol.js';
 import { mat } from '../core/geo.js';
 import { Paint, paintColorOf } from './paint.js';
+import { Pickups } from './pickups.js';
 import { initGadgets, updateGadgets, spawnSmoke, flashBang, smokeBlocks, smokeDensity, placeDeployable, netDeploy, netUndeploy } from './gadgets.js';
 
 const STAT_ID = new Map(Object.entries(WSTATS).map(([k, v]) => [v, k]));      // WSTATS nesnesi → id (ağ olayları için)
@@ -173,6 +174,7 @@ export class Game {
     }
     this.paint = new Paint(this);                         // paintball: boya topları + lekeler (başsızda yalnız simülasyon)
     this.paintColor = paintColorOf;                       // skor tablosunda oyuncunun boya rengi (hud.js)
+    this.pickups = new Pickups(this);                     // paintball: boya topu / can kutuları (map.pickups; sunucu yetkili)
 
     // ── savaşçılar ──
     const names = [...BOT_NAMES].sort(() => Math.random() - 0.5);
@@ -287,6 +289,7 @@ export class Game {
       this._acc = 0;
       this.online.attach(this);        // ilk snapshot doğmayı belirler (respawn yok)
       this.onNetEvents(opts.online.deps || []);     // odada zaten kurulu mayın/cephane kutuları
+      this.pickups.applyState(opts.online.pk);      // paintball: şu an yeniden belirmeyi bekleyen kutular
       const code = opts.online.room;
       const b = (this._badge = document.createElement('div')); b.id = 'roombadge';            // telefonda konumu touch.js CSS'inde
       b.style.cssText = 'position:fixed;left:12px;top:178px;z-index:6;padding:6px 10px;background:rgba(8,12,18,.72);border:1px solid rgba(255,255,255,.14);color:#e8edf5;font:600 13px Bahnschrift,Rajdhani,Arial Narrow,sans-serif;letter-spacing:1.5px;cursor:pointer;user-select:none';
@@ -930,6 +933,7 @@ export class Game {
     }
     this.updateProjectiles(dt);
     this.paint.update(dt);
+    this.pickups.update(dt);
     updateGadgets(this, dt, this.time);
     this.effects.update(dt);
     this.hud.update(dt);
@@ -947,6 +951,7 @@ export class Game {
     for (const b of this.brains) b.update(dt);
     this.updateProjectiles(dt);
     this.paint.update(dt);
+    this.pickups.update(dt);
     updateGadgets(this, dt, this.time);
     this.squadT -= dt;
     if (this.squadT <= 0) { this.squadT = 18; this.assignSquads(); }
@@ -1025,6 +1030,7 @@ export class Game {
         case 'ab': if (by) this.showAbilityFx(by, ev.k, { x: ev.f[0], y: ev.f[1], z: ev.f[2] }, { x: ev.d[0], y: ev.d[1], z: ev.d[2] }); break;
         case 'lvl': { const v = this.soldiers[ev.v]; if (v) { const up = ev.l > v.ggLevel; v.ggLevel = ev.l; if (v === me && up) this.showLevel(v, true); else if (v === me) this.hud.toast(`Bıçakla öldürüldün: Seviye ${ev.l + 1}/${GG_LADDER.length}`, '#ff8a6a'); } break; }
         case 'pb': case 'pbh': this.paint.onNet(ev); break;          // paintball: top doğdu / oyuncuya isabet
+        case 'pk': this.pickups.onNet(ev); break;                    // paintball: kutu alındı / yeniden belirdi
         case 'swg': if (by && by !== me) { by.swing = { t: 0, dur: ev.d, kind: ev.k, idx: 0, done: true }; by.comboT = ev.d + 0.38; } break;
       }
     }
@@ -1130,6 +1136,7 @@ export class Game {
     this.sun.position.set(tx + this.sunOff.x, ty + this.sunOff.y, tz + this.sunOff.z);
     if (this.map.fx) this.map.fx.update(performance.now() / 1000);            // harita efektleri (New York: ateş ışığı titremesi, duman / kıvılcım zamanı)
     this.paint.draw();
+    this.pickups.draw();
     r.clear();
     r.render(this.scene, this.camera);
     if (this.playerSoldier.alive && !this.showSelf) this.player.vm.render(r, innerWidth, innerHeight);

@@ -167,6 +167,7 @@ export class ViewModel {
     const hip = this.pos;
     const ads = u.noAds ? 0 : s.adsT;
     const tgt = this.adsTarget(u);
+    if (st.adsLow) tgt.x += st.adsLow[0], tgt.y += st.adsLow[1], tgt.z += st.adsLow[2];      // paintball: nişanda model iner / sağa kayar (hazne görüşü kapatmasın; nişangâh HUD'da halka)
     const speed = Math.hypot(s.vel.x, s.vel.z);
     const isMelee = st.kind === 'melee';
     const isGun = st.kind === 'gun' || st.kind === 'launcher';

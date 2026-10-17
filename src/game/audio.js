@@ -165,6 +165,15 @@ export class Sfx {
   step(pos) { this._noise({ pos, gain: 0.07, dur: 0.07, f0: 500, f1: 200 }); }
   // boya topu patlaması: ıslak "şlap" (oyuncuya isabet biraz daha tok)
   splat(pos, body = false) { this._noise({ pos, gain: body ? 0.34 : 0.22, dur: 0.07, f0: body ? 900 : 1500, f1: 260, q: 0.9 }); this._tone({ pos, gain: body ? 0.16 : 0.08, dur: 0.05, f0: 180, f1: 70, type: 'sine' }); }
+  // paintball kutusu alındı: can = yükselen iki nota, boya topu = tıkırtılı "şıkır" + nota (pos: başkası aldıysa uzaktan)
+  pickup(type, pos) {
+    const g = pos ? 0.6 : 1;
+    if (type === 'health') { this._tone({ pos, gain: 0.26 * g, dur: 0.12, f0: 660, f1: 700, type: 'triangle' }); this._tone({ pos, gain: 0.26 * g, dur: 0.2, f0: 990, f1: 1060, type: 'triangle', delay: 0.09 }); }
+    else { for (let i = 0; i < 4; i++) this._noise({ pos, gain: 0.2 * g, dur: 0.03, f0: 3200 - i * 300, f1: 1800, type: 'bandpass', q: 2, delay: i * 0.035 }); this._tone({ pos, gain: 0.2 * g, dur: 0.14, f0: 520, f1: 780, type: 'triangle', delay: 0.12 }); }
+  }
+  // paintball: yakından geçen top (vızıltı) / yüze çarpan topun ıslak şaplağı
+  whiz(pos) { this._noise({ pos, gain: 0.16, dur: 0.09, f0: 2600, f1: 900, type: 'bandpass', q: 1.6 }); }
+  facesplat() { this._noise({ gain: 0.42, dur: 0.11, f0: 1200, f1: 200, q: 0.8 }); this._tone({ gain: 0.2, dur: 0.08, f0: 160, f1: 70, type: 'sine' }); }
   impact(pos) { this._noise({ pos, gain: 0.18, dur: 0.08, f0: 3500, f1: 1200, type: 'bandpass' }); }
   capture() { this._tone({ gain: 0.35, dur: 0.25, f0: 520, f1: 520, type: 'triangle' }); this._tone({ gain: 0.35, dur: 0.3, f0: 780, f1: 780, type: 'triangle', delay: 0.15 }); }
 }
