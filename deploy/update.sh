@@ -9,7 +9,8 @@ sudo -u warbyte git pull -q --ff-only origin "$BR"
 sudo -u warbyte env HOME=/opt/warbyte PATH=/opt/warbyte/node/bin:$PATH npm ci --no-audit --no-fund 2>&1 | tail -1
 sudo -u warbyte env HOME=/opt/warbyte PATH=/opt/warbyte/node/bin:$PATH npm run build 2>&1 | tail -1
 systemctl restart warbyte
-sleep 4
+# açılış (resmi odaların haritaları kurulur) birkaç saniye sürer: hazır olana kadar bekle (en çok 30 sn)
+for i in $(seq 1 30); do curl -sf -m 2 http://127.0.0.1:8787/health >/dev/null && break; sleep 1; done
 systemctl is-active warbyte
-curl -s http://127.0.0.1:8787/health; echo
+curl -s -m 2 http://127.0.0.1:8787/health || echo 'sağlık kontrolü yanıt vermedi'; echo
 sudo -u warbyte git log --oneline | head -1
