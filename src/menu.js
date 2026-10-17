@@ -177,7 +177,7 @@ export function showMenu(onStart, onOnline) {
     const warn = tot(tp) ? '' : n > 20 ? '<div class="warn">Çok oyunculu maçlar güçlü bilgisayar ister; takılırsa sayıyı azalt.</div>' : '';
 
     const modeCards = Object.entries(MATCH_TYPES).map(([k, m]) => `<button class="mdc ${tp === k ? 'on' : ''}" ${at('type', k)}><span class="ic">${MODE_META[k].icon}</span><b>${m.label}</b><em>${MODE_META[k].tag}</em><small>${m.desc}</small></button>`).join('');
-    const mapCards = maps.map((m) => `<button class="mapc ${c.map === m.id ? 'on' : ''}" ${at('map', m.id)}><img src="${m.thumb}" alt=""><div class="t"><b>${m.name}</b><small>${m.tag}</small></div></button>`).join('')
+    const mapCards = maps.map((m) => `<button class="mapc ${c.map === m.id ? 'on' : ''}" ${at('map', m.id)}><img src="${m.thumb}" alt="">${m.mobile ? '<em class="mob">Mobil dostu</em>' : ''}<div class="t"><b>${m.name}</b><small>${m.tag}</small></div></button>`).join('')
       + (maps.length > 1 ? `<button class="mapc rnd ${c.map === 'random' ? 'on' : ''}" ${at('map', 'random')}>🎲<div class="t"><b>Rastgele</b></div></button>` : '');
     const mapNote = maps.length === 1 ? `<div class="hint">Bu mod yalnızca <b>${maps[0].name}</b> haritasında oynanır.</div>` : '';
     const mapDesc = cm ? `<div class="mapdesc"><b>${cm.name}.</b> ${cm.desc}</div>` : '<div class="mapdesc">Her maçta farklı bir harita seçilir.</div>';

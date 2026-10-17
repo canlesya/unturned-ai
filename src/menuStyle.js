@@ -48,6 +48,7 @@ export const MENU_CSS = `
 #menu .mapc .t{position:absolute;left:12px;bottom:9px;z-index:2}
 #menu .mapc .t b{display:block;font-size:19px;letter-spacing:2px;text-transform:uppercase}
 #menu .mapc .t small{font-size:11px;color:#aeb8c8;letter-spacing:1px}
+#menu .mapc .mob{position:absolute;top:7px;right:7px;z-index:2;font:700 10px/1 sans-serif;font-style:normal;letter-spacing:1px;text-transform:uppercase;padding:4px 7px;background:rgba(40,160,110,.92);color:#fff}
 #menu .mapc.on{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc),0 0 22px rgba(255,138,31,.35)}
 #menu .mapc.rnd{display:flex;align-items:center;justify-content:center;font-size:46px;background:repeating-linear-gradient(45deg,#121926,#121926 10px,#0e131c 10px,#0e131c 20px)}
 #menu .mapdesc{margin-top:12px;color:#b9c3d2;font-size:15px;line-height:1.5;min-height:46px}

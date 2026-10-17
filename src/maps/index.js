@@ -4,6 +4,7 @@ import { buildUs } from './us.js';
 import { buildDev } from './dev.js';
 import { buildNewYork } from './newyork.js';
 import { buildColGecidi } from './colgecidi.js';
+import { buildDepo } from './depo.js';
 
 // Harita kaydı. Her harita build() ile şunu döndürür:
 // { id, name, group, colliders, bounds, spawns:{blue,red}, objectives:[{id,name,x,z,r,core?}], roads?, terrain?, water?, env? }
@@ -39,6 +40,11 @@ MAPS.colgecidi = {
   id: 'colgecidi', name: 'Çöl Geçidi', tag: 'Büyük · üç hat · iki saha', thumb: '/img/colgecidi.jpg',
   desc: 'Klasik çöl haritası: uzun koridor, orta ve tüneller olmak üzere üç hat; A (pazar) ve B (avlu) sahaları. Kapalı yapı, her hatta farklı çatışma mesafesi.',
   build: () => buildColGecidi(),
+};
+MAPS.depo = {
+  id: 'depo', name: 'Depo', tag: 'Küçük · hızlı · 4v4–5v5', thumb: '/img/depo.jpg', mobile: true,
+  desc: 'Kompakt sanayi deposu: ortada içine girilen depo (B: raflar, iki merdivenli asma kat), batıda konteyner sahası (A), doğuda kamyonlu yükleme alanı (C). Kısa-orta mesafe, hızlı çatışma; telefonda rahat oynanacak şekilde sade ve okunaklı.',
+  build: () => buildDepo(),
 };
 export const DEFAULT_MAP = 'kasaba';
 // Bu moda uygun haritalar (only: yalnızca o modlarda listelenir; dev hiçbirinde)
