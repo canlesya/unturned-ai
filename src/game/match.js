@@ -24,6 +24,9 @@ export const PRESETS = {
 export const isScoreType = (t) => t === 'tdm';
 export function defaultScoreLimit(perTeam) { return Math.max(30, Math.min(150, perTeam * 10)); }
 export function defaultTickets(perTeam) { return Math.max(40, Math.round(perTeam * 20 / 10) * 10); }
+// Herkes-tek sıralaması (Ölüm Maçı / Silah Yarışı / boya): skor kutusu, skor tablosu, maç sonu ve süre bitiminde kazanan aynı ölçütü kullanır
+export const ffaMetric = (s, gg) => (gg ? s.ggLevel + 1 : s.kills);          // gg: seviye (1..15), değilse öldürme
+export const ffaRanking = (soldiers, gg) => soldiers.filter((s) => !s.vacant).sort((a, b) => (gg ? b.ggLevel - a.ggLevel : 0) || b.kills - a.kills || b.score - a.score);
 export function makeMatch(o = {}) {
   const dm = o.type === 'dm' || o.type === 'gg', inf = o.type === 'inf', gg = o.type === 'gg';
   // Ölüm maçında perTeam = toplam oyuncu sayısı (2–10)

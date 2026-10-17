@@ -4,6 +4,7 @@ import { WSTATS, CLASS_DEFS, BLEED_S, ZTYPES, ZT_ORDER } from './stats.js';
 import { clamp } from './util.js';
 import { codeLabel } from '../core/keybinds.js';
 import { TUNE } from './balance.js';
+import { ffaRanking, ffaMetric } from './match.js';
 
 const CSS = `
 #hud{position:fixed;inset:0;pointer-events:none;font-family:Bahnschrift,'Rajdhani','Arial Narrow','Segoe UI',system-ui,sans-serif;color:#fff;user-select:none;z-index:5;letter-spacing:.5px}
@@ -20,6 +21,7 @@ const CSS = `
 #score .tk.blue{color:#9fd0ff;clip-path:polygon(0 0,100% 0,calc(100% - 12px) 100%,0 100%)}
 #score .tk.red{color:#ffb3a6;clip-path:polygon(12px 0,100% 0,100% 100%,0 100%)}
 #score .tk.blue .bar i{float:right}
+#score .tk small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px;margin:0 auto}#score .tk.lead{color:#ffd36a;--c:#ffd36a}#score .tk.lead small{opacity:1}#score .tk.tie{color:#e8e8e8}
 #timer small{display:block;font-size:10px;font-weight:700;letter-spacing:2px;opacity:.7;margin-top:-2px}
 #timer{padding:5px 16px 0;line-height:1.1;font-size:22px;font-weight:700;min-width:84px;text-align:center;background:rgba(9,13,19,.85);border:1px solid rgba(255,255,255,.12);border-width:1px 0}
 #flags{display:flex;gap:7px}
@@ -235,7 +237,7 @@ export class Hud {
       this.$('spawnrow').parentElement.style.display = 'none';
       this._rowMode = null;                                                // ölüm ekranı satırı: 'z' zombi türü · 'cls' insan sınıfı · 'boss' (seçim yok)
     }
-    if (game.ffa) { this.root.querySelector('.tk.blue small').textContent = 'SEN'; this.root.querySelector('.tk.red small').textContent = 'LİDER'; }
+    if (game.ffa) { this.root.querySelector('.tk.blue small').textContent = 'SEN'; this.root.querySelector('.tk.red small').textContent = 'LİDER'; this._ffaKey = null; }   // gerçek etiketler ffaScore'da
     this.$('bResume').onclick = () => { this.igs?.close(); game.requestLock(); };
     this.$('bSet').onclick = () => (this.igs ||= new InGameSettings(game)).show('settings');
     this.$('bCtl').onclick = () => (this.igs ||= new InGameSettings(game)).show('controls');
@@ -445,7 +447,7 @@ export class Hud {
     };
     if (g.ffa) {                                                         // tek tablo, öldürmeye göre
       const gg = g.mode.gungame;
-      const list = g.soldiers.filter((s) => !s.vacant).sort((a, b) => (gg ? b.ggLevel - a.ggLevel : 0) || b.kills - a.kills || b.score - a.score);
+      const list = ffaRanking(g.soldiers, gg);
       this.$('sbbody').innerHTML = `<div class="team blue"><h3 style="color:var(--c)">${gg ? `Silah Yarışı · ${g.mode.killLimit} silah` : `Ölüm Maçı · ilk ${g.mode.killLimit}`}</h3><table><tr><th>Oyuncu</th>${gg ? '<th>Seviye</th><th>Silah</th>' : ''}<th>Öl</th><th>Ölüm</th><th>Puan</th></tr>${
         list.map((s) => `<tr class="${s.isPlayer ? 'me' : ''} ${s.alive ? '' : 'dead'}"><td>${s.name}</td>${gg ? `<td>${s.ggLevel + 1}</td><td>${WSTATS[s.items[0].id].name}</td>` : ''}<td>${s.kills}</td><td>${s.deaths}</td><td>${s.score}</td></tr>`).join('')}</table></div>`;
       return;
@@ -491,14 +493,28 @@ export class Hud {
     el.innerHTML = list.map((s) => `<div class="bs ${s.alive ? '' : 'dead'}"><span>BOSS · ${s.name} <i>${'♥'.repeat(Math.max(0, s.zLives))}</i></span><div class="bar"><i style="width:${s.alive ? Math.max(0, s.hp / s.maxHp * 100) : 0}%"></i></div></div>`).join('');
   }
 
+  // Herkes-tek skor kutusu: öndeysen sol kutu 'SEN · LİDER +fark' (altın) ve sağda 2.; eşitse iki kutu BERABERE; gerideysen sağda lider adı (altın), solda sıran
+  ffaScore(p) {
+    const gg = this.game.mode.gungame, rk = ffaRanking(this.game.soldiers, gg), me = ffaMetric(p, gg);
+    const rival = rk.find((s) => s !== p), ot = rival ? ffaMetric(rival, gg) : 0, nm = rival ? rival.name : '—';
+    const st = me > ot ? 'lead' : me === ot ? 'tie' : 'back', rank = 1 + rk.filter((s) => ffaMetric(s, gg) > me).length;   // sıra: senden kesin önde olanlar + 1
+    const key = st + '|' + nm + '|' + (me - ot) + '|' + rank;
+    if (key !== this._ffaKey) {
+      this._ffaKey = key;
+      const B = this.root.querySelector('.tk.blue'), Rd = this.root.querySelector('.tk.red');
+      this.$('tnB').textContent = st === 'lead' ? `SEN · LİDER +${me - ot}` : st === 'tie' ? 'SEN · BERABERE' : `SEN · ${rank}.`;
+      this.$('tnR').textContent = st === 'lead' ? `2. · ${nm}` : st === 'tie' ? `BERABERE · ${nm}` : `LİDER · ${nm}`;
+      B.classList.toggle('lead', st === 'lead'); Rd.classList.toggle('lead', st === 'back');
+      B.classList.toggle('tie', st === 'tie'); Rd.classList.toggle('tie', st === 'tie');
+    }
+    return [me, ot];
+  }
+
   update(dt) {
     const g = this.game, p = g.playerSoldier, $ = this.$;
     if (g.mode.infection) this.drawBosses();
     let kb = g.tickets.blue, kr = g.tickets.red;
-    if (g.ffa) {                                                       // ölüm maçı: sol = senin öldürmen, sağ = en iyi rakip
-      if (g.mode.gungame) { kb = p.ggLevel + 1; kr = 0; for (const s of g.soldiers) if (s !== p && !s.vacant && s.ggLevel + 1 > kr) kr = s.ggLevel + 1; }       // seviye
-      else { kb = p.kills; kr = 0; for (const s of g.soldiers) if (s !== p && !s.vacant && s.kills > kr) kr = s.kills; }
-    }
+    if (g.ffa) [kb, kr] = this.ffaScore(p);                           // herkes-tek: sol = sen, sağ = lider (sen öndeysen ikinci)
     $('tkB').textContent = Math.max(0, Math.round(kb));
     $('tkR').textContent = Math.max(0, Math.round(kr));
     if (!g.ffa && g.mode.objectives.length) {                       // bayrak kanaması: daha çok bayrağı olan takım, farkı kadar rakip bileti 5 sn'de eksiltir

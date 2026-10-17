@@ -98,6 +98,8 @@ export class NetClient {
     if (this.snaps.length > 30) this.snaps.shift();
     this.stats.snaps++;
     const g = this.game;
+    // skor alanları hemen: interpolate düşük FPS'te yavaş alanlı snapshot'ı atlayabiliyor → rakip öldürme/seviye 0'da kalıyor, LİDER kutusu yanlış
+    for (const p of m.s) { if (p.kl === undefined) continue; const s = g.soldiers[p.i]; if (!s || s === g.playerSoldier) continue; s.kills = p.kl; s.deaths = p.de; s.score = p.sc; if (p.gl !== undefined) s.ggLevel = p.gl; }
     g.tickets.blue = m.tk[0]; g.tickets.red = m.tk[1];
     g.timeLeft = m.tl < 0 ? Infinity : m.tl;
     m.o.forEach((o, i) => { const ob = g.mode.objectives[i]; if (!ob) return; const prev = ob.owner; ob.owner = o[0] === 1 ? 'blue' : o[0] === 2 ? 'red' : null; ob.p = o[1]; if (ob.owner !== prev) g.onFlag?.(ob, prev); });

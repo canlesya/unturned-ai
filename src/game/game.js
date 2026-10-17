@@ -17,7 +17,7 @@ import { Player } from './player.js';
 import { isTouch } from './touch.js';
 import { BotBrain } from './bot.js';
 import { CLASS_DEFS, WSTATS, BOT_NAMES, makeLoadout, BLEED_S, ZOMBIE, BOSS, ZTYPES, ZT_ORDER, randomZType, GG_LADDER } from './stats.js';
-import { makeMatch, PRESETS } from './match.js';
+import { makeMatch, PRESETS, ffaRanking, ffaMetric } from './match.js';
 import { TUNE } from './balance.js';
 import { Weather } from './weather.js';
 import { rand, pick, clamp } from './util.js';
@@ -1448,13 +1448,13 @@ export class Game {
     if (this.ended || this.opts.devMode) return;                                  // geliştirici modunda maç bitmez
     let w = null, why = '';
     if (this.mode.gungame) {
-      const best = this.soldiers.filter((s) => !s.vacant).sort((a, b) => b.ggLevel - a.ggLevel || b.kills - a.kills || b.score - a.score)[0];
+      const best = ffaRanking(this.soldiers, true)[0];
       if (this.ggWinner) { w = this.ggWinner.team; why = `${this.ggWinner.name} son silahla (bıçak) kazandı`; }
-      else if (this.timeLeft <= 0 && best) { w = best.team; why = `Süre doldu · ${best.name} seviye ${best.ggLevel + 1}`; }
+      else if (this.timeLeft <= 0 && best) { w = best.team; why = `Süre doldu · ${best.name} seviye ${best.ggLevel + 1} ile kazandı`; }
     } else if (this.ffa) {
-      const best = this.soldiers.filter((s) => !s.vacant).sort((a, b) => b.kills - a.kills || b.score - a.score)[0];
+      const [best, second] = ffaRanking(this.soldiers, false);
       if (best && best.kills >= this.mode.killLimit) { w = best.team; why = `${best.name} ${best.kills} öldürmeye ulaştı`; }
-      else if (this.timeLeft <= 0) { w = best.team; why = 'Süre doldu'; }
+      else if (this.timeLeft <= 0 && best) { w = best.team; why = `Süre doldu · ${best.name} ${best.kills} öldürmeyle kazandı${second && second.kills === best.kills ? ' (eşitlikte puanı yüksek)' : ''}`; }   // eşit öldürmede puan ayırır
     } else if (this.mode.infection) {
       const c = this.infCounts();
       if (c.h <= 0) { w = 'red'; why = 'Tüm insanlar enfekte oldu'; }
@@ -1483,7 +1483,8 @@ export class Game {
     const xp = Math.round(me.score + (win ? 300 : 80));
     const inf = this.mode.infection;
     const wname = this.ffa ? (this.soldiers.find((s) => s.team === w)?.name || '') : inf ? (w === 'red' ? 'Zombiler' : 'İnsanlar') : TEAMS[w].name;
-    const sub = this.ffa ? `Sıralama: ${[...list].sort((a, b) => (this.mode.gungame ? b.ggLevel - a.ggLevel : 0) || b.kills - a.kills).slice(0, 3).map((s, i) => `${i + 1}. ${s.name} (${s.kills})`).join(' · ')}` : inf ? `İnsan ${this.tickets.blue} – ${this.tickets.red} Zombi · Takımın en iyisi: ${list[0].name} (${list[0].score})` : `Mavi ${Math.max(0, Math.round(this.tickets.blue))} – ${Math.max(0, Math.round(this.tickets.red))} Kırmızı · Takımın en iyisi: ${list[0].name} (${list[0].score})`;
+    const gg = this.mode.gungame;
+    const sub = this.ffa ? `Sıralama: ${ffaRanking(this.soldiers, gg).slice(0, 3).map((s, i) => `${i + 1}. ${s.name} (${gg ? 'Sv ' : ''}${ffaMetric(s, gg)})`).join(' · ')}` : inf ? `İnsan ${this.tickets.blue} – ${this.tickets.red} Zombi · Takımın en iyisi: ${list[0].name} (${list[0].score})` : `Mavi ${Math.max(0, Math.round(this.tickets.blue))} – ${Math.max(0, Math.round(this.tickets.red))} Kırmızı · Takımın en iyisi: ${list[0].name} (${list[0].score})`;
     const rows = `<div class="mvp"><div class="st"><b>${me.kills}</b><small>Öldürme</small></div><div class="st"><b>${me.deaths}</b><small>Ölüm</small></div><div class="st"><b>${me.score}</b><small>Puan</small></div><div class="st"><b>+${xp}</b><small>XP</small></div></div><small style="opacity:.75">${sub}</small>`;
     this.opts.onMatchEnd?.({ score: me.score, kills: me.kills, deaths: me.deaths, win });
     this.hud.showEnd(win, win ? 'ZAFER!' : 'YENİLGİ', this.ffa ? `${why}.` : `${why}. ${wname} kazandı.`, rows);
