@@ -1,5 +1,5 @@
 import { Game } from './game/game.js';
-import { showMenu, loadPrefs, recordMatch, patchPrefs } from './menu.js';
+import { showMenu, loadPrefs, recordMatch, patchPrefs, FOV_KEY, Q_KEY } from './menu.js';
 import { MENU_CSS } from './menuStyle.js';
 import { NetClient } from './net/client.js';
 import { defaultServerUrl, healthUrl } from './net/protocol.js';
@@ -17,6 +17,7 @@ function showLoading() {
   loading.style.display = 'flex';
 }
 const st = document.createElement('style'); st.textContent = MENU_CSS; document.head.appendChild(st);
+if (FOV_KEY === 'fovM') document.documentElement.classList.add('touch');      // dokunmatik cihaz: menüde büyük dokunma hedefleri (menuStyle.js html.touch)
 
 function start(opts) {
   showLoading();
@@ -56,7 +57,7 @@ function beginOnline({ net, welcome, name, pw }) {
     optic: q.get('optic') || p.optic || 'reddot', team: me.team, cls, playerName: name,
     keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs,
     loadout, loadouts: p.loadouts || {}, onExit: () => { location.href = location.pathname; }, onRestart: () => location.reload(),
-    settings: { sens: p.sens, fov: p.fov, volume: p.volume ?? 0.6, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, shadows: q.get('shadows') !== '0' && p.shadows !== false, adaptive: p.adaptive !== false, fullscreen: p.fullscreen !== false, pixelRatio: +(q.get('pr') || p.quality || 1) },
+    settings: { sens: p.sens, fov: p[FOV_KEY], volume: p.volume ?? 0.6, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, shadows: q.get('shadows') !== '0' && p.shadows !== false, adaptive: p.adaptive !== false, fullscreen: p.fullscreen !== false, pixelRatio: +(q.get('pr') || p[Q_KEY] || 1) },
   });
 }
 
@@ -90,7 +91,7 @@ else if (q.get('editor')) {                     // /?editor=colgecidi : doğruda
   start({
     editor: true, devMode: true, map: q.get('editor'), tod: q.get('tod') || 'day', weather: 'clear', team: 'blue', cls: p.cls || 'assault', diff: 'normal', optic: p.optic || 'reddot',
     match: { perTeam: 1, type: 'dm', time: 900 }, third: false, keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs, loadout: {},
-    settings: { sens: p.sens, fov: p.fov, volume: 0, shadows: q.get('shadows') !== '0', pixelRatio: +(q.get('pr') || p.quality || 1) },
+    settings: { sens: p.sens, fov: p.fov, volume: 0, shadows: q.get('shadows') !== '0', pixelRatio: +(q.get('pr') || p[Q_KEY] || 1) },
     onExit: () => { location.href = location.pathname; },
   });
 }
@@ -104,6 +105,6 @@ else if (q.get('autostart')) {
     match: { perTeam: (mm ? +mm[1] : 10) * (q.get('type') === 'inf' ? 2 : 1), type: q.get('type') || 'conquest', tickets: +q.get('tickets') || undefined, time: q.has('time') ? +q.get('time') : 900 }, map: q.get('map') || 'kasaba', tod: q.get('tod') || 'day', weather: q.get('weather') || 'clear', optic: q.get('optic') || 'reddot', team: q.get('team') || 'blue', cls: q.get('cls') || 'assault', diff: q.get('diff') || 'normal',
     keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs,
     loadout: { primary: q.get('primary') || undefined, secondary: q.get('secondary') || undefined, gadget: q.get('gadget') || undefined, melee: q.get('melee') || undefined },
-    settings: { sens: p.sens, fov: p.fov, volume: 0, shadows: q.get('shadows') !== '0', pixelRatio: +(q.get('pr') || 1) },
+    settings: { sens: p.sens, fov: p[FOV_KEY], volume: 0, shadows: q.get('shadows') !== '0', pixelRatio: +(q.get('pr') || (FOV_KEY === 'fovM' ? p[Q_KEY] : 1)) },      // dokunmatikte telefon kalitesi
   });
 } else showMenu(start, beginOnline);

@@ -14,6 +14,7 @@ import { Hud } from './hud.js';
 import { Chat } from './chat.js';
 import { Soldier } from './soldier.js';
 import { Player } from './player.js';
+import { isTouch } from './touch.js';
 import { BotBrain } from './bot.js';
 import { CLASS_DEFS, WSTATS, BOT_NAMES, makeLoadout, BLEED_S, ZOMBIE, BOSS, ZTYPES, ZT_ORDER, randomZType, GG_LADDER } from './stats.js';
 import { makeMatch, PRESETS } from './match.js';
@@ -122,7 +123,7 @@ export class Game {
       const sp = env.sunPos;
       this.sun = env.sun;
       this.night = env.night;
-      this.sun.shadow.mapSize.set(2048, 2048);
+      this.sun.shadow.mapSize.set(...(isTouch() ? [1024, 1024] : [2048, 2048]));        // telefonda gölge açılırsa daha ucuz gölge haritası
       this.sunOff = new THREE.Vector3(...sp);
       this.scene.add(this.map.group);
       env.applyGlow(this.map.group);
@@ -283,7 +284,7 @@ export class Game {
       this.online.attach(this);        // ilk snapshot doğmayı belirler (respawn yok)
       this.onNetEvents(opts.online.deps || []);     // odada zaten kurulu mayın/cephane kutuları
       const code = opts.online.room;
-      const b = (this._badge = document.createElement('div'));
+      const b = (this._badge = document.createElement('div')); b.id = 'roombadge';            // telefonda konumu touch.js CSS'inde
       b.style.cssText = 'position:fixed;left:12px;top:178px;z-index:6;padding:6px 10px;background:rgba(8,12,18,.72);border:1px solid rgba(255,255,255,.14);color:#e8edf5;font:600 13px Bahnschrift,Rajdhani,Arial Narrow,sans-serif;letter-spacing:1.5px;cursor:pointer;user-select:none';
       b.title = 'Tıkla: oda bağlantısını kopyala';
       b.onclick = () => {
@@ -825,8 +826,12 @@ export class Game {
     if (this.settings.adaptive === false) return;
     if (p.cool > 0) { p.cool--; return; }
     let want = p.ratio;
-    if (ms > 25 && p.ratio > 0.6) want = Math.max(0.6, p.ratio * 0.85);                       // < 40 FPS: çözünürlüğü düşür
-    else if (ms < 13.5 && p.ratio < p.max) want = Math.min(p.max, p.ratio * 1.12);             // rahat: geri yükselt
+    // Telefon: ekran 60 Hz'e kilitli (kare ≥ 16,7 ms), masaüstü eşiği (13,5 ms) hiç tutmadığı için bir kez düşen çözünürlük geri gelmiyordu.
+    // Dokunmatikte: < 36 FPS düşür (taban 0,75×), ≥ 57 FPS yükselt; düşüşten sonra ~7 sn yükseltme yok (gidip gelmesin)
+    const mob = !!this.player?.touch, lo = mob ? 0.75 : 0.6;
+    if (ms > (mob ? 28 : 25) && p.ratio > lo) { want = Math.max(lo, p.ratio * 0.85); if (mob) p.hold = 6; }      // < 40 FPS: çözünürlüğü düşür
+    else if (p.hold > 0) p.hold--;
+    else if (ms < (mob ? 17.5 : 13.5) && p.ratio < p.max) want = Math.min(p.max, p.ratio * 1.12);             // rahat: geri yükselt
     if (Math.abs(want - p.ratio) > 0.01) {
       p.ratio = want; p.cool = 1;
       r.setPixelRatio(want); r.setSize(innerWidth, innerHeight, false);

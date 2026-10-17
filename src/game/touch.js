@@ -5,11 +5,13 @@
 // · Butonlar: ateş (sabit ya da parmağı izleyen; basılıyken sürükleyince nişan alır), sol ateş (isteğe bağlı), nişan, zıpla, çömel, şarjör,
 //   silah değiştir, ekipman, 3. şahıs, skor, duraklat. HUD'daki silah adına dokununca o silaha geçer.
 // · Düzen düzenleyici (duraklat → Dokunmatik ayarlar): butonları sürükle, boyutlandır, saydamlık; ayarlar localStorage'da (cihaza özel).
+// · Nişan yardımı (yalnız dokunmatik, Hassasiyet sekmesinden kapatılır): düşman üstünde bakış yavaşlar (sürtünme), hareket / ateş / nişan
+//   sırasında görünen en yakın düşmana yumuşakça döner (mıknatıs), nişana girerken hafif çekiş. Görüş: game.botSees (duvar + duman + yaprak).
 // Masaüstünde denemek için: ?touch=1
 import * as THREE from 'three';
 
 const KEY = 'warbyte.touch';
-const DEF = { joy: 'fixed', fire: 'fixed', leftFire: true, opacity: 0.8, sens: 1, adsSens: 0.75, gyro: 'off', gyroSens: 1, gyroInvX: false, gyroInvY: false, layout: {} };
+const DEF = { joy: 'fixed', fire: 'fixed', leftFire: true, opacity: 0.8, sens: 1, adsSens: 0.75, gyro: 'off', gyroSens: 1, gyroInvX: false, gyroInvY: false, aim: true, aimStr: 1, layout: {} };
 // Varsayılan düzen: merkez (x, y: ekranın oranı), boyut s (ekran yüksekliğinin oranı)
 const LAYOUT = {
   joy: { x: 0.15, y: 0.70, s: 0.36 },
@@ -45,6 +47,8 @@ const CSS = `
 #tc .b.fire{background:rgba(200,50,30,.4);border-color:rgba(255,120,90,.7)}#tc .b.fire.on{background:rgba(255,80,40,.7)}
 #tc .b.sm{border-radius:10px}
 #tc .b.hid{display:none}
+#tc.sb .b:not([data-b=score]),#tc.sb .jb{visibility:hidden}
+#tc.scoped .b:not(.fire):not([data-b=ads]),#tc.scoped .jb{opacity:.3!important}
 #tc .rot{position:fixed;inset:0;z-index:30;display:none;place-items:center;background:#0b0e13;color:#fff;font-size:18px;text-align:center;padding:24px;letter-spacing:1px}
 @media (orientation:portrait){#tc .rot{display:grid}}
 /* düzen düzenleyici */
@@ -52,33 +56,39 @@ const CSS = `
 #tc.edit .b,#tc.edit .jb{outline:2px dashed rgba(255,255,255,.45);outline-offset:3px;pointer-events:auto;cursor:move}
 #tc.edit .b.hid{display:grid;opacity:.25!important}
 #tc.edit .sel{outline-color:#ff8a1f}
-#tcEd .ep{position:fixed;z-index:41;touch-action:auto;font-family:Bahnschrift,'Rajdhani','Arial Narrow',system-ui,sans-serif;left:50%;top:8px;transform:translateX(-50%);width:min(560px,70vw);max-height:calc(100vh - 16px);overflow:auto;background:rgba(9,13,19,.94);border:1px solid rgba(255,255,255,.18);padding:10px 14px;color:#e8edf5;font-size:12px;display:none;pointer-events:auto;transition:opacity .15s}
+#tcEd .ep{position:fixed;z-index:41;touch-action:auto;font-family:Bahnschrift,'Rajdhani','Arial Narrow',system-ui,sans-serif;left:50%;top:8px;transform:translateX(-50%);width:min(600px,76vw);max-height:calc(100vh - 16px);overflow:auto;-webkit-overflow-scrolling:touch;background:rgba(9,13,19,.94);border:1px solid rgba(255,255,255,.18);padding:10px 14px;color:#e8edf5;font-size:12px;display:none;pointer-events:auto;transition:opacity .15s}
 #tcEd.on .ep{display:block}
 #tcEd.dragging .ep{opacity:.12;pointer-events:none}
 #tcEd .ep.min .body{display:none}
 #tcEd .ep.min{top:50%;left:41%;transform:translate(-50%,-50%);width:auto}#tcEd .ep.min h4{display:none}
 #tcEd .ep h4{margin:0;font-size:13px;letter-spacing:3px;color:#ffb347;text-transform:uppercase;flex:1}
-#tcEd .ep .row{display:flex;align-items:center;gap:8px;margin-top:8px;flex-wrap:wrap}
-#tcEd .ep .lb{width:118px;opacity:.8}
-#tcEd .ep input[type=range]{flex:1;min-width:120px;accent-color:#ff8a1f}
+#tcEd .ep .row{display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap}
+#tcEd .ep .lb{width:118px;opacity:.8;font-size:13px}
+#tcEd .ep input[type=range]{flex:1;min-width:120px;height:40px;margin:0;accent-color:#ff8a1f}
 #tcEd .ep .v{width:40px;text-align:right}
 #tcEd .ep .seg{display:inline-flex;border:1px solid rgba(255,255,255,.2)}
-#tcEd .ep .seg button,#tcEd .ep .tb{background:transparent;border:0;color:#cfd6e0;padding:6px 10px;font:inherit;font-size:12px;letter-spacing:1px}
+#tcEd .ep .seg button,#tcEd .ep .tb{background:transparent;border:0;color:#cfd6e0;padding:6px 12px;font:inherit;font-size:13px;letter-spacing:1px;min-height:40px;min-width:44px}
 #tcEd .ep .seg button.on{background:#ff8a1f;color:#160a02;font-weight:700}
 #tcEd .ep .tb{border:1px solid rgba(255,255,255,.25)}
 #tcEd .ep .tb.pri{background:#ff8a1f;color:#160a02;font-weight:700;border-color:#ff8a1f}
 #tcEd .ep .tabs{display:flex;gap:6px}
 #tcEd .ep .hint{opacity:.6;margin-top:6px}
+#tcEd .ep .acts{position:sticky;bottom:-10px;margin-bottom:-10px;padding:6px 0 10px;background:rgba(9,13,19,.97)}      /* Kaydet / İptal hep görünür (kısa ekranda panel kayar) */
 /* telefon HUD'u: masaüstü boyutundaki öğeler orantılı küçülür; mermi sağ üste, öldürme bildirimi mini haritanın altına (butonlara binmesin) */
 body.mob #mmwrap{zoom:.5;left:10px;top:10px}
 body.mob #topbar{zoom:.62;top:6px}
-body.mob #killfeed{zoom:.58;top:46vh;bottom:auto;left:16px;right:auto;align-items:flex-start}
+body.mob #killfeed{zoom:.58;top:calc(25vh / .58);bottom:auto;left:calc((8vw + 9vh + 10px) / .58);right:auto;align-items:flex-start}
 body.mob #killfeed .kf{border-right:0;border-left:3px solid #888}body.mob #killfeed .kf.me{border-left-color:#ff8a1f}
 body.mob #vitals{zoom:.55;left:16px;bottom:10px}
 body.mob #ammo{zoom:.55;right:20px;top:14px;bottom:auto}
 body.mob #toasts{zoom:.7;top:90px}
 body.mob #abil,body.mob #msg,body.mob #zonew,body.mob #bosses{zoom:.65}
 body.mob #pops{zoom:.75}
+body.mob #msg{left:calc(42vw / .65);top:calc(60vh / .65);width:max-content;max-width:calc(32vw / .65);white-space:normal;text-align:center;line-height:1.35}      /* durum mesajı joystick ile butonlar arasında, kayarak satıra bölünür */
+/* sohbet (çevrimiçi): joystick ile şarjör butonu arasında, alt ortada; mesajlar yine 9 sn sonra solar */
+body.mob #chat{zoom:.62;left:calc((15vw + 20vh) / .62);bottom:calc(3vh / .62);width:calc(32vw / .62)}
+body.mob #chlog{max-height:calc(24vh / .62)}
+body.mob #roombadge{zoom:.7;left:auto!important;right:calc((7vw + 8vh + 6px) / .7);top:calc(76px / .7)!important}      /* oda rozeti: sağ üstte, silah yuvalarının altında, nişan butonunun solunda (sol ateş / joystick üstünde kalıyordu) */
 `;
 
 export const isTouch = () => {
@@ -225,9 +235,49 @@ export class TouchControls {
   lookBy(dx, dy) {
     const p = this.p, s = p.s;
     if (!p.locked || !s.alive) return;
-    const ads = s.adsT > 0.5, zoom = s.zoomNow && ads ? 1 / Math.pow(s.zoomNow, 0.8) : 1;
-    const k = 0.0055 * this.cfg.sens * (ads ? this.cfg.adsSens : 1) * ((p.set.sens || 0.0022) / 0.0022) * zoom;
+    const ads = s.adsT > 0.5, z = ads ? p.zoomEff() : 1, zoom = z > 1 ? 1 / Math.pow(z, 0.8) : 1;
+    const k = 0.0055 * this.cfg.sens * (ads ? this.cfg.adsSens : 1) * ((p.set.sens || 0.0022) / 0.0022) * zoom * (this.aaSlow || 1);
     p.look(dx * k, dy * k);
+    if (dx || dy) this.lookT = performance.now();
+  }
+
+  // ── Nişan yardımı (her sim adımında, Player.update'ten) ──
+  // Aday: canlı düşman, göğsü nişangâha açısal olarak yakın (koni = 4° + gövde açısı, nişanda büyütmeyle daralır), 90 m'den yakın, gerçekten
+  // görünür (game.botSees: duvar, duman, yaprak / çalı). (a) Sürtünme: üstündeyken parmak bakışı en çok %45 yavaşlar. (b) Mıknatıs: oyuncu
+  // hareket ediyor / ateş ediyor / nişanda / parmakla bakıyorsa hedefe yumuşakça döner (hata ile orantılı, sınırlı hız: asla ani kilit yok;
+  // uzakta zayıf). (c) Nişana girişte 0,18 sn daha güçlü çekiş. Çevrimiçinde de çalışır: yaw / pitch zaten istemciden gönderiliyor.
+  assist(dt) {
+    const p = this.p, g = this.g, s = p.s, c = this.cfg;
+    this.aaSlow = 1; this._aaT = null;                                              // _aaT: son seçilen hedef (test / hata ayıklama)
+    if (s.ads && !this._adsWas) this._snapT = 0.18;
+    this._adsWas = !!s.ads;
+    this._snapT = Math.max(0, (this._snapT || 0) - dt);
+    const kind = s.stat.kind;                                                        // el bombası / mayın / sağlık çantasında yardım yok
+    if (!c.aim || !(c.aimStr > 0) || !s.alive || !p.locked || this.editing || s.fly || (kind !== 'gun' && kind !== 'launcher' && kind !== 'melee')) return;
+    const e = s.eye(this._ae || (this._ae = new THREE.Vector3())), tp = this._at || (this._at = new THREE.Vector3());
+    const ads = s.adsT > 0.5, z = ads ? Math.max(1, p.zoomEff()) : 1, pit = s.pitch + (s.recoilP || 0);
+    let best = null, bw = 0;
+    for (const o of g.soldiers) {
+      if (o === s || !o.alive || o.vacant || o.team === s.team) continue;
+      o.center(tp);
+      const dx = tp.x - e.x, dy = tp.y - e.y, dz = tp.z - e.z, h = Math.hypot(dx, dz), d = Math.hypot(h, dy);
+      if (d > 90 || d < 0.8) continue;
+      let ey = Math.atan2(-dx, -dz) - s.yaw; ey -= Math.round(ey / (2 * Math.PI)) * 2 * Math.PI;
+      const ep = Math.atan2(dy, h) - pit, err = Math.hypot(ey * Math.cos(pit), ep);
+      const cone = (0.07 + Math.atan(0.6 / d)) / Math.sqrt(z);
+      if (err > cone) continue;
+      const w = (1 - (err / cone) ** 2) * (d < 25 ? 1 : Math.max(0.3, 1 - (d - 25) / 65));
+      if (w <= bw || !g.botSees(e, tp)) continue;
+      best = { ey, ep, o, d }; bw = w;
+    }
+    if (!best) return;
+    this._aaT = best; const str = Math.min(1.5, c.aimStr);
+    this.aaSlow = 1 - Math.min(0.6, 0.45 * str * bw);
+    const looking = performance.now() - (this.lookT || 0) < 150;
+    if (!(Math.abs(this.f) + Math.abs(this.r) > 0.1 || p.fireHeld || s.ads || looking)) return;
+    const k = 1 - Math.exp(-(this._snapT > 0 ? 9 : ads ? 3.2 : 2.4) * str * bw * dt), cap = 0.9 * dt;    // en çok ≈52°/sn
+    const my = Math.max(-cap, Math.min(cap, best.ey * k)), mp = Math.max(-cap, Math.min(cap, best.ep * k * 0.7));
+    s.yaw += my; s.pitch = Math.max(-1.5, Math.min(1.5, s.pitch + mp));
   }
 
   // HUD'daki silah yuvaları (#slots .slot): dokununca o silaha geç
@@ -339,8 +389,11 @@ export class TouchControls {
         <div class="row"><span class="lb">Jiroskop</span>${seg('gyro', [['off', 'Kapalı'], ['ads', 'Nişandayken'], ['on', 'Hep açık']])}</div>
         ${rng('gyroSens', 0.2, 3, 0.05, c.gyroSens, 'Jiroskop hassasiyeti')}
         <div class="row"><span class="lb">Jiroskop yönü</span>${seg('gyroInvX', [[false, 'Yatay normal'], [true, 'Yatay ters']])} ${seg('gyroInvY', [[false, 'Dikey normal'], [true, 'Dikey ters']])}</div>
-        <div class="hint">Jiroskop: telefonu çevirerek ince nişan. Ters dönüyorsa yönü değiştir.</div>`}</div>
-      <div class="row" style="justify-content:flex-end;margin-top:${this.min ? 6 : 12}px"><button class="tb" data-act="reset">Varsayılana dön</button><button class="tb" data-act="cancel">İptal</button><button class="tb pri" data-act="save">Kaydet</button></div>`;
+        <div class="hint">Jiroskop: telefonu çevirerek ince nişan. Ters dönüyorsa yönü değiştir.</div>
+        <div class="row"><span class="lb">Nişan yardımı</span>${seg('aim', [[true, 'Açık'], [false, 'Kapalı']])}</div>
+        ${rng('aimStr', 0.2, 1.5, 0.05, c.aimStr, 'Yardım gücü')}
+        <div class="hint">Nişan yardımı: düşman üstünde bakış yavaşlar, hareket / ateş / nişan sırasında görünen düşmana hafifçe döner. Duvar arkasına çekmez.</div>`}</div>
+      <div class="row acts" style="justify-content:flex-end;margin-top:${this.min ? 6 : 8}px"><button class="tb" data-act="reset">Varsayılana dön</button><button class="tb" data-act="cancel">İptal</button><button class="tb pri" data-act="save">Kaydet</button></div>`;
     this.ep.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => { this.tab = b.dataset.tab; this.min = false; this.drawPanel(); }));
     this.ep.querySelector('[data-min]').onclick = () => { this.min = !this.min; this.drawPanel(); };
     this.ep.querySelectorAll('[data-set]').forEach((b) => (b.onclick = async () => {
@@ -384,6 +437,8 @@ export class TouchControls {
       this.btnTouch.clear(); return;
     }
     if (this.runLock) this.setJoy(0, -1);
+    this.el.classList.toggle('sb', !!g.hud.sbShown);                                       // skor tablosu açıkken yalnız Skor butonu (tabloyu örtmesin)
+    this.el.classList.toggle('scoped', s.overlay === 'scope' && s.adsT > 0.9);            // dürbünde butonlar soluklaşır (görüş açık kalsın)
     this.b.ads.classList.toggle('on', !!s.ads);
     this.b.crouch.classList.toggle('on', !!(s.crouching || s.prone));
     this.b.nade.classList.toggle('on', s.cur === 2);
