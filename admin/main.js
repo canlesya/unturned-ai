@@ -322,7 +322,7 @@ function openSave() {
 
 // ───────── Odalar ─────────
 const MODE = { conquest: 'Ele Geçirme', tdm: 'Takım Çatışması', dm: 'Ölüm Maçı', gg: 'Silah Yarışı', inf: 'Enfekte' };
-const MAP = { kasaba: 'Kasaba', vadi: 'Vadi', us: 'Askeri Üs', colgecidi: 'Çöl Geçidi', depo: 'Depo', newyork: 'New York', dev: 'Geliştirme' };
+const MAP = { kasaba: 'Kasaba', vadi: 'Vadi', us: 'Askeri Üs', colgecidi: 'Çöl Geçidi', depo: 'Depo', liman: 'Liman', newyork: 'New York', dev: 'Geliştirme' };
 const CLS = (c) => CLASS_DEFS[c]?.label || (c === 'zombie' ? 'Zombi' : c);
 let roomTimer = 0;
 async function loadRooms() {
@@ -355,10 +355,10 @@ function renderRooms(main) {
 }
 
 // ───────── Resmi sunucular ─────────
-const MAPN = { kasaba: 'Kasaba', vadi: 'Vadi', us: 'Askeri Üs', colgecidi: 'Çöl Geçidi', depo: 'Depo', newyork: 'New York' };
+const MAPN = { kasaba: 'Kasaba', vadi: 'Vadi', us: 'Askeri Üs', colgecidi: 'Çöl Geçidi', depo: 'Depo', liman: 'Liman', newyork: 'New York' };
 const MAPIMG = {
   kasaba: new URL('../public/img/kasaba.jpg', import.meta.url).href, vadi: new URL('../public/img/vadi.jpg', import.meta.url).href,
-  us: new URL('../public/img/us.jpg', import.meta.url).href, colgecidi: new URL('../public/img/colgecidi.jpg', import.meta.url).href,
+  us: new URL('../public/img/us.jpg', import.meta.url).href, colgecidi: new URL('../public/img/colgecidi.jpg', import.meta.url).href, liman: new URL('../public/img/liman.jpg', import.meta.url).href,
   newyork: new URL('../public/img/newyork.jpg', import.meta.url).href,
   depo: new URL('../public/img/depo.jpg', import.meta.url).href,
 };
@@ -368,7 +368,7 @@ const WEATHERS = [['clear', 'Açık'], ['rain', 'Yağmur'], ['fog', 'Sis']];
 const DIFFS = [['easy', 'Kolay'], ['normal', 'Normal'], ['hard', 'Zor']];
 const lbl = (L, v) => (L.find((x) => x[0] === v) || [, v])[1];
 const isTotal = (t) => t === 'dm' || t === 'gg' || t === 'inf';
-const mapsFor = (t) => (t === 'inf' ? ['newyork'] : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo']);
+const mapsFor = (t) => (t === 'inf' ? ['newyork'] : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman']);
 function sizeRange(t, L) {
   if (t === 'inf') return [L.infMin, L.infMax, 2];
   if (t === 'dm' || t === 'gg') return [2, L.dmMax, 1];

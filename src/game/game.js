@@ -142,7 +142,7 @@ export class Game {
     if (this.ffa) {
       // Haritanın doğma noktaları iki üste ait; ölüm maçında bunun yerine TÜM haritadan ulaşılabilir, aralıklı rastgele noktalar kullanılır
       const base = this.map.spawns.blue[0];
-      const pool = this.nav.spreadPoints(this.nav.reachable(base.x, base.z), { spacing: 14, max: 160 }).map((p) => ({ ...p, ry: 0 }));
+      const pool = this.nav.spreadPoints(this.nav.reachable(base.x, base.z), { spacing: 14, max: 160 }).filter((p) => !this.nav.floor || this.nav.floorAt(p.x, p.z) < 0.3).map((p) => ({ ...p, ry: 0 }));     // katmanlı haritada yükseltilmiş platform hücresine doğulmaz (zemin kotunda doğar; Liman kulesi)
       const all = pool.length >= 20 ? pool : [...this.map.spawns.blue, ...this.map.spawns.red];     // güvenlik: nokta bulunamazsa üsler
       this.dmPool = all;
       for (let i = 0; i < 32; i++) this.map.spawns['f' + i] = all;
@@ -608,6 +608,7 @@ export class Game {
 
   _free(x, z, s) {
     if (!this.nav.isFree(x, z)) return false;
+    if (this.nav.floor && this.nav.floorAt(x, z) > 0.3) return false;            // ileri doğuş platform / çatı hücresine düşmesin (doğuş y = 0: kutunun içinde kalırdı)
     return !this.soldiers.some((e) => e !== s && e.alive && Math.hypot(e.pos.x - x, e.pos.z - z) < 1.1);
   }
 
