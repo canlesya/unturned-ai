@@ -31,7 +31,9 @@ export class MapBuilder {
     this.stack = [new THREE.Matrix4()];
     this.objStack = [];            // harita editörü: o an kurulan mantıksal nesnenin kimliği (obj()); yoksa her parça kendi otomatik kimliğini alır
     this._autoN = 0; this._lastOid = null;
+    this.kindStack = [];           // yüzey sınıfı (surface.kindOf yerine açıkça): withKind() / opt.kind — yalnız görsel (gölgelendirici sınıfı), çarpışmaya dokunmaz
   }
+  withKind(kind, fn) { this.kindStack.push(kind); try { return fn(); } finally { this.kindStack.pop(); } }
 
   // ── harita editörü desteği ──
   // obj(id, fn): fn içinde eklenen tüm görsel parçalar ve çarpışma kutuları bu kimliği taşır (seç / sil / taşı / boyutla tek nesne olarak).
@@ -56,6 +58,8 @@ export class MapBuilder {
     const g = geometry.index ? geometry.toNonIndexed() : geometry;
     g.applyMatrix4(this.M.clone().multiply(local));
     g.userData.oid = this.curOid || 'parça:' + this._autoN++;
+    const kind = this._optKind ?? this.kindStack[this.kindStack.length - 1];
+    if (kind !== undefined) g.userData.kind = kind;
     this._lastOid = g.userData.oid;
     g.deleteAttribute('uv');
     b.geos.push(g);
@@ -79,7 +83,9 @@ export class MapBuilder {
 
   box(x, y, z, w, h, d, color, opt = {}) {
     const local = this._local(x, y + h / 2, z, opt.rx, opt.ry, opt.rz);
+    this._optKind = opt.kind;
     const r = this.addGeo(new THREE.BoxGeometry(w, h, d), color, local, opt.o);
+    this._optKind = undefined;
     if (opt.collide !== false) this._aabb(w, h, d, local, opt.tag);
     if (MapBuilder.zfix) this._zrec(r, local, w, h, d);
   }
@@ -223,7 +229,9 @@ export class MapBuilder {
   cyl(x, y, z, rTop, rBot, h, color, opt = {}) {
     const cy = opt.center ? y : y + h / 2;
     const local = this._local(x, cy, z, opt.rx, opt.ry, opt.rz);
+    this._optKind = opt.kind;
     this.addGeo(new THREE.CylinderGeometry(rTop, rBot, h, opt.seg || 8), color, local, opt.o);
+    this._optKind = undefined;
     if (opt.collide !== false && !opt.rx && !opt.rz) {
       const r = Math.max(rTop, rBot);
       this._aabb(r * 2, h, r * 2, local, opt.tag);
@@ -411,14 +419,16 @@ export class MapBuilder {
     const plainGeos = [];
     for (const b of this.buckets.values()) {
       if (Object.keys(b.o).length === 0 && !MapBuilder.noVC) {
-        const c = new THREE.Color(b.color), kind = this.surface ? kindOfColor(b.color) : 0;
+        const S = this.surface, c = new THREE.Color(b.color), kind = S ? (S.kindOf || kindOfColor)(b.color) : 0;
         for (const g of b.geos) {
           const n = g.attributes.position.count, arr = new Float32Array(n * 3);
           for (let i = 0; i < n; i++) { arr[i * 3] = c.r; arr[i * 3 + 1] = c.g; arr[i * 3 + 2] = c.b; }
           g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
           if (this.surface) {
             const P = g.attributes.position, kd = new Uint8Array(n), gd = new Float32Array(n);
-            const oid = g.userData.oid || '', kk = /^palmiye/.test(oid) ? 3 : kind === 1 && /^(kasa|sandık|araç|fıçı|varil)/.test(oid) ? 2 : kind;       // açık renkli sandıklar sıva değil ahşap
+            const oid = g.userData.oid || '';
+            let kk = S.kindOf ? (g.userData.kind ?? kind) : /^palmiye/.test(oid) ? 3 : kind === 1 && /^(kasa|sandık|araç|fıçı|varil)/.test(oid) ? 2 : kind;       // açık renkli sandıklar sıva değil ahşap
+            if (S.seeded) kk = (kk & 15) | ((Math.imul(plainGeos.length + 1, 2654435761) >>> 28) << 4);         // üst 4 bit: parça başına tohum (pencere / araç kendi tonunda)
             for (let i = 0; i < n; i++) { kd[i] = kk; gd[i] = this.surface.ground(P.getX(i), P.getZ(i)); }
             g.setAttribute('aKind', new THREE.BufferAttribute(kd, 1)); g.setAttribute('aGnd', new THREE.BufferAttribute(gd, 1));
           }
@@ -440,7 +450,7 @@ export class MapBuilder {
       const c32 = merged.attributes.color.array, c16 = new Uint16Array(c32.length);            // bellek: köşe rengi 12 → 6 bayt (yarım duyarlık)
       for (let i = 0; i < c32.length; i++) c16[i] = THREE.DataUtils.toHalfFloat(c32[i]);
       merged.setAttribute('color', new THREE.Float16BufferAttribute(c16, 3));
-      const mesh = new THREE.Mesh(merged, this.surface ? (this._desertMat ||= makeDesertMaterial()) : VC_MAP);
+      const mesh = new THREE.Mesh(merged, this.surface ? (this._desertMat ||= (this.surface.material || makeDesertMaterial)()) : VC_MAP);
       mesh.userData.ranges = ranges;
       mesh.castShadow = true; mesh.receiveShadow = true;
       group.add(mesh);

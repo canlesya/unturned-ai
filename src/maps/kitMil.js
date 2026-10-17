@@ -33,11 +33,13 @@ export { tanker, apc, tank, ambulance, jeep } from './vehicles.js';
 export function lightPool(b, x, z, r = 3.2, color = '#ffc66b', y = 0.09, opacity = 0.5) {
   poolDisc(b, x, y, z, r, color, opacity);
 }
-export function lampPost(b, x, z, { ry = 0, h = 6.2, color = '#ffe2a0', double = false, pool = 3.6 } = {}) {
+// broken: kırık lamba (başlık sönük koyu cam, ışık havuzu yok); çarpışma aynı (yalnız direk)
+export function lampPost(b, x, z, { ry = 0, h = 6.2, color = '#ffe2a0', double = false, pool = 3.6, broken = false } = {}) {
+  if (broken) pool = 0;
   b.with(x, 0, z, ry, () => {
     b.cyl(0, 0, 0, 0.09, 0.14, h, '#3f4348', { seg: 6 });
     b.box(0.55, h - 0.2, 0, 1.2, 0.1, 0.14, '#3f4348', { collide: false });
-    b.box(1.1, h - 0.3, 0, 0.95, 0.16, 0.5, color, { collide: false, o: GL });
+    b.box(1.1, h - 0.3, 0, 0.95, 0.16, 0.5, broken ? '#1a1c1f' : color, broken ? { collide: false } : { collide: false, o: GL });
     if (pool) lightPool(b, 1.1, 0, pool);
     if (double) {
       b.box(-0.55, h - 0.2, 0, 1.2, 0.1, 0.14, '#3f4348', { collide: false });
