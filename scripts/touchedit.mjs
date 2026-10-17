@@ -31,9 +31,20 @@ async function drag(id, dx, dy) {
 await drag('jump', -40, -50);                    // panelin dışındaki buton
 await tapEl('[data-min]');                       // paneli küçült → üstteki butonlar açılır
 await drag('third', -60, 80);
+await drag('optic', -50, 60);                    // nişangâh seç butonu da düzenlenebilir
 await tapEl('[data-min]');
+{ // seçili (nişangâh) butonun boyutu: kaydırıcının sağ ucuna dokun → büyür
+  const b0 = await page.locator('#tc [data-b=optic]').boundingBox(), r = await page.locator('[data-r=size]').boundingBox();
+  await page.touchscreen.tap(r.x + r.width * 0.9, r.y + r.height / 2); await page.waitForTimeout(200);
+  const b1 = await page.locator('#tc [data-b=optic]').boundingBox();
+  check(b1.width > b0.width * 1.3, `nişangâh butonu boyutlandı (${Math.round(b0.width)} → ${Math.round(b1.width)} px)`);
+}
 await tapEl('[data-tab=sens]');
 check(await page.evaluate(() => !!document.querySelector('[data-r=sens]')), 'Hassasiyet sekmesine dokunuldu');
+{ await page.locator('[data-r=retSz]').scrollIntoViewIfNeeded(); await page.waitForTimeout(150); const r = await page.locator('[data-r=retSz]').boundingBox(); await page.touchscreen.tap(r.x + r.width * 0.75, r.y + r.height / 2); await page.waitForTimeout(200);
+  const v = await page.evaluate(() => [window.__game.player.touch.cfg.retSz, getComputedStyle(document.body).getPropertyValue('--rs')]);
+  check(v[0] > 1.2 && Math.abs(+v[1] - v[0]) < 1e-6, `Nişangâh boyutu kaydırıcısı (${v[0]}, --rs ${v[1]})`); }
+await page.evaluate(() => { document.querySelector("#tcEd .ep").scrollTop = 0; }); await page.waitForTimeout(150);
 await tapEl('[data-set=gyro][data-v=ads]');
 // izin isteği zaman uyumsuz (~350 ms): sonucu bekle
 check(await page.waitForFunction(() => window.__game.player.touch.cfg.gyro === 'ads', null, { timeout: 2000 }).then(() => true, () => false), 'Jiroskop "Nişandayken" seçildi');
@@ -46,7 +57,7 @@ const op = await page.evaluate(() => window.__game.player.touch.cfg.opacity);
 check(op < 0.6, `saydamlık kaydırıcısına dokunuldu (${op})`);
 await tapEl('[data-act=save]');
 const saved = await page.evaluate(() => JSON.parse(localStorage.getItem('warbyte.touch') || 'null'));
-check(saved && saved.joy === 'float' && saved.gyro === 'ads', 'Kaydet: ayarlar kaydedildi');
+check(saved && saved.joy === 'float' && saved.gyro === 'ads' && saved.retSz > 1.2 && saved.layout.optic && saved.layout.optic.s > 0.15, 'Kaydet: ayarlar kaydedildi (nişangâh butonu yeri / boyutu ve nişangâh boyutu dahil)');
 check(!(await page.evaluate(() => document.getElementById('tc').classList.contains('edit'))), 'panel kapandı');
 // jiroskop: cihaz yönelimi (deviceorientation) → kamera. Yatay tutuş, dik (gamma −85) ve geriye yatık (gamma −45) iki duruşta:
 // pusula yönü (alpha) değişimi = yalnız sağa/sola dönüş (alpha artınca sola), eğme = yalnız yukarı/aşağı

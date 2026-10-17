@@ -916,12 +916,19 @@ export class Game {
     if (this.settings.adaptive === false) return;
     if (p.cool > 0) { p.cool--; return; }
     let want = p.ratio;
-    // Telefon: ekran 60 Hz'e kilitli (kare ≥ 16,7 ms), masaüstü eşiği (13,5 ms) hiç tutmadığı için bir kez düşen çözünürlük geri gelmiyordu.
-    // Dokunmatikte: < 36 FPS düşür (taban 0,75×), ≥ 57 FPS yükselt; düşüşten sonra ~7 sn yükseltme yok (gidip gelmesin)
-    const mob = !!this.player?.touch, lo = mob ? 0.75 : 0.6;
-    if (ms > (mob ? 28 : 25) && p.ratio > lo) { want = Math.max(lo, p.ratio * 0.85); if (mob) p.hold = 6; }      // < 40 FPS: çözünürlüğü düşür
-    else if (p.hold > 0) p.hold--;
-    else if (ms < (mob ? 17.5 : 13.5) && p.ratio < p.max) want = Math.min(p.max, p.ratio * 1.12);             // rahat: geri yükselt
+    const mob = !!this.player?.touch;
+    if (mob) {
+      // Telefon: ekran 60 Hz'e kilitli (kare ≥ 16,7 ms). Eski taban 0,75× (DPR 3'te 932x430 ekrana 699x322 çizim) 30-35 FPS'lik telefonda kalıcı
+      // bulanık / pikselli görüntü demekti. Şimdi sabit adımlar (0,25×), taban DPR ≥ 2'de 1,25× (ekran pikselinin 1,25 katı; MSAA ile keskin);
+      // 1×'e yalnız tabanda bile < 24 FPS sürerse (3 ölçüm ≈ 3,6 sn) iner. < 36 FPS düşür, ≥ 57 FPS yükselt; düşüşten sonra ~7 sn yükseltme yok.
+      const floor = Math.min(p.max, devicePixelRatio >= 2 ? 1.25 : 1), low = Math.min(p.max, 1);
+      p.slow = ms > 41.5 && p.ratio <= floor + 0.01 ? (p.slow || 0) + 1 : 0;
+      if (ms > 28 && p.ratio > floor + 0.01) { want = Math.max(floor, p.ratio - 0.25); p.hold = 6; }
+      else if (p.slow >= 3 && p.ratio > low + 0.01) { want = low; p.hold = 6; p.slow = 0; }
+      else if (p.hold > 0) p.hold--;
+      else if (ms < 17.5 && p.ratio < p.max) want = Math.min(p.max, p.ratio + 0.25);
+    } else if (ms > 25 && p.ratio > 0.6) want = Math.max(0.6, p.ratio * 0.85);                                   // masaüstü: < 40 FPS düşür
+    else if (ms < 13.5 && p.ratio < p.max) want = Math.min(p.max, p.ratio * 1.12);                               // rahat: geri yükselt
     if (Math.abs(want - p.ratio) > 0.01) {
       p.ratio = want; p.cool = 1;
       r.setPixelRatio(want); r.setSize(innerWidth, innerHeight, false);

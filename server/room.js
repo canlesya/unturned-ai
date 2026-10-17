@@ -347,7 +347,7 @@ export class Room {
     if (typeof m.spawn === 'string') h.spawnChoice = m.spawn === 'base' || g.mode.objectives.some((o) => o.id === m.spawn) ? m.spawn : 'base';
   }
 
-  // BF_DEBUG=1 ile açılan test komutları: { t:'dbg', tp:[x,z] } ışınla · { hp } can · { bots:false } botları sustur · { pb:1 } herkese paintball silahları
+  // BF_DEBUG=1 ile açılan test komutları: { t:'dbg', tp:[x,z] } ışınla · { hp } can · { bots:false } botları sustur · { pb:1 } herkese paintball silahları · { ask } durum
   debug(id, m) {
     const c = this.clients.get(id), g = this.game;
     if (!c) return;
@@ -366,6 +366,7 @@ export class Room {
     if (Number.isFinite(m.pld) && g.payload) { g.payload.d = Math.max(g.payload.floorD, Math.min(g.payload.end, m.pld)); g.payload.idleT = 0; }   // { pld } vagonu yol mesafesine taşı (Vagon testi)
     if (m.bots === false) { g.brainsOff = g.brains.splice(0); }
     if (m.bots === true && g.brainsOff) { g.brains.push(...g.brainsOff); g.brainsOff = null; }
+    if (m.ask && c.ws.readyState === 1) c.ws.send(JSON.stringify({ t: 'dbg', optic: s.opticId, item: s.item.id }));   // test: sunucudaki nişangâh / silah (istemci bilinmeyen t'yi yok sayar)
   }
 
   broadcast(msg, except) {

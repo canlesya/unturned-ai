@@ -587,7 +587,7 @@ export class Player {
   openWheel() {
     const s = this.s, g = this.game;
     if (!this.locked && !g.opts.nolock) return;
-    const list = (OPTIC_ALLOWED[s.item.id] || []).filter((id) => OPTICS[id]);
+    const list = this.opticList();
     if (list.length < 2) { g.hud.toast($t('hud.t.noOptic', { w: wName(s.item.id) }), '#cfd3d8'); return; }
     const el = document.createElement('div');
     el.style.cssText = 'position:fixed;inset:0;z-index:25;pointer-events:none;font-family:Bahnschrift,Rajdhani,Arial Narrow,sans-serif;color:#e8edf5;background:radial-gradient(circle at 50% 50%,rgba(4,6,10,.15),rgba(4,6,10,.62))';
@@ -640,9 +640,16 @@ export class Player {
 
   wheelPick() {
     const w = this.wheel; if (!w || !w.hover) return;
-    const id = w.hover.id, o = this.s.setOptic(id);
-    if (o) { this.game.online?.send({ t: 'opt', optic: id }); this.game.hud.toast($t('hud.t.optic', { o: opticName(id) }), '#cfe6ff'); }
+    this.pickOptic(w.hover.id);
     this.wheelPaint();
+  }
+  // Elimdeki silahın seçilebilir nişangâhları (T tekerleği ve dokunmatik nişangâh seçicisi ortak)
+  opticList() { return (OPTIC_ALLOWED[this.s.item.id] || []).filter((id) => OPTICS[id]); }
+  // Nişangâhı seç: yerelde hemen, çevrimiçinde sunucuya da (room.opt → setOptic). Dönen: nişangâh tanımı ya da null
+  pickOptic(id) {
+    const o = this.s.alive ? this.s.setOptic(id) : null;
+    if (o) { this.game.online?.send({ t: 'opt', optic: id }); this.game.hud.toast($t('hud.t.optic', { o: opticName(id) }), '#cfe6ff'); }
+    return o;
   }
 
   closeWheel() {
@@ -651,8 +658,10 @@ export class Player {
     this.wheel = null;
   }
 
-  // Etkin nişan büyütmesi: dokunmatikte dürbünsüz nişangâhlar (demir / red dot / holo, ≤ 2×) biraz daha yakınlaştırır (küçük ekranda hedef seçilsin)
-  zoomEff() { const z = this.s.zoomNow || 0; return this.touch && z > 1 && z < 2 ? 1 + (z - 1) * 1.6 : z; }
+  // Etkin nişan büyütmesi: dokunmatikte dürbünsüz nişangâhlar (demir / red dot / holo, ≤ 2×) daha çok yakınlaştırır (küçük ekranda hedef seçilsin):
+  // demir 1,15 → 1,30×, red dot / holo 1,3 → 1,60× (önce ×1,6: 1,24 / 1,48); dürbünler (ACOG 3×, 4×, 6×) aynı
+  zoomOf(z) { return this.touch && z > 1 && z < 2 ? 1 + (z - 1) * 2 : z; }
+  zoomEff() { return this.zoomOf(this.s.zoomNow || 0); }
   // Dikey FOV (derece): masaüstünde ayar doğrudan dikey FOV; dokunmatikte ayar YATAY FOV'dur (2,2:1 telefonda dikey 75° → yatay 118°, düşman küçücük kalıyordu)
   baseFov() { const f = this.set.fov; if (!this.touch) return f; const a = this.game.camera.aspect || 16 / 9; return (2 * Math.atan(Math.tan((f * Math.PI) / 360) / a) * 180) / Math.PI; }
 

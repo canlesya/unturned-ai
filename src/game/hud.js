@@ -155,9 +155,21 @@ body.mob #pbdead{font-size:48px;-webkit-text-stroke:2px #10131a}
 body.mob #scope .bl{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(0,0,0,.93);-webkit-mask-image:radial-gradient(circle at center,transparent 46.6vh,#000 47vh);mask-image:radial-gradient(circle at center,transparent 46.6vh,#000 47vh)}
 body.mob #scope .rg{width:94vh;height:94vh;margin:-47vh 0 0 -47vh;border-width:2.6vh}
 body.mob #scope svg{width:88.8vh;height:88.8vh;margin:-44.4vh 0 0 -44.4vh}
-body.mob #scope .mil g path:first-child{stroke-width:.55}
-body.mob #rdot{width:5px;height:5px;margin:-2.5px 0 0 -2.5px;box-shadow:0 0 3px 1px #ff2a1acc}      /* telefonda parıltı hedefi örtmesin */
 body.mob #vitals,body.mob #ammo{background:none;border:0}       /* telefonda arka plan şeridi butonlara binmesin */
+/* telefon nişangâhları: küçük yüksek DPI ekranda 5 px nokta / 2 px halka seçilmiyordu → daha büyük, kalın ve ince koyu kenarlı (açık kum / gök
+   zemininde de seçilsin), parıltı az (hedefi örtmesin). Boyut: Dokunmatik ayarlar → Hassasiyet → Nişangâh boyutu (--rs, touch.js). Masaüstü aynı. */
+#idot{position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:#fff;box-shadow:0 0 0 1.5px rgba(0,0,0,.7);display:none}
+body.mob #idot.on{display:block;transform:scale(var(--rs,1))}      /* demir nişan (yalnız telefonda): silah yarı saydamken ön arpacık seçilmiyor, ortada küçük nokta */
+body.mob #rdot{width:8px;height:8px;margin:-4px 0 0 -4px;background:#ff2414;box-shadow:0 0 0 1.5px rgba(0,0,0,.55),0 0 4px 1px #ff2a1a99;transform:scale(var(--rs,1))}
+body.mob #holo{width:78px;height:78px;margin:-39px 0 0 -39px;border-width:3px;box-shadow:0 0 0 1px rgba(0,0,0,.4),inset 0 0 0 1px rgba(0,0,0,.4),0 0 5px #ff332688;transform:scale(var(--rs,1))}
+body.mob #holo::before{width:7px;height:7px;margin:-3.5px 0 0 -3.5px;box-shadow:0 0 0 1.5px rgba(0,0,0,.55)}
+body.mob #holo i{box-shadow:0 0 0 1px rgba(0,0,0,.4)}
+body.mob #holo i:nth-child(1),body.mob #holo i:nth-child(2){width:3px;height:12px;margin-left:-1.5px}body.mob #holo i:nth-child(1){top:-16px}body.mob #holo i:nth-child(2){bottom:-16px}
+body.mob #holo i:nth-child(3),body.mob #holo i:nth-child(4){height:3px;width:12px;margin-top:-1.5px}body.mob #holo i:nth-child(3){left:-16px}body.mob #holo i:nth-child(4){right:-16px}
+/* telefon dürbünü: çizgiler ≈ 2 kat kalın, merkez noktası büyük (halka 94vh, 1 birim ≈ 2 px) */
+body.mob #scope .mil g path:first-child{stroke-width:.75}body.mob #scope .mil g path:nth-child(3){stroke-width:.85}
+body.mob #scope .chev g path:first-child{stroke-width:2.8}body.mob #scope .chev g path:nth-child(2){stroke-width:.65}body.mob #scope .chev g path:nth-child(3){stroke-width:1.1}
+body.mob #scope circle{transform:scale(1.9)}
 /* katmanlar: duraklat, ölüm, skor, maç sonu */
 .overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;background:radial-gradient(ellipse at center,rgba(5,8,12,.5),rgba(5,8,12,.82));pointer-events:auto}
 .overlay.intro{background-color:#05080c;background-size:cover;background-position:center}
@@ -300,7 +312,7 @@ export class Hud {
       <div id="advig"></div>
 
       <div id="cross"><span class="h l"></span><span class="h r"></span><span class="v t"></span><span class="v b"></span><span class="dot"></span></div>
-      <div id="pbret"><i class="st"></i><i class="rg"></i><i class="dt"></i><b class="m"><span>20</span></b><b class="m"><span>30</span></b><b class="m"><span>40</span></b></div><div id="rdot"></div><div id="holo"><i></i><i></i><i></i><i></i></div><div id="hitm"></div>
+      <div id="pbret"><i class="st"></i><i class="rg"></i><i class="dt"></i><b class="m"><span>20</span></b><b class="m"><span>30</span></b><b class="m"><span>40</span></b></div><div id="rdot"></div><div id="idot"></div><div id="holo"><i></i><i></i><i></i><i></i></div><div id="hitm"></div>
       <div id="pops"></div><div id="zonew"><span id="zonett"></span><small id="zonet"></small></div><div id="msg"></div>
       <div id="vitals"><div class="cls" id="clsname"></div><div class="row"><div id="hpnum">100</div><div id="hpbar"><div id="hpfill"></div></div></div><div id="stance"></div></div>
       <div id="abil"><div class="an"><b id="abk">F</b><span id="abn"></span></div><div class="bar"><i id="abbar"></i></div></div>
@@ -782,6 +794,7 @@ export class Hud {
     this.pbReticle(p, st, ov === 'pbring' && p.alive && !tp && ads > 0.55);
     $('rdot').style.display = p.alive && !tp && ov === 'dot' && ads > 0.6 ? 'block' : 'none';
     $('holo').style.display = p.alive && !tp && ov === 'holo' && ads > 0.6 ? 'block' : 'none';
+    $('idot').classList.toggle('on', p.alive && !tp && ov === 'none' && !!p.opticDef && ads > 0.6);      // yalnız telefonda görünür (CSS body.mob)
     const sc = $('scope');
     sc.style.display = scopeOn ? 'block' : 'none';
     if (scopeOn) sc.className = (p.opticDef.reticle === 'chevron') ? 'chev' : 'mil';
