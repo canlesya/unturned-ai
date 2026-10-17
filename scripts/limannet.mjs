@@ -1,0 +1,25 @@
+// Liman çevrimiçi oda testi: oda kur (map=liman, 5v5 botlu ele geçirme, gece), katıl, snapshot + bot hareketi + harita adı.  WS=ws://127.0.0.1:8802 node scripts/limannet.mjs
+import WebSocket from 'ws';
+const URL = process.env.WS || 'ws://127.0.0.1:8787';
+const open = () => new Promise((res) => { const ws = new WebSocket(URL); ws.msgs = []; ws.on('message', (d) => ws.msgs.push(JSON.parse(d))); ws.on('open', () => res(ws)); });
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+let fail = 0; const check = (ok, msg) => { console.log((ok ? 'OK    ' : 'HATA  ') + msg); if (!ok) fail++; };
+const a = await open(), b = await open();
+a.send(JSON.stringify({ t: 'create', name: 'Ali', cfg: { map: 'liman', perTeam: 5, type: 'conquest', tod: 'night', bots: true } }));
+await wait(1500);
+const wa = a.msgs.find((m) => m.t === 'welcome');
+check(!!wa, 'oda kuruldu: ' + (wa && wa.room));
+check(wa && JSON.stringify(wa).includes('"liman"'), 'oda haritası liman (cfg.map): ' + (wa && (wa.cfg?.map || '?')));
+b.send(JSON.stringify({ t: 'join', room: wa.room, name: 'Veli' }));
+await wait(500);
+check(!!b.msgs.find((m) => m.t === 'welcome'), 'ikinci oyuncu katıldı');
+const s0 = a.msgs.filter((m) => m.t === 'snap').pop();
+await wait(4000);
+const s1 = a.msgs.filter((m) => m.t === 'snap').pop();
+check(!!s0 && !!s1, `snapshot akıyor (${a.msgs.filter((m) => m.t === 'snap').length} adet)`);
+const me = s1 && s1.me && s1.me.now;
+check(me && Math.abs(me.z) > 24 && Math.abs(me.z) < 33, `oyuncu kendi avlusunda doğdu (z ${me && me.z.toFixed(1)})`);
+console.log('      snapshot örnek anahtarlar:', s1 && Object.keys(s1).join(','));
+a.close(); b.close();
+console.log(fail ? 'sonuç: HATA' : 'sonuç: OK');
+process.exit(fail ? 1 : 0);
