@@ -27,7 +27,8 @@ export class MenuScene {
     r.shadowMap.type = THREE.PCFShadowMap;
     this.mode = 'orbit';
     this.t = Math.random() * 6;
-    this.mapId = null; this.tod = null;
+    this.mapId = null; this.tod = null; this._job = 0;
+    this._maps = new Map();                         // kurulmuş harita önbelleği (id → map)
     this.world = null; this.cam = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.5, 900);
     this.fade = 1;
     this.iconCache = new Map();
@@ -44,26 +45,58 @@ export class MenuScene {
   }
 
   // ───── harita arka planı ─────
+  // Tıklama anında yalnız hedef kaydedilir; ağır iş (harita kurulumu → ortam → gölgelendirici derleme) boyanmış kareden SONRA, ayrı karelere
+  // bölünerek yapılır, eski arka plan bu sırada dönmeye devam eder. Kurulan harita önbellekte kalır: gün saati değişimi / aynı haritaya dönüş yeniden kurmaz.
   setWorld(mapId, tod) {
     if (this.mapId === mapId && this.tod === tod) return;
     this.mapId = mapId; this.tod = tod;
-    this.fade = 0;
-    if (this.world) this._disposeWorld();
-    const scene = new THREE.Scene();
-    const map = MAPS[mapId].build();
-    const env = setupEnvironment(scene, this.renderer, { shadowSize: 70, sunPos: map.env?.sunPos || [60, 90, 40], env: map.env, tod });
-    env.sun.shadow.mapSize.set(1024, 1024);
-    scene.add(map.group);
-    env.applyGlow(map.group);
-    this.world = { scene, map, sun: env.sun, sunOff: new THREE.Vector3(...env.sunPos) };
-    env.sun.position.copy(this.world.sunOff);
-    env.sun.target.position.set(0, 0, 0);
+    this._swap(mapId, tod, ++this._job);
   }
 
-  _disposeWorld() {
-    this.world.scene.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
-    this.world = null;
+  async _swap(mapId, tod, job) {
+    const later = () => new Promise((res) => requestAnimationFrame(() => setTimeout(res, 0)));   // bir kare boyansın, sonra sürdür
+    const live = () => this.running && job === this._job;                                        // bu arada yeni seçim geldiyse bu iş bırakılır
+    await later(); if (!live()) return;
+    let map = this._maps.get(mapId);
+    if (!map) { map = MAPS[mapId].build(); this._maps.set(mapId, map); await later(); if (!live()) return; }
+    this._maps.delete(mapId); this._maps.set(mapId, map);                                         // LRU sırası: en son kullanılan sona
+    const scene = new THREE.Scene();
+    const env = setupEnvironment(scene, this.renderer, { shadowSize: 70, sunPos: map.env?.sunPos || [60, 90, 40], env: map.env, tod });
+    env.sun.shadow.mapSize.set(1024, 1024);
+    env.sun.position.copy(new THREE.Vector3(...env.sunPos)); env.sun.target.position.set(0, 0, 0);
+    try { await Promise.all([this.renderer.compileAsync(scene, this.cam), this.renderer.compileAsync(map.group, this.cam, scene)]); } catch (e) { /* derlenemezse ilk çizimde derlenir */ }
+    if (!live()) { this._disposeEnv(scene, null); return; }
+    const old = this.world;
+    scene.add(map.group); env.applyGlow(map.group);                                               // grup eski sahneden yenisine geçer (aynı karede)
+    this.world = { id: mapId, scene, map };
+    this.fade = 0; this._done = job;
+    if (old) this._disposeEnv(old.scene, old.map === map ? map.group : null);
+    this._trim();
   }
+  _max() { return matchMedia('(pointer:coarse)').matches ? 3 : 4; }
+  _trim() {                                         // en çok 4 harita bellekte (telefonda 3); ekrandaki atılmaz
+    const max = this._max();
+    for (const [id, m] of this._maps) if (this._maps.size > max && m !== this.world?.map) { this._disposeMap(m); this._maps.delete(id); }
+  }
+
+  // Mod değişiminin zorladığı haritaları (ör. Enfekte → New York) boşta önceden kurar: o moda ilk geçişte de arka plan anında değişir.
+  prefetch(ids) {
+    this._pre = ids.filter((id) => MAPS[id]).slice(0, 3);
+    const go = () => {
+      if (!this.running) return;
+      const id = this._pre.find((i) => !this._maps.has(i)); if (!id || this._maps.size >= this._max()) return;   // önbellek doluysa ön kurulum yok (birbirini atıp döngüye girmesin)
+      if (this.world && this._job === this._done) { this._maps.set(id, MAPS[id].build()); this._trim(); }   // geçiş sürerken bekle
+      this.prefetch(this._pre);
+    };
+    if (window.requestIdleCallback) requestIdleCallback(go, { timeout: 4000 }); else setTimeout(go, 1500);
+  }
+
+  _disposeEnv(scene, keep) {                       // ortam (gökyüzü / bulut / yıldız) atılır; önbellekteki harita grubu korunur
+    for (const o of [...scene.children]) if (o !== keep && !this._isCached(o)) o.traverse((x) => { if (x.geometry) x.geometry.dispose(); });
+    scene.background?.dispose?.(); scene.environment?.dispose?.();
+  }
+  _isCached(o) { for (const m of this._maps.values()) if (m.group === o) return true; return false; }
+  _disposeMap(m) { m.group.removeFromParent(); m.group.traverse((o) => { if (o.geometry) o.geometry.dispose(); }); }
 
   setMode(mode) { this.mode = mode; this._offset(); }
 
@@ -158,11 +191,12 @@ export class MenuScene {
     const dt = Math.min(0.05, (now - this._last) / 1000); this._last = now;
     this.t += dt;
     const r = this.renderer;
-    if (this.mode === 'showroom' || !this.world) {
+    if (this.mode !== 'showroom' && !this.world) { /* ilk harita henüz kuruluyor: boş kare (vitrin sahnesi araya girmesin) */ }
+    else if (this.mode === 'showroom') {
       if (this.char) this.char.root.rotation.y = this._charYaw + Math.sin(this.t * 0.5) * 0.35;
       r.render(this.show.scene, this.show.cam);
     } else {
-      const O = ORBIT[this.mapId] || ORBIT.kasaba, a = this.t * O.speed;
+      const O = ORBIT[this.world.id] || ORBIT.kasaba, a = this.t * O.speed;
       this.cam.position.set(Math.cos(a) * O.r, O.h + Math.sin(this.t * 0.2) * 3, Math.sin(a) * O.r * 0.8);
       this.cam.lookAt(...O.look);
       r.render(this.world.scene, this.cam);
@@ -174,7 +208,9 @@ export class MenuScene {
     this.running = false;
     cancelAnimationFrame(this.raf);
     removeEventListener('resize', this._rs);
-    if (this.world) this._disposeWorld();
+    if (this.world) this._disposeEnv(this.world.scene, null);
+    for (const m of this._maps.values()) this._disposeMap(m);
+    this._maps.clear(); this.world = null;
     this._pmrem.dispose();
     this.renderer.dispose();
     this.renderer.forceContextLoss?.();

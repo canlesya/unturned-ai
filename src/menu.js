@@ -576,6 +576,7 @@ export function showMenu(onStart, onOnline) {
   nav.addEventListener('click', act);
 
   render();
+  scene?.prefetch([DEFAULT_MAP, ...Object.values(MAPS).filter((m) => m.only).map((m) => m.id)]);   // mod değişiminin zorladığı haritalar boşta hazırlanır
   music.setVolume((p.volume ?? 0.6) * (p.vMusic ?? 0.5));
   music.play('lobby');                       // lobi müziği (public/audio/music/lobby.mp3 varsa)
 }

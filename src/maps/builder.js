@@ -113,8 +113,9 @@ export class MapBuilder {
     const it = this._zitems || [], ZEPS = 0.012, ZGAP = 0.013, rep = [];
     if (it.length < 2) return rep;
     const order = it.map((_, i) => i).sort((a, c) => it[a].mn[0] - it[c].mn[0]);
+    const OT = [[1, 2], [0, 2], [0, 1]], SIDES = [1, -1];                          // eksen dışı iki eksen (sıcak döngüde dizi üretmeden)
     const flat = (q) => q.mx[1] - q.mn[1] <= 0.045 && q.mn[1] < 0.02;
-    const area = (q, a) => { const o = [0, 1, 2].filter((k) => k !== a); return (q.mx[o[0]] - q.mn[o[0]]) * (q.mx[o[1]] - q.mn[o[1]]); };
+    const area = (q, a) => { const o = OT[a]; return (q.mx[o[0]] - q.mn[o[0]]) * (q.mx[o[1]] - q.mn[o[1]]); };
     const push = (q, a, side, delta) => {                                           // q kutusunun a ekseni, side yüzü (1: max, -1: min) delta kadar dışarı
       const pos = q.geo.attributes.position, plane = side > 0 ? q.mx[a] : q.mn[a];
       for (let i = 0; i < pos.count; i++) {
@@ -130,13 +131,14 @@ export class MapBuilder {
         const B = it[order[oj]];
         if (B.mn[0] > A.mx[0] + ZEPS) break;
         if (A.key === B.key) continue;                                              // aynı malzeme: görsel fark yok
+        if (B.mn[1] > A.mx[1] + ZEPS || A.mn[1] > B.mx[1] + ZEPS || B.mn[2] > A.mx[2] + ZEPS || A.mn[2] > B.mx[2] + ZEPS) continue;   // y / z'de ayrık: hiçbir yüz eşleşemez (sonuç aynı, yalnız hızlı)
         if (flat(A) && flat(B)) continue;                                           // zemin kaplamaları (çimen yaması / asfalt / toprak): birbirini itip yolun üstüne çıkmasın
         for (let a = 0; a < 3; a++) {
-          const o = [0, 1, 2].filter((k) => k !== a);
+          const o = OT[a];
           const ov0 = Math.min(A.mx[o[0]], B.mx[o[0]]) - Math.max(A.mn[o[0]], B.mn[o[0]]);
           const ov1 = Math.min(A.mx[o[1]], B.mx[o[1]]) - Math.max(A.mn[o[1]], B.mn[o[1]]);
           if (ov0 < 0.01 || ov1 < 0.01 || ov0 * ov1 < 0.0004) continue;
-          for (const side of [1, -1]) {
+          for (const side of SIDES) {
             const fa = side > 0 ? A.mx[a] : A.mn[a], fb = side > 0 ? B.mx[a] : B.mn[a];
             if (Math.abs(fa - fb) >= ZEPS) continue;
             const aA = area(A, a), aB = area(B, a);
@@ -191,7 +193,8 @@ export class MapBuilder {
       const bad = (dx, dz) => {
         const w = worldOf((pv.o.x || 0) + dx, (pv.o.z || 0) + dz);
         const P = obb(w.x + off * Math.cos(ry), w.z - off * Math.sin(ry), ry, len / 2, wid / 2);
-        for (const s of sol) { if (s.c.min[0] > Math.max(...P.map((p) => p[0])) || s.c.max[0] < Math.min(...P.map((p) => p[0]))) continue; if (hit(P, s.P)) return true; }
+        const x0 = Math.min(P[0][0], P[1][0], P[2][0], P[3][0]), x1 = Math.max(P[0][0], P[1][0], P[2][0], P[3][0]);   // x aralığı bir kez (her engelde yeniden değil)
+        for (const s of sol) { if (s.c.min[0] > x1 || s.c.max[0] < x0) continue; if (hit(P, s.P)) return true; }
         for (const v of placed) if (hit(P, v)) return true;
         return false;
       };
