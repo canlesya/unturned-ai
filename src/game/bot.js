@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { DIFFICULTY, WSTATS } from './stats.js';
 import { TUNE } from './balance.js';
 import { clamp, rand, angleDiff, yawFromDir, lerp, pick } from './util.js';
+import { ballLead } from './paint.js';
 
 // silah rolleri (bot davranışı)
 const SNIPERS = new Set(['sniper', 'svd', 'barrett']);
@@ -358,6 +359,7 @@ export class BotBrain {
       const wantYaw = yawFromDir(dx, dz);
       let wantPitch = Math.atan2(dy, dist);
       if (dist > 35) wantPitch += dist * 0.0004;
+      if (st.ball) wantPitch += ballLead(st, Math.hypot(dist, dy));                  // paintball: topun düşüşü kadar yukarı nişan
       const turn = this.d.turn * (0.7 + Math.min(Math.abs(angleDiff(s.yaw, wantYaw)), 1.5));
       const dyaw = angleDiff(s.yaw, wantYaw);
       s.yaw += clamp(dyaw, -turn * dt, turn * dt);

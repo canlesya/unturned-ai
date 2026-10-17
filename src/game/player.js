@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { createWeapon } from '../models/weapons.js';
+import { tintPaint } from '../models/paintball.js';
+import { paintColorOf } from './paint.js';
 import { createItem } from '../models/items.js';
 import { TEAMS } from '../core/palette.js';
 import { WSTATS, OPTICS, OPTIC_ALLOWED, ZT_ORDER } from './stats.js';
@@ -401,6 +403,7 @@ export class Player {
   refreshWeapon() {
     const s = this.s;
     this.vm.setItem(s.item.id, s.team, s.stat.kind, s.optic);
+    if (s.stat.ball) { tintPaint(this.vm.model, paintColorOf(s)); this.vm.flash?.removeFromParent(); this.vm.flash = null; }      // paintball: hazne / tüp kendi boya rengimde, namlu alevi yok
   }
 
   on(target, ev, fn, opt) { target.addEventListener(ev, fn, opt); this._bound.push([target, ev, fn, opt]); }

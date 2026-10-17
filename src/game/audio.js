@@ -106,6 +106,8 @@ export class Sfx {
       case 'm79': T({ gain: 0.7, dur: 0.18, f0: 160, f1: 45 }); N({ gain: 0.4, dur: 0.22, f0: 1800, f1: 200 }); break;
       case 'knife': N({ gain: 0.28, dur: 0.16, f0: 900, f1: 3200, type: 'bandpass', q: 1.2 }); break;
       case 'throw': N({ gain: 0.2, dur: 0.15, f0: 1500, f1: 600, type: 'bandpass' }); break;
+      case 'marker': N({ gain: 0.34, dur: 0.05, f0: 2200, f1: 700, type: 'bandpass', q: 1.4 }); T({ gain: 0.26, dur: 0.05, f0: 300, f1: 120, type: 'triangle' }); N({ gain: 0.1, dur: 0.09, f0: 6000, f1: 2500, type: 'highpass', delay: 0.01 }); break;   // paintball: kuru "pop" + gaz tıslaması
+      case 'pbpistol': N({ gain: 0.3, dur: 0.045, f0: 2800, f1: 900, type: 'bandpass', q: 1.4 }); T({ gain: 0.22, dur: 0.045, f0: 380, f1: 150, type: 'triangle' }); break;
       default: N({ gain: 0.6, dur: 0.14, f0: 4200, f1: 600 }); T({ gain: 0.35, dur: 0.12, f0: 150, f1: 50 });
     }
   }
@@ -160,6 +162,8 @@ export class Sfx {
   // flaşbang yiyen oyuncunun kulak çınlaması
   ring(dur = 3) { this._tone({ gain: 0.18, dur, f0: 3700, f1: 3500, type: 'sine', delay: 0.05 }); }
   step(pos) { this._noise({ pos, gain: 0.07, dur: 0.07, f0: 500, f1: 200 }); }
+  // boya topu patlaması: ıslak "şlap" (oyuncuya isabet biraz daha tok)
+  splat(pos, body = false) { this._noise({ pos, gain: body ? 0.34 : 0.22, dur: 0.07, f0: body ? 900 : 1500, f1: 260, q: 0.9 }); this._tone({ pos, gain: body ? 0.16 : 0.08, dur: 0.05, f0: 180, f1: 70, type: 'sine' }); }
   impact(pos) { this._noise({ pos, gain: 0.18, dur: 0.08, f0: 3500, f1: 1200, type: 'bandpass' }); }
   capture() { this._tone({ gain: 0.35, dur: 0.25, f0: 520, f1: 520, type: 'triangle' }); this._tone({ gain: 0.35, dur: 0.3, f0: 780, f1: 780, type: 'triangle', delay: 0.15 }); }
 }

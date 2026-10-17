@@ -5,6 +5,8 @@ import { SWING_HIT_K } from './anim.js';
 import { H_STAND, H_CROUCH, H_PRONE } from './collision.js';
 import { dirFromAngles, clamp, rand, lerp } from './util.js';
 import { TUNE } from './balance.js';
+import { paintColorOf } from './paint.js';
+import { tintPaint } from '../models/paintball.js';
 
 const _v = new THREE.Vector3();
 const _d = new THREE.Vector3();
@@ -175,7 +177,8 @@ export class Soldier {
     const id = this.stat.kind === 'medkit' ? null : this.item.id;
     if (!force && id === this._modelWeapon) return;
     this._modelWeapon = id;
-    this.model.setWeapon(id, this.optic);
+    const w = this.model.setWeapon(id, this.optic);
+    if (w && WSTATS[id]?.ball) tintPaint(w, paintColorOf(this));                  // paintball: hazne / tüp savaşçının boya renginde
   }
 
   // Elde tutulabilir mi? Biten tek kullanımlık gadget (bomba, mayın, kutu, ilk yardım) elle tutulamaz; silahlar şarjörü boş olsa da tutulur.
@@ -316,13 +319,14 @@ export class Soldier {
     const right = new THREE.Vector3().crossVectors(base, UP).normalize();
     const up = new THREE.Vector3().crossVectors(right, base).normalize();
     g._firstPellet = true;
+    const rnd = st.ball ? g.paint.rngFor(this) : Math.random;            // paintball: insan atışında tohumlu (istemci tahmini = sunucu topu)
     for (let i = 0; i < pellets; i++) {
-      const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * spread;
+      const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * spread;
       const d = base.clone().addScaledVector(right, Math.cos(a) * r).addScaledVector(up, Math.sin(a) * r).normalize();
-      g.shootRay(this, origin, d, st, muzzle, camO);
+      if (st.ball) g.paint.fire(this, origin, d, st, muzzle, camO); else g.shootRay(this, origin, d, st, muzzle, camO);
     }
     this.protT = 0;                                                              // ateş eden artık dokunulmaz değil (korumayla düşmana ateş edilemez)
-    g.effects.muzzle(muzzle, base);
+    if (!st.ball) g.effects.muzzle(muzzle, base);                              // paintball: alev yok (gazla atar)
     g.sfx.shot(st.sound, this.pos);
     this.flashT = 0.06;
     this.sinceShot = 0;

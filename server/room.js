@@ -252,7 +252,7 @@ export class Room {
     if (typeof m.spawn === 'string') h.spawnChoice = m.spawn === 'base' || g.mode.objectives.some((o) => o.id === m.spawn) ? m.spawn : 'base';
   }
 
-  // BF_DEBUG=1 ile açılan test komutları: { t:'dbg', tp:[x,z] } ışınla · { hp } can · { bots:false } botları sustur
+  // BF_DEBUG=1 ile açılan test komutları: { t:'dbg', tp:[x,z] } ışınla · { hp } can · { bots:false } botları sustur · { pb:1 } herkese paintball silahları
   debug(id, m) {
     const c = this.clients.get(id), g = this.game;
     if (!c) return;
@@ -263,6 +263,11 @@ export class Room {
     if (m.kill) s.takeDamage(9999, s, 'body', s.pos, 'test'), s.protT = 0;
     if (Array.isArray(m.tk)) { g.tickets.blue = +m.tk[0]; g.tickets.red = +m.tk[1]; }
     if (Array.isArray(m.kl)) for (const [i, n] of m.kl) { const t = g.soldiers[i | 0]; if (t && Number.isFinite(+n)) t.kills = +n; }   // { kl:[[id,öldürme]…] } skor kutusu testi
+    if (m.pb) {                                                                                     // paintball silahları (mod gelmeden test): herkese tüfek + tabanca, doğunca da
+      const arm = (e) => { e.items = [{ id: 'pbrifle', mag: 50, reserve: 150 }, { id: 'pbpistol', mag: 12, reserve: 48 }, { id: 'knife', mag: 1, reserve: 0 }]; e.cur = 0; e.cd = 0; e.reloadT = 0; };
+      for (const e of g.soldiers) arm(e);
+      if (!g._pbArm) { g._pbArm = true; g.on('spawn', arm); }
+    }
     if (m.bots === false) { g.brainsOff = g.brains.splice(0); }
     if (m.bots === true && g.brainsOff) { g.brains.push(...g.brainsOff); g.brainsOff = null; }
   }

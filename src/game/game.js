@@ -26,6 +26,7 @@ import { nullSink } from '../sim/nullSink.js';
 import { applyInput } from '../sim/input.js';
 import { SIM_DT } from '../net/protocol.js';
 import { mat } from '../core/geo.js';
+import { Paint } from './paint.js';
 import { initGadgets, updateGadgets, spawnSmoke, flashBang, smokeBlocks, smokeDensity, placeDeployable, netDeploy, netUndeploy } from './gadgets.js';
 
 const STAT_ID = new Map(Object.entries(WSTATS).map(([k, v]) => [v, k]));      // WSTATS nesnesi → id (ağ olayları için)
@@ -169,6 +170,7 @@ export class Game {
       music.play('match');
       this.weather = new Weather(this, opts.weather || 'clear');
     }
+    this.paint = new Paint(this);                         // paintball: boya topları + lekeler (başsızda yalnız simülasyon)
 
     // ── savaşçılar ──
     const names = [...BOT_NAMES].sort(() => Math.random() - 0.5);
@@ -457,6 +459,7 @@ export class Game {
     if (inp.fp) h.fireBuf = 0.15;
     h.fireBuf = Math.max(0, h.fireBuf - dt);
     s.rewindTick = Number.isFinite(inp.vt) ? inp.vt : null;
+    s.inSeq = inp.q;                                                  // paintball: tohumlu saçılım + istemci tahmininin top eşlemesi
     // 3. şahıs: kameranın gözden ofseti. Yalnızca odada izinliyse, ≤ 4,5 m ve göz→kamera arasında duvar yoksa kabul edilir; aksi halde atış gözden.
     s.stanceLeft = this.thirdAllowed && !!inp.sd;                      // yalnızca görsel: diğer oyuncular sol omuz duruşunu görsün
     s.shotOff = null;
@@ -467,7 +470,7 @@ export class Game {
     const st = s.stat;
     if (st.kind === 'melee') { if (inp.fh || h.fireBuf > 0) { if (s.tryFire()) h.fireBuf = 0; } }
     else if (s.triggerUpdate(!!inp.fh, h.fireBuf)) h.fireBuf = 0;
-    s.rewindTick = null;
+    s.rewindTick = null; s.inSeq = null;
   }
 
   updateHumans(dt) {
@@ -910,6 +913,7 @@ export class Game {
       const t = this._c0; this._c0 = this._c1; this._c1 = t; t.p.copy(c.position); t.q.copy(c.quaternion);
     }
     this.updateProjectiles(dt);
+    this.paint.update(dt);
     updateGadgets(this, dt, this.time);
     this.effects.update(dt);
     this.hud.update(dt);
@@ -926,6 +930,7 @@ export class Game {
     if (this.player) this.player.update(dt); else this.updateHumans(dt);
     for (const b of this.brains) b.update(dt);
     this.updateProjectiles(dt);
+    this.paint.update(dt);
     updateGadgets(this, dt, this.time);
     this.squadT -= dt;
     if (this.squadT <= 0) { this.squadT = 18; this.assignSquads(); }
@@ -1002,6 +1007,7 @@ export class Game {
         }
         case 'ab': if (by) this.showAbilityFx(by, ev.k, { x: ev.f[0], y: ev.f[1], z: ev.f[2] }, { x: ev.d[0], y: ev.d[1], z: ev.d[2] }); break;
         case 'lvl': { const v = this.soldiers[ev.v]; if (v) { const up = ev.l > v.ggLevel; v.ggLevel = ev.l; if (v === me && up) this.showLevel(v, true); else if (v === me) this.hud.toast(`Bıçakla öldürüldün: Seviye ${ev.l + 1}/${GG_LADDER.length}`, '#ff8a6a'); } break; }
+        case 'pb': case 'pbh': this.paint.onNet(ev); break;          // paintball: top doğdu / oyuncuya isabet
         case 'swg': if (by && by !== me) { by.swing = { t: 0, dur: ev.d, kind: ev.k, idx: 0, done: true }; by.comboT = ev.d + 0.38; } break;
       }
     }
@@ -1106,6 +1112,7 @@ export class Game {
     this.sun.target.position.set(tx, ty, tz);
     this.sun.position.set(tx + this.sunOff.x, ty + this.sunOff.y, tz + this.sunOff.z);
     if (this.map.fx) this.map.fx.update(performance.now() / 1000);            // harita efektleri (New York: ateş ışığı titremesi, duman / kıvılcım zamanı)
+    this.paint.draw();
     r.clear();
     r.render(this.scene, this.camera);
     if (this.playerSoldier.alive && !this.showSelf) this.player.vm.render(r, innerWidth, innerHeight);
