@@ -72,7 +72,7 @@ for (let k = 0; k < 4; k++) {                                         // zemin m
   check(Math.abs(r.y - 9) < 0.05, `zemin merdiveni ${['turuncu', 'mor', 'turkuaz', 'mavi'][k]}: 0 → 9 m (${r.t.toFixed(1)} sn)`);
 }
 { // kule: giriş katı → iç merdiven → balkon (doğu kapısı) ; üst kat → iç merdiven → tepe
-  let r = walk(tg, w, [-3.4, 9, 0], yawTo(1, 0), 4, { until: (s) => s.pos.x > 3.9 });
+  let r = walk(tg, w, [-3.3, 9, 0], yawTo(1, 0), 4, { until: (s) => s.pos.x > 3.9 });
   check(Math.abs(r.y - 13.5) < 0.05 && r.x > 3.8, `kule iç merdiveni 9 → 13,5 m, doğu kapısından balkona (x ${r.x.toFixed(1)})`);
   r = walk(tg, w, [-2.85, 13.5, 2.4], yawTo(1, 0), 4, { until: (s) => s.pos.x > 2.85 });
   check(Math.abs(r.y - 18) < 0.05, `kule üst merdiveni 13,5 → 18 m tepe (${r.t.toFixed(1)} sn)`);
