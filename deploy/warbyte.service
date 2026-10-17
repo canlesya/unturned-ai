@@ -1,0 +1,25 @@
+# /etc/systemd/system/warbyte.service — WarByte oyun sunucusu (eski VPS 5.9.208.245'teki kurulumun birebir kopyası)
+[Unit]
+Description=WarByte oyun sunucusu
+After=network.target
+
+[Service]
+Type=simple
+User=warbyte
+Group=warbyte
+WorkingDirectory=/opt/warbyte/app
+Environment=PORT=8787
+Environment=NODE_ENV=production
+ExecStart=/opt/warbyte/node/bin/node server/index.js
+Restart=always
+RestartSec=3
+# Güvenlik sertleştirme
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/opt/warbyte
+MemoryMax=2G
+
+[Install]
+WantedBy=multi-user.target
