@@ -56,12 +56,6 @@ nginx -t && systemctl reload nginx
 
 # güvenlik duvarı: yalnız SSH / 80 / 443 (8787 ve admin 8788 dışarı kapalı, nginx üzerinden)
 ufw allow OpenSSH >/dev/null && ufw allow 80/tcp >/dev/null && ufw allow 443/tcp >/dev/null && ufw --force enable
-# SSH yalnız anahtarla — ancak root'ta yetkili anahtar varsa (kendini kilitleme)
-if [ -s /root/.ssh/authorized_keys ]; then
-  printf '%s\n' '# WarByte: yalnız anahtarla giriş (00- önce okunur, cloud-init dosyası ezemez)' 'PasswordAuthentication no' 'KbdInteractiveAuthentication no' 'PermitRootLogin prohibit-password' > /etc/ssh/sshd_config.d/00-warbyte.conf
-  sshd -t && systemctl reload ssh
-fi
-
 echo "--- hazır ---"
 curl -s http://127.0.0.1:8787/health; echo
 echo "admin ilk şifresi: /opt/warbyte/app/data/admin-password.txt"
