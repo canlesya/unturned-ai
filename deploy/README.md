@@ -6,6 +6,7 @@
 | `update.sh` | `/opt/warbyte/update.sh` (deploy: `ssh root@IP '/opt/warbyte/update.sh'`) |
 | `nginx-warbyte.conf` | `/etc/nginx/sites-available/warbyte` (+ `sites-enabled` bağlantısı, certbot) |
 | `nginx-warbyte-admin.conf` | `/etc/nginx/sites-available/warbyte-admin` (+ bağlantı, certbot) |
+| `nginx-warbyte-ws.conf` | `/etc/nginx/sites-available/warbyte-ws` — oyun WebSocket'i, Cloudflare'siz (`ws` kaydı DNS only) |
 
 Dizinler: uygulama `/opt/warbyte/app` (git, dal `online`, kullanıcı `warbyte`), kendi Node 22'si `/opt/warbyte/node`.
 Kalıcı veri `/opt/warbyte/app/data/` (git dışı): `balance.json` + `balance-history.json` (denge), `official.json` (resmi sunucular),

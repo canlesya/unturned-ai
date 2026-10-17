@@ -1,6 +1,6 @@
 // İstemci ağ katmanı: bağlantı, istemci tarafı tahmin (prediction) + sunucu uzlaştırması (reconciliation),
 // uzaktaki oyuncular için snapshot interpolasyonu.
-import { SIM_HZ, SIM_DT, applyFlags, F_LEFT, F_PROT } from './protocol.js';
+import { SIM_HZ, SIM_DT, applyFlags, F_LEFT, F_PROT, defaultServerUrl, directServerUrl } from './protocol.js';
 import { applyInput } from '../sim/input.js';
 import { WSTATS, ZT_ORDER } from '../game/stats.js';
 import { sanitizeBalance, useBalance } from '../game/balance.js';
@@ -31,15 +31,24 @@ export class NetClient {
   }
 
   // Sunucuya bağlan ve oda kur/katıl. Çözülen değer: { net, welcome }
+  // Varsayılan adreste önce Cloudflare'siz doğrudan bağlantı (directServerUrl, 3 sn); açılamazsa normal adres. Sunucu hatası (oda dolu vb.) tekrar denenmez.
   static connect(url, hello) {
+    const direct = url === defaultServerUrl() ? directServerUrl() : null;
+    if (!direct) return NetClient.connectOne(url, hello, 8000);
+    return NetClient.connectOne(direct, hello, 3000).catch((e) => (e.netFail ? NetClient.connectOne(url, hello, 8000) : Promise.reject(e)));
+  }
+
+  static connectOne(url, hello, ms) {
     return new Promise((resolve, reject) => {
       const ws = new WebSocket(url);
       const net = new NetClient(ws);
-      const timer = setTimeout(() => { reject(new Error('Sunucuya bağlanılamadı')); ws.close(); }, 8000);
-      ws.onerror = () => { clearTimeout(timer); reject(new Error('Sunucuya bağlanılamadı: ' + url)); };
-      ws.onopen = () => ws.send(JSON.stringify(hello));
+      let opened = false;
+      const fail = (msg, netFail) => { clearTimeout(timer); clearInterval(net._ping); ws.onclose = null; try { ws.close(); } catch (e) { /* yok say */ } reject(Object.assign(new Error(msg), { netFail })); };
+      const timer = setTimeout(() => fail('Sunucuya bağlanılamadı', !opened), ms);
+      ws.onerror = () => fail('Sunucuya bağlanılamadı: ' + url, !opened);
+      ws.onopen = () => { opened = true; ws.send(JSON.stringify(hello)); };
       net.onWelcome = (w) => { clearTimeout(timer); resolve({ net, welcome: w }); };
-      net.onError = (msg) => { clearTimeout(timer); reject(new Error(msg)); ws.close(); };
+      net.onError = (msg) => fail(msg, false);
     });
   }
 

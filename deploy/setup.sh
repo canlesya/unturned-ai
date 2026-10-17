@@ -2,7 +2,7 @@
 # WarByte sunucu kurulumu (temiz Ubuntu 22.04/24.04, root):  bash setup.sh warbyte.io [eposta]
 # Kurar: nginx + certbot, warbyte kullanıcısı, resmi Node 22 (/opt/warbyte/node, SHA256 doğrulamalı), uygulama (/opt/warbyte/app, dal online),
 # systemd servisi, /opt/warbyte/update.sh, nginx (oyun: DOMAIN + www, admin: admin.DOMAIN), Let's Encrypt sertifikaları.
-# Önkoşul: Cloudflare'de DOMAIN, www, admin A kayıtları bu sunucuya (proxied olabilir; SSL modu Full).
+# Önkoşul: Cloudflare'de DOMAIN, www, admin A kayıtları bu sunucuya (proxied olabilir; SSL modu Full) + ws A kaydı DNS ONLY (gri bulut).
 set -euo pipefail
 DOMAIN="${1:?alan adı gerekli: bash setup.sh warbyte.io}"
 EMAIL="${2:-}"
@@ -40,8 +40,10 @@ systemctl enable -q warbyte
 # nginx
 sed "s/warbyte\.io/$DOMAIN/g" "$HERE/nginx-warbyte.conf" > /etc/nginx/sites-available/warbyte
 sed "s/warbyte\.io/$DOMAIN/g" "$HERE/nginx-warbyte-admin.conf" > /etc/nginx/sites-available/warbyte-admin
+sed "s/warbyte\.io/$DOMAIN/g" "$HERE/nginx-warbyte-ws.conf" > /etc/nginx/sites-available/warbyte-ws
 ln -sf /etc/nginx/sites-available/warbyte /etc/nginx/sites-enabled/warbyte
 ln -sf /etc/nginx/sites-available/warbyte-admin /etc/nginx/sites-enabled/warbyte-admin
+ln -sf /etc/nginx/sites-available/warbyte-ws /etc/nginx/sites-enabled/warbyte-ws
 rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl reload nginx
 
@@ -49,6 +51,7 @@ nginx -t && systemctl reload nginx
 M=(--register-unsafely-without-email); [ -n "$EMAIL" ] && M=(-m "$EMAIL")
 certbot --nginx --non-interactive --agree-tos "${M[@]}" -d "$DOMAIN" -d "www.$DOMAIN" --no-redirect
 certbot --nginx --non-interactive --agree-tos "${M[@]}" -d "admin.$DOMAIN" --redirect
+certbot --nginx --non-interactive --agree-tos "${M[@]}" -d "ws.$DOMAIN" --redirect       # oyun bağlantısı (Cloudflare'siz: DNS only)
 nginx -t && systemctl reload nginx
 
 echo "--- hazır ---"

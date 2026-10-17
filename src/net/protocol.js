@@ -73,6 +73,15 @@ export function defaultServerUrl() {
   if (!dev) return `ws://${loc.host}/ws`;                                             // 80 portunda ters vekil
   return `ws://${loc.hostname || '127.0.0.1'}:${DEFAULT_PORT}`;
 }
+// Oyun bağlantısı Cloudflare'siz: HTTPS sayfada ws.<alan adı> (DNS only kaydı, doğrudan sunucu). Cloudflare'in ücretsiz planı Türkiye
+// trafiğini Amsterdam'dan dolaştırıyordu (TR sunucuya ~138 ms, doğrudan ~32 ms). Ulaşılamazsa NetClient aynı alan adındaki /ws'e döner.
+export function directServerUrl() {
+  const loc = globalThis.location;
+  if (!loc || loc.protocol !== 'https:') return null;
+  const h = loc.hostname.replace(/^www\./, '');
+  if (!h.includes('.') || /^[\d.]+$/.test(h) || h.startsWith('ws.')) return null;
+  return `wss://ws.${h}/ws`;
+}
 // ws(s)://host[:port][/ws]  →  http(s)://host[:port]/health
 export function healthUrl(wsUrl) {
   const u = new URL(wsUrl);
