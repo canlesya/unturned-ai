@@ -3,7 +3,7 @@
 //   GPU=1 node scripts/pb2shots.mjs [http://127.0.0.1:5207]      Çıktı: /tmp/wb-pb2-shots/*.png
 import { chromium, devices } from 'playwright';
 import fs from 'fs';
-const BASE = process.argv[2] || process.env.BASE || 'http://127.0.0.1:5207', OUT = '/tmp/wb-pb2-shots';
+const BASE = process.argv[2] || process.env.BASE || 'http://127.0.0.1:5221', OUT = process.env.OUT || '/tmp/wb-pb4-shots';
 fs.mkdirSync(OUT, { recursive: true });
 const GPU = !!process.env.GPU, ONLY = process.env.ONLY || '';
 const browser = await chromium.launch(GPU ? { headless: false, args: ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu-rasterization'] } : { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
@@ -13,7 +13,7 @@ let fail = 0; const check = (ok, msg) => { console.log((ok ? 'OK    ' : 'HATA  '
 async function setup(ctxOpt, q = '') {
   const ctx = await browser.newContext(ctxOpt);
   const page = await ctx.newPage();
-  page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+  page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => m.type() === 'error' && !/Failed to load resource/.test(m.text()) && errs.push(m.text()));
   await page.goto(`${BASE}/?autostart=8v8&map=boyakulesi&type=pb&tod=day&debug=1&dev=1&nolock=1${q}`);
   await page.waitForFunction('window.__game && window.__game.running && window.__game.playerSoldier.alive', null, { timeout: 120000 });
   await page.evaluate(() => {
@@ -27,10 +27,29 @@ async function setup(ctxOpt, q = '') {
     window.__hide();
     window.__put = (s, x, y, z, yaw = 0) => { s.pos.set(x, y, z); s.vel.set(0, 0, 0); s.yaw = yaw; s.pitch = 0; };
     window.__bot = (i, x, y, z, ry) => { const b = bots[i]; b.vacant = false; b.spawn({ x, z, ry }, 0); b.pos.set(x, y, z); b.protT = 0; b.model.root.visible = true; b.yaw = ry; return b; };
-    window.__face = (s, t, h = 1.6) => { const e = s.eye(new V()), dx = t.x - e.x, dz = t.z - e.z, dy = t.y + h - e.y; s.yaw = Math.atan2(-dx, -dz); s.pitch = Math.atan2(dy, Math.hypot(dx, dz)); };
+    window.__face = (s, t, h = 1.6) => { t = t.pos || t; const e = s.eye(new V()), dx = t.x - e.x, dz = t.z - e.z, dy = t.y + h - e.y; s.yaw = Math.atan2(-dx, -dz); s.pitch = Math.atan2(dy, Math.hypot(dx, dz)); };
     // bot oyuncuya bir top atar (düşüş telafili), h: hedef yükseklik (1,1 gövde, 1,7 kafa)
-    window.__shootMe = (b, h = 1.1) => {
-      const e = b.eye(new V()), t = p.pos, dx = t.x - e.x, dz = t.z - e.z, dy = t.y + h - e.y, d = Math.hypot(dx, dz), st = { speed: 70, grav: 7 };
+    window.__front = (i, d = 10) => { const fx = -Math.sin(p.yaw), fz = -Math.cos(p.yaw); const b = __bot(i, p.pos.x + fx * d, p.pos.y, p.pos.z + fz * d, p.yaw + Math.PI); b.hp = 9999; return b; };
+    window.__side = (i, sgn) => {                     // yandan (sgn −1 sol / +1 sağ) açık görüş hattı olan bir yere bot koy
+      const g = window.__game, rx = Math.cos(p.yaw), rz = -Math.sin(p.yaw), fx = -Math.sin(p.yaw), fz = -Math.cos(p.yaw), e = p.eye(new V());
+      for (const d of [8, 6, 10, 5, 12, 4]) for (const f of [1, 0, 3, -1, 5]) { const x = p.pos.x + sgn * rx * d + fx * f, z = p.pos.z + sgn * rz * d + fz * f; if (g.world.clear(e, new V(x, p.pos.y + 1.6, z)) && g.world.clear(new V(p.pos.x, p.pos.y + 1.1, p.pos.z), new V(x, p.pos.y + 1.1, z))) { const b = __bot(i, x, p.pos.y, z, 0); b.hp = 9999; return b; } }
+      return __bot(i, p.pos.x + sgn * rx * 6, p.pos.y, p.pos.z + sgn * rz * 6, 0);
+    };
+    window.__open = () => {                            // zeminde önü 9 m açık (kutu / siper yok) bir yer + bakış yönü
+      const g = window.__game;
+      for (let k = 0; k < 5000; k++) {
+        const x = -22 + Math.random() * 44, z = -22 + Math.random() * 44, yaw = Math.random() * 6.283, fx = -Math.sin(yaw), fz = -Math.cos(yaw);
+        if (Math.hypot(x, z) < 13 || Math.hypot(x + fx * 9, z + fz * 9) < 13 || Math.abs(x + fx * 9) > 23 || Math.abs(z + fz * 9) > 23) continue;
+        if (g.pickups.list.some((q) => Math.hypot(q.x - x - fx * 4, q.z - z - fz * 4) < 5)) continue;
+        let ok = true; for (const o of [-2.5, 0, 2.5]) for (const h of [0.3, 1.2, 2]) { const rx = Math.cos(yaw) * o, rz = -Math.sin(yaw) * o; if (!g.world.clear(new V(x + rx, h, z + rz), new V(x + rx + fx * 9, h, z + rz + fz * 9))) ok = false; }
+        if (ok && !(g.world.raycast(new V(x, 3, z), new V(0, -1, 0), 4, {})?.point.y > 0.05)) return [x, 0, z, yaw];
+      }
+      return [-6, 0, 21, 0];
+    };
+    window.__shootMe = (b, h = 1.1, side = 0) => {
+      if (!b.alive) { const P0 = b.pos.clone(); b.vacant = false; b.spawn({ x: P0.x, z: P0.z, ry: 0 }, 0); b.pos.copy(P0); b.model.root.visible = true; }
+      b.hp = 9999; b.protT = 0; b.cur = 0; b.items[0] = { id: "pbrifle", mag: 50, reserve: 150 }; b.reloadT = 0; b.useT = 0; b.swing = null;
+      const e = b.eye(new V()), d0x = p.pos.x - b.pos.x, d0z = p.pos.z - b.pos.z, d0 = Math.hypot(d0x, d0z) || 1, t = { x: p.pos.x - (d0z / d0) * side, y: p.pos.y, z: p.pos.z + (d0x / d0) * side }, dx = t.x - e.x, dz = t.z - e.z, dy = t.y + h - e.y, d = Math.hypot(dx, dz), st = { speed: 70, grav: 7 };
       b.yaw = Math.atan2(-dx, -dz); const tt = d / st.speed; b.pitch = Math.atan2(dy, d) + Math.atan2(0.5 * st.grav * tt * tt, d);
       b.bloom = 0; b.botExtraSpread = 0; b.cd = 0; b.switchT = 0; b.sinceShot = 9; b.adsT = 1; b.vel.set(0, 0, 0);
       const st0 = b.stat, sv = [st0.hip, st0.ads]; st0.hip = st0.ads = 0; b.tryFire(); [st0.hip, st0.ads] = sv;
@@ -77,32 +96,34 @@ if (!ONLY || ONLY === 'desk') {
   await page.evaluate(() => {
     const g = window.__game, p = g.playerSoldier; p.ads = false; __adv(20);
     const fx = -Math.sin(p.yaw), fz = -Math.cos(p.yaw), rx = Math.cos(p.yaw), rz = -Math.sin(p.yaw);
-    const L = __bot(1, p.pos.x - rx * 9 + fx * 2, 0, p.pos.z - rz * 9 + fz * 2, 0); __shootMe(L, 1.1); __adv(14);
+    const L = __side(1, -1); for (let k = 0; k < 3; k++) { const h0 = g.paint.stats.hits; __shootMe(L, 1.1); __adv(14); if (g.paint.stats.hits > h0) break; }      // ara sıra siper kenarına çarpar: en çok 3 deneme
   });
   await shot(page, '04-boya-soldan');
-  await page.evaluate(() => { const g = window.__game, p = g.playerSoldier, rx = Math.cos(p.yaw), rz = -Math.sin(p.yaw); const R = __bot(2, p.pos.x + rx * 8, 0, p.pos.z + rz * 8, 0); __shootMe(R, 1.0); __adv(40); });
+  await page.evaluate(() => { const g = window.__game, p = g.playerSoldier, rx = Math.cos(p.yaw), rz = -Math.sin(p.yaw); const R = __side(2, 1); const h0 = g.paint.stats.hits; __shootMe(R, 1.0); __adv(40); window.__dbg2 = { hits: g.paint.stats.hits - h0, R: R.pos.toArray().map((v) => +v.toFixed(1)), P: p.pos.toArray().map((v) => +v.toFixed(1)), alive: R.alive, item: R.item.id, mag: R.item.mag }; });
   await shot(page, '05-boya-sagdan-akiyor');
-  const n1 = await page.evaluate(() => window.__game.hud._sp.list.length);
+  const n1 = await page.evaluate(() => window.__game.hud._sp.list.length); console.log('      ', JSON.stringify(await page.evaluate(() => window.__dbg2)));
   check(n1 >= 2, `iki isabet = ekranda ${n1} leke`);
   await page.evaluate(() => __adv(200));
   const n2 = await page.evaluate(() => ({ n: window.__game.hud._sp?.list.length, vis: window.__game.hud._sp?.cv.style.display }));
   check(n2.n === 0 && n2.vis === 'none', `~3 sn'de söndü, tuval gizli (${JSON.stringify(n2)})`);
   // kafa
-  await page.evaluate(() => { const b = __bots[0]; __face(window.__game.playerSoldier, b, 1.5); __shootMe(b, 1.66); __adv(24); });
+  await page.evaluate(() => { const b = __front(3, 11); __shootMe(b, 1.66); __adv(24); });
   await shot(page, '06-boya-kafa');
   await page.evaluate(() => __adv(200));
   // yakından geçen top
-  await page.evaluate(() => { const g = window.__game, p = g.playerSoldier, b = __bots[0]; const sv = p.pos.x; p.pos.x += 0.9 * Math.cos(p.yaw); p.pos.z -= 0.9 * Math.sin(p.yaw); __shootMe(b, 1.65); p.pos.x = sv; __adv(1); });
-  await page.evaluate(() => { const g = window.__game, p = g.playerSoldier; const rx = Math.cos(p.yaw), rz = -Math.sin(p.yaw); p.pos.x -= rx * 0.9; p.pos.z -= rz * 0.9; __adv(22); });
+  await page.evaluate(() => { const b = __front(3, 11); __shootMe(b, 1.6, 0.7); __adv(8); __shootMe(b, 1.5, -0.75); __adv(22); });
   await shot(page, '07-yakin-gecen-top');
   const nm = await page.evaluate(() => window.__game.hud._sp.drops.length);
   check(nm >= 1, `yakından geçen top kenarda damlacık bıraktı (${nm})`);
   await page.evaluate(() => __adv(150));
   // elenme
-  await page.evaluate(() => { const g = window.__game, p = g.playerSoldier; g.devGod = false; p.hp = 10; p.protT = 0; __shootMe(__bots[0], 1.1); __adv(22); });
-  await shot(page, '08-elenme-boyandin');
-  const dead = await page.evaluate(() => ({ alive: window.__game.playerSoldier.alive, cover: window.__game.hud._sp.cover.length, rs: window.__game.hud.$('respawn').style.display }));
-  check(!dead.alive && dead.cover >= 5 && dead.rs !== 'flex', `elendi: ekran ${dead.cover} lekeyle kaplı, ölüm ekranı henüz yok`);
+  await page.evaluate(() => { const g = window.__game, p = g.playerSoldier; g.devGod = false; p.hp = 10; p.protT = 0; __shootMe(__front(3, 11), 1.1); __adv(22); });
+  const txt = await page.evaluate(() => { const e = document.getElementById('pbdead'); return { on: e.classList.contains('on'), t: e.textContent }; });
+  await page.waitForTimeout(350); await page.screenshot({ path: `${OUT}/08-elenme-boyandin.png` }); console.log('görüntü 08');
+  const op = await page.evaluate(() => { const a = document.getElementById('pbdead').getAnimations()[0]; return a && a.playState === 'running' ? a.currentTime : -1; });
+  check(txt.on && op > 150, `elenince "${txt.t}" yazısı canlanıyor (${Math.round(op)} ms)`);
+  const dead = await page.evaluate(() => ({ hp: window.__game.playerSoldier.hp, b0: [__bots[0].alive, __bots[0].pos.toArray()], live: window.__game.paint.live.length, alive: window.__game.playerSoldier.alive, cover: window.__game.hud._sp.cover.length, rs: window.__game.hud.$('respawn').style.display }));
+  console.log('      ', JSON.stringify(dead)); check(!dead.alive && dead.cover >= 5 && dead.rs !== 'flex', `elendi: ekran ${dead.cover} lekeyle kaplı, ölüm ekranı henüz yok`);
   await page.evaluate(() => __adv(80));
   await shot(page, '09-sonra-olum-ekrani');
   const rs = await page.evaluate(() => window.__game.hud.$('respawn').style.display);
@@ -118,11 +139,14 @@ if (!ONLY || ONLY === 'desk') {
   await page.evaluate(() => { const g = window.__game, p = g.playerSoldier; __put(p, -12, 0, 22); __face(p, { x: 0, y: 6, z: 0 }, 0); p.pitch = 0.18; __adv(30); });
   await shot(page, '13-kutular-uzaktan');
   // al: canı 55 iken doğu kuyu kenarındaki can kutusuna yürü
-  await page.evaluate(() => { const g = window.__game, p = g.playerSoldier; p.hp = 55; __put(p, 13, 0, 0.2); __face(p, { x: 13, y: 0, z: -6 }, 1.2); g.player.keys.add('KeyW'); __adv(30); g.player.keys.delete('KeyW'); __adv(8); });
+  await page.evaluate(() => {                                      // açık bir yönden 3 m geriden yürüyerek yaklaş
+    const g = window.__game, p = g.playerSoldier, V = p.pos.constructor, pk = g.pickups.list.find((q) => q.name === 'Doğu Kuyu Kenarı'); p.hp = 55;
+    let st = null; for (let k = 0; k < 16 && !st; k++) { const a = k / 16 * 6.283, x = pk.x + Math.sin(a) * 3, z = pk.z + Math.cos(a) * 3; if (g.world.clear(new V(x, 0.5, z), new V(pk.x, 0.5, pk.z)) && g.world.clear(new V(x, 1.5, z), new V(pk.x, 1.5, pk.z)) && Math.hypot(x, z) > 12) st = [x, z]; }
+    __put(p, st[0], 0, st[1]); __face(p, { x: pk.x, y: 0, z: pk.z }, 0.9); g.player.keys.add('KeyW'); __adv(34); g.player.keys.delete('KeyW'); __adv(8); });
   await shot(page, '14-alindi-bildirim');
   const tk = await page.evaluate(() => { const g = window.__game, pk = g.pickups.list.find((q) => q.name === 'Doğu Kuyu Kenarı'); return { hp: g.playerSoldier.hp, t: pk.t, toast: [...g.hud.$('toasts').children].map((c) => c.textContent) }; });
   check(tk.hp === 95 && tk.t > 18 && tk.toast.some((t) => /\+40 CAN/.test(t)), `kutu alındı: can ${tk.hp}, ${tk.t.toFixed(1)} sn sonra yeniden, bildirim ${JSON.stringify(tk.toast)}`);
-  await page.evaluate(() => { const g = window.__game, p = g.playerSoldier; __put(p, 17, 0, -3.5); __face(p, { x: 13, y: 0, z: -3 }, 0.2); __adv(60 * 8); });
+  await page.evaluate(() => { const g = window.__game, p = g.playerSoldier; p.pos.x += 1.5 * Math.sin(p.yaw); p.pos.z += 1.5 * Math.cos(p.yaw); __face(p, { x: 13, y: 0, z: -3 }, 0.2); __adv(60 * 8); });
   await shot(page, '15-yeniden-belirirken');
   // çizim çağrısı / FPS (8 bot, gerçek maç)
   const perf = await page.evaluate(async () => {
@@ -137,6 +161,28 @@ if (!ONLY || ONLY === 'desk') {
   await page.close();
 }
 
+// ───────── paintball kıyafetleri: yakın (ön / arka), orta mesafe, 8 renkli grup, birinci şahıs kolu ─────────
+if (!ONLY || ONLY === 'fit') {
+  const page = await setup({ viewport: { width: 1280, height: 720 } });
+  const fit = async (n, fn, arg) => { await page.evaluate(fn, arg); await shot(page, n); };
+  await fit('30-kiyafet-yakin-on', () => { const g = window.__game, p = g.playerSoldier; window.__o = __open(); __put(p, ...window.__o); const b = __front(0, 2.3); b.yaw = p.yaw + Math.PI; __face(p, b, 1.25); p.pitch -= 0.02; g.player.vm.root && (g.player.vm.root.visible = false); __adv(4); });
+  await fit('31-kiyafet-yakin-arka', () => { const g = window.__game, p = g.playerSoldier; const b = __bots[0]; b.yaw = p.yaw; __adv(4); });
+  await fit('32-kiyafet-orta', () => { const g = window.__game, p = g.playerSoldier; const b = __bots[0]; b.yaw = p.yaw + Math.PI * 0.75; const fx = -Math.sin(p.yaw), fz = -Math.cos(p.yaw); b.pos.set(p.pos.x + fx * 7, 0, p.pos.z + fz * 7); __face(p, b, 1.0); __adv(4); });
+  await fit('33-kiyafet-grup-8-renk', () => {
+    const g = window.__game, p = g.playerSoldier; __put(p, ...window.__o); __hide();
+    const fx = -Math.sin(p.yaw), fz = -Math.cos(p.yaw), rx = Math.cos(p.yaw), rz = -Math.sin(p.yaw);
+    const N = Math.min(8, __bots.length); for (let i = 0; i < N; i++) { const o = (i - (N - 1) / 2) * 1.05, d = 5.2 + (i % 2) * 0.9; const b = __bot(i, p.pos.x + fx * d + rx * o, 0, p.pos.z + fz * d + rz * o, p.yaw + Math.PI + (i % 3 - 1) * 0.5); b.hp = 9999; }
+    p.pitch = -0.08; __adv(4);
+  });
+  await page.evaluate(() => { const g = window.__game; if (g.player.vm.root) g.player.vm.root.visible = true; __hide(); });
+  await fit('34-birinci-sahis-kol', () => { const g = window.__game, p = g.playerSoldier; __put(p, -6, 0, 21, 0); p.pitch = -0.05; p.ads = false; __adv(30); });
+  await fit('35-birinci-sahis-tabanca', () => { const g = window.__game, p = g.playerSoldier; p.cur = 1; g.player.refreshWeapon(); __adv(40); });
+  const info = await page.evaluate(() => { const g = window.__game; return { calls: g.renderer.info.render.calls, tris: g.renderer.info.render.triangles, look: g.player.vm.look, drawPerChar: (() => { let n = 0; g.soldiers[1].model.root.traverse((o) => { if (o.isMesh) n++; }); return n; })() }; });
+  console.log('      kıyafet', JSON.stringify(info));
+  check(info.look && info.look.shirt && info.drawPerChar <= 24, 'birinci şahıs kolu forma renginde, karakter başına ağ sayısı makul');
+  await page.close();
+}
+
 // ───────── Pixel 7 (yatay, dokunmatik) ─────────
 if (!ONLY || ONLY === 'mob') {
   const page = await setup({ ...devices['Pixel 7 landscape'] }, '&touch=1');
@@ -147,11 +193,26 @@ if (!ONLY || ONLY === 'mob') {
   await shot(page, '20-mobil-nisan-halka');
   const mob = await page.evaluate(() => ({ mob: document.body.classList.contains('mob'), touch: !!window.__game.player.touch, ring: window.__game.hud.$('pbret').style.display, r: window.__game.hud.$('pbret').style.getPropertyValue('--r') }));
   check(mob.mob && mob.touch && mob.ring === 'block', `telefonda dokunmatik nişanda halka (${JSON.stringify(mob)})`);
-  await page.evaluate(() => { const g = window.__game, p = g.playerSoldier; p.ads = false; __adv(20); const rx = Math.cos(p.yaw), rz = -Math.sin(p.yaw); const L = __bot(1, p.pos.x - rx * 8, 0, p.pos.z - rz * 8, 0); __shootMe(L, 1.1); __adv(14); __shootMe(__bots[0], 1.66); __adv(30); });
+  await page.evaluate(() => { const g = window.__game, p = g.playerSoldier; p.ads = false; __adv(20); const rx = Math.cos(p.yaw), rz = -Math.sin(p.yaw); const L = __side(1, -1); __shootMe(L, 1.1); __adv(14); __shootMe(__front(3, 9), 1.66); __adv(30); });
   await shot(page, '21-mobil-boya');
   await page.evaluate(() => { const g = window.__game, p = g.playerSoldier; __adv(200); __put(p, -16.6, 9, -12.5); __face(p, { x: -9.5, y: 9, z: -2.9 }, 0.4); __adv(30); });
   await shot(page, '22-mobil-kutu');
   await page.close();
+}
+// ───────── çevrimiçi (sunucu BF_DEBUG=1, WS=ws://…): kutu alınca bildirim + kutu gizlenir, can sunucudan ─────────
+if (process.env.WS && (!ONLY || ONLY === 'net')) {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } }); const page = await ctx.newPage();
+  page.on('pageerror', (e) => errs.push(e.message));
+  await page.goto(`${BASE}/?${new URLSearchParams({ debug: '1', nolock: '1', server: process.env.WS, online: 'new', type: 'pb', map: 'boyakulesi', per: '4', name: 'Boyacı' })}`);
+  await page.waitForFunction('window.__game && window.__game.running && window.__game.playerSoldier && window.__game.playerSoldier.alive', null, { timeout: 90000 });
+  await page.evaluate(() => { const n = window.__game.online; n.send({ t: 'dbg', bots: false }); });
+  await page.waitForTimeout(3500);
+  await page.evaluate(() => { const n = window.__game.online; n.send({ t: 'dbg', hp: 45 }); n.send({ t: 'dbg', tp: [13, -3] }); });
+  await page.waitForTimeout(1200);
+  const r = await page.evaluate(() => { const g = window.__game, pk = g.pickups.list[8]; return { name: pk.name, t: pk.t, hp: g.playerSoldier.hp, toast: [...g.hud.$('toasts').children].map((c) => c.textContent) }; });
+  await shot(page, '40-cevrimici-kutu-alindi');
+  check(r.t > 15 && r.hp === 85 && r.toast.some((x) => /\+40/.test(x)), `çevrimiçi: ${r.name} alındı (can ${r.hp}, ${r.t.toFixed(1)} sn sonra yeniden), bildirim ${JSON.stringify(r.toast)}`);
+  await ctx.close();
 }
 console.log('sayfa hatası:', errs.length, errs.slice(0, 5));
 check(errs.length === 0, 'sayfa hatası yok');

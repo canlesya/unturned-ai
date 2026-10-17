@@ -3,13 +3,18 @@ import { box, cylY, ico, mergeVC } from '../core/geo.js';
 import { TUNE } from './balance.js';
 import { WSTATS } from './stats.js';
 import { PAINT_COLORS } from './paint.js';
+import { t } from '../i18n/index.js';
+import '../i18n/pb.js';
 
 // Paintball toplanabilir kutular (harita map.pickups; yalnız paintball modunda): boya topu kutusu (silahların yedeğini doldurur) ve can kutusu (+TUNE.pbHeal).
 // SUNUCU YETKİLİ: kimin aldığına çevrimdışında yerel oyun, çevrimiçinde sunucu karar verir (aynı adımda en yakın uygun savaşçı → iki kişi aynı kutuyu alamaz),
 // 'pk' ağ olayı herkese gider ({ i, a: 1 } belirdi · { i, a: 0, v, t } v aldı, t sn sonra yeniden belirir). Can doluysa can kutusu, cephane doluysa mermi kutusu alınmaz.
-// Çizim: tür başına 1 örneklenmiş kutu ağı + 1 "hayalet" (yeniden belirirken soluk, büyüyen) + tüm zemin halkaları 1 → toplam 5 çizim çağrısı, karede ayırma yok.
+// Çizim: tür başına 1 örneklenmiş kutu ağı + parıltı halesi (kameraya dönük, toplamalı) 1 + zemin halkaları 1 → toplam 4 çizim çağrısı, karede ayırma yok.
+// Yeniden belirmeyi beklerken kutu ve hale gizli, zemin halkası çok sönük (yer belli olsun).
 export const PK_R = 1.2;                      // alma yarıçapı (yatay, m)
 const TYPES = ['ammo', 'health'];
+const KIND = { ammo: 'ammo', paint: 'ammo', balls: 'ammo', health: 'health', hp: 'health', heal: 'health', medkit: 'health' };     // pickupSpots kind eş anlamlıları
+const ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 const RING_COL = { ammo: '#ffc21a', health: '#3dff7a' };
 
 export const ammoFull = (s) => s.items.every((it) => { const st = WSTATS[it.id]; return !st || st.kind !== 'gun' || it.reserve >= (st.reserve ?? 0); });
@@ -23,11 +28,12 @@ export function applyPickup(s, type) {
 
 function ammoModel() {
   const g = new THREE.Group();
-  box(g, [0.62, 0.3, 0.42], '#3c4a2c', [0, 0.15, 0]);                                   // boya topu sandığı (asker yeşili plastik)
-  box(g, [0.66, 0.05, 0.46], '#2a3420', [0, 0.32, 0]);                                  // kenar
-  for (const sx of [-1, 1]) box(g, [0.04, 0.12, 0.2], '#1e2418', [sx * 0.33, 0.2, 0]);   // tutamak
-  box(g, [0.5, 0.012, 0.012], '#ffc21a', [0, 0.18, 0.212]);                            // sarı şerit
-  box(g, [0.5, 0.012, 0.012], '#ffc21a', [0, 0.18, -0.212]);
+  box(g, [0.62, 0.3, 0.42], '#ffb514', [0, 0.15, 0]);                                   // boya topu sandığı (sarı sert plastik, uzaktan seçilir)
+  box(g, [0.66, 0.05, 0.46], '#22252b', [0, 0.32, 0]);                                  // kenar
+  box(g, [0.64, 0.04, 0.44], '#22252b', [0, 0.02, 0]);                                  // taban
+  for (const sx of [-1, 1]) box(g, [0.04, 0.12, 0.2], '#22252b', [sx * 0.33, 0.2, 0]);   // tutamak
+  box(g, [0.5, 0.05, 0.012], '#22252b', [0, 0.17, 0.212]);                             // siyah şerit
+  box(g, [0.5, 0.05, 0.012], '#22252b', [0, 0.17, -0.212]);
   // üstte açık tepside renkli boya topları + iki boya kutusu
   let k = 0;
   for (let ix = 0; ix < 4; ix++) for (let iz = 0; iz < 3; iz++) ico(g, 0.045, PAINT_COLORS[(k++ * 5) % PAINT_COLORS.length], [-0.21 + ix * 0.075 + (iz % 2) * 0.03, 0.385, -0.1 + iz * 0.075], 1);
@@ -50,19 +56,20 @@ function healthModel() {
 export class Pickups {
   constructor(game) {
     this.g = game;
-    const defs = (game.mode.paintball && game.map.pickups) || [];
-    this.list = defs.map((d, i) => ({ i, type: d.type, x: d.x, y: d.y, z: d.z, name: d.name || '', t: 0, tot: 1, by: -1 }));
+    // harita kutuları: map.pickups ({ type, x, y, z, name }) ya da map.pickupSpots ({ x, y, z, kind: 'ammo' | 'health' }; başka paintball haritaları için); y verilmezse zemin
+    const defs = game.mode.paintball ? (game.map.pickups || game.map.pickupSpots || []) : [];
+    this.list = defs.map((d) => ({ type: KIND[d.type || d.kind] || 'ammo', x: d.x, y: Number.isFinite(d.y) ? d.y : game.world.heightAt(d.x, d.z), z: d.z, name: d.name || '' }))
+      .map((d, i) => ({ i, ...d, t: 0, tot: 1, by: -1 }));
     this.taken = 0;
     if (game.headless || !this.list.length) return;
     const vc = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.6, emissive: '#ffffff', emissiveIntensity: 0.08 });
-    const ghost = new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.16, depthWrite: false, wireframe: true });
+
     const geos = { ammo: ammoModel(), health: healthModel() };
-    this.mesh = {}; this.ghost = {}; this.idx = {};
+    this.mesh = {};
     for (const t of TYPES) {
       const n = this.list.filter((p) => p.type === t).length; if (!n) continue;
       const m = new THREE.InstancedMesh(geos[t], vc, n); m.castShadow = true; m.frustumCulled = false; m.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-      const gh = new THREE.InstancedMesh(geos[t], ghost, n); gh.frustumCulled = false; gh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-      game.scene.add(m, gh); this.mesh[t] = m; this.ghost[t] = gh;
+      game.scene.add(m); this.mesh[t] = m;
     }
     let c = { ammo: 0, health: 0 }; for (const p of this.list) p.k = c[p.type]++;
     // zemin halkası: yumuşak parlayan halka (toplamalı karışım), türün renginde; yeniden belirirken sönük
@@ -72,6 +79,13 @@ export class Pickups {
     this.ringCol = this.list.map((p) => new THREE.Color(RING_COL[p.type]));
     for (const p of this.list) this.rings.setColorAt(p.i, this.ringCol[p.i]);
     game.scene.add(this.rings);
+    // parıltı halesi: yumuşak radyal doku, kameraya dönük düzlem (örnek başına), derinliğe yazmaz
+    const cv = document.createElement('canvas'); cv.width = cv.height = 64; const x2 = cv.getContext('2d'), gr = x2.createRadialGradient(32, 32, 2, 32, 32, 32);
+    gr.addColorStop(0, 'rgba(255,255,255,0.9)'); gr.addColorStop(0.35, 'rgba(255,255,255,0.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); x2.fillStyle = gr; x2.fillRect(0, 0, 64, 64);
+    const hmat = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false, opacity: 0.5 });      // normal karışım: gündüz parlak zeminde de renkli hale görünür
+    this.halo = new THREE.InstancedMesh(new THREE.PlaneGeometry(1.7, 1.7), hmat, this.list.length); this.halo.frustumCulled = false; this.halo.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    for (const p of this.list) this.halo.setColorAt(p.i, this.ringCol[p.i]);
+    game.scene.add(this.halo);
     this._m = new THREE.Matrix4(); this._q = new THREE.Quaternion(); this._v = new THREE.Vector3(); this._s = new THREE.Vector3(); this._c = new THREE.Color(); this._e = new THREE.Euler();
     this.draw();
   }
@@ -105,7 +119,7 @@ export class Pickups {
   _fx(p, s) {
     const g = this.g; if (g.headless) return;
     if (s === g.playerSoldier) {
-      if (p.type === 'health') g.hud.pickupToast(`+${TUNE.pbHeal} CAN`, '#5dff8f'); else g.hud.pickupToast('+TOPLAR · yedek dolu', '#ffd23a');
+      if (p.type === 'health') g.hud.pickupToast(t('pb.pkHeal', { n: TUNE.pbHeal }), '#5dff8f'); else g.hud.pickupToast(t('pb.pkAmmo'), '#ffd23a');
       g.sfx.pickup?.(p.type);
     } else if (Math.hypot(p.x - g.camera.position.x, p.z - g.camera.position.z) < 25) g.sfx.pickup?.(p.type, s.pos);
   }
@@ -138,24 +152,19 @@ export class Pickups {
   // ── çizim (Game.render öncesi): yavaş dönüş + iniş-çıkış, yeniden belirirken soluk hayalet büyür ──
   draw() {
     if (!this.rings) return;
-    const T = performance.now() / 1000, m = this._m, q = this._q, v = this._v, sc = this._s;
+    const T = performance.now() / 1000, m = this._m, q = this._q, v = this._v, sc = this._s, cq = this.g.camera.quaternion;
     for (const p of this.list) {
-      const on = p.t <= 0, mesh = this.mesh[p.type], gh = this.ghost[p.type];
+      const on = p.t <= 0, mesh = this.mesh[p.type];
       const ph = p.i * 1.7, bob = Math.sin(T * 2 + ph) * 0.07;
       q.setFromEuler(this._e.set(0, T * 1.1 + ph, 0));
       v.set(p.x, p.y + 0.32 + bob, p.z);
-      if (on) { mesh.setMatrixAt(p.k, m.compose(v, q, sc.set(1, 1, 1))); gh.setMatrixAt(p.k, m.makeScale(0, 0, 0)); }
-      else {
-        const f = 1 - p.t / Math.max(0.1, p.tot);                     // yeniden belirmeye ilerleme
-        mesh.setMatrixAt(p.k, m.makeScale(0, 0, 0));
-        const k = 0.45 + 0.55 * f; v.y = p.y + 0.32; gh.setMatrixAt(p.k, m.compose(v, q, sc.set(k, k, k)));
-      }
-      const pulse = on ? 0.85 + Math.sin(T * 3 + ph) * 0.15 : 0.18;
-      const rs = on ? 1 + Math.sin(T * 3 + ph) * 0.06 : 0.8;
+      if (on) { mesh.setMatrixAt(p.k, m.compose(v, q, sc.set(1, 1, 1))); v.y += 0.22; this.halo.setMatrixAt(p.i, m.compose(v, cq, sc.setScalar(0.9 + Math.sin(T * 3 + ph) * 0.1))); }
+      else { mesh.setMatrixAt(p.k, ZERO); this.halo.setMatrixAt(p.i, ZERO); }
+      const pulse = on ? 0.85 + Math.sin(T * 3 + ph) * 0.15 : 0.07, rs = on ? 1 + Math.sin(T * 3 + ph) * 0.06 : 0.7;
       this.rings.setMatrixAt(p.i, m.compose(v.set(p.x, p.y + 0.02, p.z), q.identity(), sc.set(rs, 1, rs)));
       this.rings.setColorAt(p.i, this._c.copy(this.ringCol[p.i]).multiplyScalar(pulse));
     }
-    for (const t of TYPES) if (this.mesh[t]) { this.mesh[t].instanceMatrix.needsUpdate = true; this.ghost[t].instanceMatrix.needsUpdate = true; }
-    this.rings.instanceMatrix.needsUpdate = true; this.rings.instanceColor.needsUpdate = true;
+    for (const t of TYPES) if (this.mesh[t]) this.mesh[t].instanceMatrix.needsUpdate = true;
+    this.halo.instanceMatrix.needsUpdate = true; this.rings.instanceMatrix.needsUpdate = true; this.rings.instanceColor.needsUpdate = true;
   }
 }

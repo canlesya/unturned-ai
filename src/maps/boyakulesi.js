@@ -372,7 +372,7 @@ export function buildBoyaKulesi() {
   // kule balkonu (GB köşe), doğu / batı zeminde kuyu kenarına 2,3 m (açıkta)
   const pickups = [];
   for (const F of FORTS) { const [x, z] = rotXZ(F.k, -23.0, -23.0); pickups.push({ type: 'ammo', x, y: DECK, z, name: F.name.split(' ')[0] + ' Kulübesi' }); }
-  for (const k of [0, 2]) { const [x, z] = rotXZ(k, 5.6, -18.6); pickups.push({ type: 'ammo', x, y: 0, z, name: k ? 'Güney Siperleri' : 'Kuzey Siperleri' }); }
+  for (const k of [0, 2]) { const [x, z] = rotXZ(k, 5.35, -18.8); pickups.push({ type: 'ammo', x, y: 0, z, name: k ? 'Güney Siperleri' : 'Kuzey Siperleri' }); }
   pickups.push({ type: 'health', x: -9.5, y: DECK, z: -2.9, name: 'Turuncu Köprüsü' }, { type: 'health', x: -4.7, y: TA, z: 4.7, name: 'Kule Balkonu' });
   for (const k of [1, 3]) { const [x, z] = rotXZ(k, -3, -13); pickups.push({ type: 'health', x, y: 0, z, name: k === 1 ? 'Doğu Kuyu Kenarı' : 'Batı Kuyu Kenarı' }); }
 

@@ -7,6 +7,8 @@ import { TUNE } from './balance.js';
 import { ffaRanking, ffaMetric } from './match.js';
 import { ScreenPaint } from './screenPaint.js';
 import { paintColorOf, paintIndexOf } from './paint.js';
+import { t as tr } from '../i18n/index.js';
+import '../i18n/pb.js';
 
 const CSS = `
 #hud{position:fixed;inset:0;pointer-events:none;font-family:Bahnschrift,'Rajdhani','Arial Narrow','Segoe UI',system-ui,sans-serif;color:#fff;user-select:none;z-index:5;letter-spacing:.5px}
@@ -116,12 +118,12 @@ const CSS = `
 #pbret .rg{position:absolute;left:calc(-1 * var(--r));top:calc(-1 * var(--r));width:calc(2 * var(--r));height:calc(2 * var(--r));border-radius:50%;border:2px solid var(--c);box-sizing:border-box;box-shadow:0 0 0 1px rgba(0,0,0,.55),inset 0 0 0 1px rgba(0,0,0,.45);transition:width .06s,height .06s,left .06s,top .06s}
 #pbret .dt{position:absolute;left:-2px;top:-2px;width:4px;height:4px;border-radius:50%;background:var(--c);box-shadow:0 0 0 1px rgba(0,0,0,.7)}
 #pbret .m{position:absolute;height:2px;background:var(--c);box-shadow:0 0 0 1px rgba(0,0,0,.55)}
-#pbret .m span{position:absolute;top:-6px;font:700 9px/1 Bahnschrift,Arial Narrow,sans-serif;letter-spacing:0;color:var(--c);text-shadow:0 0 2px #000,0 0 2px #000,0 1px 1px #000}
-#pbret .m.r span{left:calc(100% + 3px)}#pbret .m.l span{right:calc(100% + 3px)}
-body.mob #pbret .rg{border-width:2px}body.mob #pbret .dt{width:4px;height:4px;left:-2px;top:-2px}body.mob #pbret .m span{font-size:10px;top:-6px}
+#pbret .m span{position:absolute;font:700 10px/1 Bahnschrift,Arial Narrow,sans-serif;letter-spacing:0;color:#fff;text-shadow:0 0 2px #000,0 0 2px #000,0 1px 1px #000;white-space:nowrap}
+#pbret .st{position:absolute;left:-0.5px;width:1px;background:var(--c);opacity:.75;box-shadow:0 0 0 1px rgba(0,0,0,.35)}
+body.mob #pbret .rg{border-width:3px}body.mob #pbret .dt{width:6px;height:6px;left:-3px;top:-3px}body.mob #pbret .m{height:2px}body.mob #pbret .m span{font-size:12px}
 /* paintball: elenince ekranda "BOYANDIN!" */
 #pbdead{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%) rotate(-6deg);font:900 76px/1 Bahnschrift,'Arial Black',Arial,sans-serif;letter-spacing:4px;font-style:italic;-webkit-text-stroke:3px #10131a;paint-order:stroke;text-shadow:0 6px 0 rgba(0,0,0,.35);opacity:0;pointer-events:none;white-space:nowrap}
-#pbdead.on{animation:pbd 1.6s forwards}
+#pbdead.on{animation:pbd 2s forwards}
 @keyframes pbd{0%{opacity:0;transform:translate(-50%,-50%) rotate(-6deg) scale(1.6)}10%{opacity:1;transform:translate(-50%,-50%) rotate(-6deg) scale(.95)}16%{transform:translate(-50%,-50%) rotate(-6deg) scale(1)}75%{opacity:1}100%{opacity:0}}
 body.mob #pbdead{font-size:48px;-webkit-text-stroke:2px #10131a}
 .toast.pk{font-size:21px;letter-spacing:2px;border-color:currentColor;background:rgba(9,13,19,.8)}
@@ -215,7 +217,7 @@ export class Hud {
       <div id="advig"></div>
 
       <div id="cross"><span class="h l"></span><span class="h r"></span><span class="v t"></span><span class="v b"></span><span class="dot"></span></div>
-      <div id="pbret"><i class="rg"></i><i class="dt"></i><b class="m r"><span>20</span></b><b class="m l"><span>30</span></b><b class="m r"><span>40</span></b></div><div id="rdot"></div><div id="holo"><i></i><i></i><i></i><i></i></div><div id="hitm"></div>
+      <div id="pbret"><i class="st"></i><i class="rg"></i><i class="dt"></i><b class="m"><span>20</span></b><b class="m"><span>30</span></b><b class="m"><span>40</span></b></div><div id="rdot"></div><div id="holo"><i></i><i></i><i></i><i></i></div><div id="hitm"></div>
       <div id="pops"></div><div id="zonew">DÜŞMAN ÜSSÜNE GİRDİN!<small id="zonet"></small></div><div id="msg"></div>
       <div id="vitals"><div class="cls" id="clsname"></div><div class="row"><div id="hpnum">100</div><div id="hpbar"><div id="hpfill"></div></div></div><div id="stance"></div></div>
       <div id="abil"><div class="an"><b id="abk">F</b><span id="abn"></span></div><div class="bar"><i id="abbar"></i></div></div>
@@ -612,7 +614,7 @@ export class Hud {
     sc.style.display = scopeOn ? 'block' : 'none';
     if (scopeOn) sc.className = (p.opticDef.reticle === 'chevron') ? 'chev' : 'mil';
     $('advig').style.opacity = p.alive && ov !== 'scope' && !tp ? (ads * 0.55).toFixed(2) : 0;
-    const stTxt = [p.prone ? 'Yatıyor' : p.crouching ? 'Çömelmiş' : '', p.leanT > 0.3 ? 'Sağa eğik' : p.leanT < -0.3 ? 'Sola eğik' : '', st.ball ? 'Halka nişangâh' : p.opticDef && st.kind === 'gun' ? p.opticDef.label : '', st.kind === 'gun' && st.auto ? ({ semi: 'Tek atış [X]', burst: 'Seri [X]', auto: 'Otomatik [X]' }[p.fireModeNow]) : ''].filter(Boolean).join(' · ');
+    const stTxt = [p.prone ? 'Yatıyor' : p.crouching ? 'Çömelmiş' : '', p.leanT > 0.3 ? 'Sağa eğik' : p.leanT < -0.3 ? 'Sola eğik' : '', st.ball ? tr('pb.ring') : p.opticDef && st.kind === 'gun' ? p.opticDef.label : '', st.kind === 'gun' && st.auto ? ({ semi: 'Tek atış [X]', burst: 'Seri [X]', auto: 'Otomatik [X]' }[p.fireModeNow]) : ''].filter(Boolean).join(' · ');
     $('stance').textContent = stTxt;
     if (this.hitT > 0) { this.hitT -= dt; if (this.hitT <= 0) $('hitm').style.opacity = 0; }
     if (this.vigT > 0) { this.vigT -= dt; if (this.vigT <= 0) $('vig').style.opacity = 0; }
@@ -659,14 +661,22 @@ export class Hud {
     const el = this.$('pbret');
     if (!on) { if (this._pbOn) { el.style.display = 'none'; this._pbOn = false; } return; }
     if (!this._pbOn) { el.style.display = 'block'; this._pbOn = true; }
-    const k = innerHeight / 2 / Math.tan((this.game.camera.fov * Math.PI) / 360);           // piksel / tan(açı)
-    const R = Math.round(6 + Math.tan(p.spreadNow(st)) * k), col = paintColorOf(p);
-    const ys = [20, 30, 40].map((d) => { const t = d / (st.speed || 70); return Math.round(((0.5 * (st.grav || 0) * t * t) / d) * k); });
-    const key = R + '|' + ys.join(',') + col;
+    const mob = document.body.classList.contains('mob'), k = innerHeight / 2 / Math.tan((this.game.camera.fov * Math.PI) / 360);   // piksel / tan(açı)
+    const R = Math.round((mob ? 9 : 6) + Math.tan(p.spreadNow(st)) * k), col = paintColorOf(p);
+    const ys = [20, 30, 40].map((d) => { const t = d / (st.speed || 70); return Math.round(Math.atan((0.5 * (st.grav || 0) * t * t) / d) * k); });
+    const key = R + '|' + ys.join(',') + col + mob;
     if (key === this._pbKey) return;
     this._pbKey = key;
     el.style.setProperty('--r', R + 'px'); el.style.setProperty('--c', col);
-    this.pbMarks.forEach((m, i) => { const w = [12, 9, 7][i]; m.style.width = w + 'px'; m.style.left = -w / 2 + 'px'; m.style.top = ys[i] - 1 + 'px'; m.style.display = ys[i] > 3 ? 'block' : 'none'; });
+    // düşüş çizgileri: uzak menzil = geniş çizgi (BDC dürbünü gibi); etiketler halkanın dışında sırayla sağ / sol / sağ, aynı yanda üst üste binmez (en az 10 / 12 px)
+    const gap = mob ? 12 : 10, ly = [-99, -99];
+    this.pbMarks.forEach((m, i) => {
+      const w = (mob ? [12, 16, 20] : [8, 11, 14])[i], y = ys[i], sd = i & 1, yy = (ly[sd] = Math.max(y, ly[sd] + gap));
+      m.style.width = w + 'px'; m.style.left = -w / 2 + 'px'; m.style.top = y - 1 + 'px'; m.style.display = y > 2 ? 'block' : 'none';
+      const sp = m.firstChild, off = Math.max(R, w / 2) + 4 + w / 2;            // tik çizgisinin kenarından değil merkezden: halka dışı
+      sp.style.left = sd ? '' : off + 'px'; sp.style.right = sd ? off + 'px' : ''; sp.style.top = yy - y - (mob ? 6 : 5) + 'px';
+    });
+    const stem = el.firstChild; stem.style.top = R + 'px'; stem.style.height = Math.max(0, ys[2] - R + 2) + 'px'; stem.style.display = ys[2] > R + 2 ? 'block' : 'none';
   }
 
   // Bulunduğun bölgenin adı (haritada callouts varsa): minimap altındaki başlıkta "HARİTA · Bölge"

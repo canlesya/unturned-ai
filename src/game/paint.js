@@ -236,7 +236,7 @@ export class Paint {
   _hitFx(e, zone, p, d, col, by) {
     if (e === this.g.playerSoldier) this.g.hud.paintHit?.(by, zone, col);     // gözlüğüme boya (ekranda leke, atıcı yönünde)
     this._snd(p, true);
-    this._burst(p.x, p.y, p.z, -d.x, -d.y, -d.z, col, 10, 2.6);
+    if (e !== this.g.playerSoldier || this.g.showSelf) this._burst(p.x, p.y, p.z, -d.x, -d.y, -d.z, col, 10, 2.6);      // birinci şahısta kendi kafamdaki 3B sıçrama yerine ekran boyası
     this.addMark(e, p, zone, d, col);
   }
 

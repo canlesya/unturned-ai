@@ -251,6 +251,23 @@ function lagShot(useVt) {
   stepK(150);                                                                     // doğma korumaları bitsin
   const L = gk.pickups.list, H = L.filter((p) => p.type === 'health'), AM = L.filter((p) => p.type === 'ammo');
   check(AM.length === 6 && H.length === 4, `Boya Kulesi'nde ${AM.length} boya topu + ${H.length} can kutusu (${L.map((p) => p.name).join(', ')})`);
+  // her kutu yürünür yerde: gövde sığar, çevresinde 0,6 m açık, bot ızgarasında aynı katta düğüm var ve bir doğuş noktasından yol bulunur
+  {
+    const bad = []; const sp0 = gk.map.ffaSpawns[0];
+    for (const p of L) {
+      const fake = { pos: new THREE.Vector3(p.x, p.y, p.z) }; let open = gk.world.canStand(fake);
+      for (const [dx, dz] of [[0.6, 0], [-0.6, 0], [0, 0.6], [0, -0.6]]) { fake.pos.set(p.x + dx, p.y, p.z + dz); if (!gk.world.canStand(fake)) open = false; }
+      const n = gk.nav.nearestNode(p.x, p.z, p.y, 1.2), fy = n >= 0 ? gk.nav.lf[n] : NaN;
+      const path = n >= 0 && gk.nav.findPath(sp0.x, sp0.z, p.x, p.z, 0.7, sp0.y ?? 0, p.y);
+      if (!open || !(Math.abs(fy - p.y) < 0.4) || !path) bad.push(`${p.name} (açık ${open}, kat ${fy}, yol ${!!path})`);
+    }
+    check(!bad.length, `kutular yürünür ve bota ulaşılır ${bad.length ? bad.join('; ') : ''}`);
+    const { Pickups } = await import('../src/game/pickups.js');
+    const pk2 = new Pickups({ mode: { paintball: true }, map: { pickupSpots: [{ x: 1, y: 2, z: 3, kind: 'ammo' }, { x: 4, z: 5, kind: 'health' }] }, world: { heightAt: () => 0.5 }, headless: true });
+    check(pk2.list.length === 2 && pk2.list[0].type === 'ammo' && pk2.list[1].type === 'health' && pk2.list[1].y === 0.5 && pk2.list[0].y === 2, "başka haritalar için map.pickupSpots ({ x, y, z, kind }) desteği (y yoksa zemin)");
+    const pk3 = new Pickups({ mode: { paintball: false }, map: { pickupSpots: [{ x: 1, y: 2, z: 3, kind: 'ammo' }] }, world: { heightAt: () => 0 }, headless: true });
+    check(pk3.list.length === 0, 'paintball dışı modlarda kutu yok');
+  }
   const put = (s, p, ox = 0) => { s.pos.set(p.x + ox, p.y, p.z); s.vel.set(0, 0, 0); };
   const away = (s) => { s.pos.set(-20.8, 9, -17.2); s.vel.set(0, 0, 0); };
   // can kutusu: can doluyken alınmaz
@@ -294,6 +311,14 @@ function lagShot(useVt) {
   const kb = gb.soldiers.reduce((a, s) => a + s.kills, 0);
   console.log(`      120 sn, 8 bot (Boya Kulesi): ${kb} eleme · botlar ${taken.health} can + ${taken.ammo} boya topu kutusu aldı`);
   check(taken.health + taken.ammo >= 3 && kb > 5, 'botlar kutuları kullanıyor ve hâlâ eleyebiliyor');
+  // tek bot, cephanesi bitmek üzere, rakip yok → en yakın boya topu kutusuna yürür ve alır
+  {
+    const g1 = new Game(null, { headless: true, map: 'boyakulesi', diff: 'normal', match: { perTeam: 3, type: 'pb', killLimit: 999, time: 999 } });
+    const bb = g1.brains[0], bs = bb.s; for (const s of g1.soldiers) if (s !== bs) { s.vacant = true; s.alive = false; s.respawnT = 1e9; }
+    g1.brains.length = 1; let got = -1;
+    for (let i = 0; i < 60 * 40 && got < 0; i++) { if (bs.alive) { bs.items[0].reserve = 0; bs.items[0].mag = Math.min(bs.items[0].mag, 8); if (bs.items[1]) bs.items[1].reserve = 0; } g1.step(DT); if (g1.netEvents.some((e) => e.e === 'pk' && !e.a && e.v === bs.id)) got = g1.time; g1.netEvents.length = 0; }
+    check(got > 0, `cephanesi azalan bot boya topu kutusuna gidip aldı (${got.toFixed(1)} sn)`);
+  }
 }
 
 console.log(fail ? 'sonuç: HATA' : 'sonuç: OK'); process.exit(fail ? 1 : 0);

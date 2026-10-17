@@ -5,8 +5,10 @@
 //  · yakından (≤ ~1 m) geçen top → kenarda küçük damlacıklar
 // Boş iken tuval gizli (çizim / birleştirme yükü yok). Leke dokuları renk başına bir kez üretilir (önbellek).
 import { PAINT_COLORS } from './paint.js';
+import { t as tr } from '../i18n/index.js';
+import '../i18n/pb.js';
 
-const MAX = 6, DROP_MAX = 10, RES = 0.6;
+const MAX = 6, DROP_MAX = 10, RES = () => Math.min(1, Math.max(0.6, (globalThis.devicePixelRatio || 1) * 0.5));      // tuval çözünürlüğü (CSS pikseli başına): telefonda (DPR 2–3) keskin, masaüstünde ucuz
 let seed = 11; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
 
 // beyaz maske: k = 0 yuvarlak taçlı leke, 1 uzamış sıçrama, 2 damlacık kümesi
@@ -38,13 +40,13 @@ export class ScreenPaint {
     this.x = cv.getContext('2d');
     this.list = []; this.drops = []; this.cover = []; this.tint = new Map(); this.masks = [0, 1, 2].map(mask);
     this.deathT = 0; this.shown = false; this.lastHitT = -9;
-    const t = (this.txt = document.createElement('div')); t.id = 'pbdead'; t.textContent = 'BOYANDIN!';
+    const t = (this.txt = document.createElement('div')); t.id = 'pbdead'; t.textContent = tr('pb.painted');
     parent.appendChild(t);
     this.resize();
   }
 
   resize() {
-    const w = Math.max(320, Math.round(innerWidth * RES)), h = Math.max(180, Math.round(innerHeight * RES));
+    const w = Math.max(320, Math.round(innerWidth * RES())), h = Math.max(180, Math.round(innerHeight * RES()));
     if (this.cv.width !== w || this.cv.height !== h) { this.cv.width = w; this.cv.height = h; }
   }
 
@@ -101,7 +103,7 @@ export class ScreenPaint {
     this.cover.length = 0;
     for (const [x, y, r] of [[0.32, 0.38, 0.5], [0.7, 0.34, 0.46], [0.5, 0.72, 0.55], [0.18, 0.78, 0.36], [0.86, 0.74, 0.38], [0.52, 0.42, 0.38]]) this._add(this.cover, 8, { x: x + (rnd() - 0.5) * 0.06, y: y + (rnd() - 0.5) * 0.06, r, col, life: 2.4, a: 0.95, drip: 4 });
     this.deathT = 1.25;
-    const t = this.txt; t.style.color = PAINT_COLORS[col]; t.classList.remove('on'); void t.offsetWidth; t.classList.add('on');
+    const t = this.txt; t.style.color = '#fff'; t.style.textShadow = `0 5px 0 ${PAINT_COLORS[col]}, 0 8px 14px rgba(0,0,0,.55)`; t.classList.remove('on'); void t.offsetWidth; t.classList.add('on');      // beyaz yazı: boyanın üstünde okunur, gölgesi atıcı renginde
   }
 
   // Yakından geçen top: kenarda damlacık (sx -1 sol / +1 sağ, sy -1 üst / +1 alt)
