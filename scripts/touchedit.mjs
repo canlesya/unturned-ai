@@ -35,7 +35,8 @@ await tapEl('[data-min]');
 await tapEl('[data-tab=sens]');
 check(await page.evaluate(() => !!document.querySelector('[data-r=sens]')), 'Hassasiyet sekmesine dokunuldu');
 await tapEl('[data-set=gyro][data-v=ads]');
-check(await page.evaluate(() => window.__game.player.touch.cfg.gyro === 'ads'), 'Jiroskop "Nişandayken" seçildi');
+// izin isteği zaman uyumsuz (~350 ms): sonucu bekle
+check(await page.waitForFunction(() => window.__game.player.touch.cfg.gyro === 'ads', null, { timeout: 2000 }).then(() => true, () => false), 'Jiroskop "Nişandayken" seçildi');
 await tapEl('[data-tab=layout]');
 await tapEl('[data-set=joy][data-v=float]');
 check(await page.evaluate(() => window.__game.player.touch.cfg.joy === 'float'), 'Joystick "Hareketli" seçildi');
