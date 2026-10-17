@@ -47,7 +47,7 @@ export class ViewModel {
   }
 
   setItem(id, team, kind, optic) {
-    if (this.model) { this.root.remove(this.model); this.model.traverse((o) => o.geometry?.dispose()); }
+    if (this.model) { const own = this.model.userData.ownMat; this.root.remove(this.model); this.model.traverse((o) => { o.geometry?.dispose(); if (own && o.material && !Array.isArray(o.material)) o.material.dispose(); }); }      // setFade kopyaları da
     this.id = id;
     this.raise = 1;
     this.raiseRate = 1 / Math.max(0.15, Math.min(0.35, WSTATS[id]?.equip ?? 0.3));
@@ -304,6 +304,27 @@ export class ViewModel {
     // nişan alırken silah kamerasının görüş açısı genişler: silah/nişangâh ekranda küçülür, rakip örtülmez (dürbünsüz silahlarda)
     const fovT = 54 + (ADS_FOV - 54) * (u.noAds ? 0 : ads);
     if (Math.abs(this.cam.fov - fovT) > 0.01) { this.cam.fov = fovT; this.cam.updateProjectionMatrix(); }
+    // dokunmatik: dürbünsüz nişanda (demir / red dot / holo) silah modeli yarı saydamlaşır. Küçük ekranda nişangâh gövdesi merkezin
+    // %36-50'sini (3° içinde, bkz. adsview.mjs) kapatıyor, hedef tamamen arkasında kalıyordu; nişangâh HUD'da (#rdot / #holo / nokta) net kalır
+    this.setFade(p.touch && s.overlay !== 'scope' ? clamp((ads - 0.55) / 0.4, 0, 1) * 0.5 : 0);
+  }
+
+  // Modelin saydamlığı (0 = opak). Malzemeler önbellekte paylaşılıyor (3. şahıs silahları): ilk kullanımda bu modele özel kopyalanır
+  setFade(f) {
+    const m = this.model;
+    if (!m || Math.abs(f - (m.userData.fade || 0)) < 0.01) return;
+    if (!m.userData.ownMat) { m.traverse((o) => { if (o.isMesh && o.material && o.material.blending !== THREE.AdditiveBlending) o.material = Array.isArray(o.material) ? o.material.map((x) => x.clone()) : o.material.clone(); }); m.userData.ownMat = true; }
+    m.userData.fade = f;
+    m.traverse((o) => {
+      if (!o.isMesh || !o.material) return;
+      for (const x of Array.isArray(o.material) ? o.material : [o.material]) {
+        if (x.blending === THREE.AdditiveBlending) continue;
+        if (x._op0 === undefined) x._op0 = x.opacity, x._tr0 = x.transparent;
+        const tr = x._tr0 || f > 0;
+        if (tr !== x.transparent) { x.transparent = tr; x.needsUpdate = true; }
+        x.opacity = x._op0 * (1 - f);
+      }
+    });
   }
 
   render(renderer, w, h) {
@@ -589,6 +610,11 @@ export class Player {
     this.wheel = null;
   }
 
+  // Etkin nişan büyütmesi: dokunmatikte dürbünsüz nişangâhlar (demir / red dot / holo, ≤ 2×) biraz daha yakınlaştırır (küçük ekranda hedef seçilsin)
+  zoomEff() { const z = this.s.zoomNow || 0; return this.touch && z > 1 && z < 2 ? 1 + (z - 1) * 1.6 : z; }
+  // Dikey FOV (derece): masaüstünde ayar doğrudan dikey FOV; dokunmatikte ayar YATAY FOV'dur (2,2:1 telefonda dikey 75° → yatay 118°, düşman küçücük kalıyordu)
+  baseFov() { const f = this.set.fov; if (!this.touch) return f; const a = this.game.camera.aspect || 16 / 9; return (2 * Math.atan(Math.tan((f * Math.PI) / 360) / a) * 180) / Math.PI; }
+
   look(dx, dy) {
     const s = this.s;
     s.yaw -= dx;
@@ -600,6 +626,7 @@ export class Player {
   update(dt) {
     const s = this.s, g = this.game;
     this.fireBuf = Math.max(0, this.fireBuf - dt);
+    if (this.touch && !g.opts.autoplay) this.touch.assist(dt);                      // dokunmatik nişan yardımı (masaüstünde yok)
     if (s.alive && this.locked && !g.opts.autoplay) {
       const kk = this.keys, sp = 1.9 * dt / Math.pow(Math.max(1, s.zoomNow && s.adsT > 0.5 ? s.zoomNow : 1), 0.7);
       if (kk.has('ArrowLeft')) s.yaw += sp;
@@ -636,8 +663,8 @@ export class Player {
 
     // ── kamera ──
     const cam = g.camera;
-    const baseFov = this.set.fov;
-    const zoom = s.zoomNow && !this.vm.model?.userData.noAds ? lerp(1, s.zoomNow, s.adsT) : 1;
+    const baseFov = this.baseFov();
+    const zoom = s.zoomNow && !this.vm.model?.userData.noAds ? lerp(1, this.zoomEff(), s.adsT) : 1;
     const targetFov = baseFov / zoom;
     cam.fov += (targetFov - cam.fov) * Math.min(1, dt * 18);
     cam.updateProjectionMatrix();

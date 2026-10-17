@@ -114,6 +114,12 @@ const CSS = `
 #scope .rg{position:absolute;left:50%;top:50%;width:72vh;height:72vh;margin:-36vh 0 0 -36vh;border-radius:50%;border:3.4vh solid #1c1e21;box-sizing:border-box;box-shadow:inset 0 0 1.2vh #000a}
 #scope svg{position:absolute;left:50%;top:50%;width:65.2vh;height:65.2vh;margin:-32.6vh 0 0 -32.6vh}
 #scope.chev .mil,#scope.mil .chev{display:none}
+/* telefon: dürbün halkası ekran yüksekliğinin %94'ü (kısa ekranda küçük kalıyordu), dışı bulanık değil siyah (tam ekran backdrop-filter telefonda pahalı ve çamurlu) */
+body.mob #scope .bl{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(0,0,0,.93);-webkit-mask-image:radial-gradient(circle at center,transparent 46.6vh,#000 47vh);mask-image:radial-gradient(circle at center,transparent 46.6vh,#000 47vh)}
+body.mob #scope .rg{width:94vh;height:94vh;margin:-47vh 0 0 -47vh;border-width:2.6vh}
+body.mob #scope svg{width:88.8vh;height:88.8vh;margin:-44.4vh 0 0 -44.4vh}
+body.mob #scope .mil g path:first-child{stroke-width:.55}
+body.mob #rdot{width:5px;height:5px;margin:-2.5px 0 0 -2.5px;box-shadow:0 0 3px 1px #ff2a1acc}      /* telefonda parıltı hedefi örtmesin */
 /* katmanlar: duraklat, ölüm, skor, maç sonu */
 .overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;background:rgba(5,8,12,.66);pointer-events:auto}
 .overlay.intro{background-color:#05080c;background-size:cover;background-position:center}
@@ -144,7 +150,7 @@ const CSS = `
 #respawn h3{font-size:10px;letter-spacing:2px;margin-bottom:6px}
 #rtitle{font-size:18px}#rinfo{font-size:12px;margin:4px 0}#rcount{font-size:34px}
 #respawn .clsrow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
-#respawn .cc{padding:6px 8px;font-size:11px}#respawn .cc b{font-size:12px;letter-spacing:1px}#respawn .cc small{font-size:10px;line-height:1.2}
+#respawn .cc{padding:6px 8px;font-size:12px;min-height:40px}#respawn .cc b{font-size:13px;letter-spacing:1px}#respawn .cc small{font-size:11px;line-height:1.2}
 #spawnrow{gap:4px}#spawnrow .cc{padding:6px 8px}
 #scoreboard .panel{min-width:0!important;width:96vw;max-height:92vh;padding:10px 12px}
 #scoreboard table{font-size:11px}

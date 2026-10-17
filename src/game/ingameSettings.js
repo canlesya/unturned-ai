@@ -27,6 +27,13 @@ const CSS = `
 #igs .kk.cap{border-color:#ff9a2e;color:#ffb347;animation:igsb .8s infinite alternate}
 @keyframes igsb{to{background:#2a2014}}
 #igs .msg{color:#ffb347;font-size:12.5px;margin-top:6px}
+/* dokunmatik: dokunma hedefleri ≥ 40 px, kısa ekranda tam yükseklik */
+body.mob #igs .box{max-height:96vh;width:min(860px,96vw)}
+body.mob #igs .hd{padding:8px 14px 0}body.mob #igs .hd h2{font-size:20px;margin-right:10px}
+body.mob #igs .tab,body.mob #igs .x,body.mob #igs .chip,body.mob #igs .kk{min-height:40px;min-width:44px}
+body.mob #igs .sc{padding:6px 14px 14px}
+body.mob #igs .sr{grid-template-columns:150px 1fr 56px;margin:0}
+body.mob #igs input[type=range]{height:40px;margin:0}
 `;
 
 export class InGameSettings {
@@ -53,7 +60,7 @@ export class InGameSettings {
     const g = this.g, s = g.settings;
     switch (key) {
       case 'sens': s.sens = v; this.save({ sens: v }); break;
-      case 'fov': s.fov = v; this.save({ fov: v }); break;
+      case 'fov': s.fov = v; this.save({ [mob() ? 'fovM' : 'fov']: v }); break;                 // dokunmatikte yatay FOV, ayrı tercih (menu.js FOV_KEY)
       case 'volume': case 'vSfx': case 'vMusic': case 'vAmb': case 'rainSound':
         s[key] = v; this.save({ [key]: v });
         g.sfx?.setVolume?.(s.volume ?? 0.6);
@@ -61,7 +68,7 @@ export class InGameSettings {
         music.setVolume((s.volume ?? 0.6) * (s.vMusic ?? 0.5));
         break;
       case 'quality': {
-        s.pixelRatio = v; this.save({ quality: v });
+        s.pixelRatio = v; this.save({ [mob() ? 'qualityM' : 'quality']: v });
         const r = g.renderer, pr = Math.min(devicePixelRatio, v);
         if (g._perf) { g._perf.max = pr; g._perf.ratio = pr; }
         r?.setPixelRatio(pr); r?.setSize(innerWidth, innerHeight, false);
@@ -90,7 +97,7 @@ export class InGameSettings {
       const q = s.pixelRatio || 1;
       body = `<div class="pan"><h3>Fare ve görüş</h3>
         ${sl('sens', 'Hassasiyet', 0.0008, 0.006, 0.0001, s.sens ?? 0.0022, FMT.sens)}
-        ${sl('fov', 'Görüş açısı', 60, 100, 1, s.fov ?? 80, FMT.fov)}</div>
+        ${mob() ? sl('fov', 'Görüş açısı (yatay)', 70, 110, 1, s.fov ?? 85, FMT.fov) : sl('fov', 'Görüş açısı', 60, 100, 1, s.fov ?? 80, FMT.fov)}</div>
         <div class="pan"><h3>Ses</h3>
         ${sl('volume', 'Ana ses', 0, 1, 0.05, s.volume ?? 0.6, FMT.pct)}
         ${sl('vSfx', 'Efekt sesleri', 0, 1, 0.05, s.vSfx ?? 1, FMT.pct)}
@@ -109,12 +116,13 @@ export class InGameSettings {
         const on = cap && cap.id === a.id && cap.slot === sl2;
         return `<button class="kk ${on ? 'cap' : ''}" data-bind="${a.id}" data-slot="${sl2}">${on ? 'Tuşa bas…' : codeLabel(kb.codes(a.id)[sl2])}</button>`;
       }).join('')}</div>`).join('')}</div>`).join('');
-      body = `<div class="pan"><h3>Silahı tutan el</h3><div class="row">${ch('leftHand', 0, !g.leftHand, 'Sağ el')}${ch('leftHand', 1, !!g.leftHand, 'Sol el')}</div></div>
+      const touchPan = mob() ? `<div class="pan"><h3>Dokunmatik kontroller</h3><div class="row"><button class="chip" data-k="touchEd" data-v="1">Dokunmatik ayarlar ›</button></div><div class="hint">Buton düzeni, bakış / nişan hassasiyeti, jiroskop ve nişan yardımı.</div></div>` : '';
+      body = `${touchPan}<div class="pan"><h3>Silahı tutan el</h3><div class="row">${ch('leftHand', 0, !g.leftHand, 'Sağ el')}${ch('leftHand', 1, !!g.leftHand, 'Sol el')}</div></div>${mob() ? '' : `
         <div class="pan"><h3>Nişan alma (sağ tık)</h3><div class="row">${ch('adsToggle', 0, !g.opts.adsToggle, 'Basılı tut')}${ch('adsToggle', 1, !!g.opts.adsToggle, 'Bir kez bas (aç-kapa)')}</div></div>
         <div class="pan"><h3>Tuş atama</h3><div class="hint">Bir tuşa tıkla, sonra yeni tuşa bas. Her eyleme en çok 2 tuş. Geri tuşu temizler, Esc vazgeçer. Aynı tuş başka eyleme atanmışsa oradan alınır.</div>
         <div class="row" style="margin-top:6px"><button class="chip" data-k="kreset" data-v="1">Varsayılana dön</button></div>${this.msg ? `<div class="msg">${this.msg}</div>` : ''}</div>
         ${keyRows}
-        <div class="pan"><h3>Sabit tuşlar</h3><div class="hint">Ateş / nişan: sol tık / sağ tık · Silah değiştir: fare tekeri · Duraklat: Esc</div></div>`;
+        <div class="pan"><h3>Sabit tuşlar</h3><div class="hint">Ateş / nişan: sol tık / sağ tık · Silah değiştir: fare tekeri · Duraklat: Esc</div></div>`}`;      // dokunmatikte tuş atama yok
     }
     const keep = this.el.querySelector('.sc')?.scrollTop || 0;
     this.el.innerHTML = `<div class="box"><div class="hd"><h2>${this.tab === 'settings' ? 'Ayarlar' : 'Kontroller'}</h2>
@@ -135,6 +143,7 @@ export class InGameSettings {
     if (b.dataset.tab) { this.tab = b.dataset.tab; this.cap = null; this.msg = ''; this.render(); return; }
     if (b.dataset.bind) { this.cap = { id: b.dataset.bind, slot: +b.dataset.slot }; this.msg = ''; this.render(); return; }
     const k = b.dataset.k; if (!k) return;
+    if (k === 'touchEd') { this.close(); this.g.player.touch?.openEditor(); return; }
     if (k === 'kreset') { this.g.binds.reset(); this.saveKeys(); this.msg = 'Tuşlar varsayılana döndü'; this.render(); return; }
     const v = +b.dataset.v;
     this.set(k, k === 'quality' ? v : !!v);
@@ -160,4 +169,5 @@ export class InGameSettings {
   dispose() { window.removeEventListener('keydown', this._key, true); this.el.remove(); this.st.remove(); }
 }
 
+const mob = () => document.body.classList.contains('mob');              // dokunmatik kontroller açık (touch.js)
 const FMT = { sens: (x) => (x / 0.0022).toFixed(2) + '×', fov: (x) => x + '°', pct: (x) => Math.round(x * 100) + '%' };

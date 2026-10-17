@@ -13,10 +13,15 @@ import { music } from './game/music.js';
 import { isTouch } from './game/touch.js';
 
 const KEY = 'warbyte.v2';
+// Dokunmatik cihazda görüş açısı ve kalite AYRI tercihlerde (fovM = YATAY FOV, qualityM = çözünürlük çarpanı): telefonda kayıtlı eski
+// masaüstü değerleri (dikey 75°, 1×) yeni varsayılanları ezmesin; masaüstü tercihleri hiç değişmez
+const TOUCH = isTouch();
+export const FOV_KEY = TOUCH ? 'fovM' : 'fov', Q_KEY = TOUCH ? 'qualityM' : 'quality';
+export const FOV_RANGE = TOUCH ? [70, 110] : [60, 100];
 export const DEFAULTS = {
   map: DEFAULT_MAP, tod: 'day', weather: 'clear', type: 'conquest', perTeam: 10, tickets: 0, time: 900,
   team: 'blue', cls: 'assault', diff: 'normal', optic: 'reddot', loadouts: {}, name: 'Sen',
-  sens: 0.0022, fov: 75, volume: 0.6, shadows: !isTouch(), quality: isTouch() ? 1 : 1.5, adaptive: true, fullscreen: true, devMode: false,   // telefonda: gölgesiz, 1× çözünürlük
+  sens: 0.0022, fov: 75, volume: 0.6, shadows: !TOUCH, quality: 1.5, fovM: 85, qualityM: 2, adaptive: true, fullscreen: true, devMode: false,   // telefonda: gölgesiz; keskinlik için 2× (FPS düşerse otomatik çözünürlük indirir)
   xp: 0, stats: { matches: 0, wins: 0, kills: 0, deaths: 0 },
   server: '', room: '', olTeam: 'auto', third: true,
   keys: {}, leftHand: false, adsToggle: false, vSfx: 0.9, vMusic: 0.5, vAmb: 0.8, rainSound: true,   // tuş atamaları, silah eli, ses kanalları
@@ -339,14 +344,14 @@ export function showMenu(onStart, onOnline) {
     const sl = (id, label, min, max, step, v, fmt) => `<div class="setrow"><span>${label}</span><input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${v}" style="--p:${((v - min) / (max - min)) * 100}%"><em id="v_${id}">${fmt(v)}</em></div>`;
     return `<div class="scroll"><div class="pan"><h3>Fare ve görüş</h3>
       ${sl('sSens', 'Hassasiyet', 0.0008, 0.006, 0.0001, p.sens, (x) => (x / 0.0022).toFixed(2) + '×')}
-      ${sl('sFov', 'Görüş açısı', 60, 100, 1, p.fov, (x) => x + '°')}</div>
+      ${sl('sFov', TOUCH ? 'Görüş açısı (yatay)' : 'Görüş açısı', FOV_RANGE[0], FOV_RANGE[1], 1, p[FOV_KEY], (x) => x + '°')}</div>
       <div class="pan"><h3>Ses</h3>${sl('sVol', 'Ana ses', 0, 1, 0.05, p.volume, (x) => Math.round(x * 100) + '%')}
       ${sl('sSfx', 'Efekt sesleri', 0, 1, 0.05, p.vSfx, (x) => Math.round(x * 100) + '%')}
       ${sl('sMusic', 'Müzik', 0, 1, 0.05, p.vMusic, (x) => Math.round(x * 100) + '%')}
       ${sl('sAmb', 'Ortam (yağmur, rüzgâr)', 0, 1, 0.05, p.vAmb, (x) => Math.round(x * 100) + '%')}
       <div class="row" style="margin-top:8px"><button class="chip ${p.rainSound ? 'on' : ''}" data-a="rain" data-v="1">Yağmur sesi: ${p.rainSound ? 'Açık' : 'Kapalı'}</button></div>
       <div class="hint">Lobi ve maç müziği için dosyalar henüz yok; <b>public/audio/music/</b> altına eklenince otomatik çalar (bkz. OYUN.md).</div></div>
-      <div class="pan"><h3>Grafik</h3><div class="row">${[[1, 'Düşük'], [1.5, 'Orta'], [2, 'Yüksek']].map(([v, l]) => `<button class="chip ${p.quality === v ? 'on' : ''}" data-a="quality" data-v="${v}">${l}</button>`).join('')}
+      <div class="pan"><h3>Grafik</h3><div class="row">${[[1, 'Düşük'], [1.5, 'Orta'], [2, 'Yüksek']].map(([v, l]) => `<button class="chip ${p[Q_KEY] === v ? 'on' : ''}" data-a="quality" data-v="${v}">${l}</button>`).join('')}
       <button class="chip ${p.shadows ? 'on' : ''}" data-a="shadows" data-v="1">Gölgeler: ${p.shadows ? 'Açık' : 'Kapalı'}</button><button class="chip ${p.adaptive !== false ? 'on' : ''}" data-a="adaptive" data-v="1" title="Kare hızı düşerse çözünürlüğü otomatik azaltır, rahatlayınca geri yükseltir">Otomatik çözünürlük: ${p.adaptive !== false ? 'Açık' : 'Kapalı'}</button><button class="chip ${p.fullscreen !== false ? 'on' : ''}" data-a="fullscreen" data-v="1" title="Oyun başlayınca tam ekrana geçer ve klavyeyi kilitler: Ctrl+W gibi tarayıcı kısayolları sekmeyi kapatmaz">Tam ekran + Ctrl+W koruması: ${p.fullscreen !== false ? 'Açık' : 'Kapalı'}</button></div>
       <div class="hint">Düşük kalite ve kapalı gölge, zayıf bilgisayarlarda ve büyük maçlarda akıcılığı artırır.</div></div>
       <div class="pan"><h3>Veri</h3><button class="chip" data-a="reset">İlerlemeyi sıfırla</button></div></div>`;
@@ -366,7 +371,8 @@ export function showMenu(onStart, onOnline) {
       ['Duraklat', '<kbd>Esc</kbd> · menüde <b>Kill (yeniden doğ)</b> düğmesi'],
       ['Bakış (yedek)', 'Fare kilitlenmezse ok tuşları'],
     ];
-    return `<div class="scroll">
+    const touchNote = TOUCH ? '<div class="pan"><h3>Dokunmatik kontroller</h3><div class="hint">Telefonda tuş ataması gerekmez: buton düzeni, bakış / nişan hassasiyeti, jiroskop ve nişan yardımı oyunda <b>Duraklat → Dokunmatik ayarlar</b> bölümünde.</div></div>' : '';
+    return `<div class="scroll">${touchNote}
       <div class="pan"><h3>Silahı tutan el</h3><div class="row"><button class="chip ${p.leftHand ? '' : 'on'}" data-a="hand" data-v="right">Sağ el</button><button class="chip ${p.leftHand ? 'on' : ''}" data-a="hand" data-v="left">Sol el</button></div>
       <div class="hint">Birinci şahıs silah modeli aynalanır. Oyunda <kbd>${handKey}</kbd> tuşuyla anında değiştirilebilir.</div></div>
       <div class="pan"><h3>Nişan alma (sağ tık)</h3><div class="row"><button class="chip ${p.adsToggle ? '' : 'on'}" data-a="ads" data-v="hold">Basılı tut</button><button class="chip ${p.adsToggle ? 'on' : ''}" data-a="ads" data-v="toggle">Bir kez bas (aç-kapa)</button></div>
@@ -379,7 +385,8 @@ export function showMenu(onStart, onOnline) {
   }
 
   function render() {
-    const keep = stage.querySelector('.scroll')?.scrollTop || 0;
+    const keep = screen === render.last ? stage.querySelector('.scroll')?.scrollTop || 0 : 0;      // başka ekrana geçince en üstten (önceki ekranın kaydırması taşınmasın)
+    render.last = screen;
     stage.className = 'mn-stage' + (screen === 'loadout' ? ' right' : '');
     stage.innerHTML = { home: homeHTML, custom: customHTML, online: onlineHTML, ocreate: ocreateHTML, loadout: loadoutHTML, settings: settingsHTML, controls: controlsHTML, editor: editorHTML }[screen]();
     const sc = stage.querySelector('.scroll'); if (sc) sc.scrollTop = keep;
@@ -430,7 +437,7 @@ export function showMenu(onStart, onOnline) {
       editor: true, devMode: true, map: p.edMap, tod: 'day', weather: 'clear', team: 'blue', cls: p.cls, diff: 'normal', optic: p.optic, playerName: p.name,
       match: { perTeam: 1, type: 'dm', time: 900 }, third: false,
       keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs, loadout: loadoutOf(p.cls), loadouts: p.loadouts,
-      settings: { sens: p.sens, fov: p.fov, volume: p.volume, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, shadows: p.shadows, adaptive: p.adaptive !== false, fullscreen: p.fullscreen !== false, pixelRatio: p.quality },
+      settings: { sens: p.sens, fov: p[FOV_KEY], volume: p.volume, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, shadows: p.shadows, adaptive: p.adaptive !== false, fullscreen: p.fullscreen !== false, pixelRatio: p[Q_KEY] },
     };
     cleanup();
     onStart(payload);
@@ -450,7 +457,7 @@ export function showMenu(onStart, onOnline) {
       match: { perTeam, type: p.type, tickets: randomize ? undefined : p.tickets || undefined, time: p.time }, third: p.third, devMode: !!p.devMode && !randomize,
       keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs,
       loadout: loadoutOf(cls), loadouts: p.loadouts,                    // tüm sınıfların kayıtlı yüklemeleri: oyunda sınıf değişince o sınıfınki gelir
-      settings: { sens: p.sens, fov: p.fov, volume: p.volume, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, shadows: p.shadows, adaptive: p.adaptive !== false, fullscreen: p.fullscreen !== false, pixelRatio: p.quality },
+      settings: { sens: p.sens, fov: p[FOV_KEY], volume: p.volume, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, shadows: p.shadows, adaptive: p.adaptive !== false, fullscreen: p.fullscreen !== false, pixelRatio: p[Q_KEY] },
     };
     cleanup();
     onStart(payload);
@@ -494,7 +501,7 @@ export function showMenu(onStart, onOnline) {
       p.perTeam = v; stage.querySelector('#vSize').innerHTML = tot(p.type) ? `${v}<i>kişi</i>` : `${v}<i>vs</i>${v}`;
       stage.querySelectorAll('[data-a=size]').forEach((c) => c.classList.toggle('on', +c.dataset.v === v));
     } else if (id === 'sSens') { p.sens = v; stage.querySelector('#v_sSens').textContent = (v / 0.0022).toFixed(2) + '×'; }
-    else if (id === 'sFov') { p.fov = v; stage.querySelector('#v_sFov').textContent = v + '°'; }
+    else if (id === 'sFov') { p[FOV_KEY] = v; stage.querySelector('#v_sFov').textContent = v + '°'; }
     else if (id === 'sVol') { p.volume = v; stage.querySelector('#v_sVol').textContent = Math.round(v * 100) + '%'; music.setVolume(p.volume * p.vMusic); }
     else if (id === 'sSfx') { p.vSfx = v; stage.querySelector('#v_sSfx').textContent = Math.round(v * 100) + '%'; }
     else if (id === 'sMusic') { p.vMusic = v; stage.querySelector('#v_sMusic').textContent = Math.round(v * 100) + '%'; music.setVolume(p.volume * p.vMusic); }
@@ -550,7 +557,7 @@ export function showMenu(onStart, onOnline) {
       case 'slot': slot = v; break;
       case 'pick': loadoutOf(p.cls)[slot] = v; break;
       case 'optic': p.optic = v; scene?.iconCache.clear(); break;
-      case 'quality': p.quality = +v; break;
+      case 'quality': p[Q_KEY] = +v; break;
       case 'shadows': p.shadows = !p.shadows; break;
       case 'adaptive': p.adaptive = p.adaptive === false; break;
       case 'fullscreen': p.fullscreen = p.fullscreen === false; break;

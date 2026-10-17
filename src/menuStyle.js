@@ -224,4 +224,9 @@ export const MENU_CSS = `
 #menu .play{font-size:22px;min-width:0}
 #menu .split,#menu .split3{grid-template-columns:1fr}
 }
+/* dokunmatik cihaz (main.js → html.touch): her düğme / kaydırıcı en az 40 px (parmakla rahat); masaüstü etkilenmez */
+html.touch #menu button{min-height:40px;min-width:40px}
+html.touch #menu .mn-nav{display:flex;flex-direction:column;justify-content:center}
+html.touch #menu input[type=range]{height:40px;margin:0}
+html.touch #menu input[type=text],html.touch #menu input[type=password]{min-height:40px}
 `;
