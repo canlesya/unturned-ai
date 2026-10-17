@@ -1045,6 +1045,7 @@ export class Game {
     const ty = p.y;
     this.sun.target.position.set(tx, ty, tz);
     this.sun.position.set(tx + this.sunOff.x, ty + this.sunOff.y, tz + this.sunOff.z);
+    if (this.map.fx) this.map.fx.update(performance.now() / 1000);            // harita efektleri (New York: ateş ışığı titremesi, duman / kıvılcım zamanı)
     r.clear();
     r.render(this.scene, this.camera);
     if (this.playerSoldier.alive && !this.showSelf) this.player.vm.render(r, innerWidth, innerHeight);

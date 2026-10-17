@@ -22,7 +22,7 @@ const TOD_PRESETS = {
 };
 
 export function todEnv(env = {}, sunPos, tod = 'day') {
-  const P = TOD_PRESETS[tod];
+  const P = TOD_PRESETS[tod] && { ...TOD_PRESETS[tod], ...(env[tod] || {}) };          // env.night / env.sunset: haritaya özel saat ayarı (ör. New York: daha karanlık, dumanlı gece)
   const E = { ...DEFAULT_ENV, ...env };
   if (!P) return { E, sunPos, envI: 0.5, glow: 0, stars: false };
   const fog = [P.fog[0], Math.max(12, E.fog[1] * P.fog[1]), Math.max(110, E.fog[2] * P.fog[2])];
