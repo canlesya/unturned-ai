@@ -227,7 +227,7 @@ export class Hud {
     this.buildMinimapBase();
     this.hitT = 0; this.sel = null; this.zoneT = 0; this.cmp = this.root.querySelector('#compass canvas').getContext('2d');
     this.maxTk = game.ffa ? game.mode.killLimit : game.mode.infection ? game.mode.total : game.mode.tickets;
-    if (game.mode.gungame) {                                              // Silah Yarışı: sınıf/doğma seçimi yok
+    if (game.mode.fixed) {                                                // Silah Yarışı / Paintball: sınıf/doğma seçimi yok
       this.$('spawnrow').parentElement.style.display = 'none'; this.$('clsrow').parentElement.style.display = 'none';
     }
     if (game.mode.infection) {                                            // Enfekte: sol = insanlar, sağ = zombiler; ölüm ekranında sınıf/doğma seçimi yok
@@ -368,7 +368,7 @@ export class Hud {
         const dx = T.heightAt(wx + 1.2, wz) - T.heightAt(wx - 1.2, wz), dz = T.heightAt(wx, wz + 1.2) - T.heightAt(wx, wz - 1.2);
         const sh = clamp(0.95 + (-dx - dz) * 0.09, 0.55, 1.3);
         let r, gg, b;
-        if (h < -0.25) { r = 74; gg = 144; b = 184; }
+        if (h < -0.25) [r, gg, b] = mini?.pit || [74, 144, 184];                   // su (Boya Kulesi: kuyu, koyu)
         else if (mini) { const t = clamp(h / 5, 0, 1), sh2 = 0.9 + (sh - 0.95) * 0.5; r = (mini.ground[0] - 14 * t) * sh2; gg = (mini.ground[1] - 14 * t) * sh2; b = (mini.ground[2] - 16 * t) * sh2; }
         else { const t = clamp(h / 14, 0, 1); r = (109 + 50 * t) * sh; gg = (138 + 6 * t) * sh; b = (69 + 30 * t) * sh; }
         const k = (py * W + px) * 4;
@@ -446,8 +446,9 @@ export class Hud {
     if (g.ffa) {                                                         // tek tablo, öldürmeye göre
       const gg = g.mode.gungame;
       const list = g.soldiers.filter((s) => !s.vacant).sort((a, b) => (gg ? b.ggLevel - a.ggLevel : 0) || b.kills - a.kills || b.score - a.score);
-      this.$('sbbody').innerHTML = `<div class="team blue"><h3 style="color:var(--c)">${gg ? `Silah Yarışı · ${g.mode.killLimit} silah` : `Ölüm Maçı · ilk ${g.mode.killLimit}`}</h3><table><tr><th>Oyuncu</th>${gg ? '<th>Seviye</th><th>Silah</th>' : ''}<th>Öl</th><th>Ölüm</th><th>Puan</th></tr>${
-        list.map((s) => `<tr class="${s.isPlayer ? 'me' : ''} ${s.alive ? '' : 'dead'}"><td>${s.name}</td>${gg ? `<td>${s.ggLevel + 1}</td><td>${WSTATS[s.items[0].id].name}</td>` : ''}<td>${s.kills}</td><td>${s.deaths}</td><td>${s.score}</td></tr>`).join('')}</table></div>`;
+      const pc = (s) => (g.mode.paintball && g.paintColor ? `<i style="display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:${g.paintColor(s)}"></i>` : '');   // Paintball: oyuncunun boya rengi (game.paintColor = paint.js paintColorOf)
+      this.$('sbbody').innerHTML = `<div class="team blue"><h3 style="color:var(--c)">${gg ? `Silah Yarışı · ${g.mode.killLimit} silah` : g.mode.paintball ? `Paintball · ilk ${g.mode.killLimit} eleme` : `Ölüm Maçı · ilk ${g.mode.killLimit}`}</h3><table><tr><th>Oyuncu</th>${gg ? '<th>Seviye</th><th>Silah</th>' : ''}<th>Öl</th><th>Ölüm</th><th>Puan</th></tr>${
+        list.map((s) => `<tr class="${s.isPlayer ? 'me' : ''} ${s.alive ? '' : 'dead'}"><td>${pc(s)}${s.name}</td>${gg ? `<td>${s.ggLevel + 1}</td><td>${WSTATS[s.items[0].id].name}</td>` : ''}<td>${s.kills}</td><td>${s.deaths}</td><td>${s.score}</td></tr>`).join('')}</table></div>`;
       return;
     }
     this.$('sbbody').innerHTML = col('blue') + col('red');
@@ -544,7 +545,7 @@ export class Hud {
     $('hpnum').innerHTML = `${Math.max(0, Math.ceil(p.hp))}<small>HP</small>`;
     $('hpfill').style.width = clamp((p.hp / p.maxHp) * 100, 0, 100) + '%';
     $('hpfill').style.background = p.hp < 30 ? 'linear-gradient(90deg,#d63a2e,#f06a4a)' : 'linear-gradient(90deg,#3ecf5b,#7be06f)';
-    $('clsname').textContent = g.mode.gungame ? `Seviye ${p.ggLevel + 1}/${g.mode.killLimit}` : g.mode.infection ? (p.def.zombie ? `${p.boss ? 'BOSS' : 'Zombi · ' + p.zt.label} · ${'♥'.repeat(Math.max(0, p.zLives))}` : `${CLASS_DEFS[p.cls].label} · İnsanlar`) : `${CLASS_DEFS[p.cls].label} · ${TEAMS[p.team].name}`;
+    $('clsname').textContent = g.mode.gungame ? `Seviye ${p.ggLevel + 1}/${g.mode.killLimit}` : g.mode.paintball ? `Paintball · ${p.kills}/${g.mode.killLimit} eleme` : g.mode.infection ? (p.def.zombie ? `${p.boss ? 'BOSS' : 'Zombi · ' + p.zt.label} · ${'♥'.repeat(Math.max(0, p.zLives))}` : `${CLASS_DEFS[p.cls].label} · İnsanlar`) : `${CLASS_DEFS[p.cls].label} · ${TEAMS[p.team].name}`;
     $('wname').textContent = p.reloadT > 0 ? `${st.name} · dolduruluyor…` : p.useT > 0 ? `${st.name} · kullanılıyor…` : st.name;
     $('mag').textContent = it.mag;
     $('res').textContent = st.kind === 'throwable' || st.kind === 'medkit' || st.kind === 'melee' ? '' : '/ ' + it.reserve;
@@ -586,7 +587,7 @@ export class Hud {
         $('rinfo').innerHTML += cure ? `<br><b style="color:#7ec8ff">${p.boss ? 'BOSS devrildi: ' : ''}İNSAN olarak doğacaksın</b> (zombi hakkın bitti)` : !p.def.zombie ? '<br><b style="color:#b6ff6a">Zombi olarak doğacaksın</b>' : `<br>Yeniden doğuyorsun · kalan hakkın: <b style="color:#b6ff6a">${p.zLives}</b>`;
         if (cure) this.markClass(g.pendingClass || p.humanCls || ''); else if (!p.boss) this.markZ(g.pendingZ || '');
       }
-      else if (!g.mode.gungame) { this.buildSpawnRow(); this.markClass(g.pendingClass || p.cls); }
+      else if (!g.mode.fixed) { this.buildSpawnRow(); this.markClass(g.pendingClass || p.cls); }
     } else { rs.style.display = 'none'; this._spKey = null; }
     // mesaj
     let msg = '';

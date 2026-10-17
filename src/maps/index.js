@@ -4,6 +4,7 @@ import { buildUs } from './us.js';
 import { buildDev } from './dev.js';
 import { buildNewYork } from './newyork.js';
 import { buildColGecidi } from './colgecidi.js';
+import { buildBoyaKulesi } from './boyakulesi.js';
 
 // Harita kaydı. Her harita build() ile şunu döndürür:
 // { id, name, group, colliders, bounds, spawns:{blue,red}, objectives:[{id,name,x,z,r,core?}], roads?, terrain?, water?, env? }
@@ -40,6 +41,11 @@ MAPS.colgecidi = {
   desc: 'Klasik çöl haritası: uzun koridor, orta ve tüneller olmak üzere üç hat; A (pazar) ve B (avlu) sahaları. Kapalı yapı, her hatta farklı çatışma mesafesi.',
   build: () => buildColGecidi(),
 };
+MAPS.boyakulesi = {
+  id: 'boyakulesi', name: 'Boya Kulesi', tag: 'Paintball · üç kat · kuyu', thumb: '/img/boyakulesi.jpg', only: ['pb'],
+  desc: 'Paintball moduna özel renkli arena: zeminde şişme siperler, köşelerde dört renkli kale (9 m), ortada 18 m kule. Kalelerden kuleye korkuluksuz köprüler kuyunun üstünden geçer; kuyuya düşen elenir. Zıplama minderleri zeminden kaleye fırlatır, kule tepesi en güçlü nokta.',
+  build: () => buildBoyaKulesi(),
+};
 export const DEFAULT_MAP = 'kasaba';
 // Bu moda uygun haritalar (only: yalnızca o modlarda listelenir; dev hiçbirinde)
-export const mapsFor = (type) => (type === 'inf' ? [MAPS.newyork] : Object.values(MAPS).filter((m) => !m.dev && (!m.only || m.only.includes(type))));      // Enfekte yalnızca New York'ta
+export const mapsFor = (type) => (type === 'inf' ? [MAPS.newyork] : type === 'pb' ? [MAPS.boyakulesi] : Object.values(MAPS).filter((m) => !m.dev && (!m.only || m.only.includes(type))));      // Enfekte yalnızca New York'ta, Paintball yalnızca Boya Kulesi'nde

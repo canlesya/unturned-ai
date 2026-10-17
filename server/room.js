@@ -13,14 +13,14 @@ const num = (v, lo, hi, d = 0) => (Number.isFinite(v) ? Math.max(lo, Math.min(hi
 
 export function sanitizeCfg(c = {}) {
   const pick = (v, list, d) => (list.includes(v) ? v : d);
-  const type0 = pick(c.type, ['conquest', 'tdm', 'dm', 'gg', 'inf'], 'conquest');
+  const type0 = pick(c.type, ['conquest', 'tdm', 'dm', 'gg', 'inf', 'pb'], 'conquest');
   return {
-    map: type0 === 'inf' ? 'newyork' : pick(c.map, ['kasaba', 'vadi', 'us', 'colgecidi'], 'kasaba'),                  // Enfekte yalnızca New York'ta
+    map: type0 === 'inf' ? 'newyork' : type0 === 'pb' ? 'boyakulesi' : pick(c.map, ['kasaba', 'vadi', 'us', 'colgecidi'], 'kasaba'),                  // Enfekte yalnızca New York'ta, Paintball yalnızca Boya Kulesi'nde
     tod: pick(c.tod, ['day', 'sunset', 'night'], 'day'),
     weather: pick(c.weather, ['clear', 'rain', 'fog'], 'clear'),
     type: type0,
     diff: type0 === 'inf' ? 'hard' : pick(c.diff, ['easy', 'normal', 'hard'], 'normal'),                   // Enfekte yalnızca Zor botlarla
-    perTeam: c.type === 'dm' || c.type === 'gg' ? Math.round(num(c.perTeam, 2, LIMITS.dmMax, LIMITS.dmMax)) : c.type === 'inf' ? Math.round(num(c.perTeam, LIMITS.infMin, LIMITS.infMax, 12)) : Math.round(num(c.perTeam, 1, LIMITS.maxPerTeam, 5)),     // ölüm maçında ve enfektede perTeam = toplam oyuncu
+    perTeam: c.type === 'pb' ? Math.round(num(c.perTeam, LIMITS.pbMin, LIMITS.pbMax, 8)) : c.type === 'dm' || c.type === 'gg' ? Math.round(num(c.perTeam, 2, LIMITS.dmMax, LIMITS.dmMax)) : c.type === 'inf' ? Math.round(num(c.perTeam, LIMITS.infMin, LIMITS.infMax, 12)) : Math.round(num(c.perTeam, 1, LIMITS.maxPerTeam, 5)),     // ölüm maçında ve enfektede perTeam = toplam oyuncu
     tickets: Number.isFinite(c.tickets) && c.tickets > 0 ? Math.round(num(c.tickets, 20, 1000, 200)) : 0,   // 0 = boyuta göre otomatik
     time: Math.round(num(c.time, 0, 3600, LIMITS.time)),
     bots: c.bots !== false,
@@ -126,7 +126,7 @@ export class Room {
   get humanCount() { return this.clients.size; }
 
   // oda kapasitesi: takımlı modlarda 2 x perTeam, ölüm maçında perTeam
-  get cap() { return this.cfg.type === 'dm' || this.cfg.type === 'gg' || this.cfg.type === 'inf' ? this.cfg.perTeam : this.cfg.perTeam * 2; }
+  get cap() { return this.cfg.type === 'dm' || this.cfg.type === 'gg' || this.cfg.type === 'inf' || this.cfg.type === 'pb' ? this.cfg.perTeam : this.cfg.perTeam * 2; }
 
   canJoin(pw) {
     if (this.cfg.pw && pw !== this.cfg.pw) return 'Şifre yanlış';

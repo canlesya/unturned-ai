@@ -7,14 +7,14 @@ import { WSTATS, CLASS_DEFS, DIFFICULTY, ZOMBIE, BOSS, ZTYPES, BACKSTAB_DMG, BLE
 // Eskiden fonksiyonların içinde sabit duran sayılar
 export const TUNE = {
   walkSpeed: 5.6, sprintMul: 1.5, crouchMul: 0.52, proneMul: 0.27, jumpSpeed: 5.4, gravity: 15,
-  spawnProtect: 2, firstProtect: 1, respawn: 5, respawnGG: 3, botRespawnMin: 3.5, botRespawnMax: 6,
+  spawnProtect: 2, firstProtect: 1, respawn: 5, respawnGG: 3, respawnPB: 3, botRespawnMin: 3.5, botRespawnMax: 6,
   medicHeal: 2.5, medicRadius: 6, resupply: 0.12, reviveHp: 0.55,
   headMul: 2.1, legMul: 0.8, woodMul: 0.65, backstab: BACKSTAB_DMG, selfBlast: 0.55,
   captureRate: 0.085, bleed: BLEED_S,
   sightDay: 130, sightSunset: 105, sightNight: 62,
 };
 // Oyun modu sınırları (oda kurulumu + menü)
-export const LIMITS = { maxPerTeam: 32, dmMax: 10, dmKills: 40, infMin: 4, infMax: 24, time: 900 };
+export const LIMITS = { maxPerTeam: 32, dmMax: 10, dmKills: 40, infMin: 4, infMax: 24, pbMin: 2, pbMax: 12, pbKills: 30, time: 900 };
 
 const ROOTS = { tune: TUNE, mode: LIMITS, w: WSTATS, cls: CLASS_DEFS, diff: DIFFICULTY, zombie: ZOMBIE, boss: BOSS, zt: ZTYPES };
 
@@ -96,7 +96,7 @@ export function balanceSections() {
         f('tune.proneMul', 'Yüzüstü çarpanı', 0.1, 1, 0.01, '×'), f('tune.jumpSpeed', 'Zıplama gücü', 2, 12, 0.1), f('tune.gravity', 'Yerçekimi', 5, 40, 0.5)] },
       { id: 'life', name: 'Doğma ve can', preview: { kind: 'char', cls: 'medic' }, fields: [
         f('tune.spawnProtect', 'Doğma koruması', 0, 10, 0.5, 'sn'), f('tune.firstProtect', 'İlk doğma koruması', 0, 10, 0.5, 'sn'),
-        f('tune.respawn', 'Yeniden doğma (oyuncu)', 0, 30, 0.5, 'sn'), f('tune.respawnGG', 'Yeniden doğma (silah yarışı)', 0, 30, 0.5, 'sn'),
+        f('tune.respawn', 'Yeniden doğma (oyuncu)', 0, 30, 0.5, 'sn'), f('tune.respawnGG', 'Yeniden doğma (silah yarışı)', 0, 30, 0.5, 'sn'), f('tune.respawnPB', 'Yeniden doğma (paintball)', 0, 30, 0.5, 'sn'),
         f('tune.botRespawnMin', 'Bot yeniden doğma (en az)', 0, 30, 0.5, 'sn'), f('tune.botRespawnMax', 'Bot yeniden doğma (en çok)', 0, 30, 0.5, 'sn'),
         f('tune.medicHeal', 'Sıhhiye aurası (0,5 sn başına)', 0, 20, 0.5, 'can'), f('tune.medicRadius', 'Sıhhiye aurası yarıçapı', 0, 20, 0.5, 'm'),
         f('tune.reviveHp', 'Diriltince can', 0.1, 1, 0.05, '×'), f('tune.resupply', 'Üste mermi yenileme (2 sn)', 0, 1, 0.01, '×')] },
@@ -113,6 +113,7 @@ export function balanceSections() {
       { id: 'limits', name: 'Mod sınırları', preview: { kind: 'icon', icon: 'flag' }, fields: [
         f('mode.maxPerTeam', 'Takım başına en çok oyuncu', 1, 32), f('mode.dmMax', 'Ölüm maçı / silah yarışı en çok', 2, 16),
         f('mode.dmKills', 'Ölüm maçı öldürme hedefi', 5, 200), f('mode.infMin', 'Enfekte en az oyuncu', 2, 24, 2), f('mode.infMax', 'Enfekte en çok oyuncu', 4, 32, 2),
+        f('mode.pbKills', 'Paintball eleme hedefi', 5, 200), f('mode.pbMin', 'Paintball en az oyuncu', 2, 12), f('mode.pbMax', 'Paintball en çok oyuncu', 2, 16),
         f('mode.time', 'Varsayılan maç süresi', 60, 3600, 30, 'sn'), f('tune.captureRate', 'Bayrak ele geçirme hızı', 0.01, 0.5, 0.005), f('tune.bleed', 'Bilet kanaması aralığı', 1, 60, 1, 'sn')] },
     ] },
     { id: 'bots', label: 'Botlar', icon: 'robot', items: [
