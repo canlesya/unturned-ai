@@ -1,13 +1,15 @@
 // Başsız (headless) oyun testi — tarayıcı yok: node scripts/headless-sim.mjs [harita=kasaba] [NvN=10] [saniye=240]
 // Game'i opts.headless ile kurar, botları saniyede 30 adımla oynatır, özet basar. Hata sayısı 0 olmalı.
 import { Game } from '../src/game/game.js';
+import { MAPS } from '../src/maps/index.js';
+const type = process.env.TYPE || MAPS[process.argv[2] || 'kasaba']?.only?.[0] || 'conquest';          // moda özel haritalar (Boya Kulesi: pb, New York: inf) kendi modlarıyla
 
 const map = process.argv[2] || 'kasaba';
 const per = +(process.argv[3] || 10);
 const secs = +(process.argv[4] || 240);
 
 const t0 = performance.now();
-const game = new Game(null, { headless: true, map, tod: 'day', weather: 'clear', diff: 'normal', match: { perTeam: per, type: 'conquest' } });
+const game = new Game(null, { headless: true, map, tod: 'day', weather: 'clear', diff: 'normal', match: { perTeam: per, type } });
 const tBuild = performance.now() - t0;
 
 let errors = 0, flagEvents = 0;
@@ -27,6 +29,6 @@ console.log(`simülasyon: ${(steps * dt).toFixed(0)} sn · adım ${(ms / steps).
 console.log(`biletler: mavi ${Math.round(game.tickets.blue)} / kırmızı ${Math.round(game.tickets.red)} · hayatta ${S.filter((s) => s.alive).length}/${S.length} · bayrak değişimi ${flagEvents}`);
 console.log('hedefler: ' + game.mode.objectives.map((o) => `${o.name}:${o.owner || '-'}`).join(', '));
 console.log(`öldürme toplamı ${S.reduce((a, s) => a + s.kills, 0)} · geçersiz/yeraltı: ${bad.length}`);
-const ok = errors === 0 && bad.length === 0 && flagEvents > 0;
+const ok = errors === 0 && bad.length === 0 && (type !== 'conquest' || flagEvents > 0);
 console.log(ok ? 'sonuç: OK' : 'sonuç: HATA');
 process.exit(ok ? 0 : 1);

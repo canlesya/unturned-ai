@@ -153,6 +153,7 @@ export class Sfx {
   }
   knifeWall(pos) { this._tone({ pos, gain: 0.25, dur: 0.12, f0: 2600, f1: 1800, type: 'square' }); this._noise({ pos, gain: 0.25, dur: 0.06, f0: 6000, f1: 2500, type: 'bandpass' }); }
   deploy(pos) { this._noise({ pos, gain: 0.3, dur: 0.1, f0: 900, f1: 400 }); this._tone({ pos, gain: 0.2, dur: 0.06, f0: 240, f1: 120, delay: 0.08 }); }
+  boing(pos) { this._tone({ pos, gain: 0.3, dur: 0.32, f0: 160, f1: 520, type: 'sine' }); this._tone({ pos, gain: 0.12, dur: 0.2, f0: 320, f1: 900, type: 'triangle', delay: 0.04 }); }   // zıplama minderi
   beep(pos) { this._tone({ pos, gain: 0.25, dur: 0.06, f0: 1800, f1: 1800, type: 'square' }); }
   smokeHiss(pos) { this._noise({ pos, gain: 0.5, dur: 1.4, f0: 6000, f1: 3000, type: 'highpass' }); this._tone({ pos, gain: 0.3, dur: 0.12, f0: 200, f1: 90 }); }
   flashbang(pos) {

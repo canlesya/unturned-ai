@@ -9,7 +9,7 @@ import { sanitizeCfg } from './room.js';
 
 const FILE = path.join(DATA, 'official.json');
 export const OFFICIAL_MAX = 12;
-export const MAPS_FOR = (type) => (type === 'inf' ? ['newyork'] : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman']);
+export const MAPS_FOR = (type) => (type === 'inf' ? ['newyork'] : type === 'pb' ? ['boyakulesi'] : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman']);
 
 const clean = (s, n) => String(s ?? '').replace(/[<>&"'`\p{Cc}\p{Cf}]/gu, '').replace(/\s+/g, ' ').trim().slice(0, n);
 

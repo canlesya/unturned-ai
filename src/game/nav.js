@@ -5,7 +5,7 @@ import { DEEP_WATER } from '../maps/terrain.js';
 const CELL = 0.5;
 const INFL = 0.35;
 
-class Heap {
+export class Heap {
   constructor() { this.a = []; }
   get size() { return this.a.length; }
   push(n, f) {

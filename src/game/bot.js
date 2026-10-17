@@ -48,7 +48,7 @@ export class BotBrain {
   hear(pos) {
     this.alertT = this.game.time;
     this.alertPos = (this.alertPos || new THREE.Vector3()).copy(pos);
-    if (!this.target && Math.random() < 0.25 && this.goalT > 3) this.setGoal(pos.x + rand(-6, 6), pos.z + rand(-6, 6), 8);
+    if (!this.target && Math.random() < 0.25 && this.goalT > 3) this.setGoal(pos.x + rand(-6, 6), pos.z + rand(-6, 6), 8, pos.y);
   }
 
   onDamaged(attacker, fromPos) {
@@ -58,10 +58,15 @@ export class BotBrain {
     }
   }
 
-  setGoal(x, z, time = 14) {
+  // y: hedef kat (çok katlı yol bulmada hangi zemin: kale güvertesi / kule tepesi). Verilmezse botun kendi katı
+  setGoal(x, z, time = 14, y) {
     const nav = this.game.nav;
-    if (nav.blocked[nav.idx(x, z)]) { const i = nav.nearestFree(x, z, 8); if (i >= 0) { x = nav.cx(i); z = nav.cz(i); } }      // hedef duvarın / kutunun içindeyse en yakın serbest noktaya al (yoksa bot orada boşuna bekler)
-    this.goal = new THREE.Vector3(x, 0, z);
+    let gy = 0;
+    if (nav.nearestNode) {                                                      // NavGridML: hedefi istenen kattaki en yakın yürünür düğüme al
+      const n = nav.nearestNode(x, z, Number.isFinite(y) ? y : this.s.pos.y, 8);
+      if (n >= 0) { const i = (n / nav.K) | 0; x = nav.cx(i); z = nav.cz(i); gy = nav.lf[n]; }
+    } else if (nav.blocked[nav.idx(x, z)]) { const i = nav.nearestFree(x, z, 8); if (i >= 0) { x = nav.cx(i); z = nav.cz(i); } }      // hedef duvarın / kutunun içindeyse en yakın serbest noktaya al (yoksa bot orada boşuna bekler)
+    this.goal = new THREE.Vector3(x, gy, z);
     this.goalT = time;
     this.path = null; this.repathT = 0;
   }
@@ -176,11 +181,11 @@ export class BotBrain {
     const g = this.game, s = this.s;
     const foes = g.soldiers.filter((e) => e.alive && e.team !== s.team);
     const R = g.map.roamPoints;                                                    // harita dolaşma noktaları verirse (duvarlı / asimetrik haritalar): yarısı hat noktalarına
-    if (R && Math.random() < 0.5) { const p = pick(R); this.setGoal(p[0] + rand(-4, 4), p[1] + rand(-4, 4), rand(8, 16)); return; }
+    if (R && Math.random() < (g.nav.nearestNode ? 0.65 : 0.5)) { const p = pick(R), j = p.length > 2 ? 1.5 : 4; this.setGoal(p[0] + rand(-j, j), p[1] + rand(-j, j), rand(8, 16), p[2]); return; }      // [x, z, y?]: katlı haritada kat noktası (küçük sapma)
     const t = foes.length && Math.random() < (R ? 0.5 : 0.7) ? pick(foes).pos : null;
     const b = g.map.bounds;
     const x = t ? t.x + rand(-12, 12) : rand(b.minX + 6, b.maxX - 6), z = t ? t.z + rand(-12, 12) : rand(b.minZ + 6, b.maxZ - 6);
-    this.setGoal(x, z, rand(10, 20));
+    this.setGoal(x, z, rand(10, 20), t ? t.y : undefined);
   }
 
   sense() {
@@ -210,7 +215,7 @@ export class BotBrain {
     } else if (this.target) {
       this.lostT += 0.22;
       if (this.lostT > 0.5) {
-        if (this.lastKnown) this.setGoal(this.lastKnown.x, this.lastKnown.z, 6);
+        if (this.lastKnown) this.setGoal(this.lastKnown.x, this.lastKnown.z, 6, this.lastKnown.y);
         this.target = null;
       }
     }
@@ -298,6 +303,36 @@ export class BotBrain {
     s.vel.x = lerp(s.vel.x, moveX * k * speed, a);
     s.vel.z = lerp(s.vel.z, moveZ * k * speed, a);
     s.sprinting = speed > 5.5;
+  }
+
+  // Hedefe yol takibi: [x, z, hız çarpanı] ya da null (hedef yok / yol bekleniyor). Sakin anda; katlı haritada çatışırken de (kat değiştirerek savaşır)
+  followGoal(dt) {
+    const s = this.s, g = this.game;
+    if (!this.goal) return null;
+    if (this.via && Math.hypot(this.via.x - s.pos.x, this.via.z - s.pos.z) < 3.5) { this.via = null; this.path = null; this.repathT = 0; }
+    const gd = Math.hypot(this.goal.x - s.pos.x, this.goal.z - s.pos.z) + (g.nav.nearestNode ? Math.max(0, Math.abs(this.goal.y - s.pos.y) - 1.2) * 3 : 0);   // katlı: hedef katta değilse varılmış sayılmaz
+    if (gd < 1.8 && !this.via) {
+      this.holdT -= dt;
+      if (this.perching) { s.crouching = true; if (this.holdT <= 0) this.holdT = 3; } else if (this.holdT <= 0) { this.holdT = rand(2, 5); if (g.nav.nearestNode && Math.random() < 0.6) this.pickGoal(); else this.setGoal(this.goal.x + rand(-6, 6), this.goal.z + rand(-6, 6), 10, this.goal.y); }      // katlı haritada yeni dolaşma noktası (kat değiştirsin)
+      return [0, 0, 0];
+    }
+    this.repathT -= dt;
+    if (!this.path || this.repathT <= 0) {
+      if (g.pathBudget > 0) {
+        g.pathBudget--;
+        const tgt = this.via || this.goal;
+        this.path = g.nav.findPath(s.pos.x, s.pos.z, tgt.x, tgt.z, 0.7, s.pos.y, tgt.y);
+        this.repathT = rand(2.5, 4);
+        if (!this.path) { this.goal = null; this.via = null; return null; }
+      }
+    }
+    if (!this.path || !this.path.length) return null;
+    let wp = this.path[0];
+    const off = (q) => (!g.nav.nearestNode ? 0 : Math.abs(q.y - s.pos.y) > 1.2 ? 9 : Math.abs(q.y - s.pos.y) > 0.2 ? 0.55 : 0);       // katlı: başka kattaki ara nokta (merdiven üstü) geçilmiş sayılmaz; basamak başı noktasına yakından varılır (yandan yüksek basamağa çarpmasın)
+    while (this.path.length > 1 && Math.hypot(wp.x - s.pos.x, wp.z - s.pos.z) + off(wp) < 0.9) { this.path.shift(); wp = this.path[0]; }
+    const wd = Math.hypot(wp.x - s.pos.x, wp.z - s.pos.z);
+    if (wd + off(wp) < 0.6 && this.path.length === 1) { this.path = null; return null; }
+    return [(wp.x - s.pos.x) / (wd + 1e-6), (wp.z - s.pos.z) / (wd + 1e-6), 1.35];
   }
 
   update(dt) {
@@ -417,6 +452,10 @@ export class BotBrain {
         moveX = nx * fwd + (-nz) * this.strafeDir * 0.55;
         moveZ = nz * fwd + (nx) * this.strafeDir * 0.55;
         speed *= 0.62;
+        if (g.nav.nearestNode && s.cur !== 3 && st.kind !== 'melee' && (dist > 9 || Math.abs(tp.y - s.pos.y) > 2.5)) {      // katlı harita: çatışırken de hedef kata yürü (merdiven / köprü), yürürken ateş et
+          const pm = this.followGoal(dt);
+          if (pm && pm[2] > 0) { moveX = pm[0] * 0.9 + (-nz) * this.strafeDir * 0.25; moveZ = pm[1] * 0.9 + nx * this.strafeDir * 0.25; speed /= 0.62 * 1.15; }
+        }
       }
     } else {
       s.ads = false; s.crouching = false; s.botExtraSpread = 0;
@@ -431,31 +470,8 @@ export class BotBrain {
       }
       s.pitch += (0 - s.pitch) * Math.min(1, dt * 4);
       // yol takibi
-      if (this.goal) {
-        if (this.via && Math.hypot(this.via.x - s.pos.x, this.via.z - s.pos.z) < 3.5) { this.via = null; this.path = null; this.repathT = 0; }
-        const gd = Math.hypot(this.goal.x - s.pos.x, this.goal.z - s.pos.z);
-        if (gd < 1.8 && !this.via) { this.holdT -= dt; if (this.holdT <= -0.01 && this.holdT > -5) { /* bekle */ } speed = 0; if (this.perching) { s.crouching = true; if (this.holdT <= 0) this.holdT = 3; } else if (this.holdT <= 0) { this.holdT = rand(2, 5); this.setGoal(this.goal.x + rand(-6, 6), this.goal.z + rand(-6, 6), 10); } }
-        else {
-          this.repathT -= dt;
-          if (!this.path || this.repathT <= 0) {
-            if (g.pathBudget > 0) {
-              g.pathBudget--;
-              const tgt = this.via || this.goal;
-              this.path = g.nav.findPath(s.pos.x, s.pos.z, tgt.x, tgt.z);
-              this.repathT = rand(2.5, 4);
-              if (!this.path) { this.goal = null; this.via = null; }
-            }
-          }
-          if (this.path && this.path.length) {
-            let wp = this.path[0];
-            while (this.path.length > 1 && Math.hypot(wp.x - s.pos.x, wp.z - s.pos.z) < 0.9) { this.path.shift(); wp = this.path[0]; }
-            const wd = Math.hypot(wp.x - s.pos.x, wp.z - s.pos.z);
-            if (wd < 0.6 && this.path.length === 1) this.path = null;
-            else { moveX = (wp.x - s.pos.x) / (wd + 1e-6); moveZ = (wp.z - s.pos.z) / (wd + 1e-6); }
-            speed *= 1.35;
-          }
-        }
-      }
+      const pm = this.followGoal(dt);
+      if (pm) { moveX = pm[0]; moveZ = pm[1]; speed *= pm[2]; }
       // yürüme yönüne dön, ya da son duyulan sese bak
       const ml = Math.hypot(moveX, moveZ);
       if (ml > 0.1) s.yaw += clamp(angleDiff(s.yaw, yawFromDir(moveX, moveZ)), -6 * dt, 6 * dt);
@@ -470,7 +486,7 @@ export class BotBrain {
     if (this.stuckT > 1.2) {
       if (!combat && (moveX || moveZ) && s.pos.distanceTo(this.stuckPos) < 0.35) {
         this.path = null; this.repathT = 0;
-        if (Math.random() < 0.4) this.setGoal(s.pos.x + rand(-10, 10), s.pos.z + rand(-10, 10), 6);
+        if (Math.random() < 0.4) this.setGoal(s.pos.x + rand(-10, 10), s.pos.z + rand(-10, 10), 6, s.pos.y);
       }
       this.stuckT = 0; this.stuckPos.copy(s.pos);
     }
@@ -484,8 +500,10 @@ export class BotBrain {
     }
 
     const ml = Math.hypot(moveX, moveZ);
+    if (g.nav.safeAt && ml > 0.05 && s.onGround && !g.nav.safeAt(s.pos.x + (moveX / ml) * 0.55, s.pos.y, s.pos.z + (moveZ / ml) * 0.55)) { moveX = 0; moveZ = 0; }   // katlı harita: önü boşluk / kuyu / kat kenarıysa adım atma (köprüde yana kayarken düşmesin)
     const k = ml > 1 ? 1 / ml : 1;
     if (s.useT > 0) speed = 0;
+    if (s.launchT > 0) return;                                                 // minderden fırladı: havada hız fiziğe bırakılır
     const wx = moveX * k * speed, wz = moveZ * k * speed;
     const a = Math.min(1, dt * 10);
     s.vel.x = lerp(s.vel.x, wx, a);

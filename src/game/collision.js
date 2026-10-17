@@ -77,6 +77,7 @@ export class World {
     const p = s.pos, v = s.vel, h = s.height, T = this.terrain;
     if (s.fly) { p.x += v.x * dt; p.y += v.y * dt; p.z += v.z * dt; s.onGround = false; return; }   // geliştirici haritası: serbest uçuş (çarpışmasız)
     const wasOnGround = s.onGround;
+    if (s.launchT > 0) s.launchT = wasOnGround ? 0 : s.launchT - dt;          // zıplama minderi uçuşu: havada yön değişimi azdır (sim/input.js)
     const list = this.query(p.x - 2, p.z - 2, p.x + 2, p.z + 2, (this._tmp ||= []));
     v.y -= TUNE.gravity * dt;
     if (v.y < -40) v.y = -40;
@@ -91,6 +92,7 @@ export class World {
         // çok dik yamaç ya da derin suya yürüme engellenir
         const g1 = T.heightAt(p.x, p.z);
         if (p.y <= g0 + 0.08 && (g1 > g0 + 1.2 * Math.abs(d) || (g1 < (T.deepWater ?? DEEP_WATER) && g0 >= (T.deepWater ?? DEEP_WATER)))) { p[axis] -= d; v[axis] = 0; continue; }
+        if (T.wallAt && T.wallAt(p.x, p.z, p.y)) { p[axis] -= d; v[axis] = 0; continue; }       // kuyu duvarı (Boya Kulesi): düşen kenara geri çıkamaz
       }
       let guard = 0;
       let c;
@@ -118,7 +120,10 @@ export class World {
     if (p.y <= gh) { p.y = gh; if (v.y < 0) v.y = 0; s.onGround = true; }
     const c = this._hits(list, p.x, p.y, p.z, h);
     if (c) {
-      if (v.y <= 0 && prevY >= c.max[1] - 0.05) { p.y = c.max[1]; v.y = 0; s.onGround = true; s.onCollider = true; }
+      if (v.y <= 0 && prevY >= c.max[1] - 0.05) {
+        p.y = c.max[1]; v.y = 0; s.onGround = true; s.onCollider = true;
+        if (c.pad) { v.x = c.pad[0]; v.y = c.pad[1]; v.z = c.pad[2]; s.launchT = c.pad[3]; s.onGround = false; s.onCollider = false; s.game?.emit?.('pad', s); }   // zıplama minderi: fırlat
+      }
       else if (v.y > 0) { p.y = c.min[1] - h - 1e-3; v.y = 0; }
       else { p.y = prevY; v.y = 0; }
     }

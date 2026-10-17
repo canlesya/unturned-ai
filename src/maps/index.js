@@ -6,6 +6,7 @@ import { buildNewYork } from './newyork.js';
 import { buildColGecidi } from './colgecidi.js';
 import { buildDepo } from './depo.js';
 import { buildLiman } from './liman.js';
+import { buildBoyaKulesi } from './boyakulesi.js';
 
 // Harita kaydı. Her harita build() ile şunu döndürür:
 // { id, name, group, colliders, bounds, spawns:{blue,red}, objectives:[{id,name,x,z,r,core?}], roads?, terrain?, water?, env? }
@@ -48,6 +49,11 @@ MAPS.depo = {
   build: () => buildDepo(),
 };
 MAPS.liman = { id: 'liman', name: 'Liman', tag: 'Küçük · hızlı · mobil dostu', thumb: '/img/liman.jpg', mobile: true, desc: 'Kompakt konteyner sahası: üç hat, ortada tünelli ve çatısına çıkılan konteyner kulesi, rıhtımda dev gemi vinci, batıda portal vinç. 4v4–5v5 için hızlı, okunaklı çatışma; telefonda akıcı.', build: () => buildLiman() };
+MAPS.boyakulesi = {
+  id: 'boyakulesi', name: 'Boya Kulesi', tag: 'Paintball · üç kat · kuyu', thumb: '/img/boyakulesi.jpg', only: ['pb'],
+  desc: 'Paintball moduna özel renkli arena: zeminde şişme siperler, köşelerde dört renkli kale (9 m), ortada 18 m kule. Kalelerden kuleye korkuluksuz köprüler kuyunun üstünden geçer; kuyuya düşen elenir. Zıplama minderleri zeminden kaleye fırlatır, kule tepesi en güçlü nokta.',
+  build: () => buildBoyaKulesi(),
+};
 export const DEFAULT_MAP = 'kasaba';
 // Bu moda uygun haritalar (only: yalnızca o modlarda listelenir; dev hiçbirinde)
-export const mapsFor = (type) => (type === 'inf' ? [MAPS.newyork] : Object.values(MAPS).filter((m) => !m.dev && (!m.only || m.only.includes(type))));      // Enfekte yalnızca New York'ta
+export const mapsFor = (type) => (type === 'inf' ? [MAPS.newyork] : type === 'pb' ? [MAPS.boyakulesi] : Object.values(MAPS).filter((m) => !m.dev && (!m.only || m.only.includes(type))));      // Enfekte yalnızca New York'ta, Paintball yalnızca Boya Kulesi'nde

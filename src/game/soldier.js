@@ -7,6 +7,7 @@ import { dirFromAngles, clamp, rand, lerp } from './util.js';
 import { TUNE } from './balance.js';
 import { paintColorOf } from './paint.js';
 import { tintPaint } from '../models/paintball.js';
+import { pbItems } from './match.js';
 
 const _v = new THREE.Vector3();
 const _d = new THREE.Vector3();
@@ -160,7 +161,7 @@ export class Soldier {
     this.alive = true; this.deadT = 0; this.spawnN = (this.spawnN || 0) + 1;     // spawnN: ağ istemcisi yeniden doğmayı fark etsin
     if (this.def.zombie) { this.maxHp = this.zombieMaxHp(); this.abT = 2.5; this.abActive = 0; this.cloakNet = false; }    // türüne göre can; güç kısa bir bekleme ile başlar
     this.hp = this.maxHp;
-    this.items = this.game.mode.gungame ? ggItems(this.ggLevel) : makeLoadout(this.cls, this.team, this.choice);
+    this.items = this.game.mode.gungame ? ggItems(this.ggLevel) : this.game.mode.paintball ? pbItems() : makeLoadout(this.cls, this.team, this.choice);
     this.cur = 0;
     this.cd = 0; this.reloadT = 0; this.switchT = 0; this.useT = 0; this.swing = null; this.comboT = 0; this.autoSwitchT = 0; this.blindT = 0; this.burstLeft = 0;
     this.protT = protect; this.protNet = false;

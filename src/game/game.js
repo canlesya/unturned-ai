@@ -8,6 +8,7 @@ import { World } from './collision.js';
 import { Binds } from '../core/keybinds.js';
 import { music } from './music.js';
 import { NavGrid } from './nav.js';
+import { NavGridML } from './navml.js';
 import { Effects } from './effects.js';
 import { Sfx } from './audio.js';
 import { Hud } from './hud.js';
@@ -26,7 +27,7 @@ import { nullSink } from '../sim/nullSink.js';
 import { applyInput } from '../sim/input.js';
 import { SIM_DT } from '../net/protocol.js';
 import { mat } from '../core/geo.js';
-import { Paint } from './paint.js';
+import { Paint, paintColorOf } from './paint.js';
 import { initGadgets, updateGadgets, spawnSmoke, flashBang, smokeBlocks, smokeDensity, placeDeployable, netDeploy, netUndeploy } from './gadgets.js';
 
 const STAT_ID = new Map(Object.entries(WSTATS).map(([k, v]) => [v, k]));      // WSTATS nesnesi → id (ağ olayları için)
@@ -132,7 +133,7 @@ export class Game {
     this.terrain = this.map.terrain || null;
     this.world = new World(this.map.colliders, this.map.bounds, this.terrain);
     this.sightMap = this.map.sight && this.map.sight.length ? new SightMap(this.map.sight) : null;                // bot görüşü için yaprak / çalı ızgarası
-    this.nav = new NavGrid(this.map.colliders, this.map.bounds, this.terrain, !!this.map.layered);
+    this.nav = this.map.navLayers ? new NavGridML(this.map.colliders, this.map.bounds, this.terrain) : new NavGrid(this.map.colliders, this.map.bounds, this.terrain, !!this.map.layered);   // navLayers: üst üste katlar (Boya Kulesi)
 
     // opts.match: özel maç ayarları; opts.mode: '3v3' | '10v10' hazır ayarı (test/uyumluluk)
     this.mode = makeMatch(opts.match || PRESETS[opts.mode] || {});
@@ -171,6 +172,7 @@ export class Game {
       this.weather = new Weather(this, opts.weather || 'clear');
     }
     this.paint = new Paint(this);                         // paintball: boya topları + lekeler (başsızda yalnız simülasyon)
+    this.paintColor = paintColorOf;                       // skor tablosunda oyuncunun boya rengi (hud.js)
 
     // ── savaşçılar ──
     const names = [...BOT_NAMES].sort(() => Math.random() - 0.5);
@@ -189,7 +191,7 @@ export class Game {
     } else if (this.ffa) {
       for (let i = 0; i < this.mode.perTeam; i++) {
         const isPlayer = !headless && i === 0, team = 'f' + i;
-        const s = new Soldier(this, { id: id++, name: isPlayer ? (opts.playerName || 'Sen') : nameOf(id), team, cls: this.mode.gungame ? 'assault' : isPlayer ? opts.cls : order[i % order.length], isPlayer });
+        const s = new Soldier(this, { id: id++, name: isPlayer ? (opts.playerName || 'Sen') : nameOf(id), team, cls: this.mode.fixed ? 'assault' : isPlayer ? opts.cls : order[i % order.length], isPlayer });
         this.soldiers.push(s);
         if (isPlayer) this.playerSoldier = s;
         else this.brains.push(new BotBrain(this, s, opts.diff));
@@ -249,6 +251,7 @@ export class Game {
     }
 
     // olaylar
+    this.on('pad', (s) => { if (s.pos.distanceTo(this.camera.position) < 40) this.sfx.boing?.(s.pos); });
     this.on('hitmark', (e) => {
       this.hud.hitmarker(e.dead, e.zone === 'head');
       if (e.dead) this.sfx.kill(); else if (e.zone === 'head') this.sfx.headshot(); else this.sfx.hit();
@@ -404,7 +407,7 @@ export class Game {
     s.brain = null; s.dmgMul = 1; s.vacant = false;
     s.human = true; s.name = name;
     s.choice = { primary: choice.primary, secondary: choice.secondary, gadget: choice.gadget, melee: choice.melee };
-    if (!CLASS_DEFS[cls] || cls === 'zombie' || this.mode.gungame) cls = s.cls === 'zombie' ? 'zombie' : 'assault';
+    if (!CLASS_DEFS[cls] || cls === 'zombie' || this.mode.fixed) cls = s.cls === 'zombie' ? 'zombie' : 'assault';
     if (s.cls !== cls) s.setClass(cls); else s.items = makeLoadout(cls, s.team, s.choice);
     if (this.mode.infection && this.opts.bots === false && s.team === 'blue') {      // botsuz odada hiç zombi yoksa ikinci oyuncu ilk zombi olur
       const live = this.soldiers.filter((e) => !e.vacant && e !== s);
@@ -631,7 +634,7 @@ export class Game {
       for (let a = 0; a < 8; a++) { let r = 0.5; while (r <= 4 && freeAt(p.x + Math.cos(a * 0.785) * r, p.z + Math.sin(a * 0.785) * r)) r += 0.5; if (r > 4) open++; }
       return open >= 3;
     };
-    if (this.map.ffaSpawns?.length) return this.map.ffaSpawns.filter(ok).map((p) => ({ x: p.x, z: p.z, ry: 0 }));
+    if (this.map.ffaSpawns?.length) return this.map.ffaSpawns.map((p) => ({ x: p.x, z: p.z, y: p.y, ry: p.ry }));     // harita kendi noktalarını verirse olduğu gibi (Boya Kulesi: kale güvertesi y'li; platform testine girmez)
     let cells = 0; for (let i = 0; i < seen.length; i++) if (seen[i] && (!nav.floor || nav.floor[i] - gnd(i) < 0.3)) cells++;
     const want = Math.max(24, Math.min(40, Math.round(cells * 0.25 / 80)));                // ≈ 80 m² yürünebilir alana bir nokta
     let best = [];
@@ -683,7 +686,7 @@ export class Game {
       }
       const p = best || pick(pts);
       recent.push({ x: p.x, z: p.z, t: now }); if (recent.length > 8) recent.shift();
-      return { x: p.x, z: p.z, ry: this.openYaw(p.x, p.z) };
+      return { x: p.x, z: p.z, y: p.y, ry: p.ry ?? this.openYaw(p.x, p.z) };     // y: kat doğuşu (Boya Kulesi kale güverteleri)
     }
     // ileri doğma: seçilen / bot için ara sıra sahip olunan hedefin çevresi
     let target = null;
@@ -719,19 +722,32 @@ export class Game {
     if (this.mode.infection) { if (s.infectNext) this.infect(s); else if (s.willCure) this.cure(s); }
     const ctl = this.ctlOf(s);
     if (ctl && ctl.queue) { ctl.queue.length = 0; ctl.budget = 1; }        // insan: doğmadan önceki eski girdiler (örn. eski silah seçimi) uygulanmasın
-    if (ctl && ctl.pendingLoadout) { s.choice = ctl.pendingLoadout; ctl.pendingLoadout = null; if (!this.mode.gungame) s.items = makeLoadout(s.cls, s.team, s.choice); }
-    if (ctl && ctl.pendingClass && ctl.pendingClass !== s.cls && !s.def.zombie) s.setClass(ctl.pendingClass);
+    if (ctl && ctl.pendingLoadout) { s.choice = ctl.pendingLoadout; ctl.pendingLoadout = null; if (!this.mode.fixed) s.items = makeLoadout(s.cls, s.team, s.choice); }
+    if (ctl && ctl.pendingClass && ctl.pendingClass !== s.cls && !s.def.zombie && !this.mode.fixed) s.setClass(ctl.pendingClass);      // sabit teçhizatlı modda (silah yarışı / paintball) sınıf değişmez
     if (s.def.zombie) {                                                // yeniden doğan zombi: seçtiği tür; botlar her doğuşta rastgele
       const want = s.boss ? null : ctl ? ctl.pendingZ : randomZType();
       if (want && want !== s.ztype) { s.ztype = want; s.setClass('zombie'); }
       if (ctl) ctl.pendingZ = null;
     }
-    s.spawn(s.def.zombie && this.infPool ? this.pickZombieSpawn(s, first) : this.pickSpawn(s.team, s), first ? TUNE.firstProtect : TUNE.spawnProtect);
+    const pt = s.def.zombie && this.infPool ? this.pickZombieSpawn(s, first) : this.pickSpawn(s.team, s);
+    s.spawn(pt, first ? TUNE.firstProtect : TUNE.spawnProtect);
     this.world.settle(s);
+    if (pt.y > s.pos.y + 0.3) s.pos.y = pt.y;                          // kat doğuşu (kale güvertesi): settle yalnız zemine / alçak engele oturtur
     s.zoneT = 0;
     if (s.brain) s.brain.reset();
     if (ctl) ctl.pendingClass = null;
     if (s.isPlayer) this.hud.onPlayerSpawn?.();
+  }
+
+  // Kuyu (map.voidY altına düşen) elenir: ölüm sayılır; son 5 sn içinde biri vurduysa öldürme ona yazılır ("düşürdü"), yoksa kendi düştü
+  updateVoid() {
+    for (const s of this.soldiers) {
+      if (!s.alive || s.fly || s.pos.y > this.map.voidY) continue;
+      const k = s.lastHit && s.lastHit !== s && s.lastHit.team !== s.team && this.time - s.lastDmgT < 5 ? s.lastHit : null;
+      s.protT = 0;
+      s.die(k || s, k ? 'Kuyuya düşürdü' : 'Kuyuya düştü', false);
+      if (s.isPlayer && !this.headless) this.hud.toast(k ? `${k.name} seni kuyuya düşürdü` : 'Kuyuya düştün', '#ff8a6a');
+    }
   }
 
   // Düşman üssüne giren: uyarı + hasar (spawn baskınını engeller)
@@ -937,6 +953,7 @@ export class Game {
     this.weather.update(dt);
     this.updateMode(dt);
     this.updateBaseZones(dt);
+    if (this.map.voidY != null) this.updateVoid();
     for (const s of this.soldiers) {
       if (!s.alive && !this.ended && !s.vacant) {
         s.respawnT -= dt;
@@ -1015,7 +1032,7 @@ export class Game {
 
   // ───── çevrimiçi: M ile takım seçimi ─────
   toggleTeamMenu(show = !this._tm) {
-    if (this.ffa) { if (show) this.hud.toast('Ölüm maçında takım yok: herkes tek', '#cfd3d8'); return; }
+    if (this.ffa) { if (show) this.hud.toast(this.mode.paintball ? 'Paintball\'da takım yok: herkes tek' : 'Ölüm maçında takım yok: herkes tek', '#cfd3d8'); return; }
     if (this.mode.infection) { if (show) this.hud.toast('Enfekte modunda takım seçilmez', '#cfd3d8'); return; }
     if (!show) { this._tm?.remove(); this._tm = null; if (!this.ended) this.hud.setPaused(!this.player.locked); return; }
     if (this._tm) return;
@@ -1502,6 +1519,7 @@ export class Game {
       victim.revivable = false;
       victim.respawnT = !victim.def.zombie || victim.zLives <= 0 ? (victim.isPlayer || victim.human ? TUNE.respawn : rand(TUNE.botRespawnMin, Math.min(TUNE.botRespawnMax, 5))) : victim.boss ? BOSS.respawn : ZOMBIE.respawn;
     } else if (this.mode.gungame) victim.respawnT = victim.isPlayer || victim.human ? TUNE.respawnGG : rand(2.2, 3.6);
+    else if (this.mode.paintball) victim.respawnT = victim.isPlayer || victim.human ? TUNE.respawnPB : rand(TUNE.respawnPB * 0.8, TUNE.respawnPB * 1.2);
     else victim.respawnT = victim.isPlayer || victim.human ? TUNE.respawn : rand(TUNE.botRespawnMin, TUNE.botRespawnMax);
     if (victim.isPlayer && this.player) this.player.camPos.copy(victim.eye());
   }

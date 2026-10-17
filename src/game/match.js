@@ -5,16 +5,21 @@ export const MATCH_TYPES = {
   inf: { label: 'Enfekte', desc: '1–2 dev BOSS zombi başlar. İnsan 1 ölümle zombi olur, zombi 1 ölümle (boss 3 ölümle) insana döner. Son insan düşerse zombiler, süre dolarsa ya da tüm zombiler iyileşirse insanlar kazanır.' },
   gg: { label: 'Silah Yarışı', desc: 'Herkes tek. Her öldürmede bir sonraki silah; 15. silah bıçak. Bıçakla öldürülen bir seviye geriler; bıçakla ilk öldüren kazanır (en çok 10 kişi).' },
   dm: { label: 'Ölüm Maçı', desc: 'Herkes tek. Rastgele doğ, ilk 40 öldürmeye ulaşan kazanır (en çok 10 kişi).' },
+  pb: { label: 'Paintball', desc: 'Herkes tek, herkesin kendi boya rengi. Sabit boya silahları, Boya Kulesi\'nde üç kat: zemin siperleri, kaleler, kule tepesi. Kuyuya düşen elenir; ilk 30 elemeye ulaşan kazanır.' },
 };
 import { LIMITS } from './balance.js';
+import { WSTATS } from './stats.js';
 
 export const DM_KILLS = 40, DM_MAX = 10;                 // varsayılanlar; oyun LIMITS'i okur (admin paneli)
 export const GG_LEN = 15;                                    // stats.js → GG_LADDER.length (bağımlılık olmasın diye sabit; test eşitliği doğrular)
 export const INF_MAX = 24, INF_MIN = 4;                                  // Enfekte: toplam oyuncu (çift sayı)
 // Oyuncu sayısı seçici 'takım başına' değil 'toplam' olan modlar (cfg.perTeam = toplam)
-export const isTotalType = (t) => t === 'dm' || t === 'inf' || t === 'gg';
-export const totalMax = (t) => (t === 'inf' ? LIMITS.infMax : LIMITS.dmMax);
-export const totalMin = (t) => (t === 'inf' ? LIMITS.infMin : 2);
+export const isTotalType = (t) => t === 'dm' || t === 'inf' || t === 'gg' || t === 'pb';
+export const totalMax = (t) => (t === 'inf' ? LIMITS.infMax : t === 'pb' ? LIMITS.pbMax : LIMITS.dmMax);
+export const totalMin = (t) => (t === 'inf' ? LIMITS.infMin : t === 'pb' ? LIMITS.pbMin : 2);
+// Paintball sabit teçhizatı (sınıf / silah seçimi yok): boya silahları (pbrifle markör + pbpistol) tanımlıysa onlar, değilse geçici mp5 + tabanca. Gadget yok.
+export const PB_LOADOUT = () => (WSTATS.pbrifle && WSTATS.pbpistol ? ['pbrifle', 'pbpistol', 'knife'] : ['mp5', 'pistol', 'knife']);
+export const pbItems = () => PB_LOADOUT().map((id) => (WSTATS[id].kind === 'melee' ? { id, mag: 1, reserve: 0 } : { id, mag: WSTATS[id].mag, reserve: WSTATS[id].reserve }));
 export const TODS_LIST = [['day', 'Gündüz'], ['sunset', 'Gün batımı'], ['night', 'Gece']];
 export const PRESETS = {
   '3v3': { label: 'Hızlı Maç 3v3', perTeam: 3, tickets: 60, time: 600 },
@@ -28,17 +33,19 @@ export function defaultTickets(perTeam) { return Math.max(40, Math.round(perTeam
 export const ffaMetric = (s, gg) => (gg ? s.ggLevel + 1 : s.kills);          // gg: seviye (1..15), değilse öldürme
 export const ffaRanking = (soldiers, gg) => soldiers.filter((s) => !s.vacant).sort((a, b) => (gg ? b.ggLevel - a.ggLevel : 0) || b.kills - a.kills || b.score - a.score);
 export function makeMatch(o = {}) {
-  const dm = o.type === 'dm' || o.type === 'gg', inf = o.type === 'inf', gg = o.type === 'gg';
+  const pb = o.type === 'pb', dm = o.type === 'dm' || o.type === 'gg' || pb, inf = o.type === 'inf', gg = o.type === 'gg';
   // Ölüm maçında perTeam = toplam oyuncu sayısı (2–10)
   const total = inf ? Math.max(LIMITS.infMin, Math.min(LIMITS.infMax, Math.round((o.perTeam || 12) / 2) * 2)) : 0;           // Enfekte: toplam oyuncu (çift)
-  const perTeam = dm ? Math.max(2, Math.min(LIMITS.dmMax, Math.round(o.perTeam || LIMITS.dmMax))) : inf ? total / 2 : Math.max(1, Math.min(LIMITS.maxPerTeam, Math.round(o.perTeam || 10)));   // inf: motor için iki yarı
+  const perTeam = pb ? Math.max(LIMITS.pbMin, Math.min(LIMITS.pbMax, Math.round(o.perTeam || 8))) : dm ? Math.max(2, Math.min(LIMITS.dmMax, Math.round(o.perTeam || LIMITS.dmMax))) : inf ? total / 2 : Math.max(1, Math.min(LIMITS.maxPerTeam, Math.round(o.perTeam || 10)));   // inf: motor için iki yarı
   return {
-    type: gg ? 'gg' : dm ? 'dm' : inf ? 'inf' : o.type === 'tdm' ? 'tdm' : 'conquest',
+    type: pb ? 'pb' : gg ? 'gg' : dm ? 'dm' : inf ? 'inf' : o.type === 'tdm' ? 'tdm' : 'conquest',
     infection: inf,
     total: inf ? total : 0,
     ffa: dm,                                                        // Ölüm Maçı + Silah Yarışı: herkes tek
     gungame: gg,
-    killLimit: gg ? GG_LEN : dm ? LIMITS.dmKills : 0,
+    paintball: pb,                                                  // Paintball: sabit boya silahları, kuyuya düşen elenir (harita voidY)
+    fixed: gg || pb,                                                // sınıf / teçhizat seçimi yok (ölüm ekranında satır gizli)
+    killLimit: gg ? GG_LEN : pb ? LIMITS.pbKills : dm ? LIMITS.dmKills : 0,
     perTeam,
     tickets: o.tickets || (o.type === 'tdm' ? defaultScoreLimit(perTeam) : defaultTickets(perTeam)),
     scoreBased: o.type === 'tdm',                                // true: tickets = skor sınırı, takım sayaçları yukarı sayar
