@@ -6,6 +6,7 @@ import { resolveOptic, WSTATS } from '../game/stats.js';
 import { M, finish, railTicks, magGroup, frontSight, magRibs, studs, gripTexture, sling, vents } from './weapon_util.js';
 import { MORE, MOUNT_MORE } from './weapons_more.js';
 import { finishWeapon } from './weaponFinish.js';
+import { PAINTBALL, MOUNT_PB } from './paintball.js';
 
 // Her silah: origin = tabanca kabzası (sağ el), namlu -Z yönünde.
 // userData: name, hold (rifle|pistol|launcher|melee|grenade), gripR, gripL, muzzle, length, mag (şarjör grubu), bolt
@@ -80,7 +81,7 @@ const ADS_K = 1.3;              // nişan alırken göz-nişangâh mesafesi çar
 
 // Silaha göre montaj noktaları (z: nişangâh merkezi, y: üst yüzey, front: ön arpacık yüksekliği)
 const MOUNT = {
-  ...MOUNT_MORE,
+  ...MOUNT_MORE, ...MOUNT_PB,
   ak47: { z: -0.1, y: 0.09, front: 0.1, rearZ: -0.2, ownFront: true },
   m4a1: { z: -0.14, y: 0.0895, front: 0.125, rearZ: -0.12, ownFront: true },
   mp5: { z: -0.08, y: 0.0575, front: 0.0925, rearZ: -0.01, ownFront: true },
@@ -497,7 +498,7 @@ function grenade() {
 }
 
 export const WEAPONS = {
-  ak47, m4a1, mp5, pistol, shotgun, sniper, lmg, rpg, knife, grenade, ...MORE,
+  ak47, m4a1, mp5, pistol, shotgun, sniper, lmg, rpg, knife, grenade, ...MORE, ...PAINTBALL,
 };
 
 // Görüntüleyici alt yazısı: WSTATS açıklamasından

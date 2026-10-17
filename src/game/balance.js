@@ -23,7 +23,7 @@ const ROOTS = { tune: TUNE, mode: LIMITS, w: WSTATS, cls: CLASS_DEFS, diff: DIFF
 const f = (path, label, min, max, step = 1, unit = '', scale = 1) => ({ path, label, min, max, step, unit, scale });
 const sel = (path, label, options) => ({ path, label, options });
 
-const GUN_KINDS = { rifle: 'Tüfek', smg: 'SMG', shotgun: 'Pompalı', pistol: 'Tabanca', sniper: 'Keskin nişancı', lmg: 'Makineli', launcher: 'Roketatar', melee: 'Yakın dövüş' };
+const GUN_KINDS = { rifle: 'Tüfek', smg: 'SMG', shotgun: 'Pompalı', pistol: 'Tabanca', sniper: 'Keskin nişancı', lmg: 'Makineli', launcher: 'Roketatar', melee: 'Yakın dövüş', paint: 'Paintball' };
 export const WEAPON_GROUPS = {
   rifle: ['ak47', 'm4a1', 'scarh', 'aug', 'g36', 'ak74u'],
   smg: ['mp5', 'vector', 'p90', 'mac10'],
@@ -33,6 +33,7 @@ export const WEAPON_GROUPS = {
   lmg: ['lmg', 'pkm'],
   launcher: ['rpg', 'm79'],
   melee: ['knife', 'machete', 'tomahawk'],
+  paint: ['pbrifle', 'pbpistol'],
 };
 export const GROUP_LABELS = GUN_KINDS;
 export const ITEM_IDS = ['medkit', 'grenade', 'smoke', 'flash', 'claymore', 'ammobox'];
@@ -50,14 +51,15 @@ function weaponFields(id) {
     return out;
   }
   out.push(f(p + 'dmg', 'Hasar', 1, 300));
+  if (s.ball) out.push(f(p + 'speed', 'Top hızı', 10, 150, 1, 'm/sn'), f(p + 'grav', 'Top düşüşü (yerçekimi)', 0, 30, 0.5, 'm/sn²'), f(p + 'head', 'Kafa çarpanı', 1, 4, 0.05, '×'), f(p + 'legs', 'Bacak çarpanı', 0.1, 1.5, 0.05, '×'));   // boya topu: menzil düşüşü yok
   if (s.pellets) out.push(f(p + 'pellets', 'Saçma sayısı', 1, 20));
   out.push(f(p + 'rpm', 'Atış/dk', 20, 1500, 10), f(p + 'mag', 'Şarjör', 1, 200), f(p + 'reserve', 'Yedek mermi', 0, 600));
   out.push(s.shell ? f(p + 'shell', 'Mermi başı doldurma', 0.1, 2, 0.05, 'sn') : f(p + 'reload', 'Doldurma', 0.3, 6, 0.1, 'sn'));
   out.push(
     f(p + 'kickV', 'Dikey sekme', 0, 100, 0.5, '', 1000), f(p + 'kickH', 'Yatay sekme', 0, 50, 0.5, '', 1000),
     f(p + 'hip', 'Belden saçılım', 0, 60, 0.5, '', 1000), f(p + 'ads', 'Nişanlı saçılım', 0, 20, 0.1, '', 1000),
-    f(p + 'range.0', 'Tam hasar menzili', 1, 300, 1, 'm'), f(p + 'range.1', 'En düşük hasar menzili', 2, 500, 1, 'm'),
-    f(p + 'minMul', 'Uzakta hasar', 0.1, 1, 0.01, '×'), f(p + 'move', 'Hareket hızı', 0.5, 1.5, 0.01, '×'),
+    ...(s.ball ? [] : [f(p + 'range.0', 'Tam hasar menzili', 1, 300, 1, 'm'), f(p + 'range.1', 'En düşük hasar menzili', 2, 500, 1, 'm'), f(p + 'minMul', 'Uzakta hasar', 0.1, 1, 0.01, '×')]),
+    f(p + 'move', 'Hareket hızı', 0.5, 1.5, 0.01, '×'),
   );
   return out;
 }

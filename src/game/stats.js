@@ -237,6 +237,21 @@ export const WSTATS = {
     dmg: 90, reach: 1.9, rpm: 80, mag: 1, reserve: 0, move: 1.06, equip: 0.24, sound: 'knife',
     swings: ['chop', 'rl', 'chop'], swingT: 0.5, stabT: 0.5, stabMul: 1.15,
   },
+  // ───────── Paintball (yalnız paintball modu: sınıf seçeneklerinde / silah yarışında yok) ─────────
+  // ball: görünür boya topu (game/paint.js): speed m/sn, grav m/sn² (yaylı yol), life sn · head / legs: bölge çarpanı (TUNE.headMul yerine) · menzil düşüşü yok
+  // rpm 610: 60 Hz adımda 6 adımda bir = tam 10 atış/sn (600'de bekleme 0,1 sn kayan nokta payıyla 7 adım sürüp 8,6/sn oluyordu)
+  pbrifle: {
+    name: 'Paintball Tüfeği', kind: 'gun', slot: 'primary', desc: 'Tam otomatik marker: saniyede 10 boya topu, yaylı yol.', stats: { dmg: 30, range: 46, rate: 84, control: 74, mobility: 80 },
+    auto: true, ball: true, dmg: 12, head: 1.5, legs: 1, speed: 70, grav: 7, life: 3, rpm: 610, mag: 50, reserve: 150, reload: 2.6, equip: 0.3,
+    hip: 0.017, ads: 0.006, kickV: 0.0045, kickH: 0.0025, range: [60, 90], minMul: 1, zoom: 1.3, move: 1.0,
+    sight: [0, 0.204, 0.062], dist: 0.28, dot: true, sound: 'marker',
+  },
+  pbpistol: {
+    name: 'Paintball Tabancası', kind: 'gun', slot: 'secondary', desc: 'Yarı otomatik: 4 isabette oyundan çıkarır, top daha çabuk düşer.', stats: { dmg: 52, range: 34, rate: 56, control: 70, mobility: 95 },
+    auto: false, ball: true, dmg: 25, head: 1.5, legs: 1, speed: 60, grav: 10, life: 3, rpm: 400, mag: 12, reserve: 48, reload: 1.5, equip: 0.2,
+    hip: 0.012, ads: 0.005, kickV: 0.012, kickH: 0.003, range: [45, 70], minMul: 1, zoom: 1.2, move: 1.05,
+    sight: [0, 0.104, 0.03], dist: 0.28, dot: true, sound: 'pbpistol',
+  },
 };
 
 export const BACKSTAB_DMG = 999;
@@ -363,6 +378,8 @@ export const OPTIC_ALLOWED = {
   barrett: ['scope6'],
   rpg: ['iron'],
   m79: ['iron'],
+  pbrifle: ['reddot'],
+  pbpistol: ['iron', 'reddot'],
 };
 // Tercih edilen nişangâh o silahta yoksa en yakın uygun olana düşer
 export function resolveOptic(id, pref = 'reddot') {
