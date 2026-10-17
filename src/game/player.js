@@ -6,7 +6,7 @@ import { createItem } from '../models/items.js';
 import { TEAMS } from '../core/palette.js';
 import { WSTATS, OPTICS, OPTIC_ALLOWED, ZT_ORDER } from './stats.js';
 import { reloadAnim, meleePose } from './anim.js';
-import { box } from '../core/geo.js';
+import { fpHand, handBasis, gloveColors, zombieColors } from '../models/fpHands.js';
 import { clamp, lerp, V3 } from './util.js';
 import { applyInput } from '../sim/input.js';
 import { TUNE } from './balance.js';
@@ -18,11 +18,32 @@ export const FIRE_LABEL = { semi: 'Tek atış', burst: 'Seri (3-5 mermi)', auto:
 const ADS_FOV = 68;
 
 // ───────────── Birinci şahıs silah modeli ─────────────
-const Z = new THREE.Vector3(0, 0, 1);
 const REST_L = new THREE.Vector3(-0.2, -0.3, 0.2);      // sol el dinlenme (kullanılmıyorsa ekran dışı)
 const POUCH_VM = new THREE.Vector3(-0.3, -0.34, 0.3);   // yelek şarjör cebi (silah yerelinde)
-const MELEE_IDLE = { pos: [0.09, -0.15, -0.5], rx: 0.5, ry: 0.35, rz: -1.05 };
-const CLAWS_IDLE = { pos: [0.0, -0.16, -0.5], rx: 0.4, ry: 0.0, rz: 0.0 };      // zombi pençeleri: yumruk önde, pençeler ileri bakar
+// Yakın dövüş bekleme duruşu (CS tarzı): yumruk sağ altta, bıçak sol üste-ileri, kıvrık parmaklar + başparmak görünür, ağız boğum yönünde (öne).
+// Kamera uzayında bıçak yönü (B) ve el sırtı (D) verilir; silah ekseni → Euler hesaplanır (savurma ofsetleri bu Euler'in üstüne eklenir).
+// El çerçevesi (fpHands): X = el sırtı, Y = bilek→boğum, Z = işaret parmağı (= bıçak yönü). Silahta X_w = D, Y_w = −B×D (ağız boğumlara bakar: balta / bıçak ağzı öne), Z_w = −B
+const MELEE_IDLE = (() => {
+  const B = new THREE.Vector3(-0.6, 0.6, -0.45).normalize(), D0 = new THREE.Vector3(0.55, 0.7, 0.35);
+  const D = D0.addScaledVector(B, -D0.dot(B)).normalize(), U = new THREE.Vector3().crossVectors(B, D);
+  const m = new THREE.Matrix4().makeBasis(D, U.clone().negate(), B.clone().negate()).multiply(new THREE.Matrix4().makeRotationZ(-1.2)), e = new THREE.Euler().setFromRotationMatrix(m, 'XYZ');
+  const arm = new THREE.Vector3(0.3, -0.78, 0.55).normalize().applyMatrix4(new THREE.Matrix4().extractRotation(m).transpose());      // ön kol: sağ alt köşeye, silah çerçevesinde
+  return { pos: [0.12, -0.17, -0.46], rx: e.x, ry: e.y + 0.04, rz: e.z, arm };
+})();
+const KNIFE_MAP = handBasis(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, -1, 0));            // el çerçevesi → bıçak (sap Z, ağız −Y = boğum yönü)
+const GUN_R_MAP = handBasis(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, -Math.sin(0.28), -Math.cos(0.28)));   // tabanca kabzası (hafif geriye yatık)
+const FG_MAP = handBasis(new THREE.Vector3(0, -1, 0), new THREE.Vector3(-1, 0, 0));               // ön kabza: avuç altta (sol el: aynalanır)
+const MELEE_VM_SCALE = 1.22;
+const CLAWS_IDLE = { pos: [0.0, -0.1, -0.44], rx: 0.12, ry: 0.0, rz: 0.0 };      // zombi elleri: iki el kalkık, pençelemeye hazır
+// zombi eli (grup çerçevesinde): parmaklar yukarı-ileri ve hafif içe, el sırtı dışa-arkaya, ön kol ekranın altına iner
+const ZH_MAP = handBasis(new THREE.Vector3(0.6, 0.12, 0.8), new THREE.Vector3(-0.12, 0.92, -0.35));
+const ZH_ARM = new THREE.Vector3(0.22, -0.85, 0.45).normalize();
+// boştaki sol el (bıçak vb.): kamera uzayında sol alt köşe, gevşek (sağ el olarak kurulup aynalanır)
+const OFF_MAP = handBasis(new THREE.Vector3(0.35, 0.4, 0.85), new THREE.Vector3(-0.2, 0.75, -0.62));
+const OFF_POS = new THREE.Vector3(-0.22, -0.17, -0.42);
+// ayrı kol ağları (yakın dövüş / zombi): bilekten bu "dirsek" noktasına (kamera uzayı, sağ el) uzanır; savurma / incelemede kol ekranı kesmez
+const ELBOW_MELEE = new THREE.Vector3(0.4, -0.78, -0.05), ELBOW_CLAW = new THREE.Vector3(0.3, -0.75, -0.18);
+const ZAX = new THREE.Vector3(0, 0, 1), _w = new THREE.Vector3(), _e = new THREE.Vector3();
 const MELEE_SPRINT = { pos: [-0.04, 0.06, -0.06], rx: 0.65, ry: 0.3, rz: -0.1 };
 
 export class ViewModel {
@@ -39,7 +60,7 @@ export class ViewModel {
     this.scene.add(sun);
     this.root = new THREE.Group();
     this.cam.add(this.root);
-    this.model = null; this.id = null;
+    this.model = null; this.id = null; this.arms = [];
     this.kick = 0; this.kickR = 0; this.bobT = 0; this.raise = 1; this.raiseRate = 3.5;
     this.boltT = 0; this.hitKick = 0; this.throwT = 0; this.dryT = 0;
     this.camRoll = 0; this.camPitch = 0; this.inspectT = 0;
@@ -48,7 +69,10 @@ export class ViewModel {
     this.handL = null; this.handR = null;
   }
 
-  setItem(id, team, kind, optic) {
+  setItem(id, team, kind, optic, skin) {
+    if (this.offHand) { this.cam.remove(this.offHand); this.offHand.geometry.dispose(); this.offHand = null; }
+    for (const a of this.arms || []) { this.cam.remove(a.mesh); a.mesh.geometry.dispose(); }
+    this.arms = [];
     if (this.model) { const own = this.model.userData.ownMat; this.root.remove(this.model); this.model.traverse((o) => { o.geometry?.dispose(); if (own && o.material && !Array.isArray(o.material)) o.material.dispose(); }); }      // setFade kopyaları da
     this.id = id;
     this.raise = 1;
@@ -76,70 +100,49 @@ export class ViewModel {
         this.flash = f;
       }
     }
-    // eller + kollar (silaha bağlı). Eller ayrı gruplardır: yükleme animasyonunda bağımsız hareket eder
-    const hand = (p, side) => {
+    // eller + kollar (silaha bağlı, fpHands: düşük poligonlu organik eldivenli el + bileklik + kol; el başına tek ağ).
+    // Eller ayrı gruplardır: yükleme animasyonunda bağımsız hareket eder. Grup orijini = kavranan sapın merkezi
+    const gc = gloveColors(c);
+    const addArm = (grp, mesh, elbow, s = 1) => { const a = mesh.userData.arm; if (!a) return; this.cam.add(a); this.arms.push({ grp, mesh: a, wrist: mesh.userData.wrist, elbow, s }); };
+    const hand = (p, side, opt, elbow) => {
       const grp = new THREE.Group();
       grp.position.copy(p);
-      box(grp, [0.1, 0.1, 0.12], c.gloves, [0, 0, 0]);
-      const dir = new THREE.Vector3(side * 0.12, -0.2, 0.42).normalize();
-      const len = 0.5;
-      const sleeve = box(grp, [0.11, 0.11, len], c.shirt, [0, 0, 0]);
-      sleeve.position.copy(dir).multiplyScalar(len / 2 + 0.05);
-      sleeve.quaternion.setFromUnitVectors(Z, dir);
+      const m = fpHand({ colors: gc, arm: new THREE.Vector3(side * 0.12, -0.2, 0.42), armLen: 0.58, split: !!elbow, ...opt });
+      grp.add(m);
       g.add(grp);
-      return grp;
-    };
-    // yakın dövüş: sapı saran sıkı yumruk (parmaklar üstte, avuç altta, başparmak yanda; sap iki uçtan görünür)
-    const fist = (p, side = 1) => {
-      const grp = new THREE.Group();
-      grp.position.copy(p);
-      box(grp, [0.064, 0.016, 0.06], c.gloves, [0, 0.03, 0]);                          // parmaklar (üst)
-      for (let i = 0; i < 4; i++) box(grp, [0.066, 0.006, 0.004], '#101114', [0, 0.0385, -0.022 + i * 0.015]);   // parmak araları
-      box(grp, [0.016, 0.06, 0.06], c.gloves, [0.03, 0.0, 0]);                         // yan
-      box(grp, [0.016, 0.06, 0.06], c.gloves, [-0.03, 0.0, 0]);
-      box(grp, [0.064, 0.022, 0.07], c.gloves, [0, -0.032, 0.005]);                    // avuç (alt)
-      box(grp, [0.02, 0.02, 0.05], c.gloves, [-0.02, 0.04, -0.045], [0, 0.3, 0]);      // başparmak (sapın üstünden ileri)
-      const dir = new THREE.Vector3(0.12 * side, -0.2, 0.42).normalize(), len = 0.5;
-      const sleeve = box(grp, [0.11, 0.11, len], c.shirt, [0, 0, 0]);
-      sleeve.position.copy(dir).multiplyScalar(len / 2 + 0.05);
-      sleeve.quaternion.setFromUnitVectors(Z, dir);
-      g.add(grp);
-      return grp;
-    };
-    // zombi ön kolu: çıplak solgun yeşil, kanlı, yırtık kumaş manşetli; elden geriye/aşağıya doğru uzanır
-    const zArm = (p, side, parent = g) => {
-      const grp = new THREE.Group();
-      grp.position.copy(p);
-      const dir = new THREE.Vector3(0.1 * side, -0.24, 0.42).normalize(), len = 0.62;
-      const arm = box(grp, [0.12, 0.11, len], '#98ae5e', [0, 0, 0]);
-      arm.position.copy(dir).multiplyScalar(len / 2 + 0.03); arm.quaternion.setFromUnitVectors(Z, dir);
-      for (const [t, w, col] of [[0.25, 0.09, '#6a1712'], [0.45, 0.07, '#8a2018'], [0.62, 0.1, '#6a1712']]) {      // kan lekeleri
-        const b = box(grp, [w, 0.118, 0.07], col, [0, 0, 0]); b.position.copy(dir).multiplyScalar(len * t + 0.03); b.quaternion.setFromUnitVectors(Z, dir); b.rotation.z += t * 4;
-      }
-      const cuff = box(grp, [0.135, 0.125, 0.1], '#3b3d2f', [0, 0, 0]);                                              // yırtık kol ucu
-      cuff.position.copy(dir).multiplyScalar(len * 0.92 + 0.03); cuff.quaternion.setFromUnitVectors(Z, dir);
-      parent.add(grp);
+      if (elbow) addArm(grp, m, elbow, MELEE_VM_SCALE);
       return grp;
     };
     const u = g.userData;
-    if (id === 'claws') {                                                        // zombi: iki çıplak el, iki kol
+    this.offHand = null;
+    if (id === 'claws') {                                                        // zombi: iki çıplak, kemikli, kanca parmaklı el (türün ten rengi)
       this.hLfg = null; this.handL = null;
       // iki bağımsız el grubu: her biri kendi omzundan (ekran altı) koşarken sağa / sola açılır ve dönüşümlü ileri-geri sallanır
-      const hR = new THREE.Group(), hL = new THREE.Group();
       const w = g.children.find((o) => o.userData && o.userData.id === 'claws') || g.children[0];
-      g.remove(w); hR.add(w); w.scale.setScalar(1.25);                             // eller iri (ekranın alt köşelerinde heybetli)
-      const w2 = createWeapon('claws'); w2.scale.setScalar(1.25); hL.add(w2);
-      zArm(u.gripR.clone(), 1, hR); zArm(u.gripR.clone(), -1, hL);
-      g.add(hR, hL);
+      g.remove(w); w.traverse((o) => o.geometry?.dispose());                     // 3. şahıs pençe modeli birinci şahısta kullanılmaz
+      const zc = zombieColors(skin || '#86a273', TEAMS.zomb.shirt);
+      const mk = (mirror) => {
+        const grp = new THREE.Group(), m = fpHand({ colors: zc, map: ZH_MAP, mirror, arm: ZH_ARM.clone().setX(ZH_ARM.x * (mirror ? -1 : 1)), armLen: 0.62, pose: 'claw', pose2: 'claw2', scale: 1.45, split: true });
+        grp.add(m); g.add(grp); addArm(grp, m, ELBOW_CLAW.clone().setX(ELBOW_CLAW.x * (mirror ? -1 : 1)));
+        return grp;
+      };
+      const hR = mk(false), hL = mk(true);
       this.zh = { R: hR, L: hL };
       this.handR = hR;
     } else if (kind === 'melee' && u.gripR) {
-      this.handR = fist(u.gripR.clone()); this.hLfg = null; this.handL = null;
-    } else
-    this.handR = u.gripR ? hand(u.gripR.clone().add(new THREE.Vector3(0.0, -0.02, 0.0)), 1) : null;
-    this.hLfg = u.gripL ? u.gripL.clone().add(new THREE.Vector3(0, -0.03, 0)) : null;
-    this.handL = (kind === 'gun' || kind === 'launcher') ? hand(this.hLfg || REST_L, -1) : null;
-    if (this.handL && !this.hLfg) this.handL.visible = false;
+      this.handR = hand(u.gripR.clone(), 1, { map: KNIFE_MAP, pose: 'fist', arm: MELEE_IDLE.arm, armLen: 0.7 }, ELBOW_MELEE); this.hLfg = null; this.handL = null;
+      g.scale.setScalar(MELEE_VM_SCALE);                                         // yakın dövüş eli + bıçak ekranda daha iri (CS gibi); oyun etkisi yok
+      this.offHand = fpHand({ colors: gc, map: OFF_MAP, mirror: true, arm: new THREE.Vector3(0.28, -0.55, 0.8).normalize(), armLen: 0.6, pose: 'relax' });      // boştaki sol el
+      this.cam.add(this.offHand);                                                // kamera uzayında (silahla dönmez), model değişince atılır
+    } else {
+      const ball = kind === 'throwable' || kind === 'mine' || kind === 'ammobox' || kind === 'medkit';
+      this.handR = u.gripR ? hand(u.gripR.clone().add(new THREE.Vector3(0.0, ball ? -0.02 : -0.004, 0.0)), 1, { map: GUN_R_MAP, pose: ball ? 'ball' : 'trigger' }) : null;
+    }
+    if (id !== 'claws' && kind !== 'melee') {
+      this.hLfg = u.gripL ? u.gripL.clone().add(new THREE.Vector3(0, -0.012, 0)) : null;
+      this.handL = (kind === 'gun' || kind === 'launcher') ? hand(this.hLfg || REST_L, -1, { map: FG_MAP, mirror: true, pose: 'cup', pose2: 'open' }) : null;
+      if (this.handL && !this.hLfg) this.handL.visible = false;
+    }
     g.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
     this.model = g;
     this.root.add(g);
@@ -184,6 +187,10 @@ export class ViewModel {
     pos.z += this.kick * (0.9 - ads * 0.6);
     let rx = this.kickR * (0.4 - ads * 0.3), ry = -0.04 * (1 - ads), rz = 0;
     rx += this.dryT * 0.05 - rz0 * 0.5;
+    this.breathT = (this.breathT || 0) + dt;                                    // nefes: yavaş, çok hafif iniş-kalkış ve yalpa (nişanda sönümlenir)
+    const br = Math.sin(this.breathT * 1.55) * (1 - ads) * (1 - clamp(speed / 3, 0, 1) * 0.6), br2 = Math.sin(this.breathT * 0.8 + 1.3) * (1 - ads);
+    pos.y += br * 0.0035; rx += br * 0.008; rz += br2 * 0.008; pos.x += br2 * 0.0015;
+    if (isMelee) { rz += Math.sin(this.bobT) * 0.035 * bobAmt; rx += Math.abs(Math.cos(this.bobT)) * 0.025 * bobAmt; }   // yürürken bıçak eli hafif yalpalar
 
     // yeniden doldurma ilerlemesi
     let ra = null;
@@ -257,7 +264,9 @@ export class ViewModel {
         const w = ra.w;
         this.handL.position.set(0, 0, 0).addScaledVector(fg, w.fg).addScaledVector(mg, w.mag).addScaledVector(POUCH_VM, w.pouch).addScaledVector(ch, w.charge);
         this.handL.position.z += ra.charge * 0.08 * w.charge;    // kol şarjını geri çek
+        this.handMorph(this.handL, clamp((1 - w.fg) * 1.4, 0, 1) * (1 - 0.45 * w.mag));     // ön kabzadan ayrılınca açılır, şarjörü kavrarken yarı kapanır
       } else {
+        this.handMorph(this.handL, 0);
         this.handL.visible = !!this.hLfg && insp < 0.15;               // incelerken sol el silahı bırakır
         if (this.hLfg) this.handL.position.copy(this.hLfg);
       }
@@ -279,8 +288,19 @@ export class ViewModel {
     ry += clamp(this.sx, -0.05, 0.05) * (1 - ads);
     rx += clamp(this.sy, -0.05, 0.05) * (1 - ads);
 
+    // boştaki sol el (bıçak / satır / tomahawk): kamera uzayında sol altta; savururken vücut burulmasıyla ters yöne kayar, koşarken iner, incelemede çekilir
+    if (this.offHand) {
+      const body = isMelee && s.swing ? meleePose(s.swing.kind, clamp(s.swing.t / s.swing.dur, 0, 1)).body : 0, mir = this.game.leftHand ? -1 : 1;
+      const o = this.offHand, hide = Math.max(insp, this.raise, this.sprintT * 0.55);
+      o.position.set((OFF_POS.x - body * 0.05 - Math.sin(this.bobT) * 0.01 * bobAmt) * mir, OFF_POS.y + br * 0.004 - Math.abs(Math.cos(this.bobT + 0.6)) * 0.012 * bobAmt - hide * 0.22 + Math.abs(body) * 0.02, OFF_POS.z + body * 0.03);
+      o.rotation.set(br * 0.02 - hide * 0.4, body * 0.25 * mir, (-body * 0.2 + br2 * 0.02) * mir);
+      o.scale.set(VM_SCALE * mir, VM_SCALE, VM_SCALE);
+      o.visible = hide < 0.95;
+    }
     // zombi elleri: koşarken biri sağa biri sola açılır, dönüşümlü ileri-geri sallanır; dururken hafif nefes alır
     if (this.zh) {
+      const kk = s.swing ? clamp(s.swing.t / s.swing.dur, 0, 1) : 1, spread = Math.sin(Math.PI * clamp(kk / 0.62, 0, 1));   // savurmada parmaklar açılır, vuruştan sonra yeniden kancalanır
+      this.handMorph(this.zh.R, spread); this.handMorph(this.zh.L, spread * 0.7);
       const k = this.sprintT || 0, sw = Math.sin(this.bobT * 0.9) * k, br = Math.sin(this.game.time * 1.7) * 0.012;
       const R = this.zh.R, L = this.zh.L;
       R.position.set(0.17 + 0.16 * k, -0.02 * k + br, -sw * 0.12 - 0.03 * k);
@@ -303,6 +323,16 @@ export class ViewModel {
     // dürbünlü silahta tam nişanda modeli gizle
     this.root.visible = !(s.overlay === 'scope' && s.adsT > 0.9);
     this.cam.rotation.z = -s.leanT * 0.2;   // yana eğilirken silah da kafayla birlikte yatar
+    if (this.arms.length) {                    // ayrı kollar: bilek ucundan dirsek noktasına (kamera uzayı; sol el modunda aynalı)
+      this.cam.updateMatrixWorld(true);
+      for (const a of this.arms) {
+        const w = this.cam.worldToLocal(a.grp.localToWorld(_w.copy(a.wrist)));
+        a.mesh.position.copy(w);
+        a.mesh.quaternion.setFromUnitVectors(ZAX, _e.set(a.elbow.x * mir, a.elbow.y, a.elbow.z).sub(w).normalize());
+        const k = VM_SCALE * a.s; a.mesh.scale.set(k * mir, k, k);
+        a.mesh.visible = this.root.visible && a.grp.visible;
+      }
+    }
     // nişan alırken silah kamerasının görüş açısı genişler: silah/nişangâh ekranda küçülür, rakip örtülmez (dürbünsüz silahlarda)
     const fovT = 54 + (ADS_FOV - 54) * (u.noAds ? 0 : ads);
     if (Math.abs(this.cam.fov - fovT) > 0.01) { this.cam.fov = fovT; this.cam.updateProjectionMatrix(); }
@@ -310,6 +340,9 @@ export class ViewModel {
     // %36-50'sini (3° içinde, bkz. adsview.mjs) kapatıyor, hedef tamamen arkasında kalıyordu; nişangâh HUD'da (#rdot / #holo / nokta) net kalır
     this.setFade(p.touch && s.overlay !== 'scope' ? clamp((ads - 0.55) / 0.4, 0, 1) * 0.5 : 0);
   }
+
+  // El ağının morph hedefi (0: ana poz, 1: ikinci poz)
+  handMorph(grp, v) { const m = grp && grp.children.find((o) => o.userData.fpHand); if (m && m.morphTargetInfluences) m.morphTargetInfluences[0] = v; }
 
   // Modelin saydamlığı (0 = opak). Malzemeler önbellekte paylaşılıyor (3. şahıs silahları): ilk kullanımda bu modele özel kopyalanır
   setFade(f) {
@@ -402,7 +435,7 @@ export class Player {
 
   refreshWeapon() {
     const s = this.s;
-    this.vm.setItem(s.item.id, s.team, s.stat.kind, s.optic);
+    this.vm.setItem(s.item.id, s.team, s.stat.kind, s.optic, s.def?.zombie ? s.zt?.skin : null);
     if (s.stat.ball) { tintPaint(this.vm.model, paintColorOf(s)); this.vm.flash?.removeFromParent(); this.vm.flash = null; }      // paintball: hazne / tüp kendi boya rengimde, namlu alevi yok
   }
 
