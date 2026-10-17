@@ -1,4 +1,4 @@
-# /etc/systemd/system/warbyte.service — WarByte oyun sunucusu (eski VPS 5.9.208.245'teki kurulumun birebir kopyası)
+# /etc/systemd/system/warbyte.service — WarByte oyun sunucusu (kurulum: deploy/setup.sh)
 [Unit]
 Description=WarByte oyun sunucusu
 After=network.target

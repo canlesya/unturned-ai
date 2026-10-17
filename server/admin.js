@@ -1,4 +1,4 @@
-// Admin paneli (admin.warbyte.site): yalnızca 127.0.0.1'de dinler, nginx alt alan adından yönlendirir.
+// Admin paneli (admin.warbyte.io): yalnızca 127.0.0.1'de dinler, nginx alt alan adından yönlendirir.
 // Giriş: tek admin şifresi (data/admin.json'da scrypt özeti). İlk açılışta rastgele şifre üretilir → data/admin-password.txt
 // API: /api/login · /api/balance · /api/history · /api/revert · /api/rooms · /api/rooms/close · /api/rooms/kick · /api/announce · /api/password
 import http from 'node:http';

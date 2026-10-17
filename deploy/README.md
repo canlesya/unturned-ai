@@ -11,4 +11,4 @@ Dizinler: uygulama `/opt/warbyte/app` (git, dal `online`, kullanıcı `warbyte`)
 Kalıcı veri `/opt/warbyte/app/data/` (git dışı): `balance.json` + `balance-history.json` (denge), `official.json` (resmi sunucular),
 `admin.json` (admin şifre özeti). İlk açılışta admin şifresi üretilir: `data/admin-password.txt` (panelden değişince silinir).
 **Bu klasörü yedekle** — panelde yapılan ayarlar yalnız burada.
-Genel adım adım kurulum: `../DEPLOY.md`.
+Yeni sunucu (temiz Ubuntu, root): `bash deploy/setup.sh warbyte.io` — hepsini kurar. Genel anlatım: `../DEPLOY.md`.

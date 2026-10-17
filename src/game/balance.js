@@ -1,4 +1,4 @@
-// Denge ayarları (admin paneli: admin.warbyte.site). Varsayılanlar koddaki nesnelerdir (WSTATS, CLASS_DEFS, ...);
+// Denge ayarları (admin paneli: admin.warbyte.io). Varsayılanlar koddaki nesnelerdir (WSTATS, CLASS_DEFS, ...);
 // geçersiz kılmalar düz yol haritasıdır: { 'w.ak47.dmg': 36, 'tune.walkSpeed': 6, 'cls.heavy.defaults.primary.red': 'pkm' }.
 // Yalnızca FIELDS listesindeki yollar değişebilir (sunucu ve panel aynı listeyle doğrular).
 // Sunucuda her oda kendi sürümünü taşır (maç başında alınır); oda adımından önce useBalance ile etkin sürüm değişir.
