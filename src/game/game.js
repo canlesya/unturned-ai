@@ -140,11 +140,10 @@ export class Game {
     this.thirdAllowed = opts.online ? !!opts.online.cfg?.third : headless ? opts.third === true : opts.third !== false;
     this.ffa = !!this.mode.ffa;                          // Ölüm Maçı: herkes tek, her savaşçının kendi takım kimliği
     if (this.ffa) {
-      // Haritanın doğma noktaları iki üste ait; ölüm maçında bunun yerine TÜM haritadan ulaşılabilir, aralıklı rastgele noktalar kullanılır
-      const base = this.map.spawns.blue[0];
-      const pool = this.nav.spreadPoints(this.nav.reachable(base.x, base.z), { spacing: 14, max: 160 }).filter((p) => !this.nav.floor || this.nav.floorAt(p.x, p.z) < 0.3).map((p) => ({ ...p, ry: 0 }));     // katmanlı haritada yükseltilmiş platform hücresine doğulmaz (zemin kotunda doğar; Liman kulesi)
-      const all = pool.length >= 20 ? pool : [...this.map.spawns.blue, ...this.map.spawns.red];     // güvenlik: nokta bulunamazsa üsler
-      this.dmPool = all;
+      // Haritanın doğma noktaları iki üste ait; ölüm maçında bunun yerine TÜM haritadan ulaşılabilir, aralıklı noktalar kullanılır (ffaPool: küçük haritada aralık kendiliğinden daralır)
+      const pool = this.ffaPool();
+      const all = pool.length >= 12 ? pool : [...this.map.spawns.blue, ...this.map.spawns.red];     // güvenlik: nokta bulunamazsa üsler
+      this.dmPool = all; this._ffaRecent = [];
       for (let i = 0; i < 32; i++) this.map.spawns['f' + i] = all;
       this.map.baseZones = null;                                    // üs cezası yok
     }
@@ -612,21 +611,76 @@ export class Game {
     return !this.soldiers.some((e) => e !== s && e.alive && Math.hypot(e.pos.x - x, e.pos.z - z) < 1.1);
   }
 
+  // Herkes-tek (dm / gg / pb) doğuş havuzu: map.ffaSpawns varsa o, yoksa mavi doğuştan yürünerek ulaşılan alandan aralıklı noktalar. Hedef sayı yürünebilir alana göre (24–40);
+  // 14 m aralık yetmezse (Depo / Liman gibi 60 m'lik harita: eskiden 20'nin altında kalıp İKİ TAKIM AVLUSUNA düşüyordu) aralık 6 m'ye kadar daralır. Her nokta: zemin kotunda, çarpışma kutusu dışında, çevresi açık, çıkmaz sokak değil.
+  ffaPool() {
+    const nav = this.nav, base = this.map.spawns.blue[0], seen = nav.reachable(base.x, base.z);
+    const T = this.terrain, gnd = (i) => (T ? T.heightAt(nav.cx(i), nav.cz(i)) : 0);      // hücre zemini (nav'ın kullandığı arazi örneği)
+    const freeAt = (x, z) => nav.isFree(x, z) && (!nav.floor || nav.floorAt(x, z) - gnd(nav.idx(x, z)) < 0.3);
+    const tmp = [];
+    const ok = (p) => {
+      if (!freeAt(p.x, p.z)) return false;                                                  // katmanlı haritada platform / çatı hücresi değil (doğuş y = 0)
+      if (this.world._hits(this.world.query(p.x - 1, p.z - 1, p.x + 1, p.z + 1, tmp), p.x, this.world.heightAt(p.x, p.z) + 0.05, p.z, 1.7)) return false;   // gövde hiçbir kutuya girmiyor
+      let free = 0, n = 0;                                                                   // 2,5 m çevrenin en az %55'i açık
+      for (let dz = -2.5; dz <= 2.5; dz += 0.5) for (let dx = -2.5; dx <= 2.5; dx += 0.5) if (dx * dx + dz * dz <= 6.25) { n++; if (freeAt(p.x + dx, p.z + dz)) free++; }
+      if (free < n * 0.55) return false;
+      let open = 0;                                                                          // 8 yönden en az 3'ünde 4 m açık (çıkmaz / dar cep değil)
+      for (let a = 0; a < 8; a++) { let r = 0.5; while (r <= 4 && freeAt(p.x + Math.cos(a * 0.785) * r, p.z + Math.sin(a * 0.785) * r)) r += 0.5; if (r > 4) open++; }
+      return open >= 3;
+    };
+    if (this.map.ffaSpawns?.length) return this.map.ffaSpawns.filter(ok).map((p) => ({ x: p.x, z: p.z, ry: 0 }));
+    let cells = 0; for (let i = 0; i < seen.length; i++) if (seen[i] && (!nav.floor || nav.floor[i] - gnd(i) < 0.3)) cells++;
+    const want = Math.max(24, Math.min(40, Math.round(cells * 0.25 / 80)));                // ≈ 80 m² yürünebilir alana bir nokta
+    let best = [];
+    for (const spacing of [14, 12, 10, 9, 8, 7, 6]) {
+      const pool = nav.spreadPoints(seen, { spacing, max: 160 }).filter(ok);
+      if (pool.length > best.length) best = pool;
+      if (pool.length >= want) break;
+    }
+    return best.map((p) => ({ ...p, ry: 0 }));
+  }
+
+  // Doğuşta bakış: 16 yönden en uzun açık olanı (20 m'ye kadar), eşitlikte harita merkezine yakın olan; duvara bakarak doğulmaz
+  openYaw(x, z) {
+    const b = this.map.bounds, cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2, ca = Math.atan2(cz - z, cx - x);
+    let best = ca, bs = -1;
+    for (let k = 0; k < 16; k++) {
+      const a = k * Math.PI / 8, dx = Math.cos(a), dz = Math.sin(a);
+      let r = 0.5; while (r < 20 && this.nav.isFree(x + dx * r, z + dz * r)) r += 0.5;
+      const sc = r + 3 * Math.cos(a - ca) + Math.random() * 2;
+      if (sc > bs) { bs = sc; best = a; }
+    }
+    return Math.atan2(-Math.cos(best), -Math.sin(best));
+  }
+
   pickSpawn(team, s) {
     if (this.ffa) {
-      // Ölüm maçı: tüm noktalardan rastgele; canlı düşmanlara en uzak olan adaylardan biri seçilir
-      const pts = this.map.spawns[team] || this.map.spawns.f0, cx = (this.map.bounds.minX + this.map.bounds.maxX) / 2, cz = (this.map.bounds.minZ + this.map.bounds.maxZ) / 2;
-      let best = null, bs = -1;
-      for (let k = 0; k < 16; k++) {
-        const p = pick(pts);
-        if (this.soldiers.some((e) => e !== s && e.alive && Math.hypot(e.pos.x - p.x, e.pos.z - p.z) < 1.3)) continue;
+      // Herkes-tek: havuzun her noktası puanlanır = canlı rakiplere en yakın uzaklık (30 m'de doyar) − son doğuşlara yakınlık cezası + biraz rastgelelik;
+      // en iyi adaylar görüş testinden geçer (55 m içindeki bir rakip görüyorsa ağır ceza): uzak, görünmeyen, son kullanılmamış nokta seçilir
+      const pts = this.map.spawns[team] || this.map.spawns.f0, others = this.soldiers.filter((e) => e !== s && e.alive), now = this.time || 0;
+      const recent = (this._ffaRecent ||= []);
+      const cands = [];
+      for (const p of pts) {
         let dmin = 1e9;
-        for (const e of this.soldiers) if (e !== s && e.alive) dmin = Math.min(dmin, Math.hypot(e.pos.x - p.x, e.pos.z - p.z));
-        const sc = Math.min(dmin, 70) + Math.random() * 30;               // düşmandan uzaklık + rastgelelik
-        if (sc > bs) { bs = sc; best = p; }
+        for (const e of others) dmin = Math.min(dmin, Math.hypot(e.pos.x - p.x, e.pos.z - p.z));
+        if (dmin < 1.3) continue;
+        let pen = 0;
+        for (const r of recent) { const d = Math.hypot(r.x - p.x, r.z - p.z), age = now - r.t; if (age < 15 && d < 10) pen += (10 - d) * 2.5 * (1 - age / 15); }
+        cands.push({ p, dmin, sc: Math.min(dmin, 30) - pen + Math.random() * 6 });
+      }
+      cands.sort((a, b) => b.sc - a.sc);
+      const eye = (this._spE ||= new THREE.Vector3()), tgt = (this._spT ||= new THREE.Vector3());
+      let best = null, bs = -1e9;
+      for (const c of cands.slice(0, 12)) {
+        tgt.set(c.p.x, 1.4, c.p.z);
+        const seen = others.some((e) => Math.hypot(e.pos.x - c.p.x, e.pos.z - c.p.z) < 55 && this.botSees(e.eye(eye), tgt));
+        const sc = c.sc - (seen ? 45 : 0);
+        if (sc > bs) { bs = sc; best = c.p; }
+        if (!seen && c.dmin >= 14) break;                                            // sıralı listede ilk uzak + görünmeyen yeterli
       }
       const p = best || pick(pts);
-      return { x: p.x, z: p.z, ry: Math.atan2(-(cx - p.x), -(cz - p.z)) + (Math.random() - 0.5) * 2.2 };   // yaklaşık harita merkezine bakar
+      recent.push({ x: p.x, z: p.z, t: now }); if (recent.length > 8) recent.shift();
+      return { x: p.x, z: p.z, ry: this.openYaw(p.x, p.z) };
     }
     // ileri doğma: seçilen / bot için ara sıra sahip olunan hedefin çevresi
     let target = null;
