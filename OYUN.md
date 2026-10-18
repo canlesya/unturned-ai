@@ -1042,3 +1042,54 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 - Varsayılan resmi liste her moddan bir oda (OFC1–OFC8; gg, inf, pb eklendi; pb düzeni Boya Kulesi + Orman Kalesi). Mevcut `data/official.json`'a eksik modlar bir kez eklenir (`officialStore.migrateModes`, admin düzenlemeleri korunur, silinen mod geri gelmez). `MAPS_FOR` artık tek yerde (`server/room.js`).
 - Telefonda maç sonu düğmeleri ≥ 40 px (mobilepass).
 - Testler: `scripts/matchcycle.mjs` (WS, BF_RESTART_MS / BF_EMPTY_ROTATE_MS), `matchflow.mjs` (tarayıcı, Pixel 7 dahil), `officialmigrate.mjs`, `adminvote.mjs`; endtest / lobbytest yeni akışa göre.
+
+### 12.104 Ana menü yenilendi + dil desteği (Türkçe / English)
+- Tasarım (`src/menuStyle.js` baştan, `src/menu.js`, `src/main.js`): turuncu / koyu kimlik ve Bahnschrift / Rajdhani korundu. Sol menüde çizgi ikonlar (seçili: turuncu şerit + dolu ikon), her ekranın başında büyük başlık + kısa açıklama (Çevrimiçi'de sunucu durumu). Ana Menü: sol altta seçili harita büyük başlıkla, Hızlı Oyun + Rastgele maç / Özel oyun / Çevrimiçi; sağ üstte yenilikler + teçhizat kartı. Üst çubukta TR / EN. Ekran geçişinde kısa giriş animasyonu, klavye odağı görünür. Kontroller iki sütun, Ayarlar'da açma-kapama düğmeleri. Yükleme ekranı harita + mod + seçili dilde ipucu.
+- Telefon: logo altyazısı gizli, menü ikon + ad, alt Oyna çubuğu küçük, oda kartlarında küçük resim / RESMİ etiketi gizli (adlar kesilmez); tüm dokunma hedefleri ≥ 40 px.
+- Dil: `src/i18n/menu.js` (menu.*), `src/i18n/data.js` (harita / mod / sınıf / silah / zorluk / nişangâh / gün saati / hava / tuş adları; yardımcılar mapName, modeLabel, className, weaponName …; sözlükte yoksa kaynak veriden). Seçim `warbyte.lang`'da kalır, `html lang` güncellenir; varsayılan: tarayıcı Türkçeyse tr, değilse en. İngilizcede harita adları da çevrildi (Township, Valley, Military Base, Desert Pass, Warehouse, Harbor, Paint Tower, Forest Fort, Quarry Mine). Sunucunun Türkçe hata metinleri ve "Resmi Sunucu #N" istemcide çevrilir.
+- Test: `scripts/menushots.mjs` (tr + en, masaüstü / Pixel 7 / iPhone 14; İngilizcede Türkçe harf yok, taşma yok, dokunma ≥ 40 px, menüden hızlı maç + çevrimiçi oda).
+
+### 12.105 Oyun içi ekranlar yenilendi + İngilizce (ölüm ekranı, HUD, duraklat, ayarlar, skor tablosu, sohbet)
+- Ölüm / doğuş ekranı: üstte öldüren kartı (ad takım renginde, sınıf · takım, silah, mesafe, KAFA ATIŞI rozeti, öldürenin kalan canı) + turuncu geri sayım halkası; altta 5 sütun sınıf kartı (ana silah · gadget ×adet) ve doğma noktası listesi. Kendi ölümünde gri kart + sebep; enfekte / silah yarışı notları ayrı şeritte. Bilgi `hud.killFeed`'de yakalanır (çevrimdışı + çevrimiçi aynı).
+- HUD: takım şeritli skor çubuğu, pusulada derece etiketleri, bayrakta halka ilerleme, mini harita başlığı "HARİTA · bölge", 4 bölmeli can çubuğu, öldürme akışında silah rozeti + kafa simgesi, düşman üssü uyarısı ok biçiminde. Duraklat dikey liste (telefonda 2 sütun) + "mod · harita"; skor tablosu başlığı (mod, harita, süre), sıra numarası. Oyun içi ayarlarda en üstte Dil / Language.
+- Dil: `src/i18n/game.js` (hud. death. pause. set. sb. chat. end. + silah / zombi / nişangâh / yer adı yardımcıları; yer adları İngilizcede kelime kelime). Dil canlı değişir (onLang). "Paintball" Türkçe büyük harfte "PAİNTBALL" olmasın diye lang="en".
+- Test: `scripts/hudshots.mjs` (6 mod × tr/en × masaüstü/Pixel 7). ffaleader tarayıcı yereli tr-TR.
+
+### 12.106 Vuruş / öldürme hissi, katmanlı sesler, ortak AudioContext, lobi müziği
+- Öldürme hissi (`src/game/killfx.js`, katman `#kfx`): hasara göre büyüyen isabet işareti (gövde beyaz, kafa altın, öldürmede kırmızı iri X); ortada kurukafa + ELENDİ / KAFADAN / BIÇAKLA + kurban adı + silah + puan; 4,5 sn içinde ÇİFT / ÜÇLÜ / DÖRTLÜ / KATLİAM, ölmeden seri 3 / 5 / 7 / 10; kenar parlaması + hafif sarsıntı; akışta kendi öldürmelerin altın, seni öldüren kırmızı. Telefonda küçük, nişangâhın altında. Metinler `src/i18n/fx.js`.
+- Sesler (`audio.js`): silah ailesi profilleri (çatlama + gövde + gümbürtü + kuyruk), uzaklıkla boğuklaşma + ses hızı gecikmesi, ortak yankı (iç mekânda artar), sınırlayıcı (üst üste patlamada kırpma yok); metal tıklı yükleme, yeni adım / çarpma / patlama. Paintball sesleri (kutu, vızıltı, yüze şaplak) yeni ses yoluna taşındı.
+- `src/game/actx.js` tek AudioContext (maç başına açılıp kapanmayan bağlam sızıntısı bitti), ilk dokunuşta açılır; menü düğmelerinde tık sesi.
+- Lobi müziği (`music.js`): `lobby.mp3` yoksa prosedürel (84 BPM, Am9 – Fmaj7 – C – G6), Ana × Müzik sesine uyar, gizli sekmede susar, maçta durur.
+- Test: `scripts/sfxtest.mjs`.
+
+### 12.107 Yeni mod: Vagon (payload) + Maden Ocağı haritası
+- Mavi saldırır, patlayıcı yüklü vagonu raylar boyunca A · Makas → B · Kantar → C · Maden Ağzı'na iter; Kırmızı durdurur. Vagon yalnız 3,5 m içinde saldıran varken ve savunan yokken ilerler (1 kişi 1 m/sn, ek kişi +%25, en çok 3); ikisi de varsa ÇEKİŞME. Saldıran 20 sn uzak kalırsa 0,35 m/sn geri kayar (geçilen noktanın gerisine düşmez). 5 dk + kontrol noktası başına 120 sn, iki takımın doğuşu ileri kayar; süre biterken saldıran vagondaysa UZATMA; ağza ulaşınca kapı patlar (bitiş ekranı 2,2 sn sonra). Tüm sayılar admin → Oyun modları → Vagon (`TUNE.pl*`, `LIMITS.plTime`).
+- Kod: `src/game/payload.js` (kural, hareketli AABB vagon: mermiyi keser, önüne gireni iter; ağ paketi `pl`), `track.js` (Bezier köşeli ray), `payloadHud.js` (ray ilerleme çubuğu, durum satırı, dünyada / pusulada / mini haritada vagon), `src/i18n/payload.js`. Botlar: saldıranlar vagonu iter / yol açar, savunanlar önüne geçer / sıradaki noktada siper tutar.
+- Harita `src/maps/maden.js` + `madenSurface.js` (96×72 m): 128 m ray; Kırma Tesisi ve Lavvar'ın içinden, Kantar sundurmasının altından geçer; taş ocağı basamakları, yükleme rampası, köy evleri, su kulesi, Ambar, Demirci, Kantin, Kömür Bunkeri. Üç doğuş aşaması, her aşamada doğuşlar birbirini görmez. 25 ağ / 27 bin üçgen.
+- i18n: Node'da her zaman tr (Node ≥ 21'de `navigator.language` olduğu için sunucu metinleri İngilizce çıkıyordu).
+- Testler: `scripts/pltest.mjs`, `plnet.mjs`, `plonline.mjs`, `plshots.mjs`, `plmenu.mjs`.
+
+### 12.108 Kasaba: yerleşim temizliği + dünya koordinatlı yüzey
+- Denetim `node scripts/mapgeo.mjs <harita> [--list]` (görsel + çarpışma OBB): kesişen 96 → 0, havada 51 → 0, gömük 2 → 0, çarpışmasız engel 16 → 0, kapı önü 3 → 0, yol üstü yapı 20 → 2 (şikân konteynerleri, bilinçli).
+- Avlu köşesinde tek sütun, sancak sütun başında; ev-1 ve benzinlik marketi yan sokaktan, kilise kaldırımdan çekildi; belediye revakı tek saçak; ağaç / çalı / kaya yapıya ve araca değmez; lambalar yola bakar. Ortak kit: bank sırtlığı, çit köşe direği, depo yan kapısı, çan askısı, silo basamağı, araç aynası / direksiyonu, açık kapı kanadı 90° ve çarpışmalı.
+- Yüzey `src/maps/kasabaSurface.js` (UV yok, çizim çağrısı artmaz); gece kameraya en yakın 12 lambadan sahte ışık. 430 bin → 379 bin üçgen. Testler: `scripts/kasabatest.mjs`, `kasabashots.mjs`.
+
+### 12.109 Vadi: havada / iç içe / görünmez çarpışma temizliği, düz bina tabanları, yüzey ve su
+- Denetim `scripts/mapaudit-vadi.mjs`: havada grup 31 → 4 (kalan: ortak araba modelinde 9 cm cam kasası), yamaçta altı boş taban 826 → 0, iç içe çarpışma 15 → 0, iç içe görsel 24 → 0, görünmez çarpışma 77 → 34 (ortak mobilya / araç), z-fight 12 → 0.
+- Bina tabanı düz (patika / nehir bazı evlerde araziyi zeminden 1,4–2 m yukarı kaldırıyordu); `terrain.tri` fizik = çizilen yüzey. Çakışan yerleşimler ayrıldı (karakol-ev, kulübeler, saman-ev, çit-silo, tepe kulesi 1,6 m güneye), eşyalar yamaçta zemine oturur, bunkere beton kaide, çadıra platform; çalılar bot görüşüne eklendi; köprü ayakları ve su çarkı katı.
+- Yüzey `src/maps/vadiSurface.js` + arazi ayrıntısı + su (derinliğe göre renk, akan dalga, kıyı köpüğü). Testler: `mapaudit-vadi`, `vadishots`.
+
+### 12.110 Askeri Üs: yerleşim temizliği + yüzey
+- Denetim `scripts/mapaudit-us.mjs` (13 denetim): 717 → 0 (iç içe 215, havada 280, içinden geçilen katı 183, kapı önü 15 …).
+- Çevre duvarı köşe birleşimi, projektörler dikme tepesinde; kamp kapı dikmeleri duvara gömülmüyor; hangar uçağı sütunlar arasında, asma kat merdiveni arka kapıyı kapatmıyor; radar kulesi üst kat kapısı kaldırıldı; boru rafları duvardan duvara, kamuflaj ağı tek parça; bina eşyası duvara yaslı; araçlarda havada parça / görünmez çarpışma düzeltildi (vehicles.js, Kasaba düzeltmeleriyle birleştirildi).
+- Yüzey `src/maps/usSurface.js` (16 sınıf; iç mekânlar artık karanlık değil), gece en yakın 12 lamba. Testler: `usshots`, `usperf`, `usleak`, `MAP=us cgmodes`.
+
+### 12.111 New York 2. doku geçişi + ürkütücü zombiler
+- `citySurface.js`: kutu yüz UV'si korunur, cephe pencere ızgarası `tower()` ile birebir; taş denizlik / lento / köşe taşı / kat silmesi, pencereden yükselen is, dükkân ayağı, grafiti, kornis; pencerede derin oda eşlemesi (perde, TV, yangın / kırık cam, tahta, mum); kepenk, kırık vitrin, eğimli tente, düzensiz yanık delikler; asfaltta lastik izi, çukur, buharlı rögar. Gece (`nyfx.js`): havada ateş küpleri yerine alev dilleri, lamba ışık konisi, bozuk neonlar.
+- Zombi (`src/models/zombieBody.js`): türe özgü gövde (kambur, uzun kol, kara pençe, yırtık giysi, açıkta kaburga, parlayan çökük göz); Koşucu sıska, Dev kemik plakalı, Hayalet yarı saydam kefen, Işınlanan mor kristal, Boss boynuz + sırt dikeni + parlayan göğüs yarığı; sendeleme / topallama / süzülme. Vuruş kutuları değişmedi; çarpışma / nav / doğuş özetleri birebir. Çizim çağrısı 131 → 119. Test: `scripts/ny2shots.mjs`.
+
+### 12.112 Görsel kalite: silah cilası, gök, kalite kademeleri, son işleme
+- Silah cilası (`weaponFinish.js`, doku yok): parkerize çelik, eloksal, krom, pirinç, polimer, kauçuk, vernikli ahşap, cerakote, kaplamalı cam / mercek; parça kenarında çıplak metal aşınması; birinci şahıs çizim çağrısı 409 → 354.
+- Gök kubbesi (ufuk = sis rengi) + güneş halesi; ortam yansıması haritanın göğünden; gün saatine göre pozlama / renk.
+- Kalite: gölge 1024 / 2048 / 4096, Orta+ yumuşak PCF, gölge kutusu bakış yönüne kaydırılır; telefonda 1024. Birinci şahıs silah ışığı haritanın güneşi / göğüyle.
+- Son işleme (`post.js`, yalnız Yüksek + "Son işleme"; telefonda varsayılan kapalı): MSAA, parıltı, renk tonu, vinyet; menü ve oyun içi ayarlarda düğme. Test: `scripts/gfxshots.mjs`, `weapondraws.mjs`.
