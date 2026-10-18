@@ -24,7 +24,7 @@ export const FOV_RANGE = TOUCH ? [70, 110] : [60, 100];
 export const DEFAULTS = {
   map: DEFAULT_MAP, tod: 'day', weather: 'clear', type: 'conquest', perTeam: 10, tickets: 0, time: 900,
   team: 'blue', cls: 'assault', diff: 'normal', optic: 'reddot', loadouts: {}, name: lang() === 'tr' ? 'Sen' : 'You',      // varsayılan takma ad ilk açılıştaki dilde
-  sens: 0.0022, fov: 75, volume: 0.6, shadows: !TOUCH, quality: 1.5, fovM: 85, qualityM: 2, adaptive: true, fullscreen: true, devMode: false,   // telefonda: gölgesiz; keskinlik için 2× (FPS düşerse otomatik çözünürlük indirir)
+  sens: 0.0022, fov: 75, volume: 0.6, shadows: !TOUCH, quality: 1.5, fovM: 80, qualityM: 2, adaptive: true, fullscreen: true, devMode: false,   // telefonda: gölgesiz; keskinlik için 2× (FPS düşerse otomatik çözünürlük indirir)
   xp: 0, stats: { matches: 0, wins: 0, kills: 0, deaths: 0 },
   server: '', room: '', olTeam: 'auto', third: true,
   keys: {}, leftHand: false, adsToggle: false, vSfx: 0.9, vMusic: 0.5, vAmb: 0.8, rainSound: true,   // tuş atamaları, silah eli, ses kanalları
@@ -33,6 +33,7 @@ export const DEFAULTS = {
 export function loadPrefs() {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) || localStorage.getItem('blockfront.v2') || localStorage.getItem('blockfront.v1') || '{}');
+    if (raw.fovMv !== 1) { if (raw.fovM === 85) raw.fovM = 80; raw.fovMv = 1; }        // telefon yatay FOV varsayılanı 85 → 80 (uzak düşman ≈ %8 büyük); eski varsayılanda kalanlar bir kez taşınır
     return { ...DEFAULTS, ...raw, stats: { ...DEFAULTS.stats, ...(raw.stats || {}) }, loadouts: raw.loadouts || {} };
   } catch (e) { return { ...DEFAULTS }; }
 }

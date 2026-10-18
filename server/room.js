@@ -1,7 +1,7 @@
 // Bir oda = başsız bir Game + bağlı oyuncular. Sabit adımla (SIM_HZ) çalışır, her SNAP_EVERY adımda snapshot yollar.
 import { Game } from '../src/game/game.js';
 import { SIM_DT, SIM_HZ, SNAP_EVERY, packSoldier, slowSig, cleanName } from '../src/net/protocol.js';
-import { CLASS_DEFS, WSTATS, ZTYPES } from '../src/game/stats.js';
+import { CLASS_DEFS, WSTATS, ZTYPES, ZT_ORDER, ZOMBIE } from '../src/game/stats.js';
 import { defaultTickets } from '../src/game/match.js';
 import { LIMITS, useBalance } from '../src/game/balance.js';
 import { currentBalance, balanceMeta } from './balanceStore.js';
@@ -347,7 +347,7 @@ export class Room {
     if (typeof m.spawn === 'string') h.spawnChoice = m.spawn === 'base' || g.mode.objectives.some((o) => o.id === m.spawn) ? m.spawn : 'base';
   }
 
-  // BF_DEBUG=1 ile açılan test komutları: { t:'dbg', tp:[x,z] } ışınla · { hp } can · { bots:false } botları sustur · { pb:1 } herkese paintball silahları
+  // BF_DEBUG=1 ile açılan test komutları: { t:'dbg', tp:[x,z] } ışınla · { hp } can · { bots:false } botları sustur · { pb:1 } herkese paintball silahları · { zb:'brute' } zombi ol · { ask } durum
   debug(id, m) {
     const c = this.clients.get(id), g = this.game;
     if (!c) return;
@@ -364,8 +364,14 @@ export class Room {
       if (!g._pbArm) { g._pbArm = true; g.on('spawn', arm); }
     }
     if (Number.isFinite(m.pld) && g.payload) { g.payload.d = Math.max(g.payload.floorD, Math.min(g.payload.end, m.pld)); g.payload.idleT = 0; }   // { pld } vagonu yol mesafesine taşı (Vagon testi)
+    if (typeof m.zb === 'string' && ZTYPES[m.zb] && g.mode.infection && s.alive) {                  // { zb:tür } hemen zombi ol, güç hazır, hazırlık süresi biter (dokunmatik güç butonu testi)
+      g.makeZombie(s, false, m.zb); s.abT = 0; s.abActive = 0; s.cur = 0;
+      if (Number.isFinite(g.timeLeft)) g.timeLeft = Math.min(g.timeLeft, g.mode.time - ZOMBIE.grace - 1);
+      g.netEvent({ e: 'inf', v: s.id, bs: 0, zt: ZT_ORDER.indexOf(s.ztype) + 1, zl: s.zLives });
+    }
     if (m.bots === false) { g.brainsOff = g.brains.splice(0); }
     if (m.bots === true && g.brainsOff) { g.brains.push(...g.brainsOff); g.brainsOff = null; }
+    if (m.ask && c.ws.readyState === 1) c.ws.send(JSON.stringify({ t: 'dbg', optic: s.opticId, item: s.item.id, zb: !!s.def.zombie, ab: [+s.abT.toFixed(2), +s.abActive.toFixed(2)] }));   // test: sunucudaki nişangâh / silah (istemci bilinmeyen t'yi yok sayar)
   }
 
   broadcast(msg, except) {

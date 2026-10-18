@@ -3,32 +3,51 @@
 //   Sonuna kadar ileri = koşu; daha da yukarı sürükleyip kilit işaretinde bırakınca KOŞU KİLİDİ (joysticke tekrar dokununca biter).
 // · Sağ yarı: kaydırarak bakış (normal / nişan hassasiyeti ayrı). İsteğe bağlı jiroskop (kapalı / nişandayken / hep).
 // · Butonlar: ateş (sabit ya da parmağı izleyen; basılıyken sürükleyince nişan alır), sol ateş (isteğe bağlı), nişan, zıpla, çömel, şarjör,
-//   silah değiştir, ekipman, 3. şahıs, skor, duraklat. HUD'daki silah adına dokununca o silaha geçer.
+//   silah değiştir, ekipman, 3. şahıs, skor, duraklat, nişangâh seç (silahta birden çok nişangâh varsa; dokununca büyük kartlı seçici açılır,
+//   masaüstündeki T tekerleğinin karşılığı). HUD'daki silah adına dokununca o silaha geçer.
+// · Zombiyken (Enfekte): özel güç butonu (bekleme halkası, HAZIR parlar; masaüstündeki F / sağ tık); nişan, nişangâh, şarjör, silah değiştir
+//   ve ekipman gizlenir (zombinin yalnız pençesi var). Düzenleyicide de role göre: zombiyken güç butonu taşınır, insanken ekipman.
 // · Düzen düzenleyici (duraklat → Dokunmatik ayarlar): butonları sürükle, boyutlandır, saydamlık; ayarlar localStorage'da (cihaza özel).
 // · Nişan yardımı (yalnız dokunmatik, Hassasiyet sekmesinden kapatılır): düşman üstünde bakış yavaşlar (sürtünme), hareket / ateş / nişan
 //   sırasında görünen en yakın düşmana yumuşakça döner (mıknatıs), nişana girerken hafif çekiş. Görüş: game.botSees (duvar + duman + yaprak).
 // Masaüstünde denemek için: ?touch=1
 import * as THREE from 'three';
+import { OPTICS } from './stats.js';
+import { t } from '../i18n/index.js';
+import '../i18n/touch.js';
+import { wName, opticName } from '../i18n/game.js';
 
 const KEY = 'warbyte.touch';
-const DEF = { joy: 'fixed', fire: 'fixed', leftFire: true, opacity: 0.8, sens: 1, adsSens: 0.75, gyro: 'off', gyroSens: 1, gyroInvX: false, gyroInvY: false, aim: true, aimStr: 1, layout: {} };
+const DEF = { joy: 'fixed', fire: 'fixed', leftFire: true, opacity: 0.8, sens: 1, adsSens: 0.75, gyro: 'off', gyroSens: 1, gyroInvX: false, gyroInvY: false, aim: true, aimStr: 1, retSz: 1, layout: {} };
 // Varsayılan düzen: merkez (x, y: ekranın oranı), boyut s (ekran yüksekliğinin oranı)
 const LAYOUT = {
   joy: { x: 0.15, y: 0.70, s: 0.36 },
   fire: { x: 0.78, y: 0.60, s: 0.27 }, fire2: { x: 0.08, y: 0.36, s: 0.18 },
   ads: { x: 0.93, y: 0.36, s: 0.16 }, jump: { x: 0.93, y: 0.61, s: 0.18 }, crouch: { x: 0.93, y: 0.86, s: 0.16 },
-  reload: { x: 0.655, y: 0.86, s: 0.15 }, swap: { x: 0.79, y: 0.89, s: 0.15 }, nade: { x: 0.655, y: 0.58, s: 0.15 },
-  third: { x: 0.655, y: 0.34, s: 0.12 }, pause: { x: 0.22, y: 0.075, s: 0.11 }, score: { x: 0.285, y: 0.075, s: 0.11 },
+  reload: { x: 0.655, y: 0.86, s: 0.15 }, swap: { x: 0.79, y: 0.89, s: 0.15 }, nade: { x: 0.655, y: 0.58, s: 0.15 }, abil: { x: 0.655, y: 0.6, s: 0.19 },
+  third: { x: 0.655, y: 0.34, s: 0.12 }, optic: { x: 0.81, y: 0.36, s: 0.12 }, pause: { x: 0.22, y: 0.075, s: 0.11 }, score: { x: 0.285, y: 0.075, s: 0.11 },
 };
-const NAMES = { joy: 'Joystick', fire: 'Ateş', fire2: 'Sol ateş', ads: 'Nişan', jump: 'Zıpla', crouch: 'Çömel', reload: 'Şarjör', swap: 'Silah değiştir', nade: 'Ekipman', third: '3. şahıs', pause: 'Duraklat', score: 'Skor' };
+const NAME = (id) => t('tc.n.' + id);                                            // düzenleyicideki buton adları (src/i18n/touch.js)
 const I = {
   fire: '<circle cx="12" cy="12" r="7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>', fire2: '<circle cx="12" cy="12" r="7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
   ads: '<circle cx="12" cy="12" r="3"/><path d="M3 12h3M18 12h3M12 3v3M12 18v3"/><circle cx="12" cy="12" r="8"/>',
   jump: '<path d="M12 19V5M6 11l6-6 6 6"/>', crouch: '<path d="M12 5v14M6 13l6 6 6-6"/>', reload: '<path d="M20 11a8 8 0 10-2.3 5.7M20 4v7h-7"/>',
   swap: '<path d="M4 8h13l-3-3M20 16H7l3 3"/>', nade: '<circle cx="12" cy="14" r="6"/><path d="M12 8V5h4M10 4h4"/>',
   third: '<circle cx="12" cy="7" r="3"/><path d="M6 21v-3a6 6 0 0112 0v3"/><path d="M3 4l3 3M21 4l-3 3"/>',
+  optic: '<rect x="3" y="8" width="12" height="6" rx="1.5"/><path d="M15 9.5l5-2v7l-5-2M6.5 8V5.5h5V8"/>',
+  abil: '<path d="M13 2L5 13h6l-1 9 8-12h-6z"/>',
   pause: '<path d="M8 5v14M16 5v14"/>', score: '<path d="M4 6h16M4 12h16M4 18h16"/>',
 };
+// seçici kartlarında küçük nişangâh önizlemesi ve buton etiketi
+const OPI = {
+  iron: '<path d="M4 20h6v-8h4v8h6" stroke="#e8edf5" stroke-width="2" fill="none"/><rect x="11" y="6" width="2" height="9" fill="#e8edf5"/>',
+  reddot: '<circle cx="12" cy="12" r="9" stroke="#8a929c" stroke-width="1.5" fill="none"/><circle cx="12" cy="12" r="2.4" fill="#ff2a1a"/>',
+  holo: '<circle cx="12" cy="12" r="7" stroke="#ff3326" stroke-width="1.6" fill="none"/><circle cx="12" cy="12" r="1.4" fill="#ff3326"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="#ff3326" stroke-width="1.6"/>',
+  acog: '<circle cx="12" cy="12" r="10" stroke="#8a929c" stroke-width="1.5" fill="none"/><path d="M8.5 15L12 10.5l3.5 4.5" stroke="#ff2e1f" stroke-width="1.8" fill="none"/>',
+  scope: '<circle cx="12" cy="12" r="10" stroke="#8a929c" stroke-width="1.5" fill="none"/><path d="M2 12h20M12 2v20" stroke="#e8edf5" stroke-width="1"/>',
+};
+OPI.scope6 = OPI.scope;
+const OPS = { acog: '3×', scope: '4×', scope6: '6×' }, opLabel = (id) => OPS[id] || (id ? t('tc.op.' + id) : '');   // nişangâh butonu etiketi
 const CSS = `
 #tc{position:fixed;inset:0;z-index:6;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;font-family:Bahnschrift,'Rajdhani','Arial Narrow',system-ui,sans-serif}
 #tc.off{display:none}
@@ -47,6 +66,31 @@ const CSS = `
 #tc .b.fire{background:rgba(200,50,30,.4);border-color:rgba(255,120,90,.7)}#tc .b.fire.on{background:rgba(255,80,40,.7)}
 #tc .b.sm{border-radius:10px}
 #tc .b.hid{display:none}
+#tc .b.zh{display:none!important}      /* role göre yok (zombi: silah butonları / insan: güç butonu), düzenleyicide de */
+#tc .b[data-b=abil]{border-color:rgba(160,160,160,.5)}
+#tc .b[data-b=abil] svg.i{width:40%;height:40%;margin-bottom:16%}
+#tc .b[data-b=abil] .rg{position:absolute;inset:-4px;width:auto;height:auto;transform:rotate(-90deg);margin:0}
+#tc .b[data-b=abil] .rg circle{fill:none;stroke:#8dff5a;stroke-width:3;stroke-linecap:round;transition:stroke-dashoffset .1s linear}
+#tc .b[data-b=abil].cd .rg circle{stroke:#b9b9b9}#tc .b[data-b=abil].act .rg circle{stroke:#ff8a1f}
+#tc .b[data-b=abil].rdy{background:rgba(90,190,50,.5);border-color:#8dff5a;box-shadow:0 0 14px 2px rgba(141,255,90,.55)}
+#tc .b[data-b=abil].act{background:rgba(255,138,31,.55);border-color:#ff8a1f}
+#tc .b[data-b=abil].cd svg.i{opacity:.55}
+#tc .b[data-b=optic] svg{width:50%;height:50%;margin-bottom:22%}
+#tc .b .ol{position:absolute;left:0;right:0;bottom:17%;text-align:center;color:#fff;font-weight:700;font-style:normal;letter-spacing:.5px;pointer-events:none;white-space:nowrap}
+/* nişangâh seçici (oyun katmanı #tc'nin DIŞINDA: kartlara dokunmak tıklama üretsin) */
+#tcOp{position:fixed;inset:0;z-index:8;display:none;place-items:center;background:radial-gradient(circle at 50% 45%,rgba(4,6,10,.2),rgba(4,6,10,.7));font-family:Bahnschrift,'Rajdhani','Arial Narrow',system-ui,sans-serif;color:#e8edf5;touch-action:manipulation;user-select:none;-webkit-user-select:none}
+#tcOp.on{display:grid}
+#tcOp .w{display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:-6vh}
+#tcOp h5{margin:0;font-size:13px;letter-spacing:4px;font-weight:600;opacity:.85}#tcOp h5 small{opacity:.6;letter-spacing:1px;margin-left:8px}
+#tcOp .cs{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;max-width:92vw}
+#tcOp button{min-width:max(92px,17vh);min-height:max(84px,24vh);padding:8px 12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:rgba(9,13,19,.86);border:2px solid rgba(255,255,255,.22);color:inherit;font:inherit;font-size:15px;font-weight:700;letter-spacing:1px;text-transform:uppercase;border-radius:10px}
+#tcOp button.cur{border-color:#7be07a;background:rgba(20,48,24,.9)}#tcOp button:active{border-color:#ff8a1f;background:rgba(80,42,8,.9)}
+#tcOp button small{font-size:11px;font-weight:400;opacity:.7;letter-spacing:.5px;text-transform:none}
+#tcOp button svg{width:34px;height:34px}
+#tcOp .hint{font-size:11px;opacity:.55;letter-spacing:1px}
+#tcEd .ep .rp{display:inline-grid;place-items:center;width:46px;height:40px;background:#c9b48a}
+#tcEd .ep .rp i{width:24px;height:24px;border-radius:50%;border:2px solid #ff3326;display:grid;place-items:center;transform:scale(var(--rs,1))}
+#tcEd .ep .rp i::before{content:'';width:5px;height:5px;border-radius:50%;background:#ff2414;box-shadow:0 0 0 1px rgba(0,0,0,.5)}
 #tc.sb .b:not([data-b=score]),#tc.sb .jb{visibility:hidden}
 #tc.scoped .b:not(.fire):not([data-b=ads]),#tc.scoped .jb{opacity:.3!important}
 #tc .rot{position:fixed;inset:0;z-index:30;display:none;place-items:center;background:#0b0e13;color:#fff;font-size:18px;text-align:center;padding:24px;letter-spacing:1px}
@@ -56,7 +100,7 @@ const CSS = `
 #tc.edit .b,#tc.edit .jb{outline:2px dashed rgba(255,255,255,.45);outline-offset:3px;pointer-events:auto;cursor:move}
 #tc.edit .b.hid{display:grid;opacity:.25!important}
 #tc.edit .sel{outline-color:#ff8a1f}
-#tcEd .ep{position:fixed;z-index:41;touch-action:auto;font-family:Bahnschrift,'Rajdhani','Arial Narrow',system-ui,sans-serif;left:50%;top:8px;transform:translateX(-50%);width:min(600px,76vw);max-height:calc(100vh - 16px);overflow:auto;-webkit-overflow-scrolling:touch;background:rgba(9,13,19,.94);border:1px solid rgba(255,255,255,.18);padding:10px 14px;color:#e8edf5;font-size:12px;display:none;pointer-events:auto;transition:opacity .15s}
+#tcEd .ep{position:fixed;z-index:41;touch-action:auto;font-family:Bahnschrift,'Rajdhani','Arial Narrow',system-ui,sans-serif;left:50%;top:8px;transform:translateX(-50%);width:min(600px,76vw);max-height:calc(100vh - 16px);box-sizing:border-box;overflow:auto;-webkit-overflow-scrolling:touch;background:rgba(9,13,19,.94);border:1px solid rgba(255,255,255,.18);padding:10px 14px;color:#e8edf5;font-size:12px;display:none;pointer-events:auto;transition:opacity .15s}
 #tcEd.on .ep{display:block}
 #tcEd.dragging .ep{opacity:.12;pointer-events:none}
 #tcEd .ep.min .body{display:none}
@@ -83,6 +127,7 @@ body.mob #vitals{zoom:.55;left:16px;bottom:10px}
 body.mob #ammo{zoom:.55;right:20px;top:14px;bottom:auto}
 body.mob #toasts{zoom:.7;top:90px}
 body.mob #abil,body.mob #msg,body.mob #zonew,body.mob #bosses{zoom:.65}
+body.mob #abil #abk{display:none}      /* telefonda güç göstergesinde tuş etiketi (F / sağ tık) yok: güç butonu var */
 body.mob #pops{zoom:.75}
 body.mob #msg{left:calc(42vw / .65);top:calc(60vh / .65);width:max-content;max-width:calc(32vw / .65);white-space:normal;text-align:center;line-height:1.35}      /* durum mesajı joystick ile butonlar arasında, kayarak satıra bölünür */
 /* sohbet (çevrimiçi): joystick ile şarjör butonu arasında, alt ortada; mesajlar yine 9 sn sonra solar */
@@ -109,13 +154,17 @@ export class TouchControls {
     if (!document.getElementById('tcCss')) { const st = document.createElement('style'); st.id = 'tcCss'; st.textContent = CSS; document.head.appendChild(st); }
     const el = (this.el = document.createElement('div'));
     el.id = 'tc'; el.className = 'off';
-    el.innerHTML = `<div class="jb" data-k="joy"><div class="jk"></div><div class="lock"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></div><div class="runlock">KOŞU KİLİTLİ</div></div>
-      <div class="rot">Telefonu yan çevir<br><small style="opacity:.6;font-size:13px">Oyun yatay ekranda oynanır</small></div>`;
+    el.innerHTML = `<div class="jb" data-k="joy"><div class="jk"></div><div class="lock"><svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg></div><div class="runlock">${t('tc.runLock')}</div></div>
+      <div class="rot">${t('tc.rot')}<br><small style="opacity:.6;font-size:13px">${t('tc.rotSub')}</small></div>`;
     document.body.appendChild(el);
     // ayar paneli oyun katmanının DIŞINDA: #tc'nin touch-action:none'ı ve dokunma engeli panelin düğme / kaydırıcılarına geçmesin
     this.ed = document.createElement('div'); this.ed.id = 'tcEd'; this.ed.innerHTML = '<div class="ep"></div>';
     document.body.appendChild(this.ed);
     document.body.classList.add('mob');
+    // nişangâh seçici: dışarı dokunmak kapatır, karta dokunmak seçer
+    this.op = document.createElement('div'); this.op.id = 'tcOp';
+    this.op.addEventListener('click', (e) => { const b = e.target.closest('[data-o]'); if (b) this.p.pickOptic(b.dataset.o); this.closeOptics(); });
+    document.body.appendChild(this.op);
     this.jb = el.querySelector('.jb'); this.jk = el.querySelector('.jk'); this.ep = this.ed.querySelector('.ep');
     this.b = {};
     for (const id of Object.keys(LAYOUT)) {
@@ -123,7 +172,8 @@ export class TouchControls {
       const d = document.createElement('div');
       d.className = 'b' + (id === 'fire' || id === 'fire2' ? ' fire' : '') + (id === 'pause' || id === 'score' ? ' sm' : '');
       d.dataset.b = id; d.dataset.k = id;
-      d.innerHTML = `<svg viewBox="0 0 24 24">${I[id]}</svg>`;
+      d.innerHTML = id === 'abil' ? `<svg class="rg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18.5" pathLength="100" stroke-dasharray="100"/></svg><svg class="i" viewBox="0 0 24 24">${I[id]}</svg><i class="ol"></i>`
+        : `<svg viewBox="0 0 24 24">${I[id]}</svg>${id === 'optic' ? '<i class="ol"></i>' : ''}`;
       el.appendChild(d);
       this.b[id] = d;
     }
@@ -140,12 +190,12 @@ export class TouchControls {
     const tick = () => { if (!this.el.isConnected) return; this.update(); this._raf = requestAnimationFrame(tick); };
     this._raf = requestAnimationFrame(tick);
     const pt = document.getElementById('ptext');
-    if (pt) pt.textContent = "Başlamak için BAŞLA'ya dokun. Kontrolleri duraklat menüsündeki Dokunmatik ayarlar'dan değiştirebilirsin.";
+    if (pt) pt.textContent = t('pause.introTouch');
     // duraklat menüsüne "Dokunmatik ayarlar"
     const set = document.getElementById('bSet');
     if (set && !document.getElementById('bTouch')) {
       const b = document.createElement('button');
-      b.id = 'bTouch'; b.className = set.className; b.textContent = 'Dokunmatik ayarlar';
+      b.id = 'bTouch'; b.className = set.className; b.textContent = t('tc.title');
       b.onclick = () => this.openEditor();
       set.after(b);
     }
@@ -160,6 +210,8 @@ export class TouchControls {
     for (const [id, d] of Object.entries(this.b)) { place(d, this.pos(id)); d.style.opacity = op; d.classList.toggle('sel', !!this.editing && this.sel === id); }
     this.b.fire2.classList.toggle('hid', !this.cfg.leftFire);
     this.b.third.classList.toggle('hid', !this.g.thirdAllowed);
+    for (const k of ['optic', 'abil']) this.b[k].querySelector('.ol').style.fontSize = Math.max(8, this.pos(k).s * H * (k === 'abil' ? 0.15 : 0.17)) + 'px';
+    document.body.style.setProperty('--rs', this.cfg.retSz || 1);                           // HUD nişangâh boyutu (hud.js body.mob #rdot / #holo / #idot)
     this.jR = (this.pos('joy').s * H) / 2;
     if (!this.joy || this.cfg.joy === 'fixed') this.homeJoy();
     this.jb.style.opacity = op;
@@ -309,11 +361,26 @@ export class TouchControls {
     else if (id === 'reload') { s.startReload(); g.online?.edge('rl'); }
     else if (id === 'ads') { s.ads = !s.ads; }
     else if (id === 'third') { p.toggleThird(); }
+    else if (id === 'optic') { this.openOptics(); }
+    else if (id === 'abil') { if (s.def.zombie) p.zAbility(); }                   // zombi özel gücü (çevrimiçinde sunucuya 'ab' kenarı)
     else if (id === 'swap') {                                                     // ana → yedek → yakın dövüş (boş yuvalar atlanır)
       const ord = [0, 1, 3], i = ord.indexOf(s.cur);
       for (let k = 1; k <= 3; k++) { const n = ord[(i + k + 3) % 3]; if (n !== s.cur && s.canEquip(n)) { s.switchTo(n); break; } }
     } else if (id === 'nade') { if (s.cur !== 2 && s.canEquip(2)) s.switchTo(2); else if (s.cur === 2) s.switchTo(0); }   // ekipmanı çek; tekrar basınca ana silah
   }
+  // Nişangâh seçici: elimdeki silahın nişangâhları büyük kartlar halinde (mevcut yeşil); seçince / dışarı dokununca kapanır.
+  // Çevrimdışı ve çevrimiçi aynı yol: Player.pickOptic (yerelde setOptic + sunucuya { t:'opt', optic }).
+  openOptics() {
+    const p = this.p, s = p.s, list = p.opticList();
+    if (list.length < 2 || !s.alive) return;
+    const now = s.opticId;
+    this.op.innerHTML = `<div class="w"><h5>${t('tc.opTitle')}<small>${wName(s.item.id)}</small></h5><div class="cs">${list.map((id) => {
+      const o = OPTICS[id];
+      return `<button data-o="${id}" class="${id === now ? 'cur' : ''}"><svg viewBox="0 0 24 24">${OPI[id] || ''}</svg>${opticName(id)}<small>${o.zoom ? t('tc.opZoom', { n: +p.zoomOf(o.zoom).toFixed(2) }) : ''}</small></button>`;
+    }).join('')}</div><div class="hint">${t('tc.opHint')}</div></div>`;
+    this.op.classList.add('on'); this.opOpen = true;
+  }
+  closeOptics() { if (!this.opOpen) return; this.opOpen = false; this.op.classList.remove('on'); }
   anyFire() { for (const v of this.btnTouch.values()) if (v === 'fire' || v === 'fire2') return true; return false; }
 
   // ── Jiroskop: telefonu çevirerek nişan (kapalı / yalnız nişandayken / hep). iOS izin ister (ayarlarda açarken). ──
@@ -354,7 +421,7 @@ export class TouchControls {
   // ── Düzen düzenleyici ──
   openEditor() {
     if (this.editing) return;
-    this.editing = true; this.sel = 'fire'; this.tab = 'layout';
+    this.editing = true; this.sel = 'fire'; this.tab = 'layout'; this.closeOptics();
     this.backup = JSON.parse(JSON.stringify(this.cfg));
     this.el.classList.remove('off'); this.el.classList.add('edit'); this.ed.classList.add('on');
     this.layout();
@@ -375,30 +442,31 @@ export class TouchControls {
   }
   drawPanel() {
     const c = this.cfg, sel = this.sel, L = this.pos(sel), base = LAYOUT[sel].s;
-    const seg = (k, opts) => `<span class="seg">${opts.map(([v, t]) => `<button data-set="${k}" data-v="${v}" class="${String(c[k]) === String(v) ? 'on' : ''}">${t}</button>`).join('')}</span>`;
-    const rng = (k, lo, hi, st, val, txt) => `<div class="row"><span class="lb">${txt}</span><input type="range" data-r="${k}" min="${lo}" max="${hi}" step="${st}" value="${val}"><span class="v">${Math.round(val * 100)}%</span></div>`;
+    const seg = (k, opts) => `<span class="seg">${opts.map(([v, lb]) => `<button data-set="${k}" data-v="${v}" class="${String(c[k]) === String(v) ? 'on' : ''}">${t(lb)}</button>`).join('')}</span>`;
+    const rng = (k, lo, hi, st, val, txt) => `<div class="row"><span class="lb">${t(txt)}</span><input type="range" data-r="${k}" min="${lo}" max="${hi}" step="${st}" value="${val}"><span class="v">${Math.round(val * 100)}%</span></div>`;
     this.ep.classList.toggle('min', !!this.min);
-    this.ep.innerHTML = `<div class="row" style="margin-top:0"><h4>Dokunmatik ayarlar</h4><span class="tabs"><button class="tb ${this.tab === 'layout' ? 'pri' : ''}" data-tab="layout">Düzen</button><button class="tb ${this.tab === 'sens' ? 'pri' : ''}" data-tab="sens">Hassasiyet</button><button class="tb" data-min>${this.min ? '▼ Aç' : '▲ Gizle'}</button></span></div>
-      <div class="body">${this.tab === 'layout' ? `<div class="hint">Butonları sürükleyerek taşı. Seçili: <b style="color:#ff8a1f">${NAMES[sel]}</b></div>
-        ${rng('size', 0.5, 1.8, 0.05, L.s / base, 'Seçili boyut')}
-        ${rng('opacity', 0.2, 1, 0.05, c.opacity, 'Saydamlık')}
-        <div class="row"><span class="lb">Joystick</span>${seg('joy', [['fixed', 'Sabit'], ['float', 'Hareketli']])}</div>
-        <div class="row"><span class="lb">Sağ ateş butonu</span>${seg('fire', [['fixed', 'Sabit'], ['float', 'Parmağı izler']])}</div>
-        <div class="row"><span class="lb">Sol ateş butonu</span>${seg('leftFire', [[true, 'Açık'], [false, 'Kapalı']])}</div>`
-      : `${rng('sens', 0.3, 2.5, 0.05, c.sens, 'Bakış hassasiyeti')}${rng('adsSens', 0.2, 1.5, 0.05, c.adsSens, 'Nişan hassasiyeti')}
-        <div class="row"><span class="lb">Jiroskop</span>${seg('gyro', [['off', 'Kapalı'], ['ads', 'Nişandayken'], ['on', 'Hep açık']])}</div>
-        ${rng('gyroSens', 0.2, 3, 0.05, c.gyroSens, 'Jiroskop hassasiyeti')}
-        <div class="row"><span class="lb">Jiroskop yönü</span>${seg('gyroInvX', [[false, 'Yatay normal'], [true, 'Yatay ters']])} ${seg('gyroInvY', [[false, 'Dikey normal'], [true, 'Dikey ters']])}</div>
-        <div class="hint">Jiroskop: telefonu çevirerek ince nişan. Ters dönüyorsa yönü değiştir.</div>
-        <div class="row"><span class="lb">Nişan yardımı</span>${seg('aim', [[true, 'Açık'], [false, 'Kapalı']])}</div>
-        ${rng('aimStr', 0.2, 1.5, 0.05, c.aimStr, 'Yardım gücü')}
-        <div class="hint">Nişan yardımı: düşman üstünde bakış yavaşlar, hareket / ateş / nişan sırasında görünen düşmana hafifçe döner. Duvar arkasına çekmez.</div>`}</div>
-      <div class="row acts" style="justify-content:flex-end;margin-top:${this.min ? 6 : 8}px"><button class="tb" data-act="reset">Varsayılana dön</button><button class="tb" data-act="cancel">İptal</button><button class="tb pri" data-act="save">Kaydet</button></div>`;
+    this.ep.innerHTML = `<div class="row" style="margin-top:0"><h4>${t('tc.title')}</h4><span class="tabs"><button class="tb ${this.tab === 'layout' ? 'pri' : ''}" data-tab="layout">${t('tc.tLayout')}</button><button class="tb ${this.tab === 'sens' ? 'pri' : ''}" data-tab="sens">${t('tc.tSens')}</button><button class="tb" data-min>${t(this.min ? 'tc.open' : 'tc.hide')}</button></span></div>
+      <div class="body">${this.tab === 'layout' ? `<div class="hint">${t('tc.dragHint')} <b style="color:#ff8a1f">${NAME(sel)}</b></div>${this._zb ? '' : `<div class="hint">${t('tc.zHint')}</div>`}
+        ${rng('size', 0.5, 1.8, 0.05, L.s / base, 'tc.size')}
+        ${rng('opacity', 0.2, 1, 0.05, c.opacity, 'tc.opacity')}
+        <div class="row"><span class="lb">${t('tc.joy')}</span>${seg('joy', [['fixed', 'tc.fixed'], ['float', 'tc.float']])}</div>
+        <div class="row"><span class="lb">${t('tc.rFire')}</span>${seg('fire', [['fixed', 'tc.fixed'], ['float', 'tc.follow']])}</div>
+        <div class="row"><span class="lb">${t('tc.lFire')}</span>${seg('leftFire', [[true, 'tc.on'], [false, 'tc.off']])}</div>`
+      : `${rng('sens', 0.3, 2.5, 0.05, c.sens, 'tc.sens')}${rng('adsSens', 0.2, 1.5, 0.05, c.adsSens, 'tc.adsSens')}
+        <div class="row"><span class="lb">${t('tc.gyro')}</span>${seg('gyro', [['off', 'tc.off'], ['ads', 'tc.gyroAds'], ['on', 'tc.gyroOn']])}</div>
+        ${rng('gyroSens', 0.2, 3, 0.05, c.gyroSens, 'tc.gyroSens')}
+        <div class="row"><span class="lb">${t('tc.gyroDir')}</span>${seg('gyroInvX', [[false, 'tc.hN'], [true, 'tc.hI']])} ${seg('gyroInvY', [[false, 'tc.vN'], [true, 'tc.vI']])}</div>
+        <div class="hint">${t('tc.gyroHint')}</div>
+        <div class="row"><span class="lb">${t('tc.aim')}</span>${seg('aim', [[true, 'tc.on'], [false, 'tc.off']])}</div>
+        ${rng('aimStr', 0.2, 1.5, 0.05, c.aimStr, 'tc.aimStr')}
+        <div class="row"><span class="lb">${t('tc.retSz')}</span><input type="range" data-r="retSz" min="0.6" max="1.8" step="0.05" value="${c.retSz || 1}"><span class="v">${Math.round((c.retSz || 1) * 100)}%</span><span class="rp"><i></i></span></div>
+        <div class="hint">${t('tc.aimHint')}</div>`}</div>
+      <div class="row acts" style="justify-content:flex-end;margin-top:${this.min ? 6 : 8}px"><button class="tb" data-act="reset">${t('tc.reset')}</button><button class="tb" data-act="cancel">${t('tc.cancel')}</button><button class="tb pri" data-act="save">${t('tc.save')}</button></div>`;
     this.ep.querySelectorAll('[data-tab]').forEach((b) => (b.onclick = () => { this.tab = b.dataset.tab; this.min = false; this.drawPanel(); }));
     this.ep.querySelector('[data-min]').onclick = () => { this.min = !this.min; this.drawPanel(); };
     this.ep.querySelectorAll('[data-set]').forEach((b) => (b.onclick = async () => {
       const k = b.dataset.set, raw = b.dataset.v, v = raw === 'true' ? true : raw === 'false' ? false : raw;
-      if (k === 'gyro' && v !== 'off' && !(await this.gyroPermission())) { this.g.hud.toast('Jiroskop izni verilmedi', '#ffd27a'); return; }
+      if (k === 'gyro' && v !== 'off' && !(await this.gyroPermission())) { this.g.hud.toast(t('tc.gyroDenied'), '#ffd27a'); return; }
       c[k] = v; this.layout(); this.drawPanel();
     }));
     this.ep.querySelectorAll('[data-r]').forEach((r) => (r.oninput = () => {
@@ -412,7 +480,7 @@ export class TouchControls {
       const a = b.dataset.act;
       if (a === 'reset') { this.cfg = { ...DEF, layout: {} }; this.layout(); this.drawPanel(); return; }
       if (a === 'cancel') this.cfg = this.backup;
-      if (a === 'save') { saveCfg(this.cfg); this.g.hud.toast('Dokunmatik ayarlar kaydedildi', '#9fe6a8'); }
+      if (a === 'save') { saveCfg(this.cfg); this.g.hud.toast(t('tc.saved'), '#9fe6a8'); }
       this.closeEditor();
     }));
   }
@@ -430,6 +498,7 @@ export class TouchControls {
     const show = s.alive && g.simulate && !g.ended && p.locked;
     this.el.classList.toggle('off', !show);
     if (!show) {
+      this.closeOptics();
       this.f = this.r = 0; this.sprint = this.jump = false; this.runLock = false; this.joy = null; this.looks.clear();
       this.jb.classList.remove('drag', 'run', 'locked', 'lockon');
       if (this.cfg.joy === 'float') this.jb.classList.add('float');
@@ -443,7 +512,23 @@ export class TouchControls {
     this.b.crouch.classList.toggle('on', !!(s.crouching || s.prone));
     this.b.nade.classList.toggle('on', s.cur === 2);
     this.b.third.classList.toggle('on', !!p.third);
+    // zombi: güç butonu (halka = bekleme / etkin süre), silah butonları yok
+    const zb = !!s.def.zombie, ab = zb ? s.ability : null;
+    if (zb !== this._zb) { this._zb = zb; for (const k of ['ads', 'optic', 'reload', 'swap', 'nade']) this.b[k].classList.toggle('zh', zb); this.b.abil.classList.toggle('zh', !zb); }
+    if (ab) {
+      const act = s.abActive > 0, rdy = s.abT <= 0 && !act, B = this.b.abil;
+      const f = act ? s.abActive / ab.dur : rdy ? 1 : 1 - s.abT / ab.cd;
+      const st = act ? 'act' : rdy ? 'rdy' : 'cd', txt = act ? s.abActive.toFixed(1) : rdy ? t('tc.ready') : String(Math.ceil(s.abT));
+      if (st !== this._abS) { this._abS = st; B.classList.remove('act', 'rdy', 'cd'); B.classList.add(st); }
+      if (txt !== this._abTx) { this._abTx = txt; B.querySelector('.ol').textContent = txt; }
+      const off = (100 - Math.max(0, Math.min(1, f)) * 100).toFixed(1);
+      if (off !== this._abO) { this._abO = off; B.querySelector('.rg circle').style.strokeDashoffset = off; }
+    }
+    const n = zb ? 0 : p.opticList().length, oid = s.opticId;
+    this.b.optic.classList.toggle('hid', n < 2);                                             // tek nişangâhlı silahta (dürbünlü tüfekler, çifte, revolver, RPG, M79) gizli
+    if (n < 2) this.closeOptics();
+    if (oid !== this._oid) { this._oid = oid; this.b.optic.querySelector('.ol').textContent = opLabel(oid); }
   }
 
-  dispose() { cancelAnimationFrame(this._raf); removeEventListener('resize', this.h.rs); removeEventListener('deviceorientation', this._gy); this.el.remove(); this.ed.remove(); document.body.classList.remove('mob'); document.getElementById('bTouch')?.remove(); }
+  dispose() { cancelAnimationFrame(this._raf); removeEventListener('resize', this.h.rs); removeEventListener('deviceorientation', this._gy); this.el.remove(); this.ed.remove(); this.op.remove(); document.body.classList.remove('mob'); document.body.style.removeProperty('--rs'); document.getElementById('bTouch')?.remove(); }
 }

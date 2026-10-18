@@ -111,7 +111,7 @@ export class InGameSettings {
       body = `<div class="pan"><h3>${t('set.lang')}</h3><div class="row">${LANGS.map(([l, n]) => ch('lang', l, lang() === l, n)).join('')}</div></div>
         <div class="pan"><h3>${t('set.mouse')}</h3>
         ${sl('sens', t('set.sens'), 0.0008, 0.006, 0.0001, s.sens ?? 0.0022, FMT.sens)}
-        ${mob() ? sl('fov', t('set.fovH'), 70, 110, 1, s.fov ?? 85, FMT.fov) : sl('fov', t('set.fov'), 60, 100, 1, s.fov ?? 80, FMT.fov)}</div>
+        ${mob() ? sl('fov', t('set.fovH'), 70, 110, 1, s.fov ?? 80, FMT.fov) : sl('fov', t('set.fov'), 60, 100, 1, s.fov ?? 80, FMT.fov)}</div>
         <div class="pan"><h3>${t('set.sound')}</h3>
         ${sl('volume', t('set.vol'), 0, 1, 0.05, s.volume ?? 0.6, FMT.pct)}
         ${sl('vSfx', t('set.sfx'), 0, 1, 0.05, s.vSfx ?? 1, FMT.pct)}

@@ -73,6 +73,13 @@ for (const dk of want) for (const lang of langs) {
     }, mode);
     await page.waitForTimeout(400);
     await shot(`hud-${mode}`); await audit(`hud-${mode}`, '#hud');
+    if (mob) await audit(`dokunmatik-${mode}`, '#tc');                                       // dokunmatik buton etiketleri (nişangâh: DEMİR / IRON …)
+    if (mob && mode === 'inf') {                                                               // zombiyken güç butonu (HAZIR / READY)
+      await page.evaluate(() => { const g = window.__game, me = g.playerSoldier; g.timeLeft = Math.min(g.timeLeft, g.mode.time - 60); if (!me.def.zombie) g.makeZombie(me, false, 'brute'); me.abT = 0; me.abActive = 0; g.player.refreshWeapon?.(); });
+      await page.waitForFunction(() => document.querySelector('#tc [data-b=abil]')?.classList.contains('rdy'), null, { timeout: 20000 }).catch(() => {});
+      await shot('zombi-guc'); await audit('zombi-guc', '#tc');
+      check(await page.evaluate(() => getComputedStyle(document.querySelector('#tc [data-b=abil]')).display !== 'none'), `${pre} inf: zombi gücü butonu görünüyor`);
+    }
     // skor tablosu
     await page.evaluate(() => window.__game.hud.showScoreboard(true)); await page.waitForTimeout(300);
     await shot(`skor-${mode}`); await audit(`skor-${mode}`, '#scoreboard');
@@ -82,7 +89,13 @@ for (const dk of want) for (const lang of langs) {
       await page.evaluate(() => window.__game.togglePause()); await page.waitForTimeout(400); await shot('duraklat'); await audit('duraklat', '#pause');
       await page.click('#bSet'); await page.waitForTimeout(300); await shot('ayarlar'); await audit('ayarlar', '#igs');
       await page.click('#igs .tab[data-tab=controls]'); await page.waitForTimeout(300); await shot('kontroller'); await audit('kontroller', '#igs');
-      await page.click('#igs .x'); await page.evaluate(() => { const g = window.__game; g.requestLock(); }); await page.waitForTimeout(300);
+      await page.click('#igs .x'); await page.waitForTimeout(200);
+      if (mob) {                                                                               // Dokunmatik ayarlar paneli (iki sekme)
+        await page.evaluate(() => document.getElementById('bTouch').click()); await page.waitForTimeout(300); await shot('dokunmatik-ayar'); await audit('dokunmatik-ayar', '#tcEd');
+        await page.evaluate(() => document.querySelector('#tcEd [data-tab=sens]').click()); await page.waitForTimeout(300); await shot('dokunmatik-hassasiyet'); await audit('dokunmatik-hassasiyet', '#tcEd');
+        await page.evaluate(() => document.querySelector('#tcEd [data-act=cancel]').click()); await page.waitForTimeout(200);
+      }
+      await page.evaluate(() => { const g = window.__game; g.requestLock(); }); await page.waitForTimeout(300);
     }
     // ölüm: bot kafadan vurur (gg / pb / dm / tdm / inf)
     await page.evaluate(() => {
