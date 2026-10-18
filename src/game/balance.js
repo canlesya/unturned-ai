@@ -8,6 +8,7 @@ import { WSTATS, CLASS_DEFS, DIFFICULTY, ZOMBIE, BOSS, ZTYPES, BACKSTAB_DMG, BLE
 export const TUNE = {
   walkSpeed: 5.6, sprintMul: 1.5, crouchMul: 0.52, proneMul: 0.27, jumpSpeed: 5.4, gravity: 15,
   spawnProtect: 2, firstProtect: 1, respawn: 5, respawnGG: 3, respawnPB: 3, botRespawnMin: 3.5, botRespawnMax: 6,
+  pbAmmoRespawn: 20, pbHealthRespawn: 20, pbHeal: 40,                // paintball toplanabilir kutular (game/pickups.js): yeniden belirme (sn), can kutusunun verdiği can
   medicHeal: 2.5, medicRadius: 6, resupply: 0.12, reviveHp: 0.55,
   headMul: 2.1, legMul: 0.8, woodMul: 0.65, backstab: BACKSTAB_DMG, selfBlast: 0.55,
   captureRate: 0.085, bleed: BLEED_S,
@@ -51,7 +52,8 @@ function weaponFields(id) {
     return out;
   }
   out.push(f(p + 'dmg', 'Hasar', 1, 300));
-  if (s.ball) out.push(f(p + 'speed', 'Top hızı', 10, 150, 1, 'm/sn'), f(p + 'grav', 'Top düşüşü (yerçekimi)', 0, 30, 0.5, 'm/sn²'), f(p + 'head', 'Kafa çarpanı', 1, 4, 0.05, '×'), f(p + 'legs', 'Bacak çarpanı', 0.1, 1.5, 0.05, '×'));   // boya topu: menzil düşüşü yok
+  if (s.ball) out.push(f(p + 'speed', 'Top hızı', 10, 150, 1, 'm/sn'), f(p + 'grav', 'Top düşüşü (yerçekimi)', 0, 30, 0.5, 'm/sn²'), f(p + 'head', 'Kafa çarpanı', 1, 4, 0.05, '×'), f(p + 'legs', 'Bacak çarpanı', 0.1, 1.5, 0.05, '×'),
+    f(p + 'bloom', 'Seri atışta açılma (top başına)', 0, 20, 0.1, '', 1000), f(p + 'bloomMax', 'Açılma tavanı', 0, 80, 0.5, '', 1000), f(p + 'bloomRec', 'Açılma toparlanması', 0, 300, 1, '/sn', 1000));   // boya topu: menzil düşüşü yok
   if (s.pellets) out.push(f(p + 'pellets', 'Saçma sayısı', 1, 20));
   out.push(f(p + 'rpm', 'Atış/dk', 20, 1500, 10), f(p + 'mag', 'Şarjör', 1, 200), f(p + 'reserve', 'Yedek mermi', 0, 600));
   out.push(s.shell ? f(p + 'shell', 'Mermi başı doldurma', 0.1, 2, 0.05, 'sn') : f(p + 'reload', 'Doldurma', 0.3, 6, 0.1, 'sn'));
@@ -117,6 +119,8 @@ export function balanceSections() {
         f('mode.dmKills', 'Ölüm maçı öldürme hedefi', 5, 200), f('mode.infMin', 'Enfekte en az oyuncu', 2, 24, 2), f('mode.infMax', 'Enfekte en çok oyuncu', 4, 32, 2),
         f('mode.pbKills', 'Paintball eleme hedefi', 5, 200), f('mode.pbMin', 'Paintball en az oyuncu', 2, 12), f('mode.pbMax', 'Paintball en çok oyuncu', 2, 16),
         f('mode.time', 'Varsayılan maç süresi', 60, 3600, 30, 'sn'), f('tune.captureRate', 'Bayrak ele geçirme hızı', 0.01, 0.5, 0.005), f('tune.bleed', 'Bilet kanaması aralığı', 1, 60, 1, 'sn')] },
+      { id: 'pbpickups', name: 'Paintball kutuları', preview: { kind: 'icon', icon: 'first-aid-kit' }, fields: [
+        f('tune.pbAmmoRespawn', 'Boya topu kutusu yeniden belirme', 3, 120, 1, 'sn'), f('tune.pbHealthRespawn', 'Can kutusu yeniden belirme', 3, 120, 1, 'sn'), f('tune.pbHeal', 'Can kutusunun verdiği can', 5, 100, 5, 'can')] },
     ] },
     { id: 'bots', label: 'Botlar', icon: 'robot', items: [
       ...Object.keys(DIFFICULTY).map((k) => ({ id: k, name: DIFFICULTY[k].label + ' bot', preview: { kind: 'char', cls: 'assault', team: 'red' }, fields: [

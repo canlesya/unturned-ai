@@ -367,6 +367,15 @@ export function buildBoyaKulesi() {
     { name: 'Kuzey İskelesi', x: 0, z: -22.9, r: 3 }, { name: 'Doğu İskelesi', x: 22.9, z: 0, r: 3 },
   ];
 
+  // ───── toplanabilir kutular (paintball): boya topu kutusu (yedeği doldurur) + can kutusu (+TUNE.pbHeal). Çarpışmasız, yürünür yüzeyde, yol kesmez ─────
+  // Mermi: her kalenin kulübesinde (çatı altı) + kuzey / güney zemin siperlerinin arkası. Can: riskli yerler — Turuncu Köprüsü ortası (kuyunun üstü),
+  // kule balkonu (GB köşe), doğu / batı zeminde kuyu kenarına 2,3 m (açıkta)
+  const pickups = [];
+  for (const F of FORTS) { const [x, z] = rotXZ(F.k, -23.0, -23.0); pickups.push({ type: 'ammo', x, y: DECK, z, name: F.name.split(' ')[0] + ' Kulübesi' }); }
+  for (const k of [0, 2]) { const [x, z] = rotXZ(k, 5.35, -18.8); pickups.push({ type: 'ammo', x, y: 0, z, name: k ? 'Güney Siperleri' : 'Kuzey Siperleri' }); }
+  pickups.push({ type: 'health', x: -9.5, y: DECK, z: -2.9, name: 'Turuncu Köprüsü' }, { type: 'health', x: -4.7, y: TA, z: 4.7, name: 'Kule Balkonu' });
+  for (const k of [1, 3]) { const [x, z] = rotXZ(k, -3, -13); pickups.push({ type: 'health', x, y: 0, z, name: k === 1 ? 'Doğu Kuyu Kenarı' : 'Batı Kuyu Kenarı' }); }
+
   const group = b.build();
   // minderler: fırlatma vektörü (dünya). Tepe ≈ 10,7 m, ~1,6 sn'de kanada (6–7 m ötede) iner; havada yön değiştirme azdır (launchT, sim/input.js)
   for (const c of b.colliders) {
@@ -393,6 +402,7 @@ export function buildBoyaKulesi() {
     baseZones: null,
     spawns: { blue: spawns, red: spawns },
     ffaSpawns: spawns,
+    pickups,
     objectives: [],
     roamPoints: roam,
     callouts,

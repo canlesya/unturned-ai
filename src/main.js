@@ -52,7 +52,7 @@ function beginOnline({ net, welcome, name, pw }) {
   history.replaceState(null, '', `?online=${welcome.room}${q.get('debug') ? '&debug=1' : ''}${q.get('nolock') ? '&nolock=1' : ''}&name=${encodeURIComponent(name)}`);
   document.getElementById('menu').style.display = 'none';
   start({
-    online: { net, id: welcome.id, roster: welcome.roster, deps: welcome.deps, room: welcome.room, cfg: c },
+    online: { net, id: welcome.id, roster: welcome.roster, deps: welcome.deps, pk: welcome.pk, room: welcome.room, cfg: c },
     match: { perTeam: c.perTeam, type: c.type, tickets: c.tickets, time: c.time }, map: c.map, tod: c.tod, weather: c.weather, diff: c.diff,
     optic: q.get('optic') || p.optic || 'reddot', team: me.team, cls, playerName: name,
     keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs,

@@ -175,7 +175,7 @@ export class Room {
     this.emptySince = 0;
     this._forceSlow = true;
     const deps = g.deployables.map((d) => ({ e: 'dep', id: d.id, ty: d.type === 'claymore' ? 'c' : 'a', p: [d.pos.x, d.mesh.position.y - (d.type === 'claymore' ? 0.15 : 0), d.pos.z], ry: d.ry, tm: d.team, by: d.owner.id }));
-    ws.send(JSON.stringify({ t: 'welcome', id: s.id, room: this.code, cfg: this.publicCfg(), roster: this.roster(), hz: SIM_HZ, deps, bal: this.bal || {} }));
+    ws.send(JSON.stringify({ t: 'welcome', id: s.id, room: this.code, cfg: this.publicCfg(), roster: this.roster(), hz: SIM_HZ, deps, pk: g.pickups.netState(), bal: this.bal || {} }));
     this.broadcast({ t: 'roster', roster: this.roster() }, ws);
     this.sys(`${s.name} odaya katıldı`);
     return c;

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createWeapon } from '../models/weapons.js';
+import { pbLook } from '../models/character.js';
 import { tintPaint } from '../models/paintball.js';
 import { paintColorOf } from './paint.js';
 import { createItem } from '../models/items.js';
@@ -78,7 +79,7 @@ export class ViewModel {
     this.raise = 1;
     this.raiseRate = 1 / Math.max(0.15, Math.min(0.35, WSTATS[id]?.equip ?? 0.3));
     this.boltT = 0;
-    const c = TEAMS[id === 'claws' ? 'zomb' : team];                  // zombinin kolu/eli soluk yeşil
+    const c = id !== 'claws' && this.look ? { ...TEAMS[team], ...this.look } : TEAMS[id === 'claws' ? 'zomb' : team];      // zombinin kolu/eli soluk yeşil; look: paintball forması (kol = boya rengi, eldiven koyu)
     const g = new THREE.Group();
     this.flash = null;
     this.zh = null;
@@ -167,6 +168,7 @@ export class ViewModel {
     const hip = this.pos;
     const ads = u.noAds ? 0 : s.adsT;
     const tgt = this.adsTarget(u);
+    if (st.adsLow) tgt.x += st.adsLow[0], tgt.y += st.adsLow[1], tgt.z += st.adsLow[2];      // paintball: nişanda model iner / sağa kayar (hazne görüşü kapatmasın; nişangâh HUD'da halka)
     const speed = Math.hypot(s.vel.x, s.vel.z);
     const isMelee = st.kind === 'melee';
     const isGun = st.kind === 'gun' || st.kind === 'launcher';
@@ -435,6 +437,7 @@ export class Player {
 
   refreshWeapon() {
     const s = this.s;
+    this.vm.look = this.game.mode.paintball && !s.def?.zombie ? pbLook(paintColorOf(s)) : null;      // paintball: birinci şahıs kolu / eldiven forma renginde (yalnız renk)
     this.vm.setItem(s.item.id, s.team, s.stat.kind, s.optic, s.def?.zombie ? s.zt?.skin : null);
     if (s.stat.ball) { tintPaint(this.vm.model, paintColorOf(s)); this.vm.flash?.removeFromParent(); this.vm.flash = null; }      // paintball: hazne / tüp kendi boya rengimde, namlu alevi yok
   }

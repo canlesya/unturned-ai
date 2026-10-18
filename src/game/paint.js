@@ -21,12 +21,12 @@ export function ballLead(st, dist) { const t = dist / (st.speed || 70); return M
 const BALL_CAP = 1024, SPLAT_CAP = 400, MARK_CAP = 256, MARK_PER = 12, DROP_CAP = 480;
 const SLIDE_T = 0.1;                                   // görüntüde namludan göz hattına geçiş süresi
 const q2 = (v) => Math.round(v * 100) / 100;
-const _V1 = new THREE.Vector3(), _V2 = new THREE.Vector3(), _HP = new THREE.Vector3(), _P = new THREE.Vector3(), _D = new THREE.Vector3(), _Q = new THREE.Vector3(), _N = new THREE.Vector3(), _U = new THREE.Vector3(), _W = new THREE.Vector3();
+const _E = new THREE.Vector3(), _V1 = new THREE.Vector3(), _V2 = new THREE.Vector3(), _HP = new THREE.Vector3(), _P = new THREE.Vector3(), _D = new THREE.Vector3(), _Q = new THREE.Vector3(), _N = new THREE.Vector3(), _U = new THREE.Vector3(), _W = new THREE.Vector3();
 const _m = new THREE.Matrix4(), _m2 = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _c = new THREE.Color(), _bb = new THREE.Box3();
 const Z = new THREE.Vector3(0, 0, 1), ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 const COLS = PAINT_COLORS.map((h) => new THREE.Color(h));
 
-function makeBall() { return { on: false, id: 0, q: -1, by: null, st: null, w: '', col: 0, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, px: 0, py: 0, pz: 0, ox: 0, oy: 0, oz: 0, age: 0, vt: -1, own: false, remote: false, pend: 0, nx: 0, ny: 0, nz: 0, dx: 0, dy: 0, dz: 0 }; }
+function makeBall() { return { nm: false, on: false, id: 0, q: -1, by: null, st: null, w: '', col: 0, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, px: 0, py: 0, pz: 0, ox: 0, oy: 0, oz: 0, age: 0, vt: -1, own: false, remote: false, pend: 0, nx: 0, ny: 0, nz: 0, dx: 0, dy: 0, dz: 0 }; }
 
 // Leke dokusu: 2×2 atlas (4 farklı sıçrama: merkez blob + taç + damlacık + akıntı), beyaz + alfa (renk örnek başına)
 function splatAtlas() {
@@ -114,7 +114,7 @@ export class Paint {
       let k = 0; for (let i = 1; i < this.live.length; i++) if (this.live[i].age > this.live[k].age) k = i;
       b = this.live[k]; this.live[k] = this.live[this.live.length - 1]; this.live.pop(); this.stats.recycled++;
     }
-    b.on = true; b.age = 0; b.pend = 0; b.own = false; b.remote = false; b.q = -1; b.vt = -1; b.ox = b.oy = b.oz = 0;
+    b.on = true; b.age = 0; b.pend = 0; b.own = false; b.remote = false; b.q = -1; b.vt = -1; b.ox = b.oy = b.oz = 0; b.nm = false;
     this.live.push(b);
     return b;
   }
@@ -162,6 +162,7 @@ export class Paint {
   update(dt) {
     const g = this.g, online = !!g.online, auth = !online, live = this.live, hist = this.headless && g.histBuf;
     this.sndT = Math.max(0, this.sndT - dt);
+    const me = !this.headless && g.playerSoldier && g.playerSoldier.alive ? g.playerSoldier : null, E = me ? me.eye(_E) : null;      // yakın geçen top (ekranda damlacık)
     for (let i = live.length - 1; i >= 0; i--) {
       const b = live[i];
       if (b.pend > 0) { if ((b.pend -= dt) <= 0) { this._splat(b.x, b.y, b.z, b.nx, b.ny, b.nz, b.dx, b.dy, b.dz, b.col); this._kill(i); } continue; }
@@ -188,6 +189,11 @@ export class Paint {
         }
       }
       if (b.vt >= 0) b.vt += dt / SIM_DT;                            // sonraki adımda hedefler bir adım ileri (istemcinin gördüğü zaman çizgisi)
+      if (E && !b.nm && b.by !== me && best !== me) {                // başkasının topu bu adımda başımın ~1 m yakınından geçti
+        const L2 = sx * sx + sy * sy + sz * sz, t = Math.max(0, Math.min(bestT / L, ((E.x - b.x) * sx + (E.y - b.y) * sy + (E.z - b.z) * sz) / L2));
+        const qx = b.x + sx * t - E.x, qy = b.y + sy * t - E.y, qz = b.z + sz * t - E.z;
+        if (qx * qx + qy * qy + qz * qz < 1.0) { b.nm = true; this._nearMiss(me, qx, qy, qz, b); }
+      }
       if (best) { _HP.copy(_P).addScaledVector(_D, bestT); this._hitSoldier(b, best, zone, _HP, _D); this._kill(i); continue; }
       if (wh) {
         _Q.copy(wh.point); _N.copy(wh.normal); if (_N.lengthSq() < 0.5) _N.copy(_D).negate();
@@ -204,6 +210,12 @@ export class Paint {
     if (!this.headless) this._updateDrops(dt);
   }
 
+  _nearMiss(me, qx, qy, qz, b) {
+    const rx = Math.cos(me.yaw), rz = -Math.sin(me.yaw), side = qx * rx + qz * rz;
+    this.g.hud.paintNear?.(side < 0 ? -1 : 1, qy > 0 ? -1 : 1, b.col);
+    this.g.sfx.whiz?.(_Q.set(me.pos.x + qx, me.pos.y + qy, me.pos.z + qz));
+  }
+
   _hitSoldier(b, e, zone, p, d) {
     const g = this.g, st = b.st, by = b.by;
     this.stats.hits++; this.lastHit.copy(p);
@@ -218,12 +230,13 @@ export class Paint {
       return;
     }
     if (b.own && b.q >= 0) { this.predQ[this.predK] = b.q; this.predK = (this.predK + 1) & 63; }
-    this._hitFx(e, zone, p, d, b.col);
+    this._hitFx(e, zone, p, d, b.col, by);
   }
 
-  _hitFx(e, zone, p, d, col) {
+  _hitFx(e, zone, p, d, col, by) {
+    if (e === this.g.playerSoldier) this.g.hud.paintHit?.(by, zone, col);     // gözlüğüme boya (ekranda leke, atıcı yönünde)
     this._snd(p, true);
-    this._burst(p.x, p.y, p.z, -d.x, -d.y, -d.z, col, 10, 2.6);
+    if (e !== this.g.playerSoldier || this.g.showSelf) this._burst(p.x, p.y, p.z, -d.x, -d.y, -d.z, col, 10, 2.6);      // birinci şahısta kendi kafamdaki 3B sıçrama yerine ekran boyası
     this.addMark(e, p, zone, d, col);
   }
 
@@ -365,7 +378,7 @@ export class Paint {
         for (let i = 0; i < this.live.length; i++) if (this.live[i].own && this.live[i].q === ev.q) { this._kill(i); break; }
       } else for (let i = 0; i < this.live.length; i++) if (this.live[i].remote && this.live[i].id === ev.id) { this._kill(i); break; }
       _P.set(ev.p[0], ev.p[1], ev.p[2]); _D.set(ev.d[0], ev.d[1], ev.d[2]);
-      this._hitFx(v, ev.z === 2 ? 'head' : ev.z === 1 ? 'legs' : 'body', _P, _D, paintIndexOf(by));
+      this._hitFx(v, ev.z === 2 ? 'head' : ev.z === 1 ? 'legs' : 'body', _P, _D, paintIndexOf(by), by);
     }
   }
 

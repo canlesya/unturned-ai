@@ -177,7 +177,84 @@ function zombieGear(parts, ztype = 'walker') {
   }
 }
 
-function addGear(cls, team, c, parts, skin, ztype) {
+// ── Paintball kıyafeti (mod pb): kişisel boya renginde dolgulu forma + kontrast paneller + numara, tam yüz maskesi (lens + havalandırma),
+// dizlikli pantolon, dolgulu eldiven, belde bölmeli top kabı (pod pack). Vuruş kutuları değişmez (mantık modelden bağımsız).
+const lum = (h) => { const k = new THREE.Color(h); return 0.2126 * k.r + 0.7152 * k.g + 0.0722 * k.b; };
+// renk takımı: forma = boya rengi, panel = açık renkte koyu / koyu renkte beyaz, pantolon / eldiven koyu (birinci şahıs kolu da bunu kullanır)
+export function pbLook(col) {
+  const light = lum(col) > 0.5, k = new THREE.Color(col);
+  return { shirt: col, pants: '#272a31', vest: '#1c1e23', helmet: '#1c1e23', gloves: '#1f2126', boots: '#17171a', accent: light ? '#1c1e23' : '#f1f1ec',
+    panel: light ? '#22252b' : '#f1f1ec', dark: '#' + k.clone().multiplyScalar(0.62).getHexString(), lens: light ? '#2b3d55' : '#3a2f52', pod: '#' + k.clone().lerp(new THREE.Color('#ffffff'), 0.45).getHexString() };
+}
+// 7 parçalı rakam (kutu): a üst, b sağ üst, c sağ alt, d alt, e sol alt, f sol üst, g orta
+const SEG = ['abcdef', 'bc', 'abged', 'abgcd', 'fgbc', 'afgcd', 'afgedc', 'abc', 'abcdefg', 'abcdfg'];
+function digits(p, n, col, x0, y0, z, h = 0.11, front = false) {      // front: önden bakana göre aynalanır (ileri = −Z)
+  const str = String(n), w = h * 0.55, t = h * 0.16, gap = w + h * 0.22, sx = front ? -1 : 1;
+  [...str].forEach((ch, i) => {
+    const cx = x0 + sx * (i - (str.length - 1) / 2) * gap, S = SEG[+ch] || '';
+    const H = (y) => box(p, [w, t, 0.008], col, [cx, y0 + y, z]), Vt = (x, y) => box(p, [t, h / 2, 0.008], col, [cx + sx * x, y0 + y, z]);
+    if (S.includes('a')) H(h / 2); if (S.includes('g')) H(0); if (S.includes('d')) H(-h / 2);
+    if (S.includes('b')) Vt(w / 2 - t / 2, h / 4); if (S.includes('c')) Vt(w / 2 - t / 2, -h / 4);
+    if (S.includes('f')) Vt(-w / 2 + t / 2, h / 4); if (S.includes('e')) Vt(-w / 2 + t / 2, -h / 4);
+  });
+}
+function paintballGear(parts, c, skin, num) {
+  const { torso, head, legs } = parts, col = c.shirt, P = c.panel, D = '#1c1e23';
+  // forma: bol, dolgulu gövde (forma rengi) + omuz boyunduruğu / yan paneller / etek bandı kontrast renkte, yaka koyu
+  box(torso, [0.5, 0.47, 0.3], col, [0, 0.035, 0]);
+  box(torso, [0.506, 0.085, 0.306], P, [0, 0.235, 0]);
+  for (const sx of [-1, 1]) {
+    box(torso, [0.012, 0.38, 0.2], P, [sx * 0.253, 0.0, 0]);
+    box(torso, [0.18, 0.1, 0.19], col, [sx * SHOULDER_X, SHOULDER_Y + 0.05, 0]);              // dolgulu omuz
+    box(torso, [0.182, 0.03, 0.192], P, [sx * SHOULDER_X, SHOULDER_Y + 0.105, 0]);
+    for (let i = 0; i < 2; i++) box(torso, [0.2, 0.012, 0.012], c.dark, [sx * 0.13, 0.12 - i * 0.12, -0.152]);   // dolgu dikişleri
+  }
+  box(torso, [0.506, 0.05, 0.306], P, [0, -0.17, 0]);
+  box(torso, [0.2, 0.045, 0.2], D, [0, 0.31, 0]);
+  digits(torso, num, P, 0, 0.06, -0.156, 0.1, true);                                                    // göğüs numarası
+  digits(torso, num, P, 0, 0.08, 0.156, 0.16);                                              // sırt numarası (iri)
+  // bel kemeri + bölmeli top kabı (sırtta 4 top tüpü, kapaklar koyu) + göğüs çapraz askısı
+  box(torso, [0.49, 0.07, 0.32], D, [0, -0.25, 0]);
+  box(torso, [0.08, 0.05, 0.02], '#9aa0a6', [0, -0.25, -0.165]);
+  box(torso, [0.36, 0.12, 0.06], D, [0, -0.26, 0.19]);
+  for (let i = 0; i < 4; i++) {
+    const x = -0.12 + i * 0.08;
+    cylY(torso, 0.034, 0.034, 0.2, c.pod, [x, -0.2, 0.225], 8);                                    // yarı saydam görünümlü tüp (içindeki boya renginde, açık)
+    box(torso, [0.012, 0.15, 0.012], '#ffffff', [x - 0.016, -0.2, 0.256]);                          // tüp parlaması
+    cylY(torso, 0.038, 0.038, 0.035, '#15161a', [x, -0.085, 0.225], 8);                             // kapak
+  }
+  box(torso, [0.06, 0.012, 0.36], D, [0.15, 0.0, 0.0], [0.7, 0, 0]);                              // askı (omuzdan bele)
+  // pantolon: dışta boya renkli şerit, kalın dizlik (renk çizgili), bilekte koyu manşet
+  box(torso, [0.42, 0.11, 0.26], c.pants, [0, -0.33, 0]);
+  for (const s of ['L', 'R']) {
+    const sx = s === 'R' ? 1 : -1, th = legs[s].thigh, kn = legs[s].knee, ft = legs[s].foot;
+    box(th, [0.012, 0.36, 0.07], col, [sx * 0.092, -0.22, 0]);
+    box(th, [0.17, 0.1, 0.07], D, [0, -0.43, -0.095]);
+    box(kn, [0.17, 0.12, 0.07], D, [0, -0.04, -0.09]);
+    box(kn, [0.172, 0.022, 0.074], col, [0, -0.02, -0.09]);
+    box(kn, [0.168, 0.05, 0.2], D, [0, -0.33, 0]);
+    box(ft, [0.175, 0.03, 0.31], '#e8e8e2', [0, -0.05, -0.045]);                                    // spor ayakkabı tabanı
+    box(ft, [0.06, 0.012, 0.12], col, [sx * 0.088, 0.0, -0.05]);
+  }
+  // tam yüz maske: kafa bandı, geniş lens (koyu yansıtıcı), kulak koruması, havalandırmalı çene parçası, üstte siperlik; boya renkli şerit
+  face(head, skin, { noHair: false });
+  box(head, [0.322, 0.05, 0.322], D, [0, 0.04, 0.0]);
+  box(head, [0.33, 0.12, 0.05], D, [0, 0.03, -0.165]);
+  box(head, [0.28, 0.085, 0.012], c.lens, [0, 0.033, -0.195], null, { metalness: 0.6, roughness: 0.15 });
+  box(head, [0.12, 0.016, 0.006], '#c9d6e6', [-0.07, 0.058, -0.2], null, { metalness: 0.6, roughness: 0.15 });     // lens parlaması
+  taperBox(head, [0.27, 0.16, 0.09], D, [0, -0.085, -0.165], null, [1, 1], [0.7, 0.8]);
+  for (let i = 0; i < 3; i++) box(head, [0.13 - i * 0.025, 0.012, 0.012], '#050506', [0, -0.06 - i * 0.032, -0.209]);   // havalandırma yarıkları
+  for (const sx of [-1, 1]) {
+    box(head, [0.045, 0.15, 0.13], D, [sx * 0.17, -0.02, -0.08]);
+    box(head, [0.012, 0.06, 0.06], col, [sx * 0.193, -0.02, -0.08]);
+    for (let i = 0; i < 2; i++) box(head, [0.008, 0.012, 0.05], '#050506', [sx * 0.193, -0.08 - i * 0.025, -0.11]);
+  }
+  box(head, [0.3, 0.022, 0.08], D, [0, 0.1, -0.2], [-0.15, 0, 0]);                                // siperlik
+  box(head, [0.09, 0.03, 0.012], col, [0, -0.13, -0.19]);                                           // çene şeridi
+}
+
+function addGear(cls, team, c, parts, skin, ztype, look) {
+  if (look) { paintballGear(parts, c, skin, look.num); return; }
   const { torso, head, legs } = parts;
   if (cls === 'zombie') { zombieGear(parts, ztype); return; }
   // ortak: yelek + kemer + omuz kayışları
@@ -300,8 +377,10 @@ function addGear(cls, team, c, parts, skin, ztype) {
 }
 
 // ── Karakter oluşturucu ──
-export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0, weapon = null, blade = 0.38, optic = 'reddot', ztype = 'walker' } = {}) {
-  const c = TEAMS[team];
+// outfit 'paintball' + paint (renk) + num (forma numarası): paintball oyuncusu görünümü (sınıf teçhizatı yerine)
+export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0, weapon = null, blade = 0.38, optic = 'reddot', ztype = 'walker', outfit = null, paint = '#ff2b3a', num = 7 } = {}) {
+  const look = outfit === 'paintball' && cls !== 'zombie' ? { num } : null;
+  const c = look ? { ...TEAMS[team], ...pbLook(paint) } : TEAMS[team];
   const skin = SKINS[skinIndex % SKINS.length];
   const root = new THREE.Group();
   root.rotation.order = 'YXZ';   // önce yön (yaw), sonra gövde eğimi/yatma: baktığı yöne göre devrilir
@@ -344,7 +423,7 @@ export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0,
   legs.R.knee.rotation.x = 0.22;
 
   const parts = { torso, head, legs };
-  addGear(cls, team, c, parts, skin, ztype);
+  addGear(cls, team, c, parts, skin, ztype, look);
 
   // kollar + silah
   const armR = makeArm(torso, 'R', c);
