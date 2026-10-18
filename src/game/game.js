@@ -1567,6 +1567,8 @@ export class Game {
   }
 
   showEndScreen(w, why) {
+    if (this.payload && w === 'blue' && !this.payload.done && this.payload.netD > this.payload.end - 4) this.payload.finish();   // çevrimiçi: 'end' mesajı son snapshot'tan önce gelir
+    if (this.payload?.done && !this._plEndShown) { this._plEndShown = true; setTimeout(() => { if (this.renderer) this.showEndScreen(w, why); }, 2200); return; }   // Vagon: önce kapının patlaması görünsün
     document.exitPointerLock?.();
     const me = this.playerSoldier;
     const win = w === me.team;

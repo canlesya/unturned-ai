@@ -172,7 +172,7 @@ export function showMenu(onStart, onOnline) {
     const limitSum = tp === 'payload' ? t('payload.limitSum') : tp === 'inf' ? 'Son insan / süre' : tp === 'gg' ? '15 silah' : tp === 'dm' ? `${LIMITS.dmKills} öldürme` : tp === 'pb' ? `${LIMITS.pbKills} eleme` : tp === 'tdm' ? `${eff} skor` : `${eff} bilet`;
     const n = c.perTeam, sizeTxt = tot(tp) ? `${n} kişi` : `${n} vs ${n}`;
     const diffKey = tp === 'inf' ? 'hard' : c.diff, botsOn = online ? c.bots : true;
-    const timeLbl = (TIME_OPTS.find((t) => t[0] === c.time) || [0, '∞'])[1];
+    const timeLbl = tp === 'payload' && c.time !== 0 ? `${Math.round(LIMITS.plTime / 60)} dk + nokta` : (TIME_OPTS.find((t) => t[0] === c.time) || [0, '∞'])[1];
     const todLbl = ftod ? 'Gece (harita)' : c.tod === 'random' ? 'Rastgele' : (TODS_LIST.find((t) => t[0] === c.tod) || [0, c.tod])[1];
     const weaLbl = c.weather === 'random' ? 'Rastgele' : (WEATHERS.find((w) => w[0] === c.weather) || [0, c.weather])[1];
     const warn = tot(tp) ? '' : n > 20 ? '<div class="warn">Çok oyunculu maçlar güçlü bilgisayar ister; takılırsa sayıyı azalt.</div>' : '';

@@ -268,6 +268,7 @@ export class Room {
       for (const e of g.soldiers) arm(e);
       if (!g._pbArm) { g._pbArm = true; g.on('spawn', arm); }
     }
+    if (Number.isFinite(m.pld) && g.payload) { g.payload.d = Math.max(g.payload.floorD, Math.min(g.payload.end, m.pld)); g.payload.idleT = 0; }   // { pld } vagonu yol mesafesine taşı (Vagon testi)
     if (m.bots === false) { g.brainsOff = g.brains.splice(0); }
     if (m.bots === true && g.brainsOff) { g.brains.push(...g.brainsOff); g.brainsOff = null; }
   }
