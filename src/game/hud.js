@@ -6,6 +6,7 @@ import { TUNE } from './balance.js';
 import { ffaRanking, ffaMetric } from './match.js';
 import { ScreenPaint } from './screenPaint.js';
 import { paintColorOf, paintIndexOf } from './paint.js';
+import { COL as ABCOL } from './abilityfx.js';
 import { t as tr } from '../i18n/index.js';
 import '../i18n/pb.js';
 import { t, onLang } from '../i18n/index.js';
@@ -79,7 +80,7 @@ const CSS = `
 #abil{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);width:320px;white-space:nowrap;text-align:center;display:none;text-shadow:0 1px 4px #000;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:8px 12px 10px;background:linear-gradient(180deg,rgba(9,13,19,0),rgba(9,13,19,.7));}
 #abil .an{font-size:14px;margin-bottom:6px;display:flex;align-items:center;justify-content:center}#abil b{display:inline-block;min-width:22px;padding:2px 7px;margin-right:10px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.4);font-size:12px}
 #abil .bar{height:6px;background:rgba(255,255,255,.16);transform:skewX(-18deg)}#abil .bar i{display:block;height:100%;width:100%;background:#8dff5a;box-shadow:0 0 8px #8dff5a88}
-#abil.cd .bar i{background:#a8a8a8;box-shadow:none}#abil.on .bar i{background:var(--acc)}#abil.on{color:var(--acc2)}
+#abil.cd .bar i{background:#a8a8a8;box-shadow:none}#abil.on .bar i{background:var(--abc,var(--acc));box-shadow:0 0 10px var(--abc,var(--acc))}#abil.on{color:var(--abc,var(--acc2))}
 /* sağlık / sınıf */
 #vitals{position:absolute;left:20px;bottom:20px;width:320px;text-shadow:0 1px 4px #000;padding:10px 14px 8px;background:linear-gradient(90deg,rgba(9,13,19,.72),rgba(9,13,19,0));border-left:3px solid var(--acc)}
 #vitals .cls{font-size:13px;font-weight:700;letter-spacing:3px;opacity:.95;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -576,13 +577,14 @@ export class Hud {
   }
 
   damageFrom(fromPos, me) {
-    this.$('vig').style.opacity = 1;
+    const dim = !!this.game.abfx?.dimHits;                                   // zırh açıkken kırmızı isabet göstergesi soluk (sekme parlaması abilityfx'te)
+    this.$('vig').style.opacity = dim ? 0.3 : 1;
     this.vigT = 0.25;
     if (!fromPos) return;
     const dx = fromPos.x - me.pos.x, dz = fromPos.z - me.pos.z;
     // yaw artışı sola döner: ekran açısı = bakış yönüne göre göreli açı
     const rel = Math.atan2(-dx, -dz) - me.yaw;
-    const a = document.createElement('div'); a.className = 'arrow';
+    const a = document.createElement('div'); a.className = 'arrow'; if (dim) a.style.opacity = 0.4;
     a.style.transform = `rotate(${(-rel * 180) / Math.PI}deg)`;
     this.$('arrows').appendChild(a);
     setTimeout(() => a.remove(), 1400);
@@ -749,9 +751,10 @@ export class Hud {
     if (ab && p.alive) {
       abEl.style.display = 'block';
       const act = p.abActive > 0, rdy = p.abT <= 0 && !act, an = abilName(ab);
-      abEl.className = act ? 'on' : rdy ? '' : 'cd';
+      abEl.classList.toggle('on', act); abEl.classList.toggle('cd', !act && !rdy);     // className değil: abilityfx'in 'rdyp' parlaması silinmesin
+      if (abEl._abc !== ab.id) { abEl._abc = ab.id; abEl.style.setProperty('--abc', ABCOL[ab.id] || '#ff8a1f'); }
       $('abk').textContent = codeLabel(g.binds.codes('ability')[0]) + ' / ' + t('hud.rmb');
-      $('abn').textContent = act ? `${an} · ${p.abActive.toFixed(1)}s` : rdy ? `${an} · ${t('hud.ready')}` : `${an} · ${Math.ceil(p.abT)}s`;
+      $('abn').innerHTML = act ? `${an} <span class="sec">${p.abActive.toFixed(1)}</span>s` : rdy ? `${an} · ${t('hud.ready')}` : `${an} · ${Math.ceil(p.abT)}s`;
       $('abbar').style.width = (act ? p.abActive / ab.dur * 100 : rdy ? 100 : (1 - p.abT / ab.cd) * 100) + '%';
     } else abEl.style.display = 'none';
     $('hpnum').innerHTML = `${Math.max(0, Math.ceil(p.hp))}<small>HP</small>`;

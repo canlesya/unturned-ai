@@ -8,6 +8,7 @@ import { World } from './collision.js';
 import { Binds } from '../core/keybinds.js';
 import { music } from './music.js';
 import { KillFx } from './killfx.js';
+import { AbilityFx } from './abilityfx.js';
 import { NavGrid } from './nav.js';
 import { NavGridML } from './navml.js';
 import { Effects } from './effects.js';
@@ -255,6 +256,7 @@ export class Game {
     if (this.online) this.chat = new Chat(this);                                   // sohbet yalnızca çevrimiçi odalarda
     this.player = new Player(this, this.playerSoldier, this.settings);
     this.player.locked = !!opts.nolock;
+    this.abfx = new AbilityFx(this);                                                // zombi gücü: yerel oyuncunun ekran / ses geri bildirimi (abilityfx.js)
     this._vmLights();
     if (opts.devMode && !this.online) {                                             // geliştirici modu: uçuş + ölümsüzlük + rozet; maç bitmez
       this.playerSoldier.fly = true; this.devGod = true;
@@ -593,6 +595,7 @@ export class Game {
   showAbilityFx(s, id, from, to = s.pos) {
     if (this.headless) return;
     const V = THREE.Vector3, cam = this.camera.position;
+    if (s === this.playerSoldier && !this.player?.third) { this.sfx.zombie(s.pos, true); return; }      // kendi gücün 1. şahısta: kıvılcımlar yüzüne dolmasın, his abilityfx.js'te
     if (id === 'blink' || id === 'shadow') {
       const hi = (p, c) => { for (let i = 0; i < 3; i++) this.effects.spark(new V(p.x, p.y + 0.4 + i * 0.5, p.z), 10, new V(0, 1, 0), c, 5); };
       hi(from, '#c58cff'); hi(to, '#c58cff');
@@ -1676,6 +1679,7 @@ export class Game {
     clearTimeout(this._lockT);
     removeEventListener('resize', this._rs);
     this.player.dispose();
+    this.abfx?.dispose();
     this.chat?.dispose();
     this.killfx.dispose();
     this.hud.dispose();
