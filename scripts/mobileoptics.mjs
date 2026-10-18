@@ -10,7 +10,7 @@ import WebSocket from 'ws';
 import fs from 'fs';
 const base = process.argv[2] || 'http://127.0.0.1:5180';
 const tag = process.argv[3] || 'now';
-const OUT = `/tmp/wb-mo2-shots/${tag}`;
+const OUT = `${process.env.OUT || "/tmp/wb-mo2-shots"}/${tag}`;
 fs.mkdirSync(OUT, { recursive: true });
 const strip = (d) => { const { defaultBrowserType, ...r } = d; return r; };
 const DEVS = {
