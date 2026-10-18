@@ -77,6 +77,8 @@ export class BotBrain {
     const objs = g.mode.objectives;
     this.via = null;
     if (g.mode.infection) { this.huddle(); return; }      // Enfekte: insan botlar zombiye koşmaz, birbirine yakın durup birlikte savunur
+    this.plPush = false;
+    if (g.payload) { this.payloadGoal(); return; }        // Vagon: saldıran vagonun yanında iter / önünü temizler, savunan önüne geçer / ileride siper tutar
     if (!objs.length) { this.roam(); return; }       // takım çatışması: haritada dolaş, düşmana yönel
     const sq = g.squadGoal(s);
     let obj = sq || null;
@@ -119,6 +121,16 @@ export class BotBrain {
       const vi = g.nav.nearestFree(vx, vz, 10);
       if (vi >= 0) this.via = new THREE.Vector3(g.nav.cx(vi), 0, g.nav.cz(vi));
     }
+  }
+
+  // Vagon modu hedefi (payload.botGoal): nişancı vagonun ilerisini gören yüksek noktaya, sıhhiye önce cesede, kalanlar vagon yanı / ilerisi
+  payloadGoal() {
+    const g = this.game, s = this.s, pg = g.payload.botGoal(s);
+    this.perching = false;
+    if (s.cls === 'sniper' && pg.perch && Math.random() < 0.7) { this.setGoal(pg.perch.x, pg.perch.z, rand(18, 30)); this.perching = true; return; }
+    if (s.cls === 'medic') { const c = g.nearestCorpse(s, 30); if (c) { this.setGoal(c.pos.x, c.pos.z, 6); return; } }
+    this.plPush = pg.push;
+    this.setGoal(pg.x, pg.z, pg.t);
   }
 
   // Aynı hedefe kilitli diğer bot sayısı (en çok 8)
@@ -313,7 +325,7 @@ export class BotBrain {
     const gd = Math.hypot(this.goal.x - s.pos.x, this.goal.z - s.pos.z) + (g.nav.nearestNode ? Math.max(0, Math.abs(this.goal.y - s.pos.y) - 1.2) * 3 : 0);   // katlı: hedef katta değilse varılmış sayılmaz
     if (gd < 1.8 && !this.via) {
       this.holdT -= dt;
-      if (this.perching) { s.crouching = true; if (this.holdT <= 0) this.holdT = 3; } else if (this.holdT <= 0) { this.holdT = rand(2, 5); if (g.nav.nearestNode && Math.random() < 0.6) this.pickGoal(); else this.setGoal(this.goal.x + rand(-6, 6), this.goal.z + rand(-6, 6), 10, this.goal.y); }      // katlı haritada yeni dolaşma noktası (kat değiştirsin)
+      if (this.perching) { s.crouching = true; if (this.holdT <= 0) this.holdT = 3; } else if (this.holdT <= 0) { this.holdT = rand(2, 5); if ((g.nav.nearestNode && Math.random() < 0.6) || (g.payload && this.plPush)) this.pickGoal(); else this.setGoal(this.goal.x + rand(-6, 6), this.goal.z + rand(-6, 6), 10, this.goal.y); }      // katlı haritada yeni dolaşma noktası (kat değiştirsin)
       return [0, 0, 0];
     }
     this.repathT -= dt;
@@ -457,7 +469,8 @@ export class BotBrain {
         moveX = nx * fwd + (-nz) * this.strafeDir * 0.55;
         moveZ = nz * fwd + (nx) * this.strafeDir * 0.55;
         speed *= 0.62;
-        if (g.nav.nearestNode && s.cur !== 3 && st.kind !== 'melee' && (dist > 9 || Math.abs(tp.y - s.pos.y) > 2.5)) {      // katlı harita: çatışırken de hedef kata yürü (merdiven / köprü), yürürken ateş et
+        const plKeep = g.payload && (this.plPush || s.team === 'blue') && !this.perching && dist > 6 && g.payload.distTo(s) > TUNE.plRadius - 0.9;      // Vagon: saldıran (ve vagonu durduran savunan) çatışırken de vagona yürür, yanından kopmaz
+        if ((g.nav.nearestNode || plKeep) && s.cur !== 3 && st.kind !== 'melee' && (plKeep || dist > 9 || Math.abs(tp.y - s.pos.y) > 2.5)) {      // katlı harita: çatışırken de hedef kata yürü (merdiven / köprü), yürürken ateş et
           const pm = this.followGoal(dt);
           if (pm && pm[2] > 0) { moveX = pm[0] * 0.9 + (-nz) * this.strafeDir * 0.25; moveZ = pm[1] * 0.9 + nx * this.strafeDir * 0.25; speed /= 0.62 * 1.15; }
         }

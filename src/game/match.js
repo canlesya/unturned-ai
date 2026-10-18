@@ -5,9 +5,12 @@ export const MATCH_TYPES = {
   inf: { label: 'Enfekte', desc: '1–2 dev BOSS zombi başlar. İnsan 1 ölümle zombi olur, zombi 1 ölümle (boss 3 ölümle) insana döner. Son insan düşerse zombiler, süre dolarsa ya da tüm zombiler iyileşirse insanlar kazanır.' },
   gg: { label: 'Silah Yarışı', desc: 'Herkes tek. Her öldürmede bir sonraki silah; 15. silah bıçak. Bıçakla öldürülen bir seviye geriler; bıçakla ilk öldüren kazanır (en çok 10 kişi).' },
   dm: { label: 'Ölüm Maçı', desc: 'Herkes tek. Rastgele doğ, ilk 40 öldürmeye ulaşan kazanır (en çok 10 kişi).' },
+  payload: { get label() { return t('payload.label'); }, get desc() { return t('payload.desc'); } },     // Vagon: Mavi saldırır (vagonu iter), Kırmızı savunur (src/game/payload.js)
   pb: { label: 'Paintball', desc: 'Herkes tek, herkesin kendi boya rengi. Sabit boya silahları, Boya Kulesi\'nde üç kat: zemin siperleri, kaleler, kule tepesi. Kuyuya düşen elenir; ilk 30 elemeye ulaşan kazanır.' },
 };
 import { LIMITS } from './balance.js';
+import { t } from '../i18n/index.js';
+import '../i18n/payload.js';
 import { WSTATS } from './stats.js';
 
 export const DM_KILLS = 40, DM_MAX = 10;                 // varsayılanlar; oyun LIMITS'i okur (admin paneli)
@@ -33,12 +36,13 @@ export function defaultTickets(perTeam) { return Math.max(40, Math.round(perTeam
 export const ffaMetric = (s, gg) => (gg ? s.ggLevel + 1 : s.kills);          // gg: seviye (1..15), değilse öldürme
 export const ffaRanking = (soldiers, gg) => soldiers.filter((s) => !s.vacant).sort((a, b) => (gg ? b.ggLevel - a.ggLevel : 0) || b.kills - a.kills || b.score - a.score);
 export function makeMatch(o = {}) {
-  const pb = o.type === 'pb', dm = o.type === 'dm' || o.type === 'gg' || pb, inf = o.type === 'inf', gg = o.type === 'gg';
+  const pl = o.type === 'payload', pb = o.type === 'pb', dm = o.type === 'dm' || o.type === 'gg' || pb, inf = o.type === 'inf', gg = o.type === 'gg';
   // Ölüm maçında perTeam = toplam oyuncu sayısı (2–10)
   const total = inf ? Math.max(LIMITS.infMin, Math.min(LIMITS.infMax, Math.round((o.perTeam || 12) / 2) * 2)) : 0;           // Enfekte: toplam oyuncu (çift)
   const perTeam = pb ? Math.max(LIMITS.pbMin, Math.min(LIMITS.pbMax, Math.round(o.perTeam || 8))) : dm ? Math.max(2, Math.min(LIMITS.dmMax, Math.round(o.perTeam || LIMITS.dmMax))) : inf ? total / 2 : Math.max(1, Math.min(LIMITS.maxPerTeam, Math.round(o.perTeam || 10)));   // inf: motor için iki yarı
   return {
-    type: pb ? 'pb' : gg ? 'gg' : dm ? 'dm' : inf ? 'inf' : o.type === 'tdm' ? 'tdm' : 'conquest',
+    type: pb ? 'pb' : gg ? 'gg' : dm ? 'dm' : inf ? 'inf' : o.type === 'tdm' ? 'tdm' : pl ? 'payload' : 'conquest',
+    payload: pl,                                                    // Vagon: süre = LIMITS.plTime (0 = sınırsız) + kontrol noktası ödülü; bilet yerine ilerleme yüzdesi
     infection: inf,
     total: inf ? total : 0,
     ffa: dm,                                                        // Ölüm Maçı + Silah Yarışı: herkes tek
@@ -47,9 +51,9 @@ export function makeMatch(o = {}) {
     fixed: gg || pb,                                                // sınıf / teçhizat seçimi yok (ölüm ekranında satır gizli)
     killLimit: gg ? GG_LEN : pb ? LIMITS.pbKills : dm ? LIMITS.dmKills : 0,
     perTeam,
-    tickets: o.tickets || (o.type === 'tdm' ? defaultScoreLimit(perTeam) : defaultTickets(perTeam)),
+    tickets: pl ? 100 : o.tickets || (o.type === 'tdm' ? defaultScoreLimit(perTeam) : defaultTickets(perTeam)),
     scoreBased: o.type === 'tdm',                                // true: tickets = skor sınırı, takım sayaçları yukarı sayar
-    time: o.time === undefined ? LIMITS.time : o.time,
+    time: pl ? (o.time === 0 ? 0 : LIMITS.plTime) : o.time === undefined ? LIMITS.time : o.time,
     label: o.label || (dm ? `${perTeam} kişilik` : inf ? `${total} kişilik` : `${perTeam}v${perTeam}`),
     allFlags: o.allFlags ?? perTeam >= 8,
   };

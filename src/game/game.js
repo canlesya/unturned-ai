@@ -28,12 +28,14 @@ import { nullSink } from '../sim/nullSink.js';
 import { applyInput } from '../sim/input.js';
 import { SIM_DT } from '../net/protocol.js';
 import { mat } from '../core/geo.js';
+import { t } from '../i18n/index.js';
 import { Paint, paintColorOf } from './paint.js';
 import { Pickups } from './pickups.js';
 import { EndFlow } from './endFlow.js';
 import { t } from '../i18n/index.js';
 import { t as $t } from '../i18n/index.js';
 import { placeName } from '../i18n/game.js';                                                         // oyun içi sözlük (hud. / death. / end. …)
+import { Payload } from './payload.js';
 import { initGadgets, updateGadgets, spawnSmoke, flashBang, smokeBlocks, smokeDensity, placeDeployable, netDeploy, netUndeploy } from './gadgets.js';
 
 const STAT_ID = new Map(Object.entries(WSTATS).map(([k, v]) => [v, k]));      // WSTATS nesnesi → id (ağ olayları için)
@@ -158,6 +160,7 @@ export class Game {
     this.mode.objectives = this.mode.type !== 'conquest' ? [] : this.map.objectives.filter((o) => this.mode.allFlags || o.core).map((o) => ({ ...o, owner: null, p: 0 }));
     this.tickets = this.mode.scoreBased ? { blue: 0, red: 0 } : { blue: this.mode.tickets, red: this.mode.tickets };   // skor modunda: takım skoru 0'dan başlar, mode.tickets = sınır
     this.timeLeft = this.mode.time || Infinity;
+    this.payload = this.mode.payload && this.map.payload ? new Payload(this) : null;   // Vagon modu: ray + vagon + aşamalı doğuşlar (payload.js)
     this.spawnChoice = 'base';
 
     this.visMul = 1;
@@ -942,8 +945,10 @@ export class Game {
     this.paint.update(dt);
     this.pickups.update(dt);
     updateGadgets(this, dt, this.time);
+    this.payload?.netFrame(dt);
     this.effects.update(dt);
     this.hud.update(dt);
+    this.payload?.frame(dt);
   }
 
   step(dt) {
@@ -975,6 +980,7 @@ export class Game {
     this.effects.update(dt);
     for (const s of this.soldiers) s.syncModel(dt);
     this.hud.update(dt);
+    this.payload?.frame(dt);
     if (this.headless) { this.tick++; this.recordHist(); }
   }
 
@@ -1419,6 +1425,7 @@ export class Game {
   // ───── Mod: hedef ele geçirme + bilet ─────
   updateMode(dt) {
     if (this.timeLeft !== Infinity) this.timeLeft -= dt;
+    if (this.payload) this.payload.update(dt);                                     // vagon: itme / çekişme / geri kayma, kontrol noktası, uzatma
     if (this.mode.infection) {
       const c = this.infCounts(); this.tickets.blue = c.h; this.tickets.red = c.z;
       if (!this.headless && (this.groanT = (this.groanT || 0) - dt) <= 0) {                 // yakındaki zombiler ara sıra inler
@@ -1538,6 +1545,7 @@ export class Game {
     } else if (this.mode.gungame) victim.respawnT = victim.isPlayer || victim.human ? TUNE.respawnGG : rand(2.2, 3.6);
     else if (this.mode.paintball) victim.respawnT = victim.isPlayer || victim.human ? TUNE.respawnPB : rand(TUNE.respawnPB * 0.8, TUNE.respawnPB * 1.2);
     else victim.respawnT = victim.isPlayer || victim.human ? TUNE.respawn : rand(TUNE.botRespawnMin, TUNE.botRespawnMax);
+    if (this.payload) victim.respawnT *= victim.team === 'blue' ? TUNE.plAtkRespawn : TUNE.plDefRespawn;     // Vagon: saldıran daha çabuk, savunan biraz geç doğar (dalga dengesi)
     if (victim.isPlayer && this.player) this.player.camPos.copy(victim.eye());
   }
 
@@ -1552,6 +1560,9 @@ export class Game {
       const [best, second] = ffaRanking(this.soldiers, false);
       if (best && best.kills >= this.mode.killLimit) { w = best.team; why = $t('end.dmReach', { n: best.name, k: best.kills }); }
       else if (this.timeLeft <= 0 && best) { w = best.team; why = $t('end.dmTime', { n: best.name, k: best.kills }) + (second && second.kills === best.kills ? $t('end.dmTie') : ''); }   // eşit öldürmede puan ayırır
+    } else if (this.payload) {
+      const r = this.payload.result();
+      if (r) [w, why] = r;
     } else if (this.mode.infection) {
       const c = this.infCounts();
       if (c.h <= 0) { w = 'red'; why = $t('end.infAll'); }
@@ -1574,6 +1585,8 @@ export class Game {
 
   // Sonuç ekranı + sonraki maç akışı (EndFlow: oylama / seçim kartları, geri sayım; ana menüye kendiliğinden dönülmez). net: çevrimiçi 'end' mesajı
   showEndScreen(w, why, net = null) {
+    if (this.payload && w === 'blue' && !this.payload.done && this.payload.netD > this.payload.end - 4) this.payload.finish();   // çevrimiçi: 'end' mesajı son snapshot'tan önce gelir
+    if (this.payload?.done && !this._plEndShown) { this._plEndShown = true; setTimeout(() => { if (this.renderer) this.showEndScreen(w, why, net); }, 2200); return; }   // Vagon: önce kapının patlaması görünsün
     document.exitPointerLock?.();
     const me = this.playerSoldier;
     const win = w === me.team;
@@ -1583,7 +1596,7 @@ export class Game {
     const wname = this.ffa ? (this.soldiers.find((s) => s.team === w)?.name || '') : inf ? (w === 'red' ? t('match.zombies') : t('match.humans')) : TEAMS[w].name;
     const gg = this.mode.gungame, best = list[0] ? t('match.teamBest', { name: list[0].name, score: list[0].score }) : '';
     const tb = Math.max(0, Math.round(this.tickets.blue)), tr = Math.max(0, Math.round(this.tickets.red));
-    const sub = this.ffa ? `${t('match.rank')}: ${ffaRanking(this.soldiers, gg).slice(0, 3).map((s, i) => `${i + 1}. ${s.name} (${gg ? t('match.lvl') : ''}${ffaMetric(s, gg)})`).join(' · ')}` : `${t(inf ? 'match.humZom' : 'match.blueRed', { b: tb, r: tr })} · ${best}`;
+    const sub = this.payload ? t('payload.endSub', { pct: Math.round(this.payload.progress * 100), cp: this.payload.reached, best: list[0].name, score: list[0].score }) : this.ffa ? `${t('match.rank')}: ${ffaRanking(this.soldiers, gg).slice(0, 3).map((s, i) => `${i + 1}. ${s.name} (${gg ? t('match.lvl') : ''}${ffaMetric(s, gg)})`).join(' · ')}` : `${t(inf ? 'match.humZom' : 'match.blueRed', { b: tb, r: tr })} · ${best}`;
     const rows = `<div class="mvp"><div class="st"><b>${me.kills}</b><small>${t('match.kills')}</small></div><div class="st"><b>${me.deaths}</b><small>${t('match.deaths')}</small></div><div class="st"><b>${me.score}</b><small>${t('match.score')}</small></div><div class="st"><b>+${xp}</b><small>${t('match.xp')}</small></div></div><small style="opacity:.75">${sub}</small>`;
     this.opts.onMatchEnd?.({ score: me.score, kills: me.kills, deaths: me.deaths, win });
     this.hud.showEnd(win, win ? t('match.victory') : t('match.defeat'), this.ffa ? t('match.wonFfa', { why }) : t('match.won', { why, team: wname }), rows);
@@ -1603,6 +1616,7 @@ export class Game {
     this.endFlow?.dispose(); this.endFlow = null;
     if (!keepNet) this.online?.ws.close();
     this.mapEditor?.dispose();
+    this.payload?.dispose();
     this._badge?.remove(); this._tm?.remove();
     if (this._km) document.removeEventListener('keydown', this._km);
     cancelAnimationFrame(this.raf);

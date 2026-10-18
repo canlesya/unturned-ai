@@ -8,6 +8,7 @@ import { buildDepo } from './depo.js';
 import { buildLiman } from './liman.js';
 import { buildBoyaKulesi } from './boyakulesi.js';
 import { buildOrmanKale } from './ormankale.js';
+import { buildMaden } from './maden.js';
 
 // Harita kaydı. Her harita build() ile şunu döndürür:
 // { id, name, group, colliders, bounds, spawns:{blue,red}, objectives:[{id,name,x,z,r,core?}], roads?, terrain?, water?, env? }
@@ -60,6 +61,11 @@ MAPS.ormankale = {
   desc: 'Çam ormanında senaryo sahası: ortada surlu, iki katlı kütük kale ve 5,6 m gözcü kulesi. Güneyden sığ bir dere geçer (üç tahta köprü, devrik kütük); köşelerde kütük kulübe, boyalı lastik kuleli hurda köşesi, gözetleme kulesi ve saman tarlası. Yayvan, ağaçlarla bölünmüş kısa-orta mesafe.',
   build: () => buildOrmanKale(),
 };
+MAPS.maden = {
+  id: 'maden', name: 'Maden Ocağı', tag: 'Vagon · saldırı / savunma · ray', thumb: '/img/maden.jpg', only: ['payload'], mobile: true,
+  desc: 'Vagon moduna özel kayalık maden vadisi: patlayıcı yüklü vagon yükleme avlusundan Kırma Tesisi, A · Makas, köy caddesi, B · Kantar ve Lavvar üzerinden C · Maden Ağzı\'na raylarla gider. Her kontrol noktasında iki takımın doğuşu ileri kayar; ahşap evler, su kulesi, kantar sundurması ve yükleme rampası yakın-orta mesafe siper verir.',
+  build: () => buildMaden(),
+};
 export const DEFAULT_MAP = 'kasaba';
 // Bu moda uygun haritalar (only: yalnızca o modlarda listelenir; dev hiçbirinde)
-export const mapsFor = (type) => (type === 'inf' ? [MAPS.newyork] : type === 'pb' ? [MAPS.boyakulesi, MAPS.ormankale] : Object.values(MAPS).filter((m) => !m.dev && (!m.only || m.only.includes(type))));      // Enfekte yalnızca New York'ta, Paintball yalnızca paintball haritalarında (Boya Kulesi, Orman Kalesi)
+export const mapsFor = (type) => (type === 'inf' ? [MAPS.newyork] : type === 'pb' ? [MAPS.boyakulesi, MAPS.ormankale] : type === 'payload' ? [MAPS.maden] : Object.values(MAPS).filter((m) => !m.dev && (!m.only || m.only.includes(type))));      // Enfekte yalnızca New York'ta, Paintball yalnızca paintball haritalarında (Boya Kulesi, Orman Kalesi)
