@@ -83,7 +83,8 @@ const VC_METAL = new THREE.MeshStandardMaterial({ vertexColors: true, flatShadin
 const plain = (m) => m && !Array.isArray(m) && m.isMeshStandardMaterial && !m.transparent && !m.userData.glow && m.metalness === 0 && m.roughness === 0.82 && m.emissive.getHex() === 0 && m.opacity === 1;
 const metal = (m) => m && !Array.isArray(m) && m.isMeshStandardMaterial && !m.transparent && !m.userData.glow && m.metalness > 0 && m.emissive.getHex() === 0 && m.opacity === 1;
 // metals: true → metalik malzemeler de ortak "metal" köşe-rengi malzemesinde birleşir (uzaktaki savaşçıların silahı: sadeleştirilmiş görünüm, birkaç çizim çağrısı)
-export function mergeVC(group, metals = false) {
+// plainMat: düz parçalar için ortak malzeme yerine bu (zombi: prosedürel deri gölgelendiricisi); ch.userData.vcOff köşe rengine eklenir (gölgelendiriciye işaret: deri / kan)
+export function mergeVC(group, metals = false, plainMat = null) {
   const plainGeos = [], metalGeos = [], other = new Map(), rm = [];
   for (const ch of group.children) {
     if (!ch.isMesh || Array.isArray(ch.material)) continue;
@@ -92,8 +93,8 @@ export function mergeVC(group, metals = false) {
     g.applyMatrix4(ch.matrix);
     g.deleteAttribute('uv');
     if (plain(ch.material) || (metals && metal(ch.material))) {
-      const c = ch.material.color, n = g.attributes.position.count, arr = new Float32Array(n * 3);
-      for (let i = 0; i < n; i++) { arr[i * 3] = c.r; arr[i * 3 + 1] = c.g; arr[i * 3 + 2] = c.b; }
+      const c = ch.material.color, n = g.attributes.position.count, arr = new Float32Array(n * 3), off = ch.userData.vcOff || 0;
+      for (let i = 0; i < n; i++) { arr[i * 3] = c.r + off; arr[i * 3 + 1] = c.g + off; arr[i * 3 + 2] = c.b + off; }
       g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
       (plain(ch.material) ? plainGeos : metalGeos).push(g);
     } else {
@@ -105,10 +106,10 @@ export function mergeVC(group, metals = false) {
   }
   for (const m of rm) { group.remove(m); m.geometry.dispose(); }
   const emit = (geos, material) => { const mesh = new THREE.Mesh(mergeGeometries(geos, false), material); mesh.castShadow = true; mesh.receiveShadow = true; group.add(mesh); };
-  if (plainGeos.length) emit(plainGeos, VC_MAT);
+  if (plainGeos.length) emit(plainGeos, plainMat || VC_MAT);
   if (metalGeos.length) emit(metalGeos, VC_METAL);
   for (const [material, geos] of other) emit(geos, material);
-  for (const ch of [...group.children]) if (ch.isGroup) mergeVC(ch, metals);
+  for (const ch of [...group.children]) if (ch.isGroup) mergeVC(ch, metals, plainMat);
   return group;
 }
 

@@ -4,6 +4,7 @@ import { C, TEAMS, SKINS } from '../core/palette.js';
 import { createWeapon } from './weapons.js';
 import { reloadAnim, meleePose } from '../game/anim.js';
 import { ZTYPES, ZBOSS, BOSS } from '../game/stats.js';
+import { buildZombie, ZMAT } from './zombieBody.js';
 
 // Unturned/BattleBit tarzı kutu karakter. ~1.79 m boyunda, ileri = -Z.
 // Hiyerarşi: root > torso(> head, kollar, silah bağlantısı) + bacaklar. Kollar iki kemikli IK ile silaha kilitlenir.
@@ -24,13 +25,13 @@ const SHOULDER_X = 0.3;
 const SHOULDER_Y = 0.22;
 
 // ── İki kemikli IK: omuz S, hedef T, dirsek yönü (pole) → dirsek konumu ──
-function solveElbow(S, T, pole) {
+function solveElbow(S, T, pole, l1 = L1, l2 = L2) {
   const dir = T.clone().sub(S);
   let d = dir.length();
   dir.normalize();
-  d = THREE.MathUtils.clamp(d, Math.abs(L1 - L2) + 0.01, (L1 + L2) * 0.995);
-  const a = (L1 * L1 - L2 * L2 + d * d) / (2 * d);
-  const h = Math.sqrt(Math.max(L1 * L1 - a * a, 0));
+  d = THREE.MathUtils.clamp(d, Math.abs(l1 - l2) + 0.01, (l1 + l2) * 0.995);
+  const a = (l1 * l1 - l2 * l2 + d * d) / (2 * d);
+  const h = Math.sqrt(Math.max(l1 * l1 - a * a, 0));
   const p = pole.clone().sub(dir.clone().multiplyScalar(pole.dot(dir))).normalize();
   const E = S.clone().add(dir.clone().multiplyScalar(a)).add(p.multiplyScalar(h));
   const H = S.clone().add(dir.clone().multiplyScalar(d));
@@ -64,7 +65,7 @@ function makeArm(torso, side, c) {
 
 function poseArm(arm, target) {
   const pole = arm.side === 'R' ? V(0.55, -1, 0.35) : V(-0.55, -1, 0.35);
-  const { E, H } = solveElbow(arm.shoulder, target, pole);
+  const { E, H } = solveElbow(arm.shoulder, target, pole, arm.l1, arm.l2);           // zombi kolu daha uzun (l1 / l2)
   aim(arm.upper, arm.shoulder, E);
   aim(arm.fore, E, H);
   arm.hand.position.copy(H);
@@ -118,62 +119,6 @@ function pouches(torso, vestColor, n = 3, color = '#2c2e33') {
     const x = (i - (n - 1) / 2) * 0.13;
     box(torso, [0.11, 0.13, 0.05], color, [x, -0.07, -0.18]);
     box(torso, [0.11, 0.025, 0.056], vestColor, [x, -0.015, -0.18]);
-  }
-}
-
-// Zombi: yeşilimsi soluk deri, yırtık gömlek, açık göğüs/kaburga, parlayan gözler, sarkık çene; yelek ve kask yok
-function zombieGear(parts, ztype = 'walker') {
-  const { torso, head, legs } = parts;
-  const T = ztype === 'boss' ? ZBOSS : ZTYPES[ztype] || ZTYPES.walker;
-  const SK = T.skin, SKD = '#6b8459', BONE = '#d8d0b4', BLOOD = '#5a1410', DIRT = '#2a2d22';
-  face(head, SK, { noHair: true });
-  box(head, [0.05, 0.04, 0.014], T.eye, [0.075, 0.02, -0.153], null, { emissive: T.eye, emissiveIntensity: 1.1 });   // parlayan gözler (türe göre renk)
-  box(head, [0.05, 0.04, 0.014], T.eye, [-0.075, 0.02, -0.153], null, { emissive: T.eye, emissiveIntensity: 1.1 });
-  box(head, [0.1, 0.03, 0.014], '#2a0c08', [0, -0.09, -0.153]);                              // açık ağız
-  box(head, [0.012, 0.02, 0.012], BONE, [0.03, -0.075, -0.158]); box(head, [0.012, 0.02, 0.012], BONE, [-0.03, -0.075, -0.158]);   // dişler
-  box(head, [0.14, 0.06, 0.02], SKD, [0.05, 0.13, -0.15], [0, 0, 0.3]);                       // kafa derisi yırtığı
-  box(head, [0.1, 0.07, 0.1], DIRT, [-0.1, 0.17, 0.08]);                                       // seyrek saç tutamları
-  box(head, [0.12, 0.05, 0.1], DIRT, [0.08, 0.16, 0.1]);
-  // gövde: yırtık gömlek, açıkta kaburga ve yara
-  box(torso, [0.5, 0.18, 0.3], '#4a5440', [0, 0.17, 0.0]);                                     // omuz/üst gömlek
-  box(torso, [0.3, 0.2, 0.02], SK, [0.0, 0.0, -0.152]);                                        // açık göğüs
-  for (let i = 0; i < 3; i++) box(torso, [0.26, 0.018, 0.026], BONE, [0, 0.07 - i * 0.07, -0.158]);   // kaburgalar
-  box(torso, [0.1, 0.12, 0.024], BLOOD, [0.1, -0.02, -0.16]);                                  // kan lekesi
-  box(torso, [0.12, 0.14, 0.02], BLOOD, [-0.12, 0.2, -0.158], [0, 0, 0.5]);
-  box(torso, [0.46, 0.05, 0.27], '#3a3d2e', [0, -0.3, 0]);                                     // kemer
-  box(torso, [0.08, 0.2, 0.02], '#3a4034', [-0.16, -0.32, -0.145], [0, 0, 0.12]);             // sarkan kumaş şeritleri
-  box(torso, [0.07, 0.17, 0.02], '#3a4034', [0.12, -0.33, -0.145], [0, 0, -0.1]);
-  box(torso, [0.5, 0.1, 0.3], '#33372c', [0, 0.3, 0.0]);                                       // yırtık yaka
-  // bacaklar: yırtık paçalar, çıplak diz
-  for (const s of ['L', 'R']) {
-    box(legs[s].thigh, [0.19, 0.12, 0.22], SK, [0, -0.38, 0]);
-    box(legs[s].thigh, [0.19, 0.05, 0.22], DIRT, [0, -0.43, 0]);
-    box(legs[s].foot, [0.176, 0.025, 0.205], '#101012', [0, -0.0475, 0.0]);                    // taban
-  }
-  box(legs.R.thigh, [0.12, 0.12, 0.02], BLOOD, [0.0, -0.1, -0.11]);
-  // türe özgü ayrıntılar
-  if (ztype === 'boss') {                                                                        // BOSS: boynuzlar, sırt dikenleri, kemik zırh, parlayan kırmızı göğüs çatlağı
-    for (const sx of [-1, 1]) {
-      box(head, [0.06, 0.26, 0.06], BONE, [sx * 0.13, 0.3, 0.0], [0, 0, -sx * 0.35]);              // boynuzlar
-      box(head, [0.04, 0.18, 0.04], '#f3efdc', [sx * 0.2, 0.46, 0.0], [0, 0, -sx * 0.7]);
-      for (let i = 0; i < 4; i++) box(torso, [0.05, 0.2 - i * 0.03, 0.05], BONE, [sx * (0.3 + i * 0.015), 0.34 + i * 0.04, 0.0], [0, 0, -sx * (0.45 + i * 0.2)]);   // omuz dikenleri
-    }
-    for (let i = 0; i < 5; i++) box(torso, [0.06, 0.2, 0.06], BONE, [(i - 2) * 0.09, 0.2 - Math.abs(i - 2) * 0.05, 0.19], [0.5, 0, 0]);   // sırt dikenleri
-    box(torso, [0.36, 0.34, 0.05], '#3b2e2a', [0, 0.06, -0.176]);                                // kemik zırh plakası
-    for (const [x, y, rz] of [[0.02, 0.17, 0.5], [-0.02, 0.1, -0.55], [0.03, 0.03, 0.6], [-0.02, -0.04, -0.5], [0.01, -0.1, 0.4]]) box(torso, [0.035, 0.1, 0.012], '#ff3a1a', [x, y, -0.205], [0, 0, rz], { emissive: '#ff2a00', emissiveIntensity: 1.5 });   // parlayan çatlak (zikzak)
-    box(head, [0.34, 0.08, 0.34], '#2a1d1a', [0, 0.17, 0.0]);
-  } else if (ztype === 'brute') {                                                                       // Dev: kemik çıkıntılı omuzlar, kalın boyun, göğüs plakası
-    for (const sx of [-1, 1]) for (let i = 0; i < 3; i++) box(torso, [0.04, 0.16 - i * 0.03, 0.04], BONE, [sx * (0.3 + i * 0.02), 0.34 + i * 0.05, 0.0], [0, 0, -sx * (0.5 + i * 0.25)]);
-    box(torso, [0.34, 0.2, 0.04], '#3b3a30', [0, 0.1, -0.175]);
-    box(head, [0.34, 0.07, 0.34], '#33372c', [0, 0.17, 0.0]);
-  } else if (ztype === 'ghost') {                                                                // Hayalet: solgun, iplik gibi sarkan paçavralar
-    for (let i = 0; i < 4; i++) box(torso, [0.07, 0.3 + i * 0.05, 0.02], '#5f7a80', [-0.18 + i * 0.12, -0.45, 0.14], [0.1, 0, 0.05 * (i - 1.5)], { transparent: true, opacity: 0.8 });
-    box(head, [0.34, 0.1, 0.34], '#7fa3ab', [0, 0.18, 0.0]);                                    // başlık
-  } else if (ztype === 'blinker') {                                                              // Işınlanan: sırtında parlak mor kristaller
-    for (let i = 0; i < 3; i++) box(torso, [0.06, 0.2 + i * 0.05, 0.06], '#c58cff', [-0.14 + i * 0.14, 0.2, 0.2], [0.35, 0.2 * i, 0.15 * (i - 1)], { emissive: '#a05cff', emissiveIntensity: 0.9 });
-  } else if (ztype === 'runner') {                                                               // Koşucu: açık kemikler, sarı bant
-    box(torso, [0.48, 0.05, 0.28], '#e3c84a', [0, 0.28, 0.0]);
-    box(torso, [0.48, 0.05, 0.28], '#e3c84a', [0, -0.05, 0.0]);
   }
 }
 
@@ -256,7 +201,6 @@ function paintballGear(parts, c, skin, num) {
 function addGear(cls, team, c, parts, skin, ztype, look) {
   if (look) { paintballGear(parts, c, skin, look.num); return; }
   const { torso, head, legs } = parts;
-  if (cls === 'zombie') { zombieGear(parts, ztype); return; }
   // ortak: yelek + kemer + omuz kayışları
   box(torso, [0.5, 0.42, 0.3], c.vest, [0, 0.07, 0]);
   box(torso, [0.1, 0.14, 0.31], c.vest, [0.16, 0.26, 0]);                       // omuz kayışı
@@ -385,6 +329,7 @@ export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0,
   const root = new THREE.Group();
   root.rotation.order = 'YXZ';   // önce yön (yaw), sonra gövde eğimi/yatma: baktığı yöne göre devrilir
 
+  if (cls === 'zombie') return createZombie({ root, team, skinIndex, weapon, ztype });
   // gövde
   const torso = new THREE.Group();
   torso.position.set(0, TORSO_Y, 0);
@@ -458,7 +403,6 @@ export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0,
     refreshHold(o) { applyPose(api, api.weapon, o); },
   };
 
-  if (cls === 'zombie') { if (ztype === 'boss') root.scale.set(...BOSS.scale); else root.scale.setScalar((ZTYPES[ztype] || ZTYPES.walker).scale); }       // dev büyük, koşucu biraz ince/küçük
   const wid = weapon === undefined ? null : weapon || CLASSES[cls].weapon[team];
   api.blade = blade;
   api.optic = optic;
@@ -466,6 +410,41 @@ export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0,
   root.userData.character = api;
   return api;
 }
+
+// Zombi: türe özgü gövde (zombieBody.js) + aynı api; pençe silah modeli 3. şahısta gizli (eller gövdenin kendi pençeli elleri, kol IK'sı silah bağlantısını izler)
+function createZombie({ root, team, skinIndex, weapon, ztype }) {
+  const T = ztype === 'boss' ? ZBOSS : ZTYPES[ztype] || ZTYPES.walker;
+  const z = buildZombie(root, { ztype, T, skinIndex });
+  const mount = new THREE.Group(), mountL = new THREE.Group();
+  z.torso.add(mount, mountL);
+  mergeVC(root, false, ZMAT);                                                   // düz parçalar grup başına tek ağ (prosedürel deri gölgelendiricisi)
+  const api = {
+    root, team, cls: 'zombie', ztype, zshape: z.shape,
+    parts: { torso: z.torso, head: z.head, legs: z.legs, armR: z.armR, armL: z.armL, mount, mountL },
+    weaponL: null, weapon: null, blade: 0.06, optic: 'reddot',
+    setWeapon(id, opt) {
+      if (opt) api.optic = opt;
+      if (api.weapon) { mount.remove(api.weapon); api.weapon.traverse((o) => o.geometry?.dispose()); }
+      if (api.weaponL) { mountL.remove(api.weaponL); api.weaponL.traverse((o) => o.geometry?.dispose()); api.weaponL = null; }
+      const w = id ? createWeapon(id, api.optic, true) : null;
+      api.weapon = w;
+      if (w) { mount.add(w); if (id === 'claws') w.visible = false; }
+      if (id === 'claws') { api.weaponL = createWeapon('claws', 'reddot', true); api.weaponL.visible = false; mountL.add(api.weaponL); }
+      applyPose(api, w);
+      if (api.groundOffset === undefined) { groundFeet(root); api.groundOffset = root.position.y; } else root.position.y = api.groundOffset;
+      return w;
+    },
+    refreshHold(o) { applyPose(api, api.weapon, o); },
+  };
+  if (ztype === 'boss') root.scale.set(...BOSS.scale); else root.scale.setScalar(T.scale);             // model ölçeği = vuruş kutusu ölçeği (soldier.hbW / hbH)
+  api.setWeapon(weapon === undefined ? null : weapon || 'claws');
+  root.userData.character = api;
+  return api;
+}
+
+// zombi kolları: dururken / yürürken öne uzanır (pençeler göğüs önünde, avını arar), koşarken alçak ve ileride
+const ZMOUNT = { pos: [0.21, 0.2, -0.48], rotX: 0.9, rotZ: -0.15 };
+const ZSPRINT = { pos: [0.27, -0.2, -0.36], rotX: 1.25, yaw: 0.05, rotZ: -0.3 };
 
 const MOUNTS = {
   rifle: { pos: [0.13, 0.1, -0.27], rotX: 0.0 },
@@ -503,7 +482,8 @@ function applyPose(api, w, o = {}) {
   }
   const u = w.userData;
   const hold = u.hold;
-  const m = MOUNTS[hold] || MOUNTS.rifle, sp = SPRINT[hold] || SPRINT.rifle;
+  const zm = api.cls === 'zombie' && hold === 'melee';
+  const m = zm ? ZMOUNT : MOUNTS[hold] || MOUNTS.rifle, sp = zm ? ZSPRINT : SPRINT[hold] || SPRINT.rifle;
   const ra = reload ? reloadAnim(reload.style, reload.k, reload.empty, reload.ph) : null;
   const spr = sprint * (1 - (ra ? ra.tilt * 0.75 : 0)) * (mp ? 0.3 : 1);
   // yatarken gövde yerle paralel: silah gövde yerelinde +Y yönüne (dünyada ileri) uzanır
