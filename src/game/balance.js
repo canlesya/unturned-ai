@@ -12,9 +12,10 @@ export const TUNE = {
   headMul: 2.1, legMul: 0.8, woodMul: 0.65, backstab: BACKSTAB_DMG, selfBlast: 0.55,
   captureRate: 0.085, bleed: BLEED_S,
   sightDay: 130, sightSunset: 105, sightNight: 62,
+  plSpeed: 1.0, plCrowd: 0.25, plRadius: 3.5, plBackDelay: 20, plBackSpeed: 0.35, plBonus: 120, plOverGrace: 1.5, plSupply: 0.08, plAtkRespawn: 0.75, plDefRespawn: 1.15,   // Vagon modu: taban hız (m/sn), ek iten başına +%, itme yarıçapı, geri kayma bekleme / hız, kontrol noktası süre ödülü, uzatma payı, vagon yanı ikmal
 };
 // Oyun modu sınırları (oda kurulumu + menü)
-export const LIMITS = { maxPerTeam: 32, dmMax: 10, dmKills: 40, infMin: 4, infMax: 24, pbMin: 2, pbMax: 12, pbKills: 30, time: 900 };
+export const LIMITS = { maxPerTeam: 32, dmMax: 10, dmKills: 40, infMin: 4, infMax: 24, pbMin: 2, pbMax: 12, pbKills: 30, plTime: 300, time: 900 };
 
 const ROOTS = { tune: TUNE, mode: LIMITS, w: WSTATS, cls: CLASS_DEFS, diff: DIFFICULTY, zombie: ZOMBIE, boss: BOSS, zt: ZTYPES };
 
@@ -117,6 +118,10 @@ export function balanceSections() {
         f('mode.dmKills', 'Ölüm maçı öldürme hedefi', 5, 200), f('mode.infMin', 'Enfekte en az oyuncu', 2, 24, 2), f('mode.infMax', 'Enfekte en çok oyuncu', 4, 32, 2),
         f('mode.pbKills', 'Paintball eleme hedefi', 5, 200), f('mode.pbMin', 'Paintball en az oyuncu', 2, 12), f('mode.pbMax', 'Paintball en çok oyuncu', 2, 16),
         f('mode.time', 'Varsayılan maç süresi', 60, 3600, 30, 'sn'), f('tune.captureRate', 'Bayrak ele geçirme hızı', 0.01, 0.5, 0.005), f('tune.bleed', 'Bilet kanaması aralığı', 1, 60, 1, 'sn')] },
+      { id: 'payload', name: 'Vagon', preview: { kind: 'icon', icon: 'flag' }, fields: [
+        f('mode.plTime', 'Saldırı ilk süresi', 60, 1800, 30, 'sn'), f('tune.plBonus', 'Kontrol noktası süre ödülü', 0, 600, 10, 'sn'),
+        f('tune.plSpeed', 'Vagon taban hızı (1 kişi)', 0.2, 4, 0.05, 'm/sn'), f('tune.plCrowd', 'Ek iten başına hız', 0, 1, 0.05, '×'), f('tune.plRadius', 'İtme yarıçapı', 1.5, 8, 0.1, 'm'),
+        f('tune.plBackDelay', 'Geri kayma bekleme', 0, 60, 1, 'sn'), f('tune.plBackSpeed', 'Geri kayma hızı', 0, 3, 0.05, 'm/sn'), f('tune.plOverGrace', 'Uzatma payı', 0, 10, 0.5, 'sn'), f('tune.plSupply', 'Vagon yanı ikmal (2 sn)', 0, 1, 0.01, '×'), f('tune.plAtkRespawn', 'Saldıran doğma süresi çarpanı', 0.2, 3, 0.05, '×'), f('tune.plDefRespawn', 'Savunan doğma süresi çarpanı', 0.2, 3, 0.05, '×')] },
     ] },
     { id: 'bots', label: 'Botlar', icon: 'robot', items: [
       ...Object.keys(DIFFICULTY).map((k) => ({ id: k, name: DIFFICULTY[k].label + ' bot', preview: { kind: 'char', cls: 'assault', team: 'red' }, fields: [

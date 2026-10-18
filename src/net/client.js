@@ -102,6 +102,7 @@ export class NetClient {
     for (const p of m.s) { if (p.kl === undefined) continue; const s = g.soldiers[p.i]; if (!s || s === g.playerSoldier) continue; s.kills = p.kl; s.deaths = p.de; s.score = p.sc; if (p.gl !== undefined) s.ggLevel = p.gl; }
     g.tickets.blue = m.tk[0]; g.tickets.red = m.tk[1];
     g.timeLeft = m.tl < 0 ? Infinity : m.tl;
+    if (m.pl && g.payload) g.payload.applyNet(m.pl);                           // Vagon: konum + durum (gösterim netFrame'de yumuşar)
     m.o.forEach((o, i) => { const ob = g.mode.objectives[i]; if (!ob) return; const prev = ob.owner; ob.owner = o[0] === 1 ? 'blue' : o[0] === 2 ? 'red' : null; ob.p = o[1]; if (ob.owner !== prev) g.onFlag?.(ob, prev); });
     this.reconcile(m.me);
   }

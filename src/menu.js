@@ -1,7 +1,8 @@
 import { MAPS, DEFAULT_MAP, mapsFor } from './maps/index.js';
 import { CLASS_DEFS, WSTATS, DIFFICULTY, OPTICS, OPTIC_ORDER } from './game/stats.js';
 import { MATCH_TYPES, TODS_LIST, defaultTickets, defaultScoreLimit, isTotalType as tot, totalMin as totMin, totalMax as totMax } from './game/match.js';
-import { LIMITS } from './game/balance.js';
+import { LIMITS, TUNE } from './game/balance.js';
+import { t } from './i18n/index.js';
 import { MENU_CSS } from './menuStyle.js';
 import { loadEdits, clearEdits } from './game/mapEditor.js';
 import { MenuScene } from './menuScene.js';
@@ -157,7 +158,7 @@ export function showMenu(onStart, onOnline) {
   // ───── Maç kurucu (Özel Oyun + Oda Kur ortak): 1 Mod → 2 Harita → 3 Ayarlar; sağda canlı özet + Oyna ─────
   const MODE_META = {
     conquest: { icon: '⚑', tag: 'Takımlı · bayrak' }, tdm: { icon: '⚔', tag: 'Takımlı · skor' }, dm: { icon: '☠', tag: 'Herkes tek' },
-    gg: { icon: '🔫', tag: 'Herkes tek · 15 silah' }, inf: { icon: '🧟', tag: 'Zombi · Zor botlar' }, pb: { icon: '🎨', tag: 'Herkes tek · boya silahı' },
+    gg: { icon: '🔫', tag: 'Herkes tek · 15 silah' }, inf: { icon: '🧟', tag: 'Zombi · Zor botlar' }, pb: { icon: '🎨', tag: 'Herkes tek · boya silahı' }, payload: { icon: '🚃', get tag() { return t('payload.tag'); } },
   };
   function builderHTML(c, online) {
     const LOCAL = { map: 'map', type: 'type', tod: 'tod', weather: 'weather', third: 'third', diff: 'diff', time: 'time', tickets: 'tickets', perTeam: 'size', team: 'team' };
@@ -167,8 +168,8 @@ export function showMenu(onStart, onOnline) {
     const maps = mapsFor(tp), cm = c.map === 'random' ? null : MAPS[c.map] || maps[0];
     const ftod = cm && cm.forceTod;
     const eff = c.tickets || (tp === 'tdm' ? defaultScoreLimit(c.perTeam) : defaultTickets(c.perTeam));
-    const limitTitle = tp === 'inf' ? 'Hayatta kalma' : tp === 'gg' ? 'Silah merdiveni' : tp === 'dm' ? 'Öldürme sınırı' : tp === 'pb' ? 'Eleme sınırı' : tp === 'tdm' ? 'Skor sınırı' : 'Bilet';
-    const limitSum = tp === 'inf' ? 'Son insan / süre' : tp === 'gg' ? '15 silah' : tp === 'dm' ? `${LIMITS.dmKills} öldürme` : tp === 'pb' ? `${LIMITS.pbKills} eleme` : tp === 'tdm' ? `${eff} skor` : `${eff} bilet`;
+    const limitTitle = tp === 'payload' ? t('payload.limitTitle') : tp === 'inf' ? 'Hayatta kalma' : tp === 'gg' ? 'Silah merdiveni' : tp === 'dm' ? 'Öldürme sınırı' : tp === 'pb' ? 'Eleme sınırı' : tp === 'tdm' ? 'Skor sınırı' : 'Bilet';
+    const limitSum = tp === 'payload' ? t('payload.limitSum') : tp === 'inf' ? 'Son insan / süre' : tp === 'gg' ? '15 silah' : tp === 'dm' ? `${LIMITS.dmKills} öldürme` : tp === 'pb' ? `${LIMITS.pbKills} eleme` : tp === 'tdm' ? `${eff} skor` : `${eff} bilet`;
     const n = c.perTeam, sizeTxt = tot(tp) ? `${n} kişi` : `${n} vs ${n}`;
     const diffKey = tp === 'inf' ? 'hard' : c.diff, botsOn = online ? c.bots : true;
     const timeLbl = (TIME_OPTS.find((t) => t[0] === c.time) || [0, '∞'])[1];
@@ -183,7 +184,7 @@ export function showMenu(onStart, onOnline) {
     const mapDesc = cm ? `<div class="mapdesc"><b>${cm.name}.</b> ${cm.desc}</div>` : '<div class="mapdesc">Her maçta farklı bir harita seçilir.</div>';
     const tods = ftod ? `<div class="hint">${cm.name} yalnızca gece oynanır.</div>`
       : `<div class="tods">${TODS_LIST.map(([k, nm]) => `<button class="tod ${k} ${c.tod === k ? 'on' : ''}" ${at('tod', k)}><span>${nm}</span></button>`).join('')}<button class="tod rnd ${c.tod === 'random' ? 'on' : ''}" ${at('tod', 'random')}><span>🎲 Rastgele</span></button></div>`;
-    const limitBody = tp === 'inf' ? '<div class="hint">Süre dolana kadar hayatta kalan insanlar kazanır; son insan enfekte olursa zombiler. 1–2 BOSS zombi başlar.</div>'
+    const limitBody = tp === 'payload' ? `<div class="hint">${t('payload.limitHint', { t: Math.round(LIMITS.plTime / 60), b: TUNE.plBonus, r: TUNE.plRadius, d: TUNE.plBackDelay })}</div>` : tp === 'inf' ? '<div class="hint">Süre dolana kadar hayatta kalan insanlar kazanır; son insan enfekte olursa zombiler. 1–2 BOSS zombi başlar.</div>'
       : tp === 'gg' ? '<div class="hint">15 silahı sırayla bitir: her öldürme bir sonraki silah. Bıçakla öldürülen bir seviye geriler. Süre dolarsa en yüksek seviye kazanır.</div>'
       : tp === 'dm' ? `<div class="hint">İlk <b>${LIMITS.dmKills}</b> öldürmeye ulaşan kazanır; süre dolarsa en çok öldüren.</div>`
       : tp === 'pb' ? `<div class="hint">İlk <b>${LIMITS.pbKills}</b> elemeye ulaşan kazanır; süre dolarsa en çok eleyen. Silahlar sabit (sınıf seçimi yok), yeniden doğma hızlı. Kuyuya itilen düşmanın elemesi son vurana yazılır.</div>`
@@ -197,7 +198,7 @@ export function showMenu(onStart, onOnline) {
         ${botsOn ? (tp === 'inf' ? '<div class="row"><button class="chip on">Zor</button></div><div class="hint">Enfekte yalnızca Zor botlarla oynanır.</div>' : `<div class="row">${Object.entries(DIFFICULTY).map(([k, d]) => chip('diff', k, d.label)).join('')}</div>`) : ''}</div>`;
     const teamCard = !online && !tot(tp) ? `<div class="sc"><h4>Takımın</h4><div class="row">${[['blue', 'Mavi', 'blue'], ['red', 'Kırmızı', 'red'], ['random', 'Rastgele', '']].map(([k, nm, cl]) => `<button class="chip ${cl} ${c.team === k ? 'on' : ''}" ${at('team', k)}>${nm}</button>`).join('')}</div></div>` : '';
     const limitCard = `<div class="sc"><h4>${limitTitle}</h4>${limitBody}</div>`;
-    const timeCard = `<div class="sc"><h4>Süre</h4><div class="row">${TIME_OPTS.map(([v, l]) => `<button class="chip ${c.time === v ? 'on' : ''}" ${at('time', v)}>${l}</button>`).join('')}</div></div>`;
+    const timeCard = `<div class="sc"><h4>Süre</h4>${tp === 'payload' ? `<div class="hint">${t('payload.timeHint', { t: Math.round(LIMITS.plTime / 60), b: TUNE.plBonus })}</div>` : ''}<div class="row">${TIME_OPTS.map(([v, l]) => `<button class="chip ${c.time === v ? 'on' : ''}" ${at('time', v)}>${l}</button>`).join('')}</div></div>`;
     const todCard = `<div class="sc wide"><h4>Günün saati</h4>${tods}</div>`;
     const devCard = online ? '' : `<div class="sc wide"><h4>Geliştirici modu <em>harita gezmek / incelemek için</em></h4><div class="row">${[[false, 'Kapalı', ''], [true, 'Açık', 'uçuş · ölümsüz · maç bitmez']].map(([v, l, sm]) => `<button class="chip ${!!p.devMode === v ? 'on' : ''}" data-a="devmode" data-v="${v ? '1' : '0'}">${l}${sm ? `<small>${sm}</small>` : ''}</button>`).join('')}</div>${p.devMode ? '<div class="hint" style="margin-top:8px">L uçuş aç/kapa · Shift hızlı · tekerlek hız · N botları dondur · O ölümsüzlük · P konum + bölge adı · J/K silah değiştir</div>' : ''}</div>`;
     const weatherCard = `<div class="sc"><h4>Hava durumu</h4><div class="row">${[...WEATHERS, ['random', 'Rastgele']].map(([k, nm]) => `<button class="chip ${c.weather === k ? 'on' : ''}" ${at('weather', k)}>${nm}</button>`).join('')}</div></div>`;
@@ -529,7 +530,7 @@ export function showMenu(onStart, onOnline) {
       case 'edmap': p.edMap = v; break;
       case 'edopen': launchEditor(); return;
       case 'edclear': if (confirm(`${MAPS[p.edMap].name}: yaptığın tüm düzenlemeler silinsin mi?`)) { clearEdits(p.edMap); } break;
-      case 'type': if (p.type !== v) adv = 'bs2'; p.type = v; if (tot(v)) p.perTeam = Math.max(lo(v), Math.min(hi(v), p.perTeam)); if (v === 'inf') p.map = 'newyork'; else if (v === 'pb') p.map = 'boyakulesi'; else if (MAPS[p.map]?.only && !MAPS[p.map].only.includes(v)) p.map = DEFAULT_MAP; break;
+      case 'type': if (p.type !== v) adv = 'bs2'; p.type = v; if (tot(v)) p.perTeam = Math.max(lo(v), Math.min(hi(v), p.perTeam)); if (v === 'inf') p.map = 'newyork'; else if (v === 'pb') p.map = 'boyakulesi'; else if (v === 'payload') p.map = 'maden'; else if (MAPS[p.map]?.only && !MAPS[p.map].only.includes(v)) p.map = DEFAULT_MAP; break;
       case 'team': p.team = v; break;
       case 'diff': p.diff = v; break;
       case 'size': p.perTeam = +v; break;
@@ -542,7 +543,7 @@ export function showMenu(onStart, onOnline) {
         if ((k === 'type' || k === 'map') && c[k] !== v) adv = k === 'type' ? 'bs2' : 'bs3';
         c[k] = v === 'true' ? true : v === 'false' ? false : (k === 'perTeam' || k === 'tickets' || k === 'time') ? +v : v;
         if (k === 'type' && tot(v)) c.perTeam = Math.max(lo(v), Math.min(hi(v), c.perTeam));
-        if (k === 'type' && v === 'inf') c.map = 'newyork'; else if (k === 'type' && v === 'pb') c.map = 'boyakulesi'; else if (k === 'type' && MAPS[c.map]?.only && !MAPS[c.map].only.includes(v)) c.map = DEFAULT_MAP;
+        if (k === 'type' && v === 'inf') c.map = 'newyork'; else if (k === 'type' && v === 'pb') c.map = 'boyakulesi'; else if (k === 'type' && v === 'payload') c.map = 'maden'; else if (k === 'type' && MAPS[c.map]?.only && !MAPS[c.map].only.includes(v)) c.map = DEFAULT_MAP;
         break;
       }
       case 'rjoin': {

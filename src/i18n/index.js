@@ -6,6 +6,7 @@ export const LANGS = [['tr', 'Türkçe'], ['en', 'English']];
 const KEY = 'warbyte.lang';
 function detect() {
   try { const s = globalThis.localStorage?.getItem(KEY); if (s && DICTS[s]) return s; } catch { /* yok say */ }
+  if (!globalThis.document) return 'tr';                                  // Node ≥ 21'de de navigator.language var ('en-US'): sunucu metinleri (maç sonu gerekçesi) Türkçe kalsın
   const n = globalThis.navigator?.language || 'tr';
   return n.toLowerCase().startsWith('tr') ? 'tr' : 'en';
 }

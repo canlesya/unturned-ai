@@ -13,9 +13,9 @@ const num = (v, lo, hi, d = 0) => (Number.isFinite(v) ? Math.max(lo, Math.min(hi
 
 export function sanitizeCfg(c = {}) {
   const pick = (v, list, d) => (list.includes(v) ? v : d);
-  const type0 = pick(c.type, ['conquest', 'tdm', 'dm', 'gg', 'inf', 'pb'], 'conquest');
+  const type0 = pick(c.type, ['conquest', 'tdm', 'dm', 'gg', 'inf', 'pb', 'payload'], 'conquest');
   return {
-    map: type0 === 'inf' ? 'newyork' : type0 === 'pb' ? 'boyakulesi' : pick(c.map, ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman'], 'kasaba'),                  // Enfekte yalnızca New York'ta, Paintball yalnızca Boya Kulesi'nde
+    map: type0 === 'inf' ? 'newyork' : type0 === 'pb' ? 'boyakulesi' : type0 === 'payload' ? 'maden' : pick(c.map, ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman'], 'kasaba'),                  // Enfekte yalnızca New York'ta, Paintball yalnızca Boya Kulesi'nde
     tod: pick(c.tod, ['day', 'sunset', 'night'], 'day'),
     weather: pick(c.weather, ['clear', 'rain', 'fog'], 'clear'),
     type: type0,
@@ -305,7 +305,8 @@ export class Room {
     const all = JSON.stringify(g.soldiers.map((s) => { const sg = slowSig(s), ch = force || sig[s.id] !== sg; if (ch) sig[s.id] = sg; return packSoldier(s, ch); }));
     const o = JSON.stringify(g.mode.objectives.map((ob) => [ob.owner === 'blue' ? 1 : ob.owner === 'red' ? 2 : 0, Math.round(ob.p * 100) / 100]));
     const tl = g.timeLeft === Infinity ? -1 : Math.round(g.timeLeft * 10) / 10;
-    const head = `{"t":"snap","k":${this.tick},"tk":[${Math.round(g.tickets.blue)},${Math.round(g.tickets.red)}],"tl":${tl},"o":${o},"s":${all},"me":`;
+    const pl = g.payload ? `"pl":${JSON.stringify(g.payload.pack())},` : '';                                   // Vagon: [yol mesafesi, iten | durduran | durum | uzatma]
+    const head = `{"t":"snap","k":${this.tick},"tk":[${Math.round(g.tickets.blue)},${Math.round(g.tickets.red)}],"tl":${tl},"o":${o},${pl}"s":${all},"me":`;
     for (const c of this.clients.values()) {
       if (c.ws.readyState !== 1) continue;
       const h = c.h, s = h.s;

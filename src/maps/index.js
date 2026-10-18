@@ -7,6 +7,7 @@ import { buildColGecidi } from './colgecidi.js';
 import { buildDepo } from './depo.js';
 import { buildLiman } from './liman.js';
 import { buildBoyaKulesi } from './boyakulesi.js';
+import { buildMaden } from './maden.js';
 
 // Harita kaydı. Her harita build() ile şunu döndürür:
 // { id, name, group, colliders, bounds, spawns:{blue,red}, objectives:[{id,name,x,z,r,core?}], roads?, terrain?, water?, env? }
@@ -54,6 +55,11 @@ MAPS.boyakulesi = {
   desc: 'Paintball moduna özel renkli arena: zeminde şişme siperler, köşelerde dört renkli kale (9 m), ortada 18 m kule. Kalelerden kuleye korkuluksuz köprüler kuyunun üstünden geçer; kuyuya düşen elenir. Zıplama minderleri zeminden kaleye fırlatır, kule tepesi en güçlü nokta.',
   build: () => buildBoyaKulesi(),
 };
+MAPS.maden = {
+  id: 'maden', name: 'Maden Ocağı', tag: 'Vagon · saldırı / savunma · ray', thumb: '/img/maden.jpg', only: ['payload'], mobile: true,
+  desc: 'Vagon moduna özel kayalık maden vadisi: patlayıcı yüklü vagon yükleme avlusundan Kırma Tesisi, A · Makas, köy caddesi, B · Kantar ve Lavvar üzerinden C · Maden Ağzı\'na raylarla gider. Her kontrol noktasında iki takımın doğuşu ileri kayar; ahşap evler, su kulesi, kantar sundurması ve yükleme rampası yakın-orta mesafe siper verir.',
+  build: () => buildMaden(),
+};
 export const DEFAULT_MAP = 'kasaba';
 // Bu moda uygun haritalar (only: yalnızca o modlarda listelenir; dev hiçbirinde)
-export const mapsFor = (type) => (type === 'inf' ? [MAPS.newyork] : type === 'pb' ? [MAPS.boyakulesi] : Object.values(MAPS).filter((m) => !m.dev && (!m.only || m.only.includes(type))));      // Enfekte yalnızca New York'ta, Paintball yalnızca Boya Kulesi'nde
+export const mapsFor = (type) => (type === 'inf' ? [MAPS.newyork] : type === 'pb' ? [MAPS.boyakulesi] : type === 'payload' ? [MAPS.maden] : Object.values(MAPS).filter((m) => !m.dev && (!m.only || m.only.includes(type))));      // Enfekte yalnızca New York'ta, Paintball yalnızca Boya Kulesi'nde

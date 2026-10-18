@@ -27,7 +27,9 @@ import { nullSink } from '../sim/nullSink.js';
 import { applyInput } from '../sim/input.js';
 import { SIM_DT } from '../net/protocol.js';
 import { mat } from '../core/geo.js';
+import { t } from '../i18n/index.js';
 import { Paint, paintColorOf } from './paint.js';
+import { Payload } from './payload.js';
 import { initGadgets, updateGadgets, spawnSmoke, flashBang, smokeBlocks, smokeDensity, placeDeployable, netDeploy, netUndeploy } from './gadgets.js';
 
 const STAT_ID = new Map(Object.entries(WSTATS).map(([k, v]) => [v, k]));      // WSTATS nesnesi → id (ağ olayları için)
@@ -152,6 +154,7 @@ export class Game {
     this.mode.objectives = this.mode.type !== 'conquest' ? [] : this.map.objectives.filter((o) => this.mode.allFlags || o.core).map((o) => ({ ...o, owner: null, p: 0 }));
     this.tickets = this.mode.scoreBased ? { blue: 0, red: 0 } : { blue: this.mode.tickets, red: this.mode.tickets };   // skor modunda: takım skoru 0'dan başlar, mode.tickets = sınır
     this.timeLeft = this.mode.time || Infinity;
+    this.payload = this.mode.payload && this.map.payload ? new Payload(this) : null;   // Vagon modu: ray + vagon + aşamalı doğuşlar (payload.js)
     this.spawnChoice = 'base';
 
     this.visMul = 1;
@@ -931,8 +934,10 @@ export class Game {
     this.updateProjectiles(dt);
     this.paint.update(dt);
     updateGadgets(this, dt, this.time);
+    this.payload?.netFrame(dt);
     this.effects.update(dt);
     this.hud.update(dt);
+    this.payload?.frame(dt);
   }
 
   step(dt) {
@@ -963,6 +968,7 @@ export class Game {
     this.effects.update(dt);
     for (const s of this.soldiers) s.syncModel(dt);
     this.hud.update(dt);
+    this.payload?.frame(dt);
     if (this.headless) { this.tick++; this.recordHist(); }
   }
 
@@ -1403,6 +1409,7 @@ export class Game {
   // ───── Mod: hedef ele geçirme + bilet ─────
   updateMode(dt) {
     if (this.timeLeft !== Infinity) this.timeLeft -= dt;
+    if (this.payload) this.payload.update(dt);                                     // vagon: itme / çekişme / geri kayma, kontrol noktası, uzatma
     if (this.mode.infection) {
       const c = this.infCounts(); this.tickets.blue = c.h; this.tickets.red = c.z;
       if (!this.headless && (this.groanT = (this.groanT || 0) - dt) <= 0) {                 // yakındaki zombiler ara sıra inler
@@ -1521,6 +1528,7 @@ export class Game {
     } else if (this.mode.gungame) victim.respawnT = victim.isPlayer || victim.human ? TUNE.respawnGG : rand(2.2, 3.6);
     else if (this.mode.paintball) victim.respawnT = victim.isPlayer || victim.human ? TUNE.respawnPB : rand(TUNE.respawnPB * 0.8, TUNE.respawnPB * 1.2);
     else victim.respawnT = victim.isPlayer || victim.human ? TUNE.respawn : rand(TUNE.botRespawnMin, TUNE.botRespawnMax);
+    if (this.payload) victim.respawnT *= victim.team === 'blue' ? TUNE.plAtkRespawn : TUNE.plDefRespawn;     // Vagon: saldıran daha çabuk, savunan biraz geç doğar (dalga dengesi)
     if (victim.isPlayer && this.player) this.player.camPos.copy(victim.eye());
   }
 
@@ -1535,6 +1543,9 @@ export class Game {
       const [best, second] = ffaRanking(this.soldiers, false);
       if (best && best.kills >= this.mode.killLimit) { w = best.team; why = `${best.name} ${best.kills} öldürmeye ulaştı`; }
       else if (this.timeLeft <= 0 && best) { w = best.team; why = `Süre doldu · ${best.name} ${best.kills} öldürmeyle kazandı${second && second.kills === best.kills ? ' (eşitlikte puanı yüksek)' : ''}`; }   // eşit öldürmede puan ayırır
+    } else if (this.payload) {
+      const r = this.payload.result();
+      if (r) [w, why] = r;
     } else if (this.mode.infection) {
       const c = this.infCounts();
       if (c.h <= 0) { w = 'red'; why = 'Tüm insanlar enfekte oldu'; }
@@ -1564,7 +1575,7 @@ export class Game {
     const inf = this.mode.infection;
     const wname = this.ffa ? (this.soldiers.find((s) => s.team === w)?.name || '') : inf ? (w === 'red' ? 'Zombiler' : 'İnsanlar') : TEAMS[w].name;
     const gg = this.mode.gungame;
-    const sub = this.ffa ? `Sıralama: ${ffaRanking(this.soldiers, gg).slice(0, 3).map((s, i) => `${i + 1}. ${s.name} (${gg ? 'Sv ' : ''}${ffaMetric(s, gg)})`).join(' · ')}` : inf ? `İnsan ${this.tickets.blue} – ${this.tickets.red} Zombi · Takımın en iyisi: ${list[0].name} (${list[0].score})` : `Mavi ${Math.max(0, Math.round(this.tickets.blue))} – ${Math.max(0, Math.round(this.tickets.red))} Kırmızı · Takımın en iyisi: ${list[0].name} (${list[0].score})`;
+    const sub = this.payload ? t('payload.endSub', { pct: Math.round(this.payload.progress * 100), cp: this.payload.reached, best: list[0].name, score: list[0].score }) : this.ffa ? `Sıralama: ${ffaRanking(this.soldiers, gg).slice(0, 3).map((s, i) => `${i + 1}. ${s.name} (${gg ? 'Sv ' : ''}${ffaMetric(s, gg)})`).join(' · ')}` : inf ? `İnsan ${this.tickets.blue} – ${this.tickets.red} Zombi · Takımın en iyisi: ${list[0].name} (${list[0].score})` : `Mavi ${Math.max(0, Math.round(this.tickets.blue))} – ${Math.max(0, Math.round(this.tickets.red))} Kırmızı · Takımın en iyisi: ${list[0].name} (${list[0].score})`;
     const rows = `<div class="mvp"><div class="st"><b>${me.kills}</b><small>Öldürme</small></div><div class="st"><b>${me.deaths}</b><small>Ölüm</small></div><div class="st"><b>${me.score}</b><small>Puan</small></div><div class="st"><b>+${xp}</b><small>XP</small></div></div><small style="opacity:.75">${sub}</small>`;
     this.opts.onMatchEnd?.({ score: me.score, kills: me.kills, deaths: me.deaths, win });
     this.hud.showEnd(win, win ? 'ZAFER!' : 'YENİLGİ', this.ffa ? `${why}.` : `${why}. ${wname} kazandı.`, rows);
@@ -1578,6 +1589,7 @@ export class Game {
     if (this.headless) return;
     this.online?.ws.close();
     this.mapEditor?.dispose();
+    this.payload?.dispose();
     this._badge?.remove(); this._tm?.remove();
     if (this._km) document.removeEventListener('keydown', this._km);
     cancelAnimationFrame(this.raf);
