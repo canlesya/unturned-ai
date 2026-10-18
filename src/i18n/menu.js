@@ -87,7 +87,7 @@ addStrings('en', {
   'menu.tip.4': 'You can respawn at flags you have captured.', 'menu.tip.5': 'Lean around corners with <b>Q</b> / <b>E</b> and shoot.',
   'menu.tip.6': 'Smoke blocks vision; neither bots nor players can see through it.',
   'menu.news.title': 'What’s new', 'menu.news.0': 'Custom game: 1–32 players per team', 'menu.news.1': 'Night, sunset and day options', 'menu.news.2': 'Weapon and gadget choice per class',
-  'menu.news.3': 'New maps: Warehouse, Harbor and Paint Tower', 'menu.news.4': '32 weapons: new rifles, SMGs, DMRs, .50 cal, mines, smoke, flashbangs', 'menu.news.5': 'Paintball mode and Gun Game', 'menu.news.6': 'Language support: Turkish and English',
+  'menu.news.3': 'New maps: Warehouse, Harbor, Paint Tower and Forest Fort', 'menu.news.4': '32 weapons: new rifles, SMGs, DMRs, .50 cal, mines, smoke, flashbangs', 'menu.news.5': 'Paintball mode and Gun Game', 'menu.news.6': 'Language support: Turkish and English',
   'menu.nav.home': 'Main Menu', 'menu.nav.home.sub': 'Quick start', 'menu.nav.custom': 'Custom Game', 'menu.nav.custom.sub': 'Map · mode · size',
   'menu.nav.online': 'Online', 'menu.nav.online.sub': 'Host · join', 'menu.nav.loadout': 'Class & Loadout', 'menu.nav.loadout.sub': 'Pick your gear',
   'menu.nav.settings': 'Settings', 'menu.nav.settings.sub': 'Language · audio · video', 'menu.nav.controls': 'Controls', 'menu.nav.controls.sub': 'Key bindings',
