@@ -518,7 +518,7 @@ export function createWeapon(id, optic = 'reddot', lod = false) {
   const showFront = !sg || o === 'iron';
   g.traverse((n) => { if (n.userData.frontSight) n.visible = showFront; });
   if (lod) mergeVC(g, true);
-  else { mergeStatic(g); finishWeapon(g); }                              // metal çizik/aşınma, ahşap damar, boya kırığı (shader)
+  else { finishWeapon(g); mergeStatic(g); }                              // önce cila (kenar aşınması öznitelikleri + tür malzemesi), sonra malzeme başına birleştirme
   if (g.userData.mag) {                         // şarjör merkezi (animasyonda sol elin hedefi)
     g.updateMatrixWorld(true);
     g.userData.magPos = new THREE.Box3().setFromObject(g.userData.mag).getCenter(new THREE.Vector3());

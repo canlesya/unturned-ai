@@ -64,7 +64,7 @@ function beginOnline({ net, welcome, name, pw }) {
     optic: q.get('optic') || p.optic || 'reddot', team: me.team, cls, playerName: name,
     keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs,
     loadout, loadouts: p.loadouts || {}, onExit: () => { location.href = location.pathname; }, onRestart: () => location.reload(),
-    settings: { sens: p.sens, fov: p[FOV_KEY], volume: p.volume ?? 0.6, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, shadows: q.get('shadows') !== '0' && p.shadows !== false, adaptive: p.adaptive !== false, fullscreen: p.fullscreen !== false, pixelRatio: +(q.get('pr') || p[Q_KEY] || 1) },
+    settings: { sens: p.sens, fov: p[FOV_KEY], volume: p.volume ?? 0.6, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, shadows: q.get('shadows') !== '0' && p.shadows !== false, post: q.has('post') ? q.get('post') === '1' : p.post, adaptive: p.adaptive !== false, fullscreen: p.fullscreen !== false, pixelRatio: +(q.get('pr') || p[Q_KEY] || 1) },
   });
 }
 
@@ -112,6 +112,6 @@ else if (q.get('autostart')) {
     match: { perTeam: (mm ? +mm[1] : 10) * (q.get('type') === 'inf' ? 2 : 1), type: q.get('type') || 'conquest', tickets: +q.get('tickets') || undefined, time: q.has('time') ? +q.get('time') : 900 }, map: q.get('map') || 'kasaba', tod: q.get('tod') || 'day', weather: q.get('weather') || 'clear', optic: q.get('optic') || 'reddot', team: q.get('team') || 'blue', cls: q.get('cls') || 'assault', diff: q.get('diff') || 'normal',
     keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs,
     loadout: { primary: q.get('primary') || undefined, secondary: q.get('secondary') || undefined, gadget: q.get('gadget') || undefined, melee: q.get('melee') || undefined },
-    settings: { sens: p.sens, fov: p[FOV_KEY], volume: 0, shadows: q.get('shadows') !== '0', pixelRatio: +(q.get('pr') || (FOV_KEY === 'fovM' ? p[Q_KEY] : 1)) },      // dokunmatikte telefon kalitesi
+    settings: { sens: p.sens, fov: p[FOV_KEY], volume: 0, shadows: q.get('shadows') !== '0', post: q.has('post') ? q.get('post') === '1' : p.post, pixelRatio: +(q.get('pr') || (FOV_KEY === 'fovM' ? p[Q_KEY] : 1)) },      // dokunmatikte telefon kalitesi
   });
 } else showMenu(start, beginOnline);

@@ -80,6 +80,11 @@ export class InGameSettings {
         const r = g.renderer, pr = Math.min(devicePixelRatio, v);
         if (g._perf) { g._perf.max = pr; g._perf.ratio = pr; }
         r?.setPixelRatio(pr); r?.setSize(innerWidth, innerHeight, false);
+        g.applyGfx?.();                                                         // gölge haritası / yumuşaklık / son işleme kademesi
+        break;
+      }
+      case 'post': {
+        s.post = v; this.save({ post: v }); g.applyGfx?.();
         break;
       }
       case 'shadows':
@@ -116,6 +121,7 @@ export class InGameSettings {
         <div class="pan"><h3>${t('set.gfx')}</h3><div class="row">
         ${[[1, 'set.low'], [1.5, 'set.mid'], [2, 'set.high']].map(([v, l]) => ch('quality', v, q === v, t(l))).join('')}
         ${ch('shadows', s.shadows === false ? 1 : 0, s.shadows !== false, `${t('set.shadows')}: ${onoff(s.shadows !== false)}`)}
+        ${ch('post', postOn(s) ? 0 : 1, postOn(s), `${t('set.post')}: ${onoff(postOn(s))}`)}
         ${ch('adaptive', s.adaptive === false ? 1 : 0, s.adaptive !== false, `${t('set.adaptive')}: ${onoff(s.adaptive !== false)}`)}
         ${ch('fullscreen', s.fullscreen === false ? 1 : 0, s.fullscreen !== false, `${t('set.fs')}: ${onoff(s.fullscreen !== false)}`)}</div>
         <div class="hint">${t('set.gfxHint')}</div></div>`;
@@ -184,4 +190,5 @@ const onoff = (v) => (v ? t('set.on') : t('set.off'));
 const tg = (k, fb) => { const s = t(k); return s === k ? fb : s; };                  // anahtar yoksa keybinds.js'teki Türkçe ad
 const actLabel = (a) => tg(`set.act.${a.id}`, a.label);
 const keyLabel = (c) => (c === 'Space' ? t('set.space') : codeLabel(c));
+const postOn = (s) => s.post ?? !mob();                                    // son işleme: telefonda varsayılan kapalı
 const FMT = { sens: (x) => (x / 0.0022).toFixed(2) + '×', fov: (x) => x + '°', pct: (x) => Math.round(x * 100) + '%' };

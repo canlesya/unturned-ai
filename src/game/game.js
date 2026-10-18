@@ -22,6 +22,7 @@ import { CLASS_DEFS, WSTATS, BOT_NAMES, makeLoadout, BLEED_S, ZOMBIE, BOSS, ZTYP
 import { makeMatch, PRESETS, ffaRanking, ffaMetric } from './match.js';
 import { TUNE } from './balance.js';
 import { Weather } from './weather.js';
+import { Post } from './post.js';
 import { rand, pick, clamp } from './util.js';
 import { TEAMS } from '../core/palette.js';
 import { nullSink } from '../sim/nullSink.js';
@@ -85,7 +86,7 @@ export class Game {
       r.setSize(innerWidth, innerHeight, false);   // CSS boyutunu biz belirleriz (yüksek DPI'da tuval taşmasın)
       r.autoClear = false;
       r.shadowMap.enabled = this.settings.shadows !== false;
-      r.shadowMap.type = THREE.PCFShadowMap;
+      r.shadowMap.type = THREE.PCFShadowMap;                                          // r18x: PCF = Vogel diski; shadow.radius ile yumuşar (bkz. applyGfx)
       r.toneMapping = THREE.NeutralToneMapping;
       r.outputColorSpace = THREE.SRGBColorSpace;
       this.canvas = r.domElement;
@@ -132,7 +133,9 @@ export class Game {
       const sp = env.sunPos;
       this.sun = env.sun;
       this.night = env.night;
-      this.sun.shadow.mapSize.set(...(isTouch() ? [1024, 1024] : [2048, 2048]));        // telefonda gölge açılırsa daha ucuz gölge haritası
+      this.env = env;
+      r.toneMappingExposure = env.grade.exposure;                                   // günün saatine göre pozlama (her kalitede)
+      this.applyGfx();                                                              // kalite kademesi: gölge haritası / yumuşaklık / kapsama + son işleme
       this.sunOff = new THREE.Vector3(...sp);
       this.scene.add(this.map.group);
       env.applyGlow(this.map.group);
@@ -252,6 +255,7 @@ export class Game {
     if (this.online) this.chat = new Chat(this);                                   // sohbet yalnızca çevrimiçi odalarda
     this.player = new Player(this, this.playerSoldier, this.settings);
     this.player.locked = !!opts.nolock;
+    this._vmLights();
     if (opts.devMode && !this.online) {                                             // geliştirici modu: uçuş + ölümsüzlük + rozet; maç bitmez
       this.playerSoldier.fly = true; this.devGod = true;
       const bd = document.createElement('div');
@@ -1139,21 +1143,65 @@ export class Game {
     return () => { for (const [s, x, y, z, yaw, h, pr, lx, ly, lz] of saved) { s.pos.set(x, y, z); s.yaw = yaw; s.height = h; s.proneT = pr; s.leanOff.set(lx, ly, lz); } };
   }
 
+  // Grafik kademesi (Ayarlar → Grafik: Düşük / Orta / Yüksek = çözünürlük çarpanı 1 / 1,5 / 2). Telefonda gölge haritası hep 1024 (gölge zaten varsayılan kapalı).
+  //   Düşük: 1024 gölge, sert kenar, ±42 m · Orta: 2048, yumuşak (PCF yarıçapı 2), ±55 m · Yüksek: 4096, yumuşak, ±62 m + son işleme (parıltı, renk tonu, vinyet; "Son işleme" açıksa)
+  //   Gölge kutusu bakış yönüne kaydırılır (önde daha çok kapsama: "tek basamaklı kademeli gölge" gibi)
+  gfxLevel() { const v = this.settings.pixelRatio || 1; return v < 1.25 ? 0 : v < 1.75 ? 1 : 2; }
+  applyGfx() {
+    if (!this.sun) return;
+    const lv = this.gfxLevel(), sh = this.sun.shadow, size = isTouch() ? 1024 : [1024, 2048, 4096][lv];
+    this._shS = [42, 55, 62][lv]; this._shF = [6, 14, 18][lv];
+    Object.assign(sh.camera, { left: -this._shS, right: this._shS, top: this._shS, bottom: -this._shS }); sh.camera.updateProjectionMatrix();
+    sh.radius = lv ? 2.2 : 1;
+    if (sh.mapSize.x !== size) { sh.mapSize.set(size, size); sh.map?.dispose(); sh.map = null; }
+    const want = lv === 2 && (this.settings.post ?? !isTouch());
+    if (want && !this.post) this.post = new Post(this.renderer);
+    if (this.post) { this.post.on = want; this.post.setGrade(this.env?.grade); }
+  }
+
+  // Birinci şahıs silah ışığı: sabit gündüz ışığı yerine haritanın güneşi / gökyüzü (renk, şiddet, yön); gece ve gölgede silah da kararır
+  _vmLights() {
+    const vm = this.player?.vm, E = this.env?.E; if (!vm || !E) return;
+    for (const o of vm.scene.children) { if (o.isHemisphereLight) this._vmHemi = o; else if (o.isDirectionalLight) this._vmSun = o; }
+    if (!this._vmSun || !this._vmHemi) return;
+    this._vmHemi.color.set(E.hemi[0]); this._vmHemi.groundColor.set(E.hemi[1]); this._vmHemiI = this._vmHemi.intensity = E.hemi[2] * 1.3;
+    this._vmSun.color.set(E.sun[0]); this._vmSunI = E.sun[1] * 0.95; this._vmLit = 1; this._vmLitT = 0;
+    vm.scene.environmentIntensity = (this.env.night ? 0.3 : this.env.sunset ? 0.55 : 0.7);
+  }
+  _vmLightUpdate(dt) {
+    const L = this._vmSun; if (!L) return;
+    if ((this._vmLitT -= dt) <= 0) {                                                       // göz güneşe açık mı (0,15 sn'de bir, yumuşak geçiş)
+      this._vmLitT = 0.15;
+      const e = this.camera.position, so = this.sunOff;
+      this._vmLitTo = this.world.clear(e, _sv.copy(so).normalize().multiplyScalar(60).add(e)) ? 1 : 0.25;
+    }
+    this._vmLit += ((this._vmLitTo ?? 1) - this._vmLit) * Math.min(1, dt * 6);
+    L.intensity = this._vmSunI * this._vmLit;
+    this._vmHemi.intensity = this._vmHemiI + (this.torchOn ? 0.9 : 0);                       // fener açıkken silah da aydınlanır
+    L.position.copy(this.sunOff).normalize().applyQuaternion(_sq.copy(this.camera.quaternion).invert()).multiplyScalar(5);   // kamera uzayında gerçek güneş yönü
+  }
+
   render() {
     const r = this.renderer;
-    // gölge kamerası oyuncuyu izler (kayma olmaması için ızgaraya yuvarla)
-    const p = this.playerSoldier.pos;
-    const q = (2 * 55) / 2048;
-    const tx = Math.round(p.x / q) * q, tz = Math.round(p.z / q) * q;
+    // gölge kamerası oyuncuyu izler, bakış yönüne kaydırılır (kayma olmaması için texel ızgarasına yuvarla)
+    const p = this.playerSoldier.pos, S = this._shS || 55, F = this._shF || 0;
+    const q = (2 * S) / this.sun.shadow.mapSize.x;
+    this.camera.getWorldDirection(_sv); const fl = Math.hypot(_sv.x, _sv.z) || 1;
+    const tx = Math.round((p.x + (_sv.x / fl) * F) / q) * q, tz = Math.round((p.z + (_sv.z / fl) * F) / q) * q;
     const ty = p.y;
     this.sun.target.position.set(tx, ty, tz);
     this.sun.position.set(tx + this.sunOff.x, ty + this.sunOff.y, tz + this.sunOff.z);
     if (this.map.fx) this.map.fx.update(performance.now() / 1000);            // harita efektleri (New York: ateş ışığı titremesi, duman / kıvılcım zamanı)
     this.paint.draw();
     this.pickups.draw();
+    const now = performance.now(), dt = Math.min(0.1, (now - (this._rT || now)) / 1000); this._rT = now;
+    this._vmLightUpdate(dt);
+    const post = this.post?.on ? this.post : null;
+    if (post) post.begin();
     r.clear();
     r.render(this.scene, this.camera);
     if (this.playerSoldier.alive && !this.showSelf) this.player.vm.render(r, innerWidth, innerHeight);
+    if (post) post.end();
   }
 
   // ───── Savaş mantığı ─────
@@ -1632,10 +1680,12 @@ export class Game {
     this.killfx.dispose();
     this.hud.dispose();
     this.sfx.dispose?.();
+    this.post?.dispose();
     this.renderer.dispose();
     this.canvas.remove();
     if (window.__game === this) delete window.__game;
   }
 }
 
+const _sv = new THREE.Vector3(), _sq = new THREE.Quaternion();
 function lerpClamp(a, b, t) { return a + (b - a) * clamp(t, 0, 1); }

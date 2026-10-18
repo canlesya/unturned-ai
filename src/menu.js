@@ -377,7 +377,7 @@ export function showMenu(onStart, onOnline) {
       <div class="row" style="margin-top:8px">${tog('rain', p.rainSound, t('menu.set.rain'))}</div>
       <div class="hint">${t('menu.set.musicHint')}</div></div>
       <div class="pan"><h3>${t('menu.set.gfx')}</h3><div class="lbl">${t('menu.set.quality')}</div><div class="row">${[[1, 'low'], [1.5, 'mid'], [2, 'high']].map(([v, l]) => `<button class="chip ${p[Q_KEY] === v ? 'on' : ''}" data-a="quality" data-v="${v}">${t('menu.set.q.' + l)}</button>`).join('')}</div>
-      <div class="row" style="margin-top:10px">${tog('shadows', p.shadows, t('menu.set.shadows'))}${tog('adaptive', p.adaptive !== false, t('menu.set.adaptive'), t('menu.set.adaptiveT'))}${tog('fullscreen', p.fullscreen !== false, t('menu.set.fullscreen'), t('menu.set.fullscreenT'))}</div>
+      <div class="row" style="margin-top:10px">${tog('shadows', p.shadows, t('menu.set.shadows'))}${tog('post', p.post ?? !TOUCH, t('menu.set.post'), t('menu.set.postT'))}${tog('adaptive', p.adaptive !== false, t('menu.set.adaptive'), t('menu.set.adaptiveT'))}${tog('fullscreen', p.fullscreen !== false, t('menu.set.fullscreen'), t('menu.set.fullscreenT'))}</div>
       <div class="hint">${t('menu.set.gfxHint')}</div></div>
       <div class="pan"><h3>${t('menu.set.data')}</h3><button class="chip danger" data-a="reset">${t('menu.set.reset')}</button></div></div>`;
   }
@@ -455,7 +455,7 @@ export function showMenu(onStart, onOnline) {
       <div class="hint">${t('menu.ed.hint1')}</div>
       <div class="hint">${t('menu.ed.hint2')}</div></div></div>`;
   }
-  const settingsPayload = () => ({ sens: p.sens, fov: p[FOV_KEY], volume: p.volume, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, shadows: p.shadows, adaptive: p.adaptive !== false, fullscreen: p.fullscreen !== false, pixelRatio: p[Q_KEY] });
+  const settingsPayload = () => ({ sens: p.sens, fov: p[FOV_KEY], volume: p.volume, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, shadows: p.shadows, post: p.post ?? !TOUCH, adaptive: p.adaptive !== false, fullscreen: p.fullscreen !== false, pixelRatio: p[Q_KEY] });
   function launchEditor() {
     const payload = {
       editor: true, devMode: true, map: p.edMap, tod: 'day', weather: 'clear', team: 'blue', cls: p.cls, diff: 'normal', optic: p.optic, playerName: p.name,
@@ -587,6 +587,7 @@ export function showMenu(onStart, onOnline) {
       case 'quality': p[Q_KEY] = +v; break;
       case 'shadows': p.shadows = !p.shadows; break;
       case 'adaptive': p.adaptive = p.adaptive === false; break;
+      case 'post': p.post = !(p.post ?? !TOUCH); break;
       case 'fullscreen': p.fullscreen = p.fullscreen === false; break;
       case 'rain': p.rainSound = !p.rainSound; break;
       case 'hand': p.leftHand = v === 'left'; break;
