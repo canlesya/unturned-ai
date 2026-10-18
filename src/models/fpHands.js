@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { humanHand } from './fpHumanHand.js';
 
 // Birinci şahıs elleri: kutu değil, kodla üretilen düşük poligonlu "organik" el (yüzey yüzey düz gölgeli üçgenler). Her el + ön kol + kol
 // TEK ağ (köşe renkli, tek çizim çağrısı). İsteğe bağlı ikinci poz morph hedefi olarak eklenir (parmak açma / kapama, ağ yeniden kurulmaz).
@@ -91,10 +92,14 @@ const LENS = [[0.042, 0.026, 0.021], [0.047, 0.029, 0.022], [0.044, 0.027, 0.021
 // Pozlar (c çerçevesi). f: [açılma, MCP, PIP, DIP] × 4 (işaret→serçe) · t: başparmak noktaları
 export const POSES = {
   fist: { f: [[0, 1.33, 1.53, 0.96], [0, 1.36, 1.55, 0.96], [0, 1.38, 1.55, 0.98], [0, 1.45, 1.6, 1.0]], t: [V(0.03, -0.042, 0.026), V(0.014, -0.04, 0.04), V(-0.01, -0.032, 0.036), V(-0.028, -0.016, 0.03)] },
+  // bıçak sapı (avuçta çapraz): yumruk + eğik boğum hattı → parmaklar eğik sapı sarar (sl ≈ tan(KNIFE_TILT))
+  knife: { sl: 0.5, f: [[0, 1.3, 1.5, 0.95], [0, 1.34, 1.53, 0.96], [0, 1.37, 1.55, 0.98], [0, 1.43, 1.6, 1.0]], t: [V(0.03, -0.042, 0.026), V(0.014, -0.036, 0.044), V(-0.01, -0.022, 0.046), V(-0.028, -0.004, 0.042)] },
   // tabanca kabzası: işaret parmağı tetikte (yarı açık, öne uzanır), diğerleri sarar
   trigger: { f: [[0.05, 0.55, 0.9, 0.5], [0, 1.36, 1.55, 0.96], [0, 1.38, 1.55, 0.98], [0, 1.45, 1.6, 1.0]], t: [V(0.03, -0.042, 0.026), V(0.012, -0.036, 0.042), V(-0.012, -0.024, 0.038), V(-0.029, -0.006, 0.032)] },
   // ön kabza: daha geniş sapı saran gevşek kavrayış
   cup: { f: [[0.06, 1.05, 1.15, 0.7], [0.02, 1.1, 1.2, 0.7], [-0.03, 1.12, 1.2, 0.72], [-0.08, 1.18, 1.25, 0.75]], t: [V(0.03, -0.04, 0.028), V(0.012, -0.03, 0.05), V(-0.012, -0.012, 0.056), V(-0.028, 0.006, 0.052)] },
+  // ön kundak (geniş, alttan): avuç kundağın altında, parmaklar sağ yandan yukarı sarar, başparmak sol yanda kundak boyunca öne uzanır (yukarı dikilmez)
+  fg: { f: [[0.24, 0.7, 0.95, 0.6], [0.08, 0.78, 1.0, 0.62], [-0.08, 0.84, 1.02, 0.64], [-0.24, 0.9, 1.06, 0.66]], t: [V(0.03, -0.04, 0.028), V(0.02, -0.028, 0.05), V(0.013, -0.017, 0.068), V(0.009, -0.008, 0.084)] },
   // açık el (şarjör / kemer kavrama hazırlığı)
   open: { f: [[0.12, 0.45, 0.55, 0.3], [0.03, 0.4, 0.5, 0.3], [-0.06, 0.45, 0.55, 0.32], [-0.16, 0.55, 0.6, 0.35]], t: [V(0.03, -0.04, 0.028), V(0.016, -0.022, 0.056), V(0.002, 0.0, 0.074), V(-0.012, 0.016, 0.084)] },
   // bomba / yuvarlak nesne: parmaklar küreyi sarar
@@ -171,6 +176,7 @@ const meshOf = (geo) => { geo.computeVertexNormals(); geo.computeBoundingSphere(
 // split: mesh.userData.arm = ayrı kol ağı (yerel +Z boyunca, orijin bilek ucu), mesh.userData.wrist = bilek ucu (ebeveyn çerçevesinde)
 export function fpHand(o) {
   o.zombie = o.zombie || !!o.colors.zombie;
+  if (!o.zombie) return humanHand(o, POSES);                      // insan eli: yumuşak gölgeli, kesintisiz tüp parmaklar (fpHumanHand.js)
   const m = o.map || new THREE.Matrix4(), mi = new THREE.Matrix4().copy(m).invert(), sc = o.scale || 1;
   const arm = (o.arm || V(0, -1, 0)).clone(); if (o.mirror) arm.x = -arm.x;
   o.armC = arm.transformDirection(mi);
@@ -210,9 +216,9 @@ export function handBasis(x, y) {
 
 // Renk takımları
 export function gloveColors(c) {
-  const g = new THREE.Color(c.gloves).lerp(new THREE.Color('#6b7178'), 0.3), sh = new THREE.Color(c.shirt);
+  const g = new THREE.Color(c.gloves).lerp(new THREE.Color('#454a3a'), 0.65), sh = new THREE.Color(c.shirt);      // mat, koyu zeytin-siyah kumaş eldiven
   return {
-    glove: '#' + g.getHexString(), pad: '#' + g.clone().multiplyScalar(0.6).getHexString(), pad2: '#' + g.clone().multiplyScalar(0.8).getHexString(),
+    glove: '#' + g.getHexString(), palm: '#' + g.clone().lerp(new THREE.Color('#5c574a'), 0.18).getHexString(), pad: '#' + g.clone().multiplyScalar(0.6).getHexString(), pad2: '#' + g.clone().multiplyScalar(0.8).getHexString(),
     cuff: '#' + g.clone().multiplyScalar(0.75).getHexString(), strap: '#' + g.clone().lerp(new THREE.Color('#3a3f45'), 0.5).getHexString(),
     sleeve: '#' + sh.getHexString(), sleeve2: '#' + sh.clone().multiplyScalar(0.78).getHexString(),
   };
