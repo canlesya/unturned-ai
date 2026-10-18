@@ -36,7 +36,7 @@ export function house(b, rng, o) {
   const {
     x, z, w, d, floors = 1, wall = '#d9c79a', roof = '#a8432f', door = 's', doorAt = 0, backDoor = false,
     floorH = 3.1, flat = false, floorColor, furnishing = true, extraWindows = true, roofAccess = false,
-    glow = 0.4, trim = TRIM, porch = true,
+    glow = 0.4, trim = TRIM, porch = true, awning = true,
   } = o;
   const theme = o.theme || (flat ? 'office' : 'house');
   const swapped = door === 'e' || door === 'w';
@@ -298,7 +298,7 @@ export function house(b, rng, o) {
         }
       }
     }
-    if (theme === 'shop' || theme === 'office' && rng() < 0.5) {
+    if ((theme === 'shop' || theme === 'office' && rng() < 0.5) && awning) {           // awning: false → tente / tabela yok (ör. revaklı belediye)
       // şeritli tente (ön cephe, zemin kat pencerelerinin üstü)
       const aw = [pick(rng, ['#c0392b', '#2c5aa0', '#2c7a4a', '#d9a921']), '#e8e8e4'];
       const n = Math.max(4, Math.round((W - 2.4) / 1.0));
@@ -380,7 +380,8 @@ export function house(b, rng, o) {
         b.box(-rx, H + 0.06, rz + 0.4, 1.0, 1.2, 1.0, '#8a929a');
         b.box(0, H + 0.06, D * 0.28, 2.0, 0.4, 0.5, '#c9c2a8');            // alçak siper blokları
       }
-      b.box(W * 0.38, H, -D * 0.12, 0.2, 3.2, 0.2, '#2a2d30', NC);          // anten
+      const fa = hasRoofAccess ? fl[Lv - 2] : null, ax = fa && (fa.side === 'w' ? -1 : 1) > 0 ? -W * 0.38 : W * 0.38;   // anten merdiven çıkışının üstüne (boşluğa) düşmesin
+      b.box(ax, H, -D * 0.12, 0.2, 3.2, 0.2, '#2a2d30', NC);          // anten
     } else {
       const ridgeAlongX = W >= D;
       const cross = (ridgeAlongX ? D : W) + 1.0;
@@ -402,7 +403,7 @@ export function house(b, rng, o) {
         for (const ez of [-1, 1]) {                                                                              // alın üçgeninde havalandırma + çerçeve
           b.box(0, ph * 0.3, ez * (len / 2 + 0.02), 0.62, 0.42, 0.05, TRIM, NC);
           b.box(0, ph * 0.3 + 0.02, ez * (len / 2 + 0.05), 0.46, 0.3, 0.04, '#3a3f46', NC);
-          for (let k = 0; k < 4; k++) b.box(0, ph * 0.3 - 0.1 + k * 0.08, ez * (len / 2 + 0.075), 0.44, 0.015, 0.03, '#59606a', NC);
+          for (let k = 0; k < 4; k++) b.box(0, ph * 0.3 + 0.07 + k * 0.07, ez * (len / 2 + 0.075), 0.44, 0.015, 0.03, '#59606a', NC);   // panjur çıtaları çerçevenin içinde
         }
       });
       if (chimney) b.box(ridgeAlongX ? W * 0.25 : 0, H + 2.2, ridgeAlongX ? 0 : D * 0.25, 0.95, 0.14, 0.95, '#6a4a3c', NC);   // baca başlığı
@@ -468,8 +469,9 @@ export function house(b, rng, o) {
     }
     function openLeaf(at, c, s) {
       const hx = at - DW / 2 + 0.05;
-      b.with(hx, 0, c - s * (T / 2 - 0.02), s > 0 ? 1.15 : -1.15, () => {
+      b.with(hx, 0, c - s * (T / 2 - 0.02), s > 0 ? Math.PI / 2 : -Math.PI / 2, () => {          // 90° açık: kanat içeri dik durur, çarpışması görünenle birebir (eğik kanadın içinden geçilmez)
         b.box(0.6, 0, 0, 1.2, 2.15, 0.05, pick(rng, ['#6e3b22', '#2f4a5f', '#4f6a3a', '#7a2f2a']), NC);
+        b.collide(0.6, 0, 0, 1.2, 2.15, 0.05);
       });
     }
     function slab(y, th, holes, color) {

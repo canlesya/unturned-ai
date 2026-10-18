@@ -92,6 +92,7 @@ export function barn(b, rng, { x, z, w = 12, d = 18, color = '#9c3a2c', roof = '
     b.cyl(x1 - 1.0, 0, sb - 1.4, 0.4, 0.4, 1.0, '#4a6a8a', { seg: 8 });
     b.box(0, 3.9, z0 + 0.5, 0.06, 0.6, 0.06, '#ffd98a', { collide: false, o: { glow: true } });
     b.box(0, 3.6, 0, 0.5, 0.3, 0.5, '#2a2d30', NC);
+    b.box(0, 3.9, 0, 0.04, H - 0.25 - 3.9, 0.04, '#2a2d30', NC);                 // lamba askısı (tavana)
     b.box(0, 3.35, 0, 0.3, 0.2, 0.3, '#ffd98a', { collide: false, o: { glow: true } });
   });
   const [ex, ez] = tw(0, doors === 'back' ? -d / 2 - 2 : d / 2 + 2);
@@ -105,7 +106,7 @@ export function silo(b, x, z, r = 2.2, h = 11) {
   b.ico(x, h, z, r, '#9ea3a8', { scale: [1, 0.55, 1], detail: 1 });
   for (let i = 1; i < 5; i++) b.cyl(x, i * (h / 5), z, r + 0.05, r + 0.05, 0.18, '#8a8f95', { seg: 10, collide: false });
   b.box(x + r + 0.1, 0, z, 0.1, h - 1, 0.5, '#7a7f85', { collide: false });
-  for (let i = 0; i < 12; i++) b.box(x + r + 0.22, 0.4 + i * 0.85, z, 0.04, 0.05, 0.5, '#5a5f65', NC);
+  for (let i = 0; i < 12 && 0.45 + i * 0.85 < h - 1; i++) b.box(x + r + 0.17, 0.4 + i * 0.85, z, 0.04, 0.05, 0.5, '#5a5f65', NC);   // basamak merdiven sırtına çakılı, sırtın boyunu aşmaz
 }
 
 // ───────── Depo ─────────
@@ -131,7 +132,7 @@ export function warehouse(b, rng, { x, z, w = 22, d = 14, ry = 0, mezzanine = tr
     b.shell(x0, x1, z0, z1, 0, H, T, wall, {
       s: [roll(-w * 0.27), roll(w * 0.27), ...hi(w, [-w * 0.27, w * 0.27])],
       n: [roll(0), ...hi(w, [0])],
-      w: [{ at: 0, w: 1.5, b: 0, top: 2.3 }, ...hi(d, [0])],
+      w: [{ at: d / 2 - 1.2, w: 1.5, b: 0, top: 2.3 }, ...hi(d, [d / 2 - 1.2])],   // yan kapı güney uçta: asma kat merdiveni (z −1…3,8) kapının önünü kapatmaz
       e: hi(d, []),
     });
     for (const zz of [z1 + 0.19, z0 - 0.19]) b.box(0, 5.2, zz, w, 0.55, 0.06, '#c0392b', NC);
@@ -254,7 +255,7 @@ export function church(b, rng, { x, z, w = 9, d = 16, ry = 0 }) {
     b.box(hx0 - 0.04, yB, (zh0 + zh1 - 0.8) / 2, 0.08, 1.0, zh1 - 0.8 - zh0, '#8b5a2b');   // boşluk korkuluğu
     // çan + fener
     b.cyl(0, yB + 1.7, (zi0 + zi1) / 2, 0.15, 0.55, 0.9, '#b08a3a', { seg: 8, collide: false });
-    b.box(0, yB + 2.7, (zi0 + zi1) / 2, 0.12, 0.25, 0.12, '#4a3a2a', NC);
+    b.box(0, yB + 2.6, (zi0 + zi1) / 2, 0.12, TH - 0.3 - yB - 2.6, 0.12, '#4a3a2a', NC);   // çan askısı: çanın tepesinden kule tavanına
     b.box(-1.5, yB + 1.2, zi0 + 0.5, 0.3, 0.3, 0.3, '#ffd98a', { collide: false, o: { glow: true } });
     b.box(0, 2.9, zi1 - 1.0, 0.4, 0.14, 0.4, '#ffd98a', { collide: false, o: { glow: true } });
     // çatı: kare piramit + haç
@@ -265,13 +266,13 @@ export function church(b, rng, { x, z, w = 9, d = 16, ry = 0 }) {
     // giriş basamağı (görsel)
     b.box(0, 0, zn - 0.5, 3.0, 0.14, 1.0, stone, NC);
     // ── iç dizilim: pewler, sunak, mumluklar, lambalar ──
-    const rows = [-3.2, -1.0, 1.2, 3.4];
+    const rows = [-3.2, -1.0, 1.2, 3.4].filter((rz) => rz + 0.4 < z1 - 2.0 && rz - 0.4 > z0 + 4.0);   // sunak önü ve yan kapı (z0 + 3,2) boş kalır
     for (const rz of rows) for (const sx of [-2.5, 2.5]) put(b, rng, 'pew', sx, 0.06, rz, 0);
     put(b, rng, 'altar', 0, 0.06, z1 - 1.5, Math.PI);
     put(b, rng, 'candles', -2.4, 0.06, z1 - 0.9, 0); put(b, rng, 'candles', 2.4, 0.06, z1 - 0.9, 0);
     for (const lz of [-4.5, 0, 4.5]) { b.box(0, H - 0.9, lz, 0.04, 0.9, 0.04, '#2a2d30', NC); b.box(0, H - 1.2, lz, 0.6, 0.18, 0.6, '#ffd98a', { collide: false, o: { glow: true } }); }
     // nefin kenar mumları / çiçek
-    for (const sz of [-3.6, 5.4]) put(b, rng, 'plant', -3.9, 0.06, sz, 0);
+    for (const sz of [z0 + 1.2, z1 - 0.6]) put(b, rng, 'plant', -3.9, 0.06, sz, 0);   // yan kapının (z0 + 3,2) önünde değil
     const [ex, ez] = tw(0, zn - 2.2);
     info.entry = { x: ex, z: ez };
     const [bx, bz] = tw(-1.0, (zi0 + zi1) / 2);
