@@ -1114,3 +1114,8 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 - **Zombi gücü butonu**: kullanıcı "mobilde zombi yeteneğini kullanamıyorum" dedi. Zombiyken ekipman yerinde yıldırım butonu: HAZIR yeşil parlar, etkinken turuncu + saniye, beklemede gri halka + saniye; masaüstündeki F / sağ tıkla aynı yol (Player.zAbility, çevrimiçinde 'ab'). Zombiyken nişan / nişangâh / şarjör / silah değiştir / ekipman gizli; insanken güç butonu yok.
 - Dokunmatik metinler İngilizce de (`src/i18n/touch.js`); Dokunmatik ayarlar paneli telefonda 14 px taşıyordu (Kaydet satırı kesik): düzeltildi. BF_DEBUG: dbg `{ zb:'tür' }` zombi ol, `{ ask }` nişangâh + güç durumu.
 - Testler: `scripts/mobileoptics.mjs`, `scripts/mobileability.mjs` (gerçek dokunuş; çevrimiçi adım GPU=1), hudshots dokunmatik denetimleri.
+
+### 12.116 Paintball: hayattayken ekranın ortası boyanmaz
+- Kullanıcı: "bazen ekranın ortası boya oluyor, görüş açım kapanıyor; yalnız öldüğümde ortası boya olsun". Sebep: kafa isabeti lekesi ortaya konuyordu (r 0,34), önden gelen büyük gövde lekeleri de ortaya taşabiliyordu.
+- `screenPaint.js`: kafa isabeti artık atıcı tarafındaki üst köşede (r 0,24, yarı saydam); her canlı leke `_clear` ile nişan alanının dışına itilir (merkezden en az r·0,9 + 0,17 ekran yüksekliği, en-boy oranıyla). Elenme boyaması ("BOYANDIN!") değişmedi.
+- Ölçüm (`scripts/pbscreen.mjs`, 6 yön × kafa / gövde, 36 isabet): ortadaki nişan alanında boya masaüstü %98 → %0,3, Pixel 7 %94 → %0; önden 8 kafa isabeti %99,9 → %0; elenince orta %100.

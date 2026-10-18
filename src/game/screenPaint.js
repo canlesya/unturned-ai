@@ -1,6 +1,7 @@
 // Paintball: ekrana (gözlüğe) boya. Yalnız yerel oyuncu, yalnız istemci. Tek tam ekran 2B tuval (düşük çözünürlük, HUD'un altında):
 //  · gövde / bacak isabeti → atıcının boya renginde leke, ekranın atıcıya bakan kenarında; aşağı akar, ~2,6 sn'de söner (en çok 6 üst üste)
-//  · kafa isabeti → ortaya yakın büyük leke (yarı saydam: arkası biraz görünür)
+//  · kafa isabeti → atıcı tarafındaki üst köşede büyük leke (yarı saydam)
+//  · hayattayken hiçbir leke ekranın ortasındaki nişan alanına girmez (_clear); ortayı yalnız elenme boyar
 //  · elenme → ekranın çoğu kısa süre boyanır + "BOYANDIN!" yazısı, sonra ölüm ekranı
 //  · yakından (≤ ~1 m) geçen top → kenarda küçük damlacıklar
 // Boş iken tuval gizli (çizim / birleştirme yükü yok). Leke dokuları renk başına bir kez üretilir (önbellek).
@@ -89,13 +90,23 @@ export class ScreenPaint {
     this.lastHitT = this.g.time; this.lastCol = col;
     const a = this._side(by && by.pos), sa = Math.sin(a), ca = Math.cos(a);
     if (zone === 'head') {
-      this._add(this.list, MAX, { x: 0.5 + sa * 0.14 + (rnd() - 0.5) * 0.06, y: 0.44 + (rnd() - 0.5) * 0.08, r: 0.34 + rnd() * 0.06, col, life: 3.0, a: 0.8, k: 0, drip: 4 });
+      const sx = Math.abs(sa) > 0.15 ? Math.sign(sa) : rnd() < 0.5 ? -1 : 1;
+      this._add(this.list, MAX, this._clear({ x: 0.5 + sx * (0.3 + rnd() * 0.06), y: 0.2 + (rnd() - 0.5) * 0.08, r: 0.24 + rnd() * 0.04, col, life: 3.0, a: 0.82, k: 0, drip: 4 }, sx));
     } else {
       const side = Math.abs(sa), x = 0.5 + sa * 0.44 + (rnd() - 0.5) * 0.08;
       const y = 0.5 + (1 - side) * (ca >= 0 ? 0.3 : 0.36) + (rnd() - 0.5) * 0.16 * side;
-      this._add(this.list, MAX, { x, y, r: (ca < -0.3 && side < 0.6 ? 0.13 : 0.19) + rnd() * 0.05, col, life: 2.6, a: 0.94 });
+      this._add(this.list, MAX, this._clear({ x, y, r: (ca < -0.3 && side < 0.6 ? 0.13 : 0.19) + rnd() * 0.05, col, life: 2.6, a: 0.94 }, Math.sign(sa)));
     }
     this.g.sfx.facesplat?.();
+  }
+
+  // Nişan alanı boş kalsın: leke (kolları dahil ~0,9 r) merkezden en az r·0,9 + 0,17 ekran yüksekliği uzakta; yakınsa dışa itilir (en-boy oranı hesaba katılır)
+  _clear(o, sx = 0) {
+    const asp = this.cv.width / this.cv.height, need = o.r * 0.9 + 0.17;
+    let dx = (o.x - 0.5) * asp, dy = o.y - 0.5, d = Math.hypot(dx, dy);
+    if (d < 1e-3) { dx = sx || 1; dy = 0.4; d = Math.hypot(dx, dy); }
+    if (d < need) { const k = need / d; o.x = 0.5 + (dx * k) / asp; o.y = 0.5 + dy * k; }
+    return o;
   }
 
   // Elendi: ekranın çoğu boyanır, "BOYANDIN!"
