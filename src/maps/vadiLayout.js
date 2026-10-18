@@ -1,4 +1,4 @@
-import { fbm, smoothstep, mixf, terrace, segDist, capW, rectDist, Trail } from './terrain.js';
+import { fbm, smoothstep, mixf, terrace, segDist, capW, rectDist, Trail, WATER_LEVEL } from './terrain.js';
 
 // VADİ — arazi yerleşimi (yükseklik alanı, patikalar, düzlükler).
 // Harita 180° dönme simetriktir: (x,z) → (−x,−z). Yalnızca "mavi yarı" (x<0) tanımlanır, kırmızı yarı dönmüş kopyasıdır.
@@ -209,6 +209,22 @@ export function finalizeLayout() {
   }
 }
 
+// Bina tabanı (hard pad): patika / nehir / komşu düzlük sonradan kazısa da bina izinin altı tam düz kalır (ev / ahır / silo / kule zemine oturur,
+// içine çimen girmez, duvar altında boşluk kalmaz). p.hard = {x, z, hx, hz} bina izi (+ sundurma payı) tam düz, sonra 2 m'de araziye döner
+// (arazi ızgarası 2 m: kenar düğümü de düz kalsın). İki bina izi yakınsa ağırlığı büyük olan kazanır (sırayla karışınca biri ötekinin duvarını gömüyordu).
+function hardH(x, z, h) {
+  let bw = 0, by = 0;
+  for (const p of pads) {
+    const q = p.hard;
+    if (!q) continue;
+    const d = rectDist(x, z, q.x, q.z, q.hx, q.hz);
+    if (d >= 2.0) continue;
+    const w = 1 - smoothstep(0, 2.0, d);
+    if (w > bw) { bw = w; by = p.y; }
+  }
+  return bw > 0 ? mixf(h, by, bw) : h;
+}
+
 export function vadiHeight(x, z) {
   finalizeLayout();
   let h = preH(x, z);
@@ -216,6 +232,9 @@ export function vadiHeight(x, z) {
   h = padsH(x, z, h);
   h = trailsH(x, z, h, TRAILS.length, (vadiHeight._o ||= {}));
   h = riverH(x, z, h);
-  return Math.max(h, -3.2);
+  h = hardH(x, z, h);
+  h = Math.max(h, -3.2);
+  if (Math.abs(h - WATER_LEVEL) < 0.04) h = WATER_LEVEL + (h < WATER_LEVEL ? -0.04 : 0.04);    // kıyı: arazi su düzlemiyle eş düzlem kalmasın (titreşen kıyı çizgisi)
+  return h;
 }
 export { segDist };
