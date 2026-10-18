@@ -7,6 +7,7 @@ import { MAPS, DEFAULT_MAP } from '../maps/index.js';
 import { World } from './collision.js';
 import { Binds } from '../core/keybinds.js';
 import { music } from './music.js';
+import { KillFx } from './killfx.js';
 import { NavGrid } from './nav.js';
 import { NavGridML } from './navml.js';
 import { Effects } from './effects.js';
@@ -172,6 +173,7 @@ export class Game {
       this.sfx.setVolume(this.settings.volume);
       this.sfx.setMix({ sfx: this.settings.vSfx ?? 1, amb: this.settings.vAmb ?? 1, rain: this.settings.rainSound !== false });
       this.sfx.init();
+      this.sfx.world = this.world;                                                  // iç mekân yankısı için tavan yoklaması
       music.setVolume((this.settings.volume ?? 0.6) * (this.settings.vMusic ?? 0.5));
       music.play('match');
       this.weather = new Weather(this, opts.weather || 'clear');
@@ -231,6 +233,7 @@ export class Game {
     if (!opts.online) this.assignSquads();
     if (headless) {
       this.hud = nullSink();
+      this.killfx = nullSink();
       this.playerSoldier = null;
       this.HN = 40;                                            // lag compensation geçmişi (adım)
       this.histBuf = new Float32Array(this.HN * this.soldiers.length * 9);
@@ -243,6 +246,7 @@ export class Game {
       return;     // sunucu: DOM, döngü ve girdi yok — step(dt) dışarıdan çağrılır
     }
     this.hud = new Hud(this);
+    this.killfx = new KillFx(this);                                                // vuruş / öldürme hissi (kendi katmanı)
     if (this.online) this.chat = new Chat(this);                                   // sohbet yalnızca çevrimiçi odalarda
     this.player = new Player(this, this.playerSoldier, this.settings);
     this.player.locked = !!opts.nolock;
@@ -259,8 +263,7 @@ export class Game {
     // olaylar
     this.on('pad', (s) => { if (s.pos.distanceTo(this.camera.position) < 40) this.sfx.boing?.(s.pos); });
     this.on('hitmark', (e) => {
-      this.hud.hitmarker(e.dead, e.zone === 'head');
-      if (e.dead) this.sfx.kill(); else if (e.zone === 'head') this.sfx.headshot(); else this.sfx.hit();
+      this.killfx.hit(e);                                                          // işaret + isabet sesi (öldürme sesi killfx.kill'de)
     });
     document.addEventListener('keydown', this._kd = (e) => {
       if (!this.binds.is('flashlight', e.code) || e.repeat || !this.running || this.ended || !this.playerSoldier.alive || this.playerSoldier.def.zombie) return;      // zombi: aynı tuş özel güç
@@ -999,7 +1002,8 @@ export class Game {
           const victim = this.soldiers[ev.v], killer = this.soldiers[ev.k] || victim;
           if (!victim) break;
           this.hud.killFeed(killer, victim, ev.w, !!ev.hs);
-          if (killer === me && victim !== me) this.hud.popup(ev.hs ? '+150 KAFA ATIŞI' : '+100 ÖLDÜRME', !!ev.hs);
+          if (killer === me && victim !== me) this.killfx.kill(victim, ev.w, !!ev.hs);
+          if (victim === me) this.killfx.died();
           if (victim === me) me.lastHit = killer;
           break;
         }
@@ -1524,7 +1528,8 @@ export class Game {
     else if (!this.ffa) this.tickets[victim.team] -= 1;
     this.netEvent({ e: 'kill', k: killer ? killer.id : -1, v: victim.id, w: weapon || '', hs: hs ? 1 : 0 });
     this.hud.killFeed(killer, victim, weapon, hs);
-    if (killer && killer.isPlayer && killer !== victim) this.hud.popup(hs ? '+150 KAFA ATIŞI' : '+100 ÖLDÜRME', hs);
+    if (killer && killer.isPlayer && killer !== victim) this.killfx.kill(victim, weapon, hs);
+    if (victim.isPlayer) this.killfx.died();
     if (this.mode.infection) {
       if (!victim.def.zombie) victim.infectNext = true;                                            // her insan ölümü enfekte eder
       else victim.zLives = Math.max(0, victim.zLives - 1);                                         // zombi / boss can hakkı eksilir; 0 olunca insan olarak doğar
@@ -1611,7 +1616,9 @@ export class Game {
     removeEventListener('resize', this._rs);
     this.player.dispose();
     this.chat?.dispose();
+    this.killfx.dispose();
     this.hud.dispose();
+    this.sfx.dispose?.();
     this.renderer.dispose();
     this.canvas.remove();
     if (window.__game === this) delete window.__game;
