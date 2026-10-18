@@ -32,7 +32,7 @@ const CSS = `
 @media (max-height:520px){#endscreen .panel{max-height:96vh;overflow-y:auto;padding-top:10px;padding-bottom:10px}#etitle{font-size:34px!important;letter-spacing:4px!important;margin:0!important}#einfo{margin:4px 0!important;font-size:13px}
   #estats .mvp{margin:4px 0}#estats .st{padding:4px 12px}#estats .st b{font-size:18px}#mnext{margin:6px auto 4px}#mnext .mn-c{height:84px}#mnext .mn-bar{margin:4px 0 6px}#mnext .mn-s{margin-top:4px}}
 @media (max-height:420px){#endscreen .panel{padding:6px 14px!important}#etitle{font-size:26px!important}#einfo{font-size:12px;margin:2px 0!important}#estats{margin:2px 0!important}#estats .mvp{gap:6px;margin:2px 0}#estats .st{padding:2px 10px}#estats .st b{font-size:15px}#estats .st small{font-size:9px}#estats>small{font-size:11px}
-  #mnext{margin:4px auto 2px}#mnext .mn-h{font-size:11px}#mnext .mn-h b{font-size:16px}#mnext .mn-c{height:66px}#mnext .mn-l{bottom:4px}#mnext .mn-l b{font-size:13px}#mnext .mn-l small{font-size:10px}#mnext .mn-s{font-size:10px;margin-top:2px}#endscreen .btn{padding:7px 18px!important;font-size:12px!important;margin-top:4px!important}}
+  #mnext{margin:4px auto 2px}#mnext .mn-h{font-size:11px}#mnext .mn-h b{font-size:16px}#mnext .mn-c{height:66px}#mnext .mn-l{bottom:4px}#mnext .mn-l b{font-size:13px}#mnext .mn-l small{font-size:10px}#mnext .mn-s{font-size:10px;margin-top:2px}#endscreen .btn{padding:7px 18px!important;font-size:12px!important;margin-top:4px!important;min-height:40px}}
 #mnext .mn-c:focus{outline:none}#mnext .mn-c:focus-visible{outline:2px solid #ffb347}
 `;
 
