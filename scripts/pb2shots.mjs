@@ -49,7 +49,7 @@ async function setup(ctxOpt, q = '') {
     window.__shootMe = (b, h = 1.1, side = 0) => {
       if (!b.alive) { const P0 = b.pos.clone(); b.vacant = false; b.spawn({ x: P0.x, z: P0.z, ry: 0 }, 0); b.pos.copy(P0); b.model.root.visible = true; }
       b.hp = 9999; b.protT = 0; b.cur = 0; b.items[0] = { id: "pbrifle", mag: 50, reserve: 150 }; b.reloadT = 0; b.useT = 0; b.swing = null;
-      const e = b.eye(new V()), d0x = p.pos.x - b.pos.x, d0z = p.pos.z - b.pos.z, d0 = Math.hypot(d0x, d0z) || 1, t = { x: p.pos.x - (d0z / d0) * side, y: p.pos.y, z: p.pos.z + (d0x / d0) * side }, dx = t.x - e.x, dz = t.z - e.z, dy = t.y + h - e.y, d = Math.hypot(dx, dz), st = { speed: 70, grav: 7 };
+      const e = b.eye(new V()), d0x = p.pos.x - b.pos.x, d0z = p.pos.z - b.pos.z, d0 = Math.hypot(d0x, d0z) || 1, t = { x: p.pos.x - (d0z / d0) * side, y: p.pos.y, z: p.pos.z + (d0x / d0) * side }, dx = t.x - e.x, dz = t.z - e.z, dy = t.y + h - e.y, d = Math.hypot(dx, dz), st = { speed: 78, grav: 4 };
       b.yaw = Math.atan2(-dx, -dz); const tt = d / st.speed; b.pitch = Math.atan2(dy, d) + Math.atan2(0.5 * st.grav * tt * tt, d);
       b.bloom = 0; b.botExtraSpread = 0; b.cd = 0; b.switchT = 0; b.sinceShot = 9; b.adsT = 1; b.vel.set(0, 0, 0);
       const st0 = b.stat, sv = [st0.hip, st0.ads]; st0.hip = st0.ads = 0; b.tryFire(); [st0.hip, st0.ads] = sv;

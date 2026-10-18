@@ -298,38 +298,56 @@ export class TouchControls {
   // görünür (game.botSees: duvar, duman, yaprak / çalı). (a) Sürtünme: üstündeyken parmak bakışı en çok %45 yavaşlar. (b) Mıknatıs: oyuncu
   // hareket ediyor / ateş ediyor / nişanda / parmakla bakıyorsa hedefe yumuşakça döner (hata ile orantılı, sınırlı hız: asla ani kilit yok;
   // uzakta zayıf). (c) Nişana girişte 0,18 sn daha güçlü çekiş. Çevrimiçinde de çalışır: yaw / pitch zaten istemciden gönderiliyor.
+  // v2: koni ≈ 6,3° + gövde açısı, daha güçlü çekiş (≈75°/sn tavan), (d) takip: aynı hedef karede ne kadar açı kaydırdıysa nişangâh onun
+  // büyük kısmıyla birlikte döner (koşan düşmanda geride kalmaz), (e) topçu silah (paintball): nişan noktası topun düşüşü + hedefin hızıyla öne alınır.
   assist(dt) {
     const p = this.p, g = this.g, s = p.s, c = this.cfg;
     this.aaSlow = 1; this._aaT = null;                                              // _aaT: son seçilen hedef (test / hata ayıklama)
-    if (s.ads && !this._adsWas) this._snapT = 0.18;
+    if (s.ads && !this._adsWas) this._snapT = 0.22;
     this._adsWas = !!s.ads;
     this._snapT = Math.max(0, (this._snapT || 0) - dt);
-    const kind = s.stat.kind;                                                        // el bombası / mayın / sağlık çantasında yardım yok
-    if (!c.aim || !(c.aimStr > 0) || !s.alive || !p.locked || this.editing || s.fly || (kind !== 'gun' && kind !== 'launcher' && kind !== 'melee')) return;
+    const kind = s.stat.kind, st = s.stat;                                           // el bombası / mayın / sağlık çantasında yardım yok
+    if (!c.aim || !(c.aimStr > 0) || !s.alive || !p.locked || this.editing || s.fly || (kind !== 'gun' && kind !== 'launcher' && kind !== 'melee')) { this._trk = null; return; }
     const e = s.eye(this._ae || (this._ae = new THREE.Vector3())), tp = this._at || (this._at = new THREE.Vector3());
     const ads = s.adsT > 0.5, z = ads ? Math.max(1, p.zoomEff()) : 1, pit = s.pitch + (s.recoilP || 0);
     let best = null, bw = 0;
     for (const o of g.soldiers) {
       if (o === s || !o.alive || o.vacant || o.team === s.team) continue;
       o.center(tp);
-      const dx = tp.x - e.x, dy = tp.y - e.y, dz = tp.z - e.z, h = Math.hypot(dx, dz), d = Math.hypot(h, dy);
+      let dx = tp.x - e.x, dy = tp.y - e.y, dz = tp.z - e.z, h = Math.hypot(dx, dz), d = Math.hypot(h, dy);
       if (d > 90 || d < 0.8) continue;
-      let ey = Math.atan2(-dx, -dz) - s.yaw; ey -= Math.round(ey / (2 * Math.PI)) * 2 * Math.PI;
-      const ep = Math.atan2(dy, h) - pit, err = Math.hypot(ey * Math.cos(pit), ep);
-      const cone = (0.07 + Math.atan(0.6 / d)) / Math.sqrt(z);
+      if (!g.botSees(e, tp)) continue;
+      const ay = Math.atan2(-dx, -dz), ap = Math.atan2(dy, h);                       // hedefin mutlak yönü (takip için)
+      const wrap = (a) => a - Math.round(a / (2 * Math.PI)) * 2 * Math.PI;
+      let err = Math.hypot(wrap(ay - s.yaw) * Math.cos(pit), ap - pit);              // gövdeye göre hata (seçim: gövde ya da öne alınmış nokta, hangisi yakınsa)
+      if (st.ball) {                                                                  // topçu silah: çekiş noktası uçuş süresi kadar öne + düşüş kadar yukarı
+        const tf = d / (st.speed || 70), v = o.vel;
+        if (v) { dx += v.x * tf; dz += v.z * tf; h = Math.hypot(dx, dz); }
+        dy += 0.5 * (st.grav || 0) * tf * tf;
+      }
+      const ey = wrap(Math.atan2(-dx, -dz) - s.yaw), ep = Math.atan2(dy, h) - pit;
+      err = Math.min(err, Math.hypot(ey * Math.cos(pit), ep));
+      const cone = (0.11 + Math.atan(0.7 / d)) / Math.sqrt(z);
       if (err > cone) continue;
-      const w = (1 - (err / cone) ** 2) * (d < 25 ? 1 : Math.max(0.3, 1 - (d - 25) / 65));
-      if (w <= bw || !g.botSees(e, tp)) continue;
-      best = { ey, ep, o, d }; bw = w;
+      const w = (1 - (err / cone) ** 2) * (d < 30 ? 1 : Math.max(0.35, 1 - (d - 30) / 70));
+      if (w <= bw) continue;
+      best = { ey, ep, o, d, ay, ap }; bw = w;
     }
-    if (!best) return;
+    if (!best) { this._trk = null; return; }
     this._aaT = best; const str = Math.min(1.5, c.aimStr);
-    this.aaSlow = 1 - Math.min(0.6, 0.45 * str * bw);
+    this.aaSlow = 1 - Math.min(0.65, 0.55 * str * bw);
+    const prev = this._trk; this._trk = { o: best.o, ay: best.ay, ap: best.ap };
     const looking = performance.now() - (this.lookT || 0) < 150;
     if (!(Math.abs(this.f) + Math.abs(this.r) > 0.1 || p.fireHeld || s.ads || looking)) return;
-    const k = 1 - Math.exp(-(this._snapT > 0 ? 9 : ads ? 3.2 : 2.4) * str * bw * dt), cap = 0.9 * dt;    // en çok ≈52°/sn
-    const my = Math.max(-cap, Math.min(cap, best.ey * k)), mp = Math.max(-cap, Math.min(cap, best.ep * k * 0.7));
-    s.yaw += my; s.pitch = Math.max(-1.5, Math.min(1.5, s.pitch + mp));
+    let ty = 0, tpch = 0;                                                             // takip: hedefin bu karedeki açısal kayması (en çok 2 rad/sn)
+    if (prev && prev.o === best.o) {
+      let d = best.ay - prev.ay; d -= Math.round(d / (2 * Math.PI)) * 2 * Math.PI;
+      const f = Math.min(0.95, 0.85 * str * (0.5 + 0.5 * bw)), lim = 2.5 * dt;
+      ty = Math.max(-lim, Math.min(lim, d * f)); tpch = Math.max(-lim, Math.min(lim, (best.ap - prev.ap) * f));
+    }
+    const k = 1 - Math.exp(-(this._snapT > 0 ? 12 : ads ? 7 : 5) * str * Math.max(0.45, bw) * dt), cap = 1.3 * dt;    // en çok ≈75°/sn; koni kenarında da çeker
+    const my = Math.max(-cap, Math.min(cap, best.ey * k)), mp = Math.max(-cap, Math.min(cap, best.ep * k * 0.75));
+    s.yaw += my + ty; s.pitch = Math.max(-1.5, Math.min(1.5, s.pitch + mp + tpch));
   }
 
   // HUD'daki silah yuvaları (#slots .slot): dokununca o silaha geç

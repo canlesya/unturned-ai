@@ -63,7 +63,7 @@ await A.waitForTimeout(1200);
 for (const p of [A, B]) await p.evaluate(() => { const S = window.__S; S.pb = {}; S.pbh = []; S.hm = 0; S.splats = []; window.__game.paint.stats.hits = 0; window.__game.paint.stats.fired = 0; setInterval(() => window.__game.online.send({ t: 'dbg', hp: 99999 }), 300); });
 // A, B'ye 2 sn gövdeye + 1,5 sn yana sıkar (düşüş telafili; 50'lik hazne bitmesin: cephane sunucuda, istemcide hile yok)
 await A.evaluate((bid) => {
-  const g = window.__game, me = g.playerSoldier, p = g.player, o = g.camera.position.clone(), st = { speed: 70, grav: 7 };
+  const g = window.__game, me = g.playerSoldier, p = g.player, o = g.camera.position.clone(), st = { speed: 78, grav: 4 };
   window.__aim = setInterval(() => {
     const b = g.soldiers[bid]; if (!me.alive || !b.alive) { p.fireHeld = false; return; }
     const now = performance.now(), L = (window.__L ||= { x: b.pos.x, z: b.pos.z, t: now, vx: 0, vz: 0 }), dtt = (now - L.t) / 1000;
