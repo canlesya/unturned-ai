@@ -1093,3 +1093,16 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 - Gök kubbesi (ufuk = sis rengi) + güneş halesi; ortam yansıması haritanın göğünden; gün saatine göre pozlama / renk.
 - Kalite: gölge 1024 / 2048 / 4096, Orta+ yumuşak PCF, gölge kutusu bakış yönüne kaydırılır; telefonda 1024. Birinci şahıs silah ışığı haritanın güneşi / göğüyle.
 - Son işleme (`post.js`, yalnız Yüksek + "Son işleme"; telefonda varsayılan kapalı): MSAA, parıltı, renk tonu, vinyet; menü ve oyun içi ayarlarda düğme. Test: `scripts/gfxshots.mjs`, `weapondraws.mjs`.
+
+### 12.113 Zombi gücü hissi: yerel oyuncuya güce özel ekran / ses geri bildirimi
+- Önceden güç kullanınca yalnız alttaki çubuk doluyordu. Yeni katman `src/game/abilityfx.js` (#abfx, HUD'un altında; DOM / CSS + tuval CSS filtresi, son işleme yok), yalnız yerel zombi oyuncuda; durum yerel askerin abT / abActive değerinden okunur → çevrimiçi istemcide de çalışır (bekleme süresi sıçraması = etkinleşme).
+- Öfke: kalp atışı ritminde kızıl kenar + atış sesi, sarsıntı, FOV vuruşu, kızıl parlayan pençeler, hızlı adım. Atılış: kenarda hız çizgileri, FOV +13°, rüzgâr, adım temposu ×1,35. Zırh: çelik mavisi kenar + çatlak zırh, isabette sekme parlaması + metal çınlaması (kırmızı hasar göstergesi soluk). Görünmezlik: soluk / hayalet ekran, yarı saydam eller, ışıltı; bozulunca "GÖRÜNDÜN" parlaması. Işınlanma: parlama + çizgi geçişi + FOV sıkışıp bırakma. Gölge Sıçrayışı (boss): mor dumanlı koyu kenar + derin gümbürtü.
+- Ortada güç adı + alt yazı canlanır, bitince "… BİTTİ"; HUD'da iri geri sayım, güç renginde çubuk; güç HAZIR olunca gösterge parlar + kısa ses (HUD artık className yerine classList kullanır, parlama silinmez). Kendi gücünde 1. şahısta dünya kıvılcımları çizilmez. Telefonda küçük yazı, bulanıklık yok. Metinler `src/i18n/zab.js`. Önceki yarım iş (6d34d72) taşındı.
+- Testler: `scripts/abilityfx.mjs` (GPU, 6 güç × masaüstü / Pixel 7), `scripts/abilityfxnet.mjs` (çevrimiçi 'ab' kenarı).
+
+### 12.114 Birinci şahıs elleri v2: robot değil insan eli
+- Sorun (kullanıcı): eller robot gibi, kabza tutuşları hatalı, bıçakta kol kırık gibi. Eller ayrı düz bloklardı, bıçakta kol sağ alta / yumruk sol üste bakıyordu, boştaki sol el iskelet pençe, tüfekte sol el kundağın 3–5 cm altında havada, tabancada tek el.
+- El modeli `src/models/fpHumanHand.js`: yumuşak gölgeli tek ağ; parmaklar uca doğru incelen kesintisiz tüpler (eklemde hafif şişlik, yuvarlak uç), kalın avuç, başparmak kası, tek yumuşak boğum hattı, bilekten kola tek tüp; mat koyu zeytin eldiven. Zombi pençesi bilerek köşeli / kemikli kaldı.
+- Bıçak bekleme (`player.js` MELEE_IDLE): kol sağdan gelir, bıçak öne-yukarı-sola; bilek bükümü ~15°, sap avuçta çapraz (KNIFE_TILT 0,5, `knife` pozu boğum eğimi `sl`), boştaki sol el kaldırıldı, yakın dövüş ölçeği 1,22 → 1,1.
+- Tüfek sol eli (`foreFit`): ön kundak ışınla ölçülür, avuç alt yüze değer, parmaklar sarar, başparmak öne uzanır (`fg` pozu); dikey tutamakta (M4, SCAR, AUG, Vector, AA-12) kabza gibi sarar. Tabancalarda sol destek eli (iki el; yüklemede şarjöre gider). Paintball kol / eldiven rengi aynı.
+- Yük: el başına ~1800 üçgen (eski ~500), çizim çağrısı aynı (tabancada +1). Testler: `scripts/fphands2.mjs` (GPU, masaüstü + Pixel 7), `fporbit.mjs`, `handlab.mjs`. Önceki yarım iş (4b55f55) taşındı.
