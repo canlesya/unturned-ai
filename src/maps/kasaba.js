@@ -15,11 +15,11 @@ const KIND = new Map(Object.entries({
   [KK.PAVER]: [COL.curb],
   [KK.PLASTER]: ['#d6cfb4', '#7a8a9a', '#d9c79a', '#c9d6c0', '#e0d8c0', '#b9cbd9', '#aeb2b8', '#a9b4a0', '#b8b2a4', '#b9a98a', '#c9b48a', '#e8e4d8', '#e6dfcd'],
   [KK.BRICK]: ['#c9a27a'],
-  [KK.STONE]: ['#a39a82', '#847b64', '#9a968c', '#8a867c', '#a8a49a', COL.plinth, '#9a9a94', '#d8d0bc'],
+  [KK.STONE]: ['#a39a82', '#847b64', '#9a968c', '#8a867c', '#a8a49a', COL.plinth, '#d8d0bc'],
   [KK.ROOF]: ['#7a3b2e', '#8a4a3a', '#4a5360', '#a8432f', '#5b6470', '#6a4a3a', '#8a8d92', '#5a5d62', '#6b4a3a', '#4d5b3a', '#5b4a45', '#4a3b37', '#6c7078', '#7b8794', '#6b6e74'],
   [KK.WOOD]: [COL.woodLight, COL.wood, COL.woodDark, '#7a5a38', '#8b6a45', '#8a6a45', '#6a5a45', '#a8804f', '#98703f', '#6a4a2a', '#8a5a38'],
   [KK.BOARD]: ['#9c3a2c', '#7d2f23', '#8b7a5a', '#5a3d24', '#5e4026'],
-  [KK.CONC]: [COL.concrete, '#b9b9b3', '#8a8d90', '#6a6d72'],
+  [KK.CONC]: [COL.concrete, '#b9b9b3', '#8a8d90', '#6a6d72', '#9a9a94'],               // #9a9a94: mezar taşı / saksı (düz taş)
   [KK.FLOOR]: ['#9c7a52', '#a58a62', '#8a6a48', '#b09068', '#d8dcd8', '#c8d4d8', '#d8d4c4', '#8a8d8a', '#9a9486', '#7a8590', '#b9b5aa', '#a58a68', '#9a8a70', '#b9b9b0'],
   [KK.INWALL]: ['#e8dfc8', '#dfe4d4', '#e4d6c2', '#d8dce4', '#eadcc8', '#d6e0dc'],
   [KK.PAINT]: [LINE_Y, LINE_W],

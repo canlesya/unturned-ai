@@ -56,18 +56,18 @@ ${NOISE}`)
       c *= 0.86 + 0.24 * kf(p * 0.07 + seed);
       c = mix(c, c * vec3(1.13, 1.06, 0.78), smoothstep(0.58, 0.82, kf(p * 0.045 + 3.0)) * 0.55);     // kuru (sarımsı) çim lekesi
       c = mix(c, c * vec3(0.82, 0.94, 0.86), smoothstep(0.6, 0.85, kn(p * 0.11 + 17.0)) * 0.4);      // gür (koyu) çim
-      c *= 1.0 + (kh(floor(p * 16.0)) - 0.5) * 0.14 * aaF + (kn(p * 3.3) - 0.5) * 0.08 * aaC;        // ot dokusu
+      c *= 1.0 + (kn(p * 13.0) - 0.5) * 0.2 * aaF + (kn(p * 3.3) - 0.5) * 0.08 * aaC;        // ot dokusu
       gRough = 0.97;
     } else {
       float cl = kn(wq * 2.6 + p * 1.9 + seed * 3.0);
       c *= 0.78 + 0.36 * cl;
-      c *= 1.0 + (kh(floor(wq * 9.0 + p * 9.0)) - 0.5) * 0.16 * aaM;                               // yaprak benekleri
+      c *= 1.0 + (kn(wq * 8.0 + p * 8.0) - 0.5) * 0.22 * aaM;                               // yaprak benekleri
       c *= 0.9 + 0.16 * clamp(n.y + 0.4, 0.0, 1.0);
       gRough = 0.95;
     }
   } else if (kind == 2.0) {                                    // ── TOPRAK: çakıl, iz ──
     c *= 0.84 + 0.26 * kf(p * 0.28 + seed);
-    c *= 1.0 - 0.2 * step(0.8, kh(floor(p * 7.0))) * aaF;
+    c *= 1.0 - 0.2 * smoothstep(0.68, 0.85, kn(p * 6.5)) * aaF;                                   // çakıl
     c *= 1.0 + (kn(p * 5.0) - 0.5) * 0.1 * aaC;
     c *= 1.0 - 0.1 * smoothstep(0.55, 0.8, kn(vec2(p.x * 0.3, p.y * 2.4) + 5.0)) * smoothstep(0.45, 0.65, kn(p * 0.04 + 1.0));   // tekerlek izi
     if (up < 0.5) c *= 0.85;
@@ -75,7 +75,7 @@ ${NOISE}`)
   } else if (kind == 3.0) {                                    // ── ASFALT (yol / otopark / çatı membranı): agrega, yama, çatlak ──
     if (up > 0.5) {
       c *= 0.84 + 0.26 * kf(p * 0.12 + 3.0);
-      c *= 1.0 + (kh(floor(p * 24.0)) - 0.5) * 0.18 * aaF + (kn(p * 6.0) - 0.5) * 0.08 * aaC;
+      c *= 1.0 + (kn(p * 26.0) - 0.5) * 0.26 * aaF + (kn(p * 6.0) - 0.5) * 0.08 * aaC;
       vec2 pg = p / vec2(3.7, 2.6); vec2 pf = abs(fract(pg) - 0.5);
       c = mix(c, c * 0.8, step(0.93, kh(floor(pg) + 9.0)) * (1.0 - smoothstep(0.38, 0.42, max(pf.x, pf.y))));   // yama
       float ck = 1.0 - smoothstep(0.0, 0.022, abs(kn(p * 0.55 + 4.0) - 0.5));
@@ -140,7 +140,7 @@ ${NOISE}`)
         c = mix(c, vec3(0.36, 0.22, 0.14), smoothstep(0.72, 0.9, kn(vec2(u * 2.0, vWP.y * 0.6) + seed)) * 0.35);   // pas akıntısı
         gMetal = 0.25; gRough = 0.6;
       }
-    } else if (up > 0.5) { c *= 0.9 + 0.1 * kn(p * 3.0); c *= 1.0 + (kh(floor(p * 18.0)) - 0.5) * 0.12 * aaF; }
+    } else if (up > 0.5) { c *= 0.9 + 0.1 * kn(p * 3.0); c *= 1.0 + (kn(p * 16.0) - 0.5) * 0.16 * aaF; }
     else { c *= 0.92 + 0.1 * kf(wq * 0.8 + seed); }
   } else if (kind == 9.0) {                                    // ── AHŞAP: tahta (yan: yatay, üst: z boyunca), damar, aralık ──
     float pv = side > 0.5 ? vWP.y : (abs(n.x) > 0.5 ? vWP.z : vWP.x);
