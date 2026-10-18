@@ -6,6 +6,8 @@ import { defaultServerUrl, healthUrl } from './net/protocol.js';
 import { fetchBalance, useBalance } from './game/balance.js';
 import { t } from './i18n/index.js';
 import './i18n/match.js';
+import './i18n/menu.js';
+import { mapName, modeLabel } from './i18n/data.js';
 
 const q = new URLSearchParams(location.search);
 const loading = document.getElementById('loading');
@@ -13,16 +15,17 @@ let game = null;
 // Çevrimdışı maçlar da admin panelindeki denge ayarlarını kullanır (sunucuya ulaşılamazsa koddaki varsayılanlar)
 const balReady = fetchBalance(healthUrl(q.get('server') || loadPrefs().server || defaultServerUrl()).replace(/\/health$/, ''));
 
-const TIPS = ['Bayrağın çevresinde kal: sıhhiye yakınındaysa canın yenilenir.', 'Köşeden Q / E ile eğilerek ateş et.', 'Gece fenerini F ile aç.', 'Ele geçirdiğin bayrakta yeniden doğabilirsin.', 'Keskin nişancılar yüksek noktaları sever.'];
-function showLoading() {
-  loading.innerHTML = `<div class="lg">WAR<b>BYTE</b></div><div class="lb"></div><div class="lt">${TIPS[Math.floor(Math.random() * TIPS.length)]}</div>`;
+// Yükleme ekranı: logo · yüklenen harita + mod (biliniyorsa) · ilerleme çubuğu · menüdeki ipuçlarından biri (seçili dilde)
+function showLoading(opts) {
+  const what = opts?.editor ? `${mapName(opts.map)}<small>${t('menu.load.editor')}</small>` : opts?.map ? `${mapName(opts.map)}<small>${modeLabel(opts.match?.type || 'conquest')}</small>` : t('menu.load.online');
+  loading.innerHTML = `<div class="lg">WAR<b>BYTE</b></div><div class="lm">${t('menu.load.loading')} · ${what}</div><div class="lb"></div><div class="lt"><b>${t('menu.tipLabel')}</b> ${t('menu.tip.' + Math.floor(Math.random() * 7))}</div>`;
   loading.style.display = 'flex';
 }
 const st = document.createElement('style'); st.textContent = MENU_CSS; document.head.appendChild(st);
 if (FOV_KEY === 'fovM') document.documentElement.classList.add('touch');      // dokunmatik cihaz: menüde büyük dokunma hedefleri (menuStyle.js html.touch)
 
 function start(opts) {
-  showLoading();
+  showLoading(opts);
   // arayüz boyansın, sonra ağır kurulum
   const go = opts.online ? Promise.resolve() : balReady.then((b) => useBalance(b));
   go.then(() => setTimeout(() => {
@@ -38,7 +41,7 @@ function start(opts) {
       });
     } catch (e) {
       console.error(e);
-      loading.textContent = 'Hata: ' + e.message;
+      loading.textContent = t('menu.load.error', { m: e.message });
       return;
     }
     loading.style.display = 'none';
@@ -84,7 +87,7 @@ async function startOnline() {
     beginOnline({ net, welcome, name, pw });
   } catch (e) {
     loading.style.display = 'flex';
-    loading.innerHTML = `<div class="lg">WAR<b>BYTE</b></div><div class="lt">Bağlanılamadı: ${e.message}<br><br><a href="${location.pathname}" style="color:#ff8a1f">Ana menüye dön</a></div>`;
+    loading.innerHTML = `<div class="lg">WAR<b>BYTE</b></div><div class="lt">${t('menu.load.noConnect', { m: e.message })}<br><br><a href="${location.pathname}">${t('menu.load.back')}</a></div>`;
   }
 }
 

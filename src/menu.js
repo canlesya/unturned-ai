@@ -1,5 +1,5 @@
 import { MAPS, DEFAULT_MAP, mapsFor } from './maps/index.js';
-import { CLASS_DEFS, WSTATS, DIFFICULTY, OPTICS, OPTIC_ORDER } from './game/stats.js';
+import { CLASS_DEFS, WSTATS, DIFFICULTY, OPTIC_ORDER } from './game/stats.js';
 import { MATCH_TYPES, TODS_LIST, defaultTickets, defaultScoreLimit, isTotalType as tot, totalMin as totMin, totalMax as totMax } from './game/match.js';
 import { LIMITS } from './game/balance.js';
 import { MENU_CSS } from './menuStyle.js';
@@ -8,9 +8,12 @@ import { MenuScene } from './menuScene.js';
 import { WEATHERS } from './game/weather.js';
 import { NetClient } from './net/client.js';
 import { defaultServerUrl, healthUrl } from './net/protocol.js';
-import { Binds, ACTIONS, GROUPS, codeLabel, RESERVED, norm } from './core/keybinds.js';
+import { Binds, ACTIONS, GROUPS, RESERVED, norm } from './core/keybinds.js';
 import { music } from './game/music.js';
 import { isTouch } from './game/touch.js';
+import { t, lang, setLang, onLang, LANGS } from './i18n/index.js';
+import './i18n/menu.js';
+import { mapName as mapNm, mapTag, mapDesc, modeLabel, modeDesc, modeTag, className, classDesc, weaponName, weaponDesc, diffLabel, opticLabel, todLabel, weatherLabel, statLabel, actionLabel, groupLabel, keyName } from './i18n/data.js';
 
 const KEY = 'warbyte.v2';
 // Dokunmatik cihazda görüş açısı ve kalite AYRI tercihlerde (fovM = YATAY FOV, qualityM = çözünürlük çarpanı): telefonda kayıtlı eski
@@ -20,7 +23,7 @@ export const FOV_KEY = TOUCH ? 'fovM' : 'fov', Q_KEY = TOUCH ? 'qualityM' : 'qua
 export const FOV_RANGE = TOUCH ? [70, 110] : [60, 100];
 export const DEFAULTS = {
   map: DEFAULT_MAP, tod: 'day', weather: 'clear', type: 'conquest', perTeam: 10, tickets: 0, time: 900,
-  team: 'blue', cls: 'assault', diff: 'normal', optic: 'reddot', loadouts: {}, name: 'Sen',
+  team: 'blue', cls: 'assault', diff: 'normal', optic: 'reddot', loadouts: {}, name: lang() === 'tr' ? 'Sen' : 'You',      // varsayılan takma ad ilk açılıştaki dilde
   sens: 0.0022, fov: 75, volume: 0.6, shadows: !TOUCH, quality: 1.5, fovM: 85, qualityM: 2, adaptive: true, fullscreen: true, devMode: false,   // telefonda: gölgesiz; keskinlik için 2× (FPS düşerse otomatik çözünürlük indirir)
   xp: 0, stats: { matches: 0, wins: 0, kills: 0, deaths: 0 },
   server: '', room: '', olTeam: 'auto', third: true,
@@ -47,34 +50,35 @@ export function recordMatch({ score = 0, kills = 0, deaths = 0, win = false }) {
 }
 const levelOf = (xp) => Math.floor(Math.sqrt(xp / 120)) + 1;
 
-const TIPS = [
-  'İpucu: Bayrağın çevresinde kal; yanında sıhhiye varsa canın yenilenir.',
-  'İpucu: Gece ya da gün batımında <b>F</b> ile fenerini aç.',
-  'İpucu: Keskin nişancılar uzak bayrakları gören yüksek noktalara yerleşir.',
-  'İpucu: Düşman üssüne girersen birkaç saniye sonra can kaybedersin.',
-  'İpucu: Ele geçirdiğin bayrakta yeniden doğabilirsin.',
-  'İpucu: <b>Q</b> / <b>E</b> ile köşeden eğilerek ateş et.',
-  'İpucu: Dumanlı bomba görüşü keser; bot ve oyuncular dumanın içini göremez.',
-];
-const NEWS = [
-  'Özel oyun: takım başına 1–32 oyuncu',
-  'Gece, gün batımı ve gündüz seçenekleri',
-  'Sınıf başına silah ve gadget seçimi',
-  'Yeni haritalar: Vadi ve Askeri Üs',
-  '32 silah: yeni tüfekler, SMG, DMR, .50, mayın, duman, flaşbang',
-  'Daha hızlı şarjör değiştirme, yeni bıçak kombosu',
-  'Mangal tabanlı bot stratejisi, ileri doğma noktaları',
-];
-const SIZE_PRESETS = [[1, '1v1'], [3, '3v3'], [5, '5v5'], [10, '10v10'], [16, '16v16'], [24, '24v24'], [32, '32v32']];
-const TIME_OPTS = [[300, '5 dk'], [600, '10 dk'], [900, '15 dk'], [1200, '20 dk'], [1800, '30 dk'], [0, '∞']];
-const TICKET_OPTS = [[0, 'Otomatik'], [50, '50'], [100, '100'], [200, '200'], [400, '400'], [800, '800']];
+const TIP_N = 7, NEWS_N = 7;                                              // menu.tip.0..6 / menu.news.0..6 (src/i18n/menu.js)
+const SIZE_PRESETS = [1, 3, 5, 10, 16, 24, 32];
+const TIME_OPTS = [300, 600, 900, 1200, 1800, 0];
+const TICKET_OPTS = [0, 50, 100, 200, 400, 800], SCORE_OPTS = [0, 30, 50, 75, 100, 150, 200];
+const timeLabel = (v) => (v ? t('menu.min', { n: v / 60 }) : '∞');
 // oyuncu sayısı 'toplam' olan modlarda (Ölüm Maçı, Enfekte) alt/üst sınır ve hızlı seçimler
-const lo = (t) => (tot(t) ? totMin(t) : 1), hi = (t) => (tot(t) ? totMax(t) : LIMITS.maxPerTeam);
-const TOT_PRESETS = { dm: [[2, '2'], [4, '4'], [6, '6'], [8, '8'], [10, '10']], gg: [[2, '2'], [4, '4'], [6, '6'], [8, '8'], [10, '10']], inf: [[6, '6'], [8, '8'], [12, '12'], [16, '16'], [24, '24']], pb: [[2, '2'], [4, '4'], [6, '6'], [8, '8'], [12, '12']] };
-const totTx = (t, n) => (t === 'pb' ? `${n} savaşçı, herkes tek ve kendi boya renginde. İlk ${LIMITS.pbKills} elemeye ulaşan kazanır; Boya Kulesi'nde kuyuya düşen elenir.` : t === 'gg' ? `${n} savaşçı, herkes tek. Her öldürmede yeni silah; 15. silah bıçak: bıçakla ilk öldüren kazanır.` : t === 'inf' ? `${n} savaşçı: ${Math.max(1, Math.round(n / 8))} ilk zombi, kalanı insan. Zombi öldürdüğü insanı enfekte eder.` : `${n} savaşçı, herkes tek. İlk ${LIMITS.dmKills} öldürmeye ulaşan kazanır.`);
-const SCORE_OPTS = [[0, 'Otomatik'], [30, '30'], [50, '50'], [75, '75'], [100, '100'], [150, '150'], [200, '200']];
-const SLOTS = [['primary', 'Ana silah', 'primaryOptions'], ['secondary', 'Yedek', 'secondaryOptions'], ['gadget', 'Gadget', 'gadgetOptions'], ['melee', 'Yakın dövüş', 'meleeOptions']];
+const lo = (tp) => (tot(tp) ? totMin(tp) : 1), hi = (tp) => (tot(tp) ? totMax(tp) : LIMITS.maxPerTeam);
+const TOT_PRESETS = { dm: [2, 4, 6, 8, 10], gg: [2, 4, 6, 8, 10], inf: [6, 8, 12, 16, 24], pb: [2, 4, 6, 8, 12] };
+const totTx = (tp, n) => t(`menu.tot.${tp === 'pb' || tp === 'gg' || tp === 'inf' ? tp : 'dm'}`, { n, z: Math.max(1, Math.round(n / 8)), dm: LIMITS.dmKills, pb: LIMITS.pbKills });
+const SLOTS = [['primary', 'primaryOptions'], ['secondary', 'secondaryOptions'], ['gadget', 'gadgetOptions'], ['melee', 'meleeOptions']];
 const rnd = (a) => a[Math.floor(Math.random() * a.length)];
+// sunucu / istemci hata metinleri (sunucu Türkçe yollar; sunucu davranışı değişmesin diye çeviri istemcide)
+const NET_ERR = { 'Zaten bir odadasın': 'already', 'Sunucu dolu, sonra tekrar dene': 'full', 'Oda bulunamadı': 'notFound', 'Şifre yanlış': 'pw', 'Çok fazla yanlış şifre': 'pwMany', 'Oda dolu': 'roomFull', 'Maç bitti, yeni maç birazdan başlıyor': 'ended', 'Sunucuya bağlanılamadı': 'connect' };
+const netErr = (m) => { const k = NET_ERR[m] || (String(m).startsWith('Sunucuya bağlanılamadı') ? 'connect' : null); return k ? t('menu.err.' + k) : m; };
+
+// Çizgi ikonlar (24×24, currentColor): menü gezinmesi ve kısayol kartları
+const ICON = {
+  home: '<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5h4.5v-5.5h4v5.5h4.5V10"/>',
+  custom: '<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/><path d="M4 12h12M20 12h0"/><circle cx="18" cy="12" r="2"/>',
+  online: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.6 2.4 3.8 5.2 3.8 8.5s-1.2 6.1-3.8 8.5M12 3.5C9.4 5.9 8.2 8.7 8.2 12s1.2 6.1 3.8 8.5"/>',
+  loadout: '<circle cx="12" cy="12" r="7"/><path d="M12 2.5v5M12 16.5v5M2.5 12h5M16.5 12h5"/><circle cx="12" cy="12" r="1.2"/>',
+  settings: '<circle cx="12" cy="12" r="3"/><path d="M12 2.8v2.6M12 18.6v2.6M2.8 12h2.6M18.6 12h2.6M5.5 5.5l1.9 1.9M16.6 16.6l1.9 1.9M5.5 18.5l1.9-1.9M16.6 7.4l1.9-1.9"/>',
+  controls: '<rect x="2.5" y="6.5" width="19" height="11" rx="1.5"/><path d="M6 10h1M9.5 10h1M13 10h1M16.5 10h1.5M7 14h10"/>',
+  editor: '<path d="M12 2.8 20.5 7.5v9L12 21.2 3.5 16.5v-9z"/><path d="M3.5 7.5 12 12l8.5-4.5M12 12v9.2"/>',
+  dice: '<rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/><circle cx="8.5" cy="8.5" r="1.2"/><circle cx="15.5" cy="15.5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="15.5" cy="8.5" r="1.2"/><circle cx="8.5" cy="15.5" r="1.2"/>',
+  play: '<path d="M7 4.5v15l12-7.5z" fill="currentColor"/>',
+  lang: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.6 2.4 3.8 5.2 3.8 8.5s-1.2 6.1-3.8 8.5M12 3.5C9.4 5.9 8.2 8.7 8.2 12s1.2 6.1 3.8 8.5"/>',
+};
+const ico = (k) => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICON[k]}</svg>`;
 
 function weaponBars(id) {
   const st = WSTATS[id] || {};
@@ -82,7 +86,6 @@ function weaponBars(id) {
   const r = st.range ? st.range[1] : 40;
   return { dmg: Math.min(100, Math.round((st.dmg || 20) * (st.pellets || 1) / 1.3)), range: Math.min(100, Math.round(r / 1.6)), rate: Math.min(100, Math.round((st.rpm || 300) / 9)), control: 60, mobility: Math.round(((st.move || 1) - 0.8) * 250) };
 }
-const STAT_LABEL = { dmg: 'Hasar', range: 'Menzil', rate: 'Atış hızı', control: 'Kontrol', mobility: 'Hareket' };
 
 let styleEl = null;
 function ensureStyle() {
@@ -97,196 +100,213 @@ export function showMenu(onStart, onOnline) {
   if (!MAPS[p.map] && p.map !== 'random') p.map = DEFAULT_MAP;
   el.style.display = 'block';
   el.innerHTML = `<canvas id="mnBg"></canvas><div class="mn-vig"></div>
-    <div class="mn-top"><div class="mn-logo">WAR<b>BYTE</b><small>TAKIM SAVAŞI · TARAYICIDA</small></div><div class="mn-user" id="mnUser"></div></div>
+    <div class="mn-top"><div class="mn-logo" id="mnLogo"></div><div class="mn-topr"><div class="mn-langs" id="mnLangs"></div><div class="mn-user" id="mnUser"></div></div></div>
     <nav class="mn-side" id="mnNav"></nav>
     <main class="mn-stage" id="mnStage"></main>
-    <div class="mn-foot"><span id="mnTip"></span><span>WARBYTE v2.0 · yerel ve çevrimiçi, botlu</span></div>`;
+    <div class="mn-foot"><span id="mnTip"></span><span id="mnVer"></span></div>`;
   const q = (s) => el.querySelector(s);
   const stage = q('#mnStage'), nav = q('#mnNav');
   let scene = null;
   try { scene = new MenuScene(q('#mnBg')); } catch (e) { console.warn('menü sahnesi açılamadı', e); }
   let screen = 'home', slot = 'primary';
   let ol = { msg: '', err: false, busy: false, rooms: null, pwFor: null, pw: '', cpw: '' }, olChk = 0;
-  let tipI = Math.floor(Math.random() * TIPS.length);
-  const tipTimer = setInterval(() => { tipI = (tipI + 1) % TIPS.length; q('#mnTip').innerHTML = TIPS[tipI]; }, 7000);
-  q('#mnTip').innerHTML = TIPS[tipI];
+  let tipI = Math.floor(Math.random() * TIP_N);
+  const showTip = () => { q('#mnTip').innerHTML = `<b>${t('menu.tipLabel')}</b> ${t('menu.tip.' + tipI)}`; };
+  const tipTimer = setInterval(() => { tipI = (tipI + 1) % TIP_N; showTip(); }, 7000);
+  const chrome = () => {                                                     // dil değişince sabit kabuk (logo, dil düğmeleri, alt bilgi) da yenilenir
+    q('#mnLogo').innerHTML = `WAR<b>BYTE</b><small>${t('menu.tagline')}</small>`;
+    q('#mnLangs').innerHTML = LANGS.map(([k]) => `<button class="lg ${lang() === k ? 'on' : ''}" data-a="lang" data-v="${k}" title="${t('menu.set.lang')}">${k.toUpperCase()}</button>`).join('');
+    q('#mnVer').textContent = t('menu.version');
+    showTip();
+  };
+  chrome();
 
-  const NAV = [['home', 'Ana Menü', 'Hızlı başla'], ['custom', 'Özel Oyun', 'Harita · mod · boyut'], ['online', 'Çevrimiçi', 'Oda kur · katıl'], ['loadout', 'Sınıf & Silah', 'Teçhizatını seç'], ['settings', 'Ayarlar', 'Ses · görüntü · fare'], ['controls', 'Kontroller', 'Tuş haritası'], ['editor', 'Harita Editörü', 'Nesne seç · sil · taşı']];
+  const NAV = ['home', 'custom', 'online', 'loadout', 'settings', 'controls', 'editor'];
   const save = () => savePrefs(p);
-  const effTickets = () => p.tickets || (p.type === 'tdm' ? defaultScoreLimit(p.perTeam) : defaultTickets(p.perTeam));
-  const mapName = () => (p.map === 'random' ? 'Rastgele' : MAPS[p.map].name);
-  const todName = () => (p.tod === 'random' ? 'Rastgele' : TODS_LIST.find((t) => t[0] === p.tod)[1]);
+  const mapName = () => mapNm(p.map);
+  const todName = () => (p.tod === 'random' ? t('menu.random') : todLabel(p.tod));
   const loadoutOf = (cls) => p.loadouts[cls] || (p.loadouts[cls] = {});
+  const esc = (s) => String(s ?? '').replace(/[<>&"']/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c]));
 
   function bg() {
     if (!scene) return;
     const m = screen === 'editor' && MAPS[p.edMap] ? p.edMap : p.map === 'random' ? (scene.mapId || DEFAULT_MAP) : p.map;
-    const t = p.tod === 'random' ? (scene.tod || 'day') : p.tod;
+    const tt = p.tod === 'random' ? (scene.tod || 'day') : p.tod;
     if (screen === 'loadout') {
       scene.setMode('showroom');
       scene.showCharacter({ team: p.team === 'red' ? 'red' : 'blue', cls: p.cls, weapon: loadoutOf(p.cls).primary || null, optic: p.optic });
-    } else { scene.setMode('orbit'); scene.setWorld(m, t); }
-    q('.mn-vig').className = 'mn-vig' + (screen === 'loadout' ? ' light' : '');
+    } else { scene.setMode('orbit'); scene.setWorld(m, tt); }
+    q('.mn-vig').className = 'mn-vig' + (screen === 'loadout' ? ' light' : screen === 'home' ? ' home' : '');
   }
 
   function renderUser() {
-    const lv = levelOf(p.xp), lo = (lv - 1) ** 2 * 120, hi = lv ** 2 * 120;
+    const lv = levelOf(p.xp), l0 = (lv - 1) ** 2 * 120, l1 = lv ** 2 * 120;
     const s = p.stats;
-    q('#mnUser').innerHTML = `<div class="mn-lv">${lv}</div><div><div class="nm"><input id="mnName" maxlength="14" value="${p.name.replace(/"/g, '')}" spellcheck="false"></div>
-      <div class="xp"><i style="width:${Math.round(((p.xp - lo) / (hi - lo)) * 100)}%"></i></div>
-      <small>${s.matches} MAÇ · ${s.wins} ZAFER · K/D ${s.deaths ? (s.kills / s.deaths).toFixed(2) : s.kills}</small></div>`;
-    q('#mnName').addEventListener('input', (e) => { p.name = e.target.value.trim() || 'Sen'; save(); });
+    q('#mnUser').innerHTML = `<div class="mn-lv"><small>${t('menu.user.lv')}</small>${lv}</div><div class="mn-ub"><div class="nm" data-raw><input id="mnName" maxlength="14" value="${esc(p.name)}" spellcheck="false" aria-label="${t('menu.user.name')}" title="${t('menu.user.name')}"></div>
+      <div class="xp"><i style="width:${Math.round(((p.xp - l0) / (l1 - l0)) * 100)}%"></i></div>
+      <small>${t('menu.user.stats', { m: s.matches, w: s.wins, kd: s.deaths ? (s.kills / s.deaths).toFixed(2) : s.kills })}</small></div>`;
+    q('#mnName').addEventListener('input', (e) => { p.name = e.target.value.trim() || DEFAULTS.name; save(); });
     q('#mnName').addEventListener('keydown', (e) => e.stopPropagation());
   }
 
   function renderNav() {
-    nav.innerHTML = NAV.map(([k, t, s]) => `<button class="mn-nav ${screen === k || (k === 'online' && screen === 'ocreate') ? 'on' : ''}" data-a="go" data-v="${k}">${t}<small>${s}</small></button>`).join('')
+    nav.innerHTML = NAV.map((k) => `<button class="mn-nav ${screen === k || (k === 'online' && screen === 'ocreate') ? 'on' : ''}" data-a="go" data-v="${k}">${ico(k)}<span class="tx">${t('menu.nav.' + k)}<small>${t('menu.nav.' + k + '.sub')}</small></span></button>`).join('')
       + '<div class="mn-spacer"></div>';
   }
+  // ekran başlığı (Ana Menü dışında): büyük başlık + kısa açıklama
+  const head = (k, extra = '') => `<header class="mn-head"><h1>${t('menu.nav.' + (k === 'ocreate' ? 'ocreate' : k))}</h1><p>${t('menu.head.' + k)}</p>${extra}</header>`;
 
   // ───── ekranlar ─────
-  const summary = () => `<div class="sumline"><span><b>${mapName()}</b></span><span>${todName()}${p.weather !== 'clear' ? ' · ' + (p.weather === 'random' ? 'Rastgele hava' : WEATHERS.find((w) => w[0] === p.weather)[1]) : ''}</span><span>${MATCH_TYPES[p.type].label}</span>${tot(p.type) ? `<span><b>${p.perTeam}</b> oyuncu</span>` : `<span><b>${p.perTeam}</b> v <b>${p.perTeam}</b></span>`}<span>${DIFFICULTY[p.type === 'inf' ? 'hard' : p.diff].label}</span></div>`;
+  const weaName = (w) => (w === 'random' ? t('menu.randomWeather') : weatherLabel(w));
+  const summary = () => `<div class="sumline"><span>${ico('custom')}${modeLabel(p.type)}</span>${tot(p.type) ? `<span><b>${p.perTeam}</b> ${t('menu.players')}</span>` : `<span><b>${p.perTeam}</b> v <b>${p.perTeam}</b></span>`}<span>${todName()}${p.weather !== 'clear' ? ' · ' + weaName(p.weather) : ''}</span><span>${t('menu.bots')}: ${diffLabel(p.type === 'inf' ? 'hard' : p.diff)}</span>${p.devMode ? `<span class="dev">${t('menu.dev')}</span>` : ''}</div>`;
 
   function homeHTML() {
-    return `<div class="home"><div class="news"><h3>YENİLİKLER · v2.0</h3><ul>${NEWS.map((n) => `<li>${n}</li>`).join('')}</ul></div>
-      ${summary()}
-      <div class="cta"><button class="play" data-a="quick">Hızlı Oyun<small>Son ayarlarınla hemen başla · Enter</small></button>
-      <button class="play sec" data-a="random">🎲 Rastgele maç</button><button class="play sec" data-a="go" data-v="custom">Özel oyun ›</button></div></div>`;
+    const cm = p.map === 'random' ? null : MAPS[p.map];
+    const def = CLASS_DEFS[p.cls] || CLASS_DEFS.assault, lw = loadoutOf(p.cls).primary;
+    const prim = lw && def.primaryOptions.includes(lw) ? lw : (def.defaults.primary[p.team === 'red' ? 'red' : 'blue'] || def.defaults.primary.blue);
+    return `<div class="home">
+      <aside class="home-side">
+        <div class="news card"><h3><span>${t('menu.news.title')}</span><em>v2.0</em></h3><ul>${Array.from({ length: NEWS_N }, (_, i) => `<li>${t('menu.news.' + i)}</li>`).join('')}</ul></div>
+        <button class="lcard card" data-a="go" data-v="loadout"><small>${t('menu.home.loadout')}</small><b>${className(p.cls)}</b><span>${weaponName(prim)} · ${opticLabel(p.optic)}</span><i>›</i></button>
+      </aside>
+      <div class="hero">
+        <div class="kick">${t('menu.home.ready')}</div>
+        <h1>${cm ? mapName() : t('menu.randomMap')}</h1>
+        <div class="htag">${cm ? mapTag(cm.id) : t('menu.randomMapTag')}</div>
+        ${summary()}
+        <div class="cta"><button class="play" data-a="quick">${ico('play')}<span>${t('menu.quick')}<small>${t('menu.quick.sub')}</small></span></button>
+          <div class="cta2"><button class="play sec" data-a="random">${ico('dice')}<span>${t('menu.randomMatch')}</span></button><button class="play sec" data-a="go" data-v="custom">${ico('custom')}<span>${t('menu.nav.custom')}</span></button><button class="play sec" data-a="go" data-v="online">${ico('online')}<span>${t('menu.nav.online')}</span></button></div></div>
+      </div></div>`;
   }
 
   // ───── Maç kurucu (Özel Oyun + Oda Kur ortak): 1 Mod → 2 Harita → 3 Ayarlar; sağda canlı özet + Oyna ─────
-  const MODE_META = {
-    conquest: { icon: '⚑', tag: 'Takımlı · bayrak' }, tdm: { icon: '⚔', tag: 'Takımlı · skor' }, dm: { icon: '☠', tag: 'Herkes tek' },
-    gg: { icon: '🔫', tag: 'Herkes tek · 15 silah' }, inf: { icon: '🧟', tag: 'Zombi · Zor botlar' }, pb: { icon: '🎨', tag: 'Herkes tek · boya silahı' },
-  };
+  const MODE_ICON = { conquest: '⚑', tdm: '⚔', dm: '☠', gg: '🔫', inf: '🧟', pb: '🎨' };
   function builderHTML(c, online) {
     const LOCAL = { map: 'map', type: 'type', tod: 'tod', weather: 'weather', third: 'third', diff: 'diff', time: 'time', tickets: 'tickets', perTeam: 'size', team: 'team' };
     const at = (k, v) => (online ? `data-a="olset" data-k="${k}" data-v="${v}"` : `data-a="${LOCAL[k]}" data-v="${k === 'third' ? (v ? '1' : '0') : v}"`);
     const chip = (k, v, label, sm) => `<button class="chip ${c[k] === v ? 'on' : ''}" ${at(k, v)}>${label}${sm ? `<small>${sm}</small>` : ''}</button>`;
-    const tp = c.type, M = MATCH_TYPES[tp], meta = MODE_META[tp];
+    const tp = c.type, icon = MODE_ICON[tp];
     const maps = mapsFor(tp), cm = c.map === 'random' ? null : MAPS[c.map] || maps[0];
     const ftod = cm && cm.forceTod;
     const eff = c.tickets || (tp === 'tdm' ? defaultScoreLimit(c.perTeam) : defaultTickets(c.perTeam));
-    const limitTitle = tp === 'inf' ? 'Hayatta kalma' : tp === 'gg' ? 'Silah merdiveni' : tp === 'dm' ? 'Öldürme sınırı' : tp === 'pb' ? 'Eleme sınırı' : tp === 'tdm' ? 'Skor sınırı' : 'Bilet';
-    const limitSum = tp === 'inf' ? 'Son insan / süre' : tp === 'gg' ? '15 silah' : tp === 'dm' ? `${LIMITS.dmKills} öldürme` : tp === 'pb' ? `${LIMITS.pbKills} eleme` : tp === 'tdm' ? `${eff} skor` : `${eff} bilet`;
-    const n = c.perTeam, sizeTxt = tot(tp) ? `${n} kişi` : `${n} vs ${n}`;
+    const lk = tp === 'inf' || tp === 'gg' || tp === 'dm' || tp === 'pb' || tp === 'tdm' ? tp : 'conquest';
+    const limitTitle = t('menu.limit.' + lk);
+    const limitSum = t('menu.limitSum.' + lk, { n: eff, dm: LIMITS.dmKills, pb: LIMITS.pbKills });
+    const n = c.perTeam, sizeTxt = tot(tp) ? t('menu.nPeople', { n }) : `${n} vs ${n}`;
     const diffKey = tp === 'inf' ? 'hard' : c.diff, botsOn = online ? c.bots : true;
-    const timeLbl = (TIME_OPTS.find((t) => t[0] === c.time) || [0, '∞'])[1];
-    const todLbl = ftod ? 'Gece (harita)' : c.tod === 'random' ? 'Rastgele' : (TODS_LIST.find((t) => t[0] === c.tod) || [0, c.tod])[1];
-    const weaLbl = c.weather === 'random' ? 'Rastgele' : (WEATHERS.find((w) => w[0] === c.weather) || [0, c.weather])[1];
-    const warn = tot(tp) ? '' : n > 20 ? '<div class="warn">Çok oyunculu maçlar güçlü bilgisayar ister; takılırsa sayıyı azalt.</div>' : '';
+    const todLbl = ftod ? t('menu.nightMap') : c.tod === 'random' ? t('menu.random') : todLabel(c.tod);
+    const weaLbl = c.weather === 'random' ? t('menu.random') : weatherLabel(c.weather);
+    const warn = tot(tp) ? '' : n > 20 ? `<div class="warn">${t('menu.warnBig')}</div>` : '';
+    const onOff = (v) => t(v ? 'menu.on' : 'menu.off');
 
-    const modeCards = Object.entries(MATCH_TYPES).map(([k, m]) => `<button class="mdc ${tp === k ? 'on' : ''}" ${at('type', k)}><span class="ic">${MODE_META[k].icon}</span><b>${m.label}</b><em>${MODE_META[k].tag}</em><small>${m.desc}</small></button>`).join('');
-    const mapCards = maps.map((m) => `<button class="mapc ${c.map === m.id ? 'on' : ''}" ${at('map', m.id)}><img src="${m.thumb}" alt="">${m.mobile ? '<em class="mob">Mobil dostu</em>' : ''}<div class="t"><b>${m.name}</b><small>${m.tag}</small></div></button>`).join('')
-      + (maps.length > 1 ? `<button class="mapc rnd ${c.map === 'random' ? 'on' : ''}" ${at('map', 'random')}>🎲<div class="t"><b>Rastgele</b></div></button>` : '');
-    const mapNote = maps.length === 1 ? `<div class="hint">Bu mod yalnızca <b>${maps[0].name}</b> haritasında oynanır.</div>` : '';
-    const mapDesc = cm ? `<div class="mapdesc"><b>${cm.name}.</b> ${cm.desc}</div>` : '<div class="mapdesc">Her maçta farklı bir harita seçilir.</div>';
-    const tods = ftod ? `<div class="hint">${cm.name} yalnızca gece oynanır.</div>`
-      : `<div class="tods">${TODS_LIST.map(([k, nm]) => `<button class="tod ${k} ${c.tod === k ? 'on' : ''}" ${at('tod', k)}><span>${nm}</span></button>`).join('')}<button class="tod rnd ${c.tod === 'random' ? 'on' : ''}" ${at('tod', 'random')}><span>🎲 Rastgele</span></button></div>`;
-    const limitBody = tp === 'inf' ? '<div class="hint">Süre dolana kadar hayatta kalan insanlar kazanır; son insan enfekte olursa zombiler. 1–2 BOSS zombi başlar.</div>'
-      : tp === 'gg' ? '<div class="hint">15 silahı sırayla bitir: her öldürme bir sonraki silah. Bıçakla öldürülen bir seviye geriler. Süre dolarsa en yüksek seviye kazanır.</div>'
-      : tp === 'dm' ? `<div class="hint">İlk <b>${LIMITS.dmKills}</b> öldürmeye ulaşan kazanır; süre dolarsa en çok öldüren.</div>`
-      : tp === 'pb' ? `<div class="hint">İlk <b>${LIMITS.pbKills}</b> elemeye ulaşan kazanır; süre dolarsa en çok eleyen. Silahlar sabit (sınıf seçimi yok), yeniden doğma hızlı. Boya Kulesi'nde kuyuya itilen düşmanın elemesi son vurana yazılır.</div>`
-      : `<div class="row">${(tp === 'tdm' ? SCORE_OPTS : TICKET_OPTS).map(([v, l]) => `<button class="chip ${c.tickets === v ? 'on' : ''}" ${at('tickets', v)}>${l}</button>`).join('')}</div><div class="hint">Şu an: <b>${eff}</b></div>`;
+    const modeCards = Object.keys(MATCH_TYPES).map((k) => `<button class="mdc ${tp === k ? 'on' : ''}" ${at('type', k)}><span class="ic">${MODE_ICON[k]}</span><b>${modeLabel(k)}</b><em>${modeTag(k)}</em><small>${modeDesc(k)}</small></button>`).join('');
+    const mapCards = maps.map((m) => `<button class="mapc ${c.map === m.id ? 'on' : ''}" ${at('map', m.id)}><img src="${m.thumb}" alt="" loading="lazy">${m.mobile ? `<em class="mob">${t('menu.mobile')}</em>` : ''}<div class="t"><b>${mapNm(m.id)}</b><small>${mapTag(m.id)}</small></div></button>`).join('')
+      + (maps.length > 1 ? `<button class="mapc rnd ${c.map === 'random' ? 'on' : ''}" ${at('map', 'random')}>${ico('dice')}<div class="t"><b>${t('menu.random')}</b></div></button>` : '');
+    const mapNote = maps.length === 1 ? `<div class="hint">${t('menu.onlyMap', { m: mapNm(maps[0].id) })}</div>` : '';
+    const mapDs = cm ? `<div class="mapdesc"><b>${mapNm(cm.id)}.</b> ${mapDesc(cm.id)}</div>` : `<div class="mapdesc">${t('menu.randomMapDesc')}</div>`;
+    const tods = ftod ? `<div class="hint">${t('menu.nightOnly', { m: mapNm(cm.id) })}</div>`
+      : `<div class="tods">${TODS_LIST.map(([k]) => `<button class="tod ${k} ${c.tod === k ? 'on' : ''}" ${at('tod', k)}><span>${todLabel(k)}</span></button>`).join('')}<button class="tod rnd ${c.tod === 'random' ? 'on' : ''}" ${at('tod', 'random')}><span>${t('menu.random')}</span></button></div>`;
+    const limitBody = tp === 'inf' || tp === 'gg' || tp === 'dm' || tp === 'pb' ? `<div class="hint">${t('menu.limitHint.' + tp, { dm: LIMITS.dmKills, pb: LIMITS.pbKills })}</div>`
+      : `<div class="row">${(tp === 'tdm' ? SCORE_OPTS : TICKET_OPTS).map((v) => `<button class="chip ${c.tickets === v ? 'on' : ''}" ${at('tickets', v)}>${v || t('menu.auto')}</button>`).join('')}</div><div class="hint">${t('menu.now')}: <b>${eff}</b></div>`;
     const sizeAttrs = online ? { id: 'ocSize', num: 'ocSizeV' } : { id: 'rSize', num: 'vSize' };
-    const sizeCard = `<div class="sc wide"><h4>Oyuncu sayısı <em>${tot(tp) ? `toplam, sen dahil · en çok ${hi(tp)}` : 'takım başına, sen dahil'}${botsOn ? ' · kalanı botlar' : ' · botsuz'}</em></h4>
-        <div class="big"><div class="n" id="${sizeAttrs.num}">${tot(tp) ? `${n}<i>kişi</i>` : `${n}<i>vs</i>${n}`}</div><div class="tx">${tot(tp) ? totTx(tp, n) : `${n * 2} savaşçı.${online ? (c.bots ? ' Oyuncu girince bir bot azalır.' : '') : ''}`}${warn}</div></div>
-        <input type="range" id="${sizeAttrs.id}" min="${lo(tp)}" max="${hi(tp)}" step="${tp === 'inf' ? 2 : 1}" value="${n}" style="--p:${((n - lo(tp)) / (hi(tp) - lo(tp))) * 100}%">
-        <div class="row">${(tot(tp) ? TOT_PRESETS[tp] : SIZE_PRESETS).map(([v, l]) => `<button class="chip ${n === v ? 'on' : ''}" ${at('perTeam', v)}>${l}</button>`).join('')}</div></div>`;
-    const botCard = `<div class="sc"><h4>Botlar</h4>${online ? `<div class="row">${chip('bots', true, 'Açık', 'boş slotlara bot')}${chip('bots', false, 'Kapalı', 'yalnızca oyuncular')}</div>` : ''}
-        ${botsOn ? (tp === 'inf' ? '<div class="row"><button class="chip on">Zor</button></div><div class="hint">Enfekte yalnızca Zor botlarla oynanır.</div>' : `<div class="row">${Object.entries(DIFFICULTY).map(([k, d]) => chip('diff', k, d.label)).join('')}</div>`) : ''}</div>`;
-    const teamCard = !online && !tot(tp) ? `<div class="sc"><h4>Takımın</h4><div class="row">${[['blue', 'Mavi', 'blue'], ['red', 'Kırmızı', 'red'], ['random', 'Rastgele', '']].map(([k, nm, cl]) => `<button class="chip ${cl} ${c.team === k ? 'on' : ''}" ${at('team', k)}>${nm}</button>`).join('')}</div></div>` : '';
+    const sizeCard = `<div class="sc wide"><h4>${t('menu.size')} <em>${tot(tp) ? t('menu.sizeTot', { n: hi(tp) }) : t('menu.sizeTeam')}${botsOn ? t('menu.sizeBots') : t('menu.sizeNoBots')}</em></h4>
+        <div class="big"><div class="n" id="${sizeAttrs.num}">${sizeNum(tp, n)}</div><div class="tx">${tot(tp) ? totTx(tp, n) : `${t('menu.fighters', { n: n * 2 })}${online && c.bots ? ' ' + t('menu.botLeaves') : ''}`}${warn}</div></div>
+        <input type="range" id="${sizeAttrs.id}" min="${lo(tp)}" max="${hi(tp)}" step="${tp === 'inf' ? 2 : 1}" value="${n}" style="--p:${((n - lo(tp)) / (hi(tp) - lo(tp))) * 100}%" aria-label="${t('menu.size')}">
+        <div class="row">${(tot(tp) ? TOT_PRESETS[tp] : SIZE_PRESETS).map((v) => `<button class="chip ${n === v ? 'on' : ''}" ${at('perTeam', v)}>${tot(tp) ? v : `${v}v${v}`}</button>`).join('')}</div></div>`;
+    const botCard = `<div class="sc"><h4>${t('menu.bots')}</h4>${online ? `<div class="row">${chip('bots', true, t('menu.on'), t('menu.botsOnSub'))}${chip('bots', false, t('menu.off'), t('menu.botsOffSub'))}</div>` : ''}
+        ${botsOn ? (tp === 'inf' ? `<div class="row"><button class="chip on">${diffLabel('hard')}</button></div><div class="hint">${t('menu.infHard')}</div>` : `<div class="row">${Object.keys(DIFFICULTY).map((k) => chip('diff', k, diffLabel(k))).join('')}</div>`) : ''}</div>`;
+    const teamCard = !online && !tot(tp) ? `<div class="sc"><h4>${t('menu.yourTeam')}</h4><div class="row">${[['blue', 'blue'], ['red', 'red'], ['random', '']].map(([k, cl]) => `<button class="chip ${cl} ${c.team === k ? 'on' : ''}" ${at('team', k)}>${t('menu.team.' + k)}</button>`).join('')}</div></div>` : '';
     const limitCard = `<div class="sc"><h4>${limitTitle}</h4>${limitBody}</div>`;
-    const timeCard = `<div class="sc"><h4>Süre</h4><div class="row">${TIME_OPTS.map(([v, l]) => `<button class="chip ${c.time === v ? 'on' : ''}" ${at('time', v)}>${l}</button>`).join('')}</div></div>`;
-    const todCard = `<div class="sc wide"><h4>Günün saati</h4>${tods}</div>`;
-    const devCard = online ? '' : `<div class="sc wide"><h4>Geliştirici modu <em>harita gezmek / incelemek için</em></h4><div class="row">${[[false, 'Kapalı', ''], [true, 'Açık', 'uçuş · ölümsüz · maç bitmez']].map(([v, l, sm]) => `<button class="chip ${!!p.devMode === v ? 'on' : ''}" data-a="devmode" data-v="${v ? '1' : '0'}">${l}${sm ? `<small>${sm}</small>` : ''}</button>`).join('')}</div>${p.devMode ? '<div class="hint" style="margin-top:8px">L uçuş aç/kapa · Shift hızlı · tekerlek hız · N botları dondur · O ölümsüzlük · P konum + bölge adı · J/K silah değiştir</div>' : ''}</div>`;
-    const weatherCard = `<div class="sc"><h4>Hava durumu</h4><div class="row">${[...WEATHERS, ['random', 'Rastgele']].map(([k, nm]) => `<button class="chip ${c.weather === k ? 'on' : ''}" ${at('weather', k)}>${nm}</button>`).join('')}</div></div>`;
-    const camCard = `<div class="sc ${teamCard ? '' : 'wide'}"><h4>3. şahıs kamera</h4><div class="row">${[[true, 'Açık', 'H ile geçilir'], [false, 'Kapalı', '']].map(([v, l, sm]) => `<button class="chip ${c.third === v ? 'on' : ''}" ${at('third', v)}>${l}${sm ? `<small>${sm}</small>` : ''}</button>`).join('')}</div></div>`;
+    const timeCard = `<div class="sc"><h4>${t('menu.time')}</h4><div class="row">${TIME_OPTS.map((v) => `<button class="chip ${c.time === v ? 'on' : ''}" ${at('time', v)}>${timeLabel(v)}</button>`).join('')}</div></div>`;
+    const todCard = `<div class="sc wide"><h4>${t('menu.tod')}</h4>${tods}</div>`;
+    const devCard = online ? '' : `<div class="sc wide"><h4>${t('menu.devMode')} <em>${t('menu.devModeSub')}</em></h4><div class="row">${[[false, t('menu.off'), ''], [true, t('menu.on'), t('menu.devOnSub')]].map(([v, l, sm]) => `<button class="chip ${!!p.devMode === v ? 'on' : ''}" data-a="devmode" data-v="${v ? '1' : '0'}">${l}${sm ? `<small>${sm}</small>` : ''}</button>`).join('')}</div>${p.devMode ? `<div class="hint" style="margin-top:8px">${t('menu.devKeys')}</div>` : ''}</div>`;
+    const weatherCard = `<div class="sc"><h4>${t('menu.weather')}</h4><div class="row">${[...WEATHERS.map((w) => w[0]), 'random'].map((k) => `<button class="chip ${c.weather === k ? 'on' : ''}" ${at('weather', k)}>${k === 'random' ? t('menu.random') : weatherLabel(k)}</button>`).join('')}</div></div>`;
+    const camCard = `<div class="sc ${teamCard ? '' : 'wide'}"><h4>${t('menu.cam')}</h4><div class="row">${[[true, t('menu.on'), t('menu.camOnSub')], [false, t('menu.off'), '']].map(([v, l, sm]) => `<button class="chip ${c.third === v ? 'on' : ''}" ${at('third', v)}>${l}${sm ? `<small>${sm}</small>` : ''}</button>`).join('')}</div></div>`;
 
-    const roomSec = online ? `<section class="bs" id="bs0"><h2><i>1</i>Oda<small>ad, şifre, görünürlük</small></h2><div class="sgrid">
-        <div class="sc"><h4>Oda adı</h4><input class="olin" id="ocName" maxlength="24" placeholder="${esc(p.name)}'in odası" value="${esc(c.name)}" spellcheck="false" autocomplete="off"></div>
-        <div class="sc"><h4>Şifre <em>boşsa herkes girer</em></h4><input class="olin" id="ocPw" type="password" maxlength="16" placeholder="Şifre (isteğe bağlı)" value="${esc(ol.cpw || '')}" autocomplete="off"></div>
-        <div class="sc wide"><h4>Görünürlük</h4><div class="row">${chip('listed', true, 'Herkese açık', 'oda listesinde görünür')}${chip('listed', false, 'Gizli', 'yalnızca kodu bilenler')}</div></div></div></section>` : '';
+    const roomSec = online ? `<section class="bs" id="bs0"><h2><i>1</i>${t('menu.oc.room')}<small>${t('menu.oc.roomSub')}</small></h2><div class="sgrid">
+        <div class="sc"><h4>${t('menu.oc.name')}</h4><input class="olin" id="ocName" maxlength="24" placeholder="${esc(t('menu.oc.namePh', { name: p.name }))}" value="${esc(c.name)}" spellcheck="false" autocomplete="off" data-raw></div>
+        <div class="sc"><h4>${t('menu.oc.pw')} <em>${t('menu.oc.pwSub')}</em></h4><input class="olin" id="ocPw" type="password" maxlength="16" placeholder="${t('menu.oc.pwPh')}" value="${esc(ol.cpw || '')}" autocomplete="off"></div>
+        <div class="sc wide"><h4>${t('menu.oc.vis')}</h4><div class="row">${chip('listed', true, t('menu.oc.public'), t('menu.oc.publicSub'))}${chip('listed', false, t('menu.oc.hidden'), t('menu.oc.hiddenSub'))}</div></div></div></section>` : '';
     const k0 = online ? 1 : 0;
-    const steps = (online ? [['bs0', 'Oda']] : []).concat([['bs1', 'Mod'], ['bs2', 'Harita'], ['bs3', 'Ayarlar']]).map(([id, t], i) => `<button class="${i === 0 ? 'on' : ''}" data-a="jump" data-v="${id}"><i>${i + 1}</i>${t}</button>`).join('<span></span>');
-    const msg = online && ol.msg ? `<div class="olmsg ${ol.err ? 'err' : ''}">${ol.msg}</div>` : '';
+    const steps = (online ? [['bs0', t('menu.oc.room')]] : []).concat([['bs1', t('menu.step.mode')], ['bs2', t('menu.step.map')], ['bs3', t('menu.step.settings')]]).map(([id, s], i) => `<button class="${i === 0 ? 'on' : ''}" data-a="jump" data-v="${id}"><i>${i + 1}</i>${s}</button>`).join('<span></span>');
+    const msg = online && ol.msg ? `<div class="olmsg ${ol.err ? 'err' : ''}">${esc(ol.msg)}</div>` : '';
 
-    const rows = [['Mod', `${meta.icon} ${M.label}`], ['Oyuncu', `${sizeTxt}${online && !c.bots ? ' · botsuz' : ''}`], ['Süre', timeLbl], [limitTitle, limitSum],
-      ['Botlar', botsOn ? DIFFICULTY[diffKey].label : 'Kapalı'], ['Gün saati', todLbl], ['Hava', weaLbl], ['Kamera', c.third ? '3. şahıs açık' : '1. şahıs']].concat(online || !p.devMode ? [] : [['Geliştirici', 'Açık']]);
+    const rows = [[t('menu.row.mode'), `${icon} ${modeLabel(tp)}`], [t('menu.row.players'), `${sizeTxt}${online && !c.bots ? ' · ' + t('menu.noBots') : ''}`], [t('menu.time'), timeLabel(c.time)], [limitTitle, limitSum],
+      [t('menu.bots'), botsOn ? diffLabel(diffKey) : t('menu.off')], [t('menu.tod'), todLbl], [t('menu.row.weather'), weaLbl], [t('menu.row.cam'), c.third ? t('menu.third') : t('menu.first')]].concat(online || !p.devMode ? [] : [[t('menu.dev'), t('menu.on')]]);
     const startBtn = online
-      ? `<button class="play" data-a="olcreate" ${ol.busy ? 'disabled' : ''}>Odayı oluştur</button><button class="chip back" data-a="oview" data-v="online">‹ Geri</button>`
-      : '<button class="play" data-a="quick">Oyna<small>Enter</small></button>';
+      ? `<button class="play" data-a="olcreate" ${ol.busy ? 'disabled' : ''}>${ico('play')}<span>${t('menu.oc.create')}</span></button><button class="chip back" data-a="oview" data-v="online">‹ ${t('menu.back')}</button>`
+      : `<button class="play" data-a="quick">${ico('play')}<span>${t('menu.play')}<small>Enter</small></span></button>`;
     return `<div class="bld"><div class="scroll">${msg}<div class="bsteps">${steps}</div>${roomSec}
-      <section class="bs" id="bs1"><h2><i>${1 + k0}</i>Oyun modu<small>nasıl kazanılır?</small></h2><div class="mdgrid">${modeCards}</div></section>
-      <section class="bs" id="bs2"><h2><i>${2 + k0}</i>Harita<small>${maps.length === 1 ? 'bu moda özel' : `${maps.length} harita`}</small></h2><div class="maps">${mapCards}</div>${mapNote}${mapDesc}</section>
-      <section class="bs" id="bs3"><h2><i>${3 + k0}</i>Ayarlar<small>kurallar ve ortam</small></h2><div class="sgrid">${sizeCard}${timeCard}${limitCard}${botCard}${teamCard ? `${teamCard}${weatherCard}${camCard}${todCard}` : `${weatherCard}${todCard}${camCard}`}${devCard}</div></section>
+      <section class="bs" id="bs1"><h2><i>${1 + k0}</i>${t('menu.mode')}<small>${t('menu.modeSub')}</small></h2><div class="mdgrid">${modeCards}</div></section>
+      <section class="bs" id="bs2"><h2><i>${2 + k0}</i>${t('menu.step.map')}<small>${maps.length === 1 ? t('menu.mapOnly') : t('menu.nMaps', { n: maps.length })}</small></h2><div class="maps">${mapCards}</div>${mapNote}${mapDs}</section>
+      <section class="bs" id="bs3"><h2><i>${3 + k0}</i>${t('menu.step.settings')}<small>${t('menu.settingsSub')}</small></h2><div class="sgrid">${sizeCard}${timeCard}${limitCard}${botCard}${teamCard ? `${teamCard}${weatherCard}${camCard}${todCard}` : `${weatherCard}${todCard}${camCard}`}${devCard}</div></section>
       <div class="bld-mini">${startBtn}</div></div>
-      <aside class="bld-side"><div class="pv"><div class="pvimg ${cm ? '' : 'rnd'}" ${cm ? `style="background-image:url(${cm.thumb})"` : ''}><span class="pvm">${meta.icon} ${M.label}</span></div>
-        <h2>${cm ? cm.name : 'Rastgele harita'}</h2><div class="pvtag">${cm ? cm.tag : 'her maçta farklı'}</div>
+      <aside class="bld-side"><div class="pv"><div class="pvimg ${cm ? '' : 'rnd'}" ${cm ? `style="background-image:url(${cm.thumb})"` : ''}>${cm ? '' : ico('dice')}<span class="pvm">${icon} ${modeLabel(tp)}</span></div>
+        <h2>${cm ? mapNm(cm.id) : t('menu.randomMap')}</h2><div class="pvtag">${cm ? mapTag(cm.id) : t('menu.randomMapTag')}</div>
         <ul class="pvl">${rows.map(([k, v]) => `<li><span>${k}</span><b>${v}</b></li>`).join('')}</ul><div class="pvbtn">${startBtn}</div></div></aside></div>`;
   }
-  function customHTML() { return builderHTML(p, false); }
+  const sizeNum = (tp, v) => (tot(tp) ? `${v}<i>${t('menu.people')}</i>` : `${v}<i>vs</i>${v}`);
+  function customHTML() { return head('custom') + builderHTML(p, false); }
 
   const OLCFG0 = { name: '', listed: true, map: 'kasaba', tod: 'day', weather: 'clear', type: 'conquest', perTeam: 5, bots: true, diff: 'normal', tickets: 0, time: 900, third: false };
   const oc = () => (p.olCfg = { ...OLCFG0, ...(p.olCfg || {}) });
-  const esc = (t) => String(t ?? '').replace(/[<>&"']/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c]));
-  const TODN = Object.fromEntries(TODS_LIST), WEAN = Object.fromEntries(WEATHERS);
+  const roomName = (r) => { const m = r.official && /^Resmi Sunucu\s*(#?\d*)$/.exec(r.name || ''); return m ? `<span>${t('menu.ol.officialName', { n: m[1] })}</span>` : `<span data-raw>${esc(r.name)}</span>`; };
 
   function roomCard(r) {
-    const m = MAPS[r.map] || { name: r.map, thumb: '' }, t = MATCH_TYPES[r.type]?.label || r.type;
+    const m = MAPS[r.map] || { thumb: '' };
     const full = r.humans >= r.cap, tl = r.tl >= 0 ? ` · ${Math.floor(r.tl / 60)}:${String(r.tl % 60).padStart(2, '0')}` : '';
-    const sub = `${m.name} · ${TODN[r.tod] || r.tod}${r.weather !== 'clear' ? ' · ' + (WEAN[r.weather] || r.weather) : ''}`;
+    const sub = `${mapNm(r.map)} · ${todLabel(r.tod)}${r.weather !== 'clear' ? ' · ' + weatherLabel(r.weather) : ''}`;
     return `<div class="rcard ${r.official ? 'off' : ''}"><div class="th" style="background-image:url(${m.thumb})"></div>
-      <div class="rb"><div class="rt">${r.official ? '<em class="bd">RESMİ</em>' : ''}${r.locked ? '<em class="lk" title="Şifreli">🔒</em>' : ''}<b>${esc(r.name)}</b></div>
-      <div class="rs">${sub}</div><div class="rs">${t} · ${tot(r.type) ? r.perTeam + ' oyuncu' : r.perTeam + 'v' + r.perTeam}${r.bots ? ' · botlu' : ' · botsuz'}${r.third ? ' · 3. şahıs' : ''}${tl}</div>${r.by ? `<div class="rs by">kuran: ${esc(r.by)}</div>` : ''}</div>
-      <div class="rp"><div class="pc ${full ? 'full' : ''}"><b>${r.humans}</b>/${r.cap}<small>oyuncu</small></div>
-      <button class="chip join" data-a="rjoin" data-code="${r.code}" data-locked="${r.locked ? 1 : 0}" ${ol.busy || full || r.ended ? 'disabled' : ''}>${r.ended ? 'Bitti' : full ? 'Dolu' : 'Katıl'}</button></div></div>`;
+      <div class="rb"><div class="rt">${r.official ? `<em class="bd">${t('menu.ol.official')}</em>` : ''}${r.locked ? `<em class="lk" title="${t('menu.ol.locked')}">🔒</em>` : ''}<b>${roomName(r)}</b></div>
+      <div class="rs">${sub}</div><div class="rs">${modeLabel(r.type)} · ${tot(r.type) ? t('menu.nPlayers', { n: r.perTeam }) : r.perTeam + 'v' + r.perTeam}${r.bots ? ' · ' + t('menu.ol.withBots') : ' · ' + t('menu.noBots')}${r.third ? ' · ' + t('menu.ol.third') : ''}${tl}</div>${r.by ? `<div class="rs by">${t('menu.ol.by')} <span data-raw>${esc(r.by)}</span></div>` : ''}</div>
+      <div class="rp"><div class="pc ${full ? 'full' : ''}"><b>${r.humans}</b>/${r.cap}<small>${t('menu.players')}</small></div>
+      <button class="chip join" data-a="rjoin" data-code="${r.code}" data-locked="${r.locked ? 1 : 0}" ${ol.busy || full || r.ended ? 'disabled' : ''}>${r.ended ? t('menu.ol.ended') : full ? t('menu.ol.full') : t('menu.ol.join')}</button></div></div>`;
   }
   function roomListHTML() {
-    if (!ol.rooms) return '<div class="hint">Oda listesi yükleniyor…</div>';
+    if (!ol.rooms) return `<div class="hint">${t('menu.ol.loading')}</div>`;
     const off = ol.rooms.filter((r) => r.official), usr = ol.rooms.filter((r) => !r.official);
-    return `<h3 class="sub">Resmi sunucular <em>7/24 açık · hep bot destekli · her maçta harita döner</em></h3><div class="rgrid">${off.map(roomCard).join('') || '<div class="hint">Resmi oda yok.</div>'}</div>
-      <h3 class="sub" style="margin-top:16px">Oyuncu odaları <em>${usr.length} oda</em></h3><div class="rgrid">${usr.map(roomCard).join('') || '<div class="hint">Şu an açık oda yok. İlk odayı sen kur!</div>'}</div>`;
+    return `<h3 class="sub">${t('menu.ol.officialT')} <em>${t('menu.ol.officialSub')}</em></h3><div class="rgrid">${off.map(roomCard).join('') || `<div class="hint">${t('menu.ol.noOfficial')}</div>`}</div>
+      <h3 class="sub" style="margin-top:16px">${t('menu.ol.userT')} <em>${t('menu.ol.nRooms', { n: usr.length })}</em></h3><div class="rgrid">${usr.map(roomCard).join('') || `<div class="hint">${t('menu.ol.noRooms')}</div>`}</div>`;
   }
   function pwPromptHTML() {
     if (!ol.pwFor) return '';
-    return `<div class="pan pwp"><h3>Şifreli oda <em>${esc(ol.pwFor.name)}</em></h3><div class="row"><input class="olin" id="olPwJoin" type="password" maxlength="16" placeholder="Oda şifresi" autocomplete="off" style="flex:1">
-      <button class="chip on" data-a="rpwgo">Katıl</button><button class="chip" data-a="rpwcancel">Vazgeç</button></div></div>`;
+    return `<div class="pan pwp"><h3>${t('menu.ol.pwRoom')} <em data-raw>${esc(ol.pwFor.name)}</em></h3><div class="row"><input class="olin" id="olPwJoin" type="password" maxlength="16" placeholder="${t('menu.ol.pwPh')}" autocomplete="off" style="flex:1">
+      <button class="chip on" data-a="rpwgo">${t('menu.ol.join')}</button><button class="chip" data-a="rpwcancel">${t('menu.cancel')}</button></div></div>`;
   }
   function onlineHTML() {
-    const tm = [['auto', 'Otomatik', ''], ['blue', 'Mavi', 'blue'], ['red', 'Kırmızı', 'red']].map(([k, n, c]) => `<button class="chip ${c} ${p.olTeam === k ? 'on' : ''}" data-a="oltm" data-v="${k}">${n}</button>`).join('');
-    const msg = ol.msg ? `<div class="olmsg ${ol.err ? 'err' : ''}">${ol.msg}</div>` : '';
+    const tm = [['auto', ''], ['blue', 'blue'], ['red', 'red']].map(([k, c]) => `<button class="chip ${c} ${p.olTeam === k ? 'on' : ''}" data-a="oltm" data-v="${k}">${t('menu.team.' + k)}</button>`).join('');
+    const msg = ol.msg ? `<div class="olmsg ${ol.err ? 'err' : ''}">${esc(ol.msg)}</div>` : '';
     const dis = ol.busy ? 'disabled' : '';
-    return `<div class="scroll">${msg}${pwPromptHTML()}
-      <div class="pan"><h3>Odalar <em id="olStat">kontrol ediliyor…</em></h3><div id="olRooms">${roomListHTML()}</div></div>
-      <div class="split">
-        <div class="pan"><h3>Oda kur</h3><div class="hint" style="margin:0 0 12px">Kendi odanı kur: ad, şifre, harita, mod, bot ve daha fazlasını sen seçersin.</div>
-          <button class="play" data-a="oview" data-v="ocreate" ${dis} style="width:100%">+ Oda kur<small>Ayarları seç, kodu arkadaşlarına ver</small></button></div>
-        <div class="pan"><h3>Kodla katıl</h3>
-          <input class="olin code" id="olCode" maxlength="4" placeholder="KOD" value="${esc(p.room || '')}" spellcheck="false" autocomplete="off">
-          <input class="olin" id="olPw" type="password" maxlength="16" placeholder="Şifre (varsa)" autocomplete="off" style="margin-top:8px">
-          <button class="play sec" data-a="oljoin" ${dis} style="margin-top:10px;width:100%">Katıl</button></div>
+    return `${head('online', `<em id="olStat">${t('menu.ol.checking')}</em>`)}<div class="scroll">${msg}${pwPromptHTML()}
+      <div class="pan"><h3>${t('menu.ol.rooms')}</h3><div id="olRooms">${roomListHTML()}</div></div>
+      <div class="split ol-top">
+        <div class="pan"><h3>${t('menu.ol.createT')}</h3><div class="hint" style="margin:0 0 12px">${t('menu.ol.createHint')}</div>
+          <button class="play" data-a="oview" data-v="ocreate" ${dis} style="width:100%"><span>+ ${t('menu.nav.ocreate')}<small>${t('menu.ol.createSub')}</small></span></button></div>
+        <div class="pan"><h3>${t('menu.ol.codeT')}</h3>
+          <div class="codejoin"><input class="olin code" id="olCode" maxlength="4" placeholder="${t('menu.ol.codePh')}" value="${esc(p.room || '')}" spellcheck="false" autocomplete="off" data-raw>
+          <input class="olin" id="olPw" type="password" maxlength="16" placeholder="${t('menu.ol.pwOpt')}" autocomplete="off">
+          <button class="play sec" data-a="oljoin" ${dis}><span>${t('menu.ol.join')}</span></button></div></div>
       </div>
-      <div class="pan"><h3>Takım</h3><div class="row">${tm}</div>
-        <div class="hint">Takım seçmezsen sunucu dengeler. Oyunda <kbd>M</kbd> ile takım değiştirebilirsin. Sınıf ve silahın "Sınıf &amp; Silah" ekranından, takma adın sol üstten gelir.</div></div></div>`;
+      <div class="pan"><h3>${t('menu.ol.team')}</h3><div class="row">${tm}</div>
+        <div class="hint">${t('menu.ol.teamHint')}</div></div></div>`;
   }
-  function ocreateHTML() { return builderHTML(oc(), true); }
+  function ocreateHTML() { return head('ocreate') + builderHTML(oc(), true); }
 
   // Sunucu durumu + oda listesi (menü çevrimiçi ekranındayken 2,5 sn'de bir)
   const httpBase = () => healthUrl(p.server || defaultServerUrl()).replace(/\/health$/, '');
   async function checkServer() {
     const my = ++olChk;
     if (!q('#olStat')) return;
-    const set = (cls, t) => { const e = q('#olStat'); if (e && my === olChk) { e.className = cls; e.textContent = t; } };
+    const set = (cls, s) => { const e = q('#olStat'); if (e && my === olChk) { e.className = cls; e.textContent = s; } };
     try {
       const c = new AbortController(), tm = setTimeout(() => c.abort(), 2500);
       const r = await fetch(httpBase() + '/rooms', { signal: c.signal, cache: 'no-store' });
       clearTimeout(tm);
       ol.rooms = await r.json();
       const n = ol.rooms.reduce((a, x) => a + x.humans, 0);
-      set('ok', `● hazır · ${n} oyuncu çevrimiçi`);
+      set('ok', t('menu.ol.ready', { n }));
       const box = q('#olRooms'); if (box && !ol.busy) box.innerHTML = roomListHTML();
-    } catch (e) { ol.rooms = null; set('bad', '● sunucuya ulaşılamıyor'); const box = q('#olRooms'); if (box) box.innerHTML = '<div class="hint">Sunucuya ulaşılamıyor. Sunucunun çalıştığından emin ol.</div>'; }
+    } catch (e) { ol.rooms = null; set('bad', t('menu.ol.unreach')); const box = q('#olRooms'); if (box) box.innerHTML = `<div class="hint">${t('menu.ol.unreachHint')}</div>`; }
   }
   const roomPoll = setInterval(() => { if (screen === 'online' && !ol.busy && !ol.pwFor) checkServer(); }, 2500);
 
@@ -301,94 +321,95 @@ export function showMenu(onStart, onOnline) {
       hello = { t: 'create', name, cls, loadout, team, cfg: { name: c.name.trim(), pw, listed: c.listed, map: c.map, tod: c.tod, weather: c.weather, type: c.type, perTeam: c.perTeam, bots: c.bots, diff: c.diff, third: c.third, tickets: c.tickets || undefined, time: c.time } };
     } else {
       const code = String(o.code || p.room || '').toUpperCase();
-      if (code.length !== 4) { ol = { ...ol, msg: '4 harfli oda kodunu gir.', err: true, busy: false }; render(); return; }
+      if (code.length !== 4) { ol = { ...ol, msg: t('menu.ol.needCode'), err: true, busy: false }; render(); return; }
       pw = o.pw ?? ol.pw ?? '';
       hello = { t: 'join', room: code, name, cls, loadout, team, pw };
     }
-    ol = { ...ol, msg: 'Bağlanılıyor…', err: false, busy: true, pwFor: null }; render();
+    ol = { ...ol, msg: t('menu.ol.connecting'), err: false, busy: true, pwFor: null }; render();
     try {
       const r = await NetClient.connect(url, hello);
       cleanup();
       onOnline?.({ net: r.net, welcome: r.welcome, name, pw });
-    } catch (e) { ol = { ...ol, msg: e.message, err: true, busy: false }; render(); }
+    } catch (e) { ol = { ...ol, msg: netErr(e.message), err: true, busy: false }; render(); }
   }
 
   function loadoutHTML() {
-    const def = CLASS_DEFS[p.cls], lo = loadoutOf(p.cls), team = p.team === 'red' ? 'red' : 'blue';
+    const def = CLASS_DEFS[p.cls], lw = loadoutOf(p.cls), team = p.team === 'red' ? 'red' : 'blue';
     const cur = (k) => {
-      const opts = def[SLOTS.find((s) => s[0] === k)[2]] || [];
-      const want = lo[k];
+      const opts = def[SLOTS.find((s) => s[0] === k)[1]] || [];
+      const want = lw[k];
       if (want && opts.includes(want)) return want;
       const d = def.defaults?.[k];
       return typeof d === 'object' ? d[team] || d.blue : d;
     };
     const icon = (id) => (scene ? `<img data-icon="${id}" ${scene.iconCache.get(id + '|' + p.optic) ? `src="${scene.iconCache.get(id + '|' + p.optic)}"` : ''} alt="">` : '');
-    const opts = def[SLOTS.find((s) => s[0] === slot)[2]] || [];
+    const opts = def[SLOTS.find((s) => s[0] === slot)[1]] || [];
     const sel = cur(slot);
-    const tabs = Object.entries(CLASS_DEFS).map(([k, d]) => `<button class="tab ${p.cls === k ? 'on' : ''}" data-a="cls" data-v="${k}">${d.label}</button>`).join('');
-    const slotBtns = SLOTS.map(([k, n]) => `<button class="slotb ${slot === k ? 'on' : ''}" data-a="slot" data-v="${k}"><small>${n}</small><b>${WSTATS[cur(k)]?.name || '—'}</b>${icon(cur(k))}</button>`).join('');
+    const tabs = Object.keys(CLASS_DEFS).map((k) => `<button class="tab ${p.cls === k ? 'on' : ''}" data-a="cls" data-v="${k}">${className(k)}</button>`).join('');
+    const slotBtns = SLOTS.map(([k]) => `<button class="slotb ${slot === k ? 'on' : ''}" data-a="slot" data-v="${k}"><small>${t('menu.slot.' + k)}</small><b>${cur(k) ? weaponName(cur(k)) : '—'}</b>${icon(cur(k))}</button>`).join('');
     const grid = opts.map((id) => {
       const st = WSTATS[id] || {}, b = weaponBars(id);
-      const mini = st.kind === 'gun' || st.kind === 'launcher' || st.kind === 'melee' ? ['dmg', 'range', 'rate'].map((k) => `<span>${STAT_LABEL[k]}</span><div class="bar"><i style="width:${Math.max(4, Math.min(100, b[k] || 0))}%"></i></div>`).join('') : '';
-      return `<button class="wc ${sel === id ? 'on' : ''}" data-a="pick" data-v="${id}">${icon(id)}<b>${st.name || id}</b><div class="mini">${mini}</div></button>`;
+      const mini = st.kind === 'gun' || st.kind === 'launcher' || st.kind === 'melee' ? ['dmg', 'range', 'rate'].map((k) => `<span>${statLabel(k)}</span><div class="bar"><i style="width:${Math.max(4, Math.min(100, b[k] || 0))}%"></i></div>`).join('') : '';
+      return `<button class="wc ${sel === id ? 'on' : ''}" data-a="pick" data-v="${id}">${icon(id)}<b>${weaponName(id)}</b><div class="mini">${mini}</div></button>`;
     }).join('');
-    const st = WSTATS[sel] || {}, b = weaponBars(sel);
+    const b = weaponBars(sel);
     const utility = !(b.dmg || b.range);
-    const stats = utility ? '' : ['dmg', 'range', 'rate', 'control', 'mobility'].map((k) => `<div class="stat"><span>${STAT_LABEL[k]}</span><div class="bar"><i style="width:${Math.max(3, Math.min(100, b[k] || 0))}%"></i></div><em>${Math.round(b[k] || 0)}</em></div>`).join('');
-    const optics = slot === 'primary' && !(WSTATS[sel] && WSTATS[sel].scope) ? `<div class="pan"><h3>Nişangâh <em>oyunda B ile değiştir</em></h3><div class="row">${OPTIC_ORDER.map((k) => `<button class="chip ${p.optic === k ? 'on' : ''}" data-a="optic" data-v="${k}">${OPTICS[k].label}</button>`).join('')}</div></div>` : '';
-    return `<div class="tabs">${tabs}</div><div class="scroll"><div class="slots">${slotBtns}</div>
-      <div class="pan"><h3>${SLOTS.find((s) => s[0] === slot)[1]} <em>${def.label}</em></h3><div class="wgrid">${grid}</div></div>
-      <div class="pan"><h3>${st.name || ''}</h3>${stats}<div class="wdesc">${st.desc || def.desc}</div></div>${optics}</div>`;
+    const stats = utility ? '' : ['dmg', 'range', 'rate', 'control', 'mobility'].map((k) => `<div class="stat"><span>${statLabel(k)}</span><div class="bar"><i style="width:${Math.max(3, Math.min(100, b[k] || 0))}%"></i></div><em>${Math.round(b[k] || 0)}</em></div>`).join('');
+    const optics = slot === 'primary' && !(WSTATS[sel] && WSTATS[sel].scope) ? `<div class="pan"><h3>${t('menu.lo.optic')} <em>${t('menu.lo.opticSub')}</em></h3><div class="row">${OPTIC_ORDER.map((k) => `<button class="chip ${p.optic === k ? 'on' : ''}" data-a="optic" data-v="${k}">${opticLabel(k)}</button>`).join('')}</div></div>` : '';
+    return `${head('loadout')}<div class="tabs">${tabs}</div><div class="scroll"><div class="clsdesc">${classDesc(p.cls)}</div><div class="slots">${slotBtns}</div>
+      <div class="pan"><h3>${t('menu.slot.' + slot)} <em>${className(p.cls)}</em></h3><div class="wgrid">${grid}</div></div>
+      <div class="pan"><h3>${weaponName(sel)}</h3>${stats}<div class="wdesc">${weaponDesc(sel) || classDesc(p.cls)}</div></div>${optics}</div>`;
   }
 
   function settingsHTML() {
-    const sl = (id, label, min, max, step, v, fmt) => `<div class="setrow"><span>${label}</span><input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${v}" style="--p:${((v - min) / (max - min)) * 100}%"><em id="v_${id}">${fmt(v)}</em></div>`;
-    return `<div class="scroll"><div class="pan"><h3>Fare ve görüş</h3>
-      ${sl('sSens', 'Hassasiyet', 0.0008, 0.006, 0.0001, p.sens, (x) => (x / 0.0022).toFixed(2) + '×')}
-      ${sl('sFov', TOUCH ? 'Görüş açısı (yatay)' : 'Görüş açısı', FOV_RANGE[0], FOV_RANGE[1], 1, p[FOV_KEY], (x) => x + '°')}</div>
-      <div class="pan"><h3>Ses</h3>${sl('sVol', 'Ana ses', 0, 1, 0.05, p.volume, (x) => Math.round(x * 100) + '%')}
-      ${sl('sSfx', 'Efekt sesleri', 0, 1, 0.05, p.vSfx, (x) => Math.round(x * 100) + '%')}
-      ${sl('sMusic', 'Müzik', 0, 1, 0.05, p.vMusic, (x) => Math.round(x * 100) + '%')}
-      ${sl('sAmb', 'Ortam (yağmur, rüzgâr)', 0, 1, 0.05, p.vAmb, (x) => Math.round(x * 100) + '%')}
-      <div class="row" style="margin-top:8px"><button class="chip ${p.rainSound ? 'on' : ''}" data-a="rain" data-v="1">Yağmur sesi: ${p.rainSound ? 'Açık' : 'Kapalı'}</button></div>
-      <div class="hint">Lobi ve maç müziği için dosyalar henüz yok; <b>public/audio/music/</b> altına eklenince otomatik çalar (bkz. OYUN.md).</div></div>
-      <div class="pan"><h3>Grafik</h3><div class="row">${[[1, 'Düşük'], [1.5, 'Orta'], [2, 'Yüksek']].map(([v, l]) => `<button class="chip ${p[Q_KEY] === v ? 'on' : ''}" data-a="quality" data-v="${v}">${l}</button>`).join('')}
-      <button class="chip ${p.shadows ? 'on' : ''}" data-a="shadows" data-v="1">Gölgeler: ${p.shadows ? 'Açık' : 'Kapalı'}</button><button class="chip ${p.adaptive !== false ? 'on' : ''}" data-a="adaptive" data-v="1" title="Kare hızı düşerse çözünürlüğü otomatik azaltır, rahatlayınca geri yükseltir">Otomatik çözünürlük: ${p.adaptive !== false ? 'Açık' : 'Kapalı'}</button><button class="chip ${p.fullscreen !== false ? 'on' : ''}" data-a="fullscreen" data-v="1" title="Oyun başlayınca tam ekrana geçer ve klavyeyi kilitler: Ctrl+W gibi tarayıcı kısayolları sekmeyi kapatmaz">Tam ekran + Ctrl+W koruması: ${p.fullscreen !== false ? 'Açık' : 'Kapalı'}</button></div>
-      <div class="hint">Düşük kalite ve kapalı gölge, zayıf bilgisayarlarda ve büyük maçlarda akıcılığı artırır.</div></div>
-      <div class="pan"><h3>Veri</h3><button class="chip" data-a="reset">İlerlemeyi sıfırla</button></div></div>`;
+    const sl = (id, label, min, max, step, v, fmt) => `<div class="setrow"><span>${label}</span><input type="range" id="${id}" min="${min}" max="${max}" step="${step}" value="${v}" style="--p:${((v - min) / (max - min)) * 100}%" aria-label="${label}"><em id="v_${id}">${fmt(v)}</em></div>`;
+    const tog = (a, on, label, title) => `<button class="chip tog ${on ? 'on' : ''}" data-a="${a}" data-v="1" ${title ? `title="${title}"` : ''}>${label}<small>${t(on ? 'menu.on' : 'menu.off')}</small></button>`;
+    const pct = (x) => Math.round(x * 100) + '%';
+    return `${head('settings')}<div class="scroll">
+      <div class="pan"><h3>${t('menu.set.lang')}</h3><div class="row">${LANGS.map(([k, n]) => `<button class="chip lang ${lang() === k ? 'on' : ''}" data-a="lang" data-v="${k}"><span data-raw>${n}</span><small>${k.toUpperCase()}</small></button>`).join('')}</div><div class="hint">${t('menu.set.langHint')}</div></div>
+      <div class="pan"><h3>${t('menu.set.mouse')}</h3>
+      ${sl('sSens', t('menu.set.sens'), 0.0008, 0.006, 0.0001, p.sens, (x) => (x / 0.0022).toFixed(2) + '×')}
+      ${sl('sFov', TOUCH ? t('menu.set.fovH') : t('menu.set.fov'), FOV_RANGE[0], FOV_RANGE[1], 1, p[FOV_KEY], (x) => x + '°')}</div>
+      <div class="pan"><h3>${t('menu.set.sound')}</h3>${sl('sVol', t('menu.set.master'), 0, 1, 0.05, p.volume, pct)}
+      ${sl('sSfx', t('menu.set.sfx'), 0, 1, 0.05, p.vSfx, pct)}
+      ${sl('sMusic', t('menu.set.music'), 0, 1, 0.05, p.vMusic, pct)}
+      ${sl('sAmb', t('menu.set.amb'), 0, 1, 0.05, p.vAmb, pct)}
+      <div class="row" style="margin-top:8px">${tog('rain', p.rainSound, t('menu.set.rain'))}</div>
+      <div class="hint">${t('menu.set.musicHint')}</div></div>
+      <div class="pan"><h3>${t('menu.set.gfx')}</h3><div class="lbl">${t('menu.set.quality')}</div><div class="row">${[[1, 'low'], [1.5, 'mid'], [2, 'high']].map(([v, l]) => `<button class="chip ${p[Q_KEY] === v ? 'on' : ''}" data-a="quality" data-v="${v}">${t('menu.set.q.' + l)}</button>`).join('')}</div>
+      <div class="row" style="margin-top:10px">${tog('shadows', p.shadows, t('menu.set.shadows'))}${tog('adaptive', p.adaptive !== false, t('menu.set.adaptive'), t('menu.set.adaptiveT'))}${tog('fullscreen', p.fullscreen !== false, t('menu.set.fullscreen'), t('menu.set.fullscreenT'))}</div>
+      <div class="hint">${t('menu.set.gfxHint')}</div></div>
+      <div class="pan"><h3>${t('menu.set.data')}</h3><button class="chip danger" data-a="reset">${t('menu.set.reset')}</button></div></div>`;
   }
 
   let ctl = { cap: null, msg: '' };             // Kontroller ekranı: tuş atama durumu
   function controlsHTML() {
     const kb = new Binds(p.keys), cap = ctl.cap;
-    const handKey = codeLabel(kb.codes('leftHand')[0]);
-    const groups = GROUPS.map((g, gi) => `<div class="pan"><h3>${g}</h3>${ACTIONS.filter((a) => a.group === gi).map((a) => `<div class="kbrow"><span>${a.label}</span><div>${[0, 1].map((sl) => {
+    const handKey = keyName(kb.codes('leftHand')[0]);
+    const groups = GROUPS.map((g, gi) => `<div class="pan"><h3>${groupLabel(gi)}</h3>${ACTIONS.filter((a) => a.group === gi).map((a) => `<div class="kbrow"><span>${actionLabel(a.id)}</span><div>${[0, 1].map((sl) => {
       const on = cap && cap.id === a.id && cap.slot === sl;
-      return `<button class="kbk ${on ? 'cap' : ''}" data-a="kbind" data-id="${a.id}" data-slot="${sl}" title="Tıkla, sonra yeni tuşa bas · Geri tuşu: temizle · Esc: vazgeç">${on ? 'Tuşa bas…' : codeLabel(kb.codes(a.id)[sl])}</button>`;
+      return `<button class="kbk ${on ? 'cap' : ''}" data-a="kbind" data-id="${a.id}" data-slot="${sl}" title="${t('menu.ct.bindT')}">${on ? t('menu.ct.press') : keyName(kb.codes(a.id)[sl])}</button>`;
     }).join('')}</div></div>`).join('')}</div>`).join('');
-    const fixed = [
-      ['Ateş / Nişan', 'Sol tık / Sağ tık (basılı tut) — sabit'],
-      ['Silah değiştir', 'Fare tekeri · yuva tuşları yukarıdan değişir'],
-      ['Duraklat', '<kbd>Esc</kbd> · menüde <b>Kill (yeniden doğ)</b> düğmesi'],
-      ['Bakış (yedek)', 'Fare kilitlenmezse ok tuşları'],
-    ];
-    const touchNote = TOUCH ? '<div class="pan"><h3>Dokunmatik kontroller</h3><div class="hint">Telefonda tuş ataması gerekmez: buton düzeni, bakış / nişan hassasiyeti, jiroskop ve nişan yardımı oyunda <b>Duraklat → Dokunmatik ayarlar</b> bölümünde.</div></div>' : '';
-    return `<div class="scroll">${touchNote}
-      <div class="pan"><h3>Silahı tutan el</h3><div class="row"><button class="chip ${p.leftHand ? '' : 'on'}" data-a="hand" data-v="right">Sağ el</button><button class="chip ${p.leftHand ? 'on' : ''}" data-a="hand" data-v="left">Sol el</button></div>
-      <div class="hint">Birinci şahıs silah modeli aynalanır. Oyunda <kbd>${handKey}</kbd> tuşuyla anında değiştirilebilir.</div></div>
-      <div class="pan"><h3>Nişan alma (sağ tık)</h3><div class="row"><button class="chip ${p.adsToggle ? '' : 'on'}" data-a="ads" data-v="hold">Basılı tut</button><button class="chip ${p.adsToggle ? 'on' : ''}" data-a="ads" data-v="toggle">Bir kez bas (aç-kapa)</button></div>
-      <div class="hint">Aç-kapa seçilirse sağ tıkla nişan açılır, tekrar sağ tıkla kapanır; koşmak ve silah değiştirmek nişanı kapatır.</div></div>
-      <div class="pan"><h3>Ateş modu</h3><div class="hint">Oyunda <kbd>${codeLabel(kb.codes('fireMode')[0])}</kbd>: <b>Tek atış</b> (her tık 1 mermi) → <b>Seri</b> (tek tık ya da basılı tutma 3-5 mermi atar; tekrar için tetiği bırakıp yeniden çek) → <b>Otomatik</b> (basılı tutunca sürekli). Tabanca, pompalı, keskin nişancı gibi yarı otomatik silahlar her zaman tek atar.</div></div>
-      <div class="pan"><h3>Tuş atama</h3><div class="hint">Bir tuşa tıkla, sonra yeni tuşa bas. Her eyleme en çok 2 tuş atanabilir. Geri tuşu temizler, Esc vazgeçer. Aynı tuş başka eyleme atanmışsa oradan alınır.</div>
-      <div class="row" style="margin-top:8px"><button class="chip" data-a="kreset">Varsayılana dön</button></div>${ctl.msg ? `<div class="hint" style="color:var(--acc2)">${ctl.msg}</div>` : ''}</div>
-      ${groups}
-      <div class="pan"><h3>Sabit tuşlar</h3><table class="keys">${fixed.map(([a, c]) => `<tr><td>${a}</td><td>${c}</td></tr>`).join('')}</table></div></div>`;
+    const fixed = ['fire', 'switch', 'pause', 'look'].map((k) => [t('menu.ct.fixed.' + k), t('menu.ct.fixed.' + k + '.v')]);
+    const touchNote = TOUCH ? `<div class="pan"><h3>${t('menu.ct.touchT')}</h3><div class="hint">${t('menu.ct.touch')}</div></div>` : '';
+    return `${head('controls')}<div class="scroll">${touchNote}
+      <div class="split"><div class="pan"><h3>${t('menu.ct.hand')}</h3><div class="row"><button class="chip ${p.leftHand ? '' : 'on'}" data-a="hand" data-v="right">${t('menu.ct.right')}</button><button class="chip ${p.leftHand ? 'on' : ''}" data-a="hand" data-v="left">${t('menu.ct.left')}</button></div>
+      <div class="hint">${t('menu.ct.handHint', { k: handKey })}</div></div>
+      <div class="pan"><h3>${t('menu.ct.ads')}</h3><div class="row"><button class="chip ${p.adsToggle ? '' : 'on'}" data-a="ads" data-v="hold">${t('menu.ct.hold')}</button><button class="chip ${p.adsToggle ? 'on' : ''}" data-a="ads" data-v="toggle">${t('menu.ct.toggle')}</button></div>
+      <div class="hint">${t('menu.ct.adsHint')}</div></div></div>
+      <div class="pan"><h3>${t('menu.ct.fire')}</h3><div class="hint">${t('menu.ct.fireHint', { k: keyName(kb.codes('fireMode')[0]) })}</div></div>
+      <div class="pan"><h3>${t('menu.ct.bind')}</h3><div class="hint">${t('menu.ct.bindHint')}</div>
+      <div class="row" style="margin-top:8px"><button class="chip" data-a="kreset">${t('menu.ct.reset')}</button></div>${ctl.msg ? `<div class="hint" style="color:var(--acc2)">${ctl.msg}</div>` : ''}</div>
+      <div class="kgrid">${groups}</div>
+      <div class="pan"><h3>${t('menu.ct.fixedT')}</h3><table class="keys">${fixed.map(([a, c]) => `<tr><td>${a}</td><td>${c}</td></tr>`).join('')}</table></div></div>`;
   }
 
+  let lastScreen = null;
   function render() {
     const keep = screen === render.last ? stage.querySelector('.scroll')?.scrollTop || 0 : 0;      // başka ekrana geçince en üstten (önceki ekranın kaydırması taşınmasın)
     render.last = screen;
-    stage.className = 'mn-stage' + (screen === 'loadout' ? ' right' : '');
+    stage.className = 'mn-stage s-' + screen + (screen === 'loadout' ? ' right' : '') + (screen !== lastScreen ? ' enter' : '');     // ekran değişince kısa giriş animasyonu
+    lastScreen = screen;
     stage.innerHTML = { home: homeHTML, custom: customHTML, online: onlineHTML, ocreate: ocreateHTML, loadout: loadoutHTML, settings: settingsHTML, controls: controlsHTML, editor: editorHTML }[screen]();
     const sc = stage.querySelector('.scroll'); if (sc) sc.scrollTop = keep;
     const bsc = stage.querySelector('.bld .scroll');                          // kurucu: kaydırdıkça üstteki adım çubuğunda hangi bölümdeysen vurgulanır
@@ -405,6 +426,7 @@ export function showMenu(onStart, onOnline) {
     if (screen === 'loadout') fillIcons();
     if (screen === 'online') checkServer();
   }
+  stage.addEventListener('animationend', (e) => { if (e.target === stage) stage.classList.remove('enter'); });
 
   // Silah ikonları tek tek (arayüzü kilitlemeden) üretilir
   let iconTimer = 0;
@@ -427,18 +449,19 @@ export function showMenu(onStart, onOnline) {
   function editorHTML() {
     if (!edMaps().some((m) => m.id === p.edMap)) p.edMap = MAPS.colgecidi ? 'colgecidi' : edMaps()[0].id;
     const m = MAPS[p.edMap], n = edCount(m.id);
-    const cards = edMaps().map((x) => { const k = edCount(x.id); return `<button class="mapc ${x.id === m.id ? 'on' : ''}" data-a="edmap" data-v="${x.id}"><img src="${x.thumb}" alt=""><div class="t"><b>${x.name}</b><small>${k ? k + ' düzenleme' : 'orijinal'}</small></div></button>`; }).join('');
-    return `<div class="scroll"><div class="pan"><h3>Harita seç</h3><div class="maps">${cards}</div></div>
-      <div class="pan"><h3>${m.name}</h3><div class="row"><button class="chip on" data-a="edopen">Editörü aç ›</button>${n ? `<button class="chip" data-a="edclear">${n} düzenlemeyi sil (orijinale dön)</button>` : ''}</div>
-      <div class="hint">Editör haritayı botsuz ve uçarak açar; panel sağda hazır gelir. Nişangâhla bakıp <kbd>sol tık</kbd> seç, <kbd>Delete</kbd> sil, ok tuşları / <kbd>PgUp</kbd> <kbd>PgDn</kbd> taşı, <kbd>+</kbd> <kbd>−</kbd> boyut, <kbd>Backspace</kbd> geri al. Düğmeler için <kbd>Esc</kbd>.</div>
-      <div class="hint">Düzenlemeler <b>kaydedilmez</b>: yalnız editörde görünür, sayfayı yenileyince (F5) hepsi silinir. Maçlarda harita her zaman orijinal hâliyle yüklenir. Kalıcı olmasını istediklerini panelden <b>Düzenlemeleri kopyala</b> ile bana gönder, haritaya işleyeyim.</div></div></div>`;
+    const cards = edMaps().map((x) => { const k = edCount(x.id); return `<button class="mapc ${x.id === m.id ? 'on' : ''}" data-a="edmap" data-v="${x.id}"><img src="${x.thumb}" alt="" loading="lazy"><div class="t"><b>${mapNm(x.id)}</b><small>${k ? t('menu.ed.nEdits', { n: k }) : t('menu.ed.original')}</small></div></button>`; }).join('');
+    return `${head('editor')}<div class="scroll"><div class="pan"><h3>${t('menu.ed.pick')}</h3><div class="maps">${cards}</div></div>
+      <div class="pan"><h3>${mapNm(m.id)}</h3><div class="row"><button class="chip on" data-a="edopen">${t('menu.ed.open')} ›</button>${n ? `<button class="chip" data-a="edclear">${t('menu.ed.clear', { n })}</button>` : ''}</div>
+      <div class="hint">${t('menu.ed.hint1')}</div>
+      <div class="hint">${t('menu.ed.hint2')}</div></div></div>`;
   }
+  const settingsPayload = () => ({ sens: p.sens, fov: p[FOV_KEY], volume: p.volume, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, shadows: p.shadows, adaptive: p.adaptive !== false, fullscreen: p.fullscreen !== false, pixelRatio: p[Q_KEY] });
   function launchEditor() {
     const payload = {
       editor: true, devMode: true, map: p.edMap, tod: 'day', weather: 'clear', team: 'blue', cls: p.cls, diff: 'normal', optic: p.optic, playerName: p.name,
       match: { perTeam: 1, type: 'dm', time: 900 }, third: false,
       keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs, loadout: loadoutOf(p.cls), loadouts: p.loadouts,
-      settings: { sens: p.sens, fov: p[FOV_KEY], volume: p.volume, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, shadows: p.shadows, adaptive: p.adaptive !== false, fullscreen: p.fullscreen !== false, pixelRatio: p[Q_KEY] },
+      settings: settingsPayload(),
     };
     cleanup();
     onStart(payload);
@@ -458,7 +481,7 @@ export function showMenu(onStart, onOnline) {
       match: { perTeam, type: p.type, tickets: randomize ? undefined : p.tickets || undefined, time: p.time }, third: p.third, devMode: !!p.devMode && !randomize,
       keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs,
       loadout: loadoutOf(cls), loadouts: p.loadouts,                    // tüm sınıfların kayıtlı yüklemeleri: oyunda sınıf değişince o sınıfınki gelir
-      settings: { sens: p.sens, fov: p[FOV_KEY], volume: p.volume, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, shadows: p.shadows, adaptive: p.adaptive !== false, fullscreen: p.fullscreen !== false, pixelRatio: p[Q_KEY] },
+      settings: settingsPayload(),
     };
     cleanup();
     onStart(payload);
@@ -467,6 +490,7 @@ export function showMenu(onStart, onOnline) {
     clearInterval(tipTimer); clearTimeout(iconTimer); clearInterval(roomPoll);
     document.removeEventListener('keydown', onKey);
     document.removeEventListener('keydown', onCap, true);
+    offLang();
     music.stop();
     scene?.dispose(); scene = null;
     el.style.display = 'none'; el.innerHTML = '';
@@ -475,31 +499,32 @@ export function showMenu(onStart, onOnline) {
   const onCap = (e) => {
     if (screen !== 'controls' || !ctl.cap) return;
     e.preventDefault(); e.stopPropagation();
-    const code = norm(e.code), { id, slot } = ctl.cap, kb = new Binds(p.keys);
+    const code = norm(e.code), { id, slot: sl } = ctl.cap, kb = new Binds(p.keys);
     if (code === 'Escape') { ctl = { cap: null, msg: '' }; render(); return; }
-    if (code === 'Backspace' || code === 'Delete') { kb.clear(id, slot); p.keys = kb.toJSON(); ctl = { cap: null, msg: 'Tuş temizlendi' }; save(); render(); return; }
-    if (RESERVED.has(code)) { ctl.msg = 'Bu tuş atanamaz'; render(); return; }
-    const taken = kb.set(id, slot, code);
+    if (code === 'Backspace' || code === 'Delete') { kb.clear(id, sl); p.keys = kb.toJSON(); ctl = { cap: null, msg: t('menu.ct.cleared') }; save(); render(); return; }
+    if (RESERVED.has(code)) { ctl.msg = t('menu.ct.reserved'); render(); return; }
+    const taken = kb.set(id, sl, code);
     p.keys = kb.toJSON();
-    ctl = { cap: null, msg: taken ? `"${codeLabel(code)}" tuşu "${ACTIONS.find((a) => a.id === taken).label}" eyleminden alındı` : '' };
+    ctl = { cap: null, msg: taken ? t('menu.ct.taken', { k: keyName(code), a: actionLabel(taken) }) : '' };
     save(); render();
   };
   document.addEventListener('keydown', onCap, true);
   const onKey = (e) => { if (e.key === 'Enter' && (screen === 'home' || screen === 'custom') && e.target.tagName !== 'INPUT') launch(); };
   document.addEventListener('keydown', onKey);
+  const offLang = onLang(() => { chrome(); render(); });                      // dil değişince menü yerinde yeniden çizilir (ekran / kaydırma korunur)
 
   stage.addEventListener('input', (e) => {
-    const t = e.target, id = t.id;
-    if (id === 'olCode') { t.value = t.value.toUpperCase().replace(/[^A-Z]/g, ''); p.room = t.value; save(); return; }
-    if (id === 'olPw') { ol.pw = t.value; return; }
-    if (id === 'ocName') { oc().name = t.value; save(); return; }
-    if (id === 'ocPw') { ol.cpw = t.value; return; }
-    if (id === 'ocSize') { const v = +t.value; oc().perTeam = v; t.style.setProperty('--p', ((v - lo(oc().type)) / (hi(oc().type) - lo(oc().type))) * 100 + '%'); q('#ocSizeV').innerHTML = tot(oc().type) ? `${v}<i>kişi</i>` : `${v}<i>vs</i>${v}`; stage.querySelectorAll('[data-k=perTeam]').forEach((c) => c.classList.toggle('on', +c.dataset.v === v)); save(); return; }
-    if (t.type !== 'range') return;
-    const v = +t.value, mn = +t.min, mx = +t.max;
-    t.style.setProperty('--p', ((v - mn) / (mx - mn)) * 100 + '%');
+    const tg = e.target, id = tg.id;
+    if (id === 'olCode') { tg.value = tg.value.toUpperCase().replace(/[^A-Z]/g, ''); p.room = tg.value; save(); return; }
+    if (id === 'olPw') { ol.pw = tg.value; return; }
+    if (id === 'ocName') { oc().name = tg.value; save(); return; }
+    if (id === 'ocPw') { ol.cpw = tg.value; return; }
+    if (id === 'ocSize') { const v = +tg.value; oc().perTeam = v; tg.style.setProperty('--p', ((v - lo(oc().type)) / (hi(oc().type) - lo(oc().type))) * 100 + '%'); q('#ocSizeV').innerHTML = sizeNum(oc().type, v); stage.querySelectorAll('[data-k=perTeam]').forEach((c) => c.classList.toggle('on', +c.dataset.v === v)); save(); return; }
+    if (tg.type !== 'range') return;
+    const v = +tg.value, mn = +tg.min, mx = +tg.max;
+    tg.style.setProperty('--p', ((v - mn) / (mx - mn)) * 100 + '%');
     if (id === 'rSize') {
-      p.perTeam = v; stage.querySelector('#vSize').innerHTML = tot(p.type) ? `${v}<i>kişi</i>` : `${v}<i>vs</i>${v}`;
+      p.perTeam = v; stage.querySelector('#vSize').innerHTML = sizeNum(p.type, v);
       stage.querySelectorAll('[data-a=size]').forEach((c) => c.classList.toggle('on', +c.dataset.v === v));
     } else if (id === 'sSens') { p.sens = v; stage.querySelector('#v_sSens').textContent = (v / 0.0022).toFixed(2) + '×'; }
     else if (id === 'sFov') { p[FOV_KEY] = v; stage.querySelector('#v_sFov').textContent = v + '°'; }
@@ -518,6 +543,7 @@ export function showMenu(onStart, onOnline) {
     let adv = null;                                          // kurucuda seçimden sonra bir sonraki adıma kaydır
     switch (a) {
       case 'go': screen = v; break;
+      case 'lang': setLang(v); return;                       // onLang → yeniden çizim
       case 'jump': q('#' + v)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return;
       case 'quick': launch(false); return;
       case 'random': launch(true); return;
@@ -528,7 +554,7 @@ export function showMenu(onStart, onOnline) {
       case 'devmode': p.devMode = v === '1'; break;
       case 'edmap': p.edMap = v; break;
       case 'edopen': launchEditor(); return;
-      case 'edclear': if (confirm(`${MAPS[p.edMap].name}: yaptığın tüm düzenlemeler silinsin mi?`)) { clearEdits(p.edMap); } break;
+      case 'edclear': if (confirm(t('menu.ed.confirm', { m: mapNm(p.edMap) }))) { clearEdits(p.edMap); } break;
       case 'type': if (p.type !== v) adv = 'bs2'; p.type = v; if (tot(v)) p.perTeam = Math.max(lo(v), Math.min(hi(v), p.perTeam)); if (v === 'inf') p.map = 'newyork'; else if (v === 'pb') { if (!MAPS[p.map]?.only?.includes('pb') && p.map !== 'random') p.map = 'boyakulesi'; } else if (MAPS[p.map]?.only && !MAPS[p.map].only.includes(v)) p.map = DEFAULT_MAP; break;
       case 'team': p.team = v; break;
       case 'diff': p.diff = v; break;
@@ -566,8 +592,8 @@ export function showMenu(onStart, onOnline) {
       case 'hand': p.leftHand = v === 'left'; break;
       case 'ads': p.adsToggle = v === 'toggle'; break;
       case 'kbind': ctl = { cap: { id: b.dataset.id, slot: +b.dataset.slot }, msg: '' }; break;
-      case 'kreset': p.keys = {}; ctl = { cap: null, msg: 'Tuşlar varsayılana döndü' }; break;
-      case 'reset': if (confirm('Seviye ve istatistikler sıfırlansın mı?')) { p.xp = 0; p.stats = { ...DEFAULTS.stats }; } break;
+      case 'kreset': p.keys = {}; ctl = { cap: null, msg: t('menu.ct.resetDone') }; break;
+      case 'reset': if (confirm(t('menu.set.resetQ'))) { p.xp = 0; p.stats = { ...DEFAULTS.stats }; } break;
       default: return;
     }
     save(); render();
@@ -575,6 +601,7 @@ export function showMenu(onStart, onOnline) {
   };
   stage.addEventListener('click', act);
   nav.addEventListener('click', act);
+  q('#mnLangs').addEventListener('click', act);
 
   render();
   scene?.prefetch([...new Set([DEFAULT_MAP, ...Object.values(MAPS).filter((m) => m.only).map((m) => mapsFor(m.only[0])[0].id)])]);   // mod değişiminin zorladığı haritalar boşta hazırlanır (modun ilk haritası: New York, Boya Kulesi)
