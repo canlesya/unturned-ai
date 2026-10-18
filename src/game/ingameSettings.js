@@ -72,6 +72,11 @@ export class InGameSettings {
         const r = g.renderer, pr = Math.min(devicePixelRatio, v);
         if (g._perf) { g._perf.max = pr; g._perf.ratio = pr; }
         r?.setPixelRatio(pr); r?.setSize(innerWidth, innerHeight, false);
+        g.applyGfx?.();                                                         // gölge haritası / yumuşaklık / son işleme kademesi
+        break;
+      }
+      case 'post': {
+        s.post = v; this.save({ post: v }); g.applyGfx?.();
         break;
       }
       case 'shadows':
@@ -107,9 +112,10 @@ export class InGameSettings {
         <div class="pan"><h3>Grafik</h3><div class="row">
         ${[[1, 'Düşük'], [1.5, 'Orta'], [2, 'Yüksek']].map(([v, l]) => ch('quality', v, q === v, l)).join('')}
         ${ch('shadows', s.shadows === false ? 1 : 0, s.shadows !== false, `Gölgeler: ${s.shadows !== false ? 'Açık' : 'Kapalı'}`)}
+        ${ch('post', postOn(s) ? 0 : 1, postOn(s), `Son işleme (Yüksek): ${postOn(s) ? 'Açık' : 'Kapalı'}`)}
         ${ch('adaptive', s.adaptive === false ? 1 : 0, s.adaptive !== false, `Otomatik çözünürlük: ${s.adaptive !== false ? 'Açık' : 'Kapalı'}`)}
         ${ch('fullscreen', s.fullscreen === false ? 1 : 0, s.fullscreen !== false, `Tam ekran + Ctrl+W koruması: ${s.fullscreen !== false ? 'Açık' : 'Kapalı'}`)}</div>
-        <div class="hint">Düşük kalite ve kapalı gölge, zayıf bilgisayarlarda ve büyük maçlarda akıcılığı artırır. Tam ekran değişikliği oyuna döndüğünde uygulanır.</div></div>`;
+        <div class="hint">Yüksek: keskin yumuşak gölge + son işleme (parıltı, renk tonu). Düşük kalite ve kapalı gölge, zayıf bilgisayarlarda ve büyük maçlarda akıcılığı artırır. Tam ekran değişikliği oyuna döndüğünde uygulanır.</div></div>`;
     } else {
       const kb = g.binds, cap = this.cap;
       const keyRows = GROUPS.map((gr, gi) => `<div class="pan"><h3>${gr}</h3>${ACTIONS.filter((a) => a.group === gi).map((a) => `<div class="kb"><span>${a.label}</span>${[0, 1].map((sl2) => {
@@ -169,5 +175,6 @@ export class InGameSettings {
   dispose() { window.removeEventListener('keydown', this._key, true); this.el.remove(); this.st.remove(); }
 }
 
-const mob = () => document.body.classList.contains('mob');              // dokunmatik kontroller açık (touch.js)
+const mob = () => document.body.classList.contains('mob');
+const postOn = (s) => s.post ?? !mob();                                    // son işleme: telefonda varsayılan kapalı              // dokunmatik kontroller açık (touch.js)
 const FMT = { sens: (x) => (x / 0.0022).toFixed(2) + '×', fov: (x) => x + '°', pct: (x) => Math.round(x * 100) + '%' };

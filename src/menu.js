@@ -353,7 +353,7 @@ export function showMenu(onStart, onOnline) {
       <div class="row" style="margin-top:8px"><button class="chip ${p.rainSound ? 'on' : ''}" data-a="rain" data-v="1">Yağmur sesi: ${p.rainSound ? 'Açık' : 'Kapalı'}</button></div>
       <div class="hint">Lobi ve maç müziği için dosyalar henüz yok; <b>public/audio/music/</b> altına eklenince otomatik çalar (bkz. OYUN.md).</div></div>
       <div class="pan"><h3>Grafik</h3><div class="row">${[[1, 'Düşük'], [1.5, 'Orta'], [2, 'Yüksek']].map(([v, l]) => `<button class="chip ${p[Q_KEY] === v ? 'on' : ''}" data-a="quality" data-v="${v}">${l}</button>`).join('')}
-      <button class="chip ${p.shadows ? 'on' : ''}" data-a="shadows" data-v="1">Gölgeler: ${p.shadows ? 'Açık' : 'Kapalı'}</button><button class="chip ${p.adaptive !== false ? 'on' : ''}" data-a="adaptive" data-v="1" title="Kare hızı düşerse çözünürlüğü otomatik azaltır, rahatlayınca geri yükseltir">Otomatik çözünürlük: ${p.adaptive !== false ? 'Açık' : 'Kapalı'}</button><button class="chip ${p.fullscreen !== false ? 'on' : ''}" data-a="fullscreen" data-v="1" title="Oyun başlayınca tam ekrana geçer ve klavyeyi kilitler: Ctrl+W gibi tarayıcı kısayolları sekmeyi kapatmaz">Tam ekran + Ctrl+W koruması: ${p.fullscreen !== false ? 'Açık' : 'Kapalı'}</button></div>
+      <button class="chip ${p.shadows ? 'on' : ''}" data-a="shadows" data-v="1">Gölgeler: ${p.shadows ? 'Açık' : 'Kapalı'}</button><button class="chip ${p.post ?? !TOUCH ? 'on' : ''}" data-a="post" data-v="1" title="Yalnız Yüksek kalitede: parlak ışıklarda hafif parıltı, günün saatine göre renk tonu ve vinyet. Telefonda varsayılan kapalı">Son işleme (Yüksek): ${p.post ?? !TOUCH ? 'Açık' : 'Kapalı'}</button><button class="chip ${p.adaptive !== false ? 'on' : ''}" data-a="adaptive" data-v="1" title="Kare hızı düşerse çözünürlüğü otomatik azaltır, rahatlayınca geri yükseltir">Otomatik çözünürlük: ${p.adaptive !== false ? 'Açık' : 'Kapalı'}</button><button class="chip ${p.fullscreen !== false ? 'on' : ''}" data-a="fullscreen" data-v="1" title="Oyun başlayınca tam ekrana geçer ve klavyeyi kilitler: Ctrl+W gibi tarayıcı kısayolları sekmeyi kapatmaz">Tam ekran + Ctrl+W koruması: ${p.fullscreen !== false ? 'Açık' : 'Kapalı'}</button></div>
       <div class="hint">Düşük kalite ve kapalı gölge, zayıf bilgisayarlarda ve büyük maçlarda akıcılığı artırır.</div></div>
       <div class="pan"><h3>Veri</h3><button class="chip" data-a="reset">İlerlemeyi sıfırla</button></div></div>`;
   }
@@ -438,7 +438,7 @@ export function showMenu(onStart, onOnline) {
       editor: true, devMode: true, map: p.edMap, tod: 'day', weather: 'clear', team: 'blue', cls: p.cls, diff: 'normal', optic: p.optic, playerName: p.name,
       match: { perTeam: 1, type: 'dm', time: 900 }, third: false,
       keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs, loadout: loadoutOf(p.cls), loadouts: p.loadouts,
-      settings: { sens: p.sens, fov: p[FOV_KEY], volume: p.volume, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, shadows: p.shadows, adaptive: p.adaptive !== false, fullscreen: p.fullscreen !== false, pixelRatio: p[Q_KEY] },
+      settings: { sens: p.sens, fov: p[FOV_KEY], volume: p.volume, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, shadows: p.shadows, post: p.post ?? !TOUCH, adaptive: p.adaptive !== false, fullscreen: p.fullscreen !== false, pixelRatio: p[Q_KEY] },
     };
     cleanup();
     onStart(payload);
@@ -458,7 +458,7 @@ export function showMenu(onStart, onOnline) {
       match: { perTeam, type: p.type, tickets: randomize ? undefined : p.tickets || undefined, time: p.time }, third: p.third, devMode: !!p.devMode && !randomize,
       keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs,
       loadout: loadoutOf(cls), loadouts: p.loadouts,                    // tüm sınıfların kayıtlı yüklemeleri: oyunda sınıf değişince o sınıfınki gelir
-      settings: { sens: p.sens, fov: p[FOV_KEY], volume: p.volume, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, shadows: p.shadows, adaptive: p.adaptive !== false, fullscreen: p.fullscreen !== false, pixelRatio: p[Q_KEY] },
+      settings: { sens: p.sens, fov: p[FOV_KEY], volume: p.volume, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, shadows: p.shadows, post: p.post ?? !TOUCH, adaptive: p.adaptive !== false, fullscreen: p.fullscreen !== false, pixelRatio: p[Q_KEY] },
     };
     cleanup();
     onStart(payload);
@@ -561,6 +561,7 @@ export function showMenu(onStart, onOnline) {
       case 'quality': p[Q_KEY] = +v; break;
       case 'shadows': p.shadows = !p.shadows; break;
       case 'adaptive': p.adaptive = p.adaptive === false; break;
+      case 'post': p.post = !(p.post ?? !TOUCH); break;
       case 'fullscreen': p.fullscreen = p.fullscreen === false; break;
       case 'rain': p.rainSound = !p.rainSound; break;
       case 'hand': p.leftHand = v === 'left'; break;
