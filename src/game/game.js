@@ -32,7 +32,6 @@ import { t } from '../i18n/index.js';
 import { Paint, paintColorOf } from './paint.js';
 import { Pickups } from './pickups.js';
 import { EndFlow } from './endFlow.js';
-import { t } from '../i18n/index.js';
 import { t as $t } from '../i18n/index.js';
 import { placeName } from '../i18n/game.js';                                                         // oyun içi sözlük (hud. / death. / end. …)
 import { Payload } from './payload.js';
