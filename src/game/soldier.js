@@ -643,6 +643,33 @@ export class Soldier {
     sh.material.opacity = 0.16 + 0.1 * (0.5 + 0.5 * Math.sin(this.game.time * 7));
   }
 
+  // Zombi duruşu (yalnız görsel; vuruş kutusu / hareket aynı): öne kambur gövde + yukarı bakan av kafası, türe göre sendeleme / topallama /
+  // ağır basış / süzülme, ara ara kafa seğirmesi. Asker animasyonunun üstüne eklenir.
+  _zombiePose(m, p, root, T, ph, moveAmt, run) {
+    const zs = m.zshape, zt = m.ztype, id = this.id;
+    const hunch = zs.hunch * (1 + 0.3 * run);
+    p.torso.rotation.x -= hunch;
+    p.torso.position.y -= hunch * 0.1;
+    p.torso.position.z = -hunch * 0.12;
+    p.head.rotation.x += hunch * 0.8 + 0.06 * Math.sin(T * 1.1 + id);
+    const lurch = zt === 'runner' ? 0.05 : zt === 'brute' ? 0.15 : zt === 'ghost' ? 0.035 : 0.11;
+    p.torso.rotation.z += Math.sin(ph) * lurch * moveAmt + Math.sin(T * 0.7 + id) * 0.05 * (1 - moveAmt);       // yana sendeleme / dururken salınma
+    p.torso.rotation.y += Math.sin(ph + 0.6) * lurch * 0.7 * moveAmt;
+    const tw = (rate) => {                                                     // seğirme: rastgele aralıklarla kısa, sert kafa / omuz sarsıntısı
+      const k = T * rate + id * 7.31, i = Math.floor(k), f = k - i, h = Math.sin(i * 91.7 + id * 13.1) * 43758.5;
+      return (h - Math.floor(h)) > 0.72 && f < 0.16 ? Math.sin((f / 0.16) * Math.PI) * ((h * 7 - Math.floor(h * 7)) - 0.5) * 2 : 0;
+    };
+    const t1 = tw(zt === 'blinker' ? 2.6 : 1.3), t2 = tw(zt === 'blinker' ? 3.1 : 0.9);
+    p.head.rotation.z += t1 * 0.5; p.head.rotation.y += t2 * 0.35; p.torso.rotation.z += t2 * 0.06;
+    const L = p.legs.L, R = p.legs.R;
+    if (zt === 'walker' || zt === 'boss') {                                    // topallama: sağ bacak sürünür (kısa adım, az diz bükümü)
+      R.hip.rotation.x *= 0.6; R.knee.rotation.x *= 0.55; if (R.foot) R.foot.rotation.x *= 0.5;
+      root.position.y -= 0.04 * moveAmt * Math.max(0, Math.sin(ph + Math.PI));
+    } else if (zt === 'brute') root.position.y -= 0.06 * moveAmt * Math.sin(ph) ** 4;       // ağır basış
+    else if (zt === 'ghost') { root.position.y += 0.05 + Math.sin(T * 1.4 + id) * 0.03; L.hip.rotation.x *= 0.5; R.hip.rotation.x *= 0.5; L.knee.rotation.x = L.knee.rotation.x * 0.5 - 0.35; R.knee.rotation.x = R.knee.rotation.x * 0.5 - 0.3; }   // süzülme: ayaklar sarkık
+    else if (zt === 'runner') p.torso.rotation.x -= 0.15 * run;              // koşucu: çok alçak, öne atılmış
+  }
+
   // Üçüncü şahıs model senkronu (oyuncu hariç): hıza bağlı adım döngüsü, gövde eğimi, kol sallanması
   syncModel(dt) {
     if (this.game.headless) return;                                                     // görsel animasyon: sunucuda gerekmez
@@ -741,5 +768,6 @@ export class Soldier {
     }
     if (this.swing) melee = { kind: this.swing.kind, k: clamp(this.swing.t / this.swing.dur, 0, 1) };
     m.refreshHold({ sprint: this.sprintT * (1 - pr), kick: clamp(this.flashT / 0.06, 0, 1), twist: (twist + twistY) * (1 - pr), swing, side: this.stanceT, prone: pr, aimP: clamp(this.pitch + this.recoilP, -0.8, 0.8), reload, melee });
+    if (m.zshape && pr < 0.5) this._zombiePose(m, p, root, T, ph, moveAmt, run);
   }
 }

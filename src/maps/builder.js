@@ -61,7 +61,7 @@ export class MapBuilder {
     const kind = this._optKind ?? this.kindStack[this.kindStack.length - 1];
     if (kind !== undefined) g.userData.kind = kind;
     this._lastOid = g.userData.oid;
-    g.deleteAttribute('uv');
+    if (!this.surface?.uv) g.deleteAttribute('uv');           // surface.uv: kutu yüzü UV'si korunur (şehir gölgelendiricisi yüz boyutunu / yüz içi konumu bundan bulur)
     b.geos.push(g);
     return { g, key };
   }
@@ -428,10 +428,11 @@ export class MapBuilder {
           for (let i = 0; i < n; i++) { arr[i * 3] = c.r; arr[i * 3 + 1] = c.g; arr[i * 3 + 2] = c.b; }
           g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
           if (this.surface) {
-            const P = g.attributes.position, kd = new Uint8Array(n), gd = new Float32Array(n);
+            const KB = S.kindBits || 4, P = g.attributes.position, kd = KB > 4 ? new Uint16Array(n) : new Uint8Array(n), gd = new Float32Array(n);     // kindBits: sınıf bit sayısı (varsayılan 4; şehir 6)
             const oid = g.userData.oid || '';
             let kk = S.kindOf ? (g.userData.kind ?? kind) : /^palmiye/.test(oid) ? 3 : kind === 1 && /^(kasa|sandık|araç|fıçı|varil)/.test(oid) ? 2 : kind;       // açık renkli sandıklar sıva değil ahşap
-            if (S.seeded) kk = (kk & 15) | ((Math.imul(plainGeos.length + 1, 2654435761) >>> 28) << 4);         // üst 4 bit: parça başına tohum (pencere / araç kendi tonunda)
+            if (S.seeded) kk = (kk & ((1 << KB) - 1)) | ((Math.imul(plainGeos.length + 1, 2654435761) >>> 28) << KB);         // üst 4 bit: parça başına tohum (pencere / araç kendi tonunda)
+            if (S.uv && !g.attributes.uv) g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(n * 2), 2));
             for (let i = 0; i < n; i++) { kd[i] = kk; gd[i] = this.surface.ground(P.getX(i), P.getZ(i)); }
             g.setAttribute('aKind', new THREE.BufferAttribute(kd, 1)); g.setAttribute('aGnd', new THREE.BufferAttribute(gd, 1));
           }
@@ -440,6 +441,7 @@ export class MapBuilder {
         continue;
       }
       if (!b.geos.length) continue;
+      if (this.surface?.uv) for (const g of b.geos) g.deleteAttribute('uv');          // özel malzemeli kovalar UV kullanmaz (eskisi gibi)
       const merged = mergeGeometries(b.geos, false);
       const mesh = new THREE.Mesh(merged, mat(b.color, { ...b.o }));
       mesh.userData.ranges = MapBuilder.rangesOf(b.geos);
