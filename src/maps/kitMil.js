@@ -1,6 +1,7 @@
 import { COL } from './kit.js';
 import { wallRun, placeItem, fillRoom, ITEMS, IC, poolMat, poolDisc } from './kitMilInterior.js';
 import { milBuilding, guardTower, garageRow, tunnel, tent, camoNet, radarDish } from './kitMilBuild.js';
+import { UK } from './usSurface.js';
 
 // Askeri üs parçaları: hangar, bunker, yakıt tankı, radar, helikopter, helipad, kuleler, tünel, çadır, siper, araçlar, aydınlatma.
 // İç mekân fonksiyonları (`interior*`): kitMilInterior.js'deki parçalarla bir dikdörtgeni (oda) doldurur.
@@ -96,10 +97,10 @@ export function mgNest(b, x, z, ry = 0, color = '#a89468') {
       b.collide(px, 0, pz, w, 0.96, d);
     };
     bag(0, -0.9, 2.8, 0.6); bag(-1.15, 0, 0.6, 1.4); bag(1.15, 0, 0.6, 1.4);
-    b.box(0, 0.96, -0.5, 0.12, 0.45, 0.12, '#2a2d30', { collide: false });
+    b.box(0, 0.96, -0.66, 0.12, 0.45, 0.12, '#2a2d30', { collide: false });                    // sehpa dikmesi ön torbanın üstünde
     b.box(0, 1.3, -0.5, 0.2, 0.2, 1.1, '#2a2d30', { collide: false });
     b.box(0, 1.32, 0.3, 0.1, 0.1, 0.5, '#3a3a34', { collide: false });
-    b.box(-0.45, 0, -0.2, 0.7, 0.5, 0.4, OLIVE, { collide: false });
+    b.box(-0.45, 0, -0.2, 0.7, 0.5, 0.4, OLIVE);                                              // cephane kutusu (çarpışmalı)
   });
 }
 // Hendek siperi: iki kum torbası hattı + traverse (içinden yürünebilir koridor)
@@ -174,17 +175,18 @@ export function hangar(b, rng, { x, z, ry = 0, w = 30, d = 18, openW = 14, color
   const T = 0.5;
   b.with(x, 0, z, ry, () => {
     const x0 = -w / 2, x1 = w / 2, z0 = -d / 2, z1 = d / 2;
-    b.box(0, 0, 0, w - 0.5, 0.05, d - 0.5, '#5f6468', { collide: false });
-    for (let i = -2; i <= 2; i++) b.box(i * 5, 0.06, 0, 0.18, 0.01, d - 2, '#d9a921', { collide: false });
+    const KC = { kind: UK.CLAD };
+    b.box(0, 0, 0, w - 0.5, 0.05, d - 0.5, '#5f6468', { collide: false, kind: UK.CONC });
+    for (let i = -2; i <= 2; i++) b.box(i * 5, 0.06, 0, 0.18, 0.01, d - 2, '#d9a921', { collide: false, kind: UK.MARK });
     const sideDoor = [{ at: 0, w: 2.4, b: 0, top: 2.6 }, { at: d / 4 + 1, w: 2.4, b: 0, top: 2.6 }];
     const hiWin = (len, c) => { const out = []; for (let i = -3; i <= 3; i++) { const at = c + i * (len / 7.5); out.push({ at, w: 1.8, b: 5.6, top: 6.7 }); } return out; };
     // ön (+z): büyük kapı + yan kapılar
-    b.wall('x', x0, x1, z1 - T / 2, 0, H, T, color, [{ at: 0, w: openW, b: 0, top: 6.4 }, { at: -(openW / 2 + 3.5), w: 2.2, b: 0, top: 2.5 }, { at: openW / 2 + 3.5, w: 2.2, b: 0, top: 2.5 }]);
+    b.wall('x', x0, x1, z1 - T / 2, 0, H, T, color, [{ at: 0, w: openW, b: 0, top: 6.4 }, { at: -(openW / 2 + 3.5), w: 2.2, b: 0, top: 2.5 }, { at: openW / 2 + 3.5, w: 2.2, b: 0, top: 2.5 }], KC);
     // arka (-z)
-    b.wall('x', x0, x1, z0 + T / 2, 0, H, T, color, [...(backDoors ? [{ at: -9, w: 2.4, b: 0, top: 2.6 }, { at: 9, w: 2.4, b: 0, top: 2.6 }] : []), ...hiWin(w, 0).filter((o) => !backDoors || (Math.abs(o.at + 9) > 2 && Math.abs(o.at - 9) > 2))]);
+    b.wall('x', x0, x1, z0 + T / 2, 0, H, T, color, [...(backDoors ? [{ at: -9, w: 2.4, b: 0, top: 2.6 }, { at: 9, w: 2.4, b: 0, top: 2.6 }] : []), ...hiWin(w, 0).filter((o) => !backDoors || (Math.abs(o.at + 9) > 2 && Math.abs(o.at - 9) > 2))], KC);
     // yan duvarlar
-    b.wall('z', z0 + T, z1 - T, x0 + T / 2, 0, H, T, color, [...sideDoor, ...hiWin(d, 0).filter((o) => Math.abs(o.at) > 2.5 && Math.abs(o.at - (d / 4 + 1)) > 2.5)]);
-    b.wall('z', z0 + T, z1 - T, x1 - T / 2, 0, H, T, color, [...sideDoor, ...hiWin(d, 0).filter((o) => Math.abs(o.at) > 2.5 && Math.abs(o.at - (d / 4 + 1)) > 2.5)]);
+    b.wall('z', z0 + T, z1 - T, x0 + T / 2, 0, H, T, color, [...sideDoor, ...hiWin(d, 0).filter((o) => Math.abs(o.at) > 2.5 && Math.abs(o.at - (d / 4 + 1)) > 2.5)], KC);
+    b.wall('z', z0 + T, z1 - T, x1 - T / 2, 0, H, T, color, [...sideDoor, ...hiWin(d, 0).filter((o) => Math.abs(o.at) > 2.5 && Math.abs(o.at - (d / 4 + 1)) > 2.5)], KC);
     // yüksek pencereler: ışıklı
     for (let i = -3; i <= 3; i++) {
       const at = i * (w / 7.5);
@@ -193,12 +195,12 @@ export function hangar(b, rng, { x, z, ry = 0, w = 30, d = 18, openW = 14, color
       for (const sx of [x0 + T / 2, x1 - T / 2]) if (Math.abs(az) > 2.5 && Math.abs(az - (d / 4 + 1)) > 2.5) b.box(sx, 5.6, az, 0.07, 1.1, 1.8, '#2c3d49', { collide: false, o: WIN });
     }
     // çatı: düz plaka + hafif kemer
-    b.box(0, H - 0.3, 0, w, 0.3, d, CONC_D);
+    b.box(0, H - 0.3, 0, w, 0.3, d, CONC_D, KC);
     b.prism(0, H, 0, d + 1, 1.8, w + 1, '#6c737b', { ry: Math.PI / 2 });
     b.box(0, 6.4, z1 + 0.28, openW + 1, 0.5, 0.08, '#d9a921', { collide: false });
-    b.box(-openW / 2 - 0.5, 0, z1 + 0.4, 1.0, H, 0.5, STEEL, { collide: false });
-    b.box(openW / 2 + 0.5, 0, z1 + 0.4, 1.0, H, 0.5, STEEL, { collide: false });
-    if (label) b.box(0, 7.0, z1 + 0.3, 3.5, 0.8, 0.06, label, { collide: false });
+    b.box(-openW / 2 - 0.5, 0, z1 + 0.4, 1.0, H, 0.5, STEEL);                     // kapı dikmeleri (çarpışmalı: içinden geçilmez)
+    b.box(openW / 2 + 0.5, 0, z1 + 0.4, 1.0, H, 0.5, STEEL);
+    if (label) b.box(0, 7.0, z1 + 0.03, 3.5, 0.8, 0.06, label, { collide: false });          // tabela duvara yaslı
     // iç sütunlar + vinç rayı
     for (const [px, pz] of [[-w / 2 + 3, -d / 2 + 4], [w / 2 - 3, -d / 2 + 4], [-w / 2 + 3, d / 2 - 3.5], [w / 2 - 3, d / 2 - 3.5], [-6.5, -1.5], [6.5, -1.5]]) b.box(px, 0, pz, 0.6, H - 0.3, 0.6, STEEL);
     for (const pz of [-d / 2 + 4, d / 2 - 3.5]) b.box(0, 6.6, pz, w - 0.6, 0.35, 0.35, '#c58a1f', { collide: false });
@@ -206,13 +208,13 @@ export function hangar(b, rng, { x, z, ry = 0, w = 30, d = 18, openW = 14, color
     b.box(-3, 5.2, -1.5, 0.5, 1.0, 0.5, '#d9a921', { collide: false });
     b.box(-3, 4.8, -1.5, 0.08, 0.4, 0.08, '#2a2d30', { collide: false });
     // tavan lambaları
-    for (const lx of [-10, -3.5, 3.5, 10]) for (const lz of [-3.5, 3.5]) b.box(lx, H - 0.8, lz, 1.4, 0.12, 0.5, '#fff3c4', { collide: false, o: GL });
+    for (const lx of [-10, -3.5, 3.5, 10]) for (const lz of [-3.5, 3.5]) b.box(lx, H - 0.42, lz, 1.4, 0.12, 0.5, '#fff3c4', { collide: false, o: GL });     // çatı plakasının altına oturur
     for (const lx of [-10, -3.5, 3.5, 10]) for (const lz of [-3.5, 3.5]) lightPool(b, lx, lz, 3.4, '#ffe9b0', 0.09, 0.4);
     // asma kat (mezzanine): arka duvar boyunca, doğu uçtan merdivenli
     if (mezz) {
       const mx0 = -w / 2 + 2, mx1 = mx0 + (mezzLen ?? (w - 11.6)), mz0 = z0 + T, mz1 = z0 + T + 3.0, my = 3.0;
       b.box((mx0 + mx1) / 2, my - 0.3, (mz0 + mz1) / 2, mx1 - mx0, 0.3, mz1 - mz0, '#6f756d');
-      for (const px of [mx0 + 0.3, (mx0 + mx1) / 2, mx1 - 0.3]) b.box(px, 0, mz1 - 0.2, 0.3, my - 0.3, 0.3, STEEL, { collide: false });
+      for (const px of [mx0 + 0.3, (mx0 + mx1) / 2, mx1 - 0.3]) b.box(px, 0, mz1 - 0.2, 0.3, my - 0.3, 0.3, STEEL);          // asma kat dikmeleri (çarpışmalı)
       b.box((mx0 + mx1) / 2, my, mz1 - 0.1, mx1 - mx0, 1.0, 0.12, '#7d867c');      // ön korkuluk (siper)
       b.box(mx0 + 0.1, my, (mz0 + mz1) / 2, 0.12, 1.0, mz1 - mz0, '#7d867c');
       b.box((mx0 + mx1) / 2, my + 1.0, mz1 - 0.1, mx1 - mx0, 0.07, 0.2, '#d9a921', { collide: false });
@@ -222,9 +224,18 @@ export function hangar(b, rng, { x, z, ry = 0, w = 30, d = 18, openW = 14, color
       b.box(mx0 + 5, my, mz0 + 0.5, 1.6, 0.8, 0.8, IC.wood); b.box(mx0 + 9, my, mz0 + 0.45, 1.2, 1.9, 0.5, IC.woodD); b.box(mx0 + 2.5, my, mz0 + 0.6, 1.0, 0.9, 1.0, IC.olive);
       b.box(mx1 - 2.5, my, mz0 + 0.5, 1.4, 0.9, 1.0, IC.wood);
       // asma kat altı: tezgâhlar
-      const ctx = { y: 0, rects: [{ x0: mx1 - 0.5, x1: mx1 + 5.5, z0: mz0, z1: mz0 + 2.2 }], bounds: { x0: mx0, x1: mx1, z0: mz0, z1: z0 + 6 } };
+      const ctx = { y: 0, rects: [{ x0: mx1 - 0.5, x1: mx1 + 5.5, z0: mz0, z1: mz0 + 2.2 }, ...(backDoors ? [-9, 9].map((bx) => ({ x0: bx - 1.7, x1: bx + 1.7, z0: mz0, z1: mz0 + 2.0 })) : [])], bounds: { x0: mx0, x1: mx1, z0: mz0, z1: z0 + 6 } };   // arka kapı önü boş
       wallRun(b, ctx, { x0: mx0, x1: mx1, z0: mz0, z1: z0 + 6 }, 'n', ['workbench', 'shelf', 'workbench', 'tires', 'workbench'], rng, { start: 0.3 });
     }
+  });
+}
+
+// ───────── Konteyner (askeri üs): tek kutu (oluk / pas gölgelendiricide), kapı ucunda kilit çubukları; çarpışma = kutu ─────────
+export function container(b, { x, z, ry = 0, y = 0, color = '#3b6a9a', len = 6.1 }) {
+  b.with(x, y, z, ry, () => {
+    b.box(0, 0, 0, len, 2.6, 2.44, color, { kind: UK.BOX });
+    for (const sz of [-0.85, -0.3, 0.3, 0.85]) b.box(len / 2 + 0.025, 0.12, sz, 0.05, 2.36, 0.05, '#3a3d42', { collide: false, kind: UK.STEEL });
+    for (const sz of [-0.58, 0.58]) b.box(len / 2 + 0.03, 1.1, sz, 0.04, 0.3, 0.1, '#2a2d30', { collide: false, kind: UK.STEEL });
   });
 }
 
@@ -238,7 +249,7 @@ export function helicopter(b, { x, z, ry = 0, color = '#4a5a3a' }) {
     b.box(0, 2.4, 0, 0.5, 0.4, 0.5, STEEL, { collide: false });              // rotor göbeği
     b.box(0, 2.78, 0, 9.2, 0.07, 0.35, '#2a2d30', { collide: false });
     b.box(0, 2.78, 0, 0.35, 0.07, 9.2, '#2a2d30', { collide: false });
-    for (const sz of [-0.85, 0.85]) b.box(0, 0, sz, 3.4, 0.1, 0.12, STEEL, { collide: false });
+    for (const sz of [-0.85, 0.85]) { b.box(0, 0, sz, 3.4, 0.1, 0.12, STEEL, { collide: false }); for (const sx of [-0.9, 0.9]) b.box(sx, 0.1, sz * 0.94, 0.08, 0.42, 0.08, STEEL, { collide: false }); }   // kızak + gövdeye dikmeler
     b.box(2.2, 0.9, 0, 0.1, 0.18, 0.5, '#fff6d6', { collide: false, o: GL });
     b.box(-5.2, 2.3, 0, 0.12, 0.14, 0.12, '#ff3b2b', { collide: false, o: GL });
   });
@@ -249,13 +260,13 @@ export function plane(b, { x, z, ry = 0, color = '#6b7480' }) {
   b.with(x, 0, z, ry, () => {
     b.box(0, 0.7, 0, 9.0, 1.9, 2.2, color);
     b.box(4.3, 1.2, 0, 1.6, 1.2, 1.7, '#9fc3d6', { collide: false, o: { transparent: true, opacity: 0.55 } });
-    b.box(-5.5, 1.2, 0, 3.0, 0.9, 1.4, color, { collide: false });
+    b.box(-5.5, 1.2, 0, 3.0, 0.9, 1.4, color);                                       // kuyruk konisi (çarpışmalı)
     b.box(-6.6, 1.9, 0, 0.12, 2.0, 0.12 + 0.2, color, { collide: false });
     b.box(-6.3, 1.8, 0, 1.2, 0.1, 5.0, color, { collide: false });
     b.box(0.5, 1.5, 0, 2.2, 0.18, 12.5, color, { collide: false });                // kanat
     b.collide(0.5, 0, 0, 2.2, 1.6, 2.4);
-    for (const sz of [-3.6, 3.6]) { b.box(1.5, 0.8, sz, 1.4, 0.7, 0.7, '#4a5058', { collide: false }); b.box(2.3, 0.8, sz, 0.1, 0.5, 0.5, '#2a2d30', { collide: false }); }
-    for (const [wx, wz] of [[3, 0], [-1, -1.2], [-1, 1.2]]) b.cyl(wx, 0.35, wz, 0.35, 0.35, 0.3, '#1c1c1e', { rx: Math.PI / 2, center: true, seg: 8, collide: false });
+    for (const sz of [-3.6, 3.6]) { b.box(1.5, 0.8, sz, 1.4, 0.7, 0.7, '#4a5058'); b.box(2.23, 0.8, sz, 0.08, 0.5, 0.5, '#2a2d30', { collide: false }); }   // motor (çarpışmalı) + pervane göbeği
+    for (const [wx, wz] of [[3, 0], [-1, -1.2], [-1, 1.2]]) { b.cyl(wx, 0.35, wz, 0.35, 0.35, 0.3, '#1c1c1e', { rx: Math.PI / 2, center: true, seg: 8, collide: false }); b.collide(wx, 0, wz, 0.7, 0.7, 0.3); }   // teker (çarpışmalı)
     b.box(0, 1.2, 0, 8.6, 0.08, 2.24, '#d9a921', { collide: false });
     b.box(-6.6, 3.0, 0, 0.12, 0.14, 0.12, '#ff3b2b', { collide: false, o: GL });
   });
@@ -286,7 +297,7 @@ export function bunker(b, { x, z, ry = 0, w = 6, d = 4 }) {
     b.box(0, H, 0, w + 0.6, 0.45, d + 0.6, CONC);                              // çatı
     b.ico(0, H + 0.45, 0, 3.4, '#5c6a3e', { scale: [1.0, 0.22, 0.75], detail: 1 });  // toprak örtü
     b.box(0, 0, 0, w - 2 * T, 0.05, d - 2 * T, '#55595c', { collide: false });
-    b.box(0, 1.5, -d / 2 + 0.34, 2.4, 0.04, 0.02, '#ff5a43', { collide: false, o: GL });
+    b.box(0, 1.2, -d / 2 + 0.22, 2.4, 0.03, 0.06, '#ff5a43', { collide: false, o: GL });                // mazgal eşiğine yatık ışık şeridi
     b.box(-1.8, 0, -0.6, 1.0, 0.5, 0.6, OLIVE); b.box(1.8, 0, -0.6, 1.0, 0.5, 0.6, '#7b8660');
   });
 }
@@ -302,14 +313,18 @@ export function fuelTank(b, { x, z, r = 3, h = 5, color = '#cfd2cc' }) {
 }
 
 // Yükseltilmiş boru hattı (altından geçilebilir): x0,z0 → x1,z1 (eksene paralel), direkler çarpışmalı
-export function pipeRack(b, x0, z0, x1, z1, { y = 2.6, color = '#c0392b', n = 2, spacing = 6 } = {}) {
+export function pipeRack(b, x0, z0, x1, z1, { y = 2.6, color = '#c0392b', n = 2, spacing = 6, pad = [0, 0] } = {}) {
+  // pad: borunun iki uçta dikmeden taşan payı (duvara girip biten boru); dikmeler her iki uçta + aralıkla
   const alongX = Math.abs(x1 - x0) >= Math.abs(z1 - z0);
   const len = alongX ? Math.abs(x1 - x0) : Math.abs(z1 - z0);
   const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2;
+  const firstMin = alongX ? x0 <= x1 : z0 > z1;                     // yerel −len/2 ucu (x0,z0) ucu mu (z boyunca dönünce yerel −x = dünya +z)
+  const lo = firstMin ? pad[0] : pad[1], hi = firstMin ? pad[1] : pad[0];
   b.with(cx, 0, cz, alongX ? 0 : Math.PI / 2, () => {
-    for (let i = 0; i < n; i++) b.cyl(0, y + i * 0.5, (i - (n - 1) / 2) * 0.5, 0.18, 0.18, len, i % 2 ? '#9aa0a8' : color, { rz: Math.PI / 2, center: true, seg: 8, collide: false });
-    for (let k = 0; k * spacing <= len; k++) {
-      const px = -len / 2 + k * spacing;
+    for (let i = 0; i < n; i++) b.cyl((hi - lo) / 2, y + 0.05, (i - (n - 1) / 2) * 0.5, 0.18, 0.18, len + lo + hi, i % 2 ? '#9aa0a8' : color, { rz: Math.PI / 2, center: true, seg: 8, collide: false });   // borular aynı kirişin üstünde yan yana (kirişe oturur)
+    const ps = []; for (let k = 0; k * spacing <= len + 1e-6; k++) ps.push(-len / 2 + k * spacing);
+    if (len / 2 - ps[ps.length - 1] > 0.6) ps.push(len / 2);
+    for (const px of ps) {
       b.box(px, 0, 0, 0.3, y - 0.2, 0.3, '#4a4d52');
       b.box(px, y - 0.25, 0, 0.3, 0.12, 1.4, '#4a4d52', { collide: false });
     }
@@ -344,7 +359,8 @@ export function radarTower(b, rng, { x, z, w = 10, d = 10, fh = 3.2, wall = '#98
       { x: -hw + sw / 2 + 0.1, z: -hd + 1.2, dir: '+z', w: sw },
     ],
     parts: [
-      { axis: 'z', c: -hw + 4.1, a0: -d / 2 + 0.35, a1: d / 2 - 0.35, doors: [{ at: -3.4, w: 1.8 }, { at: 2.4, w: 1.8 }] },
+      { axis: 'z', c: -hw + 4.1, a0: -d / 2 + 0.35, a1: d / 2 - 0.35, doors: [{ at: -3.4, w: 1.8 }, { at: 2.4, w: 1.8 }], floors: [0] },
+      { axis: 'z', c: -hw + 4.1, a0: -d / 2 + 0.35, a1: d / 2 - 0.35, doors: [{ at: -3.4, w: 1.8 }], floors: [1, 2] },     // üst katlarda 2. kapı merdiven yanına açılıyordu
     ],
     rooms: [
       { f: 0, kind: 'radio', x0: -hw + 4.1, x1: w / 2 - 0.35, z0: -d / 2 + 0.35, z1: d / 2 - 0.35 },

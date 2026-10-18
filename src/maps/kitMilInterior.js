@@ -109,7 +109,7 @@ export const ITEMS = {
   } },
   generator: { w: 2.6, d: 1.1, draw(b) {
     b.box(0, 0, 0.55, 2.6, 1.5, 1.1, IC.olive);
-    b.box(0, 1.5, 0.55, 2.7, 0.1, 1.2, IC.steel, { collide: false });
+    b.box(0, 1.5, 0.575, 2.7, 0.1, 1.15, IC.steel, { collide: false });                              // kapak arkası duvara girmez
     b.box(0.9, 1.6, 0.3, 0.2, 0.9, 0.2, IC.dark, { collide: false });
     b.box(-0.5, 0.7, 1.11, 1.0, 0.5, 0.03, IC.dark, { collide: false });
     for (const [sx, c] of [[-0.8, '#7dffa0'], [-0.6, '#ffd98a'], [-0.4, '#ff5a43']]) b.box(sx, 1.1, 1.11, 0.09, 0.09, 0.03, c, { collide: false, o: GL });
@@ -130,7 +130,7 @@ export const ITEMS = {
     b.box(0, 0.2, 0.605, 0.5, 0.1, 0.02, IC.yellow, { collide: false });
   } },
   drums: { w: 1.2, d: 1.0, draw(b) {
-    for (const [x, z, c] of [[-0.3, 0.3, '#556b2f'], [0.3, 0.3, IC.red], [0, 0.78, '#d9a921']]) b.cyl(x, 0, z, 0.3, 0.3, 0.95, c, { seg: 8, collide: false });
+    for (const [x, z, c] of [[-0.3, 0.3, '#556b2f'], [0.3, 0.3, IC.red], [0, 0.84, '#d9a921']]) b.cyl(x, 0, z, 0.3, 0.3, 0.95, c, { seg: 8, collide: false });   // variller birbirine girmez
     b.collide(0, 0, 0.55, 1.2, 0.95, 1.0);
   } },
   tires: { w: 1.0, d: 1.0, draw(b) {
@@ -143,14 +143,14 @@ export const ITEMS = {
   } },
   counter: { w: 2.0, d: 0.7, draw(b) {
     b.box(0, 0, 0.35, 2.0, 0.92, 0.7, IC.steelL);
-    b.box(0, 0.92, 0.35, 2.05, 0.05, 0.75, IC.white, { collide: false });
+    b.box(0, 0.92, 0.375, 2.05, 0.05, 0.75, IC.white, { collide: false });
     b.cyl(-0.45, 0.97, 0.35, 0.22, 0.22, 0.2, IC.dark, { seg: 8, collide: false });
     b.cyl(0.35, 0.97, 0.3, 0.15, 0.15, 0.16, IC.steel, { seg: 8, collide: false });
   } },
   stove: { w: 1.6, d: 0.75, draw(b) {
     b.box(0, 0, 0.375, 1.6, 0.95, 0.75, IC.dark);
     for (const sx of [-0.45, 0.45]) { b.cyl(sx, 0.95, 0.35, 0.22, 0.22, 0.04, '#666', { seg: 8, collide: false }); b.cyl(sx, 0.99, 0.35, 0.18, 0.18, 0.02, '#ff6a3d', { seg: 8, collide: false, o: GL }); }
-    b.box(0, 1.2, 0.04, 1.5, 0.6, 0.05, IC.steel, { collide: false });
+    b.box(0, 0.95, 0.04, 1.5, 0.6, 0.05, IC.steel, { collide: false });                              // davlumbaz arkası ocağın arka kenarına oturur
   } },
   dining: { w: 2.6, d: 1.8, draw(b) {
     b.box(0, 0, 0.9, 2.6, 0.78, 0.9, IC.wood);
@@ -176,7 +176,6 @@ export const ITEMS = {
     b.box(0.2, 0.97, 0.7, 0.9, 0.02, 0.5, '#a9c4de', { collide: false });
     for (const [x, z, c] of [[-0.8, 0.5, IC.blue], [0.6, 1.0, IC.red], [1.0, 0.4, IC.red], [-0.3, 1.2, IC.blue]]) b.box(x, 0.98, z, 0.12, 0.14, 0.12, c, { collide: false });
     b.collide(0, 0, 0.8, 3.0, 1.0, 1.6);
-    b.box(0, 1.5, 0.8, 1.4, 0.04, 0.4, IC.dark, { collide: false });
   } },
   table: { w: 1.8, d: 0.9, draw(b) {
     b.box(0, 0.72, 0.45, 1.8, 0.06, 0.9, IC.wood, { collide: false });
@@ -188,7 +187,7 @@ export const ITEMS = {
   bin: { w: 0.5, d: 0.5, draw(b) { b.cyl(0, 0, 0.25, 0.22, 0.2, 0.7, '#3f4a3f', { seg: 8 }); } },
   plant: { w: 0.55, d: 0.55, draw(b) {
     b.cyl(0, 0, 0.275, 0.2, 0.16, 0.4, '#8a5a3a', { seg: 8 });
-    b.ico(0, 0.8, 0.275, 0.3, '#4f7a3a', { scale: [1, 1.3, 1], detail: 0, collide: false });
+    b.ico(0, 0.72, 0.275, 0.3, '#4f7a3a', { scale: [1, 1.3, 1], detail: 0, collide: false });          // yaprak saksıya oturur (ico tepe noktası 0,85 r)
     b.collide(0, 0, 0.275, 0.45, 1.2, 0.45);
   } },
   cooler: { w: 0.45, d: 0.45, draw(b) {
@@ -235,6 +234,7 @@ export function placeItem(b, ctx, name, px, pz, ry, rng) {
 export function wallRun(b, ctx, room, side, seq, rng, { start = 0.1, gap = 0.08, cycle = false } = {}) {
   const horizontal = side === 'n' || side === 's';
   const len = horizontal ? room.x1 - room.x0 : room.z1 - room.z0;
+  const g = ctx.gap?.[side] || 0;                                   // oda sınırı ile duvar yüzü arası: eşya duvara yaslanır (pano / ekran / haç havada kalmasın)
   let pos = start, i = 0, guard = 0;
   while (guard++ < 200) {
     if (!cycle && i >= seq.length) break;
@@ -243,10 +243,10 @@ export function wallRun(b, ctx, room, side, seq, rng, { start = 0.1, gap = 0.08,
     if (pos + it.w > len - 0.1) break;
     const c = pos + it.w / 2;
     let px, pz, ry;
-    if (side === 'n') { px = room.x0 + c; pz = room.z0; ry = 0; }
-    else if (side === 's') { px = room.x0 + c; pz = room.z1; ry = Math.PI; }
-    else if (side === 'w') { px = room.x0; pz = room.z0 + c; ry = Math.PI / 2; }
-    else { px = room.x1; pz = room.z0 + c; ry = -Math.PI / 2; }
+    if (side === 'n') { px = room.x0 + c; pz = room.z0 - g; ry = 0; }
+    else if (side === 's') { px = room.x0 + c; pz = room.z1 + g; ry = Math.PI; }
+    else if (side === 'w') { px = room.x0 - g; pz = room.z0 + c; ry = Math.PI / 2; }
+    else { px = room.x1 + g; pz = room.z0 + c; ry = -Math.PI / 2; }
     if (placeItem(b, ctx, nm, px, pz, ry, rng)) { pos += it.w + gap; i++; } else pos += 0.3;
   }
 }
@@ -371,11 +371,12 @@ export const ROOM_KINDS = {
   empty() {},
 };
 
-// Odayı doldur: R net iç alan, y zemin seviyesi, extraKeep: korunacak dikdörtgenler (kapı/merdiven şeritleri)
-export function fillRoom(b, rng, kind, R, y, keeps = []) {
+// Odayı doldur: R net iç alan, y zemin seviyesi, extraKeep: korunacak dikdörtgenler (kapı/merdiven şeritleri), gap: {n,s,e,w} R kenarından duvar yüzüne uzaklık
+export function fillRoom(b, rng, kind, R, y, keeps = [], gap = null) {
   const fn = ROOM_KINDS[kind];
   if (!fn) return;
-  const ctx = { y, rects: keeps.map((k) => ({ ...k })), bounds: R };
+  const G = gap || {};
+  const ctx = { y, rects: keeps.map((k) => ({ ...k })), gap: G, bounds: { x0: R.x0 - (G.w || 0), x1: R.x1 + (G.e || 0), z0: R.z0 - (G.n || 0), z1: R.z1 + (G.s || 0) } };
   fn(b, ctx, R, rng);
   // boşlukları küçük eşyalarla doldur (bitki, dosya kolisi, sebil, çöp kovası, ayak sandığı...): kapı/merdiven şeritleri korunur
   if (kind !== 'empty' && kind !== 'hallway') {
