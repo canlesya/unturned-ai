@@ -4,12 +4,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { DATA } from './balanceStore.js';
-import { OFFICIAL } from './official.js';
-import { sanitizeCfg, PB_MAPS } from './room.js';
+import { OFFICIAL, MODE_DEFAULTS } from './official.js';
+import { sanitizeCfg, MAPS_FOR } from './room.js';
 
-const FILE = path.join(DATA, 'official.json');
+const FILE = path.join(DATA, 'official.json'), META = path.join(DATA, 'official-meta.json');
 export const OFFICIAL_MAX = 12;
-export const MAPS_FOR = (type) => (type === 'inf' ? ['newyork'] : type === 'pb' ? PB_MAPS : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman']);
+export { MAPS_FOR };
 
 const clean = (s, n) => String(s ?? '').replace(/[<>&"'`\p{Cc}\p{Cf}]/gu, '').replace(/\s+/g, ' ').trim().slice(0, n);
 
@@ -26,6 +26,8 @@ export function sanitizeOfficial(o, code) {
   return {
     code, name: clean(o.name, 32) || 'Resmi Sunucu', desc: clean(o.desc, 60), enabled: o.enabled !== false,
     type: base.type, perTeam: base.perTeam, time: base.time, diff: base.diff, tickets: base.tickets, bots: base.bots, third: base.third, shuffle: o.shuffle === true, rotation,
+    vote: o.vote !== false, voteSec: Math.round(Math.max(5, Math.min(60, +o.voteSec || 15))),                                  // maç sonu oylaması açık mı + süresi (sn)
+    idleMin: Math.round(Math.max(0, Math.min(120, o.idleMin == null || o.idleMin === '' ? 10 : +o.idleMin || 0))),            // boş oda harita değişimi (dk, 0 = kapalı)
   };
 }
 
@@ -36,9 +38,32 @@ export function officialList() {
   try { raw = JSON.parse(fs.readFileSync(FILE, 'utf8')); } catch { /* ilk açılış */ }
   const src = Array.isArray(raw) ? raw : OFFICIAL.map((o) => ({ ...o, enabled: true, tickets: 0, bots: true, third: false }));
   list = src.filter((o) => o && /^OFC\d{1,3}$/.test(o.code)).slice(0, OFFICIAL_MAX).map((o) => sanitizeOfficial(o, o.code));
+  if (Array.isArray(raw)) migrateModes();
   return list;
 }
-function persist() { const tmp = FILE + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(list, null, 1)); fs.renameSync(tmp, FILE); }
+// Tek seferlik geçiş: eski official.json'da hiç odası olmayan moda hazır oda eklenir (her moddan bir oyun). Mevcut kayıtlara dokunulmaz;
+// yapıldı bilgisi official-meta.json'da: admin sonra bir modu silerse geri gelmez
+function migrateModes() {
+  let meta = {};
+  try { meta = JSON.parse(fs.readFileSync(META, 'utf8')) || {}; } catch { /* ilk kez */ }
+  if (meta.modes >= 1) return;
+  const added = [];
+  for (const [type, code0] of Object.entries(MODE_DEFAULTS)) {
+    if (list.some((o) => o.type === type) || list.length >= OFFICIAL_MAX) continue;
+    const def = OFFICIAL.find((o) => o.code === code0);
+    let code = code0;
+    for (let n = 1; list.some((x) => x.code === code); n++) code = 'OFC' + n;
+    list.push(sanitizeOfficial({ ...def, name: code === code0 ? def.name : 'Resmi Sunucu #' + code.slice(3), enabled: true, tickets: 0, bots: true, third: false }, code));     // kod değiştiyse ad da ona uyar
+    added.push(`${code} (${type})`);
+  }
+  if (added.length) console.log('[resmi] eksik modlar eklendi: ' + added.join(', '));
+  persist();
+}
+// Liste + "geçiş yapıldı" işareti (admin'in kaydettiği liste zaten niyetidir: sildiği mod sonraki açılışta geri eklenmez)
+function persist() {
+  const tmp = FILE + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(list, null, 1)); fs.renameSync(tmp, FILE);
+  try { fs.writeFileSync(META, JSON.stringify({ modes: 1 })); } catch { /* yok say */ }
+}
 
 // Ekle / güncelle (code yoksa yeni). taken: oyuncu odalarının kodları (çakışma olmasın)
 export function upsertOfficial(o, taken = new Set()) {

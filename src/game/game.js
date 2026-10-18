@@ -29,6 +29,8 @@ import { SIM_DT } from '../net/protocol.js';
 import { mat } from '../core/geo.js';
 import { Paint, paintColorOf } from './paint.js';
 import { Pickups } from './pickups.js';
+import { EndFlow } from './endFlow.js';
+import { t } from '../i18n/index.js';
 import { initGadgets, updateGadgets, spawnSmoke, flashBang, smokeBlocks, smokeDensity, placeDeployable, netDeploy, netUndeploy } from './gadgets.js';
 
 const STAT_ID = new Map(Object.entries(WSTATS).map(([k, v]) => [v, k]));      // WSTATS nesnesi → id (ağ olayları için)
@@ -1085,10 +1087,11 @@ export class Game {
   onNetEnd(m) {
     if (this.ended) return;
     this.ended = true; this.running = false;
-    this.showEndScreen(m.winner, m.why);
+    this.showEndScreen(m.winner, m.why, m);
   }
 
-  onNetRestart() { location.reload(); }          // sunucu odayı yeni maça hazırladı: yeniden katıl
+  // Eski sunucu: oda sıfırlandı, sayfa yenilenip yeniden katılınır. Yeni sunucu (re:1) aynı bağlantıda 'welcome' yollar (main.js oyunu yeniden kurar)
+  onNetRestart(m) { if (!m || !m.re) location.reload(); }
 
   onNetClosed() {
     if (this.ended) return;
@@ -1562,28 +1565,36 @@ export class Game {
     this.showEndScreen(w, why);
   }
 
-  showEndScreen(w, why) {
+  // Sonuç ekranı + sonraki maç akışı (EndFlow: oylama / seçim kartları, geri sayım; ana menüye kendiliğinden dönülmez). net: çevrimiçi 'end' mesajı
+  showEndScreen(w, why, net = null) {
     document.exitPointerLock?.();
     const me = this.playerSoldier;
     const win = w === me.team;
     const list = this.soldiers.filter((s) => (this.ffa ? !s.vacant : s.team === me.team)).sort((a, b) => b.score - a.score);
     const xp = Math.round(me.score + (win ? 300 : 80));
     const inf = this.mode.infection;
-    const wname = this.ffa ? (this.soldiers.find((s) => s.team === w)?.name || '') : inf ? (w === 'red' ? 'Zombiler' : 'İnsanlar') : TEAMS[w].name;
-    const gg = this.mode.gungame;
-    const sub = this.ffa ? `Sıralama: ${ffaRanking(this.soldiers, gg).slice(0, 3).map((s, i) => `${i + 1}. ${s.name} (${gg ? 'Sv ' : ''}${ffaMetric(s, gg)})`).join(' · ')}` : inf ? `İnsan ${this.tickets.blue} – ${this.tickets.red} Zombi · Takımın en iyisi: ${list[0].name} (${list[0].score})` : `Mavi ${Math.max(0, Math.round(this.tickets.blue))} – ${Math.max(0, Math.round(this.tickets.red))} Kırmızı · Takımın en iyisi: ${list[0].name} (${list[0].score})`;
-    const rows = `<div class="mvp"><div class="st"><b>${me.kills}</b><small>Öldürme</small></div><div class="st"><b>${me.deaths}</b><small>Ölüm</small></div><div class="st"><b>${me.score}</b><small>Puan</small></div><div class="st"><b>+${xp}</b><small>XP</small></div></div><small style="opacity:.75">${sub}</small>`;
+    const wname = this.ffa ? (this.soldiers.find((s) => s.team === w)?.name || '') : inf ? (w === 'red' ? t('match.zombies') : t('match.humans')) : TEAMS[w].name;
+    const gg = this.mode.gungame, best = list[0] ? t('match.teamBest', { name: list[0].name, score: list[0].score }) : '';
+    const tb = Math.max(0, Math.round(this.tickets.blue)), tr = Math.max(0, Math.round(this.tickets.red));
+    const sub = this.ffa ? `${t('match.rank')}: ${ffaRanking(this.soldiers, gg).slice(0, 3).map((s, i) => `${i + 1}. ${s.name} (${gg ? t('match.lvl') : ''}${ffaMetric(s, gg)})`).join(' · ')}` : `${t(inf ? 'match.humZom' : 'match.blueRed', { b: tb, r: tr })} · ${best}`;
+    const rows = `<div class="mvp"><div class="st"><b>${me.kills}</b><small>${t('match.kills')}</small></div><div class="st"><b>${me.deaths}</b><small>${t('match.deaths')}</small></div><div class="st"><b>${me.score}</b><small>${t('match.score')}</small></div><div class="st"><b>+${xp}</b><small>${t('match.xp')}</small></div></div><small style="opacity:.75">${sub}</small>`;
     this.opts.onMatchEnd?.({ score: me.score, kills: me.kills, deaths: me.deaths, win });
-    this.hud.showEnd(win, win ? 'ZAFER!' : 'YENİLGİ', this.ffa ? `${why}.` : `${why}. ${wname} kazandı.`, rows);
+    this.hud.showEnd(win, win ? t('match.victory') : t('match.defeat'), this.ffa ? t('match.wonFfa', { why }) : t('match.won', { why, team: wname }), rows);
+    if (!this.opts.editor) { this.endFlow?.dispose(); this.endFlow = new EndFlow(this, net); }
   }
 
-  exit() { this.dispose(); this.opts.onExit?.(); }
-  restart() { this.dispose(); this.opts.onRestart?.(); }
+  onNetVotes(m) { this.endFlow?.votes(m); }
 
-  dispose() {
+  exit() { this.dispose(); this.opts.onExit?.(); }
+  // next: çevrimdışı sonraki maç { map, tod, weather } (yoksa aynı ayarlar)
+  restart(next) { this.dispose(); this.opts.onRestart?.(next); }
+
+  // keepNet: çevrimiçi odada sonraki maça geçiş — bağlantı ve tam ekran korunur, yeni Game aynı NetClient ile kurulur
+  dispose(keepNet = false) {
     this.running = false;
     if (this.headless) return;
-    this.online?.ws.close();
+    this.endFlow?.dispose(); this.endFlow = null;
+    if (!keepNet) this.online?.ws.close();
     this.mapEditor?.dispose();
     this._badge?.remove(); this._tm?.remove();
     if (this._km) document.removeEventListener('keydown', this._km);
@@ -1591,7 +1602,7 @@ export class Game {
     this.weather?.dispose();
     document.exitPointerLock?.();
     document.removeEventListener('pointerlockchange', this._plc);
-    removeEventListener('beforeunload', this._bu); this.lockKeys(false); if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    removeEventListener('beforeunload', this._bu); this.lockKeys(false); if (document.fullscreenElement && !keepNet) document.exitFullscreen?.().catch(() => {});
     document.removeEventListener('keydown', this._kd);
     document.removeEventListener('pointerlockerror', this._ple);
     clearTimeout(this._lockT);
