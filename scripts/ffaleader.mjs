@@ -6,7 +6,7 @@ const BASE = process.env.BASE || 'http://127.0.0.1:5180', WS = process.env.WS ||
 fs.mkdirSync(OUT, { recursive: true });
 let fail = 0; const check = (ok, msg) => { console.log((ok ? 'OK    ' : 'HATA  ') + msg); if (!ok) fail++; };
 const strip = (d) => { const { defaultBrowserType, ...r } = d; return r; };
-const DEVS = { desktop: { viewport: { width: 1280, height: 720 } }, pixel7: strip(devices['Pixel 7 landscape']) };
+const DEVS = { desktop: { viewport: { width: 1280, height: 720 }, locale: 'tr-TR' }, pixel7: { ...strip(devices['Pixel 7 landscape']), locale: 'tr-TR' } };      // Türkçe metin denetlenir (i18n: dil tarayıcıdan)
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const box = (page) => page.evaluate(() => { const q = (id) => document.getElementById(id).textContent, c = (s) => document.querySelector(s).className; return { lb: q('tnB'), vb: q('tkB'), lr: q('tnR'), vr: q('tkR'), cb: c('#score .tk.blue'), cr: c('#score .tk.red') }; });
 const settle = async (page) => { await page.waitForTimeout(300); await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))); };   // HUD kareyle güncellenir

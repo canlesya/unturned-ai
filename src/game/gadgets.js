@@ -3,6 +3,7 @@ import { createWeapon } from '../models/weapons.js';
 import { createItem } from '../models/items.js';
 import { WSTATS } from './stats.js';
 import { clamp, rand } from './util.js';
+import { t as $t } from '../i18n/index.js';
 
 // Gadget mantığı: duman (küre listesi, görüşü keser), flaşbang (körlük), claymore (mayın), cephane kutusu.
 // game.smokes: [{ pos, r, rMax, life, max, group, puffs }] · game.deployables: kurulan nesneler
@@ -157,7 +158,7 @@ export function placeDeployable(game, s, st) {
     const d = { id: ++game.pidN, type: 'ammo', owner: s, team: s.team, pos: new THREE.Vector3(x, y + 0.2, z), mesh, life: st.life || 30, tick: 0.5, st, ry: s.yaw };
     game.deployables.push(d);
     game.netEvent({ e: 'dep', id: d.id, ty: 'a', p: [x, y, z], ry: +s.yaw.toFixed(3), tm: s.team, w: 'ammobox', by: s.id });
-    if (s.isPlayer) game.hud.toast('Cephane kutusu kuruldu', '#cfe6ff');
+    if (s.isPlayer) game.hud.toast($t('hud.t.ammoBox'), '#cfe6ff');
     return true;
   }
   return false;
@@ -242,7 +243,7 @@ export function updateGadgets(game, dt, T) {
               it.reserve = Math.min(ws.reserve, it.reserve + Math.ceil(ws.reserve * 0.3)); any = true;
             }
           }
-          if (any && s.isPlayer) { game.hud.toast('Mühimmat dolduruldu', '#9be07a'); game.sfx.deploy(s.pos); }
+          if (any && s.isPlayer) { game.hud.toast($t('hud.t.ammo'), '#9be07a'); game.sfx.deploy(s.pos); }
           else if (any && s.human) game.netEvent({ e: 'ammo', v: s.id });
         }
       }

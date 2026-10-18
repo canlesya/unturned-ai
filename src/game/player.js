@@ -13,6 +13,8 @@ import { applyInput } from '../sim/input.js';
 import { TUNE } from './balance.js';
 import { TouchControls, isTouch } from './touch.js';
 import { norm, codeLabel } from '../core/keybinds.js';
+import { t as $t } from '../i18n/index.js';
+import { wName, opticName, fireName } from '../i18n/game.js';
 
 const VM_SCALE = 0.92;
 export const FIRE_LABEL = { semi: 'Tek atış', burst: 'Seri (3-5 mermi)', auto: 'Otomatik' };
@@ -397,14 +399,14 @@ export class Player {
     this.refreshWeapon();
     game.on('switch', (s) => { if (s === this.s) this.refreshWeapon(); });
     game.on('spawn', (s) => { if (s === this.s) this.refreshWeapon(); });
-    if (this.devTools()) setTimeout(() => game.hud?.toast('Atölye: L uç · J/K silah değiştir (yuva başına) · 1-4 yuva', '#ffb347'), 2500);
+    if (this.devTools()) setTimeout(() => game.hud?.toast($t('hud.t.workshop'), '#ffb347'), 2500);
     game.on('fire', (s) => { if (s === this.s) { this.vm.kick = Math.min(this.vm.kick + 0.045, 0.12); this.vm.kickR = Math.min(this.vm.kickR + 0.18, 0.5); this.vm.flashT = 0.045; } });
     game.on('bolt', (s) => { if (s === this.s) this.vm.kickR += 0.2; });
     game.on('melee', (s) => { if (s === this.s) this.vm.kick = 0.02; });
     game.on('meleehit', () => { this.vm.hitKick = 1; });
     game.on('throw', (s) => { if (s === this.s) this.vm.throwT = 1; });
     game.on('dry', (s) => { if (s === this.s) this.vm.dryT = 1; });
-    game.on('firemode', (s) => { if (s === this.s) { this.game.hud.toast('Atış modu: ' + FIRE_LABEL[s.fireModeNow], '#cfe6ff'); this.vm.dryT = 1; } });
+    game.on('firemode', (s) => { if (s === this.s) { this.game.hud.toast($t('hud.t.fireMode', { m: fireName(s.fireModeNow) }), '#cfe6ff'); this.vm.dryT = 1; } });
     // flaşbang (beyaz) ve duman (gri) ekran örtüsü: HUD'dan bağımsız, kendi katmanı
     const ov = (this.fx = document.createElement('div'));
     ov.style.cssText = 'position:fixed;inset:0;pointer-events:none;z-index:4;opacity:0;background:#fff';
@@ -432,7 +434,7 @@ export class Player {
     s.items[s.cur] = st.kind === 'gun' ? { id, mag: st.mag, reserve: st.reserve } : st.kind === 'launcher' ? { id, mag: 1, reserve: n - 1 } : st.kind === 'melee' ? { id, mag: 1, reserve: 0 } : { id, mag: n, reserve: 0 };
     s.reloadT = 0; s.cd = 0; s.useT = 0; s.swing = null;
     this.refreshWeapon();
-    this.game.hud.toast(`${st.name}  (${list.indexOf(id) + 1}/${list.length})`);
+    this.game.hud.toast(`${wName(id)}  (${list.indexOf(id) + 1}/${list.length})`);
   }
 
   refreshWeapon() {
@@ -465,10 +467,10 @@ export class Player {
       if (kb.is('inspect', code) && s.alive && !this.wheel) this.vm.inspect(s);                  // silah inceleme (CS tarzı)
       if (kb.is('leftHand', code)) this.toggleHand();
       if (this.devTools() && s.alive) {
-        if (e.code === 'KeyL') { s.fly = !s.fly; if (!s.fly) s.vel.set(0, 0, 0); this.game.hud.toast(s.fly ? 'Uçuş AÇIK · W/A/S/D + Boşluk yüksel · Ctrl alçal · Shift hızlı · tekerlek hız' : 'Uçuş kapalı'); }
+        if (e.code === 'KeyL') { s.fly = !s.fly; if (!s.fly) s.vel.set(0, 0, 0); this.game.hud.toast(s.fly ? $t('hud.t.flyOn') : $t('hud.t.flyOff')); }
         if (e.code === 'KeyP') { const g = this.game, c = g.map.callouts, p = s.pos; let nm = ''; if (c) { let bd = 1e9; for (const q of c) { const d = Math.hypot(q.x - p.x, q.z - p.z); if (d < bd) { bd = d; nm = q.name; } } } const t = `Konum x ${p.x.toFixed(1)} · y ${p.y.toFixed(1)} · z ${p.z.toFixed(1)}${nm ? ' · ' + nm : ''} · ${s.fly ? 'UÇUŞ AÇIK (çarpışma yok)' : 'yürüyorsun'}`; console.log('[geliştirici]', t); g.hud.toast(t, '#cfe6ff'); }
-        if (e.code === 'KeyN') { const g = this.game; if (g.brainsOff) { g.brains.push(...g.brainsOff); g.brainsOff = null; g.hud.toast('Botlar AÇIK', '#9fe6a8'); } else { g.brainsOff = g.brains.splice(0); g.hud.toast('Botlar DONDURULDU (N: tekrar aç)', '#ffd27a'); } }
-        if (e.code === 'KeyO') { const g = this.game; g.devGod = !g.devGod; g.hud.toast(g.devGod ? 'Ölümsüzlük AÇIK' : 'Ölümsüzlük kapalı', '#cfe6ff'); }
+        if (e.code === 'KeyN') { const g = this.game; if (g.brainsOff) { g.brains.push(...g.brainsOff); g.brainsOff = null; g.hud.toast($t('hud.t.botsOn'), '#9fe6a8'); } else { g.brainsOff = g.brains.splice(0); g.hud.toast($t('hud.t.botsOff'), '#ffd27a'); } }
+        if (e.code === 'KeyO') { const g = this.game; g.devGod = !g.devGod; g.hud.toast(g.devGod ? $t('hud.t.godOn') : $t('hud.t.godOff'), '#cfe6ff'); }
         if (e.code === 'KeyJ') this.cycleWeapon(-1);
         if (e.code === 'KeyK') this.cycleWeapon(1);
       }
@@ -477,7 +479,7 @@ export class Player {
       if (kb.is('reload', code)) { s.startReload(); this.game.online?.edge('rl'); }
       if (s.alive && kb.is('crouch', code)) { s.toggleCrouch(); this.game.online?.edge('c'); }
       if (s.alive && kb.is('prone', code)) { s.toggleProne(); this.game.online?.edge('p'); }
-      if (s.alive && kb.is('optic', code)) { this.game.online?.edge('o'); const o = s.cycleOptic(); if (o) this.game.hud.toast('Nişangâh: ' + o.label, '#cfe6ff'); }
+      if (s.alive && kb.is('optic', code)) { this.game.online?.edge('o'); const o = s.cycleOptic(); if (o) this.game.hud.toast($t('hud.t.optic', { o: opticName(s.opticId) }), '#cfe6ff'); }
       const slot = kb.slotOf(code);
       if (slot >= 0) s.switchTo(slot);
       if (kb.is('fireMode', code) && s.alive) { s.toggleFireMode(); this.game.online?.edge('fm'); }
@@ -536,7 +538,7 @@ export class Player {
     this.on(window, 'wheel', (e) => {
       if (!this.locked || !this.s.alive) return;
       const dir = e.deltaY > 0 ? 1 : -1, s = this.s;
-      if (s.fly && this.devTools()) { this.flySpeed = Math.max(3, Math.min(120, (this.flySpeed || 13) * (dir > 0 ? 0.8 : 1.25))); this.game.hud.toast(`Uçuş hızı ${this.flySpeed.toFixed(0)} m/sn (Shift ×3)`, '#cfe6ff'); return; }       // uçarken tekerlek hız ayarlar
+      if (s.fly && this.devTools()) { this.flySpeed = Math.max(3, Math.min(120, (this.flySpeed || 13) * (dir > 0 ? 0.8 : 1.25))); this.game.hud.toast($t('hud.t.flySpeed', { n: this.flySpeed.toFixed(0) }), '#cfe6ff'); return; }       // uçarken tekerlek hız ayarlar
       for (let k = 1; k <= 4; k++) { const j = (s.cur + dir * k + 8) % 4; if (j !== s.cur && s.canEquip(j)) { s.switchTo(j); break; } }       // boş slotları atla
     }, { passive: true });
   }
@@ -545,16 +547,16 @@ export class Player {
   toggleHand() {
     const g = this.game;
     g.leftHand = !g.leftHand;
-    g.hud.toast(g.leftHand ? 'Silah sol elde' : 'Silah sağ elde', '#cfe6ff');
+    g.hud.toast(g.leftHand ? $t('hud.t.leftHand') : $t('hud.t.rightHand'), '#cfe6ff');
     g.opts.onPref?.({ leftHand: g.leftHand });
   }
 
   // ── 3. şahıs kamera (H) ──
   toggleThird() {
     const g = this.game;
-    if (!g.thirdAllowed) { g.hud.toast('Bu odada 3. şahıs kamera kapalı', '#ffd27a'); return; }
+    if (!g.thirdAllowed) { g.hud.toast($t('hud.t.thirdOff'), '#ffd27a'); return; }
     this.third = !this.third;
-    g.hud.toast(this.third ? `3. şahıs kamera · ${codeLabel(this.kb.codes('leanLeft')[0])} / ${codeLabel(this.kb.codes('leanRight')[0])} ile omuz değiştir · ${codeLabel(this.kb.codes('third')[0])}: 1. şahıs` : '1. şahıs kamera', '#cfe6ff');
+    g.hud.toast(this.third ? $t('hud.t.third', { a: codeLabel(this.kb.codes('leanLeft')[0]), b: codeLabel(this.kb.codes('leanRight')[0]), c: codeLabel(this.kb.codes('third')[0]) }) : $t('hud.t.first'), '#cfe6ff');
   }
 
   // Omuz üstü kamera: gözün arkasında ve yanında; duvara girerse yaklaşır, yere gömülmez; Q/E ile sağ-sol omuz akıcı geçer
@@ -586,20 +588,20 @@ export class Player {
     const s = this.s, g = this.game;
     if (!this.locked && !g.opts.nolock) return;
     const list = (OPTIC_ALLOWED[s.item.id] || []).filter((id) => OPTICS[id]);
-    if (list.length < 2) { g.hud.toast(`${s.stat.name}: seçilebilir nişangâh yok`, '#cfd3d8'); return; }
+    if (list.length < 2) { g.hud.toast($t('hud.t.noOptic', { w: wName(s.item.id) }), '#cfd3d8'); return; }
     const el = document.createElement('div');
     el.style.cssText = 'position:fixed;inset:0;z-index:25;pointer-events:none;font-family:Bahnschrift,Rajdhani,Arial Narrow,sans-serif;color:#e8edf5;background:radial-gradient(circle at 50% 50%,rgba(4,6,10,.15),rgba(4,6,10,.62))';
     const R = 150, n = list.length;
     const opts = list.map((id, i) => {
       const a = -Math.PI / 2 + (i * 2 * Math.PI) / n, d = document.createElement('div');
       d.style.cssText = `position:absolute;left:calc(50% + ${Math.cos(a) * R}px);top:calc(50% + ${Math.sin(a) * R}px);transform:translate(-50%,-50%);min-width:130px;padding:10px 14px;text-align:center;background:rgba(9,13,19,.78);border:2px solid rgba(255,255,255,.2);letter-spacing:2px;text-transform:uppercase;transition:.08s`;
-      d.innerHTML = `<div style="font-size:18px;font-weight:700">${OPTICS[id].label}</div><div style="font-size:11px;opacity:.65;margin-top:3px">${OPTICS[id].zoom ? OPTICS[id].zoom + 'x yakınlaştırma' : ''}</div>`;
+      d.innerHTML = `<div style="font-size:18px;font-weight:700">${opticName(id)}</div><div style="font-size:11px;opacity:.65;margin-top:3px">${OPTICS[id].zoom ? $t('hud.zoom', { n: OPTICS[id].zoom }) : ''}</div>`;
       el.appendChild(d);
       return { id, a, d };
     });
     const head = document.createElement('div');
     head.style.cssText = 'position:absolute;left:50%;top:calc(50% - 14px);transform:translateX(-50%);font-size:13px;letter-spacing:4px;opacity:.8;text-align:center';
-    head.innerHTML = `NİŞANGÂH<div style="font-size:11px;opacity:.7;letter-spacing:1px;margin-top:4px">${s.stat.name} · fareyle seç, sol tık</div>`;
+    head.innerHTML = `${$t('hud.wheel')}<div style="font-size:11px;opacity:.7;letter-spacing:1px;margin-top:4px">${$t('hud.wheelHint', { w: wName(s.item.id) })}</div>`;
     const cur = document.createElement('div');
     cur.style.cssText = 'position:absolute;left:50%;top:50%;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:#ff8a1f;box-shadow:0 0 12px #ff8a1f';
     el.append(head, cur);
@@ -639,7 +641,7 @@ export class Player {
   wheelPick() {
     const w = this.wheel; if (!w || !w.hover) return;
     const id = w.hover.id, o = this.s.setOptic(id);
-    if (o) { this.game.online?.send({ t: 'opt', optic: id }); this.game.hud.toast('Nişangâh: ' + o.label, '#cfe6ff'); }
+    if (o) { this.game.online?.send({ t: 'opt', optic: id }); this.game.hud.toast($t('hud.t.optic', { o: opticName(id) }), '#cfe6ff'); }
     this.wheelPaint();
   }
 
