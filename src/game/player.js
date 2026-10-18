@@ -697,16 +697,17 @@ export class Player {
       // adım sesi
       const sp = Math.hypot(s.vel.x, s.vel.z);
       if (s.onGround && sp > 1.5 && !s.crouching && !s.prone) {
-        s.stepT -= dt * (sp / TUNE.walkSpeed);
+        s.stepT -= dt * (sp / TUNE.walkSpeed) * (g.abfx?.stepMul || 1);             // atılış / öfke: adım temposu hızlanır
         if (s.stepT <= 0) { s.stepT = 0.42; g.sfx.step(null); }
       }
     }
 
     // ── kamera ──
     const cam = g.camera;
+    g.abfx?.update(dt);                                                                // zombi gücü ekran efektleri (FOV vuruşu / adım temposu buradan)
     const baseFov = this.baseFov();
     const zoom = s.zoomNow && !this.vm.model?.userData.noAds ? lerp(1, this.zoomEff(), s.adsT) : 1;
-    const targetFov = baseFov / zoom;
+    const targetFov = baseFov / zoom + (g.abfx?.fovAdd || 0);
     cam.fov += (targetFov - cam.fov) * Math.min(1, dt * 18);
     cam.updateProjectionMatrix();
     const sh = g.effects.shake;
