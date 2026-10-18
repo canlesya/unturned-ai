@@ -7,7 +7,7 @@ const toWorld = (x, z, ry) => (lx, lz) => [x + lx * Math.cos(ry) + lz * Math.sin
 
 // Taş/briket duvar. (x0,z0)→(x1,z1) eksen hizalı. gaps: [{at,w}] kapı açıklıkları (at: duvar boyunca koordinat).
 // h yüksekliği göz hizasından (1.6) yüksekse ateşi ve görüşü keser. ruin: rastgele alçalan/çöken parçalar (siper).
-export function wallStone(b, rng, x0, z0, x1, z1, { h = 2.4, t = 0.5, color = '#a8a49a', cap = '#8a867c', gaps = [], ruin = false, pillars = true } = {}) {
+export function wallStone(b, rng, x0, z0, x1, z1, { h = 2.4, t = 0.5, color = '#a8a49a', cap = '#8a867c', gaps = [], ruin = false, pillars = true, ends = [true, true] } = {}) {
   const alongX = Math.abs(x1 - x0) >= Math.abs(z1 - z0);
   const a0 = alongX ? Math.min(x0, x1) : Math.min(z0, z1), a1 = alongX ? Math.max(x0, x1) : Math.max(z0, z1);
   const c = alongX ? z0 : x0;
@@ -34,7 +34,7 @@ export function wallStone(b, rng, x0, z0, x1, z1, { h = 2.4, t = 0.5, color = '#
   }
   // sütunlar (kapı kenarları + her 6 m)
   if (pillars) {
-    const pts = new Set([a0, a1]);
+    const pts = new Set([...(ends[0] ? [a0] : []), ...(ends[1] ? [a1] : [])]);          // ends: köşede komşu duvarın sütunu varsa o uçta sütun yok (iki sütun iç içe girmesin)
     for (const g of gaps) { pts.add(g.at - g.w / 2); pts.add(g.at + g.w / 2); }
     for (let p = a0 + 6; p < a1 - 1; p += 6) pts.add(p);
     for (const p of pts) {
@@ -93,7 +93,7 @@ export function waterTower(b, { x, z, ry = 0, color = '#8a6a45', tank = '#9db4c4
       const t = i / 4;
       b.box(ax - 0.65, rise * Math.round(t * n), zbA - t * (n * run), 0.07, 1.0, 0.07, '#7a5a38', NC);
     }
-    b.box(ax - 0.65, 0.5, (zbA - n * run / 2), 0.07, 0.07, n * run, dark, { collide: false, rx: -Math.atan2(4, n * run) });
+    b.box(ax - 0.65, 2.965, (zbA - n * run / 2), 0.07, 0.07, Math.hypot(4, n * run), dark, { collide: false, rx: -Math.atan2(4, n * run) });   // direk tepelerinden (basamak + 1 m) geçer
     b.box(ax, 0, zbA + 0.5, 0.2, 0.2, 0.2, '#ffd98a', { collide: false, o: { glow: true } });
     b.box(ax - 0.65, 0, zbA + 0.5, 0.08, 1.9, 0.08, dark, NC);
   });
@@ -133,7 +133,8 @@ export function kiosk(b, rng, { x, z, ry = 0, color = '#3b7a9a', roof = '#c0392b
     b.box(0, 1.0, z1 + 0.35, 2.8, 0.08, 0.5, '#d8d4c8', NC);        // tezgâh
     b.box(0, H, 0, w + 0.9, 0.2, d + 0.9, roof);
     b.box(0, H + 0.2, z1 + 0.2, w + 0.9, 0.35, 0.1, '#e8e8e4', NC);
-    b.box(0, 1.9, z1 + 0.6, 2.8, 0.4, 0.04, '#c0392b', NC);        // tente şeridi
+    b.box(0, 2.12, z1 + 0.42, 2.9, 0.05, 0.72, '#c0392b', { collide: false, rx: 0.2 });   // tente: pencere üstünde cepheye bağlı, dışa eğimli
+    b.box(0, 1.86, z1 + 0.77, 2.9, 0.2, 0.04, '#e8e8e4', NC);      // tente saçağı (tentenin ucunda)
     b.box(0, 0.15, -0.2, 1.8, 0.9, 0.7, '#8a5a38');                // içeride tezgâh/dolap
     b.box(-1.0, 2.3, 0, 0.4, 0.2, 0.4, '#ffd98a', { collide: false, o: { glow: true } });
   });
@@ -161,6 +162,7 @@ export function busStop(b, { x, z, ry = 0 }) {
     for (const sx of [-1.6, 1.6]) b.box(sx, 0, -0.6, 0.1, 2.5, 0.1, '#4a4d52', NC);
     b.box(0, 2.45, -0.2, 3.6, 0.12, 1.4, '#3b6a9a', NC);
     b.box(0, 0.45, -0.3, 2.2, 0.08, 0.45, '#8b5a2b', NC);
+    for (const sx of [-0.95, 0.95]) b.box(sx, 0, -0.3, 0.08, 0.45, 0.36, '#4a4d52', NC);   // oturak ayakları
     b.collide(0, 0, -0.3, 2.2, 0.55, 0.5);
     b.box(1.6, 0.0, 0.5, 0.08, 2.6, 0.08, '#4a4d52', NC); b.box(1.6, 2.1, 0.5, 0.05, 0.5, 0.5, '#e8e8e4', NC);
     b.box(0, 2.3, -0.2, 0.6, 0.1, 0.3, '#ffd98a', { collide: false, o: { glow: true } });
@@ -220,3 +222,30 @@ export function planter(b, x, z, w = 1.6, d = 0.8) {
 }
 export function mailbox(b, x, z, ry = 0) { b.with(x, 0, z, ry, () => { b.box(0, 0, 0, 0.1, 1.0, 0.1, '#4a4d52', NC); b.box(0, 1.0, 0, 0.4, 0.3, 0.3, '#2c5aa0', NC); }); }
 export function streetSign(b, x, z, ry = 0, color = '#2c7a4a') { b.with(x, 0, z, ry, () => { b.box(0, 0, 0, 0.08, 2.6, 0.08, '#4a4d52', NC); b.box(0, 2.1, 0, 1.1, 0.35, 0.05, color, NC); b.box(0, 2.1, 0.03, 0.9, 0.06, 0.02, '#e8e8e4', NC); }); }
+
+// ───────── Bank (sırtlık oturağa dikmelerle bağlı; havada sırtlık yok) ─────────
+export function bench(b, x, z, ry = 0) {
+  b.with(x, 0, z, ry, () => {
+    for (const sx of [-0.75, 0.75]) { b.box(sx, 0, 0.02, 0.09, 0.45, 0.44, '#3c3f44', NC); b.box(sx, 0.45, -0.21, 0.09, 0.58, 0.07, '#3c3f44', NC); }   // ayak + sırtlık dikmesi
+    b.box(0, 0.45, 0.02, 1.8, 0.08, 0.46, COL.woodLight, NC);                       // oturak
+    for (const yy of [0.66, 0.86]) b.box(0, yy, -0.25, 1.8, 0.14, 0.05, COL.woodLight, NC);   // sırtlık çıtaları (dikmenin önünde)
+    b.collide(0, 0, 0, 1.8, 1.05, 0.55);
+  });
+}
+
+// ───────── Çit (köşe direkleri paylaşılır): pts = [[x,z], ...] eksen hizalı kırık çizgi; closed: ilk noktaya döner ─────────
+export function fence(b, pts, { h = 1.1, color = COL.woodLight, post = COL.woodDark, closed = false } = {}) {
+  const P = closed ? [...pts, pts[0]] : pts, seen = new Set();
+  for (let k = 0; k + 1 < P.length; k++) {
+    const [x0, z0] = P[k], [x1, z1] = P[k + 1], alongX = Math.abs(x1 - x0) >= Math.abs(z1 - z0);
+    const len = alongX ? Math.abs(x1 - x0) : Math.abs(z1 - z0), n = Math.max(1, Math.round(len / 2.4));
+    for (let i = 0; i <= n; i++) {
+      const px = alongX ? x0 + (x1 - x0) * i / n : x0, pz = alongX ? z0 : z0 + (z1 - z0) * i / n, key = `${px.toFixed(2)},${pz.toFixed(2)}`;
+      if (seen.has(key)) continue; seen.add(key);                                 // köşe direği bir kez
+      b.box(px, 0, pz, 0.14, h + 0.1, 0.14, post, NC);
+    }
+    const cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, f = 0.105;                       // tahtalar direklerin dış yüzüne çakılı (direğin içinden geçmez)
+    for (const yy of [0.35, 0.8]) { if (alongX) b.box(cx, yy * h / 1.1, z0 + f, len + 0.14, 0.1, 0.07, color, NC); else b.box(x0 + f, yy * h / 1.1, cz, 0.07, 0.1, len + 0.14, color, NC); }
+    if (alongX) b.collide(cx, 0, z0 + 0.035, len + 0.14, h, 0.21); else b.collide(x0 + 0.035, 0, cz, 0.21, h, len + 0.14);   // direk arkası → tahta dışı (görünenle aynı)
+  }
+}

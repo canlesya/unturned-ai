@@ -120,7 +120,7 @@ def('sideboard', 1.5, 0.45, (b, r) => {
 });
 def('plant', 0.55, 0.55, (b, r) => {
   b.cyl(0, 0, 0, 0.2, 0.15, 0.4, '#b0603a', { seg: 7, collide: false });
-  b.ico(0, 0.85, 0, 0.38, pick(r, ['#4f8a3a', '#3f7a42', '#5d9a3a']), { detail: 0, scale: [1, 1.2, 1] });
+  b.ico(0, 0.74, 0, 0.38, pick(r, ['#4f8a3a', '#3f7a42', '#5d9a3a']), { detail: 0, scale: [1, 1.2, 1] });   // yapraklar saksıya oturur
   b.collide(0, 0, 0, 0.42, 0.9, 0.42);
 });
 def('floorLamp', 0.4, 0.4, (b, r) => {
