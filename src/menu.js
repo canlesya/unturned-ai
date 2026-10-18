@@ -71,7 +71,7 @@ const TICKET_OPTS = [[0, 'Otomatik'], [50, '50'], [100, '100'], [200, '200'], [4
 // oyuncu sayısı 'toplam' olan modlarda (Ölüm Maçı, Enfekte) alt/üst sınır ve hızlı seçimler
 const lo = (t) => (tot(t) ? totMin(t) : 1), hi = (t) => (tot(t) ? totMax(t) : LIMITS.maxPerTeam);
 const TOT_PRESETS = { dm: [[2, '2'], [4, '4'], [6, '6'], [8, '8'], [10, '10']], gg: [[2, '2'], [4, '4'], [6, '6'], [8, '8'], [10, '10']], inf: [[6, '6'], [8, '8'], [12, '12'], [16, '16'], [24, '24']], pb: [[2, '2'], [4, '4'], [6, '6'], [8, '8'], [12, '12']] };
-const totTx = (t, n) => (t === 'pb' ? `${n} savaşçı, herkes tek ve kendi boya renginde. İlk ${LIMITS.pbKills} elemeye ulaşan kazanır; kuyuya düşen elenir.` : t === 'gg' ? `${n} savaşçı, herkes tek. Her öldürmede yeni silah; 15. silah bıçak: bıçakla ilk öldüren kazanır.` : t === 'inf' ? `${n} savaşçı: ${Math.max(1, Math.round(n / 8))} ilk zombi, kalanı insan. Zombi öldürdüğü insanı enfekte eder.` : `${n} savaşçı, herkes tek. İlk ${LIMITS.dmKills} öldürmeye ulaşan kazanır.`);
+const totTx = (t, n) => (t === 'pb' ? `${n} savaşçı, herkes tek ve kendi boya renginde. İlk ${LIMITS.pbKills} elemeye ulaşan kazanır; Boya Kulesi'nde kuyuya düşen elenir.` : t === 'gg' ? `${n} savaşçı, herkes tek. Her öldürmede yeni silah; 15. silah bıçak: bıçakla ilk öldüren kazanır.` : t === 'inf' ? `${n} savaşçı: ${Math.max(1, Math.round(n / 8))} ilk zombi, kalanı insan. Zombi öldürdüğü insanı enfekte eder.` : `${n} savaşçı, herkes tek. İlk ${LIMITS.dmKills} öldürmeye ulaşan kazanır.`);
 const SCORE_OPTS = [[0, 'Otomatik'], [30, '30'], [50, '50'], [75, '75'], [100, '100'], [150, '150'], [200, '200']];
 const SLOTS = [['primary', 'Ana silah', 'primaryOptions'], ['secondary', 'Yedek', 'secondaryOptions'], ['gadget', 'Gadget', 'gadgetOptions'], ['melee', 'Yakın dövüş', 'meleeOptions']];
 const rnd = (a) => a[Math.floor(Math.random() * a.length)];
@@ -186,7 +186,7 @@ export function showMenu(onStart, onOnline) {
     const limitBody = tp === 'inf' ? '<div class="hint">Süre dolana kadar hayatta kalan insanlar kazanır; son insan enfekte olursa zombiler. 1–2 BOSS zombi başlar.</div>'
       : tp === 'gg' ? '<div class="hint">15 silahı sırayla bitir: her öldürme bir sonraki silah. Bıçakla öldürülen bir seviye geriler. Süre dolarsa en yüksek seviye kazanır.</div>'
       : tp === 'dm' ? `<div class="hint">İlk <b>${LIMITS.dmKills}</b> öldürmeye ulaşan kazanır; süre dolarsa en çok öldüren.</div>`
-      : tp === 'pb' ? `<div class="hint">İlk <b>${LIMITS.pbKills}</b> elemeye ulaşan kazanır; süre dolarsa en çok eleyen. Silahlar sabit (sınıf seçimi yok), yeniden doğma hızlı. Kuyuya itilen düşmanın elemesi son vurana yazılır.</div>`
+      : tp === 'pb' ? `<div class="hint">İlk <b>${LIMITS.pbKills}</b> elemeye ulaşan kazanır; süre dolarsa en çok eleyen. Silahlar sabit (sınıf seçimi yok), yeniden doğma hızlı. Boya Kulesi'nde kuyuya itilen düşmanın elemesi son vurana yazılır.</div>`
       : `<div class="row">${(tp === 'tdm' ? SCORE_OPTS : TICKET_OPTS).map(([v, l]) => `<button class="chip ${c.tickets === v ? 'on' : ''}" ${at('tickets', v)}>${l}</button>`).join('')}</div><div class="hint">Şu an: <b>${eff}</b></div>`;
     const sizeAttrs = online ? { id: 'ocSize', num: 'ocSizeV' } : { id: 'rSize', num: 'vSize' };
     const sizeCard = `<div class="sc wide"><h4>Oyuncu sayısı <em>${tot(tp) ? `toplam, sen dahil · en çok ${hi(tp)}` : 'takım başına, sen dahil'}${botsOn ? ' · kalanı botlar' : ' · botsuz'}</em></h4>
@@ -529,7 +529,7 @@ export function showMenu(onStart, onOnline) {
       case 'edmap': p.edMap = v; break;
       case 'edopen': launchEditor(); return;
       case 'edclear': if (confirm(`${MAPS[p.edMap].name}: yaptığın tüm düzenlemeler silinsin mi?`)) { clearEdits(p.edMap); } break;
-      case 'type': if (p.type !== v) adv = 'bs2'; p.type = v; if (tot(v)) p.perTeam = Math.max(lo(v), Math.min(hi(v), p.perTeam)); if (v === 'inf') p.map = 'newyork'; else if (v === 'pb') p.map = 'boyakulesi'; else if (MAPS[p.map]?.only && !MAPS[p.map].only.includes(v)) p.map = DEFAULT_MAP; break;
+      case 'type': if (p.type !== v) adv = 'bs2'; p.type = v; if (tot(v)) p.perTeam = Math.max(lo(v), Math.min(hi(v), p.perTeam)); if (v === 'inf') p.map = 'newyork'; else if (v === 'pb') { if (!MAPS[p.map]?.only?.includes('pb') && p.map !== 'random') p.map = 'boyakulesi'; } else if (MAPS[p.map]?.only && !MAPS[p.map].only.includes(v)) p.map = DEFAULT_MAP; break;
       case 'team': p.team = v; break;
       case 'diff': p.diff = v; break;
       case 'size': p.perTeam = +v; break;
@@ -542,7 +542,7 @@ export function showMenu(onStart, onOnline) {
         if ((k === 'type' || k === 'map') && c[k] !== v) adv = k === 'type' ? 'bs2' : 'bs3';
         c[k] = v === 'true' ? true : v === 'false' ? false : (k === 'perTeam' || k === 'tickets' || k === 'time') ? +v : v;
         if (k === 'type' && tot(v)) c.perTeam = Math.max(lo(v), Math.min(hi(v), c.perTeam));
-        if (k === 'type' && v === 'inf') c.map = 'newyork'; else if (k === 'type' && v === 'pb') c.map = 'boyakulesi'; else if (k === 'type' && MAPS[c.map]?.only && !MAPS[c.map].only.includes(v)) c.map = DEFAULT_MAP;
+        if (k === 'type' && v === 'inf') c.map = 'newyork'; else if (k === 'type' && v === 'pb') { if (!MAPS[c.map]?.only?.includes('pb') && c.map !== 'random') c.map = 'boyakulesi'; } else if (k === 'type' && MAPS[c.map]?.only && !MAPS[c.map].only.includes(v)) c.map = DEFAULT_MAP;
         break;
       }
       case 'rjoin': {
@@ -577,7 +577,7 @@ export function showMenu(onStart, onOnline) {
   nav.addEventListener('click', act);
 
   render();
-  scene?.prefetch([DEFAULT_MAP, ...Object.values(MAPS).filter((m) => m.only).map((m) => m.id)]);   // mod değişiminin zorladığı haritalar boşta hazırlanır
+  scene?.prefetch([...new Set([DEFAULT_MAP, ...Object.values(MAPS).filter((m) => m.only).map((m) => mapsFor(m.only[0])[0].id)])]);   // mod değişiminin zorladığı haritalar boşta hazırlanır (modun ilk haritası: New York, Boya Kulesi)
   music.setVolume((p.volume ?? 0.6) * (p.vMusic ?? 0.5));
   music.play('lobby');                       // lobi müziği (public/audio/music/lobby.mp3 varsa)
 }

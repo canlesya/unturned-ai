@@ -11,11 +11,14 @@ const RESTART_MS = +process.env.BF_RESTART_MS || 15000;      // maç bitince son
 
 const num = (v, lo, hi, d = 0) => (Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d);
 
+export const PB_MAPS = ['boyakulesi', 'ormankale'];                 // Paintball haritaları (ilki varsayılan); başka mod bunlarda oynanmaz
+
 export function sanitizeCfg(c = {}) {
   const pick = (v, list, d) => (list.includes(v) ? v : d);
   const type0 = pick(c.type, ['conquest', 'tdm', 'dm', 'gg', 'inf', 'pb'], 'conquest');
+  const pbMap = c.map === 'random' ? PB_MAPS[Math.floor(Math.random() * PB_MAPS.length)] : pick(c.map, PB_MAPS, PB_MAPS[0]);
   return {
-    map: type0 === 'inf' ? 'newyork' : type0 === 'pb' ? 'boyakulesi' : pick(c.map, ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman'], 'kasaba'),                  // Enfekte yalnızca New York'ta, Paintball yalnızca Boya Kulesi'nde
+    map: type0 === 'inf' ? 'newyork' : type0 === 'pb' ? pbMap : pick(c.map, ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman'], 'kasaba'),                  // Enfekte yalnızca New York'ta, Paintball yalnızca paintball haritalarında
     tod: pick(c.tod, ['day', 'sunset', 'night'], 'day'),
     weather: pick(c.weather, ['clear', 'rain', 'fog'], 'clear'),
     type: type0,

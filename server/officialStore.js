@@ -5,11 +5,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DATA } from './balanceStore.js';
 import { OFFICIAL } from './official.js';
-import { sanitizeCfg } from './room.js';
+import { sanitizeCfg, PB_MAPS } from './room.js';
 
 const FILE = path.join(DATA, 'official.json');
 export const OFFICIAL_MAX = 12;
-export const MAPS_FOR = (type) => (type === 'inf' ? ['newyork'] : type === 'pb' ? ['boyakulesi'] : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman']);
+export const MAPS_FOR = (type) => (type === 'inf' ? ['newyork'] : type === 'pb' ? PB_MAPS : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman']);
 
 const clean = (s, n) => String(s ?? '').replace(/[<>&"'`\p{Cc}\p{Cf}]/gu, '').replace(/\s+/g, ' ').trim().slice(0, n);
 

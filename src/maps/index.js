@@ -7,6 +7,7 @@ import { buildColGecidi } from './colgecidi.js';
 import { buildDepo } from './depo.js';
 import { buildLiman } from './liman.js';
 import { buildBoyaKulesi } from './boyakulesi.js';
+import { buildOrmanKale } from './ormankale.js';
 
 // Harita kaydı. Her harita build() ile şunu döndürür:
 // { id, name, group, colliders, bounds, spawns:{blue,red}, objectives:[{id,name,x,z,r,core?}], roads?, terrain?, water?, env? }
@@ -54,6 +55,11 @@ MAPS.boyakulesi = {
   desc: 'Paintball moduna özel renkli arena: zeminde şişme siperler, köşelerde dört renkli kale (9 m), ortada 18 m kule. Kalelerden kuleye korkuluksuz köprüler kuyunun üstünden geçer; kuyuya düşen elenir. Zıplama minderleri zeminden kaleye fırlatır, kule tepesi en güçlü nokta.',
   build: () => buildBoyaKulesi(),
 };
+MAPS.ormankale = {
+  id: 'ormankale', name: 'Orman Kalesi', tag: 'Paintball · orman · dere', thumb: '/img/ormankale.jpg', only: ['pb'], mobile: true,
+  desc: 'Çam ormanında senaryo sahası: ortada surlu, iki katlı kütük kale ve 5,6 m gözcü kulesi. Güneyden sığ bir dere geçer (üç tahta köprü, devrik kütük); köşelerde kütük kulübe, boyalı lastik kuleli hurda köşesi, gözetleme kulesi ve saman tarlası. Yayvan, ağaçlarla bölünmüş kısa-orta mesafe.',
+  build: () => buildOrmanKale(),
+};
 export const DEFAULT_MAP = 'kasaba';
 // Bu moda uygun haritalar (only: yalnızca o modlarda listelenir; dev hiçbirinde)
-export const mapsFor = (type) => (type === 'inf' ? [MAPS.newyork] : type === 'pb' ? [MAPS.boyakulesi] : Object.values(MAPS).filter((m) => !m.dev && (!m.only || m.only.includes(type))));      // Enfekte yalnızca New York'ta, Paintball yalnızca Boya Kulesi'nde
+export const mapsFor = (type) => (type === 'inf' ? [MAPS.newyork] : type === 'pb' ? [MAPS.boyakulesi, MAPS.ormankale] : Object.values(MAPS).filter((m) => !m.dev && (!m.only || m.only.includes(type))));      // Enfekte yalnızca New York'ta, Paintball yalnızca paintball haritalarında (Boya Kulesi, Orman Kalesi)
