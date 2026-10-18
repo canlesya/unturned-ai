@@ -1,4 +1,6 @@
 import { fillRoom, poolDisc, poolRect } from './kitMilInterior.js';
+import { UK } from './usSurface.js';
+const KF = { kind: UK.FLOOR }, KB = { kind: UK.BLOCK }, KS = { kind: UK.SLAB };
 
 const SPILL = (b, x, z, w, d, op = 0.4) => poolRect(b, x, 0.09, z, w, d, '#ffdf9a', op);
 
@@ -44,7 +46,7 @@ export function milBuilding(b, rng, o) {
   const nFl = roofAccess ? floors : floors - 1;
 
   // zemin kaplaması + temel bandı
-  b.box(x, 0, z, w - 0.3, 0.06, d - 0.3, floorColor, { collide: false });
+  b.box(x, 0, z, w - 0.3, 0.06, d - 0.3, floorColor, { collide: false, ...KF });
   for (const [px, pz, pw, pd] of [[x, z0 - 0.12, w + 0.3, 0.26], [x, z1 + 0.12, w + 0.3, 0.26], [x0 - 0.12, z, 0.26, d], [x1 + 0.12, z, 0.26, d]]) b.box(px, 0, pz, pw, 0.4, pd, '#74786f', { collide: false });
 
   // merdiven uçuşları + döşeme delikleri
@@ -68,7 +70,7 @@ export function milBuilding(b, rng, o) {
 
   const slabBox = (ax0, ax1, az0, az1, y, color) => {
     if (ax1 - ax0 < 0.02 || az1 - az0 < 0.02) return;
-    b.box((ax0 + ax1) / 2, y, (az0 + az1) / 2, ax1 - ax0, 0.25, az1 - az0, color);
+    b.box((ax0 + ax1) / 2, y, (az0 + az1) / 2, ax1 - ax0, 0.25, az1 - az0, color, KS);
   };
   for (let L = 1; L <= floors; L++) {
     if (L === floors && !roofAccess) { /* düz çatı */ }
@@ -126,8 +128,8 @@ export function milBuilding(b, rng, o) {
       const drs = f === 0 ? doors[side].map((dr) => ({ at: c + dr.at, w: dr.w })) : [];
       const { ops, st } = winN(f, side, len, c, drs);
       const openings = [...drs.map((dr) => ({ at: dr.at, w: dr.w, b: 0, top: 2.4 })), ...ops];
-      if (horiz) b.wall('x', x0, x1, side === 'n' ? z0 + T / 2 : z1 - T / 2, y0, fh, T, wall, openings);
-      else b.wall('z', z0 + T, z1 - T, side === 'w' ? x0 + T / 2 : x1 - T / 2, y0, fh, T, wall, openings);
+      if (horiz) b.wall('x', x0, x1, side === 'n' ? z0 + T / 2 : z1 - T / 2, y0, fh, T, wall, openings, KB);
+      else b.wall('z', z0 + T, z1 - T, side === 'w' ? x0 + T / 2 : x1 - T / 2, y0, fh, T, wall, openings, KB);
       for (const op of ops) paneAt(horiz ? 'x' : 'z', horiz ? (side === 'n' ? z0 + T / 2 : z1 - T / 2) : (side === 'w' ? x0 + T / 2 : x1 - T / 2), op.at, y0, st);
     }
   }
@@ -137,14 +139,14 @@ export function milBuilding(b, rng, o) {
       const horiz = side === 'n' || side === 's';
       const sgn = side === 'n' || side === 'w' ? -1 : 1;
       const px = horiz ? x + dr.at : (side === 'w' ? x0 : x1) + sgn * 0.5, pz = horiz ? (side === 'n' ? z0 : z1) + sgn * 0.5 : z + dr.at;
-      b.box(px, 2.55, pz, horiz ? dr.w + 0.8 : 1.2, 0.14, horiz ? 1.2 : dr.w + 0.8, roof, { collide: false });
+      b.box(px, 2.55, pz, horiz ? dr.w + 0.8 : 1.2, 0.14, horiz ? 1.2 : dr.w + 0.8, roof, { collide: false, ...KS });
       b.box(px, 2.4, pz, horiz ? 0.5 : 0.16, 0.12, horiz ? 0.16 : 0.5, '#fff1c0', { collide: false, o: { glow: true } });       // kapı üstü lamba
       poolDisc(b, px + (horiz ? 0 : sgn * 0.9), 0.09, pz + (horiz ? sgn * 0.9 : 0), 1.8, '#ffe2a0', 0.45, 12);
       b.box(px, 0, pz, horiz ? dr.w + 1.2 : 1.6, 0.1, horiz ? 1.6 : dr.w + 1.2, '#9a9c94', { collide: false });
     }
   }
   // köşe sütunları, kat bantları
-  for (const [px, pz] of [[x0, z0], [x1, z0], [x0, z1], [x1, z1]]) b.box(px, 0, pz, 0.45, H, 0.45, trim, { collide: false });
+  for (const [px, pz] of [[x0, z0], [x1, z0], [x0, z1], [x1, z1]]) b.box(px, 0, pz, 0.45, H, 0.45, trim);                // köşe sütunu: dışa taşan katı (çarpışmalı; içinden geçilmez)
   for (let f = 1; f <= floors; f++) {
     const yb = f * fh - 0.45;
     b.box(x, yb, z0 - 0.04, w + 0.12, 0.3, 0.16, trim, { collide: false }); b.box(x, yb, z1 + 0.04, w + 0.12, 0.3, 0.16, trim, { collide: false });
@@ -153,8 +155,8 @@ export function milBuilding(b, rng, o) {
   // çatı korkuluğu (siper)
   if (parapet > 0) {
     const t = 0.3;
-    b.box(x, H, z0 + t / 2, w, parapet, t, wall); b.box(x, H, z1 - t / 2, w, parapet, t, wall);
-    b.box(x0 + t / 2, H, z, t, parapet, d - 2 * t, wall); b.box(x1 - t / 2, H, z, t, parapet, d - 2 * t, wall);
+    b.box(x, H, z0 + t / 2, w, parapet, t, wall, KB); b.box(x, H, z1 - t / 2, w, parapet, t, wall, KB);
+    b.box(x0 + t / 2, H, z, t, parapet, d - 2 * t, wall, KB); b.box(x1 - t / 2, H, z, t, parapet, d - 2 * t, wall, KB);
     b.box(x, H + parapet, z0 + t / 2, w + 0.1, 0.1, t + 0.1, trim, { collide: false }); b.box(x, H + parapet, z1 - t / 2, w + 0.1, 0.1, t + 0.1, trim, { collide: false });
     b.box(x0 + t / 2, H + parapet, z, t + 0.1, 0.1, d - 2 * t, trim, { collide: false }); b.box(x1 - t / 2, H + parapet, z, t + 0.1, 0.1, d - 2 * t, trim, { collide: false });
   }
@@ -184,15 +186,17 @@ export function milBuilding(b, rng, o) {
     for (const p of parts) {
       if (p.floors && !p.floors.includes(f)) continue;
       const ops = (p.doors || []).map((dr) => ({ at: (p.axis === 'x' ? x : z) + dr.at, w: dr.w, b: 0, top: 2.3 }));
-      if (p.axis === 'x') b.wall('x', x + p.a0, x + p.a1, z + p.c, y0, fh - 0.25, 0.2, partColor, ops);
-      else b.wall('z', z + p.a0, z + p.a1, x + p.c, y0, fh - 0.25, 0.2, partColor, ops);
+      if (p.axis === 'x') b.wall('x', x + p.a0, x + p.a1, z + p.c, y0, fh - 0.25, 0.2, partColor, ops, KB);
+      else b.wall('z', z + p.a0, z + p.a1, x + p.c, y0, fh - 0.25, 0.2, partColor, ops, KB);
     }
   }
   // oda içi dekor + tavan lambaları
   for (const r of o.rooms || []) {
     const R = { x0: x + r.x0 + 0.12, x1: x + r.x1 - 0.12, z0: z + r.z0 + 0.12, z1: z + r.z1 - 0.12 };
     const yy = r.f * fh;
-    if (r.kind) fillRoom(b, rng, r.kind, R, yy, keeps(r.f));
+    // R kenarından duvar yüzüne: dış duvar 0,12 m, bölme (0,2 m, merkezi kenarda) 0,02 m, duvarsız kenar 0 → duvar eşyası yüzüne yaslanır
+    const gapOf = (axis, c) => (Math.abs(Math.abs(c) - (axis === 'z' ? w / 2 : d / 2) + T) < 0.01 ? 0.12 : parts.some((p) => p.axis === axis && Math.abs(p.c - c) < 0.01 && (!p.floors || p.floors.includes(r.f))) ? 0.02 : 0);
+    if (r.kind) fillRoom(b, rng, r.kind, R, yy, keeps(r.f), { w: gapOf('z', r.x0), e: gapOf('z', r.x1), n: gapOf('x', r.z0), s: gapOf('x', r.z1) });
     const cx = (R.x0 + R.x1) / 2, cz = (R.z0 + R.z1) / 2;
     const nL = (R.x1 - R.x0) > 8 ? 2 : 1;
     for (let i = 0; i < nL; i++) {
@@ -206,7 +210,7 @@ export function milBuilding(b, rng, o) {
   // (merdiven boşluğunu / çatı çıkışını kapatmasın diye boşluk çevresinde parçalara bölünür)
   for (let f = 1; f <= floors; f++) {
     const X0 = x - (w - 0.8) / 2, X1 = x + (w - 0.8) / 2, Z0 = z - (d - 0.8) / 2, Z1 = z + (d - 0.8) / 2, h = holes[f];
-    const piece = (ax0, ax1, az0, az1) => { if (ax1 - ax0 > 0.02 && az1 - az0 > 0.02) b.box((ax0 + ax1) / 2, f * fh, (az0 + az1) / 2, ax1 - ax0, 0.02, az1 - az0, floorColor, { collide: false }); };
+    const piece = (ax0, ax1, az0, az1) => { if (ax1 - ax0 > 0.02 && az1 - az0 > 0.02) b.box((ax0 + ax1) / 2, f * fh, (az0 + az1) / 2, ax1 - ax0, 0.02, az1 - az0, floorColor, { collide: false, ...KF }); };
     if (!h) piece(X0, X1, Z0, Z1);
     else { piece(X0, h.x0, Z0, Z1); piece(h.x1, X1, Z0, Z1); piece(h.x0, h.x1, Z0, h.z0); piece(h.x0, h.x1, h.z1, Z1); }
   }
@@ -245,19 +249,19 @@ export function guardTower(b, rng, { x, z, ry = 0, w = 7, d = 7, floors = 2, fh 
 export function garageRow(b, rng, { x, z, ry = 0, bays = 4, bw = 5.6, d = 8, h = 4.2, wall = '#7d857f', roof = '#5a6068', vehicles = [] }) {
   const L = bays * bw;
   b.with(x, 0, z, ry, () => {
-    b.box(0, 0, 0.0, L, 0.05, d, '#5f6468', { collide: false });
+    b.box(0, 0, 0.0, L, 0.05, d, '#5f6468', { collide: false, kind: UK.CONC });
     b.box(0, 0, -d / 2 + 0.2, L, h, 0.4, wall);                                   // arka duvar
     for (let i = 0; i <= bays; i++) {
       const px = -L / 2 + i * bw;
       b.box(px, 0, 0, 0.4, h, d, i === 0 || i === bays ? wall : '#6e766f');       // ayırıcı/yan duvar
     }
-    b.box(0, h - 0.3, 0, L + 0.6, 0.3, d + 0.8, roof);                             // çatı
+    b.box(0, h - 0.3, 0, L + 0.6, 0.3, d + 0.8, roof, KS);                         // çatı
     b.box(0, h, d / 2 + 0.3, L + 0.7, 0.18, 0.15, '#d9a921', { collide: false });
     b.box(0, h - 0.55, d / 2 + 0.38, L + 0.5, 0.25, 0.08, '#454a50', { collide: false });
     for (let i = 0; i < bays; i++) {
       const cx = -L / 2 + (i + 0.5) * bw;
       // yarı açık rulo kapı (üstte)
-      b.box(cx, h - 1.3, d / 2 + 0.2, bw - 0.9, 0.9, 0.12, '#9aa0a8', { collide: false });
+      b.box(cx, h - 1.2, d / 2 + 0.2, bw - 0.9, 0.9, 0.12, '#9aa0a8', { collide: false });           // tepesi çatı altına değer
       // tavan lambası
       b.box(cx, h - 0.38, 0, 1.4, 0.08, 0.35, '#fff3c4', { collide: false, o: { glow: true } });
       poolDisc(b, cx, 0.09, 0.4, 2.4, '#ffe9b0', 0.4, 12);
@@ -297,7 +301,7 @@ export function tunnel(b, rng, { x, z, ry = 0, len = 30, iw = 3.6, ih = 3.0, col
     const nL = Math.floor(len / 4.5);
     for (let i = 0; i < nL; i++) {
       const lx = -len / 2 + (i + 0.5) * (len / nL);
-      b.box(lx, ih - 0.14, 0, 0.9, 0.1, 0.4, glowColor, { collide: false, o: { glow: true } });
+      b.box(lx, ih - 0.1, 0, 0.9, 0.1, 0.4, glowColor, { collide: false, o: { glow: true } });            // tavana oturur
       poolDisc(b, lx, 0.06, 0, 1.7, glowColor, 0.4, 10);
       b.box(lx, ih - 0.05, iw / 2 - 0.1, 0.1, 0.05, 0.1, '#222', { collide: false });
     }
@@ -308,7 +312,8 @@ export function tunnel(b, rng, { x, z, ry = 0, len = 30, iw = 3.6, ih = 3.0, col
     b.box(0, 0.0, iw / 2 - 0.03, len - 0.6, 0.35, 0.06, '#d9a921', { collide: false });
     for (let i = 0; i < Math.floor(len / 6); i++) {
       const lx = -len / 2 + 3 + i * 6;
-      b.box(lx, 0, iw / 2 - 0.2, 0.6, 1.0, 0.35, '#59623f', { collide: false });
+      if (sideDoors.some((sd) => sd.side === 's' && Math.abs(sd.at - lx) < (sd.w || 2) / 2 + 0.7)) continue;      // yan kapının önüne sandık konmaz
+      b.box(lx, 0, iw / 2 - 0.2, 0.6, 1.0, 0.35, '#59623f');                                    // duvar dibi sandık (çarpışmalı)
     }
     for (const bf of baffles) {
       const zc = bf.side === 'n' ? -iw / 2 + (iw - 1.7) / 2 : iw / 2 - (iw - 1.7) / 2;
@@ -329,7 +334,7 @@ export function tunnel(b, rng, { x, z, ry = 0, len = 30, iw = 3.6, ih = 3.0, col
 }
 
 // ───────── Çadır (ön yüz +Z yönünde açık) ─────────
-export function tent(b, rng, { x, z, ry = 0, w = 5, d = 4, color = '#7b8260', kind = null, big = false }) {
+export function tent(b, rng, { x, z, ry = 0, w = 5, d = 4, color = '#7b8260', kind = null, big = false, ridge = '#4d553a' }) {
   b.with(x, 0, z, ry, () => {
     const wh = 1.7, ph = big ? 2.0 : 1.5;
     b.box(0, 0, 0, w - 0.2, 0.05, d - 0.2, '#6a6a55', { collide: false });
@@ -338,9 +343,9 @@ export function tent(b, rng, { x, z, ry = 0, w = 5, d = 4, color = '#7b8260', ki
     b.box(0, 0, -d / 2 + 0.05, w, wh, 0.1, color);                                      // arka
     b.prism(0, wh, 0, w + 0.3, ph, d + 0.4, color, { ry: 0 });
     b.prism(0, wh, 0, w + 0.32, ph + 0.02, 0.1, '#5e6648', {});
-    b.box(0, wh + ph, 0, 0.1, 0.12, d + 0.5, '#4d553a', { collide: false });
+    b.box(0, wh + ph - 0.04, 0, 0.14, 0.12, d + 0.4, ridge, { collide: false });                     // mahya şeridi (komuta çadırında takım rengi)
     for (const sx of [-1, 1]) b.box(sx * (w / 2 + 0.2), 0, d / 2 + 0.1, 0.08, wh, 0.08, '#5a4a30', { collide: false });
-    if (kind) fillRoom(b, rng, kind, { x0: -w / 2 + 0.25, x1: w / 2 - 0.25, z0: -d / 2 + 0.25, z1: d / 2 - 0.1 }, 0, [{ x0: -0.85, x1: 0.85, z0: d / 2 - 1.3, z1: d / 2 + 1 }]);
+    if (kind) fillRoom(b, rng, kind, { x0: -w / 2 + 0.25, x1: w / 2 - 0.25, z0: -d / 2 + 0.25, z1: d / 2 - 0.1 }, 0, [{ x0: -0.85, x1: 0.85, z0: d / 2 - 1.3, z1: d / 2 + 1 }], { w: 0.15, e: 0.15, n: 0.15, s: 0 });
     b.box(0, wh + ph - 0.45, 0, 0.5, 0.08, 0.3, '#fff3c4', { collide: false, o: { glow: true } });
     b.box(w / 2 + 0.2, 1.9, d / 2 + 0.1, 0.2, 0.28, 0.2, '#ffd98a', { collide: false, o: { glow: true } });                  // giriş feneri
     poolDisc(b, 0, 0.09, d / 2 + 1.0, 2.3, '#ffd27a', 0.45, 12);
@@ -351,10 +356,13 @@ export function tent(b, rng, { x, z, ry = 0, w = 5, d = 4, color = '#7b8260', ki
 export function camoNet(b, rng, { x, z, w = 8, d = 6, h = 3.6, ry = 0 }) {
   b.with(x, 0, z, ry, () => {
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.cyl(sx * (w / 2 - 0.2), 0, sz * (d / 2 - 0.2), 0.08, 0.09, h, '#4a3a28', { seg: 5 });
+    // tek parça ağ (direklerin tepesine oturur) + üstünde yamalar: hepsi ağa değer, havada parça kalmaz (rng çağrı sayısı aynı → harita düzeni değişmez)
     const cols = ['#4d5c3a', '#5b6a45', '#3f4d33', '#6b6f4a'];
+    b.box(0, h, 0, w, 0.04, d, cols[0], { collide: false });
     for (let i = 0; i < 14; i++) {
       const cw = 1.8 + rng() * 2.2, cd = 1.6 + rng() * 2.2;
-      b.box((rng() - 0.5) * (w - cw), h + (rng() * 0.3 - 0.15), (rng() - 0.5) * (d - cd), cw, 0.06, cd, cols[i % 4], { collide: false });
+      const px = (rng() - 0.5) * (w - cw), jy = rng(), pz = (rng() - 0.5) * (d - cd);
+      b.box(px, h + 0.04, pz, cw, 0.025 + jy * 0.035, cd, cols[(i % 3) + 1], { collide: false });
     }
   });
 }

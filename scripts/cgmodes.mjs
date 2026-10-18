@@ -6,7 +6,7 @@ const cases = [['tdm', 3], ['tdm', 16], ['conquest', 3], ['conquest', 16], ['dm'
 let fail = 0;
 for (const [type, per] of cases) {
   try {
-    const g = new Game(null, { headless: true, swapSides: type === 'tdm', map: 'colgecidi', tod: 'day', weather: 'clear', diff: 'normal', match: { perTeam: per, type, time: 120 } });
+    const g = new Game(null, { headless: true, swapSides: type === 'tdm', map: process.env.MAP || 'colgecidi', tod: 'day', weather: 'clear', diff: 'normal', match: { perTeam: per, type, time: 120 } });
     const t0 = performance.now();
     for (let i = 0; i < 30 * 60 && !g.ended; i++) g.step(1 / 30);
     const alive = g.soldiers.filter((s) => s.alive).length;
