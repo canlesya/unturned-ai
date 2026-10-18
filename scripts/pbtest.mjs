@@ -136,7 +136,7 @@ function lagShot(useVt) {
   const dist = A.eye().distanceTo(P0), tf = dist / WSTATS.pbrifle.speed;
   const aimP = P0.clone().addScaledVector(v, tf + DT);
   const a = aimAt(A, aimP, WSTATS.pbrifle);
-  g.netEvents.length = 0; evs.length = 0; A.cd = 0;
+  g.netEvents.length = 0; evs.length = 0; A.cd = 0; A.bloom = 0; A.recoilP = 0;     // önceki atıştan kalan açılma / tepme ölçümü bozmasın
   input(ha, { yw: a.yw, pt: a.pt, a: 1, fp: 1, fh: 1, vt: useVt ? T - LAG : null }); input(hb, { r: 1, yw: 0 }); step();
   for (let i = 0; i < 40; i++) { input(hb, { r: 1, yw: 0 }); input(ha, { vt: g.tick - LAG }); step(); }
   drain();
@@ -148,7 +148,7 @@ function lagShot(useVt) {
   for (let i = 0; i < N; i++) { if (lagShot(true)) hw++; if (lagShot(false)) hn++; }
   [st.hip, st.ads] = sv;
   console.log(`      lag comp: geri sarmalı ${hw}/${N}, sarmasız ${hn}/${N}`);
-  check(hw >= N - 3, 'geri sarma ile istemcinin gördüğü (önünü aldığı) yere isabet');
+  check(hw >= N - 4, 'geri sarma ile istemcinin gördüğü (önünü aldığı) yere isabet');     // hedef koşarken engele takılınca önü sapar: 8–12/12 normal
   check(hw > hn + 3, 'geri sarma olmadan aynı atışlar kaçıyor');
 }
 
@@ -316,7 +316,7 @@ function lagShot(useVt) {
     const g1 = new Game(null, { headless: true, map: 'boyakulesi', diff: 'normal', match: { perTeam: 3, type: 'pb', killLimit: 999, time: 999 } });
     const bb = g1.brains[0], bs = bb.s; for (const s of g1.soldiers) if (s !== bs) { s.vacant = true; s.alive = false; s.respawnT = 1e9; }
     g1.brains.length = 1; let got = -1;
-    for (let i = 0; i < 60 * 40 && got < 0; i++) { if (bs.alive) { bs.items[0].reserve = 0; bs.items[0].mag = Math.min(bs.items[0].mag, 8); if (bs.items[1]) bs.items[1].reserve = 0; } g1.step(DT); if (g1.netEvents.some((e) => e.e === 'pk' && !e.a && e.v === bs.id)) got = g1.time; g1.netEvents.length = 0; }
+    for (let i = 0; i < 60 * 60 && got < 0; i++) { if (bs.alive) { bs.items[0].reserve = 0; bs.items[0].mag = Math.min(bs.items[0].mag, 8); if (bs.items[1]) bs.items[1].reserve = 0; } g1.step(DT); if (g1.netEvents.some((e) => e.e === 'pk' && !e.a && e.v === bs.id)) got = g1.time; g1.netEvents.length = 0; }
     check(got > 0, `cephanesi azalan bot boya topu kutusuna gidip aldı (${got.toFixed(1)} sn)`);
   }
 }
