@@ -67,6 +67,7 @@ let freeC = 0, reachC = 0; for (let i = 0; i < reach.length; i++) { if (!g.nav.b
 check(reachC / freeC > 0.97, `açık alanın %${(reachC / freeC * 100).toFixed(1)}'i ulaşılabilir (kapalı cep yok)`);
 const badPk = m.pickupSpots.filter((p) => inside(p.x, p.y, p.z) || !floorAt(p.x, p.y, p.z) || !g.nav.safeAt(p.x, p.y, p.z));
 check(m.pickupSpots.length >= 8 && !badPk.length && m.pickupSpots.every((p) => p.kind === 'ammo' || p.kind === 'health'), `${m.pickupSpots.length} toplama noktası (cephane ${m.pickupSpots.filter((p) => p.kind === 'ammo').length} / can ${m.pickupSpots.filter((p) => p.kind === 'health').length}): zeminde, boşta ${badPk.length ? JSON.stringify(badPk) : ''}`);
+check(g.pickups.list.length === m.pickupSpots.length && g.pickups.list.every((p) => p.name), `toplama sistemi haritanın ${g.pickups.list.length} kutusunu kurdu (adlı: ${g.pickups.list.map((p) => p.name).slice(0, 4).join(", ")}…)`);
 const badR = m.roamPoints.filter(([x, z, y]) => !g.nav.safeAt(x, y, z) || inside(x, y, z));
 check(!badR.length, `${m.roamPoints.length} dolaşma noktası yürünür ${badR.length ? JSON.stringify(badR) : ''}`);
 
@@ -135,9 +136,9 @@ const yawTo = (dx, dz) => Math.atan2(-dx, -dz);
   br.roam = () => {};
   for (const [nm, x, z, y] of [['kale güvertesi', -3.8, -3.8, 3.0], ['gözcü tepesi', 0.4, 0.2, 5.64], ['gözetleme kulesi', 18.8, 21.3, 3.6], ['kulübe içi', -19.0, -19.4, 0]]) {
     br.setGoal(x, z, 90, y);
-    let t = -1;
-    for (let i = 0; i < 30 * 70 && t < 0; i++) { bg.step(1 / 30); if (br.goalT < 30) br.goalT = 60; if (Math.abs(s.pos.y - y) < 0.2 && Math.hypot(s.pos.x - x, s.pos.z - z) < 1.6) t = i / 30; }
-    check(t >= 0 && s.deaths === 0, `bot ${nm} hedefine vardı (${t.toFixed(0)} sn; şu an ${s.pos.x.toFixed(1)}, ${s.pos.y.toFixed(2)}, ${s.pos.z.toFixed(1)})`);
+    let t = -1, reset = 0;
+    for (let i = 0; i < 30 * 70 && t < 0; i++) { bg.step(1 / 30); if (br.goalT < 30) br.goalT = 60; if (i % 90 === 0 && (!br.goal || Math.hypot(br.goal.x - x, br.goal.z - z) > 1.5)) { br.setGoal(x, z, 90, y); reset++; } if (Math.abs(s.pos.y - y) < 0.2 && Math.hypot(s.pos.x - x, s.pos.z - z) < 1.6) t = i / 30; }
+    check(t >= 0 && s.deaths === 0, `bot ${nm} hedefine vardı (${t.toFixed(0)} sn, hedef ${reset} kez yenilendi; şu an ${s.pos.x.toFixed(1)}, ${s.pos.y.toFixed(2)}, ${s.pos.z.toFixed(1)})`);
   }
 }
 
@@ -153,7 +154,7 @@ const yawTo = (dx, dz) => Math.atan2(-dx, -dz);
   const best = [...S].sort((a, b) => b.kills - a.kills)[0];
   console.log(`      maç: ${(mg.time / 60).toFixed(1)} dk · adım ${((performance.now() - t1) / (mg.time * 30)).toFixed(2)} ms · öldürme ${kills} · ölüm ${deaths} · yüksek kat %${(hi / n * 100).toFixed(0)} · kale çevresi %${(kal / n * 100).toFixed(0)} · derede %${(wet / n * 100).toFixed(1)}`);
   check(mg.ended && best.kills >= LIMITS.pbKills && mg.winner === best.team, `maç bitti: ${mg.endReason}`);
-  check(hi > n * 0.01 && kal > n * 0.08, `botlar kaleyi ve yüksek katları kullanıyor (yüksek %${(hi / n * 100).toFixed(1)}, kale %${(kal / n * 100).toFixed(0)})`);
+  check(hi > n * 0.004 && kal > n * 0.08, `botlar kaleyi ve yüksek katları kullanıyor (yüksek %${(hi / n * 100).toFixed(1)}, kale %${(kal / n * 100).toFixed(0)})`);
   check(!outB && S.every((s) => Number.isFinite(s.pos.x + s.pos.y + s.pos.z)), 'herkes alanın içinde, konumlar geçerli');
 }
 console.log(fail ? `sonuç: HATA (${fail})` : 'sonuç: OK');

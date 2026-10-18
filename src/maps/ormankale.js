@@ -106,25 +106,25 @@ function castleSide(b, k, rng) {
   const ops = [{ at: -3.0, w: 1.6, b: 0, top: 2.2 }];                          // kapı
   if (!stair) ops.push({ at: 0.4, w: 1.4, b: 1.0, top: 1.8 }, { at: 3.6, w: 1.0, b: 1.0, top: 1.8 });   // merdivensiz kenarda iki mazgal pencere
   b.wall('x', -KH, KH - KT, z, 0, DECK - 0.3, KT, LOG, ops, { kind: KIND.WOOD });
-  // sur (güverte kenarı, 1,1 m) + mazgal dişleri; merdivenli kenarda x 3,9…5,2 boşluk (merdiven sahanlığından güverteye)
-  const p1 = stair ? 3.9 : KH - KT;
+  // sur (güverte kenarı, 1,1 m) + mazgal dişleri; merdivenli kenarda x 3,5…5,2 boşluk (merdiven sahanlığından güverteye)
+  const p1 = stair ? 3.5 : KH - KT;
   W(b, (-KH + p1) / 2, DECK, z, p1 + KH, 1.1, KT, LOG_D);
   for (let x = -4.75; x < p1 - 0.4; x += 1.5) W(b, x, DECK + 1.1, z, 0.6, 0.45, KT, LOG_D);
   // dış yüzde renkli bayrak (kenar başına bir boya rengi) — duvar yüzüne yapışık, çarpışmasız
   const C = ['#ff7a1a', '#b05cff', '#12c2ad', '#ff4fa3'][k];
-  b.box(-1.4, 0.9, -KH - 0.015, 1.1, 1.6, 0.03, C, NC);
-  b.box(-1.4, 2.36, -KH - 0.02, 1.26, 0.12, 0.04, '#f4f1ea', NC);
-  const holes = [[-3.8, -2.2, 0, 2.2], [-2.03, -0.77, 0.9, 2.48], ...(stair ? [[-0.6, 6, 0, 3]] : [[-0.3, 1.1, 1.0, 1.8], [3.1, 4.1, 1.0, 1.8]])];
+  b.box(-1.65, 0.9, -KH - 0.015, 0.9, 1.6, 0.03, C, NC);
+  b.box(-1.65, 2.36, -KH - 0.02, 1.0, 0.12, 0.04, '#f4f1ea', NC);
+  const holes = [[-3.8, -2.2, 0, 2.2], [-2.15, -1.15, 0.9, 2.48], ...(stair ? [[-1.1, 6, 0, 3]] : [[-0.3, 1.1, 1.0, 1.8], [3.1, 4.1, 1.0, 1.8]])];
   splats(rng, 3, -KH, KH - KT, 0.1, 2.6, holes, (u, y, r, c) => splat(b, rng, u, y, -KH, 'z-', r, c), k * 2);
-  if (stair) {                                                               // dış merdiven: duvara yaslı, +x yönünde 0 → 3 m (9 basamak × 0,3 m + 1,5 m sahanlık)
+  if (stair) {                                                               // dış merdiven: duvara yaslı, +x yönünde 0 → 3 m (9 basamak × 0,3 m + 2 m sahanlık)
     const zc = -KH - 0.75;
     for (let i = 0; i < 9; i++) {
-      const top = (i + 1) * 0.3, cx = -0.5 + i * 0.5 + 0.25;
+      const top = (i + 1) * 0.3, cx = -1.0 + i * 0.5 + 0.25;
       W(b, cx, 0, zc, 0.5, top - 0.05, 1.5, LOG, 'plat');
       b.box(cx, top - 0.05, zc, 0.5, 0.05, 1.5, C, { tag: 'plat' });           // basamak yüzü boyalı (merdiven uzaktan okunur)
     }
-    W(b, 4.75, 0, zc, 1.5, DECK - 0.05, 1.5, LOG, 'plat');
-    b.box(4.75, DECK - 0.05, zc, 1.5, 0.05, 1.5, C, { tag: 'plat' });
+    W(b, 4.5, 0, zc, 2.0, DECK - 0.05, 1.5, LOG, 'plat');
+    b.box(4.5, DECK - 0.05, zc, 2.0, 0.05, 1.5, C, { tag: 'plat' });
   }
 }
 function castle(b, rng) {
@@ -441,6 +441,7 @@ export function buildOrmanKale() {
     { x: 18.8, y: 3.6, z: 21.8, kind: 'ammo' }, { x: -18.4, y: 0, z: 20.8, kind: 'health' },
     { x: 0.0, y: 0, z: -15.6, kind: 'ammo' }, { x: -17.6, y: 0, z: -0.4, kind: 'health' }, { x: 18.0, y: 0, z: 0.6, kind: 'ammo' }, { x: -8.0, y: 0, z: 19.8, kind: 'ammo' },
   ];
+  for (const p of pickupSpots) { let bd = 1e9; for (const c of callouts) { const d = Math.hypot(c.x - p.x, c.z - p.z) - c.r; if (d < bd) { bd = d; p.name = c.name; } } }   // kutu adı: en yakın bölge (pickups.js)
 
   const group = b.build();
   if (typeof document !== 'undefined' && !MapBuilder.noVisual) {
