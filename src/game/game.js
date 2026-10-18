@@ -28,6 +28,8 @@ import { applyInput } from '../sim/input.js';
 import { SIM_DT } from '../net/protocol.js';
 import { mat } from '../core/geo.js';
 import { Paint, paintColorOf } from './paint.js';
+import { t as $t } from '../i18n/index.js';
+import { placeName } from '../i18n/game.js';                                                         // oyun içi sözlük (hud. / death. / end. …)
 import { initGadgets, updateGadgets, spawnSmoke, flashBang, smokeBlocks, smokeDensity, placeDeployable, netDeploy, netUndeploy } from './gadgets.js';
 
 const STAT_ID = new Map(Object.entries(WSTATS).map(([k, v]) => [v, k]));      // WSTATS nesnesi → id (ağ olayları için)
@@ -247,7 +249,7 @@ export class Game {
       bd.textContent = (opts.editor ? `Harita editörü · ${this.mapDef.name} · L uçuş · I paneli gizle · Esc menü` : 'Geliştirici modu · L uçuş · N botlar · O ölümsüz · P konum') + ' · sürüm ' + (typeof __BUILD__ !== 'undefined' ? __BUILD__ : 'dev');
       this.hud.root.appendChild(bd);
       if (opts.editor) { this.mapEditor = new MapEditor(this); this.mapEditor.toggle(true); }    // ayrı bölüm (ana menü → Harita Editörü): bot yok, panel açık
-      if (!opts.editor) setTimeout(() => this.hud?.toast('Geliştirici modu: uçuyorsun. W/A/S/D + Boşluk yüksel, Ctrl alçal, Shift hızlı, tekerlek hız', '#ffd27a'), 800);
+      if (!opts.editor) setTimeout(() => this.hud?.toast($t('hud.t.devFly'), '#ffd27a'), 800);
     }
 
     // olaylar
@@ -261,7 +263,7 @@ export class Game {
       this.torchOn = !this.torchOn;
       this.torch.intensity = this.torchOn ? (this.night ? 140 : this.tod === 'sunset' ? 45 : 0) : 0;
       this.playerSoldier.flashOn = this.torchOn && this.torch.intensity > 0;
-      this.hud.toast(this.torchOn ? (this.torch.intensity ? 'Fener açık' : 'Fener (gündüz gerekmez)') : 'Fener kapalı', '#ffe6a8');
+      this.hud.toast(this.torchOn ? (this.torch.intensity ? $t('hud.t.torchOn') : $t('hud.t.torchDay')) : $t('hud.t.torchOff'), '#ffe6a8');
     });
     document.addEventListener('pointerlockchange', this._plc = () => {
       const locked = document.pointerLockElement === this.canvas;
@@ -290,10 +292,10 @@ export class Game {
       const code = opts.online.room;
       const b = (this._badge = document.createElement('div')); b.id = 'roombadge';            // telefonda konumu touch.js CSS'inde
       b.style.cssText = 'position:fixed;left:12px;top:178px;z-index:6;padding:6px 10px;background:rgba(8,12,18,.72);border:1px solid rgba(255,255,255,.14);color:#e8edf5;font:600 13px Bahnschrift,Rajdhani,Arial Narrow,sans-serif;letter-spacing:1.5px;cursor:pointer;user-select:none';
-      b.title = 'Tıkla: oda bağlantısını kopyala';
+      b.title = $t('hud.t.roomTip');
       b.onclick = () => {
         const link = `${location.origin}${location.pathname}?online=${code}`;
-        (navigator.clipboard?.writeText(link) || Promise.reject()).then(() => this.hud.toast('Oda bağlantısı kopyalandı: ' + code, '#9be07f'), () => this.hud.toast('Oda kodu: ' + code, '#9be07f'));
+        (navigator.clipboard?.writeText(link) || Promise.reject()).then(() => this.hud.toast($t('hud.t.roomCopied', { c: code }), '#9be07f'), () => this.hud.toast($t('hud.t.roomCode', { c: code }), '#9be07f'));
       };
       document.body.appendChild(b);
       this._badgeT = 0; this._badgeCode = code;
@@ -345,7 +347,7 @@ export class Game {
     if (ctl) { ctl.pendingClass = null; ctl.pendingLoadout = null; ctl.pendingZ = null; }
     this.netEvent({ e: 'inf', v: s.id, bs: 0, zt: ZT_ORDER.indexOf(s.ztype) + 1, zl: s.zLives });
     this.emit('infect', s);
-    if (s.isPlayer && !this.headless) { this.hud.toast('ENFEKTE OLDUN — zombi olarak doğuyorsun', '#b6ff6a'); this.sfx.zombie?.(s.pos); }
+    if (s.isPlayer && !this.headless) { this.hud.toast($t('hud.t.infected'), '#b6ff6a'); this.sfx.zombie?.(s.pos); }
   }
 
   // Can hakkı biten zombi / boss yeniden insan olarak doğar (seçtiği ya da eski sınıfıyla)
@@ -358,7 +360,7 @@ export class Game {
     if (ctl) { ctl.pendingClass = null; ctl.pendingLoadout = null; ctl.pendingZ = null; }
     this.netEvent({ e: 'cure', v: s.id, cls: s.cls });
     this.emit('cure', s);
-    if (s.isPlayer && !this.headless) this.hud.toast(wasBoss ? 'BOSS DEVRİLDİ — insan oldun' : 'İYİLEŞTİN — yeniden insansın', '#7ec8ff');
+    if (s.isPlayer && !this.headless) this.hud.toast(wasBoss ? $t('hud.t.bossDown') : $t('hud.t.cured'), '#7ec8ff');
   }
 
   // Hazırlık süresi: Enfekte maçın ilk ZOMBIE.grace saniyesinde zombiler hareket/saldırı/güç kullanamaz ve hasar almaz (insanlar yüksek yere çıkar).
@@ -532,7 +534,7 @@ export class Game {
   onLockError() {
     this.lockFails = (this.lockFails || 0) + 1;
     if (this.lockFails >= 4 || !this.canvas.requestPointerLock) { this.fallbackLock(); return; }
-    this.hud.toast('Fare kilitlenemedi, bir saniye sonra tekrar tıkla', '#ffd27a');
+    this.hud.toast($t('hud.t.lockRetry'), '#ffd27a');
   }
 
   // Fare kilidi desteklenmiyorsa (gömülü sayfa vb.): ok tuşlarıyla bak, Esc ile duraklat
@@ -541,7 +543,7 @@ export class Game {
     this.noPointerLock = true;
     this.player.locked = true; this.simulate = true;
     this.hud.setPaused(false);
-    this.hud.toast('Fare kilitlenemedi · bakmak için ok tuşları, duraklatmak için Esc', '#ffd27a');
+    this.hud.toast($t('hud.t.lockFail'), '#ffd27a');
   }
 
   togglePause() {
@@ -746,7 +748,7 @@ export class Game {
       const k = s.lastHit && s.lastHit !== s && s.lastHit.team !== s.team && this.time - s.lastDmgT < 5 ? s.lastHit : null;
       s.protT = 0;
       s.die(k || s, k ? 'Kuyuya düşürdü' : 'Kuyuya düştü', false);
-      if (s.isPlayer && !this.headless) this.hud.toast(k ? `${k.name} seni kuyuya düşürdü` : 'Kuyuya düştün', '#ff8a6a');
+      if (s.isPlayer && !this.headless) this.hud.toast(k ? $t('hud.t.pitBy', { k: k.name }) : $t('hud.t.pit'), '#ff8a6a');
     }
   }
 
@@ -797,8 +799,8 @@ export class Game {
     this.tickets[v.team] += 1;
     if (v.brain) v.brain.reset();
     medic.score += 80;
-    if (v.isPlayer) { this.pendingClass = null; this.hud.onPlayerSpawn?.(); this.hud.toast(`${medic.name} seni canlandırdı`, '#9be07f'); }
-    if (medic.isPlayer) { this.hud.popup('+80 CANLANDIRMA'); this.hud.toast(`${v.name} canlandırıldı`, '#9be07f'); }
+    if (v.isPlayer) { this.pendingClass = null; this.hud.onPlayerSpawn?.(); this.hud.toast($t('hud.t.revivedBy', { n: medic.name }), '#9be07f'); }
+    if (medic.isPlayer) { this.hud.popup('+80 CANLANDIRMA'); this.hud.toast($t('hud.t.revived', { n: v.name }), '#9be07f'); }
     this.effects.spark?.(v.pos.clone().setY(v.pos.y + 1), 6, new THREE.Vector3(0, 1, 0));
   }
 
@@ -1008,22 +1010,22 @@ export class Game {
         }
         case 'dep': netDeploy(this, ev); break;
         case 'depx': netUndeploy(this, ev.id); break;
-        case 'ammo': if (ev.v === me.id) { this.hud.toast('Mühimmat dolduruldu', '#9be07a'); this.sfx.deploy(me.pos); } break;
+        case 'ammo': if (ev.v === me.id) { this.hud.toast($t('hud.t.ammo'), '#9be07a'); this.sfx.deploy(me.pos); } break;
         case 'rld': if (by && by !== me) { by.reloadStyle = ev.s; by.reloadTotal = by.reloadT = ev.t; by.reloadEmpty = !!ev.em; by.shellT = ev.sh; } break;
         case 'inf': {                                // bir insan zombi oldu: takım + sınıf (model) değişir
           const v = this.soldiers[ev.v]; if (!v) break;
           v.team = 'red'; v.boss = !!ev.bs; v.zLives = ev.zl ?? 2; v.ztype = ZT_ORDER[(ev.zt || 1) - 1] || 'walker'; v.setClass('zombie');
-          if (v === me) { this.hud.toast('ENFEKTE OLDUN — zombi olarak doğuyorsun', '#b6ff6a'); this.sfx.zombie?.(v.pos); }
+          if (v === me) { this.hud.toast($t('hud.t.infected'), '#b6ff6a'); this.sfx.zombie?.(v.pos); }
           break;
         }
         case 'cure': {                              // can hakkı bitti: yeniden insan
           const v = this.soldiers[ev.v]; if (!v) break;
           v.team = 'blue'; v.boss = false; v.zLives = 0; v.cloakNet = false; v.setClass(ev.cls || 'assault');
-          if (v === me) this.hud.toast('İYİLEŞTİN — yeniden insansın', '#7ec8ff');
+          if (v === me) this.hud.toast($t('hud.t.cured'), '#7ec8ff');
           break;
         }
         case 'ab': if (by) this.showAbilityFx(by, ev.k, { x: ev.f[0], y: ev.f[1], z: ev.f[2] }, { x: ev.d[0], y: ev.d[1], z: ev.d[2] }); break;
-        case 'lvl': { const v = this.soldiers[ev.v]; if (v) { const up = ev.l > v.ggLevel; v.ggLevel = ev.l; if (v === me && up) this.showLevel(v, true); else if (v === me) this.hud.toast(`Bıçakla öldürüldün: Seviye ${ev.l + 1}/${GG_LADDER.length}`, '#ff8a6a'); } break; }
+        case 'lvl': { const v = this.soldiers[ev.v]; if (v) { const up = ev.l > v.ggLevel; v.ggLevel = ev.l; if (v === me && up) this.showLevel(v, true); else if (v === me) this.hud.toast($t('hud.t.knifed', { n: ev.l + 1, m: GG_LADDER.length }), '#ff8a6a'); } break; }
         case 'pb': case 'pbh': this.paint.onNet(ev); break;          // paintball: top doğdu / oyuncuya isabet
         case 'swg': if (by && by !== me) { by.swing = { t: 0, dur: ev.d, kind: ev.k, idx: 0, done: true }; by.comboT = ev.d + 0.38; } break;
       }
@@ -1032,8 +1034,8 @@ export class Game {
 
   // ───── çevrimiçi: M ile takım seçimi ─────
   toggleTeamMenu(show = !this._tm) {
-    if (this.ffa) { if (show) this.hud.toast(this.mode.paintball ? 'Paintball\'da takım yok: herkes tek' : 'Ölüm maçında takım yok: herkes tek', '#cfd3d8'); return; }
-    if (this.mode.infection) { if (show) this.hud.toast('Enfekte modunda takım seçilmez', '#cfd3d8'); return; }
+    if (this.ffa) { if (show) this.hud.toast(this.mode.paintball ? $t('hud.t.noTeamPb') : $t('hud.t.noTeamDm'), '#cfd3d8'); return; }
+    if (this.mode.infection) { if (show) this.hud.toast($t('hud.t.noTeamInf'), '#cfd3d8'); return; }
     if (!show) { this._tm?.remove(); this._tm = null; if (!this.ended) this.hud.setPaused(!this.player.locked); return; }
     if (this._tm) return;
     document.exitPointerLock?.();
@@ -1047,18 +1049,18 @@ export class Game {
       const full = cnt(t) >= cap, mine = me.team === t;
       return `<button data-t="${t}" ${full || mine ? 'disabled' : ''} style="all:unset;box-sizing:border-box;cursor:${full || mine ? 'default' : 'pointer'};width:240px;padding:22px 18px;margin:0 10px;text-align:center;background:${col}22;border:2px solid ${col};opacity:${full || mine ? .5 : 1}">
         <div style="font-size:30px;font-weight:800;letter-spacing:4px;color:${col}">${name}</div>
-        <div style="font-size:18px;margin-top:8px"><b>${cnt(t)}</b> / ${cap} oyuncu</div><div style="font-size:13px;opacity:.7;margin-top:2px">${bots(t)} bot</div>
-        <div style="font-size:13px;margin-top:10px;letter-spacing:2px">${mine ? 'SENİN TAKIMIN' : full ? 'DOLU' : 'KATIL'}</div></button>`;
+        <div style="font-size:18px;margin-top:8px">${$t('hud.tm.players', { n: `<b>${cnt(t)}</b>`, c: cap })}</div><div style="font-size:13px;opacity:.7;margin-top:2px">${$t('hud.tm.bots', { n: bots(t) })}</div>
+        <div style="font-size:13px;margin-top:10px;letter-spacing:2px">${mine ? $t('hud.tm.mine') : full ? $t('hud.tm.full') : $t('hud.tm.join')}</div></button>`;
     };
-    el.innerHTML = `<div style="text-align:center"><div style="font-size:15px;letter-spacing:5px;opacity:.7;margin-bottom:14px">TAKIM SEÇ</div>
-      <div style="display:flex;justify-content:center">${card('blue', 'MAVİ', '#4aa3ff')}${card('red', 'KIRMIZI', '#ff5a43')}</div>
+    el.innerHTML = `<div style="text-align:center"><div style="font-size:15px;letter-spacing:5px;opacity:.7;margin-bottom:14px">${$t('hud.tm.title')}</div>
+      <div style="display:flex;justify-content:center">${card('blue', $t('hud.blue'), '#4aa3ff')}${card('red', $t('hud.red'), '#ff5a43')}</div>
       <div id="tmMsg" style="margin-top:16px;font-size:14px;min-height:20px;color:#ffcf7a"></div>
-      <div style="margin-top:6px;font-size:13px;opacity:.6">Takım değiştirmek odaya yeniden bağlanır · M veya Esc: kapat</div></div>`;
+      <div style="margin-top:6px;font-size:13px;opacity:.6">${$t('hud.tm.hint')}</div></div>`;
     el.addEventListener('click', (e) => {
       const b = e.target.closest('button[data-t]');
       if (!b) { if (e.target === el) this.toggleTeamMenu(false); return; }
       if (b.disabled) return;
-      el.querySelector('#tmMsg').textContent = 'İstek gönderiliyor…';
+      el.querySelector('#tmMsg').textContent = $t('hud.tm.sending');
       this.online.send({ t: 'team', team: b.dataset.t });
     });
     document.body.appendChild(el);
@@ -1066,8 +1068,8 @@ export class Game {
 
   onNetTeam(m) {
     const msg = this._tm?.querySelector('#tmMsg');
-    if (!m.ok) { if (msg) msg.textContent = m.msg || 'Takım değiştirilemedi'; else this.hud.toast(m.msg || 'Takım değiştirilemedi', '#ff8a7a'); return; }
-    if (msg) msg.textContent = 'Geçiliyor…';
+    if (!m.ok) { if (msg) msg.textContent = m.msg || $t('hud.t.teamFail'); else this.hud.toast(m.msg || $t('hud.t.teamFail'), '#ff8a7a'); return; }
+    if (msg) msg.textContent = $t('hud.tm.switching');
     const u = new URL(location.href); u.searchParams.set('team', m.team);        // yeniden katılırken bu takım istenir
     this.ended = true;                                                              // bağlantı kopma ekranı çıkmasın
     this.online?.ws.close();
@@ -1086,9 +1088,9 @@ export class Game {
 
   onNetClosed() {
     if (this.ended) return;
-    this.hud.toast('Sunucu bağlantısı koptu', '#ff8a7a');
+    this.hud.toast($t('hud.t.disconnected'), '#ff8a7a');
     this.ended = true; this.running = false;
-    this.hud.showEnd(false, 'BAĞLANTI KOPTU', 'Sunucuyla bağlantı kesildi.', '');
+    this.hud.showEnd(false, $t('end.lost'), $t('end.lostInfo'), '');
   }
 
   // ───── lag compensation: son HN adımın konum geçmişi; atış anında hedefler istemcinin gördüğü ana geri sarılır ─────
@@ -1478,9 +1480,9 @@ export class Game {
     if (this.headless) return;
     if (o.owner) {
       const good = o.owner === mine;
-      this.hud.toast(`${o.name} ${good ? 'ele geçirildi' : 'düşman tarafından ele geçirildi'}`, good ? '#7ec8ff' : '#ff8a7a');
+      this.hud.toast($t(good ? 'hud.t.captured' : 'hud.t.lost', { f: placeName(o.name) }), good ? '#7ec8ff' : '#ff8a7a');
       this.sfx.capture();
-    } else if (prev) this.hud.toast(`${o.name} tarafsız oldu`, '#cfd3d8');
+    } else if (prev) this.hud.toast($t('hud.t.neutral', { f: placeName(o.name) }), '#cfd3d8');
   }
 
   // ───── Silah Yarışı ─────
@@ -1492,7 +1494,7 @@ export class Game {
   ggDemote(v) {
     v.ggLevel = Math.max(0, v.ggLevel - 1);                                    // ölü: yeni seviye doğuşta uygulanır (spawn → ggItems)
     this.netEvent({ e: 'lvl', v: v.id, l: v.ggLevel });
-    if (v.isPlayer && !this.headless) this.hud.toast(`Bıçakla öldürüldün: Seviye ${v.ggLevel + 1}/${GG_LADDER.length}`, '#ff8a6a');
+    if (v.isPlayer && !this.headless) this.hud.toast($t('hud.t.knifed', { n: v.ggLevel + 1, m: GG_LADDER.length }), '#ff8a6a');
   }
   showLevel(s, up) {
     if (!s.isPlayer || this.headless) return;
@@ -1529,25 +1531,25 @@ export class Game {
     let w = null, why = '';
     if (this.mode.gungame) {
       const best = ffaRanking(this.soldiers, true)[0];
-      if (this.ggWinner) { w = this.ggWinner.team; why = `${this.ggWinner.name} son silahla (bıçak) kazandı`; }
-      else if (this.timeLeft <= 0 && best) { w = best.team; why = `Süre doldu · ${best.name} seviye ${best.ggLevel + 1} ile kazandı`; }
+      if (this.ggWinner) { w = this.ggWinner.team; why = $t('end.ggKnife', { n: this.ggWinner.name }); }
+      else if (this.timeLeft <= 0 && best) { w = best.team; why = $t('end.ggTime', { n: best.name, l: best.ggLevel + 1 }); }
     } else if (this.ffa) {
       const [best, second] = ffaRanking(this.soldiers, false);
-      if (best && best.kills >= this.mode.killLimit) { w = best.team; why = `${best.name} ${best.kills} öldürmeye ulaştı`; }
-      else if (this.timeLeft <= 0 && best) { w = best.team; why = `Süre doldu · ${best.name} ${best.kills} öldürmeyle kazandı${second && second.kills === best.kills ? ' (eşitlikte puanı yüksek)' : ''}`; }   // eşit öldürmede puan ayırır
+      if (best && best.kills >= this.mode.killLimit) { w = best.team; why = $t('end.dmReach', { n: best.name, k: best.kills }); }
+      else if (this.timeLeft <= 0 && best) { w = best.team; why = $t('end.dmTime', { n: best.name, k: best.kills }) + (second && second.kills === best.kills ? $t('end.dmTie') : ''); }   // eşit öldürmede puan ayırır
     } else if (this.mode.infection) {
       const c = this.infCounts();
-      if (c.h <= 0) { w = 'red'; why = 'Tüm insanlar enfekte oldu'; }
-      else if (c.z <= 0 && this.time > 2) { w = 'blue'; why = 'Tüm zombiler iyileşti'; }
-      else if (this.timeLeft <= 0) { w = 'blue'; why = `${c.h} insan hayatta kaldı`; }
+      if (c.h <= 0) { w = 'red'; why = $t('end.infAll'); }
+      else if (c.z <= 0 && this.time > 2) { w = 'blue'; why = $t('end.infCured'); }
+      else if (this.timeLeft <= 0) { w = 'blue'; why = $t('end.infSurv', { n: c.h }); }
     } else if (this.mode.scoreBased) {
       const lim = this.mode.tickets;
-      if (this.tickets.blue >= lim) { w = 'blue'; why = `Mavi takım ${lim} skora ulaştı`; }
-      else if (this.tickets.red >= lim) { w = 'red'; why = `Kırmızı takım ${lim} skora ulaştı`; }
-      else if (this.timeLeft <= 0) { w = this.tickets.blue >= this.tickets.red ? 'blue' : 'red'; why = 'Süre doldu'; }
-    } else if (this.tickets.blue <= 0) { w = 'red'; why = 'Mavi takımın biletleri tükendi'; }
-    else if (this.tickets.red <= 0) { w = 'blue'; why = 'Kırmızı takımın biletleri tükendi'; }
-    else if (this.timeLeft <= 0) { w = this.tickets.blue >= this.tickets.red ? 'blue' : 'red'; why = 'Süre doldu'; }
+      if (this.tickets.blue >= lim) { w = 'blue'; why = $t('end.tdmBlue', { n: lim }); }
+      else if (this.tickets.red >= lim) { w = 'red'; why = $t('end.tdmRed', { n: lim }); }
+      else if (this.timeLeft <= 0) { w = this.tickets.blue >= this.tickets.red ? 'blue' : 'red'; why = $t('end.time'); }
+    } else if (this.tickets.blue <= 0) { w = 'red'; why = $t('end.blueOut'); }
+    else if (this.tickets.red <= 0) { w = 'blue'; why = $t('end.redOut'); }
+    else if (this.timeLeft <= 0) { w = this.tickets.blue >= this.tickets.red ? 'blue' : 'red'; why = $t('end.time'); }
     if (!w) return;
     this.ended = true;
     this.running = false;
@@ -1562,12 +1564,12 @@ export class Game {
     const list = this.soldiers.filter((s) => (this.ffa ? !s.vacant : s.team === me.team)).sort((a, b) => b.score - a.score);
     const xp = Math.round(me.score + (win ? 300 : 80));
     const inf = this.mode.infection;
-    const wname = this.ffa ? (this.soldiers.find((s) => s.team === w)?.name || '') : inf ? (w === 'red' ? 'Zombiler' : 'İnsanlar') : TEAMS[w].name;
+    const wname = this.ffa ? (this.soldiers.find((s) => s.team === w)?.name || '') : inf ? (w === 'red' ? $t('hud.zombies') : $t('hud.humans')) : $t(`hud.team.${w}`);
     const gg = this.mode.gungame;
-    const sub = this.ffa ? `Sıralama: ${ffaRanking(this.soldiers, gg).slice(0, 3).map((s, i) => `${i + 1}. ${s.name} (${gg ? 'Sv ' : ''}${ffaMetric(s, gg)})`).join(' · ')}` : inf ? `İnsan ${this.tickets.blue} – ${this.tickets.red} Zombi · Takımın en iyisi: ${list[0].name} (${list[0].score})` : `Mavi ${Math.max(0, Math.round(this.tickets.blue))} – ${Math.max(0, Math.round(this.tickets.red))} Kırmızı · Takımın en iyisi: ${list[0].name} (${list[0].score})`;
-    const rows = `<div class="mvp"><div class="st"><b>${me.kills}</b><small>Öldürme</small></div><div class="st"><b>${me.deaths}</b><small>Ölüm</small></div><div class="st"><b>${me.score}</b><small>Puan</small></div><div class="st"><b>+${xp}</b><small>XP</small></div></div><small style="opacity:.75">${sub}</small>`;
+    const sub = this.ffa ? $t('end.rank', { r: ffaRanking(this.soldiers, gg).slice(0, 3).map((s, i) => `${i + 1}. ${s.name} (${gg ? $t('end.lv') : ''}${ffaMetric(s, gg)})`).join(' · ') }) : inf ? $t('end.infScore', { h: this.tickets.blue, z: this.tickets.red, n: list[0].name, s: list[0].score }) : $t('end.score', { b: Math.max(0, Math.round(this.tickets.blue)), r: Math.max(0, Math.round(this.tickets.red)), n: list[0].name, s: list[0].score });
+    const rows = `<div class="mvp"><div class="st"><b>${me.kills}</b><small>${$t('end.kills')}</small></div><div class="st"><b>${me.deaths}</b><small>${$t('end.deaths')}</small></div><div class="st"><b>${me.score}</b><small>${$t('end.points')}</small></div><div class="st"><b>+${xp}</b><small>XP</small></div></div><small style="opacity:.75">${sub}</small>`;
     this.opts.onMatchEnd?.({ score: me.score, kills: me.kills, deaths: me.deaths, win });
-    this.hud.showEnd(win, win ? 'ZAFER!' : 'YENİLGİ', this.ffa ? `${why}.` : `${why}. ${wname} kazandı.`, rows);
+    this.hud.showEnd(win, win ? $t('end.win') : $t('end.lose'), this.ffa ? `${why}.` : `${why}. ${$t('end.won', { w: wname })}`, rows);
   }
 
   exit() { this.dispose(); this.opts.onExit?.(); }

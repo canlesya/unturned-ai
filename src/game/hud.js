@@ -1,46 +1,56 @@
 import { InGameSettings } from './ingameSettings.js';
-import { TEAMS } from '../core/palette.js';
-import { WSTATS, CLASS_DEFS, BLEED_S, ZTYPES, ZT_ORDER } from './stats.js';
+import { WSTATS, CLASS_DEFS, ZTYPES, ZT_ORDER } from './stats.js';
 import { clamp } from './util.js';
 import { codeLabel } from '../core/keybinds.js';
 import { TUNE } from './balance.js';
 import { ffaRanking, ffaMetric } from './match.js';
+import { t, onLang } from '../i18n/index.js';
+import { mapName, modeLabel, className } from '../i18n/data.js';
+import { wName, wLabel, classDesc, ztName, ztDesc, abilName, opticName, fireName, teamName, popText, mapText, dispName, placeName } from '../i18n/game.js';
 
+const EN = (s) => String(s).replace(/Paintball/g, '<span lang="en">Paintball</span>');   // tr büyük harfte 'PAİNTBALL' olmasın (marka adı)
+const setH = (el, h) => { if (el._h !== h) { el._h = h; el.innerHTML = h; } };     // yalnız değişince yaz (her kare)
+const HS_SVG = '<svg class="hsi" viewBox="0 0 16 16"><circle cx="8" cy="7" r="4.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 0v4M8 10v6M0 7h4M12 7h4" stroke="currentColor" stroke-width="1.6"/></svg>';
 const CSS = `
-#hud{position:fixed;inset:0;pointer-events:none;font-family:Bahnschrift,'Rajdhani','Arial Narrow','Segoe UI',system-ui,sans-serif;color:#fff;user-select:none;z-index:5;letter-spacing:.5px}
+#hud{position:fixed;inset:0;pointer-events:none;font-family:Bahnschrift,'Rajdhani','Arial Narrow','Segoe UI',system-ui,sans-serif;color:#fff;user-select:none;z-index:5;letter-spacing:.5px;
+  --acc:#ff8a1f;--acc2:#ffb347;--pan:rgba(9,13,19,.74);--pan2:rgba(14,19,27,.9);--ln:rgba(255,255,255,.12);--dim:rgba(255,255,255,.62)}
 #hud *{box-sizing:border-box}
 .blue{--c:#4aa3ff}.red{--c:#ff5a43}
-#hud .glass{background:rgba(9,13,19,.62);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(4px)}
-/* üst orta: bilet + süre + bayraklar + pusula */
+#hud .glass{background:var(--pan);border:1px solid var(--ln);backdrop-filter:blur(4px)}
+/* üst orta: skor kutuları + süre + bayraklar + pusula */
 #topbar{position:absolute;left:50%;top:10px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px}
-#score{display:flex;align-items:stretch;height:50px}
-#score .tk{position:relative;min-width:128px;padding:4px 16px 0;font-weight:800;font-size:28px;text-align:center;line-height:1.05;background:rgba(9,13,19,.66);border:1px solid rgba(255,255,255,.12)}
-#score .tk small{display:block;font-size:10px;font-weight:700;letter-spacing:3px;opacity:.8}
-#score .tk .bar{position:absolute;left:0;right:0;bottom:0;height:4px;background:rgba(255,255,255,.12)}
-#score .tk .bar i{display:block;height:100%;background:var(--c);transition:width .3s}
-#score .tk.blue{color:#9fd0ff;clip-path:polygon(0 0,100% 0,calc(100% - 12px) 100%,0 100%)}
-#score .tk.red{color:#ffb3a6;clip-path:polygon(12px 0,100% 0,100% 100%,0 100%)}
+#score{display:flex;align-items:stretch;height:54px;filter:drop-shadow(0 4px 12px rgba(0,0,0,.45))}
+#score .tk{position:relative;min-width:140px;padding:6px 18px 0;font-weight:800;font-size:30px;text-align:center;line-height:1.02;background:linear-gradient(180deg,rgba(16,22,31,.92),rgba(8,11,16,.8));border-top:3px solid var(--c);font-variant-numeric:tabular-nums}
+#score .tk small{display:block;font-size:10px;font-weight:700;letter-spacing:3px;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px;margin:0 auto}
+#score .tk .bar{position:absolute;left:0;right:0;bottom:0;height:4px;background:rgba(255,255,255,.1)}
+#score .tk .bar i{display:block;height:100%;background:var(--c);box-shadow:0 0 8px var(--c);transition:width .3s}
+#score .tk.blue{color:#a9d4ff;clip-path:polygon(0 0,100% 0,calc(100% - 14px) 100%,0 100%);padding-right:24px}
+#score .tk.red{color:#ffbcae;clip-path:polygon(14px 0,100% 0,100% 100%,0 100%);padding-left:24px}
 #score .tk.blue .bar i{float:right}
-#score .tk small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px;margin:0 auto}#score .tk.lead{color:#ffd36a;--c:#ffd36a}#score .tk.lead small{opacity:1}#score .tk.tie{color:#e8e8e8}
-#timer small{display:block;font-size:10px;font-weight:700;letter-spacing:2px;opacity:.7;margin-top:-2px}
-#timer{padding:5px 16px 0;line-height:1.1;font-size:22px;font-weight:700;min-width:84px;text-align:center;background:rgba(9,13,19,.85);border:1px solid rgba(255,255,255,.12);border-width:1px 0}
-#flags{display:flex;gap:7px}
-.flag{width:34px;height:34px;border-radius:50%;background:rgba(9,13,19,.7);border:3px solid #888;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;position:relative}
-.flag i{position:absolute;inset:-3px;border-radius:50%}
+#score .tk.lead{color:#ffd36a;--c:#ffd36a}#score .tk.lead small{opacity:1}#score .tk.tie{color:#e8e8e8}
+#timer{position:relative;margin:0 -7px;padding:7px 22px 0;line-height:1.05;font-size:24px;font-weight:800;min-width:100px;text-align:center;background:linear-gradient(180deg,#141b25,#0a0e14);clip-path:polygon(0 0,100% 0,calc(100% - 12px) 100%,12px 100%);font-variant-numeric:tabular-nums;z-index:1}
+#timer::after{content:'';position:absolute;left:16px;right:16px;bottom:0;height:3px;background:var(--acc)}
+#timer small{display:block;font-size:10px;font-weight:700;letter-spacing:2px;color:var(--acc2);margin-top:0}
+#flags{display:flex;gap:8px}
+.flag{width:34px;height:34px;border-radius:50%;background:radial-gradient(circle at 50% 35%,rgba(30,38,50,.95),rgba(9,13,19,.85));border:3px solid #888;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;position:relative;box-shadow:0 2px 8px rgba(0,0,0,.5)}
+.flag i{position:absolute;inset:-3px;border-radius:50%;-webkit-mask:radial-gradient(circle,transparent 58%,#000 60%);mask:radial-gradient(circle,transparent 58%,#000 60%)}
 .flag span{position:relative;z-index:1}
-#compass{width:460px;height:30px;position:relative;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent);mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent)}
+#compass{width:460px;height:30px;position:relative;overflow:hidden;background:linear-gradient(90deg,transparent,rgba(9,13,19,.45) 20%,rgba(9,13,19,.45) 80%,transparent);-webkit-mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent);mask-image:linear-gradient(90deg,transparent,#000 18%,#000 82%,transparent)}
 #compass canvas{width:100%;height:100%;display:block}
 /* mini harita */
-#mmwrap{position:absolute;left:16px;top:16px;padding:4px;border:1px solid rgba(255,255,255,.22);background:rgba(9,13,19,.7);box-shadow:0 4px 18px rgba(0,0,0,.5)}
-#mmwrap::before{content:'';position:absolute;left:-1px;top:-1px;width:14px;height:14px;border-left:3px solid #ff8a1f;border-top:3px solid #ff8a1f}
-#mmwrap::after{content:'';position:absolute;right:-1px;bottom:-1px;width:14px;height:14px;border-right:3px solid #ff8a1f;border-bottom:3px solid #ff8a1f}
+#mmwrap{position:absolute;left:16px;top:16px;padding:4px 4px 22px;border:1px solid rgba(255,255,255,.16);background:rgba(9,13,19,.78);box-shadow:0 6px 22px rgba(0,0,0,.5)}
+#mmwrap::before{content:'';position:absolute;left:-1px;top:-1px;width:16px;height:16px;border-left:3px solid var(--acc);border-top:3px solid var(--acc)}
+#mmwrap::after{content:'';position:absolute;right:-1px;bottom:-1px;width:16px;height:16px;border-right:3px solid var(--acc);border-bottom:3px solid var(--acc)}
 #minimap{display:block;background:#2a3a1f}
-#mmname{position:absolute;left:8px;bottom:7px;font-size:11px;font-weight:700;letter-spacing:2px;color:#fff;text-shadow:0 1px 3px #000;text-transform:uppercase}
+#mmname{position:absolute;left:8px;right:8px;bottom:4px;font-size:11px;font-weight:700;letter-spacing:2px;color:#fff;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#mmname b{color:var(--acc2);font-weight:700}
 /* öldürme akışı */
 #killfeed{position:absolute;right:16px;top:16px;display:flex;flex-direction:column;align-items:flex-end;gap:4px}
-.kf{background:rgba(9,13,19,.68);padding:4px 12px;font-size:15px;animation:kf 6s forwards;white-space:nowrap;border-right:3px solid #888;font-weight:600}
-.kf.me{border-right-color:#ff8a1f;background:rgba(60,34,8,.78)}
-.kf .b{color:#8cc4ff}.kf .r{color:#ff9a88}.kf .w{opacity:.8;font-size:12px;margin:0 8px;color:#ffd9a8;letter-spacing:1px}
+.kf{display:flex;align-items:center;background:linear-gradient(90deg,rgba(9,13,19,.35),rgba(9,13,19,.78) 22%);padding:4px 12px 4px 18px;font-size:15px;animation:kf 6s forwards;white-space:nowrap;border-right:3px solid rgba(255,255,255,.35);font-weight:700}
+.kf.me{border-right-color:var(--acc);background:linear-gradient(90deg,rgba(60,34,8,.35),rgba(70,38,8,.85) 22%)}
+.kf .b{color:#8cc4ff}.kf .r{color:#ff9a88}
+.kf .w{font-size:11px;margin:0 9px;color:#ffe2bd;letter-spacing:1px;padding:1px 7px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);text-transform:uppercase;display:inline-flex;align-items:center;gap:5px}
+.kf .w .hsi{width:12px;height:12px;color:#ff6a4a}
 @keyframes kf{0%{opacity:0;transform:translateX(24px)}5%{opacity:1;transform:none}85%{opacity:1}100%{opacity:0}}
 /* nişan */
 #cross{position:absolute;left:50%;top:50%;width:0;height:0}
@@ -54,49 +64,56 @@ const CSS = `
 #hitm::before,#hitm::after{content:'';position:absolute;left:12px;top:-2px;width:2px;height:30px;background:#fff;transform:rotate(45deg)}
 #hitm::after{transform:rotate(-45deg)}
 #hitm.k::before,#hitm.k::after{background:#ff3b2f}
-/* sağlık / sınıf */
+/* enfekte: BOSS can çubukları */
 #bosses{width:340px;margin-top:4px;pointer-events:none;text-shadow:0 1px 4px #000}
 #bosses .bs{margin-bottom:6px;font-size:12px;font-weight:800;letter-spacing:3px;text-transform:uppercase;color:#ff6a4a;text-align:center}
 #bosses .bs i{font-style:normal;color:#ff9a8a;letter-spacing:1px}
-#bosses .bar{height:8px;background:rgba(255,255,255,.14);border:1px solid rgba(255,80,50,.5);margin-top:3px}
-#bosses .bar i{display:block;height:100%;background:linear-gradient(90deg,#8a1010,#ff3a1a);transition:width .25s}
+#bosses .bar{height:8px;background:rgba(0,0,0,.5);border:1px solid rgba(255,80,50,.55);margin-top:3px;transform:skewX(-18deg)}
+#bosses .bar i{display:block;height:100%;background:linear-gradient(90deg,#8a1010,#ff3a1a);box-shadow:0 0 8px #ff3a1a88;transition:width .25s}
 #bosses .dead{opacity:.45}
-#abil{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);width:300px;white-space:nowrap;text-align:center;display:none;text-shadow:0 1px 4px #000;font-weight:700;letter-spacing:2px;text-transform:uppercase}
-#abil .an{font-size:14px;margin-bottom:4px}#abil b{display:inline-block;min-width:22px;padding:1px 6px;margin-right:8px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4)}
-#abil .bar{height:6px;background:rgba(255,255,255,.18)}#abil .bar i{display:block;height:100%;width:100%;background:#8dff5a}
-#abil.cd .bar i{background:#a8a8a8}#abil.on .bar i{background:#ff8a1f}#abil.on{color:#ffb35c}
-#vitals{position:absolute;left:20px;bottom:20px;width:300px;text-shadow:0 1px 4px #000}
-#vitals .cls{font-size:13px;font-weight:700;letter-spacing:3px;opacity:.9;text-transform:uppercase}
+/* zombi özel gücü */
+#abil{position:absolute;left:50%;bottom:26px;transform:translateX(-50%);width:320px;white-space:nowrap;text-align:center;display:none;text-shadow:0 1px 4px #000;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:8px 12px 10px;background:linear-gradient(180deg,rgba(9,13,19,0),rgba(9,13,19,.7));}
+#abil .an{font-size:14px;margin-bottom:6px;display:flex;align-items:center;justify-content:center}#abil b{display:inline-block;min-width:22px;padding:2px 7px;margin-right:10px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.4);font-size:12px}
+#abil .bar{height:6px;background:rgba(255,255,255,.16);transform:skewX(-18deg)}#abil .bar i{display:block;height:100%;width:100%;background:#8dff5a;box-shadow:0 0 8px #8dff5a88}
+#abil.cd .bar i{background:#a8a8a8;box-shadow:none}#abil.on .bar i{background:var(--acc)}#abil.on{color:var(--acc2)}
+/* sağlık / sınıf */
+#vitals{position:absolute;left:20px;bottom:20px;width:320px;text-shadow:0 1px 4px #000;padding:10px 14px 8px;background:linear-gradient(90deg,rgba(9,13,19,.72),rgba(9,13,19,0));border-left:3px solid var(--acc)}
+#vitals .cls{font-size:13px;font-weight:700;letter-spacing:3px;opacity:.95;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #vitals .row{display:flex;align-items:flex-end;gap:12px;margin-top:2px}
-#hpnum{font-size:54px;font-weight:800;line-height:.9;min-width:96px}
-#hpnum small{font-size:16px;opacity:.7;margin-left:3px;font-weight:600}
-#hpbar{flex:1;height:12px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.28);transform:skewX(-18deg);margin-bottom:6px;overflow:hidden}
-#hpfill{height:100%;background:linear-gradient(90deg,#3ecf5b,#8be67a);width:100%;transition:width .15s}
-#stance{margin-top:4px;font-size:12px;letter-spacing:2px;opacity:.85;min-height:15px;text-transform:uppercase}
+#hpnum{font-size:54px;font-weight:800;line-height:.9;min-width:100px;font-variant-numeric:tabular-nums}
+#hpnum small{font-size:15px;opacity:.65;margin-left:4px;font-weight:700;letter-spacing:1px}
+#hpbar{flex:1;height:12px;background:rgba(0,0,0,.55);border:1px solid rgba(255,255,255,.25);transform:skewX(-18deg);margin-bottom:7px;overflow:hidden;position:relative}
+#hpbar::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(90deg,transparent 0 calc(25% - 2px),rgba(0,0,0,.55) calc(25% - 2px) 25%)}
+#hpfill{height:100%;background:linear-gradient(90deg,#3ecf5b,#8be67a);width:100%;transition:width .15s;box-shadow:0 0 10px rgba(110,230,120,.45)}
+#stance{margin-top:5px;font-size:12px;letter-spacing:2px;opacity:.85;min-height:15px;text-transform:uppercase;white-space:nowrap}
 /* cephane */
-#ammo{position:absolute;right:22px;bottom:20px;text-align:right;text-shadow:0 1px 4px #000}
-#ammo .nm{font-size:15px;font-weight:700;letter-spacing:3px;text-transform:uppercase;opacity:.92;margin-bottom:0}
-#ammo .n{font-size:64px;font-weight:800;line-height:.95}
-#ammo .n small{font-size:26px;opacity:.7;font-weight:600}
+#ammo{position:absolute;right:22px;bottom:20px;text-align:right;text-shadow:0 1px 4px #000;padding:8px 14px 0 30px;background:linear-gradient(270deg,rgba(9,13,19,.62),rgba(9,13,19,0));border-right:3px solid var(--acc)}
+#ammo .nm{font-size:15px;font-weight:700;letter-spacing:3px;text-transform:uppercase;opacity:.95;margin-bottom:0;color:#ffe2bd}
+#ammo .n{font-size:64px;font-weight:800;line-height:.95;font-variant-numeric:tabular-nums}
+#ammo .n small{font-size:26px;opacity:.6;font-weight:600}
 #ammo .n.low #mag{color:#ff6a4a}
-#slots{display:flex;gap:6px;justify-content:flex-end;margin-top:8px}
-.slot{padding:4px 10px;background:rgba(9,13,19,.6);font-size:12px;border:1px solid rgba(255,255,255,.14);opacity:.7;letter-spacing:1px;text-transform:uppercase;transform:skewX(-10deg)}
+#slots{display:flex;gap:6px;justify-content:flex-end;margin:8px 0 8px}
+.slot{padding:4px 10px;background:rgba(9,13,19,.66);font-size:12px;border:1px solid rgba(255,255,255,.14);opacity:.72;letter-spacing:1px;text-transform:uppercase;transform:skewX(-10deg);transition:opacity .15s}
 .slot span{display:inline-block;transform:skewX(10deg)}
-.slot b{color:#ff8a1f;margin-right:5px}
-.slot.on{border-color:#ff8a1f;opacity:1;background:rgba(80,42,8,.75)}
+.slot b{color:var(--acc);margin-right:5px}
+.slot.on{border-color:var(--acc);opacity:1;background:linear-gradient(180deg,rgba(110,58,10,.85),rgba(70,38,8,.85));box-shadow:0 0 10px rgba(255,138,31,.35)}
 .slot.empty{opacity:.28;text-decoration:line-through}
 /* bildirimler */
 #toasts{position:absolute;left:50%;top:132px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:4px}
-.toast{padding:6px 18px;background:rgba(9,13,19,.74);font-weight:700;font-size:17px;letter-spacing:1px;animation:ts 3.2s forwards;border-left:3px solid #ff8a1f;border-right:3px solid #ff8a1f}
+.toast{padding:7px 20px;background:linear-gradient(90deg,rgba(9,13,19,.2),rgba(9,13,19,.82) 14%,rgba(9,13,19,.82) 86%,rgba(9,13,19,.2));font-weight:700;font-size:17px;letter-spacing:1px;animation:ts 3.2s forwards;border-top:1px solid rgba(255,138,31,.55);border-bottom:1px solid rgba(255,138,31,.55);text-shadow:0 1px 3px #000;white-space:nowrap}
+#topbar:has(#bosses:not(:empty)) ~ #toasts{top:184px}      /* enfekte: BOSS çubuklarının altına */
 @keyframes ts{0%{opacity:0;transform:translateY(-8px)}8%{opacity:1;transform:none}85%{opacity:1}100%{opacity:0}}
 #pops{position:absolute;left:50%;top:56%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:2px;pointer-events:none}
 .pop{font-size:22px;font-weight:800;letter-spacing:2px;color:#ffd27a;text-shadow:0 2px 6px #000;animation:pp 1.6s forwards}
 .pop.head{color:#ff6a4a}
 @keyframes pp{0%{opacity:0;transform:translateY(10px) scale(.8)}12%{opacity:1;transform:none scale(1.08)}80%{opacity:1}100%{opacity:0;transform:translateY(-20px)}}
 #msg{position:absolute;left:50%;top:66%;transform:translateX(-50%);font-size:16px;font-weight:700;text-shadow:0 1px 4px #000;opacity:.95;letter-spacing:2px;text-transform:uppercase}
-#zonew{position:absolute;left:50%;top:22%;transform:translateX(-50%);display:none;padding:12px 28px;background:rgba(120,14,8,.8);border:2px solid #ff3b2f;font-size:22px;font-weight:800;letter-spacing:3px;text-align:center;animation:zw .6s infinite alternate}
-#zonew small{display:block;font-size:13px;letter-spacing:2px;font-weight:600}
-@keyframes zw{to{background:rgba(180,24,12,.9)}}
+#msg:not(:empty){padding:5px 16px;background:rgba(9,13,19,.55);border-bottom:2px solid var(--acc)}
+/* düşman üssü uyarısı */
+#zonew{position:absolute;left:50%;top:22%;transform:translateX(-50%);display:none;padding:12px 34px 12px 62px;background:linear-gradient(90deg,rgba(120,14,8,.92),rgba(80,8,4,.88));border-top:2px solid #ff3b2f;border-bottom:2px solid #ff3b2f;font-size:22px;font-weight:800;letter-spacing:3px;text-align:center;animation:zw .6s infinite alternate;white-space:nowrap;clip-path:polygon(14px 0,calc(100% - 14px) 0,100% 50%,calc(100% - 14px) 100%,14px 100%,0 50%)}
+#zonew::before{content:'!';position:absolute;left:24px;top:50%;width:26px;height:26px;margin-top:-13px;border:2px solid #fff;border-radius:50%;font-size:18px;line-height:22px;text-align:center}
+#zonew small{display:block;font-size:13px;letter-spacing:2px;font-weight:700;color:#ffd0c8;margin-top:2px}
+@keyframes zw{to{background:linear-gradient(90deg,rgba(180,24,12,.95),rgba(120,14,8,.9))}}
 #vig{position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 55%,rgba(200,0,0,.6) 100%);opacity:0;transition:opacity .4s}
 #arrows{position:absolute;left:50%;top:50%;width:0;height:0}
 .arrow{position:absolute;left:-14px;top:-130px;width:28px;height:40px;transform-origin:14px 130px;opacity:.9;animation:ar 1.4s forwards}
@@ -122,57 +139,123 @@ body.mob #scope .rg{width:94vh;height:94vh;margin:-47vh 0 0 -47vh;border-width:2
 body.mob #scope svg{width:88.8vh;height:88.8vh;margin:-44.4vh 0 0 -44.4vh}
 body.mob #scope .mil g path:first-child{stroke-width:.55}
 body.mob #rdot{width:5px;height:5px;margin:-2.5px 0 0 -2.5px;box-shadow:0 0 3px 1px #ff2a1acc}      /* telefonda parıltı hedefi örtmesin */
+body.mob #vitals,body.mob #ammo{background:none;border:0}       /* telefonda arka plan şeridi butonlara binmesin */
 /* katmanlar: duraklat, ölüm, skor, maç sonu */
-.overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;background:rgba(5,8,12,.66);pointer-events:auto}
+.overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;background:radial-gradient(ellipse at center,rgba(5,8,12,.5),rgba(5,8,12,.82));pointer-events:auto}
 .overlay.intro{background-color:#05080c;background-size:cover;background-position:center}
 .overlay.intro .panel{background:rgba(8,11,17,.82);backdrop-filter:blur(3px);min-width:460px;padding:26px 36px}
-.pm{margin:2px 0 10px}.pm b{display:block;font-size:20px;letter-spacing:3px;text-transform:uppercase;color:#ffae3a}.pm span{font-size:12px;letter-spacing:2px;opacity:.7;text-transform:uppercase}
+.pm{margin:2px 0 10px}.pm b{display:block;font-size:22px;letter-spacing:3px;text-transform:uppercase;color:var(--acc2)}.pm span{font-size:12px;letter-spacing:2px;opacity:.7;text-transform:uppercase}
 .pdesc{max-width:520px;font-size:13px;line-height:1.5;opacity:.8;margin:2px 0 14px}
-.panel{background:rgba(11,15,22,.94);border:1px solid rgba(255,255,255,.16);padding:24px 32px;min-width:400px;max-width:94vw;box-shadow:0 14px 50px rgba(0,0,0,.6);clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,0 100%)}
+.panel{position:relative;background:linear-gradient(180deg,rgba(15,20,29,.96),rgba(9,12,18,.96));border:1px solid rgba(255,255,255,.12);border-top:3px solid var(--acc);padding:24px 32px;min-width:400px;max-width:94vw;box-shadow:0 18px 60px rgba(0,0,0,.65);clip-path:polygon(0 0,calc(100% - 18px) 0,100% 18px,100% 100%,0 100%)}
 .panel h2{margin:0 0 6px;font-size:34px;letter-spacing:4px;text-transform:uppercase;font-style:italic}.panel p{margin:4px 0;opacity:.85}
 .btn{pointer-events:auto;cursor:pointer;background:linear-gradient(100deg,#ffb347,#ff7a12);color:#160a02;border:0;padding:11px 26px;font:inherit;font-size:17px;font-weight:800;margin:12px 8px 0 0;letter-spacing:3px;text-transform:uppercase;clip-path:polygon(0 0,100% 0,calc(100% - 10px) 100%,0 100%)}
-.btn.sec{background:#2c3646;color:#e8edf5}.btn:hover{filter:brightness(1.15)}
-#respawn{background:linear-gradient(180deg,rgba(40,5,5,.55),rgba(5,8,12,.8))}
-#respawn .dep{display:grid;grid-template-columns:300px 1fr 280px;gap:18px;width:min(1180px,94vw)}
-#respawn .card{background:rgba(11,15,22,.9);border:1px solid rgba(255,255,255,.14);padding:16px 18px}
-#respawn h3{margin:0 0 10px;font-size:12px;letter-spacing:3px;color:#ffb347;text-transform:uppercase}
-#rtitle{font-size:29px;font-weight:800;letter-spacing:2px;text-transform:uppercase;font-style:italic;margin:0 0 4px}
-#rinfo{opacity:.85;font-size:15px}
-#rcount{font-size:56px;font-weight:800;color:#ff8a1f;margin:6px 0 0;line-height:1}
-#respawn .clsrow{display:flex;flex-direction:column;gap:6px}
-.cc{pointer-events:auto;cursor:pointer;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);padding:8px 12px;font-size:13px;text-align:left;transition:.12s}
-.cc b{display:block;font-size:16px;letter-spacing:2px;text-transform:uppercase}.cc.on{border-color:#ff8a1f;background:rgba(255,138,31,.2)}.cc small{opacity:.7;display:block;margin-top:2px}
-.cc:hover{background:rgba(255,255,255,.13)}
+.btn.sec{background:#26303e;color:#e8edf5}.btn:hover{filter:brightness(1.15)}
+/* duraklat menüsü: dikey düğme listesi */
+#pause .panel{min-width:440px;width:min(500px,94vw);padding:26px 34px 28px}
+#pause .ptag{font-size:11px;letter-spacing:3px;color:var(--acc2);text-transform:uppercase;font-weight:700;margin-bottom:4px}
+#pause .pbtns{display:flex;flex-direction:column;gap:8px;margin-top:16px}
+#pause .pbtns .btn{margin:0;width:100%;text-align:left;padding:12px 20px;clip-path:polygon(0 0,100% 0,calc(100% - 12px) 100%,0 100%)}
+#pause .pbtns .btn.sec{background:linear-gradient(90deg,#222b38,#1a212c);border-left:3px solid transparent;transition:border-color .12s,background .12s}
+#pause .pbtns .btn.sec:hover{border-left-color:var(--acc);background:linear-gradient(90deg,#2c3747,#1f2733);filter:none}
+#pause #bQuit{color:#ffb3a6}
+#pause #ptext{font-size:14px;opacity:.75}
+/* ölüm / yeniden doğuş ekranı */
+#respawn{background:radial-gradient(ellipse at 50% 30%,rgba(70,8,6,.35),rgba(5,8,12,.86) 75%)}
+#respawn .dep{display:flex;flex-direction:column;gap:14px;width:min(1180px,94vw)}
+#respawn .card{background:linear-gradient(180deg,rgba(15,20,29,.94),rgba(9,12,18,.94));border:1px solid rgba(255,255,255,.1);padding:14px 18px}
+#respawn h3{margin:0 0 10px;font-size:12px;letter-spacing:3px;color:var(--acc2);text-transform:uppercase;white-space:nowrap}
+#respawn h3 span{opacity:.6;letter-spacing:1px;text-transform:none;color:#fff}
+#rkill{display:flex;align-items:stretch;gap:0;padding:0;border-top:3px solid #ff3b2f;overflow:hidden;position:relative}
+#rkill .kl{flex:1;min-width:0;padding:14px 20px;background:linear-gradient(90deg,rgba(255,59,47,.16),transparent 70%)}
+#rkill .kh{font-size:11px;letter-spacing:3px;color:#ff8f80;font-weight:700;text-transform:uppercase}
+#rtitle{font-size:30px;font-weight:800;letter-spacing:2px;text-transform:uppercase;font-style:italic;margin:2px 0 0;line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#rtitle.b{color:#8cc4ff}#rtitle.r{color:#ff9a88}
+#rksub{font-size:13px;letter-spacing:2px;opacity:.75;text-transform:uppercase;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#rkill .kw,#rkill .kd,#rkill .kp{padding:14px 20px;border-left:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;justify-content:center;min-width:150px}
+#rkill .kv{font-size:24px;font-weight:800;letter-spacing:1px;white-space:nowrap;line-height:1.1}#rkill #rkw{text-transform:uppercase}
+#rkill .kl2{font-size:10px;letter-spacing:3px;opacity:.6;text-transform:uppercase;margin-bottom:4px;white-space:nowrap}
+#rkill .hs{display:inline-flex;align-items:center;gap:5px;margin-top:6px;padding:2px 8px;font-size:11px;font-weight:800;letter-spacing:2px;color:#1a0602;background:#ff6a4a;align-self:flex-start;text-transform:uppercase}
+#rkill .hs .hsi{width:12px;height:12px}
+#rkill .hpb{height:6px;background:rgba(255,255,255,.12);margin-top:7px;transform:skewX(-18deg)}#rkill .hpb i{display:block;height:100%;background:linear-gradient(90deg,#3ecf5b,#8be67a)}
+#rkill.self .kw,#rkill.self .kd,#rkill.self .kp{display:none}
+#rkill.self{border-top-color:#9aa0a8}#rkill.self .kl{background:linear-gradient(90deg,rgba(255,255,255,.06),transparent 70%)}
+#rinfo{margin:0;padding:10px 20px;font-size:14px;opacity:.95;border-top:1px solid rgba(255,255,255,.08);background:rgba(0,0,0,.18)}
+#rinfo:empty{display:none}
+#respawn .deploy{display:flex;gap:14px;align-items:stretch;justify-content:center}
+#respawn .ccls{flex:1;min-width:0}
+#respawn .cspn{width:250px;flex:none}
+#respawn .ccnt{flex:none;display:flex;align-items:center;gap:14px;padding:10px 22px 10px 18px;border-left:1px solid rgba(255,255,255,.08);background:rgba(255,138,31,.06)}
+#respawn .ring{position:relative;width:84px;height:84px;flex:none}
+#respawn .ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+#respawn .ring circle{fill:none;stroke-width:7}
+#respawn .ring .bg{stroke:rgba(255,255,255,.1)}#respawn .ring .fg{stroke:var(--acc);stroke-linecap:butt;filter:drop-shadow(0 0 6px rgba(255,138,31,.6));transition:stroke-dashoffset .2s linear}
+#rcount{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:38px;font-weight:800;color:#fff;line-height:1;font-variant-numeric:tabular-nums}
+#hcnt{color:var(--acc2);opacity:1}
+#rcsub{font-size:12px;letter-spacing:2px;opacity:.75;text-transform:uppercase;max-width:110px;line-height:1.3}
+#respawn .clsrow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+.cc{pointer-events:auto;cursor:pointer;position:relative;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.12);padding:10px 12px;font-size:13px;text-align:left;transition:.12s}
+.cc b{display:block;font-size:15px;letter-spacing:2px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cc b u{text-decoration:none;display:inline-block;min-width:18px;padding:0 4px;margin-right:6px;font-size:11px;line-height:16px;text-align:center;background:rgba(255,255,255,.12);color:var(--acc2);vertical-align:2px}
+.cc small{opacity:.7;display:block;margin-top:4px;line-height:1.3}
+.cc em{display:block;font-style:normal;margin-top:6px;font-size:11px;letter-spacing:1px;color:#ffe2bd;text-transform:uppercase;opacity:.85;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cc.on{border-color:var(--acc);background:linear-gradient(180deg,rgba(255,138,31,.26),rgba(255,138,31,.1));box-shadow:inset 0 -3px 0 var(--acc)}
+.cc:hover{background:rgba(255,255,255,.12)}
 .cc.dis{opacity:.4;pointer-events:none}
 #spawnrow{display:flex;flex-direction:column;gap:6px}
-/* küçük ekran (telefon yatay): ölüm ekranı ve skor tablosu sığsın */
-@media (max-height:520px){
-#respawn .dep{grid-template-columns:150px minmax(0,1fr) 170px;gap:8px;width:96vw;max-height:94vh}
-#respawn .card{padding:8px 10px;overflow:auto;max-height:94vh}
-#respawn h3{font-size:10px;letter-spacing:2px;margin-bottom:6px}
-#rtitle{font-size:18px}#rinfo{font-size:12px;margin:4px 0}#rcount{font-size:34px}
-#respawn .clsrow{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
-#respawn .cc{padding:6px 8px;font-size:12px;min-height:40px}#respawn .cc b{font-size:13px;letter-spacing:1px}#respawn .cc small{font-size:11px;line-height:1.2}
-#spawnrow{gap:4px}#spawnrow .cc{padding:6px 8px}
-#scoreboard .panel{min-width:0!important;width:96vw;max-height:92vh;padding:10px 12px}
-#scoreboard table{font-size:11px}
-#scoreboard .scroll{max-height:80vh;overflow:auto}
-.overlay .panel{max-width:96vw}
-}
-#scoreboard table{border-collapse:collapse;width:100%;font-size:15px}
-#scoreboard td,#scoreboard th{padding:4px 10px;text-align:right}
-#scoreboard th{font-size:11px;letter-spacing:2px;opacity:.6;text-transform:uppercase}
+#spawnrow .cc b{font-size:14px}
+/* skor tablosu */
+#scoreboard .panel{min-width:760px;text-align:center;padding:20px 26px}
+#scoreboard .sbh{display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin:0 6px 12px;text-transform:uppercase;letter-spacing:3px}
+#scoreboard .sbh b{font-size:20px;font-style:italic}#scoreboard .sbh span{font-size:12px;opacity:.65}
+#scoreboard .cols{display:flex;gap:16px;justify-content:center;align-items:flex-start}
+#scoreboard table{border-collapse:collapse;width:100%;font-size:15px;counter-reset:rk}
+#scoreboard td,#scoreboard th{padding:5px 10px;text-align:right;font-variant-numeric:tabular-nums}
+#scoreboard th{font-size:10px;letter-spacing:2px;opacity:.55;text-transform:uppercase;font-weight:700}
 #scoreboard td:first-child,#scoreboard th:first-child{text-align:left}
-#scoreboard .team{display:inline-block;vertical-align:top;margin:0 10px;min-width:330px}
-#scoreboard h3{margin:0 0 6px;letter-spacing:3px;text-transform:uppercase}#scoreboard tr.me{background:rgba(255,138,31,.25);font-weight:700}
+#scoreboard tr+tr{counter-increment:rk;border-top:1px solid rgba(255,255,255,.05)}
+#scoreboard tr+tr td:first-child::before{content:counter(rk);display:inline-block;width:22px;opacity:.45;font-size:12px}
+#scoreboard tr+tr:nth-child(odd){background:rgba(255,255,255,.025)}
+#scoreboard .team{flex:1;min-width:330px;max-width:520px;background:rgba(0,0,0,.18);border-top:3px solid var(--c)}
+#scoreboard h3{margin:0;padding:8px 12px;letter-spacing:3px;text-transform:uppercase;display:flex;justify-content:space-between;background:linear-gradient(90deg,color-mix(in srgb,var(--c) 28%,transparent),transparent)}
+#scoreboard h3 em{font-style:normal;font-size:22px;line-height:1}
+#scoreboard tr.me{background:rgba(255,138,31,.24)!important;font-weight:700;box-shadow:inset 3px 0 0 var(--acc)}
 #scoreboard tr.dead{opacity:.5}
 #scoreboard .scroll{max-height:62vh;overflow:auto}
 #endscreen .panel{text-align:center;min-width:560px}
 #etitle{font-size:64px!important;letter-spacing:8px!important}
 #estats .mvp{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:10px 0}
 #estats .st{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);padding:8px 16px}
-#estats .st b{display:block;font-size:26px;color:#ffb347}
+#estats .st b{display:block;font-size:26px;color:var(--acc2)}
 #estats .st small{font-size:11px;letter-spacing:2px;opacity:.7;text-transform:uppercase}
+/* küçük ekran (telefon yatay): ölüm ekranı, duraklat ve skor tablosu sığsın */
+@media (max-height:520px){
+#respawn .dep{gap:6px;width:96vw;max-height:96vh}
+#respawn .card{padding:7px 9px}
+#respawn h3{font-size:10px;letter-spacing:2px;margin-bottom:5px}
+#rkill .kl{padding:7px 12px}#rkill .kw,#rkill .kd,#rkill .kp{padding:7px 12px;min-width:0}
+#rtitle{font-size:19px}#rksub{font-size:10px;letter-spacing:1px}#rkill .kh,#rkill .kl2{font-size:9px;letter-spacing:2px;margin-bottom:1px}
+#rkill .kv{font-size:15px}#rkill .hs{margin-top:3px;font-size:9px;padding:1px 6px}
+#rinfo{font-size:11px;padding:4px 12px}
+#respawn .deploy{gap:6px}
+#respawn .cspn{width:150px}#respawn .ccnt{padding:5px 10px;gap:8px}
+#respawn .ring{width:50px;height:50px}#rcount{font-size:24px}#rcsub{font-size:9px;letter-spacing:1px;max-width:80px}
+#respawn .clsrow{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+#respawn .cc{padding:5px 7px;font-size:11px;min-height:40px}#respawn .cc b{font-size:12px;letter-spacing:1px}#respawn .cc small{font-size:10px;line-height:1.2;margin-top:2px}
+#respawn .cc em{display:none}#respawn .cc b u{display:none}
+#spawnrow{gap:4px}#spawnrow .cc{padding:5px 7px}
+#scoreboard .panel{min-width:0!important;width:96vw;max-height:92vh;padding:8px 10px}
+#scoreboard .sbh{margin:0 4px 6px}#scoreboard .sbh b{font-size:14px}#scoreboard .sbh span{font-size:10px}
+#scoreboard .cols{gap:8px}#scoreboard .team{min-width:0}
+#scoreboard h3{padding:4px 8px;font-size:12px}#scoreboard h3 em{font-size:15px}
+#scoreboard table{font-size:11px}#scoreboard td,#scoreboard th{padding:2px 6px}
+#scoreboard .scroll{max-height:80vh;overflow:auto}
+.overlay .panel{max-width:96vw}
+#pause .panel{min-width:0;width:min(560px,92vw);max-height:94vh;overflow:auto;padding:12px 18px 14px}
+#pause .panel h2{font-size:22px;margin-bottom:2px}#pause #ptext{font-size:12px}#pause .pdesc{display:none}.pm{margin:0 0 4px}.pm b{font-size:16px}
+#pause .pbtns{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+#pause .pbtns .btn{padding:8px 14px;font-size:14px;min-height:40px}
+#pause .pbtns #bResume{grid-column:1/-1}
+}
 `;
 
 export class Hud {
@@ -188,7 +271,7 @@ export class Hud {
         <svg viewBox="-100 -100 200 200" class="chev"><g fill="none" stroke="#ff2e1f" stroke-linecap="round"><path d="M-14 16L0 -2L14 16" stroke-width="2.2"/><path d="M0 -2V-100M-100 0H-30M30 0H100M0 28V100" stroke-width=".3" stroke="#000"/><path d="M-10 36H10M-14 56H14M-18 76H18" stroke-width=".8" stroke="#ff2e1f"/></g><circle r=".8" fill="#ff2e1f"/></svg></div>
       <div id="mmwrap"><canvas id="minimap" width="236" height="168"></canvas><div id="mmname"></div></div>
       <div id="topbar">
-        <div id="score"><div class="tk blue"><small id="tnB">MAVİ</small><span id="tkB">0</span><div class="bar"><i id="tbB"></i></div></div><div id="timer"><span id="tm">0:00</span><small id="lim"></small></div><div class="tk red"><small id="tnR">KIRMIZI</small><span id="tkR">0</span><div class="bar"><i id="tbR"></i></div></div></div>
+        <div id="score"><div class="tk blue"><small id="tnB"></small><span id="tkB">0</span><div class="bar"><i id="tbB"></i></div></div><div id="timer"><span id="tm">0:00</span><small id="lim"></small></div><div class="tk red"><small id="tnR"></small><span id="tkR">0</span><div class="bar"><i id="tbR"></i></div></div></div>
         <div id="flags"></div>
         <div id="compass"><canvas width="920" height="60"></canvas></div>
         <div id="bosses"></div>
@@ -200,30 +283,35 @@ export class Hud {
 
       <div id="cross"><span class="h l"></span><span class="h r"></span><span class="v t"></span><span class="v b"></span><span class="dot"></span></div>
       <div id="rdot"></div><div id="holo"><i></i><i></i><i></i><i></i></div><div id="hitm"></div>
-      <div id="pops"></div><div id="zonew">DÜŞMAN ÜSSÜNE GİRDİN!<small id="zonet"></small></div><div id="msg"></div>
+      <div id="pops"></div><div id="zonew"><span id="zonett"></span><small id="zonet"></small></div><div id="msg"></div>
       <div id="vitals"><div class="cls" id="clsname"></div><div class="row"><div id="hpnum">100</div><div id="hpbar"><div id="hpfill"></div></div></div><div id="stance"></div></div>
       <div id="abil"><div class="an"><b id="abk">F</b><span id="abn"></span></div><div class="bar"><i id="abbar"></i></div></div>
       <div id="ammo"><div class="nm" id="wname"></div><div class="n"><span id="mag">0</span> <small id="res">/ 0</small></div><div id="slots"></div></div>
       <div id="respawn" class="overlay"><div class="dep">
-        <div class="card"><h3>Durum</h3><div id="rtitle">Öldün</div><p id="rinfo"></p><div id="rcount"></div></div>
-        <div class="card"><h3>Sınıf seç <span style="opacity:.6;letter-spacing:1px;text-transform:none">(1–5)</span></h3><div class="clsrow" id="clsrow"></div></div>
-        <div class="card"><h3>Doğma noktası <span id="spkeys" style="opacity:.6;letter-spacing:1px;text-transform:none"></span></h3><div id="spawnrow"></div></div></div></div>
-      <div id="scoreboard" class="overlay"><div class="panel" style="min-width:760px;text-align:center"><div class="scroll" id="sbbody"></div></div></div>
-      <div id="pause" class="overlay"><div class="panel"><h2 id="ptitle">Hazır mısın?</h2><div id="pmeta"></div><p id="ptext">Başlamak için tıkla. Fare ekrana kilitlenir, Esc ile duraklatırsın.</p>
-        <button class="btn" id="bResume">Başla</button><button class="btn sec" id="bKill" title="Sıkıştıysan kendini öldürüp yeniden doğ">Kill (yeniden doğ)</button><button class="btn sec" id="bSet">Ayarlar</button><button class="btn sec" id="bCtl">Kontroller</button><button class="btn sec" id="bQuit">Ana Menü</button></div></div>
+        <div class="card" id="rkill"><div class="kl"><div class="kh" id="rkh"></div><div id="rtitle"></div><div id="rksub"></div></div>
+          <div class="kw"><div class="kl2" id="rkwl"></div><div class="kv" id="rkw"></div><div id="rkhs"></div></div>
+          <div class="kd"><div class="kl2" id="rkdl"></div><div class="kv" id="rkd"></div></div>
+          <div class="kp"><div class="kl2" id="rkpl"></div><div class="kv" id="rkp"></div><div class="hpb"><i id="rkpb"></i></div></div>
+          <div class="ccnt"><div class="ring"><svg viewBox="0 0 100 100"><circle class="bg" cx="50" cy="50" r="44"/><circle class="fg" id="rring" cx="50" cy="50" r="44" stroke-dasharray="276.5" stroke-dashoffset="0"/></svg><div id="rcount"></div></div><div><div class="kl2" id="hcnt"></div><div id="rcsub"></div></div></div></div>
+        <p id="rinfo"></p>
+        <div class="deploy">
+          <div class="card ccls"><h3><span id="hcls" style="opacity:1;letter-spacing:3px;text-transform:uppercase;color:inherit"></span> <span id="hclsk">(1–5)</span></h3><div class="clsrow" id="clsrow"></div></div>
+          <div class="card cspn"><h3><span id="hspn" style="opacity:1;letter-spacing:3px;text-transform:uppercase;color:inherit"></span> <span id="spkeys"></span></h3><div id="spawnrow"></div></div>
+        </div></div></div>
+      <div id="scoreboard" class="overlay"><div class="panel"><div class="scroll" id="sbbody"></div></div></div>
+      <div id="pause" class="overlay"><div class="panel"><div class="ptag" id="ptag"></div><h2 id="ptitle"></h2><div id="pmeta"></div><p id="ptext"></p>
+        <div class="pbtns"><button class="btn" id="bResume"></button><button class="btn sec" id="bKill"></button><button class="btn sec" id="bSet"></button><button class="btn sec" id="bCtl"></button><button class="btn sec" id="bQuit"></button></div></div></div>
       <div id="endscreen" class="overlay"><div class="panel"><h2 id="etitle"></h2><p id="einfo"></p><div id="estats" style="margin:10px 0"></div>
-        <button class="btn" id="bAgain">Tekrar Oyna</button><button class="btn sec" id="bMenu">Ana Menü</button></div></div>`;
+        <button class="btn" id="bAgain"></button><button class="btn sec" id="bMenu"></button></div></div>`;
     document.body.appendChild(el);
     this.$ = (id) => el.querySelector('#' + id);
     this.flagEls = [];
     for (const o of game.mode.objectives) {
       const f = document.createElement('div');
-      f.className = 'flag'; f.innerHTML = `<i></i><span>${o.label || o.name[0]}</span>`; f.title = o.name;
+      f.className = 'flag'; f.innerHTML = `<i></i><span>${o.label || o.name[0]}</span>`; f.title = o.name; f._nm = o.name;
       this.$('flags').appendChild(f);
       this.flagEls.push(f);
     }
-    this.buildClassRow();
-    this.$('mmname').textContent = game.map.name || '';
     this.mm = this.$('minimap');
     this.mmCtx = this.mm.getContext('2d');
     this.buildMinimapBase();
@@ -232,12 +320,13 @@ export class Hud {
     if (game.mode.fixed) {                                                // Silah Yarışı / Paintball: sınıf/doğma seçimi yok
       this.$('spawnrow').parentElement.style.display = 'none'; this.$('clsrow').parentElement.style.display = 'none';
     }
-    if (game.mode.infection) {                                            // Enfekte: sol = insanlar, sağ = zombiler; ölüm ekranında sınıf/doğma seçimi yok
-      this.root.querySelector('#tnB').textContent = 'İNSAN'; this.root.querySelector('#tnR').textContent = 'ZOMBİ';
+    if (game.mode.infection) {                                            // Enfekte: sol = insanlar, sağ = zombiler; ölüm ekranında doğma seçimi yok
       this.$('spawnrow').parentElement.style.display = 'none';
       this._rowMode = null;                                                // ölüm ekranı satırı: 'z' zombi türü · 'cls' insan sınıfı · 'boss' (seçim yok)
     }
-    if (game.ffa) { this.root.querySelector('.tk.blue small').textContent = 'SEN'; this.root.querySelector('.tk.red small').textContent = 'LİDER'; this._ffaKey = null; }   // gerçek etiketler ffaScore'da
+    this.death = null;                                                     // son ölüm: { k: öldüren, w: silah adı, hs, d: mesafe m }
+    this.applyLang();
+    this._offLang = onLang(() => this.applyLang());                        // canlı dil değişimi: sabit etiketler + satırlar yeniden yazılır
     this.$('bResume').onclick = () => { this.igs?.close(); game.requestLock(); };
     this.$('bSet').onclick = () => (this.igs ||= new InGameSettings(game)).show('settings');
     this.$('bCtl').onclick = () => (this.igs ||= new InGameSettings(game)).show('controls');
@@ -248,16 +337,39 @@ export class Hud {
     this.$('pause').addEventListener('mousedown', (e) => { if (e.target.id === 'pause') game.requestLock(); });
   }
 
-  dispose() { this.igs?.dispose(); this.root.remove(); this.st.remove(); }
+  // Dile bağlı sabit metinler (kurulumda ve dil değişince)
+  applyLang() {
+    const g = this.game, $ = this.$;
+    $('tnB').textContent = g.mode.infection ? t('hud.humansUp') : g.ffa ? t('hud.you') : t('hud.blue');
+    $('tnR').textContent = g.mode.infection ? t('hud.zombiesUp') : g.ffa ? t('hud.leader') : t('hud.red');
+    this._ffaKey = null; this._bossKey = null; this._spKey = null; this._loc = null; this._slotKey = null; this._note = null;
+    $('zonett').textContent = t('hud.zone.title');
+    $('bResume').textContent = t('pause.start'); $('bKill').textContent = t('pause.kill'); $('bKill').title = t('pause.killTip');
+    $('bSet').textContent = t('pause.settings'); $('bCtl').textContent = t('pause.controls'); $('bQuit').textContent = t('pause.menu');
+    $('bAgain').textContent = t('pause.again'); $('bMenu').textContent = t('pause.menu');
+    $('hcls').textContent = t('death.pickClass'); $('hspn').textContent = t('death.spawn'); $('hcnt').textContent = t('death.deploy');
+    $('rkwl').textContent = t('death.weapon'); $('rkdl').textContent = t('death.dist'); $('rkpl').textContent = t('death.hpLeft');
+    this.flagEls.forEach((f) => (f.title = placeName(f._nm)));
+    this.buildClassRow();
+    if (g.mode.infection) { const m = this._rowMode; this._rowMode = null; if (m) this.setRowMode(m); }
+    this.updateLocation(true);
+    if (this.mmBase && g.map.callouts) this.buildMinimapBase();
+    const pv = $('pause').style.display === 'flex';
+    if (pv) this.setPaused(true);
+    if (this.sbShown) this.renderScoreboard();
+    this.igs?.open && this.igs.render();
+  }
+
+  dispose() { this._offLang?.(); this.igs?.dispose(); this.root.remove(); this.st.remove(); }
 
   // Enfekte: ölüm ekranında zombi türü seçimi (1–5)
   buildZRow() {
     const row = this.$('clsrow');
     row.innerHTML = '';
     ZT_ORDER.forEach((k, i) => {
-      const t = ZTYPES[k], c = document.createElement('div');
+      const c = document.createElement('div');
       c.className = 'cc'; c.dataset.k = k;
-      c.innerHTML = `<b>${i + 1} · ${t.label}</b><small>${t.desc}</small>`;
+      c.innerHTML = `<b><u>${i + 1}</u>${ztName(k)}</b><small>${ztDesc(k)}</small>`;
       c.onclick = () => this.game.requestZType(k);
       row.appendChild(c);
     });
@@ -266,20 +378,22 @@ export class Hud {
   setRowMode(m) {
     if (m === this._rowMode) return;
     this._rowMode = m;
-    const h3 = this.$('clsrow').parentElement.querySelector('h3'), small = (t) => `<span style="opacity:.6;letter-spacing:1px;text-transform:none">${t}</span>`;
-    if (m === 'cls') { this.buildClassRow(); h3.innerHTML = `İnsan sınıfı ${small('(1–5)')}`; }
-    else if (m === 'boss') { this.$('clsrow').innerHTML = '<div class="cc on"><b>BOSS</b><small>Dev can, çok hızlı, öfkeli. Gölge Sıçrayışı: ışınlan + görünmez ol.</small></div>'; h3.innerHTML = 'Zombi türü'; }
-    else { this.buildZRow(); h3.innerHTML = `Zombi türü ${small('(1–5)')}`; }
+    const h = this.$('hcls'), k = this.$('hclsk');
+    k.style.display = m === 'boss' ? 'none' : '';
+    if (m === 'cls') { this.buildClassRow(); h.textContent = t('death.humanClass'); }
+    else if (m === 'boss') { this.$('clsrow').innerHTML = `<div class="cc on"><b>BOSS</b><small>${t('death.bossDesc')}</small></div>`; h.textContent = t('death.zType'); }
+    else { this.buildZRow(); h.textContent = t('death.zType'); }
   }
   markZ(k) { this.$('clsrow').querySelectorAll('.cc').forEach((c) => c.classList.toggle('on', c.dataset.k === k)); }
 
   buildClassRow() {
-    const row = this.$('clsrow');
+    const row = this.$('clsrow'), team = this.game.playerSoldier?.team || 'blue';
     row.innerHTML = '';
     Object.entries(CLASS_DEFS).forEach(([k, d], i) => {
       const c = document.createElement('div');
+      const pri = d.primary?.[team] || d.primary?.blue, gd = d.gadget;
       c.className = 'cc'; c.dataset.k = k;
-      c.innerHTML = `<b>${i + 1} · ${d.label}</b><small>${d.desc}</small>`;
+      c.innerHTML = `<b><u>${i + 1}</u>${className(k)}</b><small>${classDesc(k)}</small><em>${EN(pri ? wName(pri) : '')}${gd && gd[1] ? ` · ${wName(gd[0])} ×${gd[1]}` : ''}</em>`;
       c.onclick = () => this.game.requestClass(k);
       row.appendChild(c);
     });
@@ -287,7 +401,7 @@ export class Hud {
 
   // + puan / bildirim
   popup(text, head = false) {
-    const d = document.createElement('div'); d.className = 'pop' + (head ? ' head' : ''); d.textContent = text;
+    const d = document.createElement('div'); d.className = 'pop' + (head ? ' head' : ''); d.textContent = popText(text);
     const box = this.$('pops'); box.appendChild(d);
     while (box.children.length > 4) box.firstChild.remove();
     setTimeout(() => d.remove(), 1700);
@@ -296,7 +410,7 @@ export class Hud {
   zoneWarn(left) {
     this.zoneT = 0.25;
     const z = this.$('zonew'); z.style.display = 'block';
-    this.$('zonet').textContent = left > 0 ? `GERİ DÖN · ${Math.ceil(left)} sn` : 'CAN KAYBEDİYORSUN';
+    this.$('zonet').textContent = left > 0 ? t('hud.zone.back', { n: Math.ceil(left) }) : t('hud.zone.hurt');
   }
 
   onPlayerSpawn() { this._spKey = null; }
@@ -315,7 +429,7 @@ export class Hud {
     for (const o of opts) {
       const c = document.createElement('div');
       c.className = 'cc' + (o.ok ? '' : ' dis') + (g.spawnChoice === o.id ? ' on' : ''); c.dataset.k = o.id;
-      c.innerHTML = `<b>${o.id === 'base' ? '⌂ ' : '⚑ '}${o.name}</b><small>${o.id === 'base' ? 'Ana üs (güvenli)' : o.ok ? 'Ele geçirdiğin bölge' : 'Kullanılamaz'}</small>`;
+      c.innerHTML = `<b>${o.id === 'base' ? '⌂ ' + t('death.base') : '⚑ ' + placeName(o.name)}</b><small>${o.id === 'base' ? t('death.baseSafe') : o.ok ? t('death.flagOwned') : t('death.unavail')}</small>`;
       c.onclick = () => { g.requestSpawn(o.id); this._spKey = null; };
       row.appendChild(c);
     }
@@ -323,18 +437,20 @@ export class Hud {
   }
 
   drawCompass() {
-    const g = this.game, p = g.playerSoldier, x = this.cmp, W = 920, H = 60, span = Math.PI;   // ±90°
+    const g = this.game, p = g.playerSoldier, x = this.cmp, W = 920, H = 60;   // ±90°
     x.clearRect(0, 0, W, H);
     const bearing = ((-p.yaw * 180) / Math.PI % 360 + 360) % 360;
+    const dirs = t('hud.cmp').split(',');                                    // K,KD,D,GD,G,GB,B,KB  ·  N,NE,E,SE,S,SW,W,NW
     x.font = 'bold 22px Bahnschrift, Arial Narrow, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
     for (let d = 0; d < 360; d += 5) {
       let rel = ((d - bearing + 540) % 360) - 180;
       if (Math.abs(rel) > 95) continue;
       const px = W / 2 + (rel / 180) * W;
       const major = d % 45 === 0, mid = d % 15 === 0;
-      x.fillStyle = major ? '#fff' : 'rgba(255,255,255,.55)';
+      x.fillStyle = major ? '#fff' : 'rgba(255,255,255,.5)';
       x.fillRect(px - 1, major ? 6 : mid ? 12 : 17, 2, major ? 14 : mid ? 10 : 6);
-      if (major) { x.fillStyle = d === 0 ? '#ff8a1f' : '#fff'; x.fillText({ 0: 'K', 45: 'KD', 90: 'D', 135: 'GD', 180: 'G', 225: 'GB', 270: 'B', 315: 'KB' }[d], px, 40); }
+      if (major) { x.fillStyle = d === 0 ? '#ff8a1f' : '#fff'; x.fillText(dirs[d / 45], px, 40); }
+      else if (mid && Math.abs(rel) > 6) { x.font = '600 13px Bahnschrift, Arial Narrow, sans-serif'; x.fillStyle = 'rgba(255,255,255,.45)'; x.fillText(String(d), px, 40); x.font = 'bold 22px Bahnschrift, Arial Narrow, sans-serif'; }
     }
     for (const o of g.mode.objectives) {
       const brg = (Math.atan2(o.x - p.pos.x, -(o.z - p.pos.z)) * 180) / Math.PI;
@@ -345,7 +461,7 @@ export class Hud {
       x.beginPath(); x.moveTo(px, 4); x.lineTo(px + 11, 17); x.lineTo(px, 30); x.lineTo(px - 11, 17); x.closePath(); x.fill();
       x.fillStyle = '#0a0e14'; x.font = 'bold 15px Bahnschrift, sans-serif'; x.fillText(o.label || o.name[0], px, 18.5); x.font = 'bold 22px Bahnschrift, Arial Narrow, sans-serif';
     }
-    x.fillStyle = '#ff8a1f'; x.beginPath(); x.moveTo(W / 2 - 8, 0); x.lineTo(W / 2 + 8, 0); x.lineTo(W / 2, 9); x.fill();
+    x.fillStyle = '#ff8a1f'; x.beginPath(); x.moveTo(W / 2 - 9, 0); x.lineTo(W / 2 + 9, 0); x.lineTo(W / 2, 10); x.fill();
   }
 
   markClass(k) { this.$('clsrow').querySelectorAll('.cc').forEach((c) => c.classList.toggle('on', c.dataset.k === k)); }
@@ -392,27 +508,34 @@ export class Hud {
     }
     if (g.map.callouts) {                                                  // büyük bölgelerin adları minimap'te
       x.font = 'bold 8px Bahnschrift, Arial Narrow, sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.lineWidth = 2.5; x.strokeStyle = 'rgba(20,14,6,.85)'; x.fillStyle = '#fff6dc';
-      for (const cl of g.map.callouts) if (cl.major) { const px = this.mmX(cl.x), py = this.mmY(cl.z); x.strokeText(cl.name, px, py); x.fillText(cl.name, px, py); }
+      for (const cl of g.map.callouts) if (cl.major) { const px = this.mmX(cl.x), py = this.mmY(cl.z), nm = mapText(cl.name); x.strokeText(nm, px, py); x.fillText(nm, px, py); }
     }
     this.mmBase = c;
   }
 
   killFeed(killer, victim, weapon, hs) {
-    const f = this.$('killfeed');
+    const g = this.game, f = this.$('killfeed');
+    if (victim && victim === g.playerSoldier) {                            // ölüm ekranı için: kim, neyle, kaç metreden, kafadan mı
+      const k = killer && killer !== victim ? killer : null;
+      this.death = { k, w: weapon || '', hs: !!hs, d: k ? Math.hypot(k.pos.x - victim.pos.x, k.pos.y - victim.pos.y, k.pos.z - victim.pos.z) : 0 };
+      this._rsMax = 0;
+    }
     const d = document.createElement('div'); d.className = 'kf' + ((killer && killer.isPlayer) || (victim && victim.isPlayer) ? ' me' : '');
-    const cls = (s) => (this.game.ffa ? (s === this.game.playerSoldier ? 'b' : 'r') : s.team === 'blue' ? 'b' : 'r');
+    const cls = (s) => (g.ffa ? (s === g.playerSoldier ? 'b' : 'r') : s.team === 'blue' ? 'b' : 'r');
+    const nm = dispName;
+    const wl = wLabel(weapon);
     d.innerHTML = killer && killer !== victim
-      ? `<span class="${cls(killer)}">${killer.name}</span><span class="w">[${weapon}${hs ? ' ★' : ''}]</span><span class="${cls(victim)}">${victim.name}</span>`
-      : `<span class="${cls(victim)}">${victim.name}</span><span class="w">öldü</span>`;
+      ? `<span class="${cls(killer)}">${nm(killer)}</span><span class="w">${EN(wl)}${hs ? HS_SVG : ''}</span><span class="${cls(victim)}">${nm(victim)}</span>`
+      : `<span class="${cls(victim)}">${nm(victim)}</span><span class="w">${wl && !/^(İntihar)$/.test(weapon) ? wl : t('hud.kf.died')}</span>`;
     f.appendChild(d);
     while (f.children.length > 6) f.firstChild.remove();
     setTimeout(() => d.remove(), 6000);
   }
 
   toast(text, color = '#fff') {
-    const t = document.createElement('div'); t.className = 'toast'; t.textContent = text; t.style.color = color;
-    this.$('toasts').appendChild(t);
-    setTimeout(() => t.remove(), 3300);
+    const el = document.createElement('div'); el.className = 'toast'; el.textContent = text; el.style.color = color;
+    this.$('toasts').appendChild(el);
+    setTimeout(() => el.remove(), 3300);
   }
 
   hitmarker(dead, head) {
@@ -427,7 +550,6 @@ export class Hud {
     this.vigT = 0.25;
     if (!fromPos) return;
     const dx = fromPos.x - me.pos.x, dz = fromPos.z - me.pos.z;
-    const ang = Math.atan2(dx, -dz) - (-me.yaw) ;
     // yaw artışı sola döner: ekran açısı = bakış yönüne göre göreli açı
     const rel = Math.atan2(-dx, -dz) - me.yaw;
     const a = document.createElement('div'); a.className = 'arrow';
@@ -439,38 +561,50 @@ export class Hud {
   showScoreboard(v) { this.sbShown = v; this.$('scoreboard').style.display = v ? 'flex' : 'none'; if (v) this.renderScoreboard(); }
 
   renderScoreboard() {
-    const g = this.game;
+    const g = this.game, inf = g.mode.infection;
+    const head = `<div class="sbh"><b>${EN(modeLabel(g.mode.type || (g.mode.gungame ? 'gg' : g.mode.paintball ? 'pb' : inf ? 'inf' : g.ffa ? 'dm' : g.mode.scoreBased ? 'tdm' : 'conquest')))}</b><span>${mapName(g.mapDef?.id || g.opts.map)} · ${this.$('tm').textContent}</span></div>`;
+    const th = (cols) => `<tr><th>${t('sb.player')}</th>${cols}<th>${t('sb.k')}</th><th>${t('sb.d')}</th><th>${t('sb.score')}</th></tr>`;
     const col = (team) => {
       const list = g.soldiers.filter((s) => s.team === team && !s.vacant).sort((a, b) => b.score - a.score);
-      return `<div class="team ${team}"><h3 style="color:var(--c)">${g.mode.infection ? (team === 'blue' ? 'İnsanlar' : 'Zombiler') : TEAMS[team].name} · ${Math.max(0, g.tickets[team])}</h3><table><tr><th>Oyuncu</th><th>Öl</th><th>Ölüm</th><th>Puan</th></tr>${
-        list.map((s) => `<tr class="${s.isPlayer ? 'me' : ''} ${s.alive ? '' : 'dead'}"><td>${s.name}</td><td>${s.kills}</td><td>${s.deaths}</td><td>${s.score}</td></tr>`).join('')}</table></div>`;
+      return `<div class="team ${team}"><h3 style="color:var(--c)"><span>${inf ? (team === 'blue' ? t('hud.humans') : t('hud.zombies')) : teamName(team)}</span><em>${Math.max(0, g.tickets[team])}</em></h3><table>${th('')}${
+        list.map((s) => `<tr class="${s.isPlayer ? 'me' : ''} ${s.alive ? '' : 'dead'}"><td>${dispName(s)}</td><td>${s.kills}</td><td>${s.deaths}</td><td>${s.score}</td></tr>`).join('')}</table></div>`;
     };
     if (g.ffa) {                                                         // tek tablo, öldürmeye göre
       const gg = g.mode.gungame;
       const list = ffaRanking(g.soldiers, gg);
       const pc = (s) => (g.mode.paintball && g.paintColor ? `<i style="display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:${g.paintColor(s)}"></i>` : '');   // Paintball: oyuncunun boya rengi (game.paintColor = paint.js paintColorOf)
-      this.$('sbbody').innerHTML = `<div class="team blue"><h3 style="color:var(--c)">${gg ? `Silah Yarışı · ${g.mode.killLimit} silah` : g.mode.paintball ? `Paintball · ilk ${g.mode.killLimit} eleme` : `Ölüm Maçı · ilk ${g.mode.killLimit}`}</h3><table><tr><th>Oyuncu</th>${gg ? '<th>Seviye</th><th>Silah</th>' : ''}<th>Öl</th><th>Ölüm</th><th>Puan</th></tr>${
-        list.map((s) => `<tr class="${s.isPlayer ? 'me' : ''} ${s.alive ? '' : 'dead'}"><td>${pc(s)}${s.name}</td>${gg ? `<td>${s.ggLevel + 1}</td><td>${WSTATS[s.items[0].id].name}</td>` : ''}<td>${s.kills}</td><td>${s.deaths}</td><td>${s.score}</td></tr>`).join('')}</table></div>`;
+      const ttl = gg ? t('sb.ggTitle', { n: g.mode.killLimit }) : g.mode.paintball ? t('sb.pbTitle', { n: g.mode.killLimit }) : t('sb.dmTitle', { n: g.mode.killLimit });
+      this.$('sbbody').innerHTML = `${head}<div class="cols"><div class="team" style="--c:#ff8a1f;max-width:none"><h3 style="color:var(--c)"><span>${EN(ttl)}</span></h3><table>${th(gg ? `<th>${t('sb.level')}</th><th>${t('sb.weapon')}</th>` : '')}${
+        list.map((s) => `<tr class="${s.isPlayer ? 'me' : ''} ${s.alive ? '' : 'dead'}"><td>${pc(s)}${dispName(s)}</td>${gg ? `<td>${s.ggLevel + 1}</td><td>${wName(s.items[0].id)}</td>` : ''}<td>${s.kills}</td><td>${s.deaths}</td><td>${s.score}</td></tr>`).join('')}</table></div></div>`;
       return;
     }
-    this.$('sbbody').innerHTML = col('blue') + col('red');
+    this.$('sbbody').innerHTML = `${head}<div class="cols">${col('blue')}${col('red')}</div>`;
   }
 
   setPaused(v) {
-    const ov = this.$('pause');
+    const ov = this.$('pause'), g = this.game;
     if (!v) this.igs?.close();
     ov.style.display = v ? 'flex' : 'none';
     // maça girişte (henüz oynanmadı): sahne arkada görünmesin; harita görseliyle tam ekran kapak
-    const intro = v && this.game.time <= 0.5;
+    const intro = v && g.time <= 0.5;
     ov.classList.toggle('intro', intro);
     this.$('bKill').style.display = intro ? 'none' : '';             // girişte öldürülecek bir şey yok
-    const m = this.game.mapDef || {};
+    const m = g.mapDef || {}, mid = m.id || g.opts?.map;
     ov.style.backgroundImage = intro && m.thumb ? `linear-gradient(rgba(5,8,12,.35), rgba(5,8,12,.88)), url(${m.thumb})` : '';
-    this.$('pmeta').innerHTML = intro && m.name ? `<div class="pm"><b>${m.name}</b><span>${m.tag || ''}</span></div><div class="pdesc">${m.desc || ''}</div>` : '';
-    if (v && this.game.time > 0.5) {
-      this.$('ptitle').textContent = 'Duraklatıldı';
-      this.$('ptext').textContent = 'Devam etmek için tıkla.';
-      this.$('bResume').textContent = 'Devam';
+    const tag = mapText(m.tag || '', `map.${mid}.tag`), desc = mapText(m.desc || '', `map.${mid}.desc`);
+    this.$('pmeta').innerHTML = intro && m.name ? `<div class="pm"><b>${mapName(mid)}</b><span>${tag}</span></div>${desc ? `<div class="pdesc">${desc}</div>` : ''}` : '';
+    this.$('ptag').innerHTML = EN(`${modeLabel(g.opts?.match?.type || g.mode.type || '')}${intro ? '' : ' · ' + mapName(mid)}`);
+    if (!v) return;
+    const bt = document.getElementById('bTouch'); if (bt) bt.textContent = t('pause.touch');   // touch.js'in eklediği düğme
+    const mob = document.body.classList.contains('mob');
+    if (g.time > 0.5) {
+      this.$('ptitle').textContent = t('pause.paused');
+      this.$('ptext').textContent = t('pause.resumeHint');
+      this.$('bResume').textContent = t('pause.resume');
+    } else {
+      this.$('ptitle').textContent = t('pause.ready');
+      this.$('ptext').textContent = mob ? t('pause.introTouch') : t('pause.intro');
+      this.$('bResume').textContent = t('pause.start');
     }
   }
 
@@ -503,12 +637,44 @@ export class Hud {
     if (key !== this._ffaKey) {
       this._ffaKey = key;
       const B = this.root.querySelector('.tk.blue'), Rd = this.root.querySelector('.tk.red');
-      this.$('tnB').textContent = st === 'lead' ? `SEN · LİDER +${me - ot}` : st === 'tie' ? 'SEN · BERABERE' : `SEN · ${rank}.`;
-      this.$('tnR').textContent = st === 'lead' ? `2. · ${nm}` : st === 'tie' ? `BERABERE · ${nm}` : `LİDER · ${nm}`;
+      const Y = t('hud.you'), L = t('hud.leader'), T = t('hud.tie');
+      this.$('tnB').textContent = st === 'lead' ? `${Y} · ${L} +${me - ot}` : st === 'tie' ? `${Y} · ${T}` : `${Y} · ${rank}.`;
+      this.$('tnR').textContent = st === 'lead' ? `2. · ${nm}` : st === 'tie' ? `${T} · ${nm}` : `${L} · ${nm}`;
       B.classList.toggle('lead', st === 'lead'); Rd.classList.toggle('lead', st === 'back');
       B.classList.toggle('tie', st === 'tie'); Rd.classList.toggle('tie', st === 'tie');
     }
     return [me, ot];
+  }
+
+  // Ölüm ekranı: öldüren kartı (ad, sınıf, silah, mesafe, kafadan, kalan canı) + doğuş geri sayımı
+  drawDeath(p) {
+    const g = this.game, $ = this.$, D = this.death;
+    const k = (D && D.k) || (p.lastHit && p.lastHit !== p ? p.lastHit : null);
+    const card = $('rkill');
+    card.classList.toggle('self', !k);
+    if (k) {
+      $('rkh').textContent = D?.hs ? t('death.killedByHs') : t('death.killedBy');
+      $('rtitle').textContent = k.name;
+      $('rtitle').className = g.ffa ? 'r' : k.team === 'blue' ? 'b' : 'r';
+      const kc = g.mode.infection && k.def?.zombie ? (k.boss ? 'BOSS' : ztName(ZT_ORDER.find((z) => ZTYPES[z] === k.zt) || 'walker')) : className(k.cls);
+      $('rksub').textContent = g.ffa ? kc : `${kc} · ${g.mode.infection ? (k.team === 'blue' ? t('hud.humans') : t('hud.zombies')) : teamName(k.team)}`;
+      $('rkw').innerHTML = EN(D?.w ? wLabel(D.w) : k.item ? wName(k.item.id) : '—');
+      $('rkhs').innerHTML = D?.hs ? `<span class="hs">${HS_SVG}${t('death.hs')}</span>` : '';
+      $('rkd').textContent = D && D.d ? `${Math.round(D.d)} m` : '—';
+      const hp = Math.max(0, Math.ceil(k.hp));
+      $('rkp').textContent = k.alive ? `${hp}` : t('death.dead');
+      $('rkpb').style.width = (k.alive ? clamp(k.hp / (k.maxHp || 100) * 100, 0, 100) : 0) + '%';
+    } else {
+      $('rkh').textContent = t('death.status');
+      $('rtitle').textContent = t('death.died'); $('rtitle').className = '';
+      $('rksub').textContent = D?.w ? wLabel(D.w) : '';
+    }
+    // geri sayım halkası
+    const rt = Math.max(0, p.respawnT || 0);
+    this._rsMax = Math.max(this._rsMax || 0, rt);
+    $('rcount').textContent = rt > 0 ? Math.ceil(rt) : '…';
+    $('rring').style.strokeDashoffset = (276.5 * (1 - (this._rsMax ? rt / this._rsMax : 0))).toFixed(1);
+    $('rcsub').textContent = rt > 0 ? t('death.respawnIn') : t('death.deploying');
   }
 
   update(dt) {
@@ -521,20 +687,20 @@ export class Hud {
     if (!g.ffa && g.mode.objectives.length) {                       // bayrak kanaması: daha çok bayrağı olan takım, farkı kadar rakip bileti 5 sn'de eksiltir
       const nb = g.mode.objectives.filter((o) => o.owner === 'blue').length, nr = g.mode.objectives.filter((o) => o.owner === 'red').length;
       const bb = nr > nb ? nr - nb : 0, br = nb > nr ? nb - nr : 0;
-      $('tnB').textContent = 'MAVİ' + (bb ? ` ▼${bb}` : '');
-      $('tnR').textContent = 'KIRMIZI' + (br ? ` ▼${br}` : '');
+      $('tnB').textContent = t('hud.blue') + (bb ? ` ▼${bb}` : '');
+      $('tnR').textContent = t('hud.red') + (br ? ` ▼${br}` : '');
       const mine = p.team === 'blue' ? bb : br, key = mine + ':' + (p.team === 'blue' ? br : bb);
       if (key !== this._bleedKey) {
         this._bleedKey = key;
-        if (mine) this.toast(`Rakip ${mine} bayrak önde: biletin ${TUNE.bleed} sn'de ${mine} azalıyor`, '#ff8a6a');
-        else if (p.team === 'blue' ? br : bb) this.toast('Bayrak üstünlüğün var: rakip bileti azalıyor', '#9fe6a8');
+        if (mine) this.toast(t('hud.bleedLose', { n: mine, s: TUNE.bleed }), '#ff8a6a');
+        else if (p.team === 'blue' ? br : bb) this.toast(t('hud.bleedWin'), '#9fe6a8');
       }
-    }
+    } else if (!g.ffa && !g.mode.infection) { $('tnB').textContent = t('hud.blue'); $('tnR').textContent = t('hud.red'); }
     $('tbB').style.width = clamp((kb / this.maxTk) * 100, 0, 100) + '%';
     $('tbR').style.width = clamp((kr / this.maxTk) * 100, 0, 100) + '%';
-    const t = Math.max(0, Math.ceil(g.timeLeft));
-    $('lim').textContent = g.mode.scoreBased ? `İLK ${g.mode.tickets}` : '';
-    $('tm').textContent = g.timeLeft === Infinity ? '∞' : `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
+    const tl = Math.max(0, Math.ceil(g.timeLeft));
+    $('lim').textContent = g.mode.scoreBased ? t('hud.first', { n: g.mode.tickets }) : '';
+    $('tm').textContent = g.timeLeft === Infinity ? '∞' : `${Math.floor(tl / 60)}:${String(tl % 60).padStart(2, '0')}`;
     this.drawCompass();
     if (this.zoneT > 0) { this.zoneT -= dt; if (this.zoneT <= 0) $('zonew').style.display = 'none'; }
     g.mode.objectives.forEach((o, i) => {
@@ -544,7 +710,7 @@ export class Hud {
       const pr = o.p;
       const c2 = pr > 0 ? '#4aa3ff' : '#ff5a43';
       f.querySelector('i').style.background = Math.abs(pr) > 0.02 && Math.abs(pr) < 1 ? `conic-gradient(${c2} ${Math.abs(pr) * 360}deg, transparent 0)` : 'none';
-      f.firstElementChild.style.opacity = 0.55;
+      f.firstElementChild.style.opacity = 0.9;
     });
     // oyuncu durumu
     const st = p.stat, it = p.item;
@@ -552,20 +718,26 @@ export class Hud {
     const abEl = $('abil');
     if (ab && p.alive) {
       abEl.style.display = 'block';
-      const act = p.abActive > 0, rdy = p.abT <= 0 && !act;
+      const act = p.abActive > 0, rdy = p.abT <= 0 && !act, an = abilName(ab);
       abEl.className = act ? 'on' : rdy ? '' : 'cd';
-      $('abk').textContent = codeLabel(g.binds.codes('ability')[0]) + ' / SAĞ TIK';
-      $('abn').textContent = act ? `${ab.label} · ${p.abActive.toFixed(1)}s` : rdy ? `${ab.label} · HAZIR` : `${ab.label} · ${Math.ceil(p.abT)}s`;
+      $('abk').textContent = codeLabel(g.binds.codes('ability')[0]) + ' / ' + t('hud.rmb');
+      $('abn').textContent = act ? `${an} · ${p.abActive.toFixed(1)}s` : rdy ? `${an} · ${t('hud.ready')}` : `${an} · ${Math.ceil(p.abT)}s`;
       $('abbar').style.width = (act ? p.abActive / ab.dur * 100 : rdy ? 100 : (1 - p.abT / ab.cd) * 100) + '%';
     } else abEl.style.display = 'none';
     $('hpnum').innerHTML = `${Math.max(0, Math.ceil(p.hp))}<small>HP</small>`;
     $('hpfill').style.width = clamp((p.hp / p.maxHp) * 100, 0, 100) + '%';
     $('hpfill').style.background = p.hp < 30 ? 'linear-gradient(90deg,#d63a2e,#f06a4a)' : 'linear-gradient(90deg,#3ecf5b,#7be06f)';
-    $('clsname').textContent = g.mode.gungame ? `Seviye ${p.ggLevel + 1}/${g.mode.killLimit}` : g.mode.paintball ? `Paintball · ${p.kills}/${g.mode.killLimit} eleme` : g.mode.infection ? (p.def.zombie ? `${p.boss ? 'BOSS' : 'Zombi · ' + p.zt.label} · ${'♥'.repeat(Math.max(0, p.zLives))}` : `${CLASS_DEFS[p.cls].label} · İnsanlar`) : `${CLASS_DEFS[p.cls].label} · ${TEAMS[p.team].name}`;
-    $('wname').textContent = p.reloadT > 0 ? `${st.name} · dolduruluyor…` : p.useT > 0 ? `${st.name} · kullanılıyor…` : st.name;
+    const ztk = p.def.zombie && !p.boss ? ZT_ORDER.find((z) => ZTYPES[z] === p.zt) : null;
+    setH($('clsname'), EN(g.mode.gungame ? t('hud.ggLevel', { n: p.ggLevel + 1, m: g.mode.killLimit }) : g.mode.paintball ? t('hud.pbElim', { n: p.kills, m: g.mode.killLimit }) : g.mode.infection ? (p.def.zombie ? `${p.boss ? 'BOSS' : className('zombie') + ' · ' + ztName(ztk || 'walker')} · ${'♥'.repeat(Math.max(0, p.zLives))}` : `${className(p.cls)} · ${t('hud.humans')}`) : `${className(p.cls)} · ${teamName(p.team)}`));
+    const wn = wName(it.id);
+    setH($('wname'), EN(p.reloadT > 0 ? `${wn} · ${t('hud.reloading')}` : p.useT > 0 ? `${wn} · ${t('hud.using')}` : wn));
     $('mag').textContent = it.mag;
     $('res').textContent = st.kind === 'throwable' || st.kind === 'medkit' || st.kind === 'melee' ? '' : '/ ' + it.reserve;
-    $('slots').innerHTML = p.items.map((x, i) => `<div class="slot ${i === p.cur ? 'on' : ''} ${p.canEquip(i) ? '' : 'empty'}"><span><b>${i + 1}</b>${WSTATS[x.id].name}</span></div>`).join('');
+    const slotKey = p.items.map((x, i) => x.id + (i === p.cur ? '*' : '') + (p.canEquip(i) ? '' : '-')).join(',');
+    if (slotKey !== this._slotKey) {                                         // yalnız değişince yeniden yaz (dil değişince applyLang sıfırlar)
+      this._slotKey = slotKey;
+      $('slots').innerHTML = p.items.map((x, i) => `<div class="slot ${i === p.cur ? 'on' : ''} ${p.canEquip(i) ? '' : 'empty'}"><span><b>${i + 1}</b>${EN(wName(x.id))}</span></div>`).join('');
+    }
     this.$('ammo').querySelector('.n').classList.toggle('low', st.mag > 1 && it.mag <= st.mag * 0.25);
     // nişangâh / örtüler
     const cross = $('cross');
@@ -583,7 +755,7 @@ export class Hud {
     sc.style.display = scopeOn ? 'block' : 'none';
     if (scopeOn) sc.className = (p.opticDef.reticle === 'chevron') ? 'chev' : 'mil';
     $('advig').style.opacity = p.alive && ov !== 'scope' && !tp ? (ads * 0.55).toFixed(2) : 0;
-    const stTxt = [p.prone ? 'Yatıyor' : p.crouching ? 'Çömelmiş' : '', p.leanT > 0.3 ? 'Sağa eğik' : p.leanT < -0.3 ? 'Sola eğik' : '', p.opticDef && st.kind === 'gun' ? p.opticDef.label : '', st.kind === 'gun' && st.auto ? ({ semi: 'Tek atış [X]', burst: 'Seri [X]', auto: 'Otomatik [X]' }[p.fireModeNow]) : ''].filter(Boolean).join(' · ');
+    const stTxt = [p.prone ? t('hud.prone') : p.crouching ? t('hud.crouch') : '', p.leanT > 0.3 ? t('hud.leanR') : p.leanT < -0.3 ? t('hud.leanL') : '', p.opticDef && st.kind === 'gun' ? opticName(p.opticId) : '', st.kind === 'gun' && st.auto ? `${fireName(p.fireModeNow, true)} [X]` : ''].filter(Boolean).join(' · ');
     $('stance').textContent = stTxt;
     if (this.hitT > 0) { this.hitT -= dt; if (this.hitT <= 0) $('hitm').style.opacity = 0; }
     if (this.vigT > 0) { this.vigT -= dt; if (this.vigT <= 0) $('vig').style.opacity = 0; }
@@ -592,42 +764,42 @@ export class Hud {
     const rs = $('respawn');
     if (!p.alive && !g.ended) {
       rs.style.display = 'flex';
-      const k = p.lastHit && p.lastHit !== p ? p.lastHit : null;
-      $('rtitle').textContent = k ? 'Öldürüldün' : 'Öldün';
-      $('rinfo').innerHTML = k ? `<b>${k.name}</b> · ${CLASS_DEFS[k.cls].label}<br>${k.item ? WSTATS[k.item.id].name : ''} · ${Math.ceil(k.hp)} can kaldı` : '';
-      $('rcount').textContent = p.respawnT > 0 ? Math.ceil(p.respawnT) : '…';
-      if (g.mode.gungame) $('rinfo').innerHTML += `<br>Seviye <b>${p.ggLevel + 1}/${g.mode.killLimit}</b> · sıradaki: <b>${WSTATS[p.items[0].id].name}</b>`;
+      this.drawDeath(p);
+      let note = '';
+      if (g.mode.gungame) note = t('death.ggNext', { n: p.ggLevel + 1, m: g.mode.killLimit, w: wName(p.items[0].id) });
       if (g.mode.infection) {
         const cure = p.willCure;
         this.setRowMode(cure ? 'cls' : p.boss ? 'boss' : 'z');
-        $('rinfo').innerHTML += cure ? `<br><b style="color:#7ec8ff">${p.boss ? 'BOSS devrildi: ' : ''}İNSAN olarak doğacaksın</b> (zombi hakkın bitti)` : !p.def.zombie ? '<br><b style="color:#b6ff6a">Zombi olarak doğacaksın</b>' : `<br>Yeniden doğuyorsun · kalan hakkın: <b style="color:#b6ff6a">${p.zLives}</b>`;
+        note = cure ? `<b style="color:#7ec8ff">${p.boss ? t('death.bossDown') : ''}${t('death.asHuman')}</b> ${t('death.livesOut')}` : !p.def.zombie ? `<b style="color:#b6ff6a">${t('death.asZombie')}</b>` : t('death.zLives', { n: `<b style="color:#b6ff6a">${p.zLives}</b>` });
         if (cure) this.markClass(g.pendingClass || p.humanCls || ''); else if (!p.boss) this.markZ(g.pendingZ || '');
       }
       else if (!g.mode.fixed) { this.buildSpawnRow(); this.markClass(g.pendingClass || p.cls); }
-    } else { rs.style.display = 'none'; this._spKey = null; }
+      if (note !== this._note) { this._note = note; $('rinfo').innerHTML = note; }
+    } else { if (rs.style.display !== 'none') { rs.style.display = 'none'; this.death = null; } this._spKey = null; }
     // mesaj
     let msg = '';
     if (p.alive) {
       for (const o of g.mode.objectives) {
-        if (Math.hypot(o.x - p.pos.x, o.z - p.pos.z) < o.r) { msg = o.owner === p.team && Math.abs(o.p) >= 1 ? `${o.name} · senin` : `${o.name} · ele geçiriliyor`; break; }
+        if (Math.hypot(o.x - p.pos.x, o.z - p.pos.z) < o.r) { msg = o.owner === p.team && Math.abs(o.p) >= 1 ? t('hud.flagYours', { f: placeName(o.name) }) : t('hud.flagCapturing', { f: placeName(o.name) }); break; }
       }
-      if (!msg && p.stat.kind === 'medkit' && p.item.mag > 0 && g.findRevivable(p)) msg = 'Canlandır · sol tık';
-      if (!msg && p.item.mag <= 0 && p.stat.kind === 'gun') msg = p.item.reserve > 0 ? 'ŞARJÖR BOŞ · R ile doldur' : 'ŞARJÖR BOŞ · mermi kalmadı!';
+      if (!msg && p.stat.kind === 'medkit' && p.item.mag > 0 && g.findRevivable(p)) msg = t('hud.revive');
+      if (!msg && p.item.mag <= 0 && p.stat.kind === 'gun') msg = p.item.reserve > 0 ? t('hud.emptyR', { k: codeLabel(g.binds.codes('reload')?.[0]) || 'R' }) : t('hud.emptyNone');
     }
-    if (g.mode.infection && g.graceLeft > 0) msg = p.def.zombie ? `Hazırlan! Serbest kalmana ${Math.ceil(g.graceLeft)} sn` : `Zombiler ${Math.ceil(g.graceLeft)} sn sonra serbest kalacak — yüksek bir yere çık!`;
+    if (g.mode.infection && g.graceLeft > 0) msg = p.def.zombie ? t('hud.graceZ', { n: Math.ceil(g.graceLeft) }) : t('hud.graceH', { n: Math.ceil(g.graceLeft) });
     $('msg').textContent = msg;
     if (this.sbShown) this.renderScoreboard();
     this.drawMinimap();
   }
 
   // Bulunduğun bölgenin adı (haritada callouts varsa): minimap altındaki başlıkta "HARİTA · Bölge"
-  updateLocation() {
+  updateLocation(force) {
     const g = this.game, C = g.map.callouts, p = g.playerSoldier;
-    if (!C || !p) return;
+    const mn = mapName(g.mapDef?.id || g.opts?.map);
+    if (!C || !p) { if (force) this.$('mmname').textContent = mn; return; }
     let best = null, bd = 1e9;
     for (const c of C) { const d = Math.hypot(c.x - p.pos.x, c.z - p.pos.z); if (d < bd) { bd = d; best = c; } }
-    const nm = best && bd < 14 ? best.name : '';
-    if (nm !== this._loc) { this._loc = nm; this.$('mmname').textContent = (g.map.name || '') + (nm ? ' · ' + nm : ''); }
+    const nm = best && bd < 14 ? mapText(best.name) : '';
+    if (nm !== this._loc || force) { this._loc = nm; this.$('mmname').innerHTML = ''; this.$('mmname').append(mn); if (nm) { const b = document.createElement('b'); b.textContent = ' · ' + nm; this.$('mmname').append(b); } }
   }
 
   drawMinimap() {
