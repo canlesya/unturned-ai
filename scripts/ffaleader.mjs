@@ -46,7 +46,7 @@ for (const [dev, ctxOpt] of Object.entries(DEVS)) {
       // süre biter → lider kazanır, metinde adı geçer
       await page.evaluate(() => { const g = window.__game; g.timeLeft = 0; g.checkEnd(); }); await settle(page);
       const end = await page.evaluate(() => document.getElementById('end')?.innerText || document.body.innerText.slice(0, 400));
-      check(/YENİLGİ/.test(end) && end.includes(names[1]) && /Süre doldu/.test(end), `${T} süre bitti, kazanan lider: ${end.replace(/\s+/g, ' ').slice(0, 160)}`);
+      check(/YENİLGİ|DEFEAT/.test(end) && end.includes(names[1]) && /Süre doldu/.test(end), `${T} süre bitti, kazanan lider: ${end.replace(/\s+/g, ' ').slice(0, 160)}`);
       await page.screenshot({ path: `${OUT}/${dev}-${type}-5-son.png` });
     }
     check(!errs.length, `${T} sayfa hatası yok ${errs.slice(0, 2)}`);

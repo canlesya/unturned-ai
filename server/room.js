@@ -6,8 +6,11 @@ import { defaultTickets } from '../src/game/match.js';
 import { LIMITS, useBalance } from '../src/game/balance.js';
 import { currentBalance, balanceMeta } from './balanceStore.js';
 import { MAPS } from '../src/maps/index.js';
+import { nextOptions, tallyVotes } from '../src/game/nextMatch.js';
 
-const RESTART_MS = +process.env.BF_RESTART_MS || 15000;      // maç bitince sonuç ekranı süresi, sonra oda sıfırlanır
+const RESTART_ENV = +process.env.BF_RESTART_MS || 0, RESTART_MS = RESTART_ENV || 15000;      // maç sonu ekranı (resmi odada oylama) süresi; ortam değişkeni resmi sunucunun voteSec'ini de ezer (test)
+const EMPTY_ENV = +process.env.BF_EMPTY_ROTATE_MS || 0;                                    // boş resmi oda harita değişimi (test); yoksa sunucunun idleMin alanı
+export const MAPS_FOR = (type) => (type === 'inf' ? ['newyork'] : type === 'pb' ? ['boyakulesi'] : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman']);
 
 const num = (v, lo, hi, d = 0) => (Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d);
 
@@ -38,7 +41,9 @@ export class Room {
   constructor(code, cfg, opts = {}) {
     this.code = code;
     this.official = opts.official || null;
-    this.rot = 0;                                   // resmi odada harita sırası
+    this._rotIdx = null; this._cur = null;          // resmi odada düzendeki sıra + bu maçın { map, tod, weather } seçimi
+    this.vote = null;                               // maç sonu oylaması { opts, votes: Map(ws → i), ends }
+    this.pending = [];                              // maç sonu ekranında gelenler: yeni maç kurulunca otomatik katılır { ws, pref }
     this.cfg = sanitizeCfg(cfg);
     this.cfg.name = this.official ? this.official.name : this.cfg.name || 'Oda ' + code;
     if (this.official) { this.cfg.listed = true; this.cfg.pw = ''; }
@@ -60,13 +65,9 @@ export class Room {
     this.bal = currentBalance(); this.balVer = balanceMeta().version;   // admin değişiklikleri yeni maçta geçerli olur
     this.activate();
     if (this.official) {
-      const o = this.official, n = o.rotation.length;
-      if (this._rotSeen !== this.rot || this._rotIdx == null || this._rotIdx >= n) {          // yeni maç: sıradaki ya da rastgele harita (aynısı üst üste gelmez)
-        const prev = this._rotIdx;
-        this._rotIdx = o.shuffle && n > 1 ? (prev == null ? Math.floor(Math.random() * n) : (prev + 1 + Math.floor(Math.random() * (n - 1))) % n) : this.rot % n;
-        this._rotSeen = this.rot;
-      }
-      const r = o.rotation[this._rotIdx];
+      const o = this.official;
+      if (!this._cur) { this._rotIdx = o.shuffle ? Math.floor(Math.random() * o.rotation.length) : 0; this._cur = o.rotation[this._rotIdx]; }     // ilk maç / ayar değişti: düzenin başı (rastgele düzende herhangi biri)
+      const r = this._cur;
       Object.assign(c, sanitizeCfg({ type: o.type, perTeam: o.perTeam, time: o.time, diff: o.diff, tickets: o.tickets, bots: o.bots, third: o.third, ...r }), { name: o.name, listed: true, pw: '' });
       if (o.type === 'inf') c.tod = r.tod;
     }
@@ -78,25 +79,115 @@ export class Room {
     });
     this.tick = 0;
     this._sig = []; this._forceSlow = true;
-    this.resetAt = 0;
-    this.game.on('end', (e) => { this.broadcast({ t: 'end', winner: e.winner, why: e.why }); this.resetAt = Date.now() + RESTART_MS; });
+    this.resetAt = 0; this.vote = null;
+    this.gameAt = Date.now();                                          // boş oda harita değişimi bu andan sayılır
+    this.game.on('end', (e) => this.onEnd(e));
   }
 
-  // Maç bitti, oda yeni maça hazırlanıyor: oyuncular yeniden katılır (istemci sayfayı yeniler)
+  // Maç bitti: sonuç ekranı süresi başlar. Resmi odada 3 seçenekli oylama (harita + gün saati + hava), oyuncu odasında aynı ayarla devam
+  onEnd(e) {
+    const ms = this.endMs();
+    this.resetAt = Date.now() + ms;
+    const o = this.official;
+    if (o && o.vote !== false) {
+      const opts = nextOptions({ type: o.type, cur: this.cfg, rotation: o.rotation, first: this.nextRotIdx() });
+      this.vote = { opts, votes: new Map(), ends: this.resetAt };
+    }
+    const nx = this.vote ? null : o ? o.rotation[this.nextRotIdx()] : this.cfg;
+    this.broadcast({ t: 'end', winner: e.winner, why: e.why, ms, vote: this.vote ? { opts: this.vote.opts.map(({ map, tod, weather }) => ({ map, tod, weather })), c: this.voteCounts() } : null, next: nx ? { map: nx.map, tod: nx.tod, weather: nx.weather } : null });
+  }
+
+  endMs() { return RESTART_ENV || (this.official ? (this.official.voteSec || 15) * 1000 : RESTART_MS); }
+
+  // Resmi düzende sıradaki indeks (rastgele düzende aynısı üst üste gelmez); maç başına bir kez seçilir, oylamanın ilk seçeneği bu olur
+  nextRotIdx() {
+    if (this._nextIdx != null && this._nextFor === this.game) return this._nextIdx;
+    const n = this.official.rotation.length, cur = this._rotIdx ?? -1;
+    this._nextFor = this.game;
+    return (this._nextIdx = this.official.shuffle && n > 1 ? (cur < 0 || cur >= n ? Math.floor(Math.random() * n) : (cur + 1 + Math.floor(Math.random() * (n - 1))) % n) : (cur + 1) % n);
+  }
+
+  // Sonraki maçın seçimi: oylama kazananı ya da düzende sıradaki
+  advance(pick) {
+    const o = this.official;
+    if (!o) return;
+    if (pick) { this._cur = { map: pick.map, tod: pick.tod, weather: pick.weather }; if (pick.ri >= 0 && pick.ri < o.rotation.length) this._rotIdx = pick.ri; }
+    else { this._rotIdx = this.nextRotIdx(); this._cur = o.rotation[this._rotIdx]; }
+    this._nextIdx = null;
+  }
+
+  voteCounts() { const c = this.vote ? this.vote.opts.map(() => 0) : []; if (this.vote) for (const i of this.vote.votes.values()) c[i]++; return c; }
+
+  // Oy: yalnız odadaki insan oyuncular (botların bağlantısı yok, oy veremez); fikir değiştirilebilir. Herkes oy verince geri sayım 3 sn'ye iner
+  castVote(ws, i) {
+    const v = this.vote;
+    if (!v || !this.game.ended || !ws.ctx || this.clients.get(ws.ctx.id)?.ws !== ws) return;
+    if (!Number.isInteger(i) || i < 0 || i >= v.opts.length) return;
+    v.votes.set(ws, i);
+    const now = Date.now();
+    if (v.votes.size >= this.clients.size && this.resetAt - now > 3000) this.resetAt = v.ends = now + 3000;
+    this.broadcast({ t: 'votes', c: this.voteCounts(), n: this.clients.size, ms: Math.max(0, this.resetAt - now) });
+  }
+
+  decide() {
+    const v = this.vote;
+    if (!v) return null;
+    for (const ws of v.votes.keys()) if (!ws.ctx || this.clients.get(ws.ctx.id)?.ws !== ws) v.votes.delete(ws);     // çıkanların oyu sayılmaz
+    const c = this.voteCounts(), i = tallyVotes(c), o = v.opts[i];
+    console.log(`[${this.code}] oylama ${JSON.stringify(c)} → ${o.map} / ${o.tod} / ${o.weather}`);
+    return o;
+  }
+
+  // Maç sonu süresi doldu: yeni maç kurulur; odadakiler (ve bu sırada gelenler) bağlantı kopmadan yeni maça alınır (istemci yeni 'welcome' ile oyunu yeniden kurar)
   reset() {
-    this.broadcast({ t: 'restart' });
+    const pick = this.decide();
+    this.vote = null;
+    if (this.official) this.advance(pick);
+    const keep = [...this.clients.values()].map((c) => ({ ws: c.ws, pref: { ...c.pref, team: this.game.soldiers[c.id]?.team } })), wait = this.pending.splice(0);
+    this.broadcast({ t: 'restart', re: 1 });                  // eski sürüm istemciler sayfayı yeniler; yeniler aynı bağlantıda 'welcome' bekler
     for (const c of this.clients.values()) c.ws.ctx = null;
     this.clients.clear();
-    this.emptySince = Date.now();
-    if (this.official && this.game.ended) this.rot++;       // resmi odada sıradaki haritaya geç
     this.game.dispose();
     this.newGame();
+    for (const k of [...keep, ...wait]) this.rejoin(k.ws, k.pref);
+    this.emptySince = this.clients.size ? 0 : Date.now();
   }
 
-  // Admin panelinden resmi sunucu ayarı değişti: boşsa hemen yeni maç, içinde oyuncu varsa sonraki maçta
+  rejoin(ws, pref) {
+    if (ws.readyState !== 1) { ws.ctx = null; return; }
+    const c = this.join(ws, pref.name, pref.team, pref.cls, pref.loadout, true);
+    if (!c) { ws.ctx = null; try { ws.send(JSON.stringify({ t: 'err', msg: 'Oda dolu' })); ws.close(4002, 'full'); } catch { /* yok say */ } return; }
+    ws.ctx = { room: this, id: c.id };
+  }
+
+  // Maç bitmişken gelen oyuncu: yeni maç kurulunca otomatik katılır (istemci yükleme ekranında bekler)
+  hold(ws, pref) {
+    this.pending.push({ ws, pref });
+    ws.ctx = { room: this, id: -1 };
+    ws.send(JSON.stringify({ t: 'wait', ms: Math.max(0, this.resetAt - Date.now()) }));
+  }
+
+  // Boş resmi oda kendiliğinden döner (listede harita / gün saati değişsin): idleMin dakikada bir (0 = kapalı)
+  idleTick(now) {
+    const o = this.official;
+    if (!o || this.clients.size || this.pending.length) return;
+    const ms = EMPTY_ENV || (o.idleMin ?? 10) * 60000;
+    if (!ms || now - this.gameAt < ms) return;
+    this.activate();
+    this.advance(null);
+    this.game.dispose();
+    this.newGame();
+    console.log(`[${this.code}] boş oda: yeni harita ${this.cfg.map} / ${this.cfg.tod} / ${this.cfg.weather}`);
+  }
+
+  // Admin panelinden resmi sunucu ayarı değişti: boşsa hemen yeni maç, içinde oyuncu varsa sonraki maçta (değişmeyen sunucuya dokunulmaz: boş oda dönüşü sıfırlanmasın)
   setOfficial(o) {
+    const same = JSON.stringify(o) === JSON.stringify(this.official);
     this.official = o;
-    if (!this.clients.size) { this.rot = 0; this._rotIdx = null; this.game.dispose(); this.newGame(); }
+    if (same) return;
+    if (this._rotIdx != null && this._rotIdx >= o.rotation.length) this._rotIdx = null;
+    this._nextIdx = null;
+    if (!this.clients.size && !this.pending.length) { this._rotIdx = null; this._cur = null; this.game.dispose(); this.newGame(); }
   }
 
   // Odayı kapat (admin): oyunculara mesaj, bağlantılar kesilir (istemci ana menüye döner)
@@ -130,8 +221,7 @@ export class Room {
 
   canJoin(pw) {
     if (this.cfg.pw && pw !== this.cfg.pw) return 'Şifre yanlış';
-    if (this.game.ended) return 'Maç bitti, yeni maç birazdan başlıyor';
-    if (this.clients.size >= this.cap) return 'Oda dolu';
+    if (this.clients.size + this.pending.length >= this.cap) return 'Oda dolu';      // maç bitmişse de girilir: bekleme listesine (hold)
     return null;
   }
 
@@ -150,7 +240,7 @@ export class Room {
     return this.game.soldiers.map((s) => ({ id: s.id, name: s.name, team: s.team, cls: s.cls, human: this.game.humans.has(s.id), vac: !!s.vacant }));
   }
 
-  join(ws, name, team, cls, loadout) {
+  join(ws, name, team, cls, loadout, re = false) {
     if (!this.clients.size && this.bal !== currentBalance()) { this.game.dispose(); this.newGame(); }     // boş odaya ilk giren: maç sıfırdan, güncel denge ayarlarıyla
     const g = this.game;
     const counts = { blue: this.humansOf('blue'), red: this.humansOf('red') }, cap = this.cfg.perTeam;
@@ -167,19 +257,20 @@ export class Room {
     let s = g.claimSlot(t, nm, cls, loadout);
     if (!s) s = g.claimSlot(t === 'blue' ? 'red' : 'blue', nm, cls, loadout);
     if (!s) return null;
-    const c = { ws, name: s.name, h: g.humans.get(s.id), id: s.id };
+    const c = { ws, name: s.name, h: g.humans.get(s.id), id: s.id, pref: { name: cleanName(name), team: t, cls, loadout } };      // pref: sonraki maça otomatik geçişte aynı ad / sınıf / yükleme
     this.clients.set(s.id, c);
     this.emptySince = 0;
     this._forceSlow = true;
     const deps = g.deployables.map((d) => ({ e: 'dep', id: d.id, ty: d.type === 'claymore' ? 'c' : 'a', p: [d.pos.x, d.mesh.position.y - (d.type === 'claymore' ? 0.15 : 0), d.pos.z], ry: d.ry, tm: d.team, by: d.owner.id }));
     ws.send(JSON.stringify({ t: 'welcome', id: s.id, room: this.code, cfg: this.publicCfg(), roster: this.roster(), hz: SIM_HZ, deps, bal: this.bal || {} }));
     this.broadcast({ t: 'roster', roster: this.roster() }, ws);
-    this.sys(`${s.name} odaya katıldı`);
+    if (!re) this.sys(`${s.name} odaya katıldı`);
     return c;
   }
 
-  leave(id) {
-    if (!this.clients.has(id)) return;
+  leave(id, ws) {
+    if (ws) { const i = this.pending.findIndex((p) => p.ws === ws); if (i >= 0) this.pending.splice(i, 1); this.vote?.votes.delete(ws); }
+    if (!this.clients.has(id) || (ws && this.clients.get(id).ws !== ws)) return;
     const nm = this.clients.get(id).name;
     this.clients.delete(id);
     if (this.clients.size) this.sys(`${nm} odadan ayrıldı`);
@@ -187,8 +278,9 @@ export class Room {
     this.game.releaseSlot(id);
     if (!this.clients.size) {
       this.emptySince = Date.now();
-      // resmi oda boşalınca taze maça hazırlanır (bir sonraki ilk oyuncu temiz başlangıç görür; maç bitmişse sıradaki harita)
-      if (this.official) { if (this.game.ended) this.rot++; this.game.dispose(); this.newGame(); return; }
+      // maç sonunda herkes çıktı: oylama hemen sonuçlanır, bekleyenler yeni maça alınır. Resmi oda boşalınca taze maça hazırlanır
+      if (this.game.ended) { this.reset(); return; }
+      if (this.official) { this.game.dispose(); this.newGame(); return; }
     }
     this.broadcast({ t: 'roster', roster: this.roster() });
   }
@@ -246,9 +338,9 @@ export class Room {
     if (!c) return;
     const h = c.h, g = this.game, str = (v) => (typeof v === 'string' ? v.slice(0, 24) : undefined);
     if (typeof m.optic === 'string' && h.s.alive) h.s.setOptic(m.optic);             // T tekerleği: nişangâh seçimi hemen geçerli
-    if (typeof m.cls === 'string' && CLASS_DEFS[m.cls] && m.cls !== 'zombie') h.pendingClass = m.cls;
+    if (typeof m.cls === 'string' && CLASS_DEFS[m.cls] && m.cls !== 'zombie') h.pendingClass = c.pref.cls = m.cls;
     if (typeof m.zt === 'string' && ZTYPES[m.zt]) h.pendingZ = m.zt;                  // Enfekte: bir sonraki doğuşta zombi türü
-    if (m.loadout && typeof m.loadout === 'object') h.pendingLoadout = { primary: str(m.loadout.primary), secondary: str(m.loadout.secondary), gadget: str(m.loadout.gadget), melee: str(m.loadout.melee) };
+    if (m.loadout && typeof m.loadout === 'object') h.pendingLoadout = c.pref.loadout = { primary: str(m.loadout.primary), secondary: str(m.loadout.secondary), gadget: str(m.loadout.gadget), melee: str(m.loadout.melee) };
     if (typeof m.spawn === 'string') h.spawnChoice = m.spawn === 'base' || g.mode.objectives.some((o) => o.id === m.spawn) ? m.spawn : 'base';
   }
 

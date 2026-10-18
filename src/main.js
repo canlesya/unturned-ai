@@ -4,6 +4,8 @@ import { MENU_CSS } from './menuStyle.js';
 import { NetClient } from './net/client.js';
 import { defaultServerUrl, healthUrl } from './net/protocol.js';
 import { fetchBalance, useBalance } from './game/balance.js';
+import { t } from './i18n/index.js';
+import './i18n/match.js';
 
 const q = new URLSearchParams(location.search);
 const loading = document.getElementById('loading');
@@ -32,7 +34,7 @@ function start(opts) {
         autoplay: q.get('autoplay') === '1',
         onMatchEnd: recordMatch,
         onExit: opts.onExit || (() => { game = null; showMenu(start, beginOnline); }),
-        onRestart: opts.onRestart || (() => start(opts)),
+        onRestart: opts.onRestart || ((nx) => start(nx ? { ...opts, ...nx } : opts)),      // çevrimdışı sonraki maç: maç sonu ekranında seçilen harita / gün saati / hava
       });
     } catch (e) {
       console.error(e);
@@ -49,8 +51,10 @@ function beginOnline({ net, welcome, name, pw }) {
   const c = welcome.cfg, me = welcome.roster[welcome.id];
   try { if (pw) sessionStorage.setItem('bf_pw_' + welcome.room, pw); } catch (e) { /* yok say */ }       // sayfa yenilenince (maç sonu / takım değişimi) yeniden sorulmasın
   const cls = me.cls, loadout = (p.loadouts && p.loadouts[cls]) || {};
-  history.replaceState(null, '', `?online=${welcome.room}${q.get('debug') ? '&debug=1' : ''}${q.get('nolock') ? '&nolock=1' : ''}&name=${encodeURIComponent(name)}`);
+  history.replaceState(null, '', `?online=${welcome.room}${q.get('debug') ? '&debug=1' : ''}${q.get('nolock') ? '&nolock=1' : ''}${q.get('touch') ? '&touch=' + q.get('touch') : ''}${q.get('server') ? '&server=' + encodeURIComponent(q.get('server')) : ''}&name=${encodeURIComponent(name)}`);   // sunucu adresi de kalır (yenilenince başka sunucuya gidip "bağlanılamadı" olmasın)
   document.getElementById('menu').style.display = 'none';
+  // Maç bitti → sunucu yeni maçı kurup aynı bağlantıda yeni 'welcome' yollar: sayfa yenilenmeden, menüye düşmeden yeni maç kurulur
+  net.onWelcome = (w) => { const g = game; game = null; g?.dispose(true); net.resetMatch(); beginOnline({ net, welcome: w, name, pw }); };
   start({
     online: { net, id: welcome.id, roster: welcome.roster, deps: welcome.deps, room: welcome.room, cfg: c },
     match: { perTeam: c.perTeam, type: c.type, tickets: c.tickets, time: c.time }, map: c.map, tod: c.tod, weather: c.weather, diff: c.diff,
@@ -76,7 +80,7 @@ async function startOnline() {
     ? { t: 'create', name, cls, loadout, team: q.get('team') || undefined, cfg: { name: q.get('room') || undefined, pw, listed: q.get('listed') !== '0', bots: q.get('bots') !== '0', third: q.get('third') === '1', map: q.get('map') || 'kasaba', tod: q.get('tod') || 'day', weather: q.get('weather') || 'clear', type: q.get('type') || 'conquest', perTeam: +q.get('per') || 5, diff: q.get('diff') || 'normal', tickets: +q.get('tickets') || undefined, time: q.has('time') ? +q.get('time') : undefined } }
     : { t: 'join', room: code, name, cls, loadout, pw, team: q.get('team') || undefined };
   try {
-    const { net, welcome } = await NetClient.connect(url, hello);
+    const { net, welcome } = await NetClient.connect(url, hello, { onWait: (ms) => { loading.querySelector('.lt').textContent = t('match.waitNext', { s: Math.ceil((ms || 0) / 1000) }); } });     // maç sonu ekranındaki odaya: yeni maçta otomatik katılım
     beginOnline({ net, welcome, name, pw });
   } catch (e) {
     loading.style.display = 'flex';

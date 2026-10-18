@@ -76,6 +76,7 @@ wss.on('connection', (ws) => {
     if (m.t === 'chat') { if (ws.ctx) ws.ctx.room.chat(ws.ctx.id, m); return; }
     if (m.t === 'opt') { if (ws.ctx) ws.ctx.room.opt(ws.ctx.id, m); return; }
     if (m.t === 'dbg' && process.env.BF_DEBUG && ws.ctx) { ws.ctx.room.debug(ws.ctx.id, m); return; }   // yalnızca test için
+    if (m.t === 'vote') { if (ws.ctx) ws.ctx.room.castVote(ws, m.i); return; }      // maç sonu oylaması (yalnız insanlar)
     if (m.t === 'team') {                                // M menüsü: takım değiştirme isteği
       if (!ws.ctx) return;
       const r = ws.ctx.room.teamCheck(ws.ctx.id, m.team);
@@ -104,12 +105,13 @@ wss.on('connection', (ws) => {
       enter(ws, room, m);
     }
   });
-  ws.on('close', () => { if (ws.ctx) { ws.ctx.room.activate(); ws.ctx.room.leave(ws.ctx.id); } });
+  ws.on('close', () => { if (ws.ctx) { ws.ctx.room.activate(); ws.ctx.room.leave(ws.ctx.id, ws); } });
   ws.on('error', () => {});
 });
 
 function enter(ws, room, m) {
   room.activate();
+  if (room.game.ended) { room.hold(ws, { name: cleanName(m.name), team: m.team, cls: m.cls, loadout: m.loadout }); console.log(`[${room.code}] ${cleanName(m.name)} sonraki maçı bekliyor`); return; }     // maç sonu ekranı: yeni maçta otomatik katılır
   const c = room.join(ws, cleanName(m.name), m.team, m.cls, m.loadout);
   if (!c) return err(ws, 'Oda dolu');
   ws.ctx = { room, id: c.id };
@@ -130,6 +132,9 @@ function syncOfficial() {
   }
 }
 syncOfficial();
+
+// boş resmi odalar idleMin dakikada bir yeni harita / gün saatine geçer (listede dönen haritalar)
+setInterval(() => { const now = Date.now(); for (const r of rooms.values()) if (r.official) r.idleTick(now); }, 1000);
 
 // boş oyuncu odalarını temizle (resmi odalar hariç)
 setInterval(() => {

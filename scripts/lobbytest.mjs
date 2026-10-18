@@ -12,7 +12,7 @@ const last = (ws, t) => [...ws.msgs].reverse().find((m) => m.t === t);
 // 1) resmi odalar
 let rooms = await list();
 const off = rooms.filter((r) => r.official);
-check(off.length === 4 && rooms[0].official, `4 resmi oda listede ilk sırada: ${off.map((r) => r.code + ':' + r.map).join(' ')}`);
+check(off.length >= 6 && rooms[0].official, `her moddan resmi oda listede ilk sırada: ${off.map((r) => r.code + ':' + r.map).join(' ')}`);
 check(off.every((r) => r.bots && !r.locked), 'resmi odalar botlu ve şifresiz');
 
 // 2) resmi odaya gir: 1 bot azalır
@@ -71,7 +71,7 @@ await until(() => last(a, 'restart'), 8000);
 await wait(500);
 const after = (await list()).find((r) => r.code === o1.code);
 check(after.map !== before.map, `resmi oda haritası döndü: ${before.map} → ${after.map}`);
-check(after.humans === 0, 'oyuncular çıkarıldı, oda taze maçta bekliyor');
+check(after.humans >= 1 && a.msgs.slice(a.msgs.indexOf(end)).some((m) => m.t === 'welcome'), `(${after.humans} insan) oyuncular menüye düşmeden yeni maça geçti (12.101)`);
 
 // 6) Ölüm Maçı resmi odası: herkes tek, 10 kişi, takım yok
 const dmRoom = (await list()).find((r) => r.type === 'dm');

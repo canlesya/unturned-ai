@@ -393,7 +393,7 @@ function renderServers(main) {
           <label class="sw" title="${o.enabled ? 'Açık' : 'Kapalı'}"><input type="checkbox" data-tg="${esc(o.code)}" ${o.enabled ? 'checked' : ''}><i></i></label>
           <span class="st">${o.enabled && o.live ? `<b class="on"></b>${o.live.humans}/${o.live.cap} oyuncu · ${esc(MAPN[o.live.map])}${o.live.ended ? ' · maç bitti' : o.live.tl >= 0 ? ` · ${Math.floor(o.live.tl / 60)} dk kaldı` : ''}` : '<b></b>Kapalı'}</span></div>
         <div class="sb"><div class="nm">${esc(o.name)}</div><div class="ds">${esc(o.desc || ' ')}</div>
-          <div class="chips"><span class="tag or">${esc(lbl(MODES, o.type))}</span><span class="tag">${sizeTxt(o)}</span><span class="tag">${timeTxt(o.time)}</span><span class="tag">${o.bots ? lbl(DIFFS, o.diff) + ' bot' : 'Botsuz'}</span></div>
+          <div class="chips"><span class="tag or">${esc(lbl(MODES, o.type))}</span><span class="tag">${sizeTxt(o)}</span><span class="tag">${timeTxt(o.time)}</span><span class="tag">${o.bots ? lbl(DIFFS, o.diff) + ' bot' : 'Botsuz'}</span><span class="tag" title="Maç sonu oylaması">${o.vote !== false ? `Oylama ${o.voteSec ?? 15} sn` : 'Oylama yok'}</span><span class="tag" title="Boşken harita değişimi">${o.idleMin ? `Boşta ${o.idleMin} dk` : 'Boşta sabit'}</span></div>
           <div class="rot">${o.rotation.map((r, i) => `<span class="rm" title="${esc(MAPN[r.map])} · ${esc(lbl(TODS, r.tod))} · ${esc(lbl(WEATHERS, r.weather))}" style="background-image:url('${MAPIMG[r.map]}')"><i>${o.shuffle ? '?' : i + 1}</i></span>`).join('')}<span class="tag" style="align-self:center">${o.rotation.length < 2 ? 'Tek harita' : o.shuffle ? 'Rastgele' : 'Sırayla'}</span></div>
           <button class="btn sm" data-ed="${esc(o.code)}" style="margin-top:12px">Düzenle</button></div></div>`;
     }).join('')}
@@ -430,8 +430,9 @@ function renderServers(main) {
 
 function openServer(src) {
   const L = S.off.limits;
-  const E = src ? JSON.parse(JSON.stringify(src)) : { name: 'Yeni Resmi Sunucu', desc: '', enabled: true, type: 'tdm', perTeam: 8, time: 600, diff: 'normal', tickets: 0, bots: true, third: false, rotation: [{ map: 'kasaba', tod: 'day', weather: 'clear' }] };
+  const E = src ? JSON.parse(JSON.stringify(src)) : { name: 'Yeni Resmi Sunucu', desc: '', enabled: true, type: 'tdm', perTeam: 8, time: 600, diff: 'normal', tickets: 0, bots: true, third: false, vote: true, voteSec: 15, idleMin: 10, rotation: [{ map: 'kasaba', tod: 'day', weather: 'clear' }] };
   delete E.live;
+  E.vote = E.vote !== false; E.voteSec ??= 15; E.idleMin ??= 10;
   const m = document.createElement('div');
   m.className = 'modal';
   document.body.appendChild(m);
@@ -466,6 +467,10 @@ function openServer(src) {
             <div class="rset">${seg('tod', TODS, r.tod, inf)}${seg('weather', WEATHERS, r.weather)}</div>
             <div class="rbtn"><button type="button" class="btn sm" data-up ${i ? '' : 'disabled'} title="Yukarı">↑</button><button type="button" class="btn sm" data-down ${i < E.rotation.length - 1 ? '' : 'disabled'} title="Aşağı">↓</button><button type="button" class="btn sm dan" data-rm ${E.rotation.length > 1 ? '' : 'disabled'} title="Kaldır">✕</button></div></div>`).join('')}
           ${E.rotation.length < 8 ? '<button type="button" class="btn sm" id="sAdd" style="margin-top:8px">+ Harita ekle</button>' : ''}</div>
+        <div class="two"><div class="fld"><span>Maç sonu oylaması: <b id="sVoteV">${E.vote ? E.voteSec + ' sn' : 'Kapalı'}</b></span><label class="chk"><input type="checkbox" id="sVote" ${E.vote ? 'checked' : ''}> Oyuncular sonraki haritayı + gün saatini oylasın (3 seçenek)</label>
+            <div class="trk"><input type="range" id="sVoteS" min="5" max="60" step="1" value="${E.voteSec}" style="--p:${((E.voteSec - 5) / 55) * 100}%" ${E.vote ? '' : 'disabled'}></div></div>
+          <div class="fld"><span>Boşken harita değişimi: <b id="sIdleV">${E.idleMin ? E.idleMin + ' dk' : 'Kapalı'}</b></span><div style="font-size:12px;color:var(--tx3);margin:2px 0 6px">İçinde oyuncu yokken harita / gün saati kendiliğinden döner (0 = kapalı)</div>
+            <div class="trk"><input type="range" id="sIdle" min="0" max="60" step="1" value="${E.idleMin}" style="--p:${(E.idleMin / 60) * 100}%"></div></div></div>
         <div class="err" id="sErr"></div></div>
       <div class="bf">${src ? '<button class="btn dan" id="sDel" style="margin-right:auto">Sunucuyu sil</button>' : ''}<button class="btn" id="sCancel">Vazgeç</button><button class="btn pri" id="sSave">${src ? 'Kaydet' : 'Oluştur ve aç'}</button></div></div>`;
     bind();
@@ -484,6 +489,10 @@ function openServer(src) {
     const au = m.querySelector('#sAuto'), tk = m.querySelector('#sTk');
     if (au) { au.onchange = () => { tk.disabled = au.checked; if (au.checked) { E.tickets = 0; tk.value = ''; } else { tk.value = tk.value || (E.type === 'tdm' ? 50 : 200); E.tickets = +tk.value; tk.focus(); } }; tk.onchange = () => { E.tickets = Math.max(20, Math.min(1000, Math.round(+tk.value) || 0)); tk.value = E.tickets; }; }
     m.querySelector('#sBots').onchange = (e) => { E.bots = e.target.checked; };
+    const vs = m.querySelector('#sVoteS'), vv = m.querySelector('#sVoteV'), il = m.querySelector('#sIdle');            // maç sonu oylaması + boş oda dönüşü
+    m.querySelector('#sVote').onchange = (e) => { E.vote = e.target.checked; vs.disabled = !E.vote; vv.textContent = E.vote ? E.voteSec + ' sn' : 'Kapalı'; };
+    vs.oninput = () => { E.voteSec = +vs.value; vv.textContent = E.voteSec + ' sn'; vs.style.setProperty('--p', ((vs.value - 5) / 55) * 100 + '%'); };
+    il.oninput = () => { E.idleMin = +il.value; m.querySelector('#sIdleV').textContent = E.idleMin ? E.idleMin + ' dk' : 'Kapalı'; il.style.setProperty('--p', (il.value / 60) * 100 + '%'); };
     m.querySelector('#sThird').onchange = (e) => { E.third = e.target.checked; };
     m.querySelectorAll('.rrow').forEach((row) => {
       const i = +row.dataset.i, r = E.rotation[i];

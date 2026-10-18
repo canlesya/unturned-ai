@@ -32,24 +32,32 @@ export class NetClient {
 
   // Sunucuya bağlan ve oda kur/katıl. Çözülen değer: { net, welcome }
   // Varsayılan adreste önce Cloudflare'siz doğrudan bağlantı (directServerUrl, 3 sn); açılamazsa normal adres. Sunucu hatası (oda dolu vb.) tekrar denenmez.
-  static connect(url, hello) {
+  // o.onWait(ms): oda maç sonu ekranında, yeni maç kurulunca otomatik katılınacak (bekleme süresi kadar zaman aşımı uzar)
+  static connect(url, hello, o = {}) {
     const direct = url === defaultServerUrl() ? directServerUrl() : null;
-    if (!direct) return NetClient.connectOne(url, hello, 8000);
-    return NetClient.connectOne(direct, hello, 3000).catch((e) => (e.netFail ? NetClient.connectOne(url, hello, 8000) : Promise.reject(e)));
+    if (!direct) return NetClient.connectOne(url, hello, 8000, o);
+    return NetClient.connectOne(direct, hello, 3000, o).catch((e) => (e.netFail ? NetClient.connectOne(url, hello, 8000, o) : Promise.reject(e)));
   }
 
-  static connectOne(url, hello, ms) {
+  static connectOne(url, hello, ms, o = {}) {
     return new Promise((resolve, reject) => {
       const ws = new WebSocket(url);
       const net = new NetClient(ws);
       let opened = false;
       const fail = (msg, netFail) => { clearTimeout(timer); clearInterval(net._ping); ws.onclose = null; try { ws.close(); } catch (e) { /* yok say */ } reject(Object.assign(new Error(msg), { netFail })); };
-      const timer = setTimeout(() => fail('Sunucuya bağlanılamadı', !opened), ms);
+      let timer = setTimeout(() => fail('Sunucuya bağlanılamadı', !opened), ms);
+      net.onWait = (m) => { clearTimeout(timer); timer = setTimeout(() => fail('Sunucuya bağlanılamadı', false), (+m.ms || 0) + 20000); o.onWait?.(m.ms); };
       ws.onerror = () => fail('Sunucuya bağlanılamadı: ' + url, !opened);
       ws.onopen = () => { opened = true; ws.send(JSON.stringify(hello)); };
       net.onWelcome = (w) => { clearTimeout(timer); resolve({ net, welcome: w }); };
       net.onError = (msg) => fail(msg, false);
     });
+  }
+
+  // Oda yeni maça geçti (aynı bağlantıda yeni 'welcome'): tahmin / interpolasyon durumu sıfırlanır, yeni Game attach olana dek mesajlar biriktirilir
+  resetMatch() {
+    this.game = null; this.queued = null;
+    this.snaps = []; this.offset = null; this.seq = 0; this.hist = []; this.edges = {}; this.rt = 0; this.rs = null; this.pendingMe = null; this.roster = null; this.stats.snaps = 0;
   }
 
   attach(game) { this.game = game; for (const m of this.queued || []) this.onMessage(m); this.queued = null; }
@@ -60,14 +68,16 @@ export class NetClient {
     if (m.t === 'pong') { const r = performance.now() - m.c; this.stats.rtt = this.stats.rtt ? this.stats.rtt * 0.7 + r * 0.3 : r; return; }
     if (m.t === 'welcome') { useBalance(sanitizeBalance(m.bal)); return this.onWelcome?.(m); }       // odanın denge sürümü (admin paneli)
     if (m.t === 'err') return this.onError?.(m.msg);
-    if (!this.game) { (this.queued ||= []).push(m); return; }
+    if (m.t === 'wait') return this.onWait?.(m);                                                      // maç sonu ekranındaki odaya girildi: yeni maçı bekle
+    if (!this.game) { if (m.t !== 'restart') (this.queued ||= []).push(m); return; }
     if (m.t === 'snap') return this.onSnap(m);
     if (m.t === 'roster') return this.onRoster(m.roster);
     if (m.t === 'chat') return this.game.onNetChat?.(m);
     if (m.t === 'team') return this.game.onNetTeam?.(m);
     if (m.t === 'end') return this.game.onNetEnd?.(m);
     if (m.t === 'ev') return this.game.onNetEvents?.(m.l);
-    if (m.t === 'restart') return this.game.onNetRestart?.();
+    if (m.t === 'votes') return this.game.onNetVotes?.(m);
+    if (m.t === 'restart') return this.game.onNetRestart?.(m);
   }
 
   // ── girdi ──
