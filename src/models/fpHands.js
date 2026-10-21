@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { humanHand } from './fpHumanHand.js';
+import { gloveHand, gloveColorsOf } from './fpGlove.js';
 
 // Birinci şahıs elleri: kutu değil, kodla üretilen düşük poligonlu "organik" el (yüzey yüzey düz gölgeli üçgenler). Her el + ön kol + kol
 // TEK ağ (köşe renkli, tek çizim çağrısı). İsteğe bağlı ikinci poz morph hedefi olarak eklenir (parmak açma / kapama, ağ yeniden kurulmaz).
@@ -99,7 +100,8 @@ export const POSES = {
   // ön kabza: daha geniş sapı saran gevşek kavrayış
   cup: { f: [[0.06, 1.05, 1.15, 0.7], [0.02, 1.1, 1.2, 0.7], [-0.03, 1.12, 1.2, 0.72], [-0.08, 1.18, 1.25, 0.75]], t: [V(0.03, -0.04, 0.028), V(0.012, -0.03, 0.05), V(-0.012, -0.012, 0.056), V(-0.028, 0.006, 0.052)] },
   // ön kundak (geniş, alttan): avuç kundağın altında, parmaklar sağ yandan yukarı sarar, başparmak sol yanda kundak boyunca öne uzanır (yukarı dikilmez)
-  fg: { f: [[0.24, 0.7, 0.95, 0.6], [0.08, 0.78, 1.0, 0.62], [-0.08, 0.84, 1.02, 0.64], [-0.24, 0.9, 1.06, 0.66]], t: [V(0.03, -0.04, 0.028), V(0.02, -0.028, 0.05), V(0.013, -0.017, 0.068), V(0.009, -0.008, 0.084)] },
+  fg: { f: [[0.24, 0.7, 0.95, 0.6], [0.08, 0.78, 1.0, 0.62], [-0.08, 0.84, 1.02, 0.64], [-0.24, 0.9, 1.06, 0.66]], t: [V(0.03, -0.04, 0.028), V(0.02, -0.028, 0.05), V(0.013, -0.017, 0.068), V(0.009, -0.008, 0.084)],
+    tg: [V(0.03, -0.04, 0.028), V(0.027, -0.03, 0.05), V(0.026, -0.024, 0.068), V(0.027, -0.019, 0.082)] },      // tg: çizgi film eldiveninde kalın başparmak kundağın yanında alçakta yatar (yukarı dikilmesin)
   // açık el (şarjör / kemer kavrama hazırlığı)
   open: { f: [[0.12, 0.45, 0.55, 0.3], [0.03, 0.4, 0.5, 0.3], [-0.06, 0.45, 0.55, 0.32], [-0.16, 0.55, 0.6, 0.35]], t: [V(0.03, -0.04, 0.028), V(0.016, -0.022, 0.056), V(0.002, 0.0, 0.074), V(-0.012, 0.016, 0.084)] },
   // bomba / yuvarlak nesne: parmaklar küreyi sarar
@@ -176,7 +178,7 @@ const meshOf = (geo) => { geo.computeVertexNormals(); geo.computeBoundingSphere(
 // split: mesh.userData.arm = ayrı kol ağı (yerel +Z boyunca, orijin bilek ucu), mesh.userData.wrist = bilek ucu (ebeveyn çerçevesinde)
 export function fpHand(o) {
   o.zombie = o.zombie || !!o.colors.zombie;
-  if (!o.zombie) return humanHand(o, POSES);                      // insan eli: yumuşak gölgeli, kesintisiz tüp parmaklar (fpHumanHand.js)
+  if (!o.zombie) return o.colors.style ? gloveHand(o, POSES) : humanHand(o, POSES);     // çizgi film eldiveni (fpGlove.js) · style yoksa eski gerçekçi el (fpHumanHand.js)
   const m = o.map || new THREE.Matrix4(), mi = new THREE.Matrix4().copy(m).invert(), sc = o.scale || 1;
   const arm = (o.arm || V(0, -1, 0)).clone(); if (o.mirror) arm.x = -arm.x;
   o.armC = arm.transformDirection(mi);
@@ -215,7 +217,8 @@ export function handBasis(x, y) {
 }
 
 // Renk takımları
-export function gloveColors(c) {
+export function gloveColors(c, style = 'white', pb = false) {
+  if (style !== 'human') return gloveColorsOf(style, c, pb);                                                   // çizgi film eldiveni: beyaz / koyu
   const g = new THREE.Color(c.gloves).lerp(new THREE.Color('#454a3a'), 0.65), sh = new THREE.Color(c.shirt);      // mat, koyu zeytin-siyah kumaş eldiven
   return {
     glove: '#' + g.getHexString(), palm: '#' + g.clone().lerp(new THREE.Color('#5c574a'), 0.18).getHexString(), pad: '#' + g.clone().multiplyScalar(0.6).getHexString(), pad2: '#' + g.clone().multiplyScalar(0.8).getHexString(),

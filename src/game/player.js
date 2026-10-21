@@ -8,6 +8,7 @@ import { TEAMS } from '../core/palette.js';
 import { WSTATS, OPTICS, OPTIC_ALLOWED, ZT_ORDER } from './stats.js';
 import { reloadAnim, meleePose } from './anim.js';
 import { fpHand, handBasis, gloveColors, zombieColors } from '../models/fpHands.js';
+import { gloveStyle } from '../models/fpGlove.js';
 import { clamp, lerp, V3 } from './util.js';
 import { applyInput } from '../sim/input.js';
 import { TUNE } from './balance.js';
@@ -34,7 +35,7 @@ const KNIFE_MAP = (() => {
   return bw.multiply(bc.transpose());                                                           // c → silah
 })();
 const MELEE_IDLE = (() => {
-  const F = new THREE.Vector3(0.88, -0.25, 0.4).normalize(), B = new THREE.Vector3(-0.38, 0.78, -0.5).normalize();
+  const F = new THREE.Vector3(0.62, -0.55, 0.56).normalize(), B = new THREE.Vector3(-0.38, 0.78, -0.5).normalize();
   const nF = F.clone().negate(), ax = new THREE.Vector3().crossVectors(nF, B).normalize();
   const dl = Math.acos(THREE.MathUtils.clamp(nF.dot(B), -1, 1)) - (Math.PI / 2 - KNIFE_TILT);    // bilek bükümü (B'ye doğru +)
   const U = nF.clone().applyAxisAngle(ax, dl);                                                  // el ekseni (bilek → boğum)
@@ -45,12 +46,12 @@ const MELEE_IDLE = (() => {
   return { pos: [0.12, -0.15, -0.5], rx: e.x, ry: e.y + 0.04, rz: e.z, arm, F, m, bend: dl };
 })();
 const GUN_R_MAP = handBasis(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, -Math.sin(0.28), -Math.cos(0.28)));   // tabanca kabzası (hafif geriye yatık)
-const GUN_R_ARM = new THREE.Vector3(0.15, -0.25, 0.95).normalize(), FG_ARM = new THREE.Vector3(-0.6, -0.35, 0.7).normalize();   // bilek bükümü ≤ ~30°
+const GUN_R_ARM = new THREE.Vector3(0.2, -0.5, 0.85).normalize(), FG_ARM = new THREE.Vector3(-0.3, -0.7, 0.65).normalize();   // bilek bükümü ≤ ~30°
 const FG_MAP = handBasis(new THREE.Vector3(0.25, -0.97, 0), new THREE.Vector3(-Math.cos(0.45), 0, -Math.sin(0.45)));   // ön kundak: avuç sol-altta, boğumlar sağa-öne → parmak uçları sağ yanda görünür (sol el: aynalanır)
 // dikey ön tutamak (SCAR / AUG / Vector …): sol el tabanca kabzası gibi sarar (aynalı sağ el çerçevesi, başparmak üstte)
 const FGV_MAP = handBasis(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, -Math.sin(0.12), -Math.cos(0.12))), FGV_ARM = new THREE.Vector3(-0.45, -0.45, 0.77).normalize();
 // tabanca destek eli (iki el tutuş): sol avuç kabzanın sol yanında sağ parmakların üstüne kapanır, boğumlar öne-aşağı, ön kol sol alttan
-const PS_MAP = handBasis(new THREE.Vector3(0.94, -0.34, 0), new THREE.Vector3(0.12, -0.42, -0.9)), PS_ARM = new THREE.Vector3(-0.5, -0.38, 0.78).normalize(), PS_OFF = new THREE.Vector3(-0.024, -0.016, -0.012);
+const PS_MAP = handBasis(new THREE.Vector3(0.94, -0.34, 0), new THREE.Vector3(0.12, -0.42, -0.9)), PS_ARM = new THREE.Vector3(-0.35, -0.6, 0.72).normalize(), PS_OFF = new THREE.Vector3(-0.024, -0.016, -0.012);
 // ön kundağı ölç (ışın): alt yüz yüksekliği + yarı genişlik → el kundağa değsin (havada durmasın), dar dikey tutamakta kabza tutuşu
 const _rc = new THREE.Raycaster(), _ro = new THREE.Vector3(), _rd = new THREE.Vector3();
 function foreFit(g, q) {
@@ -74,6 +75,7 @@ function meleeElbow(grip) {
   return w.add(new THREE.Vector3(...MELEE_IDLE.pos)).addScaledVector(MELEE_IDLE.F, 0.6);
 }
 const ZAX = new THREE.Vector3(0, 0, 1), _w = new THREE.Vector3(), _e = new THREE.Vector3();
+const HOLD_OFF = { pistol: [0.0, 0.05, -0.06], grenade: [0.0, 0.03, -0.04] };   // tutuşa göre bel duruşu farkı: tabanca / bomba daha yukarıda-ileride (eller kabzayı sararken görünsün)
 const MELEE_SPRINT = { pos: [-0.04, 0.06, -0.06], rx: 0.65, ry: 0.3, rz: -0.1 };
 
 export class ViewModel {
@@ -94,7 +96,7 @@ export class ViewModel {
     this.kick = 0; this.kickR = 0; this.bobT = 0; this.raise = 1; this.raiseRate = 3.5;
     this.boltT = 0; this.hitKick = 0; this.throwT = 0; this.dryT = 0;
     this.camRoll = 0; this.camPitch = 0; this.inspectT = 0;
-    this.pos = new THREE.Vector3(0.2, -0.21, -0.66);
+    this.pos = new THREE.Vector3(0.15, -0.215, -0.52);           // bel duruşu: eskisinden (0,2 / −0,21 / −0,66) biraz yakın-alçak-ortada → silah iri, eller az görünür
     this.flash = null; this.flashT = 0;
     this.handL = null; this.handR = null;
   }
@@ -131,7 +133,7 @@ export class ViewModel {
     }
     // eller + kollar (silaha bağlı, fpHands: düşük poligonlu organik eldivenli el + bileklik + kol; el başına tek ağ).
     // Eller ayrı gruplardır: yükleme animasyonunda bağımsız hareket eder. Grup orijini = kavranan sapın merkezi
-    const gc = gloveColors(c);
+    const gc = gloveColors(c, this.glove || (this.glove = gloveStyle()), !!this.look);      // eldiven varyantı: ?glove= / localStorage['warbyte.glove'] (white | dark | human)
     const addArm = (grp, mesh, elbow, s = 1) => { const a = mesh.userData.arm; if (!a) return; this.cam.add(a); this.arms.push({ grp, mesh: a, wrist: mesh.userData.wrist, elbow, s }); };
     const hand = (p, side, opt, elbow) => {
       const grp = new THREE.Group();
@@ -168,7 +170,7 @@ export class ViewModel {
       const gunK = kind === 'gun' || kind === 'launcher', fit = gunK && u.gripL ? foreFit(g, u.gripL) : null;
       let lo = { map: FG_MAP, arm: FG_ARM, pose: 'fg' };
       if (fit && fit.vert) { this.hLfg = new THREE.Vector3(0, fit.bot + 0.04, u.gripL.z); lo = { map: FGV_MAP, arm: FGV_ARM, pose: 'fist' }; }      // dikey tutamak: kabza gibi
-      else if (fit) this.hLfg = new THREE.Vector3(-0.007, fit.bot + 0.008, u.gripL.z);          // geniş kundak: avuç alt yüze değer
+      else if (fit) this.hLfg = this.glove === 'human' ? new THREE.Vector3(-0.007, fit.bot + 0.008, u.gripL.z) : new THREE.Vector3(0.004, fit.bot + 0.014, u.gripL.z);   // geniş kundak: avuç alt yüze değer (kalın eldiven biraz yukarı-içeri: kundağı alttan kavrasın)
       else if (gunK && u.hold === 'pistol' && u.gripR) { this.hLfg = u.gripR.clone().add(PS_OFF); lo = { map: PS_MAP, arm: PS_ARM, pose: 'cup' }; }   // tabanca: iki el
       else this.hLfg = u.gripL ? u.gripL.clone().add(new THREE.Vector3(0, -0.012, 0)) : null;
       this.handL = gunK ? hand(this.hLfg || REST_L, -1, { ...lo, mirror: true, pose2: 'open' }) : null;
@@ -214,10 +216,11 @@ export class ViewModel {
     const rz0 = this.raise * this.raise;
 
     let pos = new THREE.Vector3().lerpVectors(hip, tgt, ads);
+    const ho = HOLD_OFF[u.hold]; if (ho && !isMelee) { pos.x += ho[0] * (1 - ads); pos.y += ho[1] * (1 - ads); pos.z += ho[2] * (1 - ads); }
     pos.x += Math.sin(this.bobT) * 0.012 * bobAmt;
     pos.y += Math.abs(Math.cos(this.bobT)) * 0.012 * bobAmt - rz0 * 0.38;
     pos.z += this.kick * (0.9 - ads * 0.6);
-    let rx = this.kickR * (0.4 - ads * 0.3), ry = -0.04 * (1 - ads), rz = 0;
+    let rx = this.kickR * (0.4 - ads * 0.3), ry = 0.06 * (1 - ads), rz = 0;
     rx += this.dryT * 0.05 - rz0 * 0.5;
     this.breathT = (this.breathT || 0) + dt;                                    // nefes: yavaş, çok hafif iniş-kalkış ve yalpa (nişanda sönümlenir)
     const br = Math.sin(this.breathT * 1.55) * (1 - ads) * (1 - clamp(speed / 3, 0, 1) * 0.6), br2 = Math.sin(this.breathT * 0.8 + 1.3) * (1 - ads);
@@ -260,14 +263,14 @@ export class ViewModel {
       insp = sm(clamp(t / 0.12, 0, 1)) * sm(clamp((1 - t) / 0.14, 0, 1));
       const pl = (x) => Math.sin(clamp(x, 0, 1) * Math.PI);
       const a = pl((t - 0.1) / 0.36), b = pl((t - 0.42) / 0.3), c = pl((t - 0.66) / 0.24);
-      pos.x -= 0.19 * insp; pos.y += 0.05 * insp; pos.z += 0.07 * insp;
+      pos.x -= 0.19 * insp; pos.y += 0.05 * insp; pos.z -= 0.02 * insp;
       ry += 0.95 * a + 0.25 * b; rx += -0.2 * a + 0.5 * c; rz += -0.95 * b + 0.3 * c;
     }
 
     // ── yükleme: silah yana yatar, sol el şarjöre/kemere gider, şarjör çıkar-takılır, kol şarjı ──
     let camRoll = 0, camPitch = 0;
     if (ra) {
-      pos.y += ra.tilt * 0.07 - ra.slap * 0.012; pos.x -= ra.tilt * 0.12; pos.z += ra.slap * 0.035 - ra.tilt * 0.1;
+      pos.y += ra.tilt * 0.07 - ra.slap * 0.012; pos.x -= ra.tilt * 0.12; pos.z += ra.slap * 0.035 - ra.tilt * 0.17;      // yatan silah yakın bel duruşunda ekranı kaplamasın
       rx -= ra.tilt * 0.22 + ra.slap * 0.05; rz -= ra.tilt * 0.62; ry += ra.tilt * 0.3;
     } else if (s.useT > 0) {
       const tot = Math.max(0.5, st.useTime || 1.4);

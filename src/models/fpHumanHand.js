@@ -9,7 +9,7 @@ const V = (x, y, z) => new THREE.Vector3(x, y, z);
 let MAT = null;
 export const humanMat = () => (MAT ||= new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: false, roughness: 0.93, metalness: 0 }));
 
-class Mesh {
+export class Mesh {
   constructor() { this.p = []; this.c = []; this.i = []; }
   // halka: c merkez, t teğet, up kalınlık yönü; w genişlik, h kalınlık; col(v: halka yönü birim vektör) → [r,g,b]; sq < 1 köşeli-yuvarlak kesit
   ring(c, t, up, w, h, col, n, sq = 1) {
@@ -64,7 +64,7 @@ class Mesh {
     }
     for (let v = 0; v < nv; v++) for (let u = 0; u < nu; u++) {
       const a = s + v * nu + u, b = s + v * nu + ((u + 1) % nu), c2 = a + nu, d2 = b + nu;
-      this.i.push(a, c2, b, b, c2, d2);
+      this.i.push(a, b, c2, b, d2, c2);                                   // dışa bakan sarım (eskiden ters: kas yastıkları arka yüz olarak görünmüyordu)
     }
   }
 }
@@ -137,7 +137,7 @@ function sleevePart(M, o, wp, up) {
 }
 export const HUMAN_WRIST = 0.055;                                 // ayrı kol buradan başlar (bilekten)
 
-function toGeo(M, m, sc, mirror) {
+export function toGeo(M, m, sc, mirror) {
   const a = new Float32Array(M.p), v = new THREE.Vector3();
   for (let i = 0; i < a.length; i += 3) { v.set(a[i] * sc, a[i + 1] * sc, a[i + 2] * sc); if (m) v.applyMatrix4(m); a[i] = mirror ? -v.x : v.x; a[i + 1] = v.y; a[i + 2] = v.z; }
   const idx = M.i.slice(); if (mirror) for (let i = 0; i < idx.length; i += 3) { const t = idx[i + 1]; idx[i + 1] = idx[i + 2]; idx[i + 2] = t; }
