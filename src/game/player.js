@@ -8,6 +8,7 @@ import { TEAMS } from '../core/palette.js';
 import { WSTATS, OPTICS, OPTIC_ALLOWED, ZT_ORDER } from './stats.js';
 import { reloadAnim, meleePose } from './anim.js';
 import { fpHand, handBasis, gloveColors, zombieColors } from '../models/fpHands.js';
+import { gloveStyle } from '../models/fpGlove.js';
 import { clamp, lerp, V3 } from './util.js';
 import { applyInput } from '../sim/input.js';
 import { TUNE } from './balance.js';
@@ -34,24 +35,35 @@ const KNIFE_MAP = (() => {
   return bw.multiply(bc.transpose());                                                           // c → silah
 })();
 const MELEE_IDLE = (() => {
-  const F = new THREE.Vector3(0.88, -0.25, 0.4).normalize(), B = new THREE.Vector3(-0.38, 0.78, -0.5).normalize();
+  // CS M9 bekleme: ön kol sağ alttan yukarı-sola-ileri DÜZ gelir, boğumlar yukarı-dışa; bıçak başparmak tarafından öne-yukarı-sola (ekran ortasına)
+  const F = new THREE.Vector3(0.22, -0.86, 0.46).normalize(), B = new THREE.Vector3(-0.7, 0.62, -0.35).normalize();
   const nF = F.clone().negate(), ax = new THREE.Vector3().crossVectors(nF, B).normalize();
-  const dl = Math.acos(THREE.MathUtils.clamp(nF.dot(B), -1, 1)) - (Math.PI / 2 - KNIFE_TILT);    // bilek bükümü (B'ye doğru +)
+  const dl = THREE.MathUtils.clamp(Math.acos(THREE.MathUtils.clamp(nF.dot(B), -1, 1)) - (Math.PI / 2 - KNIFE_TILT), -0.14, 0.14);   // bilek bükümü ≤ 8° (kırık bilek görünmesin; bıçak yönü buna uyar)
   const U = nF.clone().applyAxisAngle(ax, dl);                                                  // el ekseni (bilek → boğum)
   const I = B.clone().addScaledVector(U, -Math.sin(KNIFE_TILT)).divideScalar(Math.cos(KNIFE_TILT)).normalize(), D = new THREE.Vector3().crossVectors(U, I);
   const hc = new THREE.Matrix4().makeBasis(D, U, I);                                            // c → kamera
   const m = hc.multiply(new THREE.Matrix4().copy(KNIFE_MAP).invert()), e = new THREE.Euler().setFromRotationMatrix(m, 'XYZ');   // silah → kamera
   const arm = F.clone().applyMatrix4(new THREE.Matrix4().extractRotation(m).transpose());      // ön kol yönü silah çerçevesinde
-  return { pos: [0.12, -0.15, -0.5], rx: e.x, ry: e.y + 0.04, rz: e.z, arm, F, m, bend: dl };
+  return { pos: [0.13, -0.11, -0.37], rx: e.x, ry: e.y, rz: e.z, arm, F, m, bend: dl };
 })();
+// Düz bilek: ön kol yönü el ekseninden çözülür (−Y_c = boğum→bilek); istenen yöne (want) en çok maxA döner → bilek bükümü ≤ maxA
+function armFor(map, want, maxA = 0.22, mirror = false) {      // map / want sağ el terimleriyle; mirror: sonuç sol el (fpHand'in arm'ı aynalı çerçevede)
+  const y = new THREE.Vector3(0, -1, 0).transformDirection(map), w = want.clone().normalize(), a = y.angleTo(w);
+  const r = a <= maxA ? w : y.applyAxisAngle(new THREE.Vector3().crossVectors(y, w).normalize(), maxA);
+  if (mirror) r.x = -r.x;
+  return r;
+}
 const GUN_R_MAP = handBasis(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, -Math.sin(0.28), -Math.cos(0.28)));   // tabanca kabzası (hafif geriye yatık)
-const GUN_R_ARM = new THREE.Vector3(0.15, -0.25, 0.95).normalize(), FG_ARM = new THREE.Vector3(-0.6, -0.35, 0.7).normalize();   // bilek bükümü ≤ ~30°
-const FG_MAP = handBasis(new THREE.Vector3(0.25, -0.97, 0), new THREE.Vector3(-Math.cos(0.45), 0, -Math.sin(0.45)));   // ön kundak: avuç sol-altta, boğumlar sağa-öne → parmak uçları sağ yanda görünür (sol el: aynalanır)
+const GUN_R_ARM = armFor(GUN_R_MAP, new THREE.Vector3(0.2, -0.5, 0.85), 0.3);          // tetik eli: kol geriye (ekran dışı), bilek düz
+// ön kundak (CS tarzı): ön kol ekranın altından yukarı-sağa-ileri düz gelir, el aynı çizgide kundağın altında; parmaklar sağ yandan sarar (sağ el terimleriyle, sol el aynalanır)
+const FG_U = new THREE.Vector3(-0.22, 0.8, -0.56).normalize();
+const FG_MAP = handBasis(new THREE.Vector3(0.3, -0.95, 0.1), FG_U), FG_ARM = armFor(FG_MAP, FG_U.clone().negate(), 0, true);
 // dikey ön tutamak (SCAR / AUG / Vector …): sol el tabanca kabzası gibi sarar (aynalı sağ el çerçevesi, başparmak üstte)
-const FGV_MAP = handBasis(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, -Math.sin(0.12), -Math.cos(0.12))), FGV_ARM = new THREE.Vector3(-0.45, -0.45, 0.77).normalize();
+const FGV_MAP = handBasis(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, -Math.sin(0.12), -Math.cos(0.12))), FGV_ARM = armFor(FGV_MAP, new THREE.Vector3(0.45, -0.45, 0.77), 0.22, true);
 // tabanca destek eli (iki el tutuş): sol avuç kabzanın sol yanında sağ parmakların üstüne kapanır, boğumlar öne-aşağı, ön kol sol alttan
-const PS_MAP = handBasis(new THREE.Vector3(0.94, -0.34, 0), new THREE.Vector3(0.12, -0.42, -0.9)), PS_ARM = new THREE.Vector3(-0.5, -0.38, 0.78).normalize(), PS_OFF = new THREE.Vector3(-0.024, -0.016, -0.012);
+const PS_MAP = handBasis(new THREE.Vector3(0.94, -0.34, 0), new THREE.Vector3(0.12, -0.42, -0.9)), PS_OFF = new THREE.Vector3(-0.024, -0.016, -0.012);
 // ön kundağı ölç (ışın): alt yüz yüksekliği + yarı genişlik → el kundağa değsin (havada durmasın), dar dikey tutamakta kabza tutuşu
+const PS_ARM = armFor(PS_MAP, new THREE.Vector3(0.35, -0.6, 0.72), 0.3, true);
 const _rc = new THREE.Raycaster(), _ro = new THREE.Vector3(), _rd = new THREE.Vector3();
 function foreFit(g, q) {
   g.updateMatrixWorld(true); _rc.near = 0; _rc.far = 1;
@@ -68,12 +80,16 @@ const ZH_MAP = handBasis(new THREE.Vector3(0.6, 0.12, 0.8), new THREE.Vector3(-0
 const ZH_ARM = new THREE.Vector3(0.22, -0.85, 0.45).normalize();
 // ayrı kol ağları (yakın dövüş / zombi): bilekten bu "dirsek" noktasına (kamera uzayı, sağ el) uzanır; savurma / incelemede kol ekranı kesmez
 const ELBOW_CLAW = new THREE.Vector3(0.3, -0.75, -0.18);
+const ELBOW_PS = new THREE.Vector3(0.16, -0.62, 0.12);                           // tabanca dirseği (kamera uzayı, sağ el; sol el aynası)
 // yakın dövüş dirseği: bekleme duruşunda bilekten ön kol yönünde (F) 0,6 m → beklemede kol düz, savurmada bilekten döner
 function meleeElbow(grip) {
   const k = VM_SCALE * MELEE_VM_SCALE, w = new THREE.Vector3(0.034, -0.082, 0).addScaledVector(new THREE.Vector3(0, -1, 0), 0.028).applyMatrix4(KNIFE_MAP).add(grip).multiplyScalar(k).applyMatrix4(MELEE_IDLE.m);
-  return w.add(new THREE.Vector3(...MELEE_IDLE.pos)).addScaledVector(MELEE_IDLE.F, 0.6);
+  return w.add(new THREE.Vector3(...MELEE_IDLE.pos)).addScaledVector(MELEE_IDLE.F, 0.32);
 }
 const ZAX = new THREE.Vector3(0, 0, 1), _w = new THREE.Vector3(), _e = new THREE.Vector3();
+const HOLD_OFF = { pistol: [0.0, 0.0, -0.1, 0.24], grenade: [0.0, 0.03, -0.04, 0] };   // [x, y, z, rx]: tabanca namlusu belde hafif yukarı → el ekseni ön kolla aynı çizgide, kollar alttan gelir   // tutuşa göre bel duruşu farkı: tabanca / bomba daha yukarıda-ileride (eller kabzayı sararken görünsün)
+// boştaki sol el (bıçak): el ekseni yukarı-ileri, avuç içe (sağa), ön kol sol alttan düz (sağ el terimleri; aynalanır)
+const IDLE_L_U = new THREE.Vector3(-0.3, 0.72, -0.62).normalize(), IDLE_L_MAP = handBasis(new THREE.Vector3(0.88, 0.25, 0.35), IDLE_L_U), IDLE_L_ARM = armFor(IDLE_L_MAP, IDLE_L_U.clone().negate(), 0, true);
 const MELEE_SPRINT = { pos: [-0.04, 0.06, -0.06], rx: 0.65, ry: 0.3, rz: -0.1 };
 
 export class ViewModel {
@@ -94,13 +110,14 @@ export class ViewModel {
     this.kick = 0; this.kickR = 0; this.bobT = 0; this.raise = 1; this.raiseRate = 3.5;
     this.boltT = 0; this.hitKick = 0; this.throwT = 0; this.dryT = 0;
     this.camRoll = 0; this.camPitch = 0; this.inspectT = 0;
-    this.pos = new THREE.Vector3(0.2, -0.21, -0.66);
+    this.pos = new THREE.Vector3(0.13, -0.2, -0.41);           // bel duruşu: eskisinden (0,2 / −0,21 / −0,66) biraz yakın-alçak-ortada → silah iri, eller az görünür
     this.flash = null; this.flashT = 0;
     this.handL = null; this.handR = null;
   }
 
   setItem(id, team, kind, optic, skin) {
     for (const a of this.arms || []) { this.cam.remove(a.mesh); a.mesh.geometry.dispose(); }
+    if (this.idleL) { this.cam.remove(this.idleL); this.idleL.traverse((o) => o.geometry?.dispose()); this.idleL = null; }
     this.arms = [];
     if (this.model) { const own = this.model.userData.ownMat; this.root.remove(this.model); this.model.traverse((o) => { o.geometry?.dispose(); if (own && o.material && !Array.isArray(o.material)) o.material.dispose(); }); }      // setFade kopyaları da
     this.id = id;
@@ -131,15 +148,15 @@ export class ViewModel {
     }
     // eller + kollar (silaha bağlı, fpHands: düşük poligonlu organik eldivenli el + bileklik + kol; el başına tek ağ).
     // Eller ayrı gruplardır: yükleme animasyonunda bağımsız hareket eder. Grup orijini = kavranan sapın merkezi
-    const gc = gloveColors(c);
-    const addArm = (grp, mesh, elbow, s = 1) => { const a = mesh.userData.arm; if (!a) return; this.cam.add(a); this.arms.push({ grp, mesh: a, wrist: mesh.userData.wrist, elbow, s }); };
-    const hand = (p, side, opt, elbow) => {
+    const gc = gloveColors(c, this.glove || (this.glove = gloveStyle()), !!this.look);      // eldiven varyantı: ?glove= / localStorage['warbyte.glove'] (dark varsayılan | white | human)
+    const addArm = (grp, mesh, elbow, s = 1) => { const a = mesh.userData.arm; if (!a) return; this.cam.add(a); this.arms.push({ follow: s === 1 && id !== 'claws', grp, mesh: a, wrist: mesh.userData.wrist, elbow, s }); };
+    const hand = (p, side, opt, elbow, es = MELEE_VM_SCALE) => {
       const grp = new THREE.Group();
       grp.position.copy(p);
       const m = fpHand({ colors: gc, arm: new THREE.Vector3(side * 0.12, -0.2, 0.42), armLen: 0.58, split: !!elbow, ...opt });
       grp.add(m);
       g.add(grp);
-      if (elbow) addArm(grp, m, elbow, MELEE_VM_SCALE);
+      if (elbow) addArm(grp, m, elbow, es);
       return grp;
     };
     const u = g.userData;
@@ -159,19 +176,25 @@ export class ViewModel {
       this.handR = hR;
     } else if (kind === 'melee' && u.gripR) {
       this.handR = hand(u.gripR.clone(), 1, { map: KNIFE_MAP, pose: 'knife', arm: MELEE_IDLE.arm, armLen: 0.7 }, meleeElbow(u.gripR)); this.hLfg = null; this.handL = null;
+      if (this.glove !== 'human') {                                              // CS tarzı: boştaki sol el sol altta gevşek, açık (kameraya bağlı: savurmada sallanmaz)
+        const m = fpHand({ colors: gc, map: IDLE_L_MAP, mirror: true, arm: IDLE_L_ARM, armLen: 0.62, pose: 'relax' }), grp = new THREE.Group();
+        grp.add(m); m.traverse((o) => { o.castShadow = false; }); this.cam.add(grp); this.idleL = grp;
+      }
       g.scale.setScalar(MELEE_VM_SCALE);                                         // yakın dövüş eli + bıçak ekranda daha iri (CS gibi); oyun etkisi yok
     } else {
       const ball = kind === 'throwable' || kind === 'mine' || kind === 'ammobox' || kind === 'medkit';
-      this.handR = u.gripR ? hand(u.gripR.clone().add(new THREE.Vector3(0.0, ball ? -0.02 : -0.004, 0.0)), 1, { map: GUN_R_MAP, arm: GUN_R_ARM, pose: ball ? 'ball' : 'trigger' }) : null;
+      const pis = u.hold === 'pistol' && this.glove !== 'human';                  // tabanca: ayrı kol, ekranın altındaki dirseğe döner (nişanda kol göze doğru uzanıp ekranı kapatmasın)
+      const gl = this.glove !== 'human', rEl = pis ? ELBOW_PS : gl && u.gripR ? u.gripR.clone().multiplyScalar(VM_SCALE).add(this.pos).addScaledVector(GUN_R_ARM, 0.3).add(new THREE.Vector3(0.04, -0.1, 0)) : null;   // tüfek tetik eli: ayrı kol, bel duruşunda bilekle aynı çizgide dirseğe (yükleme / incelemede kol ekranı kesmez)
+      this.handR = u.gripR ? hand(u.gripR.clone().add(new THREE.Vector3(0.0, ball ? -0.02 : -0.004, 0.0)), 1, { map: GUN_R_MAP, arm: GUN_R_ARM, pose: ball ? 'ball' : 'trigger' }, rEl, 1) : null;
     }
     if (id !== 'claws' && kind !== 'melee') {
       const gunK = kind === 'gun' || kind === 'launcher', fit = gunK && u.gripL ? foreFit(g, u.gripL) : null;
       let lo = { map: FG_MAP, arm: FG_ARM, pose: 'fg' };
       if (fit && fit.vert) { this.hLfg = new THREE.Vector3(0, fit.bot + 0.04, u.gripL.z); lo = { map: FGV_MAP, arm: FGV_ARM, pose: 'fist' }; }      // dikey tutamak: kabza gibi
-      else if (fit) this.hLfg = new THREE.Vector3(-0.007, fit.bot + 0.008, u.gripL.z);          // geniş kundak: avuç alt yüze değer
+      else if (fit) this.hLfg = this.glove === 'human' ? new THREE.Vector3(-0.007, fit.bot + 0.008, u.gripL.z) : new THREE.Vector3(0.004, fit.bot + 0.014, u.gripL.z);   // geniş kundak: avuç alt yüze değer (kalın eldiven biraz yukarı-içeri: kundağı alttan kavrasın)
       else if (gunK && u.hold === 'pistol' && u.gripR) { this.hLfg = u.gripR.clone().add(PS_OFF); lo = { map: PS_MAP, arm: PS_ARM, pose: 'cup' }; }   // tabanca: iki el
       else this.hLfg = u.gripL ? u.gripL.clone().add(new THREE.Vector3(0, -0.012, 0)) : null;
-      this.handL = gunK ? hand(this.hLfg || REST_L, -1, { ...lo, mirror: true, pose2: 'open' }) : null;
+      this.handL = gunK ? hand(this.hLfg || REST_L, -1, { ...lo, mirror: true, pose2: 'open' }, u.hold === 'pistol' && this.glove !== 'human' ? ELBOW_PS.clone().setX(-ELBOW_PS.x) : null, 1) : null;
       if (this.handL && !this.hLfg) this.handL.visible = false;
     }
     g.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
@@ -214,10 +237,11 @@ export class ViewModel {
     const rz0 = this.raise * this.raise;
 
     let pos = new THREE.Vector3().lerpVectors(hip, tgt, ads);
+    const ho = HOLD_OFF[u.hold]; if (ho && !isMelee) { pos.x += ho[0] * (1 - ads); pos.y += ho[1] * (1 - ads); pos.z += ho[2] * (1 - ads); }
     pos.x += Math.sin(this.bobT) * 0.012 * bobAmt;
     pos.y += Math.abs(Math.cos(this.bobT)) * 0.012 * bobAmt - rz0 * 0.38;
     pos.z += this.kick * (0.9 - ads * 0.6);
-    let rx = this.kickR * (0.4 - ads * 0.3), ry = -0.04 * (1 - ads), rz = 0;
+    let rx = this.kickR * (0.4 - ads * 0.3) + (ho && !isMelee ? ho[3] * (1 - ads) : 0), ry = 0.06 * (1 - ads), rz = 0;
     rx += this.dryT * 0.05 - rz0 * 0.5;
     this.breathT = (this.breathT || 0) + dt;                                    // nefes: yavaş, çok hafif iniş-kalkış ve yalpa (nişanda sönümlenir)
     const br = Math.sin(this.breathT * 1.55) * (1 - ads) * (1 - clamp(speed / 3, 0, 1) * 0.6), br2 = Math.sin(this.breathT * 0.8 + 1.3) * (1 - ads);
@@ -260,14 +284,14 @@ export class ViewModel {
       insp = sm(clamp(t / 0.12, 0, 1)) * sm(clamp((1 - t) / 0.14, 0, 1));
       const pl = (x) => Math.sin(clamp(x, 0, 1) * Math.PI);
       const a = pl((t - 0.1) / 0.36), b = pl((t - 0.42) / 0.3), c = pl((t - 0.66) / 0.24);
-      pos.x -= 0.19 * insp; pos.y += 0.05 * insp; pos.z += 0.07 * insp;
+      pos.x -= 0.19 * insp; pos.y += 0.05 * insp; pos.z -= 0.14 * insp;
       ry += 0.95 * a + 0.25 * b; rx += -0.2 * a + 0.5 * c; rz += -0.95 * b + 0.3 * c;
     }
 
     // ── yükleme: silah yana yatar, sol el şarjöre/kemere gider, şarjör çıkar-takılır, kol şarjı ──
     let camRoll = 0, camPitch = 0;
     if (ra) {
-      pos.y += ra.tilt * 0.07 - ra.slap * 0.012; pos.x -= ra.tilt * 0.12; pos.z += ra.slap * 0.035 - ra.tilt * 0.1;
+      pos.y += ra.tilt * 0.07 - ra.slap * 0.012; pos.x -= ra.tilt * 0.12; pos.z += ra.slap * 0.035 - ra.tilt * 0.3;      // yatan silah yakın bel duruşunda ekranı kaplamasın
       rx -= ra.tilt * 0.22 + ra.slap * 0.05; rz -= ra.tilt * 0.62; ry += ra.tilt * 0.3;
     } else if (s.useT > 0) {
       const tot = Math.max(0.5, st.useTime || 1.4);
@@ -336,6 +360,12 @@ export class ViewModel {
     this.root.position.set(pos.x * mir, pos.y, pos.z);
     this.root.rotation.set(rx, ry * mir, rz * mir);
     this.root.scale.set(VM_SCALE * mir, VM_SCALE, VM_SCALE);
+    if (this.idleL) {                                                             // boştaki sol el: nefes / yürüyüş sallanması, koşarken ve incelemede aşağı iner
+      const L = this.idleL, k = VM_SCALE * MELEE_VM_SCALE, dn = Math.max(this.sprintT || 0, insp) * 0.22 + rz0 * 0.3 + (s.swing ? 0.04 : 0);
+      L.position.set((-0.19 + Math.sin(this.bobT) * 0.008 * bobAmt) * mir, -0.19 + br * 0.003 + Math.abs(Math.cos(this.bobT)) * 0.01 * bobAmt - dn, -0.36);
+      L.rotation.set(0.05 + br * 0.01, 0, 0); L.scale.set(k * mir, k, k);
+      L.visible = this.root.visible;
+    }
     this.camRoll = lerp(this.camRoll, camRoll, Math.min(1, dt * 14));
     this.camPitch = lerp(this.camPitch, camPitch, Math.min(1, dt * 14));
 
@@ -351,7 +381,9 @@ export class ViewModel {
       for (const a of this.arms) {
         const w = this.cam.worldToLocal(a.grp.localToWorld(_w.copy(a.wrist)));
         a.mesh.position.copy(w);
-        a.mesh.quaternion.setFromUnitVectors(ZAX, _e.set(a.elbow.x * mir, a.elbow.y, a.elbow.z).sub(w).normalize());
+        _e.set(a.elbow.x * mir, a.elbow.y, a.elbow.z);
+        if (a.follow) _e.x += this.root.position.x - this.pos.x * mir + 0.12 * ads * mir, _e.y += this.root.position.y - this.pos.y - 0.3 * ads, _e.z = Math.min(_e.z + this.root.position.z - this.pos.z, -0.06);   // nişanda dirsek aşağı iner (kol göz önünden geçmesin)   // silah eli: dirsek silahın kaymasını izler (nişan / yükleme), dönmez → kol ekranı çaprazlamasına kesmez
+        a.mesh.quaternion.setFromUnitVectors(ZAX, _e.sub(w).normalize());
         const k = VM_SCALE * a.s; a.mesh.scale.set(k * mir, k, k);
         a.mesh.visible = this.root.visible && a.grp.visible;
       }
