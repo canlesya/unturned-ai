@@ -217,7 +217,7 @@ export function handBasis(x, y) {
 }
 
 // Renk takımları
-export function gloveColors(c, style = 'white', pb = false) {
+export function gloveColors(c, style = 'dark', pb = false) {
   if (style !== 'human') return gloveColorsOf(style, c, pb);                                                   // çizgi film eldiveni: beyaz / koyu
   const g = new THREE.Color(c.gloves).lerp(new THREE.Color('#454a3a'), 0.65), sh = new THREE.Color(c.shirt);      // mat, koyu zeytin-siyah kumaş eldiven
   return {
