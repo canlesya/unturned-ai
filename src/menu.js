@@ -13,6 +13,7 @@ import { music } from './game/music.js';
 import { isTouch } from './game/touch.js';
 import { t, lang, setLang, onLang, LANGS } from './i18n/index.js';
 import './i18n/menu.js';
+import { getSession, setSession, clearSession, acctTok, validAcctName, apiBase, api, profileOf, maxProfile, sameProfile } from './account.js';
 import { mapName as mapNm, mapTag, mapDesc, modeLabel, modeDesc, modeTag, className, classDesc, weaponName, weaponDesc, diffLabel, opticLabel, todLabel, weatherLabel, statLabel, actionLabel, groupLabel, keyName } from './i18n/data.js';
 
 const KEY = 'warbyte.v2';
@@ -47,7 +48,14 @@ export function recordMatch({ score = 0, kills = 0, deaths = 0, win = false }) {
   p.xp += Math.round(score + (win ? 300 : 80));
   p.stats.matches++; if (win) p.stats.wins++; p.stats.kills += kills; p.stats.deaths += deaths;
   savePrefs(p);
+  pushProfile(p);
   return p;
+}
+// Hesaplı oyuncu: yerel profil sunucuya da yazılır (sunucu alan alan büyüğü tutar; ağ yoksa sonraki menü açılışında eşitlenir). Misafir yalnız yerel
+function pushProfile(p) {
+  const s = getSession();
+  if (s?.kind !== 'acct' || p.acctName !== s.name) return;
+  api(apiBase(p.server), 'PUT', '/api/profile', profileOf(p), s.tok).catch(() => {});
 }
 const levelOf = (xp) => Math.floor(Math.sqrt(xp / 120)) + 1;
 
@@ -77,6 +85,7 @@ const ICON = {
   editor: '<path d="M12 2.8 20.5 7.5v9L12 21.2 3.5 16.5v-9z"/><path d="M3.5 7.5 12 12l8.5-4.5M12 12v9.2"/>',
   dice: '<rect x="3.5" y="3.5" width="17" height="17" rx="2.5"/><circle cx="8.5" cy="8.5" r="1.2"/><circle cx="15.5" cy="15.5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="15.5" cy="8.5" r="1.2"/><circle cx="8.5" cy="15.5" r="1.2"/>',
   play: '<path d="M7 4.5v15l12-7.5z" fill="currentColor"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 20.5c1.2-4 4.3-6 8-6s6.8 2 8 6"/>',
   lang: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17M12 3.5c2.6 2.4 3.8 5.2 3.8 8.5s-1.2 6.1-3.8 8.5M12 3.5C9.4 5.9 8.2 8.7 8.2 12s1.2 6.1 3.8 8.5"/>',
 };
 const ico = (k) => `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICON[k]}</svg>`;
@@ -99,12 +108,13 @@ export function showMenu(onStart, onOnline) {
   const el = document.getElementById('menu');
   const p = loadPrefs();
   if (!MAPS[p.map] && p.map !== 'random') p.map = DEFAULT_MAP;
+  if (getSession()?.kind === 'acct') p.name = getSession().name;          // hesaplı: ad hesabın adı (değiştirilemez)
   el.style.display = 'block';
   el.innerHTML = `<canvas id="mnBg"></canvas><div class="mn-vig"></div>
     <div class="mn-top"><div class="mn-logo" id="mnLogo"></div><div class="mn-topr"><div class="mn-langs" id="mnLangs"></div><div class="mn-user" id="mnUser"></div></div></div>
     <nav class="mn-side" id="mnNav"></nav>
     <main class="mn-stage" id="mnStage"></main>
-    <div class="mn-foot"><span id="mnTip"></span><span id="mnVer"></span></div>`;
+    <div class="mn-foot"><span id="mnTip"></span><span id="mnVer"></span></div><div class="mn-auth" id="mnAuth" hidden></div>`;
   const q = (s) => el.querySelector(s);
   const stage = q('#mnStage'), nav = q('#mnNav');
   let scene = null;
@@ -140,19 +150,24 @@ export function showMenu(onStart, onOnline) {
     q('.mn-vig').className = 'mn-vig' + (screen === 'loadout' ? ' light' : screen === 'home' ? ' home' : '');
   }
 
+  // Oyuncu kartı: hesaplıda ad sabit + HESAP rozeti + Çıkış; misafirde ad düzenlenir + MİSAFİR rozeti + Hesap (giriş kartını açar, ad korunur)
+  const acctBtns = (s) => (s?.kind === 'acct' ? `<em class="ub">${t('acct.badge')}</em><button class="ua" data-a="acctout">${t('acct.logout')}</button>`
+    : `<em class="ub g">${t('acct.guest')}</em><button class="ua" data-a="acctopen" title="${t('acct.openT')}">${t('acct.open')}</button>`);
   function renderUser() {
     const lv = levelOf(p.xp), l0 = (lv - 1) ** 2 * 120, l1 = lv ** 2 * 120;
-    const s = p.stats;
-    q('#mnUser').innerHTML = `<div class="mn-lv"><small>${t('menu.user.lv')}</small>${lv}</div><div class="mn-ub"><div class="nm" data-raw><input id="mnName" maxlength="14" value="${esc(p.name)}" spellcheck="false" aria-label="${t('menu.user.name')}" title="${t('menu.user.name')}"></div>
+    const s = p.stats, ss = getSession(), acct = ss?.kind === 'acct';
+    q('#mnUser').innerHTML = `<div class="mn-lv"><small>${t('menu.user.lv')}</small>${lv}</div><div class="mn-ub"><div class="nmrow"><div class="nm" data-raw>${acct ? `<span class="nmv" id="mnAcctName">${esc(ss.name)}</span>` : `<input id="mnName" maxlength="16" value="${esc(p.name)}" spellcheck="false" aria-label="${t('menu.user.name')}" title="${t('menu.user.name')}">`}</div>${acctBtns(ss)}</div>
       <div class="xp"><i style="width:${Math.round(((p.xp - l0) / (l1 - l0)) * 100)}%"></i></div>
       <small>${t('menu.user.stats', { m: s.matches, w: s.wins, kd: s.deaths ? (s.kills / s.deaths).toFixed(2) : s.kills })}</small></div>`;
-    q('#mnName').addEventListener('input', (e) => { p.name = e.target.value.trim() || DEFAULTS.name; save(); });
-    q('#mnName').addEventListener('keydown', (e) => e.stopPropagation());
+    q('#mnName')?.addEventListener('input', (e) => { p.name = e.target.value.trim() || DEFAULTS.name; save(); });
+    q('#mnName')?.addEventListener('keydown', (e) => e.stopPropagation());
+    const pa = nav.querySelector('.mn-acct');                                 // telefon: üst kart gizli, hesap satırı sol menünün en üstünde
+    if (pa) pa.innerHTML = `<button class="mn-nav pa" data-a="${acct ? 'acctout' : 'acctopen'}">${ico('user')}<span class="tx"><span data-raw>${esc(acct ? ss.name : p.name)}</span><small>${acct ? t('acct.badge') + ' · ' + t('acct.logout') : t('acct.guest') + ' · ' + t('acct.open')}</small></span></button>`;
   }
 
   function renderNav() {
     nav.innerHTML = NAV.map((k) => `<button class="mn-nav ${screen === k || (k === 'online' && screen === 'ocreate') ? 'on' : ''}" data-a="go" data-v="${k}">${ico(k)}<span class="tx">${t('menu.nav.' + k)}<small>${t('menu.nav.' + k + '.sub')}</small></span></button>`).join('')
-      + '<div class="mn-spacer"></div>';
+      + '<div class="mn-spacer"></div><div class="mn-acct"></div>';
   }
   // ekran başlığı (Ana Menü dışında): büyük başlık + kısa açıklama
   const head = (k, extra = '') => `<header class="mn-head"><h1>${t('menu.nav.' + (k === 'ocreate' ? 'ocreate' : k))}</h1><p>${t('menu.head.' + k)}</p>${extra}</header>`;
@@ -319,12 +334,12 @@ export function showMenu(onStart, onOnline) {
     let hello, pw = '';
     if (kind === 'create') {
       const c = oc(); pw = ol.cpw || '';
-      hello = { t: 'create', name, cls, loadout, team, cfg: { name: c.name.trim(), pw, listed: c.listed, map: c.map, tod: c.tod, weather: c.weather, type: c.type, perTeam: c.perTeam, bots: c.bots, diff: c.diff, third: c.third, tickets: c.tickets || undefined, time: c.time } };
+      hello = { t: 'create', name, tok: acctTok(), cls, loadout, team, cfg: { name: c.name.trim(), pw, listed: c.listed, map: c.map, tod: c.tod, weather: c.weather, type: c.type, perTeam: c.perTeam, bots: c.bots, diff: c.diff, third: c.third, tickets: c.tickets || undefined, time: c.time } };
     } else {
       const code = String(o.code || p.room || '').toUpperCase();
       if (code.length !== 4) { ol = { ...ol, msg: t('menu.ol.needCode'), err: true, busy: false }; render(); return; }
       pw = o.pw ?? ol.pw ?? '';
-      hello = { t: 'join', room: code, name, cls, loadout, team, pw };
+      hello = { t: 'join', room: code, name, tok: acctTok(), cls, loadout, team, pw };
     }
     ol = { ...ol, msg: t('menu.ol.connecting'), err: false, busy: true, pwFor: null }; render();
     try {
@@ -512,7 +527,7 @@ export function showMenu(onStart, onOnline) {
   document.addEventListener('keydown', onCap, true);
   const onKey = (e) => { if (e.key === 'Enter' && (screen === 'home' || screen === 'custom') && e.target.tagName !== 'INPUT') launch(); };
   document.addEventListener('keydown', onKey);
-  const offLang = onLang(() => { chrome(); render(); });                      // dil değişince menü yerinde yeniden çizilir (ekran / kaydırma korunur)
+  const offLang = onLang(() => { chrome(); render(); renderAuth(); });                      // dil değişince menü yerinde yeniden çizilir (ekran / kaydırma korunur)
 
   stage.addEventListener('input', (e) => {
     const tg = e.target, id = tg.id;
@@ -545,6 +560,8 @@ export function showMenu(onStart, onOnline) {
     switch (a) {
       case 'go': screen = v; break;
       case 'lang': setLang(v); return;                       // onLang → yeniden çizim
+      case 'acctopen': openAuth('acct', '', true); return;
+      case 'acctout': acctLogout(); return;
       case 'jump': q('#' + v)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return;
       case 'quick': launch(false); return;
       case 'random': launch(true); return;
@@ -604,8 +621,95 @@ export function showMenu(onStart, onOnline) {
   stage.addEventListener('click', act);
   nav.addEventListener('click', act);
   q('#mnLangs').addEventListener('click', act);
+  q('#mnUser').addEventListener('click', act);
+
+  // ───── Giriş kartı: ilk açılışta (oturum yoksa) menünün üstünde. Misafir = ad + Oyna; Hesap = ad + şifre, Giriş yap / Kayıt ol ─────
+  let auth = null;                                                          // { tab, msg, err, busy, closable, name, pass }
+  const authEl = q('#mnAuth');
+  const keepAuthInputs = () => { const n = authEl.querySelector('#auName'), pw = authEl.querySelector('#auPass'); if (n) auth.name = n.value; if (pw) auth.pass = pw.value; };
+  function renderAuth() {
+    if (!auth) { authEl.hidden = true; authEl.innerHTML = ''; return; }
+    const g = auth.tab === 'guest', dis = auth.busy ? 'disabled' : '';
+    const tab = (k) => `<button type="button" role="tab" class="${auth.tab === k ? 'on' : ''}" data-u="tab" data-v="${k}" aria-selected="${auth.tab === k}"><b>${t('acct.tab.' + k)}</b><small>${t('acct.tab.' + k + 'Sub')}</small></button>`;
+    const msg = auth.msg ? `<div class="au-msg ${auth.err ? 'err' : ''}" role="alert">${esc(auth.msg)}</div>` : '';
+    authEl.hidden = false;
+    authEl.innerHTML = `<div class="au-card" role="dialog" aria-modal="true" aria-labelledby="auT">
+      <div class="au-top"><div class="au-logo">WAR<b>BYTE</b></div><div class="au-langs">${LANGS.map(([k]) => `<button type="button" class="lg ${lang() === k ? 'on' : ''}" data-u="lang" data-v="${k}" title="${t('menu.set.lang')}">${k.toUpperCase()}</button>`).join('')}</div>${auth.closable ? `<button type="button" class="au-x" data-u="close" aria-label="${t('acct.close')}" title="${t('acct.close')}">✕</button>` : ''}</div>
+      <div class="au-hd"><h2 id="auT">${t('acct.welcome')}</h2><p class="au-sub">${t('acct.sub')}</p></div>
+      <div class="au-tabs" role="tablist">${tab('guest')}${tab('acct')}</div>
+      <form class="au-f" id="auF" novalidate><div class="au-fields ${g ? '' : 'two'}">
+        <label><span>${t('acct.name')}${g ? '' : `<em>${t('acct.nameRule')}</em>`}</span><input class="olin" id="auName" maxlength="16" autocomplete="${g ? 'nickname' : 'username'}" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="${g ? 'go' : 'next'}" placeholder="${t('acct.namePh')}" value="${esc(auth.name)}" data-raw></label>
+        ${g ? '' : `<label><span>${t('acct.pass')}</span><input class="olin" id="auPass" type="password" maxlength="128" autocomplete="current-password" enterkeyhint="go" placeholder="${t('acct.passPh')}" value="${esc(auth.pass || '')}"></label>`}</div>${msg}
+        ${g ? `<button class="play au-go" type="submit" data-u="guest" ${dis}>${ico('play')}<span>${t('acct.guestGo')}</span></button><div class="hint">${t('acct.guestHint')}</div>`
+    : `<div class="au-btns"><button class="play au-go" type="submit" data-u="login" ${dis}><span>${auth.busy === 'login' ? t('acct.busy') : t('acct.login')}</span></button><button class="play sec" type="button" data-u="register" ${dis}><span>${auth.busy === 'register' ? t('acct.busy') : t('acct.register')}</span></button></div><div class="hint">${t('acct.acctHint')}</div>`}
+      </form></div>`;
+  }
+  function openAuth(tab = 'guest', msg = '', closable = false) {
+    const def = p.name === DEFAULTS.name || p.name === 'Sen' || p.name === 'You';
+    auth = { tab, msg, err: !!msg, busy: false, closable, name: def ? '' : p.name, pass: '' };
+    renderAuth();
+    if (!TOUCH) setTimeout(() => authEl.querySelector('#auName')?.focus(), 30);          // telefonda klavye kendiliğinden açılmasın
+  }
+  const closeAuth = () => { auth = null; renderAuth(); };
+  function authSay(m, err = true) { keepAuthInputs(); auth = { ...auth, msg: m, err, busy: false }; renderAuth(); }
+  function asGuest() {
+    keepAuthInputs();
+    const nm = auth.name.replace(/[<>&"'`]/g, '').trim().slice(0, 16);
+    p.name = nm || DEFAULTS.name;
+    setSession({ kind: 'guest' }); save(); closeAuth(); render();
+  }
+  async function asAcct(kind) {
+    if (auth.busy) return;
+    keepAuthInputs();
+    const name = auth.name.trim(), pass = auth.pass || '';
+    if (!validAcctName(name)) return authSay(t('acct.err.name'));
+    if (pass.length < 4) return authSay(t('acct.err.pass'));
+    auth = { ...auth, busy: kind, msg: '' }; renderAuth();
+    try {
+      const body = { name, pass };
+      if (kind === 'register' && !p.acctName) body.profile = profileOf(p);          // misafirken kazandığın seviye yeni hesaba taşınır
+      const r = await api(apiBase(p.server), 'POST', kind === 'register' ? '/api/register' : '/api/login', body);
+      if (!p.acctName) p.guestSave = { name: p.name, ...profileOf(p) };            // çıkışta misafir profili geri gelir
+      Object.assign(p, { xp: r.profile.xp, stats: { ...DEFAULTS.stats, ...r.profile.stats }, acctName: r.name, name: r.name });
+      setSession({ kind: 'acct', name: r.name, tok: r.tok }); save(); closeAuth(); render();
+    } catch (e) { if (auth) authSay(e.message); }
+  }
+  async function acctLogout() {
+    const s = getSession();
+    if (s?.kind === 'acct') api(apiBase(p.server), 'POST', '/api/logout', {}, s.tok).catch(() => {});
+    clearSession();
+    const g = p.guestSave || { name: DEFAULTS.name, xp: 0, stats: { ...DEFAULTS.stats } };
+    Object.assign(p, { name: g.name || DEFAULTS.name, xp: g.xp || 0, stats: { ...DEFAULTS.stats, ...g.stats } });
+    delete p.acctName; delete p.guestSave; save(); render();
+    openAuth('guest');
+  }
+  // Hesaplı açılış: jeton hâlâ geçerli mi + profil eşitleme (yerel ile sunucunun büyüğü; yerel öndeyse sunucuya yazılır). Ağ yoksa oturum kalır
+  async function syncAcct() {
+    const s = getSession(); if (s?.kind !== 'acct') return;
+    let sv;
+    try { sv = await api(apiBase(p.server), 'GET', '/api/profile', null, s.tok); } catch (e) {
+      if (e.status === 401 && getSession()?.tok === s.tok) { clearSession(); delete p.acctName; save(); render(); openAuth('acct', t('acct.expired')); auth.name = s.name; renderAuth(); }
+      return;
+    }
+    if (getSession()?.tok !== s.tok || !el.contains(authEl)) return;
+    const m = p.acctName === s.name ? maxProfile(profileOf(p), sv) : sv;          // başka hesabın / misafirin yerel profili karışmasın
+    Object.assign(p, { xp: m.xp, stats: { ...DEFAULTS.stats, ...m.stats }, acctName: s.name }); save(); renderUser();
+    if (!sameProfile(m, sv)) api(apiBase(p.server), 'PUT', '/api/profile', m, s.tok).catch(() => {});
+  }
+  authEl.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-u]'); if (!b || !auth) return;
+    const u = b.dataset.u;
+    if (u === 'tab') { keepAuthInputs(); auth = { ...auth, tab: b.dataset.v, msg: '', err: false }; renderAuth(); if (!TOUCH) authEl.querySelector('#auName')?.focus(); }
+    else if (u === 'lang') { keepAuthInputs(); setLang(b.dataset.v); }
+    else if (u === 'close') closeAuth();
+    else if (u === 'register') asAcct('register');
+  });
+  authEl.addEventListener('submit', (e) => { e.preventDefault(); if (!auth) return; if (auth.tab === 'guest') asGuest(); else asAcct('login'); });
+  authEl.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Escape' && auth?.closable) closeAuth(); });
 
   render();
+  if (!getSession() && new URLSearchParams(location.search).get('nologin') !== '1') openAuth('guest');     // ?nologin=1: eski test betikleri kartı atlar
+  else syncAcct();
   scene?.prefetch([...new Set([DEFAULT_MAP, ...Object.values(MAPS).filter((m) => m.only).map((m) => mapsFor(m.only[0])[0].id)])]);   // mod değişiminin zorladığı haritalar boşta hazırlanır (modun ilk haritası: New York, Boya Kulesi)
   music.setVolume((p.volume ?? 0.6) * (p.vMusic ?? 0.5));
   music.play('lobby');                       // lobi müziği (public/audio/music/lobby.mp3 varsa)

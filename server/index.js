@@ -11,6 +11,7 @@ import { MapBuilder } from '../src/maps/builder.js';
 import { useBalance } from '../src/game/balance.js';
 import { loadBalance, currentBalance } from './balanceStore.js';
 import { startAdmin } from './admin.js';
+import { handleApi, byToken, guestName } from './accounts.js';
 MapBuilder.noVisual = true;          // sunucuda görsel geometri kurulmaz
 
 const PORT = +process.env.PORT || DEFAULT_PORT;
@@ -35,7 +36,8 @@ function serveStatic(req, res) {
   });
 }
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
+  if (await handleApi(req, res)) return;                               // hesap uçları: /api/register · login · logout · me · profile (server/accounts.js)
   if (req.url === '/health') {
     res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*' });
     res.end(JSON.stringify({ ok: true, rooms: rooms.size, players: [...rooms.values()].reduce((a, r) => a + r.humanCount, 0) }));
@@ -87,7 +89,7 @@ wss.on('connection', (ws) => {
     if (m.t === 'create') {
       if ([...rooms.values()].filter((r) => !r.official).length >= MAX_ROOMS) return err(ws, 'Sunucu dolu, sonra tekrar dene');
       let code; do code = makeRoomCode(); while (rooms.has(code) || /^OFC\d/.test(code));            // OFC* resmi sunuculara ayrılmış
-      const owner = cleanName(m.name);
+      const owner = playerName(m);
       useBalance(currentBalance());                     // yeni oda: güncel sınırlarla doğrulanır
       const cfg = { ...(m.cfg || {}) };
       if (!cfg.name || !String(cfg.name).trim()) cfg.name = `${owner}'in odası`;
@@ -109,10 +111,17 @@ wss.on('connection', (ws) => {
   ws.on('error', () => {});
 });
 
+// Odadaki ad: geçerli jetonla hesabın adı (istemci değiştiremez); jetonsuz / sahte jetonla misafir, kayıtlı bir adı aldıysa sonuna sayı (Ali → Ali2)
+function playerName(m) {
+  const a = byToken(m.tok);
+  return a ? a.name : guestName(cleanName(m.name));
+}
+
 function enter(ws, room, m) {
   room.activate();
-  if (room.game.ended) { room.hold(ws, { name: cleanName(m.name), team: m.team, cls: m.cls, loadout: m.loadout }); console.log(`[${room.code}] ${cleanName(m.name)} sonraki maçı bekliyor`); return; }     // maç sonu ekranı: yeni maçta otomatik katılır
-  const c = room.join(ws, cleanName(m.name), m.team, m.cls, m.loadout);
+  const name = playerName(m);
+  if (room.game.ended) { room.hold(ws, { name, team: m.team, cls: m.cls, loadout: m.loadout }); console.log(`[${room.code}] ${name} sonraki maçı bekliyor`); return; }     // maç sonu ekranı: yeni maçta otomatik katılır
+  const c = room.join(ws, name, m.team, m.cls, m.loadout);
   if (!c) return err(ws, 'Oda dolu');
   ws.ctx = { room, id: c.id };
   console.log(`[${room.code}] ${c.name} katıldı (${room.humanCount} oyuncu)`);

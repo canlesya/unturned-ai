@@ -1,6 +1,6 @@
 // Admin paneli (admin.warbyte.io): yalnızca 127.0.0.1'de dinler, nginx alt alan adından yönlendirir.
 // Giriş: tek admin şifresi (data/admin.json'da scrypt özeti). İlk açılışta rastgele şifre üretilir → data/admin-password.txt
-// API: /api/login · /api/balance · /api/history · /api/revert · /api/rooms · /api/rooms/close · /api/rooms/kick · /api/announce · /api/password
+// API: /api/login · /api/balance · /api/history · /api/revert · /api/rooms · /api/rooms/close · /api/rooms/kick · /api/announce · /api/password · /api/accounts (+ /delete, /reset)
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -8,6 +8,7 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { DATA, currentBalance, balanceMeta, balanceHistory, saveBalance } from './balanceStore.js';
 import { defaults, LIMITS } from '../src/game/balance.js';
+import { listAccounts, deleteAccount, resetPassword } from './accounts.js';
 import { officialList, upsertOfficial, removeOfficial, setOfficialEnabled, reorderOfficial, OFFICIAL_MAX } from './officialStore.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -145,6 +146,10 @@ export function startAdmin({ rooms, syncOfficial = () => {}, port = +process.env
       for (const r of rooms.values()) if (!b.code || r.code === b.code) { r.broadcast({ t: 'chat', sys: 1, m: '📢 ' + txt }); n += r.humanCount; }
       return { ok: true, players: n };
     },
+    // Oyuncu hesapları: liste, sil, şifre sıfırla (yeni şifre yalnız bu yanıtta bir kez görünür; dosyada yalnız özeti)
+    'GET /api/accounts': () => listAccounts(),
+    'POST /api/accounts/delete': (b) => { deleteAccount(String(b.name || '')); console.log(`[admin] hesap silindi: ${String(b.name).slice(0, 16)}`); return { ok: true }; },
+    'POST /api/accounts/reset': async (b) => { const pw = await resetPassword(String(b.name || '')); console.log(`[admin] hesap şifresi sıfırlandı: ${String(b.name).slice(0, 16)}`); return { ok: true, pw }; },
     'POST /api/password': (b) => {
       if (!checkPassword(b.old)) throw herr(403, 'Mevcut şifre yanlış');
       if (typeof b.pw !== 'string' || b.pw.length < 8) throw herr(400, 'Yeni şifre en az 8 karakter olmalı');
@@ -173,7 +178,7 @@ export function startAdmin({ rooms, syncOfficial = () => {}, port = +process.env
     if (!authed(req)) return send(res, 401, { error: 'Giriş gerekli' });
     const h = api[`${req.method} ${url}`];
     if (!h) return send(res, 404, { error: 'Yok' });
-    try { send(res, 200, h(body, req)); } catch (e) {
+    try { send(res, 200, await h(body, req)); } catch (e) {
       if (e.code >= 400 && e.code < 500) return send(res, e.code, { error: e.message });
       console.error('[admin]', e); send(res, 500, { error: 'Sunucu hatası' });
     }

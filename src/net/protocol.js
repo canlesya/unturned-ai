@@ -98,3 +98,5 @@ export function makeRoomCode(rand = Math.random) {
   return c;
 }
 export const cleanName = (n) => String(n || 'Oyuncu').replace(/[<>&"'`]/g, '').trim().slice(0, 16) || 'Oyuncu';
+// Hesap adı kuralı (istemci + sunucu ortak): 3–16 karakter, harf / rakam / _ / Türkçe harfler
+export const ACCT_NAME_RE = /^[A-Za-z0-9_çğıöşüÇĞİÖŞÜ]{3,16}$/;

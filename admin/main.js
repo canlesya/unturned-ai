@@ -92,6 +92,7 @@ const PAGES = [
   { id: 'rooms', label: 'Odalar', icon: 'door' },
   { id: 'announce', label: 'Duyuru', icon: 'speaker' },
   { id: 'history', label: 'Geçmiş', icon: 'history' },
+  { id: 'players', label: 'Hesaplar', icon: 'users' },
   { sep: true },
   { id: 'account', label: 'Hesap', icon: 'settings' },
 ];
@@ -120,6 +121,7 @@ function shell() {
   else if (S.view === 'rooms') renderRooms(main);
   else if (S.view === 'announce') renderAnnounce(main);
   else if (S.view === 'history') renderHistory(main);
+  else if (S.view === 'players') renderPlayers(main);
   else renderAccount(main);
 }
 function bindPending() {
@@ -137,7 +139,7 @@ function refreshPending() {
     if (!has && dot) dot.remove();
   });
 }
-function go(v) { S.view = v; if (location.hash !== '#' + v) history.pushState(null, '', '#' + v); shell(); if (v === 'rooms' || v === 'announce') loadRooms(); if (v === 'history') loadHistory(); if (v === 'servers') loadServers(); }
+function go(v) { S.view = v; if (location.hash !== '#' + v) history.pushState(null, '', '#' + v); shell(); if (v === 'rooms' || v === 'announce') loadRooms(); if (v === 'history') loadHistory(); if (v === 'servers') loadServers(); if (v === 'players') loadPlayers(); }
 
 // ───────── Düzenleyici ─────────
 function curItem(sec) {
@@ -568,6 +570,44 @@ function renderHistory(main) {
   }));
 }
 
+// ───────── Oyuncu hesapları ─────────
+const when = (t) => (t ? new Date(t).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—');
+async function loadPlayers() {
+  try { S.accts = await api('GET', '/api/accounts'); } catch (e) { toast(e.message, true); return; }
+  if (S.view === 'players') { const m = document.getElementById('main'); if (m) renderPlayers(m); }
+}
+function renderPlayers(main) {
+  const L = S.accts, f = (S.acctQ || '').toLocaleLowerCase('tr');
+  const rows = (L || []).filter((a) => !f || a.name.toLocaleLowerCase('tr').includes(f));
+  main.innerHTML = `<div class="page"><h2>Hesaplar</h2><p class="lead">Oyunda ad + şifreyle kayıt olan oyuncular (misafirler burada görünmez). Şifre sıfırlanınca yeni şifre yalnız bir kez gösterilir ve oyuncunun tüm cihazlarındaki oturum kapanır.</p>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px"><input class="inp" id="aq" placeholder="Ad ara" value="${esc(S.acctQ || '')}" style="max-width:260px"><span style="color:var(--tx2)">${L ? `${rows.length} / ${L.length} hesap` : 'Yükleniyor…'}</span></div>
+    <div class="card" style="padding:0;overflow:auto"><table class="atbl"><thead><tr><th>Ad</th><th>Kayıt</th><th>Son görülme</th><th>Maç</th><th>XP</th><th>Cihaz</th><th></th></tr></thead><tbody>
+    ${rows.map((a) => `<tr><td><b>${esc(a.name)}</b></td><td>${when(a.created)}</td><td>${when(a.seen)}</td><td>${a.matches}</td><td>${a.xp}</td><td>${a.devices}</td>
+      <td style="text-align:right;white-space:nowrap"><button class="btn sm" data-reset="${esc(a.name)}">Şifre sıfırla</button> <button class="btn sm dan" data-del="${esc(a.name)}">Sil</button></td></tr>`).join('') || `<tr><td colspan="7"><div class="empty">${L ? 'Hesap yok' : 'Yükleniyor…'}</div></td></tr>`}
+    </tbody></table></div></div>`;
+  const aq = main.querySelector('#aq');
+  aq.oninput = () => { S.acctQ = aq.value; renderPlayers(main); const n = main.querySelector('#aq'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); };
+  main.querySelectorAll('[data-del]').forEach((b) => (b.onclick = async () => {
+    if (!confirm(`${b.dataset.del} hesabı kalıcı olarak silinsin mi? Seviye / istatistik de gider, ad yeniden alınabilir olur.`)) return;
+    try { await api('POST', '/api/accounts/delete', { name: b.dataset.del }); toast(`${b.dataset.del} silindi`); loadPlayers(); } catch (e) { toast(e.message, true); }
+  }));
+  main.querySelectorAll('[data-reset]').forEach((b) => (b.onclick = async () => {
+    const nm = b.dataset.reset;
+    if (!confirm(`${nm} için yeni şifre üretilsin mi? Eski şifre ve açık oturumlar geçersiz olur.`)) return;
+    try {
+      const r = await api('POST', '/api/accounts/reset', { name: nm });
+      const d = document.createElement('div'); d.className = 'modal';
+      d.innerHTML = `<div class="box"><div class="bh"><h3 style="margin:0">Yeni şifre: ${esc(nm)}</h3></div><div class="bb"><p class="lead" style="color:var(--tx2)">Bu şifre yalnız şimdi görünür, sonra tekrar gösterilemez. Oyuncuya ilet; unutursa buradan yeniden sıfırlanır.</p>
+        <input class="inp" id="npw" readonly value="${esc(r.pw)}" style="font-size:20px;letter-spacing:2px;font-family:monospace"></div>
+        <div class="bf"><button class="btn" id="ncp">Kopyala</button><button class="btn pri" id="nok">Tamam</button></div></div>`;
+      document.body.appendChild(d);
+      d.querySelector('#npw').select();
+      d.querySelector('#ncp').onclick = () => { navigator.clipboard?.writeText(r.pw).then(() => toast('Kopyalandı'), () => {}); };
+      d.querySelector('#nok').onclick = () => d.remove();
+    } catch (e) { toast(e.message, true); }
+  }));
+}
+
 // ───────── Hesap ─────────
 function renderAccount(main) {
   main.innerHTML = `<div class="page"><div style="max-width:380px"><h2>Hesap</h2><p class="lead">Admin şifresini değiştir. Değişince tüm oturumlar kapanır.</p>
@@ -596,6 +636,7 @@ async function boot() {
   shell();
   if (S.view === 'history') loadHistory();
   if (S.view === 'servers') loadServers();
+  if (S.view === 'players') loadPlayers();
   clearInterval(roomTimer);
   roomTimer = setInterval(() => { if (S.view === 'servers' && !document.querySelector('.modal')) loadServers(); else if (S.view === 'rooms' || document.querySelector('.pill.live')) loadRooms(); }, 3000);
 }

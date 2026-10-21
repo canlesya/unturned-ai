@@ -232,3 +232,8 @@ svg.i{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stro
 .srv.drag{opacity:.35;outline:2px dashed var(--or);outline-offset:2px}
 .simg .code{display:flex;align-items:center;gap:4px}
 .simg .code .grip{width:14px;height:14px;stroke-width:2.6}
+/* Hesaplar tablosu */
+.atbl{width:100%;border-collapse:collapse;font-size:13px}
+.atbl th{text-align:left;font-weight:600;color:var(--tx2);padding:10px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+.atbl td{padding:8px 12px;border-bottom:1px solid var(--line)}
+.atbl tr:last-child td{border-bottom:0}

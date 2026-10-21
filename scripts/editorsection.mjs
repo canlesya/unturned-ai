@@ -10,8 +10,8 @@ const ready = async (ed) => { await p.waitForFunction(ed ? 'window.__game && win
 const palmY = () => p.evaluate((id) => { let y = 1e9; window.__game.map.group.traverse((o) => { if (o.isMesh && o.userData.ranges) for (const r of o.userData.ranges) if (r.oid === id) { const P = o.geometry.attributes.position; for (let i = r.start; i < r.start + r.count; i++) y = Math.min(y, P.getY(i)); } }); return y; }, PALM);
 const menuEditor = async () => { await p.waitForSelector('#mnNav button[data-v=editor]', { state: 'visible' }); await p.click('#mnNav button[data-v=editor]'); await p.waitForTimeout(400); return p.evaluate(() => document.querySelector('#mnStage').innerText); };
 // 0) eski sürümden kalan tarayıcı kaydı (palmiye 3 m havada) → yeni sürüm açılınca silinmeli
-await p.goto('http://127.0.0.1:5180/?debug=1'); await p.evaluate((k) => localStorage.setItem(k, JSON.stringify([{ id: 'palmiye:6', at: [-44.8, 8.9, 18], d: [0, 3, 0] }])), KEY);
-await p.goto('http://127.0.0.1:5180/?debug=1'); await p.waitForTimeout(500);
+await p.goto('http://127.0.0.1:5180/?debug=1&nologin=1'); await p.evaluate((k) => localStorage.setItem(k, JSON.stringify([{ id: 'palmiye:6', at: [-44.8, 8.9, 18], d: [0, 3, 0] }])), KEY);
+await p.goto('http://127.0.0.1:5180/?debug=1&nologin=1'); await p.waitForTimeout(500);
 ok(await p.evaluate((k) => !localStorage.getItem(k), KEY), 'eski tarayıcı kaydı silindi');
 let txt = await menuEditor();
 ok((txt.match(/orijinal/g) || []).length >= 4 && !/\d+ düzenleme/.test(txt) && /(AÇ|aç) ›/.test(txt), 'menüde Harita Editörü bölümü: 4 harita orijinal, Editörü aç');

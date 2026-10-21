@@ -71,7 +71,7 @@ for (const lg of (process.env.LANG_LIST || process.env.LANGS || 'tr,en').split('
     };
     const q = mob ? '&touch=1' : '&touch=0';
     await page.goto(base + '/?debug=1&nolock=1' + q);
-    await page.evaluate(([lg, ws]) => { localStorage.clear(); localStorage.setItem('warbyte.lang', lg); localStorage.setItem('warbyte.v2', JSON.stringify({ server: ws })); }, [lg, WS]);
+    await page.evaluate(([lg, ws]) => { localStorage.clear(); localStorage.setItem('warbyte.lang', lg); localStorage.setItem('warbyte.v2', JSON.stringify({ server: ws })); localStorage.setItem('warbyte.acct', JSON.stringify({ kind: 'guest' })); }, [lg, WS]);
     await page.goto(base + '/?debug=1&nolock=1' + q);
     await page.waitForSelector('.mn-nav', { timeout: 60000 }); await page.waitForTimeout(GPU ? 1500 : 2500);
     for (const [k, n] of SCREENS) {

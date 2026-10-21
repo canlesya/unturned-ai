@@ -23,7 +23,7 @@ for (const dk of (process.env.DEV || 'desktop,pixel7').split(',')) {
   page.on('pageerror', (e) => console.log('  sayfa hatası', e.message));
   const cdp = await ctx.newCDPSession(page);
   if (PROF) { await cdp.send('Profiler.enable'); await cdp.send('Profiler.setSamplingInterval', { interval: 200 }); }
-  await page.goto(base + '/?nolock=1', { waitUntil: 'load' });
+  await page.goto(base + '/?nolock=1&nologin=1', { waitUntil: 'load' });
   await page.evaluate(() => localStorage.clear());
   await page.reload({ waitUntil: 'load' });
   await page.waitForSelector('#mnStage .home', { timeout: 30000 });
