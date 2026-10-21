@@ -1,69 +1,61 @@
-// Eller v2 denetimi (gerçek GPU, Metal): insan eli tutuşları + bıçak + bomba + zombi pençesi + paintball; masaüstü 1600×900 ve Pixel 7 yatay (touch=1).
-//   node scripts/fphands2.mjs <çıktı klasörü> [taban url]    GPU=0 → swiftshader · ONLY=regex → yalnız eşleşen kareler · DEV=desk,mob
+// Kare el (V3) denetimi (gerçek GPU): her silah / eşyada kutu eller var mı, ekranda beklenen yerde mi (bel duruşu: en az bir el kare içinde), el kutusu × silah parçası batma ≤ 3 mm,
+// kol başına 1 ağ, sol el modu aynası, paintball kol rengi, zombi pençesi eski yol (kutu el yok), sayfa hatası yok. Masaüstü 1600×900 + Pixel 7 yatay (touch=1).
+//   node scripts/fphands2.mjs [çıktı klasörü] [taban url]    GPU=0 → swiftshader · DEV=desk,mob · SHOTS=0 → görüntü alma
 import { chromium, devices } from 'playwright';
 import { mkdirSync } from 'fs';
-const out = process.argv[2] || '/tmp/wb-h2-shots/after', base = process.argv[3] || 'http://127.0.0.1:5180';
-const only = process.env.ONLY ? new RegExp(process.env.ONLY) : null, GPU = process.env.GPU !== '0';
+const out = process.argv[2] || '/tmp/wb-box/fphands2', base = process.argv[3] || 'http://127.0.0.1:5261', GPU = process.env.GPU !== '0', SHOTS = process.env.SHOTS !== '0';
 mkdirSync(out, { recursive: true });
 const browser = await chromium.launch(GPU ? { headless: false, args: ['--use-angle=metal', '--ignore-gpu-blocklist'] } : { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const strip = (d) => { const { defaultBrowserType, ...r } = d; return r; };
-const errs = [];
+const errs = []; let fail = 0;
+const check = (ok, msg) => { console.log((ok ? 'OK    ' : 'HATA  ') + msg); if (!ok) fail++; };
+const IDS = { 0: ['ak47', 'm4a1', 'shotgun', 'sniper', 'mp5', 'lmg', 'scarh', 'aug', 'g36', 'ak74u', 'vector', 'p90', 'aa12', 'dbl', 'svd', 'barrett', 'pkm'], 1: ['pistol', 'deagle', 'revolver', 'm1911', 'mac10'], 2: ['grenade', 'smoke', 'flash', 'claymore', 'ammobox', 'medkit', 'rpg', 'm79'], 3: ['knife', 'machete', 'tomahawk'] };
 for (const dev of (process.env.DEV || 'desk,mob').split(',')) {
   const ctx = dev === 'desk' ? await browser.newContext({ viewport: { width: 1600, height: 900 } }) : await browser.newContext(strip(devices['Pixel 7 landscape']));
   const page = await ctx.newPage();
   page.on('pageerror', (e) => errs.push(dev + ': ' + e.message));
-  await page.goto(`${base}/?autostart=3v3&map=colgecidi&type=tdm&debug=1&dev=1&nolock=1&third=0&melee=knife${dev === 'mob' ? '&touch=1' : ''}`);
+  await page.goto(`${base}/?autostart=3v3&map=colgecidi&type=tdm&debug=1&dev=1&nolock=1&third=0${dev === 'mob' ? '&touch=1' : ''}`);
   await page.waitForFunction('window.__game && window.__game.running && window.__game.player', null, { timeout: 120000 });
   await page.evaluate(() => {
     const g = window.__game, p = g.player, s = p.s;
     g.brains.forEach((b) => (b.update = () => {}));
     g.soldiers.filter((o) => o !== s).forEach((o) => { o.pos.y = -90; o.syncModel?.(0); });
-    for (const e of document.body.children) if (e !== g.canvas && !e.contains(g.canvas)) e.style.visibility = 'hidden';   // arayüz gizli
-    g.simulate = true; for (let i = 0; i < 30; i++) g.step(1 / 30); g.simulate = false;
-    s.pos.set(-36.5, 0, 47.5); s.pos.y = g.world.heightAt(s.pos.x, s.pos.z); s.vel.set(0, 0, 0);
-    s.yaw = 0.6; s.pitch = 0.05; s.protT = 0;
-    const pb0 = !!g.mode.paintball;
+    for (const e of document.body.children) if (e !== g.canvas && !e.contains(g.canvas)) e.style.visibility = 'hidden';
+    s.pos.set(-36.5, 0, 47.5); s.pos.y = g.world.heightAt(s.pos.x, s.pos.z); s.vel.set(0, 0, 0); s.yaw = 0.6; s.pitch = 0.05; s.protT = 0;
     window.__pose = (o) => {
-      g.leftHand = !!o.left; g.mode.paintball = o.pb ? true : pb0;
+      g.leftHand = !!o.left; g.mode.paintball = !!o.pb;
       if (o.zt && !s.def.zombie) { g.makeZombie(s, false, o.zt); s.alive = true; }
-      s.cur = o.slot; s.items[o.slot] = { id: o.id, mag: o.reload !== undefined ? 0 : 30, reserve: 90 };
+      s.cur = o.slot; s.items[o.slot] = { id: o.id, mag: 30, reserve: 90 };
       p.refreshWeapon();
-      const S = s.stat, vm = p.vm;
-      vm.raise = 0; vm.kick = 0; vm.kickR = 0; vm.hitKick = 0; vm.inspectT = 0; vm.bobT = 0; vm.sprintT = 0;
+      const vm = p.vm; vm.raise = 0; vm.kick = 0; vm.kickR = 0; vm.inspectT = 0; vm.bobT = 0; vm.sprintT = 0; vm.pinT = 1; vm.throwT = 0; vm.boltT = 0;
       s.swing = null; s.reloadT = 0; s.adsT = 0; s.ads = false; s.cd = 0; s.vel.set(0, 0, 0); s.sprinting = false; s.useT = 0;
-      if (o.ads) { s.ads = true; s.adsT = 1; }
-      if (o.reload !== undefined) { const tot = S.reload || 2; s.reloadStyle = S.reloadStyle || 'mag'; s.reloadEmpty = true; s.reloadTotal = tot; s.reloadT = Math.max(0.001, tot * (1 - o.reload)); if (s.reloadStyle === 'shell') { s.reloadTotal = S.shell * 4; s.reloadT = s.reloadTotal * (1 - o.reload); } }
-      if (o.swing) { const dur = o.swing.kind === 'stab' ? S.stabT : S.swingT; s.swing = { t: dur * o.swing.k, dur, kind: o.swing.kind, idx: 0, done: true }; }
-      for (let i = 0; i < 40; i++) { if (o.insp) vm.inspectT = o.insp; if (o.walk) vm.bobT = o.walk; p.update(1 / 60); }
-      return S.kind;
+      for (let i = 0; i < 30; i++) { vm.pinT = 1; p.update(1 / 60); }
+      // kutu ellerin ekran izdüşümü (NDC): el merkezi kare içinde mi
+      vm.cam.updateMatrixWorld(true); const res = { arms: {}, armMeshes: 0, fpHand: 0 };
+      vm.scene.traverse((m) => { if (m.isMesh && m.userData.boxArm) res.armMeshes++; if (m.isMesh && m.userData.fpHand) res.fpHand++; });
+      for (const k of ['R', 'L']) { const a = vm.box?.[k]; if (!a) continue; const w = a.mesh.getWorldPosition(new a.mesh.position.constructor()).project(vm.cam); res.arms[k] = { vis: a.mesh.visible, x: +w.x.toFixed(2), y: +w.y.toFixed(2), sleeve: a.colors.sleeve, mir: vm.mirG.scale.x }; }
+      res.overlap = vm.overlapReport ? vm.overlapReport() : null;
+      return res;
     };
   });
-  // başarım: el ağları (çizim çağrısı / üçgen) — zombiye çevrilmeden önce ölçülür
-  const info = await page.evaluate(() => {
-    const g = window.__game, r = g.renderer, vm = g.player.vm, res = {};
-    for (const [k, o] of [['knife', { id: 'knife', slot: 3 }], ['m4', { id: 'm4a1', slot: 0 }], ['pistol', { id: 'pistol', slot: 1 }]]) {
-      window.__pose(o); r.info.autoReset = false; r.info.reset(); vm.render(r, innerWidth, innerHeight);
-      let hc = 0, ht = 0; vm.scene.traverse((m) => { if (m.isMesh && m.visible && m.userData.fpHand) { hc++; const gg = m.geometry; ht += (gg.index ? gg.index.count : gg.attributes.position.count) / 3; } });
-      res[k] = { vmCalls: r.info.render.calls, vmTris: r.info.render.triangles, handMeshes: hc, handTris: ht }; r.info.autoReset = true;
-    }
-    return res;
-  });
-  console.log(dev, JSON.stringify(info));
-  const shots = [];
-  for (const id of ['m4a1', 'ak47', 'mp5', 'sniper', 'shotgun', 'lmg']) shots.push([`${id}-hip`, { id, slot: 0 }]);
-  shots.push(['m4a1-ads', { id: 'm4a1', slot: 0, ads: 1 }], ['m4a1-rel20', { id: 'm4a1', slot: 0, reload: 0.2 }], ['m4a1-walk', { id: 'm4a1', slot: 0, walk: 1.2 }]);
-  for (const id of ['pistol', 'deagle']) shots.push([`${id}-hip`, { id, slot: 1 }], [`${id}-ads`, { id, slot: 1, ads: 1 }]);
-  shots.push(['knife-idle', { id: 'knife', slot: 3 }], ['knife-walk', { id: 'knife', slot: 3, walk: 1.2 }], ['knife-rl-44', { id: 'knife', slot: 3, swing: { kind: 'rl', k: 0.44 } }], ['knife-lr-44', { id: 'knife', slot: 3, swing: { kind: 'lr', k: 0.44 } }], ['knife-stab-44', { id: 'knife', slot: 3, swing: { kind: 'stab', k: 0.44 } }], ['knife-insp58', { id: 'knife', slot: 3, insp: 0.58 }]);
-  shots.push(['machete-idle', { id: 'machete', slot: 3 }], ['grenade-hip', { id: 'grenade', slot: 2 }], ['L-m4a1-hip', { id: 'm4a1', slot: 0, left: 1 }], ['L-knife-idle', { id: 'knife', slot: 3, left: 1 }]);
-  shots.push(['pbrifle-hip', { id: 'pbrifle', slot: 0, pb: 1 }], ['pbpistol-hip', { id: 'pbpistol', slot: 1, pb: 1 }]);
-  shots.push(['claws-idle', { zt: 'walker', id: 'claws', slot: 0 }], ['claws-rl-44', { zt: 'walker', id: 'claws', slot: 0, swing: { kind: 'rl', k: 0.44 } }], ['claws-stab-44', { zt: 'walker', id: 'claws', slot: 0, swing: { kind: 'stab', k: 0.44 } }]);
-  for (const [name, o] of shots) {
-    if (only && !only.test(name)) continue;
-    await page.evaluate((o) => window.__pose(o), o);
-    await page.waitForTimeout(80);
-    await page.screenshot({ path: `${out}/${dev}-${name}.png` });
+  for (const [slot, ids] of Object.entries(IDS)) for (const id of ids) {
+    const r = await page.evaluate((o) => window.__pose(o), { id, slot: +slot });
+    const ins = Object.values(r.arms).filter((a) => a.vis && Math.abs(a.x) < 1.05 && a.y > -1.25 && a.y < 1);
+    check(r.armMeshes >= 1 && r.armMeshes <= 2 && ins.length >= 1, `${dev} ${id}: ${r.armMeshes} kutu kol ağı, ${ins.length} el kare içinde ${JSON.stringify(Object.fromEntries(Object.entries(r.arms).map(([k, a]) => [k, [a.x, a.y]])))}`);
+    if (r.overlap) for (const [k, ov] of Object.entries(r.overlap)) check(ov.mm <= 3, `${dev} ${id}: ${k} el batma ${ov.mm} mm (≤ 3)`);
+    if (SHOTS && dev === 'desk') await page.screenshot({ path: `${out}/${dev}-${id}.png` });
   }
+  const L = await page.evaluate(() => window.__pose({ id: 'ak47', slot: 0, left: 1 }));
+  check(L.arms.R?.mir === -1, `${dev} sol el modu: kutu eller aynalı (mirG.x = ${L.arms.R?.mir})`);
+  const pb = await page.evaluate(() => { const r = window.__pose({ id: 'pbrifle', slot: 0, pb: 1 }), g = window.__game; return { sleeve: r.arms.R?.sleeve, paint: g.player.vm.look?.shirt }; });
+  check(pb.sleeve && pb.sleeve === pb.paint, `${dev} paintball: kol = boya rengi (${pb.sleeve} / ${pb.paint})`);
+  if (SHOTS) await page.screenshot({ path: `${out}/${dev}-pbrifle.png` });
+  const z = await page.evaluate(() => window.__pose({ zt: 'walker', id: 'claws', slot: 0 }));
+  check(z.armMeshes === 0 && z.fpHand >= 2, `${dev} zombi pençesi: eski organik el (${z.fpHand} el ağı, ${z.armMeshes} kutu kol)`);
+  if (SHOTS) await page.screenshot({ path: `${out}/${dev}-claws.png` });
   await ctx.close();
 }
-console.log('hata:', errs.length, errs.slice(0, 5));
+check(errs.length === 0, `sayfa hatası yok (${errs.length}) ${errs.slice(0, 3).join(' | ')}`);
+console.log(fail ? `${fail} HATA` : 'hepsi geçti');
 await browser.close();
+process.exit(fail ? 1 : 0);
