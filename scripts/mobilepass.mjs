@@ -240,7 +240,7 @@ for (const dk of want) {
     }
     await tap('#bResume'); await page.waitForTimeout(400);
     // ölüm ekranı
-    await page.evaluate(() => { const g = window.__game, me = g.playerSoldier; me.prot = 0; me.takeDamage(9999, window.__foe, 'body', window.__foe.pos, 'M4A1'); });
+    await page.evaluate(() => { const g = window.__game, me = g.playerSoldier; me.prot = 0; me.protT = 0; me.takeDamage(9999, window.__foe, 'body', window.__foe.pos, 'M4A1'); });
     await page.waitForTimeout(2600); check(await page.evaluate(() => getComputedStyle(document.getElementById('respawn')).display !== 'none'), `${dk}: ölüm ekranı görünüyor`); await shot('olum'); await audit('olum', '#respawn');
     // maç sonu
     await page.evaluate(() => { const g = window.__game; g.ended = true; g.running = false; g.showEndScreen('blue', 'Mavi takım 40 skora ulaştı'); });
