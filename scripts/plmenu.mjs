@@ -4,7 +4,7 @@ const base = process.argv[2] || 'http://127.0.0.1:5220';
 const browser = await chromium.launch({ args: ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu'] });
 const page = await (await browser.newContext({ viewport: { width: 1280, height: 720 }, locale: 'tr-TR' })).newPage();
 const errs = []; page.on('pageerror', (e) => errs.push(e.message));
-await page.goto(base + '/?debug=1&nolock=1');
+await page.goto(base + '/?debug=1&nolock=1&nologin=1');
 await page.waitForTimeout(2500);
 await page.evaluate(() => { const b = [...document.querySelectorAll('[data-a]')].find((e) => /Özel Oyun/i.test(e.textContent)); b?.click(); });
 await page.waitForTimeout(800);

@@ -3,7 +3,7 @@ import { chromium } from 'playwright';
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const page = await browser.newPage({ viewport: { width: +(process.env.W || 1600), height: +(process.env.H || 900) } });
 const errs = []; page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
-await page.goto(`${process.env.BASE || 'http://127.0.0.1:5180'}/`);
+await page.goto(`${process.env.BASE || 'http://127.0.0.1:5180'}/?nologin=1`);
 await page.evaluate(() => localStorage.setItem('warbyte.v2', JSON.stringify({ type: 'conquest', map: 'kasaba' })));
 await page.reload();
 await page.waitForSelector('.mn-nav', { timeout: 30000 }); await page.waitForTimeout(2000);

@@ -4,7 +4,7 @@ const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--ena
 const page = await browser.newPage({ viewport: { width: 1600, height: 900 } });
 const errs = []; page.on('pageerror', (e) => errs.push(e.message));
 let fail = 0; const check = (ok, msg) => { console.log((ok ? 'OK    ' : 'HATA  ') + msg); if (!ok) fail++; };
-await page.goto(`${process.env.BASE || 'http://127.0.0.1:5180'}/?debug=1&nolock=1`);
+await page.goto(`${process.env.BASE || 'http://127.0.0.1:5180'}/?debug=1&nolock=1&nologin=1`);
 await page.evaluate(() => localStorage.clear());
 await page.reload();
 await page.waitForSelector('.mn-nav', { timeout: 30000 }); await page.waitForTimeout(1500);

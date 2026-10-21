@@ -335,6 +335,66 @@ export const MENU_CSS = `
 #menu .slotb{min-height:70px}#menu .wc img{height:50px}#menu .clsdesc{font-size:12px;padding:5px 10px;margin-bottom:6px}#menu .tabs{gap:4px;margin-bottom:6px}#menu .tab{padding:6px 10px;font-size:12px;letter-spacing:1px}
 #menu .codejoin{grid-template-columns:120px 1fr auto}#menu .olin.code{font-size:22px;letter-spacing:8px}
 }
+/* ── hesap: oyuncu kartında rozet + eylem, telefonda sol menünün üstünde satır, ilk açılışta giriş kartı (menu.js renderAuth) ── */
+#menu .mn-user .nmrow{display:flex;align-items:center;gap:8px}
+#menu .mn-user .nmv{display:inline-block;max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom;padding:1px 0}
+#menu .mn-user .ub{font-style:normal;font-size:9.5px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;padding:3px 6px;background:rgba(255,138,31,.2);color:var(--acc2);border:1px solid rgba(255,138,31,.45);line-height:1}
+#menu .mn-user .ub.g{background:#ffffff0d;color:var(--dim);border-color:var(--line2)}
+#menu .mn-user .ua{font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:#cfd7e3;padding:4px 9px;border:1px solid var(--line2);background:#ffffff0a;margin-left:auto;transition:color .15s,border-color .15s,background .15s}
+#menu .mn-user .ua:hover{color:#fff;border-color:var(--acc);background:rgba(255,138,31,.16)}
+#menu .mn-acct{display:none}
+#menu .mn-acct .pa{width:100%}
+#menu .mn-acct .pa .tx > span{display:block;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+#menu .mn-acct .pa small{display:block!important;font-size:9px;letter-spacing:1px;color:var(--acc2);margin-top:1px}
+#menu .mn-auth{position:absolute;inset:0;z-index:30;display:flex;overflow-y:auto;overscroll-behavior:contain;padding:24px max(16px,env(safe-area-inset-right)) 24px max(16px,env(safe-area-inset-left));background:radial-gradient(ellipse at 50% 45%,rgba(4,6,10,.4),rgba(4,6,10,.9) 75%);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);animation:mnIn .3s var(--ease) both}
+#menu .mn-auth[hidden]{display:none}
+#menu .au-card{margin:auto;width:min(460px,100%);background:linear-gradient(180deg,rgba(16,21,31,.96),rgba(9,12,18,.96));border:1px solid var(--line2);border-top:3px solid var(--acc);padding:22px 28px 22px;clip-path:polygon(0 0,calc(100% - 18px) 0,100% 18px,100% 100%,18px 100%,0 calc(100% - 18px));box-shadow:0 30px 80px rgba(0,0,0,.6)}
+#menu .au-top{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+#menu .au-logo{font-size:30px;line-height:1;font-weight:800;letter-spacing:4px;font-style:italic;text-transform:uppercase;margin-right:auto;user-select:none}
+#menu .au-logo b{color:var(--acc)}
+#menu .au-langs{display:flex;border:1px solid var(--line)}
+#menu .au-langs .lg{min-width:40px;height:32px;font-size:12px;font-weight:700;letter-spacing:2px;color:var(--dim)}
+#menu .au-langs .lg.on{color:#160a02;background:var(--acc)}
+#menu .au-x{width:32px;height:32px;font-size:16px;color:var(--dim);border:1px solid var(--line)}
+#menu .au-x:hover{color:#fff;border-color:var(--line2)}
+#menu .au-hd h2{margin:0;font-size:26px;letter-spacing:3px;text-transform:uppercase;font-style:italic;font-weight:800}
+#menu .au-hd h2::before{content:'';display:inline-block;width:7px;height:19px;background:var(--acc);margin-right:10px;transform:skewX(-14deg);vertical-align:-1px}
+#menu .au-sub{margin:4px 0 14px;color:#aab5c5;font-size:14px;letter-spacing:.3px}
+#menu .au-tabs{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line);margin-bottom:14px;background:#ffffff06}
+#menu .au-tabs button{padding:9px 12px;text-align:left;color:#aab5c5;transition:background .15s,color .15s;border-bottom:2px solid transparent}
+#menu .au-tabs button b{display:block;font-size:15px;letter-spacing:2px;text-transform:uppercase}
+#menu .au-tabs button small{display:block;font-size:11px;color:var(--dim);letter-spacing:.5px;margin-top:1px}
+#menu .au-tabs button:hover{color:#fff;background:#ffffff0c}
+#menu .au-tabs button.on{color:#fff;background:linear-gradient(180deg,rgba(255,138,31,.28),rgba(255,138,31,.1));border-bottom-color:var(--acc)}
+#menu .au-tabs button.on small{color:#ffd3a6}
+#menu .au-fields{display:grid;gap:10px}
+#menu .au-fields label > span{display:block;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);font-weight:600;margin-bottom:5px}
+#menu .au-fields label > span em{font-style:normal;text-transform:none;letter-spacing:.3px;color:var(--dim2);margin-left:8px;font-weight:500}
+#menu .au-fields .olin{font:600 17px/1.2 Bahnschrift,'Rajdhani','Segoe UI',system-ui,sans-serif;letter-spacing:1px;min-height:44px}
+#menu .au-msg{margin-top:10px;padding:9px 12px;font-size:14px;border:1px solid var(--line);background:#ffffff0a}
+#menu .au-msg.err{border-color:var(--red);color:#ffb3a8;background:rgba(60,14,10,.82)}
+#menu .au-f .play.au-go{width:100%;min-width:0;margin-top:14px;font-size:24px;letter-spacing:3px;padding:15px 26px 15px 20px;gap:12px}
+#menu .au-f .play.au-go .ic{width:24px;height:24px}
+#menu .au-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+#menu .au-btns .play{margin-top:0!important;min-width:0;width:100%;justify-content:center;font-size:19px;padding:14px 20px 14px 14px}
+#menu .au-btns .play.sec{justify-content:center}
+#menu .au-f .hint{margin-top:10px;font-size:12.5px}
+@media(max-width:760px){#menu .mn-acct{display:block;flex:none}#menu .mn-acct .pa small{display:none!important}}
+@media(max-height:520px){
+#menu .mn-acct{display:block;flex:none;order:-1;margin-bottom:3px;border-bottom:1px solid var(--line);padding-bottom:3px}      /* telefonda menünün en üstünde: ekran kısa, altta kalırsa görünmüyordu */
+#menu .mn-auth{padding:8px max(12px,env(safe-area-inset-right)) 8px max(12px,env(safe-area-inset-left))}
+#menu .au-card{width:min(600px,100%);padding:12px 18px 12px}
+#menu .au-top{margin-bottom:6px}#menu .au-logo{font-size:20px;letter-spacing:3px}
+#menu .au-hd{display:flex;align-items:baseline;gap:12px}#menu .au-hd h2{font-size:18px;letter-spacing:2px;white-space:nowrap}#menu .au-hd h2::before{width:5px;height:13px;margin-right:8px}
+#menu .au-sub{margin:0 0 8px;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#menu .au-tabs{margin-bottom:8px}#menu .au-tabs button{padding:4px 10px}#menu .au-tabs button b{font-size:13px}#menu .au-tabs button small{font-size:10px}
+#menu .au-fields.two{grid-template-columns:1fr 1fr}#menu .au-fields label > span{font-size:10px;margin-bottom:3px}
+#menu .au-fields .olin{min-height:40px;padding:8px 12px;font-size:16px}
+#menu .au-f .play.au-go{margin-top:8px;font-size:18px;padding:10px 18px}#menu .au-btns{margin-top:8px}#menu .au-btns .play{font-size:16px;padding:10px 12px}
+#menu .au-f .hint{margin-top:6px;font-size:11px;line-height:1.35}#menu .au-msg{margin-top:6px;padding:6px 10px;font-size:13px}
+}
+html.touch #menu .au-langs .lg,html.touch #menu .au-x{min-height:40px;height:40px}
+html.touch #menu .mn-user .ua{min-height:40px}
 /* dokunmatik cihaz (main.js → html.touch): her düğme / kaydırıcı en az 40 px (parmakla rahat); masaüstü etkilenmez */
 html.touch #menu button{min-height:40px;min-width:40px}
 html.touch #menu .mn-nav{min-height:40px}

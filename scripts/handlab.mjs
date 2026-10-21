@@ -7,7 +7,7 @@ const browser = await chromium.launch({ headless: false, args: ['--use-angle=met
 const page = await (await browser.newContext({ viewport: { width: 400, height: 300 } })).newPage();
 page.on('pageerror', (e) => console.log('hata', e.message));
 page.on('console', (m) => m.type() === 'error' && console.log('konsol', m.text()));
-await page.goto(base + '/?nolock=1');
+await page.goto(base + '/?nolock=1&nologin=1');
 const url = await page.evaluate(async (poses) => {
   const src = await (await fetch('/src/models/fpHands.js')).text();
   const tp = src.match(/from\s+["']([^"']*three[^"']*)["']/)[1];

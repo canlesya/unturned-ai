@@ -66,7 +66,7 @@ for (const dk of want) {
   // ── ana menü ve sekmeleri ──
   if (part('menu')) {
     await page.goto(base + '/?debug=1' + q);
-    await page.evaluate(() => localStorage.clear());
+    await page.evaluate(() => { localStorage.clear(); localStorage.setItem('warbyte.acct', JSON.stringify({ kind: 'guest' })); });      // misafir oturumu: giriş kartı açılmasın
     await page.goto(base + '/?debug=1' + q);
     await page.waitForSelector('.mn-nav', { timeout: 60000 }); await page.waitForTimeout(1500);
     for (const [k, n] of [['home', 'menu-ana'], ['custom', 'menu-ozel'], ['online', 'menu-cevrimici'], ['loadout', 'menu-sinif'], ['settings', 'menu-ayarlar'], ['controls', 'menu-kontroller'], ['editor', 'menu-editor']]) {
@@ -82,7 +82,7 @@ for (const dk of want) {
   // ── oyun (menüden Hızlı Oyun: gerçek tercihlerle) ──
   if (part('game')) {
     await page.goto(base + '/?debug=1' + q);
-    await page.evaluate(() => { localStorage.clear(); localStorage.setItem('warbyte.v2', JSON.stringify({ map: 'colgecidi', type: 'tdm', perTeam: 4, tod: 'day', weather: 'clear', third: true, optic: 'reddot' })); });
+    await page.evaluate(() => { localStorage.clear(); localStorage.setItem('warbyte.acct', JSON.stringify({ kind: 'guest' })); localStorage.setItem('warbyte.v2', JSON.stringify({ map: 'colgecidi', type: 'tdm', perTeam: 4, tod: 'day', weather: 'clear', third: true, optic: 'reddot' })); });
     await page.goto(base + '/?debug=1' + q);
     await page.waitForSelector('.mn-nav', { timeout: 60000 });
     await tap('[data-a=quick]');
