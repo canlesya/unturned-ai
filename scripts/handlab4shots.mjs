@@ -3,7 +3,7 @@
 import { chromium, devices } from 'playwright';
 import fs from 'fs';
 const parts = (process.argv[2] || 'stills,anims,third,perf,big').split(','), OUT = process.argv[3] || '/tmp/wb-lab4';
-const BASE = process.env.BASE || 'http://127.0.0.1:5253', ROWS = (process.env.ROWS || 'cur,v1-cur,v1-new,v2-cur,v2-new').split(','), only = process.env.ONLY ? new RegExp(process.env.ONLY) : null;
+const BASE = process.env.BASE || 'http://127.0.0.1:5253', ROWS = (process.env.ROWS || 'cur,old,v1-cur,v1-new,v2-cur,v2-new,v3-cur,v3-new').split(','), only = process.env.ONLY ? new RegExp(process.env.ONLY) : null;
 const DEVS = (process.env.DEV || 'desk,mob').split(','), TODS = (process.env.TOD || 'day,night').split(',');
 const browser = await chromium.launch({ headless: false, args: ['--use-angle=metal', '--ignore-gpu-blocklist', '--disable-gpu-vsync', '--disable-frame-rate-limit'] });
 const strip = (d) => { const { defaultBrowserType, ...r } = d; return r; };
@@ -23,7 +23,9 @@ const W6 = ['ak47', 'm4a1', 'shotgun', 'pistol', 'sniper', 'knife'];
 const STILLS = []; for (const w of W6) { STILLS.push([`${w}-hip`, { w }]); if (w !== 'knife') STILLS.push([`${w}-ads`, { w, ads: 1 }]); }
 STILLS.push(['ak47-sprint', { w: 'ak47', sprint: 1 }], ['grenade-idle', { w: 'grenade' }]);
 const ANIMS = [['ak-reload', 'ak47', 'reload'], ['shotgun-shell', 'shotgun', 'shell'], ['sniper-bolt', 'sniper', 'bolt'], ['pistol-reload', 'pistol', 'reload'], ['knife-slash', 'knife', 'slash'], ['knife-stab', 'knife', 'stab'], ['grenade-throw', 'grenade', 'throw'], ['ak-sprint2ads', 'ak47', 'sprint2ads'], ['ak-fire', 'ak47', 'fire'], ['shotgun-pump', 'shotgun', 'pump']];
-const BIG = [['v1-ak-hip', 'v1-new', { w: 'ak47' }], ['v1-m4-hip', 'v1-new', { w: 'm4a1' }], ['v1-shotgun-hip', 'v1-new', { w: 'shotgun' }], ['v1-pistol-hip', 'v1-new', { w: 'pistol' }], ['v1-knife-idle', 'v1-new', { w: 'knife' }], ['v1-ak-reload-mid', 'v1-new', { w: 'ak47', anim: 'reload', t: 0.2 }], ['v2-ak-hip', 'v2-new', { w: 'ak47' }], ['cur-ak-hip', 'cur', { w: 'ak47' }]];
+const BIG = [['v1-ak-hip', 'v1-new', { w: 'ak47' }], ['v1-m4-hip', 'v1-new', { w: 'm4a1' }], ['v1-shotgun-hip', 'v1-new', { w: 'shotgun' }], ['v1-pistol-hip', 'v1-new', { w: 'pistol' }], ['v1-knife-idle', 'v1-new', { w: 'knife' }], ['v1-ak-reload-mid', 'v1-new', { w: 'ak47', anim: 'reload', t: 0.2 }], ['v2-ak-hip', 'v2-new', { w: 'ak47' }], ['cur-ak-hip', 'cur', { w: 'ak47' }],
+  ['v3-ak-hip', 'v3-new', { w: 'ak47' }], ['v3-m4-hip', 'v3-new', { w: 'm4a1' }], ['v3-shotgun-hip', 'v3-new', { w: 'shotgun' }], ['v3-pistol-hip', 'v3-new', { w: 'pistol' }], ['v3-knife-idle', 'v3-new', { w: 'knife' }], ['v3-grenade-idle', 'v3-new', { w: 'grenade' }], ['v3-ak-reload-mid', 'v3-new', { w: 'ak47', anim: 'reload', t: 0.2 }], ['v3-sniper-hip', 'v3-new', { w: 'sniper' }],
+  ['old-ak-hip', 'old', { w: 'ak47' }], ['old-knife-idle', 'old', { w: 'knife' }], ['old-grenade-idle', 'old', { w: 'grenade' }]];
 
 for (const r of ROWS) {
   const base = { ...rowQ(r), anim: 'idle', t: 0, ads: 0, sprint: 0, view: 'game' };
@@ -38,9 +40,9 @@ for (const r of ROWS) {
     for (const [n, w, anim] of ANIMS) { if (only && !only.test(n)) continue; for (let k = 0; k < 8; k++) await shot(page, `${OUT}/${r}/anim-${n}-${k}.png`, { ...base, w, anim, t: +(k / 7).toFixed(3) }); }
     await ctx.close();
   }
-  if (parts.includes('perf') && r !== 'cur') {
+  if (parts.includes('perf') && r !== 'cur' && r !== 'old') {
     const { ctx, page } = await open('desk', `draft=${base.draft}&set=${base.set}&hud=0`);
-    const perf = {}; for (const w of W6) { await page.evaluate((o) => window.__lab.set(o), { ...base, w }); perf[w] = await page.evaluate(() => window.__lab.perf()); }
+    const perf = {}; for (const w of W6) { await page.evaluate((o) => window.__lab.set(o), { ...base, w }); perf[w] = await page.evaluate(() => window.__lab.perf()); if (base.draft === 'v3') { await page.evaluate((o) => window.__lab.set(o), { ...base, w, anim: 'reload', t: 0.2 }); perf[w].overlapReload = await page.evaluate(() => window.__lab.report().overlap); } }
     fs.writeFileSync(`${OUT}/${r}/perf.json`, JSON.stringify(perf, null, 1)); console.log(r, JSON.stringify(perf));
     await ctx.close();
   }
@@ -55,7 +57,7 @@ if (parts.includes('third')) for (const set of ['cur', 'new']) {                
 }
 if (parts.includes('big')) for (const [n, r, o] of BIG) {
   const b = rowQ(r), { ctx, page } = await open('desk', `draft=${b.draft}&set=${b.set}&hud=0`);
-  await shot(page, `${OUT}/big/${n}${r === 'cur' ? '' : '-new'}.png`, { ...b, anim: 'idle', t: 0, ads: 0, sprint: 0, view: 'game', ...o });
+  await shot(page, `${OUT}/big/${n}${r === 'cur' || r === 'old' ? '' : '-new'}.png`, { ...b, anim: 'idle', t: 0, ads: 0, sprint: 0, view: 'game', ...o });
   await ctx.close();
 }
 console.log('hata:', errs.length, errs.slice(0, 5));

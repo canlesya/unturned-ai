@@ -6,7 +6,7 @@ import json, os, sys
 from PIL import Image, ImageDraw, ImageFont
 ROOT = sys.argv[1] if len(sys.argv) > 1 else '/tmp/wb-lab4'
 REF = sys.argv[2] if len(sys.argv) > 2 else ''
-ROWS = [('cur', 'MEVCUT · eller + eski silah'), ('v1-cur', 'V1 elsiz · eski silah'), ('v1-new', 'V1 elsiz · TASLAK silah'), ('v2-cur', 'V2 blok kol · eski silah'), ('v2-new', 'V2 blok kol · TASLAK silah')]
+ROWS = [('cur', 'MEVCUT · eller + eski silah'), ('old', 'ESKİ kutu el (dfdc3c0^)'), ('v3-new', 'V3 KARE EL · TASLAK silah'), ('v3-cur', 'V3 kare el · eski silah'), ('v1-new', 'V1 elsiz · TASLAK silah'), ('v1-cur', 'V1 elsiz · eski silah'), ('v2-new', 'V2 blok kol · TASLAK silah'), ('v2-cur', 'V2 blok kol · eski silah')]
 try: FONT = ImageFont.truetype('/System/Library/Fonts/Helvetica.ttc', 22); SMALL = ImageFont.truetype('/System/Library/Fonts/Helvetica.ttc', 15)
 except Exception: FONT = SMALL = ImageFont.load_default()
 
@@ -54,10 +54,10 @@ def third():
         im = load(f'{ROOT}/{rows[i][0]}/{W6[j]}.png'); return crop(im, (0.3, 0.0, 0.9, 0.8)) if im else None
     s = grid(cell, 300, 350, W6, [r[1] for r in rows], 'Üçüncü şahıs · asker modeli + silah (createCharacter + setWeapon, LOD köşe rengi)')
     lines = []
-    for r in ['v1-new', 'v1-cur']:
+    for r in ['v3-new', 'v1-new', 'v1-cur']:
         try:
             pf = json.load(open(f'{ROOT}/{r}/perf.json'))
-            lines.append(r + ': ' + '  '.join(f"{k}: parça {v['parts']['cur']}→{v['parts']['new']} · ağ {v['weaponMeshes']} · üçgen {v['weaponTris']} · çizim {v['calls']} · {v['ms']} ms" for k, v in pf.items()))
+            lines.append(r + ': ' + '  '.join(f"{k}: parça {v['parts']['cur']}→{v['parts']['new']} · ağ {v['weaponMeshes']} · üçgen {v['weaponTris']} · çizim {v['calls']} · kol {v.get('armTris', 0)}△/{v.get('armCalls', 0)}çağrı · {v['ms']} ms" + (f" · batma bel R{v['overlap'].get('R', {}).get('mm', '-')} L{v['overlap'].get('L', {}).get('mm', '-')} mm, yükleme L{(v.get('overlapReload') or {}).get('L', {}).get('mm', '-')} mm" if v.get('overlap') else '') for k, v in pf.items()))
         except Exception as e: lines.append(f'{r}: perf yok ({e})')
     out = Image.new('RGB', (max(s.width, 2400), s.height + 30 * len(lines) + 10), (18, 20, 26)); out.paste(s, (0, 0)); d = ImageDraw.Draw(out)
     for i, l in enumerate(lines): d.text((10, s.height + 6 + i * 30), l, fill=(220, 220, 220), font=SMALL)
@@ -71,4 +71,13 @@ def ref():
     out.paste(a, (0, 40)); out.paste(b.convert('RGB').resize((1600, 900)), (1600, 40)) if b else None
     out.save(f'{ROOT}/ref-vs-ours.png'); print('yazıldı ref-vs-ours.png')
 
-stills(); anims(); third(); ref()
+def ref3():
+    bb = sys.argv[3] if len(sys.argv) > 3 else ''
+    srcs = [(bb, 'BattleBit M4A1 (bb-6)'), (REF, 'Unturned (kullanıcı)'), (f'{ROOT}/big/v3-ak-hip-new.png', 'Bizim · V3 kare el · taslak AK'), (f'{ROOT}/big/v3-m4-hip-new.png', 'Bizim · V3 kare el · taslak M4')]
+    out = Image.new('RGB', (1600 * 2, 900 * 2 + 80), (18, 20, 26)); d = ImageDraw.Draw(out)
+    for i, (p, t) in enumerate(srcs):
+        x, y = (i % 2) * 1600, (i // 2) * 940
+        d.text((x + 10, y + 8), t, fill='white', font=FONT)
+        if p and os.path.exists(p): out.paste(Image.open(p).convert('RGB').resize((1600, 900)), (x, y + 40))
+    out.save(f'{ROOT}/ref-vs-ours-v3.png'); print('yazıldı ref-vs-ours-v3.png')
+stills(); anims(); third(); ref(); ref3()

@@ -15,7 +15,8 @@ export const ANIMS = {
   // ── şarjör: silah sola-aşağı yatar (şarjör yuvası görünür), şarjör düşer + solar, yenisi alttan girer, oturma darbesi, kurma kolu (boş)
   reload: { sample: (t, c) => {
     const r = reloadAnim(c.style === 'bolt' ? 'bolt' : 'mag', t, true), o = Z();
-    add(o, [-0.15, 0.18, -0.04], [0.0, 0.25, -0.95], r.tilt);                   // silah yukarı-ortaya gelir, sola yatar: şarjör yuvası kameraya döner
+    if (c.hold === 'pistol') add(o, [-0.05, 0.0, -0.03], [0.05, 0.2, -0.55], r.tilt);   // tabanca: zaten yüksekte, az yatar (kollar ekranı kaplamasın)
+    else add(o, [-0.15, 0.18, -0.04], [0.0, 0.25, -0.95], r.tilt);                   // silah yukarı-ortaya gelir, sola yatar: şarjör yuvası kameraya döner
     add(o, [0, -0.012, 0.03], [-0.06, 0, 0.04], r.slap);                         // şarjör oturma darbesi
     add(o, [0, 0.006, 0.04], [0.05, 0, 0], r.charge);                            // kurma kolu çekilirken silah geri sarsılır
     const fade = t < 0.26 ? r.magOut * 0.9 : 0;                                  // düşen şarjör solar; yenisi opak
@@ -49,7 +50,7 @@ export const ANIMS = {
   // ── bomba: geri çekiş + fırlatma (oyunun throwT eğrisi), bomba t>0,72'de gizlenir
   throw: { sample: (t) => {
     const back = sm(t, 0, 0.35) * (1 - sm(t, 0.38, 0.6)), th = seg(t, 0.4, 1), o = Z();
-    add(o, [0.06, 0.03, 0.12], [0.35, 0.1, 0.1], back);
+    add(o, [0.05, 0.02, 0.05], [0.35, 0.1, 0.1], back);                                   // geri çekiş kısa (kare el / kol kamerayı kaplamasın)
     add(o, [0, -Math.sin(th * Math.PI) * 0.06, Math.sin(th * Math.PI) * 0.12], [Math.sin(Math.min(1, th * 1.4) * Math.PI) * -0.5, 0, 0], 1);
     o.fx = { hideW: t > 0.66, camPitch: -Math.sin(th * Math.PI) * 0.01 };
     return o;

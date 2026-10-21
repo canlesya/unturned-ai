@@ -5,16 +5,17 @@ import { createCharacter } from '../models/character.js';
 import { mergeVC } from '../core/geo.js';
 import { HandlessRig, POSE } from './rig.js';
 import { CurrentHands } from './current.js';
+import { OldBoxHands } from './oldbox.js';
 import { ANIMS } from './anims.js';
 import { createWeaponU, isNew, WEAPONS_U } from './weaponsUnturned.js';
 import { WEAPONS } from '../models/weapons.js';
 
 // handlab4: elsiz (Unturned tarzı) birinci şahıs taslakları + Unturned tarzı silah taslakları laboratuvarı.
-//   ?draft=v1|v2|cur  (v1 tamamen elsiz · v2 blok kol kütükleri · cur oyunun mevcut elleri)   &set=new|cur (silah modeli: taslak / mevcut)
+//   ?draft=v3|v1|v2|cur|old  (v3 kare el [ana aday] · v1 tamamen elsiz · v2 blok kol kütükleri · cur oyunun mevcut elleri · old dfdc3c0^ kutu elleri)   &set=new|cur (silah modeli: taslak / mevcut)
 //   &w=ak47&anim=idle|reload|shell|bolt|pump|fire|slash|stab|throw|sprint2ads|inspect&t=0.3&ads=1&sprint=1&tod=day|night&view=game|third&hud=0&live=1
 //   &hip=x,y,z,rx,ry,rz (bel duruşu denemesi) &scale=1.0 &team=blue
 const Q = new URLSearchParams(location.search), P = {
-  draft: Q.get('draft') || 'v1', set: Q.get('set') || 'new', w: Q.get('w') || 'ak47', anim: Q.get('anim') || 'idle', t: +(Q.get('t') || 0), ads: +(Q.get('ads') || 0), sprint: +(Q.get('sprint') || 0),
+  draft: Q.get('draft') || 'v3', set: Q.get('set') || 'new', w: Q.get('w') || 'ak47', anim: Q.get('anim') || 'idle', t: +(Q.get('t') || 0), ads: +(Q.get('ads') || 0), sprint: +(Q.get('sprint') || 0),
   view: Q.get('view') || 'game', tod: Q.get('tod') || 'day', hip: Q.get('hip') || '', scale: +(Q.get('scale') || 0), bob: +(Q.get('bob') || 0), team: Q.get('team') || 'blue', optic: Q.get('optic') || 'reddot', time: 0,
 };
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
@@ -42,7 +43,7 @@ const applyGameLights = (scene) => { for (const o of scene.children) { if (o.isH
 let rig = null, cur = null, mode = null;
 function setDraft(d) {
   if (rig) { rig.dispose(); rig = null; }
-  if (d === 'cur') { if (!cur) { cur = new CurrentHands(world.environment); applyGameLights(cur.vm.scene); } mode = 'cur'; }
+  if (d === 'cur' || d === 'old') { cur = d === 'old' ? new OldBoxHands(world.environment) : new CurrentHands(world.environment); applyGameLights(cur.vm.scene); mode = 'cur'; }
   else { mode = d; rig = new HandlessRig(d, TEAMS[P.team] || TEAMS.blue, cam, P.set); }
 }
 function setWeapon(id) { P.w = id; if (mode === 'cur') cur.setWeapon(id, P.team, P.optic); else { rig.scaleOverride = P.scale || 0; rig.setWeapon(id, P.optic); } }
@@ -90,14 +91,15 @@ async function perf(n = 40) {
   for (let i = 0; i < 5; i++) one(); sync();
   const t0 = performance.now(); for (let i = 0; i < n; i++) { one(); sync(); } const ms = (performance.now() - t0) / n;
   let wTris = 0, wMeshes = 0; const wr = mode === 'cur' ? cur.vm.model : rig.weapon; wr?.traverse((m) => { if (m.isMesh && m.visible && !m.userData.fpHand) { wMeshes++; const g = m.geometry; wTris += (g.index ? g.index.count : g.attributes.position.count) / 3; } });
-  return { calls, tris, ms: +ms.toFixed(2), weaponTris: Math.round(wTris), weaponMeshes: wMeshes, parts: partCount(P.w) };
+  let armTris = 0, armCalls = 0; sc.traverse((m) => { if (m.isMesh && m.visible && (m.userData.boxArm || m.userData.fpHand)) { armCalls++; const g = m.geometry; armTris += (g.index ? g.index.count : g.attributes.position.count) / 3; } });
+  return { calls, tris, ms: +ms.toFixed(2), weaponTris: Math.round(wTris), weaponMeshes: wMeshes, armTris: Math.round(armTris), armCalls, parts: partCount(P.w), overlap: rig ? rig.report().overlap : null };
 }
 // ham parça sayısı (birleştirmeden önce): mevcut model / taslak
 function partCount(id) { const n = (fn) => { if (!fn) return null; const g = fn(); let k = 0; g.traverse((o) => { if (o.isMesh) k++; }); g.traverse((o) => o.geometry?.dispose?.()); return k; }; return { cur: n(WEAPONS[id]), new: n(WEAPONS_U[id]) }; }
 
 const hud = document.getElementById('hud');
 function label() {
-  hud.textContent = `${mode === 'cur' ? 'MEVCUT eller' : mode === 'v1' ? 'V1 tamamen elsiz' : 'V2 blok kol'} · silah: ${P.set === 'new' && isNew(P.w) ? 'TASLAK' : 'mevcut'} · ${P.tod} · ${P.w} · ${P.anim} t=${P.t}${P.ads ? ' · nişan' : ''}${P.sprint ? ' · koşu' : ''}${P.view === 'third' ? ' · 3. şahıs' : ''}`;
+  hud.textContent = `${mode === 'cur' ? (P.draft === 'old' ? 'ESKİ kutu el (dfdc3c0^)' : 'MEVCUT eller') : mode === 'v1' ? 'V1 tamamen elsiz' : mode === 'v3' ? 'V3 kare el' : 'V2 blok kol'} · silah: ${P.set === 'new' && isNew(P.w) ? 'TASLAK' : 'mevcut'} · ${P.tod} · ${P.w} · ${P.anim} t=${P.t}${P.ads ? ' · nişan' : ''}${P.sprint ? ' · koşu' : ''}${P.view === 'third' ? ' · 3. şahıs' : ''}`;
   hud.style.display = Q.get('hud') === '0' ? 'none' : 'block';
 }
 setDraft(P.draft); setWeapon(P.w); frame(); label();
