@@ -110,6 +110,7 @@ function done(k, mat, meta, sg) {
 }
 function mergeAll(geos) { const pos = []; for (const g of geos) { const n = g.index ? g.toNonIndexed() : g; pos.push(...n.attributes.position.array); } const r = new THREE.BufferGeometry(); r.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); r.computeVertexNormals(); return r; }
 const newKit = (lod) => { const k = new Kit(lod); k.glass = []; return k; };
+export const S3PARTS = { optic, flipRear, done, newKit, circ, stripe, plate, guard };   // s3rifles: diğer S3 dosyalarının ortak parçaları
 
 // ───────────────────────── AK-47 ─────────────────────────
 export function ak47(mat = skinMaterial('ak47'), lod = false, o = 'iron') {
