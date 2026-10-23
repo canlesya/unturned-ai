@@ -789,9 +789,8 @@ export class Hud {
     this.$('ammo').querySelector('.n').classList.toggle('low', st.mag > 1 && it.mag <= st.mag * 0.25);
     // nişangâh / örtüler
     const cross = $('cross');
-    const vmA = g.player?.s === p ? g.player.vm?.adsV : undefined;         // 12.124: görsel nişan değeri silah modelinin yayından (retikül model oturunca çıkar)
-    const ov = p.overlay, adsL = p.adsT, ads = vmA ?? adsEase(adsL);    // adsL doğrusal (dürbün eşiği silah modeliyle aynı), ads görsel eğri
-    const scopeOn = p.alive && ov === 'scope' && (vmA ?? adsL) > 0.9;            // dürbün örtüsü / kararma da modelin yayıyla (göz merceğe varınca örtü gelir; FOV aynı yayda)
+    const ov = p.overlay, adsL = p.adsT, ads = adsEase(adsL);           // adsL doğrusal (dürbün eşiği silah modeliyle aynı), ads görsel eğri
+    const scopeOn = p.alive && ov === 'scope' && adsL > 0.9;
     const tp = g.showSelf;                                   // 3. şahıs kamera: optik örtüsü yok, artı hep görünür
     const showCross = p.alive && (ads < 0.6 || tp);
     cross.style.display = showCross ? 'block' : 'none';
@@ -809,7 +808,7 @@ export class Hud {
     // dürbün kararması: göz merceğe yaklaşırken kararır (adsL 0,55 → 0,9), örtü açılınca / kapanınca ~0,15 sn'de açılır
     if (scopeOn !== !!this._scWas) { this._scWas = scopeOn; this._scBlk = 1; }
     this._scBlk = Math.max(0, (this._scBlk || 0) - dt * 6.5);
-    const blk = p.alive && !tp && ov === 'scope' ? Math.max(this._scBlk, scopeOn ? 0 : clamp(((vmA ?? adsL) - 0.55) / 0.35, 0, 1) * (p.ads ? 1 : 0.6)) : 0;
+    const blk = p.alive && !tp && ov === 'scope' ? Math.max(this._scBlk, scopeOn ? 0 : clamp((adsL - 0.55) / 0.35, 0, 1) * (p.ads ? 1 : 0.6)) : 0;
     $('scopeblk').style.opacity = blk.toFixed(3);
     $('advig').style.opacity = p.alive && ov !== 'scope' && !tp ? (ads * 0.55).toFixed(2) : 0;
     const stTxt = [p.prone ? t('hud.prone') : p.crouching ? t('hud.crouch') : '', p.leanT > 0.3 ? t('hud.leanR') : p.leanT < -0.3 ? t('hud.leanL') : '', st.ball ? tr('pb.ring') : p.opticDef && st.kind === 'gun' ? opticName(p.opticId) : '', st.kind === 'gun' && st.auto ? `${fireName(p.fireModeNow, true)} [X]` : ''].filter(Boolean).join(' · ');

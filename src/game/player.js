@@ -9,7 +9,7 @@ import { WSTATS, OPTICS, OPTIC_ALLOWED, ZT_ORDER } from './stats.js';
 import { reloadAnim, meleePose } from './anim.js';
 import { fpHand, handBasis, zombieColors } from '../models/fpHands.js';
 import { box } from '../core/geo.js';
-import { clamp, lerp, V3 } from './util.js';
+import { clamp, lerp, V3, adsEase } from './util.js';
 import { applyInput } from '../sim/input.js';
 import { TUNE } from './balance.js';
 import { TouchControls, isTouch } from './touch.js';
@@ -36,7 +36,7 @@ const ELBOW_CLAW = new THREE.Vector3(0.3, -0.75, -0.18);                        
 const ZAX = new THREE.Vector3(0, 0, 1), _w = new THREE.Vector3(), _e = new THREE.Vector3();
 const GRENADE_UP = new THREE.Vector3(0, -0.035, 0.01);                           // bomba: kutu el biraz aşağı-geri → bomba kutunun üstünde görünür (ilk sürümde el içine gömülüydü)
 const DS = { side: THREE.DoubleSide };                                            // el / kol kutuları çift yüzlü: nişanda yakın düzlem keserse içi dolu görünür (yarım düzlem kalmaz)
-// Kol kutusu yönleri (silah yerelinde, 12.124): tetik kolu kabzanın arkasından sağ-aşağı (dipçiğin / kabza ucunun DIŞINDAN), destek kolu kundağın altından sol-aşağı (şarjörün dışından).
+// Kol kutusu yönleri (silah yerelinde, 12.124 → 12.125'te korundu): tetik kolu kabzanın arkasından sağ-aşağı (dipçiğin / kabza ucunun DIŞINDAN), destek kolu kundağın altından sol-aşağı (şarjörün dışından).
 // h = bel, a = tam nişan (geçişte yumuşak döner); off = kol kutusunun elden başlama payı. Ölçüm: scripts/armclip.mjs (kol ↔ silah ≤ 5 mm)
 export const ARM = {
   item: [0.12, -0.2, 0.42],                                                      // bomba / ilk yardım / mayın: ilk kutu el yönü (73b388f) aynen
@@ -46,36 +46,6 @@ export const ARM = {
 };
 const nv = (a) => new THREE.Vector3(...a).normalize();
 const MELEE_SPRINT = { pos: [-0.04, 0.06, -0.06], rx: 0.65, ry: 0.3, rz: -0.1 };
-// ── Nişan duruşu (12.124, BattleBit tarzı): tam nişanda silah NİŞAN NOKTASI çevresinde döner → retikül ekran ortasında kalır, gövde sağ-aşağı uzar (üst + sol yan görünür).
-// p = dipçik aşağı (namlu hafif yukarı), y = dipçik sağa, r = yatırma (saat yönü tersine: alt gövde sağa kayar); derece. Demir nişanda yalnız r (gez + arpacık aynı eksende kalsın).
-const D2R = Math.PI / 180;
-const ADS_POSE = {
-  rifle: { p: 2.6, y: 5.5, r: 3.0 }, smg: { p: 3.0, y: 6.2, r: 3.4 }, lmg: { p: 2.4, y: 5.0, r: 2.4 }, shotgun: { p: 2.8, y: 5.4, r: 3.0 },
-  pistol: { p: 2.0, y: 3.0, r: 2.6 }, scope: { p: 0.8, y: 1.6, r: 1.4 }, launcher: { p: 1.5, y: 3.0, r: 2.0 },
-};
-const ADS_CLASS = { mp5: 'smg', vector: 'smg', p90: 'smg', mac10: 'smg', lmg: 'lmg', pkm: 'lmg', shotgun: 'shotgun', aa12: 'shotgun', dbl: 'shotgun', rpg: 'launcher', m79: 'launcher' };
-// holo: arka çerçeve camdaki halkanın 6–7 cm gerisinde → büyük sapmada halkayı keser (paralaks); dipçik sapması yarıda, eksik derinlik yatırmayla
-const OPT_K = { holo: { p: 0.55, y: 0.5, r: 1.25 }, iron: { p: 0, y: 0, r: 1.25 } };
-const adsPoseOf = (id, u) => { const c = u.overlay === 'scope' ? 'scope' : ADS_CLASS[id] || (u.hold === 'pistol' ? 'pistol' : 'rifle'), P = ADS_POSE[c], K = OPT_K[u.pivot ? 'iron' : u.overlay] || { p: 1, y: 1, r: 1 }; return { c, p: P.p * K.p * D2R, y: P.y * K.y * D2R, r: P.r * K.r * D2R }; };
-// Nişan geçişi yayları (görsel; oyun adsT'si aynı): konum ω 30 / ζ 0,85 (%90 ≈ 0,175 sn, aşma < 1,5 mm), dönüş biraz yavaş ω 24 / ζ 0,9; FOV konumla aynı
-const ADS_SPR = { p: [30, 0.85], r: [24, 0.9] }, RC_SPR = [26, 0.62];
-const ADS_ARC = 0.014, ADS_ROLL_T = 0.05;                                         // geçiş yayı: silah hafif alçaktan kavisle yükselir + geçişte kısa yatış (tam nişanda 0)
-// Işıyan retikülün (S3 'glow' yuvası) silah yerelindeki yeri: red dot / holo'da nişan noktasının 1,8–3 cm önünde → duruş dönmesi bu noktanın çevresinde (retikül tam ortada kalır)
-function reticleOf(g, u) {
-  const sg = u.sight; if (!sg || (u.overlay !== 'dot' && u.overlay !== 'holo')) return null;
-  g.updateMatrixWorld(true); const inv = new THREE.Matrix4().copy(g.matrixWorld).invert(), m = new THREE.Matrix4(), v = new THREE.Vector3(), bins = new Map();
-  g.traverse((o) => {
-    const wf = o.isMesh && o.geometry.attributes.wf; if (!wf) return;
-    const P = o.geometry.attributes.position; m.multiplyMatrices(inv, o.matrixWorld);
-    for (let i = 0; i < P.count; i++) if (Math.round(wf.getX(i)) === 5) {
-      v.fromBufferAttribute(P, i).applyMatrix4(m); if (Math.abs(v.z - sg[2]) > 0.08) continue;
-      const k = Math.round(v.z * 500), b = bins.get(k) || bins.set(k, { n: 0, x: 0, y: 0, z: 0 }).get(k); b.n++; b.x += v.x; b.y += v.y; b.z += v.z;      // 2 mm dilimler
-    }
-  });
-  let best = null; for (const b of bins.values()) if (Math.hypot(b.x / b.n - sg[0], b.y / b.n - sg[1]) < 0.0015 && (!best || b.n > best.n)) best = b;      // eksendeki dilim (tabancanın gez / arpacık tritium noktaları eksen dışında)
-  return best ? [sg[0], sg[1], best.z / best.n] : null;
-}
-const spring = (x, v, tgt, w, z, dt) => { const n = Math.max(1, Math.ceil(dt * 240)), h = dt / n; for (let i = 0; i < n; i++) { v += (w * w * (tgt - x) - 2 * z * w * v) * h; x += v * h; } return [x, v]; };
 
 export class ViewModel {
   constructor(game) {
@@ -98,18 +68,6 @@ export class ViewModel {
     this.pos = new THREE.Vector3(0.2, -0.21, -0.66);           // bel duruşu (ilk kutu el sürümü)
     this.flash = null; this.flashT = 0;
     this.handL = null; this.handR = null;
-    this.adsP = 0; this.adsPV = 0; this.adsR = 0; this.adsRV = 0;      // nişan yayları (konum / dönüş): görsel nişan değeri; HUD ve FOV adsV'yi okur
-    this.rcK = 0; this.rcKV = 0; this.rcR = 0; this.rcRV = 0;          // nişanda tepme yayı (geri itme / namlu kalkışı)
-  }
-  get adsV() { return clamp(this.adsP, 0, 1); }
-
-  // Nişan yayları: hedef = oyun adsT'si (doğrusal); yay görsel geçişi yumuşatır, sonda < 1,5 mm oturma aşması
-  stepAds(dt, s, noAds) {
-    const tgt = noAds ? 0 : clamp(s.adsT, 0, 1);
-    [this.adsP, this.adsPV] = spring(this.adsP, this.adsPV, tgt, ADS_SPR.p[0], ADS_SPR.p[1], dt);
-    [this.adsR, this.adsRV] = spring(this.adsR, this.adsRV, tgt, ADS_SPR.r[0], ADS_SPR.r[1], dt);
-    [this.rcK, this.rcKV] = spring(this.rcK, this.rcKV, this.kick, RC_SPR[0], RC_SPR[1], dt);
-    [this.rcR, this.rcRV] = spring(this.rcR, this.rcRV, this.kickR, RC_SPR[0], RC_SPR[1], dt);
   }
 
   setItem(id, team, kind, optic, skin, wskin = 'std') {
@@ -199,7 +157,6 @@ export class ViewModel {
       if (this.handL && !this.hLfg) this.handL.visible = false;
     }
     g.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
-    if (!u.noAds) u.reticle = reticleOf(g, u);
     this.model = g;
     this.root.add(g);
   }
@@ -221,8 +178,7 @@ export class ViewModel {
     const s = p.s, st = s.stat;
     const u = this.model?.userData || {};
     const hip = this.pos;
-    this.stepAds(dt, s, u.noAds);
-    const ads = u.noAds ? 0 : this.adsV, adsO = u.noAds ? 0 : this.adsP, adsR = u.noAds ? 0 : clamp(this.adsR, 0, 1);   // ads: 0..1 görsel · adsO: konum (oturma aşmasıyla) · adsR: dönüş (biraz geç)
+    const ads = u.noAds ? 0 : adsEase(s.adsT);
     const tgt = this.adsTarget(u);
     if (st.adsLow) tgt.x += st.adsLow[0], tgt.y += st.adsLow[1], tgt.z += st.adsLow[2];      // paintball: nişanda model iner / sağa kayar (hazne görüşü kapatmasın; nişangâh HUD'da halka)
     const speed = Math.hypot(s.vel.x, s.vel.z);
@@ -239,13 +195,11 @@ export class ViewModel {
     this.boltT = Math.max(0, this.boltT - dt / 0.95);
     const rz0 = this.raise * this.raise;
 
-    let pos = new THREE.Vector3().lerpVectors(hip, tgt, adsO);
-    const arc = Math.sin(Math.PI * ads);                                        // geçiş yayı (12.124): düz çizgi yerine hafif alçaktan kavis; uçlarda 0 (bel / tam nişan aynen)
-    pos.y -= arc * ADS_ARC; pos.x += arc * ADS_ARC * 0.4;
+    let pos = new THREE.Vector3().lerpVectors(hip, tgt, ads);
     pos.x += Math.sin(this.bobT) * 0.012 * bobAmt;
     pos.y += Math.abs(Math.cos(this.bobT)) * 0.012 * bobAmt - rz0 * 0.38;
-    pos.z += lerp(this.kick, this.rcK, ads) * (0.9 - ads * 0.6);                // nişanda geri itme yaydan (yumuşak dönüş)
-    let rx = this.kickR * 0.4 * (1 - ads), ry = (this.id === 'claws' ? 0.06 : -0.04) * (1 - adsR), rz = arc * ADS_ROLL_T;      // zombi pençesi: bdecbe0 duruşu aynen · nişandaki tepme aşağıda nişan noktası çevresinde
+    pos.z += this.kick * (0.9 - ads * 0.6);
+    let rx = this.kickR * 0.4 * (1 - ads), ry = (this.id === 'claws' ? 0.06 : -0.04) * (1 - ads), rz = 0;      // zombi pençesi: bdecbe0 duruşu aynen · nişandaki tepme aşağıda nişan noktası çevresinde
     rx += this.dryT * 0.05 - rz0 * 0.5;
     this.breathT = (this.breathT || 0) + dt;                                    // nefes: yavaş, çok hafif iniş-kalkış ve yalpa (nişanda sönümlenir)
     const br = Math.sin(this.breathT * 1.55) * (1 - ads) * (1 - clamp(speed / 3, 0, 1) * 0.6), br2 = Math.sin(this.breathT * 0.8 + 1.3) * (1 - ads);
@@ -329,7 +283,7 @@ export class ViewModel {
         if (this.hLfg) this.handL.position.copy(this.hLfg);
       }
     }
-    // kol kutuları (12.124): belden nişana yumuşak döner (dir0 → dirA); yeni yönlerle kol silaha girmediği için nişanda da görünür (12.123'te destek kolu / tetik eli gizleniyordu)
+    // kol kutuları (12.124 yönleri, 12.125'te korundu): belden nişana yumuşak döner (dir0 → dirA); yeni yönlerle kol bel / geçiş / nişanda silaha girmez (armclip 0 mm)
     for (const hd of isMelee || this.zh ? [] : [this.handR, this.handL]) {
       const sl = hd?.userData.sleeve; if (!sl) continue;
       const k = (hd === this.handL && ra) || st.adsLow ? 0 : clamp((ads - 0.2) / 0.65, 0, 1), U = hd.userData;
@@ -337,6 +291,9 @@ export class ViewModel {
       _w.copy(U.dir0).lerp(U.dirA, kk).normalize();
       sl.position.copy(_w).multiplyScalar(U.len / 2 + U.off).add(_e.copy(U.lat).lerp(U.latA, kk)); sl.quaternion.setFromUnitVectors(Z, _w);
     }
+    // tam nişanda 12.123 kuralı aynen: destek kolu kutusu (yakın düzlemin önünde alt ekranda mavi levha gibi duruyordu) > 0,85'te gizli, eldiven kundakta kalır; tüfekte tetik eli gizli (tabancada görünür)
+    const slL = this.handL?.userData.sleeve; if (slL) slL.visible = !(u.near && ads > 0.85 && !st.adsLow && !ra);
+    if (this.handR && !this.zh && !isMelee) this.handR.visible = !(u.near && u.hold !== 'pistol' && ads > 0.85 && !st.adsLow);
     // ── yakın dövüş savurması ──
     if (isMelee && s.swing) {
       const sw = s.swing;
@@ -353,8 +310,6 @@ export class ViewModel {
     this.sy = lerp(this.sy || 0, p.lookDY * 0.0006, Math.min(1, dt * 12));
     ry += clamp(this.sx, -0.05, 0.05) * (1 - ads);
     rx += clamp(this.sy, -0.05, 0.05) * (1 - ads);
-    const kl = 1 - Math.exp(-dt / 0.04);                                       // nişanda fare gecikmesi ~40 ms (belde 83 ms): retikül çevresinde kısa, doğal gecikme
-    this.asx = lerp(this.asx || 0, clamp(-p.lookDX * 0.0006, -0.05, 0.05), kl); this.asy = lerp(this.asy || 0, clamp(p.lookDY * 0.0006, -0.05, 0.05), kl);
 
     // zombi elleri: koşarken biri sağa biri sola açılır, dönüşümlü ileri-geri sallanır; dururken hafif nefes alır
     if (this.zh) {
@@ -373,19 +328,15 @@ export class ViewModel {
     this.root.rotation.set(rx, ry * mir, rz * mir);
     this.root.scale.set(VM_SCALE * mir, VM_SCALE, VM_SCALE);
     // nişan (12.122): nefes + hafif sallanma + fare gecikmesi + tepme, NİŞAN NOKTASI çevresinde döner → retikül / gez ekran ortasında (= mermi noktası) kalır, gövde oynar
-    // nişan duruşu (12.124): tam nişanda yatırma + dipçik sağ-aşağı (ADS_POSE) da aynı nişan noktası çevresinde → retikül ortada, silah gövdesi derinlikli görünür (düz çubuk değil)
-    if ((ads > 0.001 || adsR > 0.001) && u.sight && !u.noAds) {
-      const P = this._pose && this._pose.u === u ? this._pose : (this._pose = { u, ...adsPoseOf(this.id, u) }), pk = st.adsLow ? 0 : adsR;      // paintball (adsLow): duruş yok, yalnız sallanma
-      let ax = P.p * pk, ay = P.y * pk, az = P.r * pk;
-      if (!this.noSway) {
-        const bt = this.breathT, mv = clamp(speed / 3, 0, 1) * (s.onGround ? 1 : 1.5), ik = u.pivot ? 0.4 : 1;      // demirde %40: arpacık ortada, gez yalnız birkaç piksel oynar
-        // nişanda nefes / sallanma %20 az; tepme yaydan (rcR: kısa kalkış + yumuşak dönüş); fare gecikmesi 40 ms (asx / asy)
-        ax += ((Math.sin(bt * 1.13) * 0.0017 + Math.sin(bt * 2.31 + 0.7) * 0.0006) * (1 + mv * 1.6) + this.rcR * 0.06 + this.asy * 0.22) * ads * ik;
-        ay += ((Math.sin(bt * 0.71 + 1.9) * 0.0019 + Math.sin(bt * 1.67) * 0.0005) * (1 + mv * 1.6) + this.asx * 0.22) * ads * ik;
-        az += Math.sin(bt * 0.53 + 0.4) * 0.0032 * ads;
-      }
+    if (ads > 0.001 && u.sight && !this.noSway) {
+      const bt = this.breathT, mv = clamp(speed / 3, 0, 1) * (s.onGround ? 1 : 1.5), ik = u.pivot ? 0.4 : 1;      // demirde %40: arpacık ortada, gez yalnız birkaç piksel oynar
+      // tepme nişanda 0,06 × (eskiden kabza çevresinde 0,1 ×): namlu kalkar, retikül ortada kalır, kickR sönümlenince geri oturur
+      let ax = ((Math.sin(bt * 1.13) * 0.0021 + Math.sin(bt * 2.31 + 0.7) * 0.0007) * (1 + mv * 1.6) + this.kickR * 0.06 + clamp(this.sy, -0.05, 0.05) * 0.3) * ads;
+      let ay = ((Math.sin(bt * 0.71 + 1.9) * 0.0024 + Math.sin(bt * 1.67) * 0.0006) * (1 + mv * 1.6) + clamp(this.sx, -0.05, 0.05) * 0.3) * ads;
+      const az = Math.sin(bt * 0.53 + 0.4) * 0.004 * ads;
+      ax *= ik; ay *= ik;
       this.root.updateMatrix();
-      const pv = u.pivot || u.reticle || u.sight;                                               // dönme merkezi: optikte ışıyan retikül (yoksa nişan noktası), demirde arpacık tepesi
+      const pv = u.pivot || u.sight;                                                            // dönme merkezi: optikte nişan noktası, demirde arpacık tepesi
       _sp.set(pv[0], pv[1], pv[2]).applyMatrix4(this.root.matrix);                              // (kamera uzayı)
       _q.setFromEuler(_eu.set(ax, ay * mir, az * mir));
       _sp2.copy(this.root.position).sub(_sp).applyQuaternion(_q).add(_sp);
@@ -400,7 +351,7 @@ export class ViewModel {
       this.flash.visible = this.flashT > 0;
     }
     // dürbünlü silahta tam nişanda modeli gizle (HUD dürbün örtüsü aynı eşikte; forceShow: adsalign testi)
-    this.root.visible = this.forceShow || !(s.overlay === 'scope' && ads > 0.9);      // 12.124: eşik görsel yayda (HUD #scope ile aynı)
+    this.root.visible = this.forceShow || !(s.overlay === 'scope' && s.adsT > 0.9);
     this.cam.rotation.z = -s.leanT * 0.2;   // yana eğilirken silah da kafayla birlikte yatar
     if (this.arms.length) {                    // zombi kolları: bilek ucundan dirsek noktasına (kamera uzayı; sol el modunda aynalı)
       this.cam.updateMatrixWorld(true);
@@ -415,7 +366,7 @@ export class ViewModel {
     }
     // nişan alırken silah kamerasının görüş açısı genişler: silah/nişangâh ekranda küçülür, rakip örtülmez (dürbünsüz silahlarda)
     const fovT = 54 + (ADS_FOV - 54) * (u.noAds ? 0 : ads);
-    const nearT = u.noAds || !u.near || st.adsLow || u.overlay !== 'scope' ? 0.01 : lerp(0.01, u.near, clamp((ads - 0.55) / 0.45, 0, 1) ** 2);      // yakın düzlem kesmesi (12.124) yalnız dürbün / ACOG'da (göz merceğe 4 cm): diğerlerinde silah gövdesi göz hizasının yanında / altında kalır, kesilmeden görünür
+    const nearT = u.noAds || !u.near || st.adsLow ? 0.01 : lerp(0.01, u.near, clamp((ads - 0.55) / 0.45, 0, 1) ** 2);      // nişanda yakın düzlem (nişangâhın hemen önü): göze yakın dipçik / kol / gövde kesilir; geçişin sonunda devreye girer
     if (Math.abs(this.cam.fov - fovT) > 0.01 || Math.abs(this.cam.near - nearT) > 1e-4) { this.cam.fov = fovT; this.cam.near = nearT; this.cam.updateProjectionMatrix(); }
     // dokunmatik: dürbünsüz nişanda (demir / red dot / holo) silah modeli yarı saydamlaşır. Küçük ekranda nişangâh gövdesi merkezin
     // %36-50'sini (3° içinde, bkz. adsview.mjs) kapatıyor, hedef tamamen arkasında kalıyordu; nişangâh HUD'da (#rdot / #holo / nokta) net kalır
@@ -799,7 +750,7 @@ export class Player {
     const cam = g.camera;
     g.abfx?.update(dt);                                                                // zombi gücü ekran efektleri (FOV vuruşu / adım temposu buradan)
     const baseFov = this.baseFov();
-    const zoom = s.zoomNow && !this.vm.model?.userData.noAds ? lerp(1, this.zoomEff(), this.vm.adsV) : 1;      // görüş yakınlaştırması model ile aynı yayda (12.124; vm.adsV önceki kare)
+    const zoom = s.zoomNow && !this.vm.model?.userData.noAds ? lerp(1, this.zoomEff(), adsEase(s.adsT)) : 1;      // görüş yakınlaştırması model ile aynı eğride
     const targetFov = baseFov / zoom + (g.abfx?.fovAdd || 0);
     cam.fov += (targetFov - cam.fov) * Math.min(1, dt * 18);
     cam.updateProjectionMatrix();

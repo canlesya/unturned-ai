@@ -12,8 +12,8 @@ const circ = (cx, cy, r, n = 14) => Array.from({ length: n }, (_, i) => [cx + Ma
 
 // Nişan alırken gözden nişan noktasına uzaklık (kamera uzayı, m): nişangâh türü başına SABİT → her silahta aynı ekran boyu (eski OPT_K / ADS_K karşılığı)
 export const ADS_DIST = { iron: 0.286, reddot: 0.36, rmr: 0.33, holo: 0.39, acog: 0.042, scope: 0.042 };
-// Nişanda silah kamerasının yakın düzlemi (kamera uzayı, m) = nişangâhın göze en yakın yüzünün hemen önü. 12.124'ten beri yalnız dürbün / ACOG'da uygulanır (player.js nearT):
-// diğer nişangâhlarda silah nişan noktası çevresinde sağ-aşağı döndüğü için dipçik / gövde gözün yanından geçer, kesmeye gerek yok (düz çubuk görüntüsü kalktı)
+// Nişanda silah kamerasının yakın düzlemi (kamera uzayı, m) = nişangâhın göze en yakın yüzünün hemen önü: arkadaki gövde / dipçik / el kesilir, kesik içi açık kalır
+// (arka yüzler çizilmez → alt ekranda koyu kütle yerine yalnız silahın üst yüzü + nişangâh görünür)
 export const ADS_NEAR = { iron: 0.27, reddot: 0.32, rmr: 0.25, holo: 0.335, acog: 0.03, scope: 0.03, pistol: 0.25 };   // tabanca: sürgü arkası + el görünür
 const GLASS_MAT = new THREE.MeshStandardMaterial({ color: '#9fd4ff', transparent: true, opacity: 0.16, roughness: 0.05, metalness: 0.3, depthWrite: false });
 GLASS_MAT.userData.glass = true;
