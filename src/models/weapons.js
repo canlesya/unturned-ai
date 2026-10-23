@@ -248,6 +248,11 @@ export const WEAPONS = {
   ...S3W, mp5, lmg, rpg, knife, grenade, ...MORE, ...PAINTBALL,
 };
 
+// s3items: S3 yakın dövüş + atılan / kurulan eşyalar (s3items.js) — createWeapon S3 yolundan kurulur (kaplama = uniform)
+import { S3I } from './s3items.js';
+Object.assign(S3W, S3I); Object.assign(WEAPONS, S3I);
+// /s3items
+
 // Görüntüleyici alt yazısı: WSTATS açıklamasından
 export const WEAPON_INFO = new Proxy({}, { get: (_, id) => WSTATS[id]?.desc || '' });
 

@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import { createWeapon } from '../models/weapons.js';
-import { createItem } from '../models/items.js';
 import { WSTATS } from './stats.js';
 import { clamp, rand } from './util.js';
 import { t as $t } from '../i18n/index.js';
@@ -10,6 +9,8 @@ import { t as $t } from '../i18n/index.js';
 
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3();
 const puffGeo = new THREE.IcosahedronGeometry(1, 1);
+// Kurulan cephane kutusu: S3 modeli (12.123), kutu tabanı zemine (model kökeni kutu ortası, taban −0,09)
+function ammoMesh() { const g = new THREE.Group(), m = createWeapon('ammobox'); m.position.y = 0.09; g.add(m); return g; }
 // Işıklandırmasız (Basic) malzeme: gölge/ışık hesabı olmadan çok katmanlı saydamlık ucuz kalır
 const smokeMats = ['#d4d8dc', '#b9bec4', '#c4c9ce'].map((c) => new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide }));
 
@@ -150,7 +151,7 @@ export function placeDeployable(game, s, st) {
     return true;
   }
   if (st.kind === 'ammobox') {
-    const mesh = createItem('ammoBox');
+    const mesh = ammoMesh();
     mesh.scale.setScalar(1.7);
     mesh.position.set(x, y, z);
     mesh.rotation.y = s.yaw;
@@ -176,7 +177,7 @@ export function netDeploy(game, ev) {
   const [x, y, z] = ev.p;
   let mesh;
   if (ev.ty === 'c') { mesh = createWeapon('claymore'); mesh.scale.setScalar(2.2); mesh.position.set(x, y + 0.15, z); }
-  else { mesh = createItem('ammoBox'); mesh.scale.setScalar(1.7); mesh.position.set(x, y, z); }
+  else { mesh = ammoMesh(); mesh.scale.setScalar(1.7); mesh.position.set(x, y, z); }
   mesh.rotation.y = ev.ry;
   game.scene.add(mesh);
   game.deployables.push({ id: ev.id, type: ev.ty === 'c' ? 'claymore' : 'ammo', team: ev.tm, mesh, pos: new THREE.Vector3(x, y, z) });

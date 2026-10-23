@@ -1,7 +1,7 @@
 // Hesap sistemi testi (tarayıcısız): API + WS + admin + jeton süresi.
 //   PORT=8851 ADMIN_PORT=8852 BF_DATA=/tmp/wb-acc-data BF_DEBUG=1 node server/index.js  →  API=http://127.0.0.1:8851 ADMIN=http://127.0.0.1:8852 DATA=/tmp/wb-acc-data node scripts/accounttest.mjs
 // Kontroller: kayıt / giriş / yanlış şifre / büyük-küçük harf duyarsız aynı ad / hız sınırı (IP başına dakikada 10) / gövde sınırı / çıkış / profil büyüğü-birleştirme ve sınırlama /
-// jeton süresi (modül, sahte saat) / admin listele + şifre sıfırla + sil / WS: hesaplı katılımda hesap adı, misafir kayıtlı adı alamaz (ek), sahte jeton = misafir.
+// kaplama (skins) alanı: null / temizleme / son yazılan / kayıtta taşınma (12.123) / jeton süresi (modül, sahte saat) / admin listele + şifre sıfırla + sil / WS: hesaplı katılımda hesap adı, misafir kayıtlı adı alamaz (ek), sahte jeton = misafir.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -79,6 +79,25 @@ const NG = 'Gst' + rid().slice(0, 5);
 const rg = await call('POST', '/api/register', { name: NG, pass: '1234', profile: { xp: 777, stats: { matches: 9, wins: 4, kills: 30, deaths: 12 } } }, { ip: newIp() });
 check(rg.s === 200 && rg.j.profile.xp === 777 && rg.j.profile.stats.matches === 9, 'kayıtta misafir ilerlemesi hesaba geçer');
 
+// kaplamalar (12.123): hiç yazılmadıysa null (istemci yereldekini yükler); PUT { skins } temizlenir (bilinmeyen silah / kaplama, std atılır) ve son yazılan kazanır; skins'siz PUT dokunmaz; kayıtta misafirinki geçer
+const J = (o) => JSON.stringify(o);
+const k0 = await call('GET', '/api/profile', undefined, { tok: reg.j.tok });
+check(k0.s === 200 && k0.j.skins === null && rg.j.skins === null, `kaplama yazılmamış hesap: skins null (${J(k0.j.skins)}, kayıt ${J(rg.j.skins)})`);
+const k1 = await call('PUT', '/api/profile', { skins: { ak47: 'gold', knife: 'wood', grenade: 'gold', m4a1: 'std', sniper: 'neon', hack: 'gold', pistol: 5 } }, { tok: reg.j.tok });
+check(k1.s === 200 && J(k1.j.skins) === J({ ak47: 'gold', knife: 'wood' }) && k1.j.xp === 1e8, `kaplama yazılır + temizlenir (eşya / std / bilinmeyen atılır, profil aynı): ${J(k1.j)}`);
+const k2 = await call('PUT', '/api/profile', { skins: { m4a1: 'desert' } }, { tok: reg.j.tok });
+const k3 = await call('PUT', '/api/profile', { xp: 3, stats: { kills: 1 } }, { tok: reg.j.tok });
+check(J(k2.j.skins) === J({ m4a1: 'desert' }) && J(k3.j.skins) === J({ m4a1: 'desert' }) && k3.j.xp === 1e8, `son yazılan kazanır (birleştirme yok), skins'siz profil yazımı kaplamaya dokunmaz: ${J(k2.j.skins)} / ${J(k3.j.skins)}`);
+const k4 = await call('PUT', '/api/profile', { skins: {} }, { tok: reg.j.tok });
+const kl = await call('POST', '/api/login', { name: N, pass: 'gizli1' }, { ip: newIp() });
+check(J(k4.j.skins) === '{}' && kl.s === 200 && J(kl.j.skins) === '{}', `hepsi standart = boş nesne (yazılmış sayılır, null değil); girişte skins döner: ${J(kl.j.skins)}`);
+const kb = await call('PUT', '/api/profile', { skins: { ak47: 'gold' } }, {});
+check(kb.s === 401, 'jetonsuz kaplama yazılamaz (401)');
+const NK = 'Skn' + rid().slice(0, 5);
+const rk = await call('POST', '/api/register', { name: NK, pass: '1234', skins: { pistol: 'urban', machete: 'gold', claymore: 'gold', x: 1 } }, { ip: newIp() });
+const rkg = await call('GET', '/api/profile', undefined, { tok: rk.j.tok });
+check(rk.s === 200 && J(rk.j.skins) === J({ pistol: 'urban', machete: 'gold' }) && J(rkg.j.skins) === J(rk.j.skins), `kayıtta misafir kaplamaları hesaba geçer (temizlenmiş): ${J(rk.j.skins)}`);
+
 // çıkış: yalnız o cihazın jetonu düşer
 const lo = await call('POST', '/api/logout', {}, { tok: T });
 const meT = await call('GET', '/api/me', undefined, { tok: T });
@@ -88,6 +107,7 @@ check(lo.s === 200 && meT.s === 401 && meR.s === 200, `çıkış: o jeton geçer
 // dosyada düz şifre / düz jeton yok
 const file = fs.readFileSync(path.join(DATA, 'accounts.json'), 'utf8');
 check(!file.includes('gizli1') && !file.includes(reg.j.tok) && /"salt"/.test(file), 'accounts.json: düz şifre ve düz jeton yok (yalnız tuz + özet)');
+check(/"skins":\{"pistol":"urban","machete":"gold"\}/.test(file), 'accounts.json: kaplamalar hesapla birlikte kalıcı');
 const mode = fs.statSync(path.join(DATA, 'accounts.json')).mode & 0o777;
 check(mode === 0o600, `accounts.json izinleri 600 (${mode.toString(8)})`);
 

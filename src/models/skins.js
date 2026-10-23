@@ -37,7 +37,7 @@ varying vec3 vCol; varying vec3 vPBR; varying vec3 vOP; varying vec2 vSP;`;
 const VERT_BODY = /* glsl */ `
   { int s = int(wf.x + 0.5); vCol = uCol[s]; vPBR = uPBR[s]; vOP = position; vSP = vec2(wf.y, wf.z + (s == 5 ? 10.0 : 0.0)); }`;
 const FRAG_HEAD = /* glsl */ `
-uniform int uCamo; uniform vec3 uCC[4]; uniform float uCS; uniform float uAlpha; uniform float uProbe;
+uniform int uCamo; uniform vec3 uCC[4]; uniform float uCS; uniform float uAlpha; uniform float uGlowA; uniform float uProbe;
 varying vec3 vCol; varying vec3 vPBR; varying vec3 vOP; varying vec2 vSP;
 float h31(vec3 p){ p = fract(p * 0.1031); p += dot(p, p.yzx + 33.33); return fract((p.x + p.y) * p.z); }
 float vn(vec3 p){ vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -53,12 +53,12 @@ vec3 camo(vec3 p){                                                              
   return col; }`;
 const FRAG_COLOR = /* glsl */ `
   vec3 wcol = vCol; float wsh = vSP.x, wpat = vSP.y, wglow = 0.0, wrough = vPBR.x;
-  if (wpat > 9.5) { wglow = 1.0; wpat -= 10.0; }
+  if (wpat > 9.5) { wglow = 1.0; wpat -= 10.0; if (uGlowA < 0.01) discard; }      // sönmüş retikül derinlik yazmasın (arkasındaki cam halka şeklinde kesilmesin)
   if (uCamo > 0 && vPBR.z > 0.5) wcol = camo(vOP);
   wcol *= wsh;
   if (wpat > 0.5 && wpat < 1.5) { float st = h31(floor(vOP * 700.0)); wcol *= 0.78 + 0.34 * st; wrough = min(1.0, wrough + 0.2); }     // benekli kabza (stipple)
   else if (wpat > 1.5) { wcol *= 0.82 + 0.22 * step(0.5, fract(vOP.z * 260.0 + vOP.y * 120.0)); }                                            // tırtıl / oluk
-  diffuseColor.rgb = wcol; diffuseColor.a = opacity * (wglow > 0.5 ? 1.0 : uAlpha);`;
+  diffuseColor.rgb = wcol; diffuseColor.a = opacity * (wglow > 0.5 ? uGlowA : uAlpha);`;
 
 const SHARED = new Map();
 // Kaplama malzemesi: shared=true → (silah, kaplama) başına tek örnek (3. şahıs askerleri paylaşır; setSkin / setFade çağrılmaz)
@@ -67,7 +67,7 @@ export function skinMaterial(weapon = 'ak47', skin = 'std', shared = false) {
   if (shared && SHARED.has(key)) return SHARED.get(key);
   const U = {
     uCol: { value: Array.from({ length: 6 }, () => new THREE.Color()) }, uPBR: { value: Array.from({ length: 6 }, () => new THREE.Vector3()) },
-    uCamo: { value: 0 }, uCC: { value: Array.from({ length: 4 }, () => new THREE.Color()) }, uCS: { value: 15 }, uAlpha: { value: 1 }, uProbe: PROBE,
+    uCamo: { value: 0 }, uCC: { value: Array.from({ length: 4 }, () => new THREE.Color()) }, uCS: { value: 15 }, uAlpha: { value: 1 }, uGlowA: { value: 1 }, uProbe: PROBE,
   };
   const m = new THREE.MeshStandardMaterial({ flatShading: true, roughness: 1, metalness: 0 });
   m.userData.U = U; m.userData.weapon = weapon; m.userData.skinMat = true; m.userData.shared = shared;
@@ -97,10 +97,10 @@ export function setSkin(m, skin) {
   m.userData.skin = SKINS[skin] ? skin : 'std';
   return m;
 }
-// Telefonda nişan soluklaşması: ışıyan retikül hariç tüm yuvalar saydamlaşır (setFade)
-export function setSkinAlpha(m, a) {
-  const tr = a < 0.999;
-  m.userData.U.uAlpha.value = a;
+// Telefonda nişan soluklaşması: ışıyan retikül hariç tüm yuvalar saydamlaşır (setFade) · ga: ışıyan retikülün saydamlığı (telefonda HUD retikülü çıkarken 3B halka / nokta söner → tek halka)
+export function setSkinAlpha(m, a, ga = 1) {
+  const tr = a < 0.999 || ga < 0.999;
+  m.userData.U.uAlpha.value = a; m.userData.U.uGlowA.value = ga;
   if (m.transparent !== tr) { m.transparent = tr; m.needsUpdate = true; }
 }
 // Bir modeldeki kaplama malzemelerini değiştir (menü önizlemesi: geometri aynı kalır)

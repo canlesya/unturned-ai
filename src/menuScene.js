@@ -16,6 +16,9 @@ const ORBIT = {
   us: { r: 88, h: 38, look: [0, 3, 0], speed: 0.035 },
 };
 
+// doğrusal (0..255) → sRGB (0..255) çevrim tablosu (ikon üretimi)
+const SRGB = Uint8Array.from({ length: 256 }, (_, i) => { const v = i / 255; return Math.round(255 * (v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055)); });
+
 export class MenuScene {
   constructor(canvas) {
     this.canvas = canvas;
@@ -182,7 +185,7 @@ export class MenuScene {
     try {
       const isItem = !WEAPONS[id] && ITEMS[id];     // ilk yardım gibi eşyalar silah tablosunda değil
       const w = isItem ? createItem(id) : createWeapon(id, optic);
-      w.rotation.y = isItem ? -0.5 : -Math.PI / 2;  // namlu → ekranda sağa
+      w.rotation.y = isItem || w.userData.hold === 'item' ? -0.5 : -Math.PI / 2;  // namlu → ekranda sağa (ilk yardım: çapraz ön yüz)
       scene.add(w);
       w.updateMatrixWorld(true);
       const box = new THREE.Box3().setFromObject(w), c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
@@ -202,6 +205,8 @@ export class MenuScene {
       const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
       const g = cv.getContext('2d'), img = g.createImageData(W, H);
       for (let y = 0; y < H; y++) img.data.set(buf.subarray((H - 1 - y) * W * 4, (H - y) * W * 4), y * W * 4);
+      // S3 modelleri (12.123): hedef dokuya doğrusal renk yazılır, sRGB'ye çevrilmezse koyu çıkıyordu (paleti sRGB'de ayarlı, oyunda ekrana sRGB çizilir) → yalnız S3 ikonlarında doğrusal → sRGB
+      if (w.userData.s3) { const d = img.data; for (let i = 0; i < d.length; i += 4) if (d[i + 3]) { const a = d[i + 3] / 255; for (let c = 0; c < 3; c++) d[i + c] = SRGB[Math.min(255, Math.round(d[i + c] / a))]; } }      // kenar pikselleri: önceden çarpılmış alfa çözülür (putImageData düz alfa ister)
       g.putImageData(img, 0, 0);
       url = cv.toDataURL('image/png');
     } catch (e) { console.warn('ikon üretilemedi', id, e); }

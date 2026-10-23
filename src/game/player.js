@@ -4,7 +4,6 @@ import { setSkinAlpha, setSkinProbe } from '../models/skins.js';
 import { pbLook } from '../models/character.js';
 import { tintPaint } from '../models/paintball.js';
 import { paintColorOf } from './paint.js';
-import { createItem } from '../models/items.js';
 import { TEAMS } from '../core/palette.js';
 import { WSTATS, OPTICS, OPTIC_ALLOWED, ZT_ORDER } from './stats.js';
 import { reloadAnim, meleePose } from './anim.js';
@@ -37,6 +36,7 @@ const ELBOW_CLAW = new THREE.Vector3(0.3, -0.75, -0.18);                        
 const ZAX = new THREE.Vector3(0, 0, 1), _w = new THREE.Vector3(), _e = new THREE.Vector3();
 const GRENADE_UP = new THREE.Vector3(0, -0.035, 0.01);                           // bomba: kutu el biraz aşağı-geri → bomba kutunun üstünde görünür (ilk sürümde el içine gömülüydü)
 const DS = { side: THREE.DoubleSide };                                            // el / kol kutuları çift yüzlü: nişanda yakın düzlem keserse içi dolu görünür (yarım düzlem kalmaz)
+const SLEEVE_ADS = new THREE.Vector3(-0.62, -0.72, 0.3).normalize();            // nişanda destek kolunun yönü (silah yerelinde): sol-aşağı, ekran merkezinin altını kapatmaz
 const MELEE_SPRINT = { pos: [-0.04, 0.06, -0.06], rx: 0.65, ry: 0.3, rz: -0.1 };
 
 export class ViewModel {
@@ -75,7 +75,7 @@ export class ViewModel {
     this.flash = null;
     this.zh = null;
     if (kind === 'medkit') {
-      const m = createItem('medkit'); m.scale.setScalar(1.5); m.position.set(0, -0.08, 0); g.add(m);
+      const m = createWeapon('medkit', null, false); m.scale.setScalar(1.5); m.position.set(0, -0.08, 0); g.add(m);      // S3 ilk yardım (12.123; eski eşya modeliyle aynı ölçü / konum)
       g.userData = { gripR: new THREE.Vector3(0.02, -0.02, 0.0), gripL: null, muzzle: new THREE.Vector3(), sight: [0, 0, 0], dist: 0.3, noAds: true };
     } else {
       const w = createWeapon(id, optic, false, wskin);         // wskin: S3 silah kaplaması (skin = zombi ten rengi)
@@ -102,6 +102,7 @@ export class ViewModel {
       const sleeve = box(grp, [0.11, 0.11, len], c.shirt, [0, 0, 0], null, DS);
       sleeve.position.copy(dir).multiplyScalar(len / 2 + 0.05);
       sleeve.quaternion.setFromUnitVectors(Z, dir);
+      grp.userData.sleeve = sleeve; grp.userData.dir0 = dir; grp.userData.len = len;
       g.add(grp);
       return grp;
     };
@@ -273,6 +274,14 @@ export class ViewModel {
         if (this.hLfg) this.handL.position.copy(this.hLfg);
       }
     }
+    // nişanda destek kolu (12.123): kol kutusu ekranın alt-ortasında dikey sütun gibi duruyordu → nişana girerken sol-aşağı döner, tam nişanda gizlenir (el yerinde)
+    const sl = this.handL?.userData.sleeve;
+    if (sl) {
+      const k = ra || st.adsLow ? 0 : clamp((ads - 0.25) / 0.6, 0, 1), d0 = this.handL.userData.dir0, L = this.handL.userData.len;
+      _w.copy(d0).lerp(SLEEVE_ADS, k * k * (3 - 2 * k)).normalize();
+      sl.position.copy(_w).multiplyScalar(L / 2 + 0.05); sl.quaternion.setFromUnitVectors(Z, _w);
+      sl.visible = !(u.near && ads > 0.85 && !st.adsLow && !ra);                                   // tam nişanda kol kutusu gizli (tetik eliyle aynı eşik), eldiven kundakta kalır
+    }
     // nişanda (tüfek / makineli / pompalı) tetik eli yakın düzlemin arkasında kalır: kesik kutu alt ekranda koyu blok olmasın diye gizlenir (tabancada el görünür)
     if (this.handR && !this.zh && !isMelee) this.handR.visible = !(u.near && u.hold !== 'pistol' && ads > 0.85 && !st.adsLow);
     // ── yakın dövüş savurması ──
@@ -351,7 +360,9 @@ export class ViewModel {
     if (Math.abs(this.cam.fov - fovT) > 0.01 || Math.abs(this.cam.near - nearT) > 1e-4) { this.cam.fov = fovT; this.cam.near = nearT; this.cam.updateProjectionMatrix(); }
     // dokunmatik: dürbünsüz nişanda (demir / red dot / holo) silah modeli yarı saydamlaşır. Küçük ekranda nişangâh gövdesi merkezin
     // %36-50'sini (3° içinde, bkz. adsview.mjs) kapatıyor, hedef tamamen arkasında kalıyordu; nişangâh HUD'da (#rdot / #holo / nokta) net kalır
-    this.setFade(p.touch && s.overlay !== 'scope' && !this.noFade ? clamp((ads - 0.55) / 0.4, 0, 1) * 0.5 : 0);
+    // telefon (12.123): HUD retikülü (#rdot / #holo, nişangâh boyutu ayarıyla büyük) ads > 0,97'de çıkar → 3B ışıyan nokta / halka soluklaşmayla birlikte söner (iki farklı boy halka üst üste görünmez)
+    const fk = p.touch && s.overlay !== 'scope' && !this.noFade ? clamp((ads - 0.55) / 0.4, 0, 1) : 0;
+    this.setFade(fk * 0.5, s.overlay === 'dot' || s.overlay === 'holo' ? 1 - fk : 1);
   }
 
   // adsalign testi: S3 retikülleri saf eflatun (ekranda merkez ölçümü)
@@ -361,17 +372,17 @@ export class ViewModel {
   handMorph(grp, v) { const m = grp && grp.children.find((o) => o.userData.fpHand); if (m && m.morphTargetInfluences) m.morphTargetInfluences[0] = v; }
 
   // Modelin saydamlığı (0 = opak). Malzemeler önbellekte paylaşılıyor (3. şahıs silahları): ilk kullanımda bu modele özel kopyalanır
-  setFade(f) {
-    const m = this.model;
-    if (!m || Math.abs(f - (m.userData.fade || 0)) < 0.01) return;
+  setFade(f, ga = 1) {
+    const m = this.model, go = m?.userData.glowA ?? 1;
+    if (!m || (Math.abs(f - (m.userData.fade || 0)) < 0.01 && (ga === go || (Math.abs(ga - go) < 0.01 && ga > 0 && ga < 1)))) return;      // uçlar (0 / 1) her zaman tam yazılır
     const own = (x) => x.blending === THREE.AdditiveBlending || (x.userData.skinMat && !x.userData.shared);       // S3 kaplama malzemesi zaten bu modele özel (klonlanmaz: uniform'lar paylaşılmaz)
     if (!m.userData.ownMat) { m.traverse((o) => { if (o.isMesh && o.material && !own(o.material)) o.material = Array.isArray(o.material) ? o.material.map((x) => x.clone()) : o.material.clone(); }); m.userData.ownMat = true; }
-    m.userData.fade = f;
+    m.userData.fade = f; m.userData.glowA = ga;
     m.traverse((o) => {
       if (!o.isMesh || !o.material) return;
       for (const x of Array.isArray(o.material) ? o.material : [o.material]) {
         if (x.blending === THREE.AdditiveBlending) continue;
-        if (x.userData.skinMat) { setSkinAlpha(x, 1 - f); continue; }                              // ışıyan retikül opak kalır
+        if (x.userData.skinMat) { setSkinAlpha(x, 1 - f, ga); continue; }                          // ışıyan retikül: ga (telefonda HUD retikülüne geçişte söner)
         if (x._op0 === undefined) x._op0 = x.opacity, x._tr0 = x.transparent;
         const tr = x._tr0 || f > 0;
         if (tr !== x.transparent) { x.transparent = tr; x.needsUpdate = true; }
