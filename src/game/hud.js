@@ -1,6 +1,6 @@
 import { InGameSettings } from './ingameSettings.js';
 import { WSTATS, CLASS_DEFS, ZTYPES, ZT_ORDER } from './stats.js';
-import { clamp, adsEase } from './util.js';
+import { clamp, adsEase, ADS_HUD } from './util.js';
 import { codeLabel } from '../core/keybinds.js';
 import { TUNE } from './balance.js';
 import { ffaRanking, ffaMetric } from './match.js';
@@ -64,7 +64,7 @@ const CSS = `
 #cross .l{left:calc(-8px - var(--g,6px))}#cross .r{left:var(--g,6px)}#cross .t{top:calc(-8px - var(--g,6px))}#cross .b{top:var(--g,6px)}
 #cross .dot{width:3px;height:3px;left:-1.5px;top:-1.5px;border-radius:50%}
 #cross.ads span:not(.dot){display:none}
-#rdot{position:absolute;left:50%;top:50%;width:11px;height:11px;margin:-5.5px 0 0 -5.5px;border-radius:50%;background:#ff2a1a;box-shadow:0 0 6px 2px #ff2a1acc,0 0 14px 5px #ff2a1a55;display:none}
+#rdot{position:absolute;left:50%;top:50%;width:1.22vh;height:1.22vh;margin:-.61vh 0 0 -.61vh;border-radius:50%;background:#ff2a1a;box-shadow:0 0 6px 2px #ff2a1acc,0 0 14px 5px #ff2a1a55;display:none}
 #hitm{position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;opacity:0;transition:opacity .25s}
 #hitm::before,#hitm::after{content:'';position:absolute;left:12px;top:-2px;width:2px;height:30px;background:#fff;transform:rotate(45deg)}
 #hitm::after{transform:rotate(-45deg)}
@@ -127,10 +127,10 @@ const CSS = `
 #holo{position:absolute;left:50%;top:50%;width:9.2vh;height:9.2vh;margin:-4.6vh 0 0 -4.6vh;border-radius:50%;border:3px solid #ff3326;box-shadow:0 0 6px 1px #ff3326aa,inset 0 0 5px #ff332655;display:none}
 #holo::before{content:'';position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:#ff3326;box-shadow:0 0 6px 2px #ff3326cc}
 #holo i{position:absolute;background:#ff3326;box-shadow:0 0 4px #ff3326aa}
-#holo i:nth-child(1){left:50%;top:-21px;width:2px;height:18px;margin-left:-1px}
-#holo i:nth-child(2){left:50%;bottom:-21px;width:2px;height:18px;margin-left:-1px}
-#holo i:nth-child(3){top:50%;left:-21px;height:2px;width:18px;margin-top:-1px}
-#holo i:nth-child(4){top:50%;right:-21px;height:2px;width:18px;margin-top:-1px}
+#holo i:nth-child(1){left:50%;top:-2.33vh;width:2px;height:2vh;margin-left:-1px}
+#holo i:nth-child(2){left:50%;bottom:-2.33vh;width:2px;height:2vh;margin-left:-1px}
+#holo i:nth-child(3){top:50%;left:-2.33vh;height:2px;width:2vh;margin-top:-1px}
+#holo i:nth-child(4){top:50%;right:-2.33vh;height:2px;width:2vh;margin-top:-1px}      /* 12.127: işaretler vh (1600×900'de eski 18 / 21 px), her yükseklikte 3B çerçeveyle orantılı */
 /* paintball halka nişangâhı (nişanda): halka = topun o anki sapması (seri atışta büyür), ortada nokta, altta 20 / 30 / 40 m düşüş çizgileri */
 #pbret{position:absolute;left:50%;top:50%;width:0;height:0;display:none;--c:#ffe014;--r:10px}
 #pbret .rg{position:absolute;left:calc(-1 * var(--r));top:calc(-1 * var(--r));width:calc(2 * var(--r));height:calc(2 * var(--r));border-radius:50%;border:2px solid var(--c);box-sizing:border-box;box-shadow:0 0 0 1px rgba(0,0,0,.55),inset 0 0 0 1px rgba(0,0,0,.45);transition:width .06s,height .06s,left .06s,top .06s}
@@ -164,12 +164,13 @@ body.mob #vitals,body.mob #ammo{background:none;border:0}       /* telefonda ark
    zemininde de seçilsin), parıltı az (hedefi örtmesin). Boyut: Dokunmatik ayarlar → Hassasiyet → Nişangâh boyutu (--rs, touch.js). Masaüstü aynı. */
 #idot{position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:#fff;box-shadow:0 0 0 1.5px rgba(0,0,0,.7);display:none}
 body.mob #idot.on{display:block;transform:scale(var(--rs,1))}      /* demir nişan (yalnız telefonda): silah yarı saydamken ön arpacık seçilmiyor, ortada küçük nokta */
-body.mob #rdot{width:8px;height:8px;margin:-4px 0 0 -4px;background:#ff2414;box-shadow:0 0 0 1.5px rgba(0,0,0,.55),0 0 4px 1px #ff2a1a99;transform:scale(var(--rs,1))}
-body.mob #holo{width:78px;height:78px;margin:-39px 0 0 -39px;border-width:3px;box-shadow:0 0 0 1px rgba(0,0,0,.4),inset 0 0 0 1px rgba(0,0,0,.4),0 0 5px #ff332688;transform:scale(var(--rs,1))}
+body.mob #rdot{width:max(9px,1.22vh);height:max(9px,1.22vh);margin:min(-4.5px,-.61vh) 0 0 min(-4.5px,-.61vh);background:#ff2414;box-shadow:0 0 0 1.5px rgba(0,0,0,.55),0 0 4px 1px #ff2a1a99;transform:scale(var(--rs,1))}
+body.mob #holo{width:9.2vh;height:9.2vh;margin:-4.6vh 0 0 -4.6vh;border-width:3px;box-shadow:0 0 0 1px rgba(0,0,0,.4),inset 0 0 0 1px rgba(0,0,0,.4),0 0 5px #ff332688;transform:scale(var(--rs,1))}
 body.mob #holo::before{width:7px;height:7px;margin:-3.5px 0 0 -3.5px;box-shadow:0 0 0 1.5px rgba(0,0,0,.55)}
 body.mob #holo i{box-shadow:0 0 0 1px rgba(0,0,0,.4)}
-body.mob #holo i:nth-child(1),body.mob #holo i:nth-child(2){width:3px;height:12px;margin-left:-1.5px}body.mob #holo i:nth-child(1){top:-16px}body.mob #holo i:nth-child(2){bottom:-16px}
-body.mob #holo i:nth-child(3),body.mob #holo i:nth-child(4){height:3px;width:12px;margin-top:-1.5px}body.mob #holo i:nth-child(3){left:-16px}body.mob #holo i:nth-child(4){right:-16px}
+body.mob #holo i:nth-child(1),body.mob #holo i:nth-child(2){width:3px;height:2.6vh;margin-left:-1.5px}body.mob #holo i:nth-child(1){top:-3.2vh}body.mob #holo i:nth-child(2){bottom:-3.2vh}
+body.mob #holo i:nth-child(3),body.mob #holo i:nth-child(4){height:3px;width:2.6vh;margin-top:-1.5px}body.mob #holo i:nth-child(3){left:-3.2vh}body.mob #holo i:nth-child(4){right:-3.2vh}
+/* 12.127: telefon #holo eskiden sabit 78 px (3B çerçevenin ≈ 2,5 katı, iki halka üst üste): artık 3B çerçeveyle aynı 9,2vh (ADS_FOV 40) × nişangâh boyutu ayarı (--rs); red dot en az 9 px */
 /* telefon dürbünü: çizgiler ≈ 2 kat kalın, merkez noktası büyük (halka 94vh, 1 birim ≈ 2 px) */
 body.mob #scope .mil g path:first-child{stroke-width:.75}body.mob #scope .mil g path:nth-child(3){stroke-width:.85}
 body.mob #scope .chev g path:first-child{stroke-width:2.8;transform:translateY(.49px)}   /* kalın çizgide miter ucu da merkezde kalsın */body.mob #scope .chev g path:nth-child(2){stroke-width:.65}body.mob #scope .chev g path:nth-child(3){stroke-width:1.1}
@@ -790,7 +791,7 @@ export class Hud {
     // nişangâh / örtüler
     const cross = $('cross');
     const ov = p.overlay, adsL = p.adsT, ads = adsEase(adsL);           // adsL doğrusal (dürbün eşiği silah modeliyle aynı), ads görsel eğri
-    const scopeOn = p.alive && ov === 'scope' && adsL > 0.9;
+    const scopeOn = p.alive && ov === 'scope' && (g.player ? !!g.player.scopeOn : adsL > 0.9);      // 12.127: bayrak ViewModel'de (çıkışta dünya ×2'nin altına inene dek açık; model aynı bayrakla gizli)
     const tp = g.showSelf;                                   // 3. şahıs kamera: optik örtüsü yok, artı hep görünür
     const showCross = p.alive && (ads < 0.6 || tp);
     cross.style.display = showCross ? 'block' : 'none';
@@ -799,9 +800,9 @@ export class Hud {
     cross.style.setProperty('--g', clamp(3 + spread, 3, 60) + 'px');
     this.pbReticle(p, st, ov === 'pbring' && p.alive && !tp && ads > 0.55);
     // HUD retikülü yalnız nişangâh tam oturunca (öncesinde modeldeki ışıyan nokta / halka görünür, ikisi ekran ortasında üst üste biner)
-    $('rdot').style.display = p.alive && !tp && ov === 'dot' && ads > 0.97 ? 'block' : 'none';
-    $('holo').style.display = p.alive && !tp && ov === 'holo' && ads > 0.97 ? 'block' : 'none';
-    $('idot').classList.toggle('on', p.alive && !tp && ov === 'none' && !!p.opticDef && ads > 0.97);      // yalnız telefonda görünür (CSS body.mob)
+    $('rdot').style.display = p.alive && !tp && ov === 'dot' && ads > ADS_HUD ? 'block' : 'none';
+    $('holo').style.display = p.alive && !tp && ov === 'holo' && ads > ADS_HUD ? 'block' : 'none';
+    $('idot').classList.toggle('on', p.alive && !tp && ov === 'none' && !!p.opticDef && ads > ADS_HUD);      // yalnız telefonda görünür (CSS body.mob)
     const sc = $('scope');
     sc.style.display = scopeOn ? 'block' : 'none';
     if (scopeOn) sc.className = (p.opticDef.reticle === 'chevron') ? 'chev' : 'mil';

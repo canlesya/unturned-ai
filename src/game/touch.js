@@ -287,7 +287,7 @@ export class TouchControls {
   lookBy(dx, dy) {
     const p = this.p, s = p.s;
     if (!p.locked || !s.alive) return;
-    const ads = s.adsT > 0.5, z = ads ? p.zoomEff() : 1, zoom = z > 1 ? 1 / Math.pow(z, 0.8) : 1;
+    const ads = s.adsT > 0.5, zoom = 1 / Math.pow(p.zoomCur(), 0.8);      // 12.127: büyütme payı sürekli (o anki büyütme); nişan hassasiyeti çarpanı (12.115) adsT 0,5'te aynen
     const k = 0.0055 * this.cfg.sens * (ads ? this.cfg.adsSens : 1) * ((p.set.sens || 0.0022) / 0.0022) * zoom * (this.aaSlow || 1);
     p.look(dx * k, dy * k);
     if (dx || dy) this.lookT = performance.now();

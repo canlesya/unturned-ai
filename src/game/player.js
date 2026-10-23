@@ -9,7 +9,7 @@ import { WSTATS, OPTICS, OPTIC_ALLOWED, ZT_ORDER } from './stats.js';
 import { reloadAnim, meleePose } from './anim.js';
 import { fpHand, handBasis, zombieColors } from '../models/fpHands.js';
 import { box } from '../core/geo.js';
-import { clamp, lerp, V3, adsEase } from './util.js';
+import { clamp, lerp, V3, adsEase, ADS_HUD, zoomFov } from './util.js';
 import { applyInput } from '../sim/input.js';
 import { TUNE } from './balance.js';
 import { TouchControls, isTouch } from './touch.js';
@@ -45,6 +45,21 @@ export const ARM = {
   cls: { p90: 'p90' },                                                           // silah → alt ayar adı (P90: destek eli gövdeye çok yakın)
 };
 const nv = (a) => new THREE.Vector3(...a).normalize();
+// ── Birinci şahıs el oturuşu (12.127) ── yalnız FP: gripR / gripL (3. şahıs IK'si, character.js) ve namlu / mermi aynen. Ölçüm: scripts/gripfit.mjs
+// r / l = gripR / gripL'ye ek kayma (silah yerelinde, m; eski sabit r [0, −0,02, 0], l [0, −0,03, 0]), rx = tetik eldiveninin X ekseni eğimi (°, + = alt ucu geriye, kabza eğimi),
+// h = tetik eldiveni boyu (m; eski 0,1: üstü gövdeye 22–42 mm gömülüyordu). Tüfek varsayılanı: kabza açısı 16°, eldiven 85 mm boy ve 13 mm aşağıda (üstü gövde altında); tabanca 12°, 20 mm geride. wrist = düz dipçik / kabza ölçüsü yok, vg = dikey ön tutamak (gripfit kundak ölçüsü atlanır).
+export const GLOVE = [0.1, 0.1, 0.12], GLOVE_R = [0.1, 0.085, 0.12];
+export const FP_GRIP = {
+  rifle: { r: [0, -0.033, 0], rx: 16 }, pistol: { r: [0, -0.024, 0.02], rx: 12 }, launcher: { r: [0, -0.03, 0], rx: 14 }, item: {},
+  m4a1: { l: [0, 0.007, 0] }, scarh: { vg: 1 }, vector: { vg: 1 }, rpg: { vg: 1 }, g36: { l: [0, -0.015, 0] }, aa12: { l: [0, -0.023, 0] }, barrett: { l: [0, 0.005, 0] },      // destek eli kundağın altına değer (eskiden 10–36 mm havada)
+  mp5: { r: [0, -0.04, 0], l: [0, -0.056, 0] }, lmg: { r: [0, -0.045, 0], l: [0, -0.069, 0] }, pkm: { r: [0, -0.047, 0], l: [0, -0.016, 0] },      // kundağa gömülü destek eli aşağı
+  p90: { r: [0, -0.085, 0.01], rx: 6, l: [0, -0.11, 0.035], wrist: 1, vg: 1 },      // P90: tetik eli kabza panelinde (parmaklar tetik boşluğundan), destek eli ön halkanın altında (eskiden ikisi de gövdenin %44–49 içinde)
+  aug: { r: [0, -0.033, -0.01], vg: 1 },      // AUG: tetik eli dev korkuluğun içindeki kabzada (şarjör / dipçik üstünde değil) · vg = destek eli dikey ön tutamakta (SCAR / Vector / RPG / AUG; kundak ölçüsü yok)
+  mac10: { r: [0, -0.05, 0.005], rx: 0 }, m1911: { r: [0, -0.016, 0.02] }, deagle: { r: [0, -0.012, 0.02], rx: 14 }, revolver: { r: [0, -0.02, 0.02], rx: 8 },      // tabanca: eldiven 20 mm geride (kabza ortasında; eskiden 18–27 mm önde, korkuluğu yutuyordu), üstü çerçevenin altında
+  sniper: { r: [0, -0.065, 0], rx: 20, wrist: 1 }, svd: { r: [0, -0.062, 0.02], rx: 8, wrist: 1 }, dbl: { wrist: 1, l: [0, -0.016, 0] }, m79: { wrist: 1, l: [0, -0.015, 0] },      // düz dipçik: el bileğin yüzeyinde (gömülü değil), SVD başparmak deliğinin kabzasında
+  ammobox: { r: [0.206, -0.01, 0.02] }, medkit: { r: [0.251, 0.06, 0.02] },      // eşyalar: kutu sağ yanından kavranır (eskiden %90–100 kutunun içinde; altı birinci şahısta görünmez, üstteki sapta kol kutusu kutuya girer)
+};
+const fpGrip = (id, hold) => { const d = FP_GRIP[hold === 'pistol' ? 'pistol' : hold === 'launcher' ? 'launcher' : hold === 'rifle' ? 'rifle' : 'item'], o = FP_GRIP[id] || {}; return { ...d, ...o }; };
 const MELEE_SPRINT = { pos: [-0.04, 0.06, -0.06], rx: 0.65, ry: 0.3, rz: -0.1 };
 
 export class ViewModel {
@@ -101,10 +116,12 @@ export class ViewModel {
       }
     }
     // eller + kollar (silaha bağlı). Eller ayrı gruplardır: yükleme animasyonunda bağımsız hareket eder
+    const fg = fpGrip(id, g.userData.hold), gunK = kind === 'gun' || kind === 'launcher';
     const hand = (p, side) => {
       const grp = new THREE.Group();
       grp.position.copy(p);
-      box(grp, [0.1, 0.1, 0.12], c.gloves, [0, 0, 0], null, DS);
+      const glove = box(grp, side > 0 && gunK ? fg.h ? [0.1, fg.h, 0.12] : GLOVE_R : GLOVE, c.gloves, [0, 0, 0], side > 0 ? [-(fg.rx || 0) * Math.PI / 180, 0, 0] : null, DS);      // tetik eli kabza açısında (eski eksen hizalı kutu önde boşluk bırakıp tetik korkuluğunu yutuyordu)
+      grp.userData.glove = glove;
       const gun = kind === 'gun' || kind === 'launcher', A = side < 0 ? ARM.sup : g.userData.hold === 'pistol' ? ARM.pist : ARM.trig;
       const B = gun ? A[ARM.cls[this.id]] || A : A, dir = nv(gun ? B.h : [ARM.item[0] * side, ARM.item[1], ARM.item[2]]), dirA = gun ? nv(B.a) : dir.clone(), off = gun ? ARM.off : 0.05;
       const len = 0.5, lat = new THREE.Vector3(gun ? B.lat || 0 : 0, 0, 0), latA = new THREE.Vector3(gun ? B.latA ?? B.lat ?? 0 : 0, 0, 0);      // lat: kol kutusu elin dışından başlar (bilek yana kırık; şarjör / dipçik / bullpup gövdesi kolun içine girmez)
@@ -151,8 +168,8 @@ export class ViewModel {
     } else if (kind === 'melee' && u.gripR) {
       this.handR = fist(u.gripR.clone()); this.hLfg = null; this.handL = null;
     } else {
-      this.handR = u.gripR ? hand(u.gripR.clone().add(u.hold === 'grenade' ? GRENADE_UP : new THREE.Vector3(0.0, -0.02, 0.0)), 1) : null;
-      this.hLfg = u.gripL ? u.gripL.clone().add(new THREE.Vector3(0, -0.03, 0)) : null;
+      this.handR = u.gripR ? hand(u.gripR.clone().add(fg.r ? new THREE.Vector3(...fg.r) : u.hold === 'grenade' ? GRENADE_UP : new THREE.Vector3(0.0, -0.02, 0.0)), 1) : null;
+      this.hLfg = u.gripL ? u.gripL.clone().add(new THREE.Vector3(...(fg.l || [0, -0.03, 0]))) : null;
       this.handL = (kind === 'gun' || kind === 'launcher') ? hand(this.hLfg || REST_L, -1) : null;
       if (this.handL && !this.hLfg) this.handL.visible = false;
     }
@@ -350,8 +367,10 @@ export class ViewModel {
       this.flashT = Math.max(0, this.flashT - dt);
       this.flash.visible = this.flashT > 0;
     }
-    // dürbünlü silahta tam nişanda modeli gizle (HUD dürbün örtüsü aynı eşikte; forceShow: adsalign testi)
-    this.root.visible = this.forceShow || !(s.overlay === 'scope' && s.adsT > 0.9);
+    // dürbün örtüsü (12.127): adsT > 0,9'da açılır; çıkışta dünya büyütmesi ×2'nin altına inene dek açık kalır (eski: 0,9'da kapanıyor, ×4,6 dünyanın önünde 3B dürbün gövdesi ekranı kaplıyordu) → kapanınca HUD kısa kararma
+    const zE = p.zoomEff?.() || 1;
+    p.scopeOn = s.alive && s.overlay === 'scope' && (s.adsT > 0.9 || (!!p.scopeOn && zE > 2 && p.zoomCur() >= 2));
+    this.root.visible = this.forceShow || !p.scopeOn;      // dürbünlü silahta örtü açıkken model gizli (HUD aynı bayrağı kullanır; forceShow: adsalign testi)
     this.cam.rotation.z = -s.leanT * 0.2;   // yana eğilirken silah da kafayla birlikte yatar
     if (this.arms.length) {                    // zombi kolları: bilek ucundan dirsek noktasına (kamera uzayı; sol el modunda aynalı)
       this.cam.updateMatrixWorld(true);
@@ -371,8 +390,9 @@ export class ViewModel {
     // dokunmatik: dürbünsüz nişanda (demir / red dot / holo) silah modeli yarı saydamlaşır. Küçük ekranda nişangâh gövdesi merkezin
     // %36-50'sini (3° içinde, bkz. adsview.mjs) kapatıyor, hedef tamamen arkasında kalıyordu; nişangâh HUD'da (#rdot / #holo / nokta) net kalır
     // telefon (12.123): HUD retikülü (#rdot / #holo, nişangâh boyutu ayarıyla büyük) ads > 0,97'de çıkar → 3B ışıyan nokta / halka soluklaşmayla birlikte söner (iki farklı boy halka üst üste görünmez)
+    // 12.127: ışıyan 3B halka / nokta tam HUD eşiğinde (ADS_HUD) söner: eski 0,95'te sıfırlanıp HUD 0,97'de geliyordu → arada retikülsüz kareler. HUD halkası artık 3B çerçeveyle aynı boy, geçiş zıplamaz
     const fk = p.touch && s.overlay !== 'scope' && s.overlay !== 'lens' && !this.noFade ? clamp((ads - 0.55) / 0.4, 0, 1) : 0;
-    this.setFade(fk * 0.5, s.overlay === 'dot' || s.overlay === 'holo' ? 1 - fk : 1);
+    this.setFade(fk * 0.5, (s.overlay === 'dot' || s.overlay === 'holo') && fk > 0 && ads > ADS_HUD ? 0 : 1);
   }
 
   // adsalign testi: S3 retikülleri saf eflatun (ekranda merkez ölçümü)
@@ -553,7 +573,7 @@ export class Player {
       const mx = Math.max(-120, Math.min(120, e.movementX || 0)), my = Math.max(-120, Math.min(120, e.movementY || 0));
       if (this.wheel) { this.wheelMove(mx, my); return; }                                      // T basılıyken fare seçim imlecidir
       if (!this.locked) return;
-      const k = this.set.sens * (this.s.zoomNow && this.s.adsT > 0.5 ? 1 / Math.pow(this.s.zoomNow, 0.8) : 1);
+      const k = this.set.sens / Math.pow(this.zoomCur(), 0.8);      // 12.127: hassasiyet o anki büyütmeyle sürekli (eski adsT 0,5'te basamak)
       this.look(mx * k, my * k);
       this.lookDX += mx; this.lookDY += my;
     });
@@ -697,6 +717,8 @@ export class Player {
   // demir 1,15 → 1,30×, red dot / holo 1,3 → 1,60× (önce ×1,6: 1,24 / 1,48); dürbünler (ACOG 3×, 4×, 6×) aynı
   zoomOf(z) { return this.touch && z > 1 && z < 2 ? 1 + (z - 1) * 2 : z; }
   zoomEff() { return this.zoomOf(this.s.zoomNow || 0); }
+  // o anki görüş büyütmesi (model ile aynı eğri, 1 = yok): FOV, fare / ok tuşu / dokunmatik hassasiyeti bunu kullanır
+  zoomCur() { const s = this.s, z = this.zoomEff(); return z > 1 && !this.vm.model?.userData.noAds ? lerp(1, z, adsEase(s.adsT)) : 1; }
   // Dikey FOV (derece): masaüstünde ayar doğrudan dikey FOV; dokunmatikte ayar YATAY FOV'dur (2,2:1 telefonda dikey 75° → yatay 118°, düşman küçücük kalıyordu)
   baseFov() { const f = this.set.fov; if (!this.touch) return f; const a = this.game.camera.aspect || 16 / 9; return (2 * Math.atan(Math.tan((f * Math.PI) / 360) / a) * 180) / Math.PI; }
 
@@ -713,7 +735,7 @@ export class Player {
     this.fireBuf = Math.max(0, this.fireBuf - dt);
     if (this.touch && !g.opts.autoplay) this.touch.assist(dt);                      // dokunmatik nişan yardımı (masaüstünde yok)
     if (s.alive && this.locked && !g.opts.autoplay) {
-      const kk = this.keys, sp = 1.9 * dt / Math.pow(Math.max(1, s.zoomNow && s.adsT > 0.5 ? s.zoomNow : 1), 0.7);
+      const kk = this.keys, sp = 1.9 * dt / Math.pow(this.zoomCur(), 0.7);
       if (kk.has('ArrowLeft')) s.yaw += sp;
       if (kk.has('ArrowRight')) s.yaw -= sp;
       if (kk.has('ArrowUp')) s.pitch = clamp(s.pitch + sp, -1.5, 1.5);
@@ -750,9 +772,9 @@ export class Player {
     const cam = g.camera;
     g.abfx?.update(dt);                                                                // zombi gücü ekran efektleri (FOV vuruşu / adım temposu buradan)
     const baseFov = this.baseFov();
-    const zoom = s.zoomNow && !this.vm.model?.userData.noAds ? lerp(1, this.zoomEff(), adsEase(s.adsT)) : 1;      // görüş yakınlaştırması model ile aynı eğride
-    const targetFov = baseFov / zoom + (g.abfx?.fovAdd || 0);
-    cam.fov += (targetFov - cam.fov) * Math.min(1, dt * 18);
+    // 12.127: nişan büyütmesi DOĞRUDAN modelle aynı eğriden yazılır (eski ikinci üstel gecikme dünyayı silahın ~100 ms arkasında bırakıyordu: dürbün çıkışında ×4,6 dünyada 3B gövde); yalnız güç FOV vuruşu yumuşatılır
+    this._fovAdd = (this._fovAdd || 0) + ((g.abfx?.fovAdd || 0) - (this._fovAdd || 0)) * Math.min(1, dt * 18);
+    cam.fov = zoomFov(baseFov, this.zoomCur()) + this._fovAdd;
     cam.updateProjectionMatrix();
     const sh = g.effects.shake;
     // 3. şahıs geçişi: dürbünle nişan alırken (scope) otomatik 1. şahsa döner
