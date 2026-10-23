@@ -1190,3 +1190,8 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 ### 12.125 Nişan 12.123'e geri alındı (kol düzeltmesi kaldı)
 - Kullanıcı: "en son nişan olayı çok kötü, geri alalım; sadece kollar silaha girmesin nişan aldığımızda". 12.124'ün yatık / sapmalı nişan duruşu, yaylı geçiş, kavis ve yaylı tepme kaldırıldı; nişan, HUD ve yakın düzlem kesmesi `d4bdc8a`'daki gibi (`hud.js`, `s3weapons.js` birebir).
 - Korunan: 12.124 kol yönleri (`ARM`): tetik kolu dipçiğin dışından sağ-aşağı, destek kolu şarjörün dışından sol-aşağı (P90 ayrı); belde ve geçişte kol silaha girmiyor (`armclip` 41/41, 0 mm). Tam nişanda 12.123'teki gibi destek kolu 0,85'ten sonra, tüfekte tetik eli gizli (açık bırakılınca alt ekranda mavi levha gibi duruyordu). adsalign 59/59 ≤ 2 px.
+
+### 12.126 Nişan: yakın düzlem kesmesi kalktı + BattleBit tarzı ince nişangâhlar
+- Kullanıcı (BattleBit M4 holo görüntüsüyle): "AK47'de nişan alınca dipçik / kabza kayboluyor, nişangâhlar BattleBit gibi ince ve sade olsun". `ADS_NEAR` (25–33 cm) kalktı, yakın düzlem hep 1 cm: silah gövdesi kesilmeden alt-ortada bütün kütle; destek kolu tam nişanda sol-altta görünür (armclip 61/61 0 mm), tüfekte tetik eli gizli; AK47 / PKM demir nişanda göz 0,36 m'de (toz kapağı alt ekranı kaplamasın).
+- Holo tek ince tel çerçeve (2,5 mm, 58×50 mm) + alçak taban; red dot ince tüp + 2,6 mm halkalar; RMR 2 mm pencere; ACOG 39 → 33 mm; cam opaklığı 0,16 → 0,045; arpacık 4 → 3 mm, gez yaprakları inceldi; retikül ve HUD aynı. adsalign masaüstü + telefon 59/59 ≤ 2 px.
+- Açık: SCAR-H / PKM'de gövde üstü geniş olduğu için alt ekranda geniş yamuk; referansta nişangâh ekranda ~2 kat büyük (bizde ADS_FOV 68).
