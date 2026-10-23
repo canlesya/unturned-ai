@@ -1168,3 +1168,13 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 - Yük: birinci şahıs M4+holo 18 → 7 çizim çağrısı; 20 asker sahnesinde silah çağrısı 117 → 47, silah üçgeni 17 888 → 9 984.
 - Testler: `adsalign`, `skintest` (menü → kalıcılık → birinci şahıs → ikinci istemci 3. şahısta görür), `s3shots` + `s3sheet.py`, `s3perf`.
 - Bilinen: menü ikonları S3'te koyu; dürbün / ACOG geçişinde mercek opak koyu disk; telefonda holo HUD halkası 3B halkadan büyük; kaplama hesap profiline yazılmıyor. Kalan silahlar S3'e ikinci turda.
+
+### 12.123 S3 ikinci tur: tüm silahlar + eşyalar, 12.122 açıkları kapandı
+- Kullanıcı: "tamamını yap, eksiklikleri kapat". Üç paralel iş (çakışmasın diye ayrı dosyalar, yalnız kayıt satırları ortak):
+- **Tüfek / DMR / pompalı / M79** (`src/models/s3rifles.js`): SCAR-H, AUG, G36, AK-74U, SVD (PSO-1), Barrett M82 (10× dürbün), AA-12, Çift Namlu, M79. Tek ağ + şarjör grubu, 1,7–3,4 bin üçgen, ≤ 3 çizim çağrısı (önce 6–12); LOD ≤ 600 üçgen.
+- **SMG / LMG / tabanca / RPG** (`src/models/s3smg.js`): MP5, Vector, P90, MAC-10, M249, PKM, M1911, Desert Eagle, Revolver, RPG-7. Çizim çağrısı 8–14 → 2–3; LMG'de kutu + kemer, RPG'de roket alt grubu. Menü önizleme ölçeği boya göre (kısa silahlar ≤ ×2,2).
+- **Eşyalar** (`src/models/s3items.js`): bıçak, satır, tomahawk, el bombası, duman, flaş, claymore, cephane kutusu, ilk yardım; tek ağ, 1. şahıs ≤ 400, LOD ≤ 144 üçgen; yakın dövüşte 5 kaplama, eşyalar Standart; kurulan cephane kutusu / claymore da S3.
+- Tüm S3 silahlarda `finish()` sözleşmesi aynı (namlu / kabza / boy / magAxis), mermi / hasar / sunucu değişmedi, kutu eller aynı kabzalarda; 5 kaplama hepsinde (`SKIN_WEAPONS`).
+- **12.122 açıkları:** menü ikonları koyuydu (S3 ikonunda doğrusal → sRGB çevrimi eksikti); dürbün / ACOG merceği opak koyu disk yerine loş saydam cam + tüp içi tünel (`Kit.build` otomatik, `splitLens`); telefonda HUD retikülü çıkınca 3B halka / nokta söner (tek halka); kaplamalar hesap profilinde (`/api/profile` `skins`, girişte sunucu kazanır, misafir yerel); nişanda destek kolu sol-aşağı döner ve tam nişanda gizlenir (alt-ortadaki mavi sütun kalktı).
+- Ölçüm: adsalign tüm silahlar masaüstü 59/59 ≤ 2 px (ajan koşuları masaüstü + Pixel 7: tüfek 42/42, SMG 48/48, düzeltme 54/54). weaponaudit, skintest, accounttest, combattest, meleehit, nettest geçti. Testler değişikliğe göre seçildi (kullanıcı: "testler çok yavaş").
+- Bilinen: altın kaplamada LMG fişekleri koyu; 3. şahısta revolver çerçeve penceresi yok; weaponaudit tek ağlı S3 silahlarda havada parçayı yakalayamaz (ajanlar birleştirme öncesi parça bağlantısını ayrıca denetledi).
