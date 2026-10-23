@@ -64,7 +64,7 @@ function beginOnline({ net, welcome, name: name0, pw }) {
     match: { perTeam: c.perTeam, type: c.type, tickets: c.tickets, time: c.time }, map: c.map, tod: c.tod, weather: c.weather, diff: c.diff,
     optic: q.get('optic') || p.optic || 'reddot', team: me.team, cls, playerName: name,
     keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs,
-    loadout, loadouts: p.loadouts || {}, onExit: () => { location.href = location.pathname; }, onRestart: () => location.reload(),
+    loadout, loadouts: p.loadouts || {}, skins: p.skins, onExit: () => { location.href = location.pathname; }, onRestart: () => location.reload(),
     settings: { sens: p.sens, fov: p[FOV_KEY], volume: p.volume ?? 0.6, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, shadows: q.get('shadows') !== '0' && p.shadows !== false, post: q.has('post') ? q.get('post') === '1' : p.post, adaptive: p.adaptive !== false, fullscreen: p.fullscreen !== false, pixelRatio: +(q.get('pr') || p[Q_KEY] || 1) },
   });
 }
@@ -81,8 +81,8 @@ async function startOnline() {
   let pw = q.get('pw') || '';
   if (!pw && code.toLowerCase() !== 'new') { try { pw = sessionStorage.getItem('bf_pw_' + code.toUpperCase()) || ''; } catch (e) { /* yok say */ } }
   const hello = code.toLowerCase() === 'new'
-    ? { t: 'create', name, tok: acctTok(), cls, loadout, team: q.get('team') || undefined, cfg: { name: q.get('room') || undefined, pw, listed: q.get('listed') !== '0', bots: q.get('bots') !== '0', third: q.get('third') === '1', map: q.get('map') || 'kasaba', tod: q.get('tod') || 'day', weather: q.get('weather') || 'clear', type: q.get('type') || 'conquest', perTeam: +q.get('per') || 5, diff: q.get('diff') || 'normal', tickets: +q.get('tickets') || undefined, time: q.has('time') ? +q.get('time') : undefined } }
-    : { t: 'join', room: code, name, tok: acctTok(), cls, loadout, pw, team: q.get('team') || undefined };
+    ? { t: 'create', name, tok: acctTok(), cls, loadout, skins: p.skins, team: q.get('team') || undefined, cfg: { name: q.get('room') || undefined, pw, listed: q.get('listed') !== '0', bots: q.get('bots') !== '0', third: q.get('third') === '1', map: q.get('map') || 'kasaba', tod: q.get('tod') || 'day', weather: q.get('weather') || 'clear', type: q.get('type') || 'conquest', perTeam: +q.get('per') || 5, diff: q.get('diff') || 'normal', tickets: +q.get('tickets') || undefined, time: q.has('time') ? +q.get('time') : undefined } }
+    : { t: 'join', room: code, name, tok: acctTok(), cls, loadout, skins: p.skins, pw, team: q.get('team') || undefined };
   try {
     const { net, welcome } = await NetClient.connect(url, hello, { onWait: (ms) => { loading.querySelector('.lt').textContent = t('match.waitNext', { s: Math.ceil((ms || 0) / 1000) }); } });     // maç sonu ekranındaki odaya: yeni maçta otomatik katılım
     beginOnline({ net, welcome, name, pw });
@@ -113,6 +113,7 @@ else if (q.get('autostart')) {
     match: { perTeam: (mm ? +mm[1] : 10) * (q.get('type') === 'inf' ? 2 : 1), type: q.get('type') || 'conquest', tickets: +q.get('tickets') || undefined, time: q.has('time') ? +q.get('time') : 900 }, map: q.get('map') || 'kasaba', tod: q.get('tod') || 'day', weather: q.get('weather') || 'clear', optic: q.get('optic') || 'reddot', team: q.get('team') || 'blue', cls: q.get('cls') || 'assault', diff: q.get('diff') || 'normal',
     keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs,
     loadout: { primary: q.get('primary') || undefined, secondary: q.get('secondary') || undefined, gadget: q.get('gadget') || undefined, melee: q.get('melee') || undefined },
+    skins: q.get('skin') ? Object.fromEntries(q.get('skin').split(',').map((x) => x.split(':'))) : p.skins,      // test: &skin=ak47:gold,m4a1:wood
     settings: { sens: p.sens, fov: p[FOV_KEY], volume: 0, shadows: q.get('shadows') !== '0', post: q.has('post') ? q.get('post') === '1' : p.post, pixelRatio: +(q.get('pr') || (FOV_KEY === 'fovM' ? p[Q_KEY] : 1)) },      // dokunmatikte telefon kalitesi
   });
 } else showMenu(start, beginOnline);

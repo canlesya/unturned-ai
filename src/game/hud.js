@@ -1,6 +1,6 @@
 import { InGameSettings } from './ingameSettings.js';
 import { WSTATS, CLASS_DEFS, ZTYPES, ZT_ORDER } from './stats.js';
-import { clamp } from './util.js';
+import { clamp, adsEase } from './util.js';
 import { codeLabel } from '../core/keybinds.js';
 import { TUNE } from './balance.js';
 import { ffaRanking, ffaMetric } from './match.js';
@@ -124,7 +124,7 @@ const CSS = `
 .arrow{position:absolute;left:-14px;top:-130px;width:28px;height:40px;transform-origin:14px 130px;opacity:.9;animation:ar 1.4s forwards}
 .arrow::before{content:'';position:absolute;left:0;top:0;border:14px solid transparent;border-bottom:26px solid #ff3b2f;border-top:0}
 @keyframes ar{to{opacity:0}}
-#holo{position:absolute;left:50%;top:50%;width:70px;height:70px;margin:-35px 0 0 -35px;border-radius:50%;border:2px solid #ff3326;box-shadow:0 0 6px 1px #ff3326aa,inset 0 0 5px #ff332655;display:none}
+#holo{position:absolute;left:50%;top:50%;width:5.07vh;height:5.07vh;margin:-2.535vh 0 0 -2.535vh;border-radius:50%;border:2px solid #ff3326;box-shadow:0 0 6px 1px #ff3326aa,inset 0 0 5px #ff332655;display:none}
 #holo::before{content:'';position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:50%;background:#ff3326;box-shadow:0 0 6px 2px #ff3326cc}
 #holo i{position:absolute;background:#ff3326;box-shadow:0 0 4px #ff3326aa}
 #holo i:nth-child(1){left:50%;top:-12px;width:2px;height:10px;margin-left:-1px}
@@ -147,6 +147,8 @@ body.mob #pbdead{font-size:48px;-webkit-text-stroke:2px #10131a}
 .toast.pk{font-size:21px;letter-spacing:2px;border-color:currentColor;background:rgba(9,13,19,.8)}
 #advig{position:absolute;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,transparent 45%,rgba(0,0,0,.55) 100%)}
 #scope{position:absolute;inset:0;display:none}
+#scope .vg{position:absolute;left:50%;top:50%;width:66vh;height:66vh;margin:-33vh 0 0 -33vh;border-radius:50%;background:radial-gradient(circle,transparent 62%,rgba(0,0,0,.42) 100%)}   /* mercek içi hafif vinyet */
+#scopeblk{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none}   /* dürbüne girerken / çıkarken kısa kararma (göz merceğe yaklaşır) */
 #scope .bl{position:absolute;inset:0;backdrop-filter:blur(9px) brightness(.5);-webkit-backdrop-filter:blur(9px) brightness(.5);
   -webkit-mask-image:radial-gradient(circle at center,transparent 36vh,#000 36.3vh);mask-image:radial-gradient(circle at center,transparent 36vh,#000 36.3vh)}
 #scope .rg{position:absolute;left:50%;top:50%;width:72vh;height:72vh;margin:-36vh 0 0 -36vh;border-radius:50%;border:3.4vh solid #1c1e21;box-sizing:border-box;box-shadow:inset 0 0 1.2vh #000a}
@@ -156,6 +158,7 @@ body.mob #pbdead{font-size:48px;-webkit-text-stroke:2px #10131a}
 body.mob #scope .bl{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(0,0,0,.93);-webkit-mask-image:radial-gradient(circle at center,transparent 46.6vh,#000 47vh);mask-image:radial-gradient(circle at center,transparent 46.6vh,#000 47vh)}
 body.mob #scope .rg{width:94vh;height:94vh;margin:-47vh 0 0 -47vh;border-width:2.6vh}
 body.mob #scope svg{width:88.8vh;height:88.8vh;margin:-44.4vh 0 0 -44.4vh}
+body.mob #scope .vg{width:90vh;height:90vh;margin:-45vh 0 0 -45vh}
 body.mob #vitals,body.mob #ammo{background:none;border:0}       /* telefonda arka plan şeridi butonlara binmesin */
 /* telefon nişangâhları: küçük yüksek DPI ekranda 5 px nokta / 2 px halka seçilmiyordu → daha büyük, kalın ve ince koyu kenarlı (açık kum / gök
    zemininde de seçilsin), parıltı az (hedefi örtmesin). Boyut: Dokunmatik ayarlar → Hassasiyet → Nişangâh boyutu (--rs, touch.js). Masaüstü aynı. */
@@ -169,7 +172,7 @@ body.mob #holo i:nth-child(1),body.mob #holo i:nth-child(2){width:3px;height:12p
 body.mob #holo i:nth-child(3),body.mob #holo i:nth-child(4){height:3px;width:12px;margin-top:-1.5px}body.mob #holo i:nth-child(3){left:-16px}body.mob #holo i:nth-child(4){right:-16px}
 /* telefon dürbünü: çizgiler ≈ 2 kat kalın, merkez noktası büyük (halka 94vh, 1 birim ≈ 2 px) */
 body.mob #scope .mil g path:first-child{stroke-width:.75}body.mob #scope .mil g path:nth-child(3){stroke-width:.85}
-body.mob #scope .chev g path:first-child{stroke-width:2.8}body.mob #scope .chev g path:nth-child(2){stroke-width:.65}body.mob #scope .chev g path:nth-child(3){stroke-width:1.1}
+body.mob #scope .chev g path:first-child{stroke-width:2.8;transform:translateY(.49px)}   /* kalın çizgide miter ucu da merkezde kalsın */body.mob #scope .chev g path:nth-child(2){stroke-width:.65}body.mob #scope .chev g path:nth-child(3){stroke-width:1.1}
 body.mob #scope circle{transform:scale(1.9)}
 /* katmanlar: duraklat, ölüm, skor, maç sonu */
 .overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;background:radial-gradient(ellipse at center,rgba(5,8,12,.5),rgba(5,8,12,.82));pointer-events:auto}
@@ -297,9 +300,9 @@ export class Hud {
     const el = (this.root = document.createElement('div'));
     el.id = 'hud';
     el.innerHTML = `
-      <div id="scope"><div class="bl"></div><div class="rg"></div>
+      <div id="scope"><div class="bl"></div><div class="vg"></div><div class="rg"></div>
         <svg viewBox="-100 -100 200 200" class="mil"><g stroke="#000" fill="none"><path d="M-100 0H-12M12 0H100M0 -100V-12M0 12V100" stroke-width=".35"/><path d="M-100 0H-62M62 0H100M0 -100V-62M0 62V100" stroke-width="2.6"/><path d="M-40 0V3M-30 0V3M-20 0V3M20 0V3M30 0V3M40 0V3M0 20H3M0 30H3M0 40H3M0 -20H3M0 -30H3M0 -40H3" stroke-width=".5"/></g><circle r=".9" fill="#ff3b2a"/></svg>
-        <svg viewBox="-100 -100 200 200" class="chev"><g fill="none" stroke="#ff2e1f" stroke-linecap="round"><path d="M-14 16L0 -2L14 16" stroke-width="2.2"/><path d="M0 -2V-100M-100 0H-30M30 0H100M0 28V100" stroke-width=".3" stroke="#000"/><path d="M-10 36H10M-14 56H14M-18 76H18" stroke-width=".8" stroke="#ff2e1f"/></g><circle r=".8" fill="#ff2e1f"/></svg></div>
+        <svg viewBox="-100 -100 200 200" class="chev"><g fill="none" stroke="#ff2e1f" stroke-linecap="round"><path d="M-14 19.29L0 1.29L14 19.29" stroke-width="2.2" stroke-linejoin="miter" stroke-miterlimit="8"/><path d="M0 -3V-100M-100 0H-30M30 0H100M0 28V100" stroke-width=".3" stroke="#000"/><path d="M-10 36H10M-14 56H14M-18 76H18" stroke-width=".8" stroke="#ff2e1f"/></g></svg></div>
       <div id="mmwrap"><canvas id="minimap" width="236" height="168"></canvas><div id="mmname"></div></div>
       <div id="topbar">
         <div id="score"><div class="tk blue"><small id="tnB"></small><span id="tkB">0</span><div class="bar"><i id="tbB"></i></div></div><div id="timer"><span id="tm">0:00</span><small id="lim"></small></div><div class="tk red"><small id="tnR"></small><span id="tkR">0</span><div class="bar"><i id="tbR"></i></div></div></div>
@@ -310,7 +313,7 @@ export class Hud {
       <div id="killfeed"></div>
       <div id="toasts"></div>
       <div id="vig"></div><div id="arrows"></div>
-      <div id="advig"></div>
+      <div id="advig"></div><div id="scopeblk"></div>
 
       <div id="cross"><span class="h l"></span><span class="h r"></span><span class="v t"></span><span class="v b"></span><span class="dot"></span></div>
       <div id="pbret"><i class="st"></i><i class="rg"></i><i class="dt"></i><b class="m"><span>20</span></b><b class="m"><span>30</span></b><b class="m"><span>40</span></b></div><div id="rdot"></div><div id="idot"></div><div id="holo"><i></i><i></i><i></i><i></i></div><div id="hitm"></div>
@@ -786,8 +789,8 @@ export class Hud {
     this.$('ammo').querySelector('.n').classList.toggle('low', st.mag > 1 && it.mag <= st.mag * 0.25);
     // nişangâh / örtüler
     const cross = $('cross');
-    const ov = p.overlay, ads = p.adsT;
-    const scopeOn = p.alive && ov === 'scope' && ads > 0.9;
+    const ov = p.overlay, adsL = p.adsT, ads = adsEase(adsL);           // adsL doğrusal (dürbün eşiği silah modeliyle aynı), ads görsel eğri
+    const scopeOn = p.alive && ov === 'scope' && adsL > 0.9;
     const tp = g.showSelf;                                   // 3. şahıs kamera: optik örtüsü yok, artı hep görünür
     const showCross = p.alive && (ads < 0.6 || tp);
     cross.style.display = showCross ? 'block' : 'none';
@@ -795,12 +798,18 @@ export class Hud {
     const spread = p.spreadNow(st) * 900;
     cross.style.setProperty('--g', clamp(3 + spread, 3, 60) + 'px');
     this.pbReticle(p, st, ov === 'pbring' && p.alive && !tp && ads > 0.55);
-    $('rdot').style.display = p.alive && !tp && ov === 'dot' && ads > 0.6 ? 'block' : 'none';
-    $('holo').style.display = p.alive && !tp && ov === 'holo' && ads > 0.6 ? 'block' : 'none';
-    $('idot').classList.toggle('on', p.alive && !tp && ov === 'none' && !!p.opticDef && ads > 0.6);      // yalnız telefonda görünür (CSS body.mob)
+    // HUD retikülü yalnız nişangâh tam oturunca (öncesinde modeldeki ışıyan nokta / halka görünür, ikisi ekran ortasında üst üste biner)
+    $('rdot').style.display = p.alive && !tp && ov === 'dot' && ads > 0.97 ? 'block' : 'none';
+    $('holo').style.display = p.alive && !tp && ov === 'holo' && ads > 0.97 ? 'block' : 'none';
+    $('idot').classList.toggle('on', p.alive && !tp && ov === 'none' && !!p.opticDef && ads > 0.97);      // yalnız telefonda görünür (CSS body.mob)
     const sc = $('scope');
     sc.style.display = scopeOn ? 'block' : 'none';
     if (scopeOn) sc.className = (p.opticDef.reticle === 'chevron') ? 'chev' : 'mil';
+    // dürbün kararması: göz merceğe yaklaşırken kararır (adsL 0,55 → 0,9), örtü açılınca / kapanınca ~0,15 sn'de açılır
+    if (scopeOn !== !!this._scWas) { this._scWas = scopeOn; this._scBlk = 1; }
+    this._scBlk = Math.max(0, (this._scBlk || 0) - dt * 6.5);
+    const blk = p.alive && !tp && ov === 'scope' ? Math.max(this._scBlk, scopeOn ? 0 : clamp((adsL - 0.55) / 0.35, 0, 1) * (p.ads ? 1 : 0.6)) : 0;
+    $('scopeblk').style.opacity = blk.toFixed(3);
     $('advig').style.opacity = p.alive && ov !== 'scope' && !tp ? (ads * 0.55).toFixed(2) : 0;
     const stTxt = [p.prone ? t('hud.prone') : p.crouching ? t('hud.crouch') : '', p.leanT > 0.3 ? t('hud.leanR') : p.leanT < -0.3 ? t('hud.leanL') : '', st.ball ? tr('pb.ring') : p.opticDef && st.kind === 'gun' ? opticName(p.opticId) : '', st.kind === 'gun' && st.auto ? `${fireName(p.fireModeNow, true)} [X]` : ''].filter(Boolean).join(' · ');
     $('stance').textContent = stTxt;

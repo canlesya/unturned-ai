@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createCharacter } from '../models/character.js';
-import { WSTATS, CLASS_DEFS, OPTICS, OPTIC_ORDER, OPTIC_ALLOWED, resolveOptic, makeLoadout, TAC_RELOAD, BACKSTAB_DMG, ZOMBIE, ZTYPES, BOSS, ZBOSS, ggItems } from './stats.js';
+import { WSTATS, CLASS_DEFS, OPTICS, OPTIC_ORDER, OPTIC_ALLOWED, resolveOptic, makeLoadout, TAC_RELOAD, BACKSTAB_DMG, ZOMBIE, ZTYPES, BOSS, ZBOSS, ggItems, cleanSkins } from './stats.js';
 import { SWING_HIT_K } from './anim.js';
 import { H_STAND, H_CROUCH, H_PRONE } from './collision.js';
 import { dirFromAngles, clamp, rand, lerp } from './util.js';
@@ -51,6 +51,7 @@ export class Soldier {
     this.swing = null; this.comboN = -1; this.comboT = 0; this.autoSwitchT = 0;
     this.blindT = 0; this.blindMax = 1;
     this.choice = isPlayer ? (game.opts?.loadout || {}) : { random: true };
+    this.skins = isPlayer ? cleanSkins(game.opts?.skins) : null;          // silah kaplamaları { silah: kaplama } (12.122; botlar standart, çevrimiçinde sunucu / anlık görüntü)
     this.lastHit = null; this.lastDmgT = -99;
     this.walkPhase = 0; this.deadT = 0; this.deadDir = 1; this.flashT = 0;
     this.stepT = 0;
@@ -123,6 +124,7 @@ export class Soldier {
   }
 
   get opticId() { return resolveOptic(this.item.id, this.optic); }
+  skinOf(id) { return (this.skins && this.skins[id]) || 'std'; }
   get opticDef() { const o = this.opticId; return o ? OPTICS[o] : null; }
   get zoomNow() { const st = this.stat; if (!st.zoom) return 0; return this.opticDef && !st.ball ? this.opticDef.zoom : st.zoom; }      // paintball: nişangâhtan bağımsız hafif yakınlaştırma
   get overlay() { return this.stat.ball ? 'pbring' : this.opticDef ? this.opticDef.overlay : 'none'; }          // paintball: HUD'da halka nişangâh (#pbret)
@@ -179,7 +181,7 @@ export class Soldier {
     const id = this.stat.kind === 'medkit' ? null : this.item.id;
     if (!force && id === this._modelWeapon) return;
     this._modelWeapon = id;
-    const w = this.model.setWeapon(id, this.optic);
+    const w = this.model.setWeapon(id, this.optic, id ? this.skinOf(id) : 'std');
     if (w && WSTATS[id]?.ball) tintPaint(w, paintColorOf(this));                  // paintball: hazne / tüp savaşçının boya renginde
   }
 

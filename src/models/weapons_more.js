@@ -13,7 +13,7 @@ const GLASSY = '#8a919b';
 export const MOUNT_MORE = {
   scarh: { z: -0.12, y: 0.103, front: 0.145, rearZ: 0.0, frontZ: -0.74, frontBase: 0.103 },
   aug: { z: -0.04, y: 0.123, front: 0.153, rearZ: 0.12, frontZ: -0.33, frontBase: 0.123 },
-  g36: { z: -0.1, y: 0.1235, front: 0.158, rearZ: 0.04, ownFront: true },
+  g36: { z: -0.1, y: 0.1235, front: 0.155, rearZ: 0.04, ownFront: true },
   ak74u: { z: -0.08, y: 0.083, front: 0.1, rearZ: -0.12, ownFront: true },
   vector: { z: -0.1, y: 0.082, front: 0.115, rearZ: 0.05, frontZ: -0.46, frontBase: 0.08 },
   p90: { z: -0.06, y: 0.105, front: 0.14, rearZ: 0.08, ownFront: true },
@@ -21,7 +21,7 @@ export const MOUNT_MORE = {
   aa12: { z: -0.06, y: 0.103, front: 0.138, rearZ: 0.06, ownFront: true },
   dbl: { z: 0.0, y: 0.068, front: 0.088, rearZ: 0.03, ownFront: true, scale: 0.8 },
   deagle: { z: -0.02, y: 0.075, front: 0.093, rearZ: 0.04, frontZ: -0.2, frontBase: 0.075, scale: 0.8 },
-  revolver: { z: 0.0, y: 0.07, front: 0.09, rearZ: 0.05, ownFront: true, scale: 0.75 },
+  revolver: { z: 0.0, y: 0.07, front: 0.094, rearZ: 0.05, ownFront: true, scale: 0.75 },
   m1911: { z: -0.02, y: 0.071, front: 0.087, rearZ: 0.035, frontZ: -0.15, frontBase: 0.07, scale: 0.75 },
   svd: { z: -0.06, y: 0.092 },
   pkm: { z: -0.12, y: 0.1, front: 0.14, rearZ: -0.05, frontZ: -0.84, frontBase: 0.045, lift: 0.01 },
@@ -230,7 +230,7 @@ function mac10() {
   box(g, [0.042, 0.018, 0.14], BLK, [0, 0.06, -0.05]);
   cyl(g, 0.013, 0.013, 0.1, STL, [0, 0.035, -0.17], 8, M);
   cyl(g, 0.019, 0.019, 0.04, BLK, [0, 0.035, -0.235], 8, M);                     // namlu manşonu
-  frontSight(g, [0.006, 0.055, 0.006], STL, [0, 0.075, -0.2]);                   // arpacık
+  frontSight(g, [0.006, 0.0375, 0.006], STL, [0, 0.06625, -0.2]);                // arpacık (tepe 0,085 = gez çizgisi; eskiden 17 mm yüksekti)
   box(g, [0.012, 0.012, 0.09], STL, [0, -0.03, -0.01]);                          // tetik koruması
   const mg = magGroup(g);
   box(mg, [0.034, 0.14, 0.05], STL, [0, -0.09, 0.015], null, M);

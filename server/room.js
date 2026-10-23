@@ -1,7 +1,7 @@
 // Bir oda = başsız bir Game + bağlı oyuncular. Sabit adımla (SIM_HZ) çalışır, her SNAP_EVERY adımda snapshot yollar.
 import { Game } from '../src/game/game.js';
 import { SIM_DT, SIM_HZ, SNAP_EVERY, packSoldier, slowSig, cleanName } from '../src/net/protocol.js';
-import { CLASS_DEFS, WSTATS, ZTYPES, ZT_ORDER, ZOMBIE } from '../src/game/stats.js';
+import { CLASS_DEFS, WSTATS, ZTYPES, ZT_ORDER, ZOMBIE, cleanSkins } from '../src/game/stats.js';
 import { defaultTickets } from '../src/game/match.js';
 import { LIMITS, useBalance } from '../src/game/balance.js';
 import { currentBalance, balanceMeta } from './balanceStore.js';
@@ -158,7 +158,7 @@ export class Room {
 
   rejoin(ws, pref) {
     if (ws.readyState !== 1) { ws.ctx = null; return; }
-    const c = this.join(ws, pref.name, pref.team, pref.cls, pref.loadout, true);
+    const c = this.join(ws, pref.name, pref.team, pref.cls, pref.loadout, true, pref.skins);
     if (!c) { ws.ctx = null; try { ws.send(JSON.stringify({ t: 'err', msg: 'Oda dolu' })); ws.close(4002, 'full'); } catch { /* yok say */ } return; }
     ws.ctx = { room: this, id: c.id };
   }
@@ -243,7 +243,7 @@ export class Room {
     return this.game.soldiers.map((s) => ({ id: s.id, name: s.name, team: s.team, cls: s.cls, human: this.game.humans.has(s.id), vac: !!s.vacant }));
   }
 
-  join(ws, name, team, cls, loadout, re = false) {
+  join(ws, name, team, cls, loadout, re = false, skins = null) {
     if (!this.clients.size && this.bal !== currentBalance()) { this.game.dispose(); this.newGame(); }     // boş odaya ilk giren: maç sıfırdan, güncel denge ayarlarıyla
     const g = this.game;
     const counts = { blue: this.humansOf('blue'), red: this.humansOf('red') }, cap = this.cfg.perTeam;
@@ -260,7 +260,8 @@ export class Room {
     let s = g.claimSlot(t, nm, cls, loadout);
     if (!s) s = g.claimSlot(t === 'blue' ? 'red' : 'blue', nm, cls, loadout);
     if (!s) return null;
-    const c = { ws, name: s.name, h: g.humans.get(s.id), id: s.id, pref: { name: cleanName(name), team: t, cls, loadout } };      // pref: sonraki maça otomatik geçişte aynı ad / sınıf / yükleme
+    s.skins = cleanSkins(skins);                                       // kaplamalar: yavaş anlık görüntü alanında (sk) diğer oyunculara bir kez gider
+    const c = { ws, name: s.name, h: g.humans.get(s.id), id: s.id, pref: { name: cleanName(name), team: t, cls, loadout, skins: s.skins } };      // pref: sonraki maça otomatik geçişte aynı ad / sınıf / yükleme
     this.clients.set(s.id, c);
     this.emptySince = 0;
     this._forceSlow = true;
@@ -344,6 +345,7 @@ export class Room {
     if (typeof m.cls === 'string' && CLASS_DEFS[m.cls] && m.cls !== 'zombie') h.pendingClass = c.pref.cls = m.cls;
     if (typeof m.zt === 'string' && ZTYPES[m.zt]) h.pendingZ = m.zt;                  // Enfekte: bir sonraki doğuşta zombi türü
     if (m.loadout && typeof m.loadout === 'object') h.pendingLoadout = c.pref.loadout = { primary: str(m.loadout.primary), secondary: str(m.loadout.secondary), gadget: str(m.loadout.gadget), melee: str(m.loadout.melee) };
+    if (m.skins !== undefined) h.s.skins = c.pref.skins = cleanSkins(m.skins);           // menüde / oyunda kaplama değişti: yavaş alan imzası değişir → bir kez yayınlanır
     if (typeof m.spawn === 'string') h.spawnChoice = m.spawn === 'base' || g.mode.objectives.some((o) => o.id === m.spawn) ? m.spawn : 'base';
   }
 

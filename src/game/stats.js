@@ -396,3 +396,14 @@ export function resolveOptic(id, pref = 'reddot') {
   }
   return allowed[0];
 }
+
+// Silah kaplamaları (12.122): yalnız S3 modelli silahlarda; kimlikler sunucu / istemci ortak (modeller src/models/skins.js). Paintball / pençe yok.
+export const SKIN_IDS = ['std', 'desert', 'wood', 'urban', 'gold'];
+export const SKIN_WEAPONS = ['ak47', 'm4a1', 'pistol', 'sniper', 'shotgun'];
+// Ağdan / profilden gelen kaplama seçimini temizle: bilinen silah → bilinen kaplama (std yazılmaz); geçersiz → null
+export function cleanSkins(o) {
+  if (!o || typeof o !== 'object') return null;
+  const r = {};
+  for (const w of SKIN_WEAPONS) if (typeof o[w] === 'string' && o[w] !== 'std' && SKIN_IDS.includes(o[w])) r[w] = o[w];
+  return Object.keys(r).length ? r : null;
+}

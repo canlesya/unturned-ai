@@ -1,5 +1,7 @@
 import { MAPS, DEFAULT_MAP, mapsFor } from './maps/index.js';
-import { CLASS_DEFS, WSTATS, DIFFICULTY, OPTIC_ORDER } from './game/stats.js';
+import { CLASS_DEFS, WSTATS, DIFFICULTY, OPTIC_ORDER, SKIN_IDS, SKIN_WEAPONS } from './game/stats.js';
+import { SKIN_SWATCH } from './models/skins.js';
+import './i18n/skins.js';
 import { MATCH_TYPES, TODS_LIST, defaultTickets, defaultScoreLimit, isTotalType as tot, totalMin as totMin, totalMax as totMax } from './game/match.js';
 import { LIMITS, TUNE } from './game/balance.js';
 import { MENU_CSS } from './menuStyle.js';
@@ -24,7 +26,7 @@ export const FOV_KEY = TOUCH ? 'fovM' : 'fov', Q_KEY = TOUCH ? 'qualityM' : 'qua
 export const FOV_RANGE = TOUCH ? [70, 110] : [60, 100];
 export const DEFAULTS = {
   map: DEFAULT_MAP, tod: 'day', weather: 'clear', type: 'conquest', perTeam: 10, tickets: 0, time: 900,
-  team: 'blue', cls: 'assault', diff: 'normal', optic: 'reddot', loadouts: {}, name: lang() === 'tr' ? 'Sen' : 'You',      // varsayılan takma ad ilk açılıştaki dilde
+  team: 'blue', cls: 'assault', diff: 'normal', optic: 'reddot', loadouts: {}, skins: {}, name: lang() === 'tr' ? 'Sen' : 'You',      // varsayılan takma ad ilk açılıştaki dilde
   sens: 0.0022, fov: 75, volume: 0.6, shadows: !TOUCH, quality: 1.5, fovM: 80, qualityM: 2, adaptive: true, fullscreen: true, devMode: false,   // telefonda: gölgesiz; keskinlik için 2× (FPS düşerse otomatik çözünürlük indirir)
   xp: 0, stats: { matches: 0, wins: 0, kills: 0, deaths: 0 },
   server: '', room: '', olTeam: 'auto', third: true,
@@ -35,7 +37,7 @@ export function loadPrefs() {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) || localStorage.getItem('blockfront.v2') || localStorage.getItem('blockfront.v1') || '{}');
     if (raw.fovMv !== 1) { if (raw.fovM === 85) raw.fovM = 80; raw.fovMv = 1; }        // telefon yatay FOV varsayılanı 85 → 80 (uzak düşman ≈ %8 büyük); eski varsayılanda kalanlar bir kez taşınır
-    return { ...DEFAULTS, ...raw, stats: { ...DEFAULTS.stats, ...(raw.stats || {}) }, loadouts: raw.loadouts || {} };
+    return { ...DEFAULTS, ...raw, stats: { ...DEFAULTS.stats, ...(raw.stats || {}) }, loadouts: raw.loadouts || {}, skins: raw.skins && typeof raw.skins === 'object' ? raw.skins : {} };      // skins: silah başına kaplama (yalnız bu tarayıcıda; hesap profili yalnız xp / istatistik tutar)
   } catch (e) { return { ...DEFAULTS }; }
 }
 function savePrefs(p) { try { localStorage.setItem(KEY, JSON.stringify(p)); } catch (e) { /* yok say */ } }
@@ -145,7 +147,9 @@ export function showMenu(onStart, onOnline) {
     const tt = p.tod === 'random' ? (scene.tod || 'day') : p.tod;
     if (screen === 'loadout') {
       scene.setMode('showroom');
-      scene.showCharacter({ team: p.team === 'red' ? 'red' : 'blue', cls: p.cls, weapon: loadoutOf(p.cls).primary || null, optic: p.optic });
+      const w = previewWeapon();
+      scene.showCharacter({ team: p.team === 'red' ? 'red' : 'blue', cls: p.cls, weapon: loadoutOf(p.cls).primary || null, optic: p.optic, wskin: p.skins[curOf('primary')] || 'std' });
+      scene.showWeapon(w && SKIN_WEAPONS.includes(w) ? { id: w, optic: p.optic, skin: p.skins[w] || 'std' } : null);      // kaplamalı silahın canlı 3B önizlemesi (kaplama değişince yalnız uniform)
     } else { scene.setMode('orbit'); scene.setWorld(m, tt); }
     q('.mn-vig').className = 'mn-vig' + (screen === 'loadout' ? ' light' : screen === 'home' ? ' home' : '');
   }
@@ -334,12 +338,12 @@ export function showMenu(onStart, onOnline) {
     let hello, pw = '';
     if (kind === 'create') {
       const c = oc(); pw = ol.cpw || '';
-      hello = { t: 'create', name, tok: acctTok(), cls, loadout, team, cfg: { name: c.name.trim(), pw, listed: c.listed, map: c.map, tod: c.tod, weather: c.weather, type: c.type, perTeam: c.perTeam, bots: c.bots, diff: c.diff, third: c.third, tickets: c.tickets || undefined, time: c.time } };
+      hello = { t: 'create', name, tok: acctTok(), cls, loadout, skins: p.skins, team, cfg: { name: c.name.trim(), pw, listed: c.listed, map: c.map, tod: c.tod, weather: c.weather, type: c.type, perTeam: c.perTeam, bots: c.bots, diff: c.diff, third: c.third, tickets: c.tickets || undefined, time: c.time } };
     } else {
       const code = String(o.code || p.room || '').toUpperCase();
       if (code.length !== 4) { ol = { ...ol, msg: t('menu.ol.needCode'), err: true, busy: false }; render(); return; }
       pw = o.pw ?? ol.pw ?? '';
-      hello = { t: 'join', room: code, name, tok: acctTok(), cls, loadout, team, pw };
+      hello = { t: 'join', room: code, name, tok: acctTok(), cls, loadout, skins: p.skins, team, pw };
     }
     ol = { ...ol, msg: t('menu.ol.connecting'), err: false, busy: true, pwFor: null }; render();
     try {
@@ -349,15 +353,19 @@ export function showMenu(onStart, onOnline) {
     } catch (e) { ol = { ...ol, msg: netErr(e.message), err: true, busy: false }; render(); }
   }
 
+  // Sınıfın bir yuvasında seçili (ya da varsayılan) silah
+  function curOf(k) {
+    const def = CLASS_DEFS[p.cls] || CLASS_DEFS.assault, lw = loadoutOf(p.cls), team = p.team === 'red' ? 'red' : 'blue';
+    const opts = def[SLOTS.find((s) => s[0] === k)[1]] || [];
+    const want = lw[k];
+    if (want && opts.includes(want)) return want;
+    const d = def.defaults?.[k];
+    return typeof d === 'object' ? d[team] || d.blue : d;
+  }
+  const previewWeapon = () => curOf(slot);
   function loadoutHTML() {
-    const def = CLASS_DEFS[p.cls], lw = loadoutOf(p.cls), team = p.team === 'red' ? 'red' : 'blue';
-    const cur = (k) => {
-      const opts = def[SLOTS.find((s) => s[0] === k)[1]] || [];
-      const want = lw[k];
-      if (want && opts.includes(want)) return want;
-      const d = def.defaults?.[k];
-      return typeof d === 'object' ? d[team] || d.blue : d;
-    };
+    const def = CLASS_DEFS[p.cls];
+    const cur = curOf;
     const icon = (id) => (scene ? `<img data-icon="${id}" ${scene.iconCache.get(id + '|' + p.optic) ? `src="${scene.iconCache.get(id + '|' + p.optic)}"` : ''} alt="">` : '');
     const opts = def[SLOTS.find((s) => s[0] === slot)[1]] || [];
     const sel = cur(slot);
@@ -372,8 +380,10 @@ export function showMenu(onStart, onOnline) {
     const utility = !(b.dmg || b.range);
     const stats = utility ? '' : ['dmg', 'range', 'rate', 'control', 'mobility'].map((k) => `<div class="stat"><span>${statLabel(k)}</span><div class="bar"><i style="width:${Math.max(3, Math.min(100, b[k] || 0))}%"></i></div><em>${Math.round(b[k] || 0)}</em></div>`).join('');
     const optics = slot === 'primary' && !(WSTATS[sel] && WSTATS[sel].scope) ? `<div class="pan"><h3>${t('menu.lo.optic')} <em>${t('menu.lo.opticSub')}</em></h3><div class="row">${OPTIC_ORDER.map((k) => `<button class="chip ${p.optic === k ? 'on' : ''}" data-a="optic" data-v="${k}">${opticLabel(k)}</button>`).join('')}</div></div>` : '';
+    // kaplama çipleri (S3 silahlarında): seçili silah kartının hemen altında; renk örneği + ad, seçili olan turuncu çerçeveli
+    const skins = SKIN_WEAPONS.includes(sel) ? `<div class="skins"><h4>${t('skin.title')} <em>${t('skin.sub')}</em></h4><div class="row">${SKIN_IDS.map((k) => `<button class="chip sk ${(p.skins[sel] || 'std') === k ? 'on' : ''}" data-a="skin" data-v="${k}" data-w="${sel}"><i class="sw sw-${k}" style="background:${SKIN_SWATCH[k]}"></i>${t('skin.' + k)}</button>`).join('')}</div></div>` : '';
     return `${head('loadout')}<div class="tabs">${tabs}</div><div class="scroll"><div class="clsdesc">${classDesc(p.cls)}</div><div class="slots">${slotBtns}</div>
-      <div class="pan"><h3>${t('menu.slot.' + slot)} <em>${className(p.cls)}</em></h3><div class="wgrid">${grid}</div></div>
+      <div class="pan"><h3>${t('menu.slot.' + slot)} <em>${className(p.cls)}</em></h3><div class="wgrid">${grid}</div>${skins}</div>
       <div class="pan"><h3>${weaponName(sel)}</h3>${stats}<div class="wdesc">${weaponDesc(sel) || classDesc(p.cls)}</div></div>${optics}</div>`;
   }
 
@@ -476,7 +486,7 @@ export function showMenu(onStart, onOnline) {
     const payload = {
       editor: true, devMode: true, map: p.edMap, tod: 'day', weather: 'clear', team: 'blue', cls: p.cls, diff: 'normal', optic: p.optic, playerName: p.name,
       match: { perTeam: 1, type: 'dm', time: 900 }, third: false,
-      keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs, loadout: loadoutOf(p.cls), loadouts: p.loadouts,
+      keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs, loadout: loadoutOf(p.cls), loadouts: p.loadouts, skins: p.skins,
       settings: settingsPayload(),
     };
     cleanup();
@@ -496,7 +506,7 @@ export function showMenu(onStart, onOnline) {
       map, tod, weather, team: p.team === 'random' ? rnd(['blue', 'red']) : p.team, cls, diff: p.type === 'inf' ? 'hard' : p.diff, optic: p.optic, playerName: p.name,
       match: { perTeam, type: p.type, tickets: randomize ? undefined : p.tickets || undefined, time: p.time }, third: p.third, devMode: !!p.devMode && !randomize,
       keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs,
-      loadout: loadoutOf(cls), loadouts: p.loadouts,                    // tüm sınıfların kayıtlı yüklemeleri: oyunda sınıf değişince o sınıfınki gelir
+      loadout: loadoutOf(cls), loadouts: p.loadouts, skins: p.skins,    // tüm sınıfların kayıtlı yüklemeleri: oyunda sınıf değişince o sınıfınki gelir · skins: silah kaplamaları
       settings: settingsPayload(),
     };
     cleanup();
@@ -602,6 +612,7 @@ export function showMenu(onStart, onOnline) {
       case 'slot': slot = v; break;
       case 'pick': loadoutOf(p.cls)[slot] = v; break;
       case 'optic': p.optic = v; scene?.iconCache.clear(); break;
+      case 'skin': { const w = b.dataset.w; if (!SKIN_WEAPONS.includes(w) || !SKIN_IDS.includes(v)) break; if (v === 'std') delete p.skins[w]; else p.skins[w] = v; break; }
       case 'quality': p[Q_KEY] = +v; break;
       case 'shadows': p.shadows = !p.shadows; break;
       case 'adaptive': p.adaptive = p.adaptive === false; break;

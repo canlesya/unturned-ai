@@ -4,6 +4,7 @@ import { MAPS } from './maps/index.js';
 import { setupEnvironment } from './maps/environment.js';
 import { createCharacter } from './models/character.js';
 import { createWeapon, WEAPONS } from './models/weapons.js';
+import { applySkin } from './models/skins.js';
 import { createItem, ITEMS } from './models/items.js';
 
 // Menü arka planı: seçili haritanın canlı dönen kuş bakışı + sınıf/silah vitrini + silah ikonları.
@@ -133,14 +134,38 @@ export class MenuScene {
     return scene;
   }
 
-  showCharacter({ team = 'blue', cls = 'assault', weapon = null, optic = 'reddot' }) {
+  showCharacter({ team = 'blue', cls = 'assault', weapon = null, optic = 'reddot', wskin = 'std' }) {
+    const key = [team, cls, weapon, optic].join('|');
+    if (this.char && this._charKey === key) {                                   // yalnız kaplama değişti: karakter yeniden kurulmaz, elindeki silah yenilenir
+      if (this._charSkin !== wskin) { this._charSkin = wskin; const w = this.char.setWeapon(this.char.weapon?.userData.id || null, optic, wskin); w?.traverse((o) => { if (o.isMesh) o.castShadow = true; }); }
+      return;
+    }
     if (this.char) { this.show.scene.remove(this.char.root); this.char = null; }
-    const ch = createCharacter({ team, cls, skinIndex: 1, weapon: weapon || undefined, optic });
+    this._charKey = key; this._charSkin = wskin;
+    const ch = createCharacter({ team, cls, skinIndex: 1, weapon: weapon || undefined, optic, wskin });
     ch.root.traverse((o) => { if (o.isMesh) o.castShadow = true; });
     ch.root.rotation.y = Math.PI + 0.6;
     this.show.scene.add(ch.root);
     this.char = ch;
     this._charYaw = Math.PI + 0.6;
+  }
+
+  // Kaplamalı silahın canlı önizlemesi (12.122): vitrin platformunun önünde, ayrıntılı (birinci şahıs) model yavaşça döner; kaplama değişince yalnız uniform
+  showWeapon(o) {
+    const key = o ? o.id + '|' + o.optic : '';
+    if (this._wKey === key && this.wpn) { if (o && this.wpn.userData.skin !== o.skin) { applySkin(this.wpn, o.skin); this.wpn.userData.skin = o.skin; } return; }
+    if (this.wpn) { this.show.scene.remove(this.wpnPiv); this.wpn.traverse((m) => { m.geometry?.dispose(); if (m.material?.userData?.skinMat && !m.material.userData.shared) m.material.dispose(); }); this.wpn = null; }
+    this._wKey = key;
+    if (!o) return;
+    const w = createWeapon(o.id, o.optic, false, o.skin);
+    w.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(w), c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
+    const k = o.id === 'pistol' ? 2.2 : 1.15 / Math.max(0.3, sz.z);                 // tabanca büyütülür, tüfek ~1,15 m boyuna sığdırılır
+    const piv = new THREE.Group(); w.position.copy(c).multiplyScalar(-1); piv.add(w); piv.scale.setScalar(k);
+    piv.position.set(0.05, 0.42, 1.15);
+    w.traverse((m) => { if (m.isMesh) m.castShadow = true; });
+    this.show.scene.add(piv);
+    this.wpn = w; this.wpnPiv = piv; w.userData.skin = o.skin;
   }
 
   // ───── silah ikonu (yan görünüş, şeffaf) → dataURL ─────
@@ -194,6 +219,7 @@ export class MenuScene {
     if (this.mode !== 'showroom' && !this.world) { /* ilk harita henüz kuruluyor: boş kare (vitrin sahnesi araya girmesin) */ }
     else if (this.mode === 'showroom') {
       if (this.char) this.char.root.rotation.y = this._charYaw + Math.sin(this.t * 0.5) * 0.35;
+      if (this.wpnPiv) { this.wpnPiv.rotation.set(0.08, -Math.PI / 2 + Math.sin(this.t * 0.45) * 0.55, 0); this.wpnPiv.position.y = 0.42 + Math.sin(this.t * 0.9) * 0.012; }      // yan görünüş, hafif salınım
       r.render(this.show.scene, this.show.cam);
     } else {
       const O = ORBIT[this.world.id] || ORBIT.kasaba, a = this.t * O.speed;

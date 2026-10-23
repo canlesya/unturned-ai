@@ -197,6 +197,16 @@ export const MENU_CSS = `
 #menu .slotb.on{border-color:var(--acc);background:linear-gradient(180deg,rgba(255,138,31,.2),rgba(255,138,31,.06));box-shadow:inset 0 -2px 0 var(--acc)}
 #menu .slotb.on small{color:var(--acc2)}
 #menu .wgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+/* silah kaplaması çipleri (12.122): seçili silah kartlarının altında; renk örneği kamuflaj desenli */
+#menu .skins{margin-top:12px}
+#menu .skins h4{margin:0 0 8px;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--acc2);font-weight:700}
+#menu .skins h4 em{font-style:normal;color:var(--dim);letter-spacing:1px;font-weight:600;text-transform:none;margin-left:8px}
+#menu .chip.sk{display:inline-flex;align-items:center;gap:8px;padding:8px 12px 8px 8px;font-size:13px;min-height:40px;min-width:0}
+#menu .chip.sk .sw{width:22px;height:22px;flex:none;border:1px solid #ffffff40;box-shadow:inset 0 0 0 1px #0006}
+#menu .sw-wood{background:radial-gradient(circle at 30% 35%,#6e5435 0 22%,transparent 23%),radial-gradient(circle at 72% 64%,#23241e 0 20%,transparent 21%),radial-gradient(circle at 70% 22%,#8f8a5e 0 14%,transparent 15%),#56603a !important}
+#menu .sw-urban{background:linear-gradient(90deg,#4f5359 0 25%,transparent 25% 50%,#26282c 50% 62%,transparent 62%),linear-gradient(0deg,#b3b6ba 0 30%,transparent 30% 70%,#4f5359 70%),#7d8187 !important}
+#menu .sw-gold{background:linear-gradient(135deg,#f6d27a,#d9a93c 45%,#8f6a1c) !important}
+#menu .sw-desert{background:linear-gradient(180deg,#b89a6a,#a8895c) !important}
 #menu .wc{text-align:left;position:relative;background:#ffffff08;border:1px solid var(--line);padding:8px 10px 10px;transition:background .15s,border-color .15s,transform .15s var(--ease)}
 #menu .wc:hover{background:#ffffff14;transform:translateY(-2px);border-color:var(--line2)}
 #menu .wc.on{border-color:var(--acc);background:rgba(255,138,31,.15);box-shadow:inset 0 0 0 1px var(--acc)}

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createWeapon } from '../models/weapons.js';
+import { setSkinAlpha, setSkinProbe } from '../models/skins.js';
 import { pbLook } from '../models/character.js';
 import { tintPaint } from '../models/paintball.js';
 import { paintColorOf } from './paint.js';
@@ -9,7 +10,7 @@ import { WSTATS, OPTICS, OPTIC_ALLOWED, ZT_ORDER } from './stats.js';
 import { reloadAnim, meleePose } from './anim.js';
 import { fpHand, handBasis, zombieColors } from '../models/fpHands.js';
 import { box } from '../core/geo.js';
-import { clamp, lerp, V3 } from './util.js';
+import { clamp, lerp, V3, adsEase } from './util.js';
 import { applyInput } from '../sim/input.js';
 import { TUNE } from './balance.js';
 import { TouchControls, isTouch } from './touch.js';
@@ -18,6 +19,7 @@ import { t as $t } from '../i18n/index.js';
 import { wName, opticName, fireName } from '../i18n/game.js';
 
 const VM_SCALE = 0.92;
+const _q = new THREE.Quaternion(), _eu = new THREE.Euler(), _sp = new THREE.Vector3(), _sp2 = new THREE.Vector3();
 export const FIRE_LABEL = { semi: 'Tek atış', burst: 'Seri (3-5 mermi)', auto: 'Otomatik' };
 const ADS_FOV = 68;
 
@@ -34,6 +36,7 @@ const ZH_ARM = new THREE.Vector3(0.22, -0.85, 0.45).normalize();
 const ELBOW_CLAW = new THREE.Vector3(0.3, -0.75, -0.18);                         // zombi kolu: bilekten bu "dirsek" noktasına (kamera uzayı, sağ el); savurmada kol ekranı kesmez
 const ZAX = new THREE.Vector3(0, 0, 1), _w = new THREE.Vector3(), _e = new THREE.Vector3();
 const GRENADE_UP = new THREE.Vector3(0, -0.035, 0.01);                           // bomba: kutu el biraz aşağı-geri → bomba kutunun üstünde görünür (ilk sürümde el içine gömülüydü)
+const DS = { side: THREE.DoubleSide };                                            // el / kol kutuları çift yüzlü: nişanda yakın düzlem keserse içi dolu görünür (yarım düzlem kalmaz)
 const MELEE_SPRINT = { pos: [-0.04, 0.06, -0.06], rx: 0.65, ry: 0.3, rz: -0.1 };
 
 export class ViewModel {
@@ -59,10 +62,10 @@ export class ViewModel {
     this.handL = null; this.handR = null;
   }
 
-  setItem(id, team, kind, optic, skin) {
+  setItem(id, team, kind, optic, skin, wskin = 'std') {
     for (const a of this.arms || []) { this.cam.remove(a.mesh); a.mesh.geometry.dispose(); }
     this.arms = [];
-    if (this.model) { const own = this.model.userData.ownMat; this.root.remove(this.model); this.model.traverse((o) => { o.geometry?.dispose(); if (own && o.material && !Array.isArray(o.material)) o.material.dispose(); }); }      // setFade kopyaları da
+    if (this.model) { const own = this.model.userData.ownMat; this.root.remove(this.model); this.model.traverse((o) => { o.geometry?.dispose(); const mt = o.material; if (mt && !Array.isArray(mt) && (own || (mt.userData.skinMat && !mt.userData.shared))) mt.dispose(); }); }      // setFade kopyaları + modele özel kaplama malzemesi
     this.id = id;
     this.raise = 1;
     this.raiseRate = 1 / Math.max(0.15, Math.min(0.35, WSTATS[id]?.equip ?? 0.3));
@@ -75,7 +78,7 @@ export class ViewModel {
       const m = createItem('medkit'); m.scale.setScalar(1.5); m.position.set(0, -0.08, 0); g.add(m);
       g.userData = { gripR: new THREE.Vector3(0.02, -0.02, 0.0), gripL: null, muzzle: new THREE.Vector3(), sight: [0, 0, 0], dist: 0.3, noAds: true };
     } else {
-      const w = createWeapon(id, optic);
+      const w = createWeapon(id, optic, false, wskin);         // wskin: S3 silah kaplaması (skin = zombi ten rengi)
       g.add(w);
       const st = WSTATS[id];
       g.userData = { ...w.userData, sight: w.userData.sight ?? st.sight, dist: w.userData.dist ?? st.dist };
@@ -93,10 +96,10 @@ export class ViewModel {
     const hand = (p, side) => {
       const grp = new THREE.Group();
       grp.position.copy(p);
-      box(grp, [0.1, 0.1, 0.12], c.gloves, [0, 0, 0]);
+      box(grp, [0.1, 0.1, 0.12], c.gloves, [0, 0, 0], null, DS);
       const dir = new THREE.Vector3(side * 0.12, -0.2, 0.42).normalize();
       const len = 0.5;
-      const sleeve = box(grp, [0.11, 0.11, len], c.shirt, [0, 0, 0]);
+      const sleeve = box(grp, [0.11, 0.11, len], c.shirt, [0, 0, 0], null, DS);
       sleeve.position.copy(dir).multiplyScalar(len / 2 + 0.05);
       sleeve.quaternion.setFromUnitVectors(Z, dir);
       g.add(grp);
@@ -165,7 +168,7 @@ export class ViewModel {
     const s = p.s, st = s.stat;
     const u = this.model?.userData || {};
     const hip = this.pos;
-    const ads = u.noAds ? 0 : s.adsT;
+    const ads = u.noAds ? 0 : adsEase(s.adsT);
     const tgt = this.adsTarget(u);
     if (st.adsLow) tgt.x += st.adsLow[0], tgt.y += st.adsLow[1], tgt.z += st.adsLow[2];      // paintball: nişanda model iner / sağa kayar (hazne görüşü kapatmasın; nişangâh HUD'da halka)
     const speed = Math.hypot(s.vel.x, s.vel.z);
@@ -186,7 +189,7 @@ export class ViewModel {
     pos.x += Math.sin(this.bobT) * 0.012 * bobAmt;
     pos.y += Math.abs(Math.cos(this.bobT)) * 0.012 * bobAmt - rz0 * 0.38;
     pos.z += this.kick * (0.9 - ads * 0.6);
-    let rx = this.kickR * (0.4 - ads * 0.3), ry = (this.id === 'claws' ? 0.06 : -0.04) * (1 - ads), rz = 0;      // zombi pençesi: bdecbe0 duruşu aynen
+    let rx = this.kickR * 0.4 * (1 - ads), ry = (this.id === 'claws' ? 0.06 : -0.04) * (1 - ads), rz = 0;      // zombi pençesi: bdecbe0 duruşu aynen · nişandaki tepme aşağıda nişan noktası çevresinde
     rx += this.dryT * 0.05 - rz0 * 0.5;
     this.breathT = (this.breathT || 0) + dt;                                    // nefes: yavaş, çok hafif iniş-kalkış ve yalpa (nişanda sönümlenir)
     const br = Math.sin(this.breathT * 1.55) * (1 - ads) * (1 - clamp(speed / 3, 0, 1) * 0.6), br2 = Math.sin(this.breathT * 0.8 + 1.3) * (1 - ads);
@@ -270,6 +273,8 @@ export class ViewModel {
         if (this.hLfg) this.handL.position.copy(this.hLfg);
       }
     }
+    // nişanda (tüfek / makineli / pompalı) tetik eli yakın düzlemin arkasında kalır: kesik kutu alt ekranda koyu blok olmasın diye gizlenir (tabancada el görünür)
+    if (this.handR && !this.zh && !isMelee) this.handR.visible = !(u.near && u.hold !== 'pistol' && ads > 0.85 && !st.adsLow);
     // ── yakın dövüş savurması ──
     if (isMelee && s.swing) {
       const sw = s.swing;
@@ -303,6 +308,22 @@ export class ViewModel {
     this.root.position.set(pos.x * mir, pos.y, pos.z);
     this.root.rotation.set(rx, ry * mir, rz * mir);
     this.root.scale.set(VM_SCALE * mir, VM_SCALE, VM_SCALE);
+    // nişan (12.122): nefes + hafif sallanma + fare gecikmesi + tepme, NİŞAN NOKTASI çevresinde döner → retikül / gez ekran ortasında (= mermi noktası) kalır, gövde oynar
+    if (ads > 0.001 && u.sight && !this.noSway) {
+      const bt = this.breathT, mv = clamp(speed / 3, 0, 1) * (s.onGround ? 1 : 1.5), ik = u.pivot ? 0.4 : 1;      // demirde %40: arpacık ortada, gez yalnız birkaç piksel oynar
+      // tepme nişanda 0,06 × (eskiden kabza çevresinde 0,1 ×): namlu kalkar, retikül ortada kalır, kickR sönümlenince geri oturur
+      let ax = ((Math.sin(bt * 1.13) * 0.0021 + Math.sin(bt * 2.31 + 0.7) * 0.0007) * (1 + mv * 1.6) + this.kickR * 0.06 + clamp(this.sy, -0.05, 0.05) * 0.3) * ads;
+      let ay = ((Math.sin(bt * 0.71 + 1.9) * 0.0024 + Math.sin(bt * 1.67) * 0.0006) * (1 + mv * 1.6) + clamp(this.sx, -0.05, 0.05) * 0.3) * ads;
+      const az = Math.sin(bt * 0.53 + 0.4) * 0.004 * ads;
+      ax *= ik; ay *= ik;
+      this.root.updateMatrix();
+      const pv = u.pivot || u.sight;                                                            // dönme merkezi: optikte nişan noktası, demirde arpacık tepesi
+      _sp.set(pv[0], pv[1], pv[2]).applyMatrix4(this.root.matrix);                              // (kamera uzayı)
+      _q.setFromEuler(_eu.set(ax, ay * mir, az * mir));
+      _sp2.copy(this.root.position).sub(_sp).applyQuaternion(_q).add(_sp);
+      this.root.position.copy(_sp2);
+      this.root.quaternion.premultiply(_q);
+    }
     this.camRoll = lerp(this.camRoll, camRoll, Math.min(1, dt * 14));
     this.camPitch = lerp(this.camPitch, camPitch, Math.min(1, dt * 14));
 
@@ -310,8 +331,8 @@ export class ViewModel {
       this.flashT = Math.max(0, this.flashT - dt);
       this.flash.visible = this.flashT > 0;
     }
-    // dürbünlü silahta tam nişanda modeli gizle
-    this.root.visible = !(s.overlay === 'scope' && s.adsT > 0.9);
+    // dürbünlü silahta tam nişanda modeli gizle (HUD dürbün örtüsü aynı eşikte; forceShow: adsalign testi)
+    this.root.visible = this.forceShow || !(s.overlay === 'scope' && s.adsT > 0.9);
     this.cam.rotation.z = -s.leanT * 0.2;   // yana eğilirken silah da kafayla birlikte yatar
     if (this.arms.length) {                    // zombi kolları: bilek ucundan dirsek noktasına (kamera uzayı; sol el modunda aynalı)
       this.cam.updateMatrixWorld(true);
@@ -326,11 +347,15 @@ export class ViewModel {
     }
     // nişan alırken silah kamerasının görüş açısı genişler: silah/nişangâh ekranda küçülür, rakip örtülmez (dürbünsüz silahlarda)
     const fovT = 54 + (ADS_FOV - 54) * (u.noAds ? 0 : ads);
-    if (Math.abs(this.cam.fov - fovT) > 0.01) { this.cam.fov = fovT; this.cam.updateProjectionMatrix(); }
+    const nearT = u.noAds || !u.near || st.adsLow ? 0.01 : lerp(0.01, u.near, clamp((ads - 0.55) / 0.45, 0, 1) ** 2);      // nişanda yakın düzlem (nişangâhın hemen önü): göze yakın dipçik / kol / gövde kesilir; geçişin sonunda devreye girer
+    if (Math.abs(this.cam.fov - fovT) > 0.01 || Math.abs(this.cam.near - nearT) > 1e-4) { this.cam.fov = fovT; this.cam.near = nearT; this.cam.updateProjectionMatrix(); }
     // dokunmatik: dürbünsüz nişanda (demir / red dot / holo) silah modeli yarı saydamlaşır. Küçük ekranda nişangâh gövdesi merkezin
     // %36-50'sini (3° içinde, bkz. adsview.mjs) kapatıyor, hedef tamamen arkasında kalıyordu; nişangâh HUD'da (#rdot / #holo / nokta) net kalır
-    this.setFade(p.touch && s.overlay !== 'scope' ? clamp((ads - 0.55) / 0.4, 0, 1) * 0.5 : 0);
+    this.setFade(p.touch && s.overlay !== 'scope' && !this.noFade ? clamp((ads - 0.55) / 0.4, 0, 1) * 0.5 : 0);
   }
+
+  // adsalign testi: S3 retikülleri saf eflatun (ekranda merkez ölçümü)
+  probe(on) { setSkinProbe(on); }
 
   // El ağının morph hedefi (0: ana poz, 1: ikinci poz)
   handMorph(grp, v) { const m = grp && grp.children.find((o) => o.userData.fpHand); if (m && m.morphTargetInfluences) m.morphTargetInfluences[0] = v; }
@@ -339,12 +364,14 @@ export class ViewModel {
   setFade(f) {
     const m = this.model;
     if (!m || Math.abs(f - (m.userData.fade || 0)) < 0.01) return;
-    if (!m.userData.ownMat) { m.traverse((o) => { if (o.isMesh && o.material && o.material.blending !== THREE.AdditiveBlending) o.material = Array.isArray(o.material) ? o.material.map((x) => x.clone()) : o.material.clone(); }); m.userData.ownMat = true; }
+    const own = (x) => x.blending === THREE.AdditiveBlending || (x.userData.skinMat && !x.userData.shared);       // S3 kaplama malzemesi zaten bu modele özel (klonlanmaz: uniform'lar paylaşılmaz)
+    if (!m.userData.ownMat) { m.traverse((o) => { if (o.isMesh && o.material && !own(o.material)) o.material = Array.isArray(o.material) ? o.material.map((x) => x.clone()) : o.material.clone(); }); m.userData.ownMat = true; }
     m.userData.fade = f;
     m.traverse((o) => {
       if (!o.isMesh || !o.material) return;
       for (const x of Array.isArray(o.material) ? o.material : [o.material]) {
         if (x.blending === THREE.AdditiveBlending) continue;
+        if (x.userData.skinMat) { setSkinAlpha(x, 1 - f); continue; }                              // ışıyan retikül opak kalır
         if (x._op0 === undefined) x._op0 = x.opacity, x._tr0 = x.transparent;
         const tr = x._tr0 || f > 0;
         if (tr !== x.transparent) { x.transparent = tr; x.needsUpdate = true; }
@@ -427,7 +454,7 @@ export class Player {
   refreshWeapon() {
     const s = this.s;
     this.vm.look = this.game.mode.paintball && !s.def?.zombie ? pbLook(paintColorOf(s)) : null;      // paintball: birinci şahıs kolu / eldiven forma renginde (yalnız renk)
-    this.vm.setItem(s.item.id, s.team, s.stat.kind, s.optic, s.def?.zombie ? s.zt?.skin : null);
+    this.vm.setItem(s.item.id, s.team, s.stat.kind, s.optic, s.def?.zombie ? s.zt?.skin : null, s.skinOf(s.item.id));
     if (s.stat.ball) { tintPaint(this.vm.model, paintColorOf(s)); this.vm.flash?.removeFromParent(); this.vm.flash = null; }      // paintball: hazne / tüp kendi boya rengimde, namlu alevi yok
   }
 
@@ -702,7 +729,7 @@ export class Player {
     const cam = g.camera;
     g.abfx?.update(dt);                                                                // zombi gücü ekran efektleri (FOV vuruşu / adım temposu buradan)
     const baseFov = this.baseFov();
-    const zoom = s.zoomNow && !this.vm.model?.userData.noAds ? lerp(1, this.zoomEff(), s.adsT) : 1;
+    const zoom = s.zoomNow && !this.vm.model?.userData.noAds ? lerp(1, this.zoomEff(), adsEase(s.adsT)) : 1;      // görüş yakınlaştırması model ile aynı eğride
     const targetFov = baseFov / zoom + (g.abfx?.fovAdd || 0);
     cam.fov += (targetFov - cam.fov) * Math.min(1, dt * 18);
     cam.updateProjectionMatrix();

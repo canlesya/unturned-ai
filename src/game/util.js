@@ -20,3 +20,6 @@ export function dirFromAngles(yaw, pitch, out = new THREE.Vector3()) {
   return out.set(-Math.sin(yaw) * cp, Math.sin(pitch), -Math.cos(yaw) * cp);
 }
 export const yawFromDir = (x, z) => Math.atan2(-x, -z);
+
+// Nişan geçişi (görsel, 12.122): adsT doğrusal (oyun mantığı / sunucu aynı); model, FOV ve HUD bu eğriyi kullanır → girişte hızlı başlayıp yumuşak oturur (ease-out), çıkışta yavaş ayrılır (ease-in)
+export const adsEase = (t) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 2.2);

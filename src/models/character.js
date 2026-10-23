@@ -322,7 +322,7 @@ function addGear(cls, team, c, parts, skin, ztype, look) {
 
 // ── Karakter oluşturucu ──
 // outfit 'paintball' + paint (renk) + num (forma numarası): paintball oyuncusu görünümü (sınıf teçhizatı yerine)
-export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0, weapon = null, blade = 0.38, optic = 'reddot', ztype = 'walker', outfit = null, paint = '#ff2b3a', num = 7 } = {}) {
+export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0, weapon = null, blade = 0.38, optic = 'reddot', ztype = 'walker', outfit = null, paint = '#ff2b3a', num = 7, wskin = 'std' } = {}) {
   const look = outfit === 'paintball' && cls !== 'zombie' ? { num } : null;
   const c = look ? { ...TEAMS[team], ...pbLook(paint) } : TEAMS[team];
   const skin = SKINS[skinIndex % SKINS.length];
@@ -387,11 +387,11 @@ export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0,
     team,
     cls,
     weapon: null,
-    setWeapon(id, opt) {
+    setWeapon(id, opt, skin = 'std') {
       if (opt) api.optic = opt;
       if (api.weapon) { mount.remove(api.weapon); api.weapon.traverse((o) => o.geometry?.dispose()); }
       if (api.weaponL) { mountL.remove(api.weaponL); api.weaponL.traverse((o) => o.geometry?.dispose()); api.weaponL = null; }
-      const w = id ? createWeapon(id, api.optic, true) : null;
+      const w = id ? createWeapon(id, api.optic, true, skin) : null;      // skin: S3 silah kaplaması (paylaşılan LOD malzemesi)
       api.weapon = w;
       if (w) mount.add(w);
       if (id === 'claws') { api.weaponL = createWeapon('claws', 'reddot', true); mountL.add(api.weaponL); }          // ikinci pençe
@@ -406,7 +406,7 @@ export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0,
   const wid = weapon === undefined ? null : weapon || CLASSES[cls].weapon[team];
   api.blade = blade;
   api.optic = optic;
-  api.setWeapon(wid);
+  api.setWeapon(wid, null, wskin);
   root.userData.character = api;
   return api;
 }
@@ -422,11 +422,11 @@ function createZombie({ root, team, skinIndex, weapon, ztype }) {
     root, team, cls: 'zombie', ztype, zshape: z.shape,
     parts: { torso: z.torso, head: z.head, legs: z.legs, armR: z.armR, armL: z.armL, mount, mountL },
     weaponL: null, weapon: null, blade: 0.06, optic: 'reddot',
-    setWeapon(id, opt) {
+    setWeapon(id, opt, skin = 'std') {
       if (opt) api.optic = opt;
       if (api.weapon) { mount.remove(api.weapon); api.weapon.traverse((o) => o.geometry?.dispose()); }
       if (api.weaponL) { mountL.remove(api.weaponL); api.weaponL.traverse((o) => o.geometry?.dispose()); api.weaponL = null; }
-      const w = id ? createWeapon(id, api.optic, true) : null;
+      const w = id ? createWeapon(id, api.optic, true, skin) : null;      // skin: S3 silah kaplaması (paylaşılan LOD malzemesi)
       api.weapon = w;
       if (w) { mount.add(w); if (id === 'claws') w.visible = false; }
       if (id === 'claws') { api.weaponL = createWeapon('claws', 'reddot', true); api.weaponL.visible = false; mountL.add(api.weaponL); }
