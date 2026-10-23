@@ -20,7 +20,7 @@ import { wName, opticName, fireName } from '../i18n/game.js';
 const VM_SCALE = 0.92;
 const _q = new THREE.Quaternion(), _eu = new THREE.Euler(), _sp = new THREE.Vector3(), _sp2 = new THREE.Vector3();
 export const FIRE_LABEL = { semi: 'Tek atış', burst: 'Seri (3-5 mermi)', auto: 'Otomatik' };
-const ADS_FOV = 68;
+const ADS_FOV = 40;      // taslak (BattleBit): nişanda silah kamerası daralır → nişangâh ekranda ≈ 1,85 × (tan 34° / tan 20°); HUD #holo / #rdot aynı oranla büyüdü
 
 // ───────────── Birinci şahıs silah modeli: ilk kutu eller (73b388f) ─────────────
 // El = eldiven renkli kutu + gömlek renkli kol kutusu (silaha bağlı, silah yerelinde); yakın dövüş = sapı saran kutu yumruk. Zombi pençesi: organik yol (fpHands, ayrı kol, morph).
@@ -371,7 +371,7 @@ export class ViewModel {
     // dokunmatik: dürbünsüz nişanda (demir / red dot / holo) silah modeli yarı saydamlaşır. Küçük ekranda nişangâh gövdesi merkezin
     // %36-50'sini (3° içinde, bkz. adsview.mjs) kapatıyor, hedef tamamen arkasında kalıyordu; nişangâh HUD'da (#rdot / #holo / nokta) net kalır
     // telefon (12.123): HUD retikülü (#rdot / #holo, nişangâh boyutu ayarıyla büyük) ads > 0,97'de çıkar → 3B ışıyan nokta / halka soluklaşmayla birlikte söner (iki farklı boy halka üst üste görünmez)
-    const fk = p.touch && s.overlay !== 'scope' && !this.noFade ? clamp((ads - 0.55) / 0.4, 0, 1) : 0;
+    const fk = p.touch && s.overlay !== 'scope' && s.overlay !== 'lens' && !this.noFade ? clamp((ads - 0.55) / 0.4, 0, 1) : 0;
     this.setFade(fk * 0.5, s.overlay === 'dot' || s.overlay === 'holo' ? 1 - fk : 1);
   }
 

@@ -351,7 +351,7 @@ export const OPTICS = {
   iron: { label: 'Demir Nişan', zoom: 1.15, overlay: 'none' },
   reddot: { label: 'Red Dot', zoom: 1.3, overlay: 'dot' },
   holo: { label: 'Holografik', zoom: 1.3, overlay: 'holo' },
-  acog: { label: 'ACOG 3x', zoom: 3, overlay: 'scope', reticle: 'chevron' },
+  acog: { label: 'ACOG 3x', zoom: 3, overlay: 'lens', reticle: 'chevron' },      // taslak: tam ekran dürbün örtüsü / kararma yok, 3B mercek
   scope: { label: '4x Dürbün', zoom: 4, overlay: 'scope', reticle: 'mil' },
   scope6: { label: '6x Dürbün', zoom: 6, overlay: 'scope', reticle: 'mil' },
 };

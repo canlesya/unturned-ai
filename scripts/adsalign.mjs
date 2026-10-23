@@ -119,7 +119,7 @@ for (const dev of (process.env.DEV || 'desk,mob,iph').split(',')) {
     const jobs = [];
     if (optic === 'iron') jobs.push(['gez', 'iron', 'iron']);
     else { jobs.push(['3D', 'probe', optic === 'acog' ? 'chev' : 'c']); if (!scope) jobs.push(['cam', 'glass', 'c']); }
-    if (dot || holo || scope || dev !== 'desk') jobs.push(['HUD', 'hud', optic === 'acog' || optic === 'svd' ? 'chev' : optic === 'iron' ? 'idot' : 'c']);
+    if (dot || holo || (scope && optic !== 'acog') || dev !== 'desk') jobs.push(['HUD', 'hud', optic === 'acog' || optic === 'svd' ? 'chev' : optic === 'iron' ? 'idot' : 'c']);
     for (const [name, mode, kind] of jobs) {
       const info = await page.evaluate((o) => window.__pose(o), { id, optic, mode, sway: process.env.SWAY ? 1.7 + rows.length * 0.37 : 0 });
       await page.waitForTimeout(90);
