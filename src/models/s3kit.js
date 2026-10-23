@@ -83,7 +83,9 @@ export class Kit {
   build(material, meta) {
     const g = new THREE.Group();
     const mk = (list, parent) => { if (!list.length) return null; const m = new THREE.Mesh(mergeGeometries(list, false), material); m.castShadow = m.receiveShadow = true; parent.add(m); for (const x of list) x.dispose(); return m; };
+    const lens = this.lod ? null : splitLens(this);
     mk(this.lists.main, g);
+    if (lens) { const m = new THREE.Mesh(lens, LENS_MAT); m.renderOrder = 2; m.userData.lens = true; g.add(m); }      // mercekler: ayrı saydam ağ (yalnız birinci şahıs / vitrin)
     let mag = null, bolt = null;
     if (this.lists.mag.length) { mag = new THREE.Group(); g.add(mag); mk(this.lists.mag, mag); }
     if (this.lists.bolt.length) { bolt = new THREE.Group(); g.add(bolt); const piv = meta.boltPivot || 0; for (const x of this.lists.bolt) x.translate(0, -piv, 0); mk(this.lists.bolt, bolt); bolt.position.y = piv; }
@@ -94,6 +96,62 @@ export class Kit {
     g.userData.stats = { parts: this.parts, tris: Math.round(tris), calls };
     return g;
   }
+}
+
+// Mercek camı (12.123): eskiden mercek yuvası opak koyu renkti → dürbün / ACOG'a girerken ekranda kara disk. Artık loş saydam cam; HUD dürbünü (#scopeblk kararması) devralır
+export const LENS_MAT = new THREE.MeshStandardMaterial({ color: '#8fb8d0', transparent: true, opacity: 0.22, roughness: 0.05, metalness: 0.3, depthWrite: false });
+LENS_MAT.userData.glass = true;
+// Mercek parçalarını ana listeden ayırır; aynı eksendeki tüp parçalarının (gövde / çan / koni) ±Z kapaklarını mercekler arasında siler → camın arkası koyu kapak değil, açık tüp
+// Kural parça başına: kutu merkezi mercek ekseninde (±3 mm), yarıçapı ≤ en büyük mercek × 1,2, Z aralığı merceklerin arası. Diğer silah dosyaları da (s3rifles vb.) otomatik yararlanır
+function splitLens(k) {
+  const list = k.lists.main;
+  const isSlot = (g, s) => Math.round(g.attributes.wf.array[0]) === s, bb = new THREE.Box3();
+  const lens = list.filter((g) => isSlot(g, SL.lens));
+  if (!lens.length) return null;
+  const groups = [];
+  for (const g of lens) {
+    bb.setFromBufferAttribute(g.attributes.position);
+    const cx = (bb.min.x + bb.max.x) / 2, cy = (bb.min.y + bb.max.y) / 2, r = Math.max(bb.max.x - bb.min.x, bb.max.y - bb.min.y) / 2;
+    let gr = groups.find((q) => Math.abs(q.cx - cx) < 0.003 && Math.abs(q.cy - cy) < 0.003);
+    if (!gr) groups.push(gr = { cx, cy, r: 0, z0: Infinity, z1: -Infinity });
+    gr.r = Math.max(gr.r, r); gr.z0 = Math.min(gr.z0, bb.min.z - 0.004); gr.z1 = Math.max(gr.z1, bb.max.z + 0.004);
+    gr.ls = (gr.ls || []).concat([[(bb.min.z + bb.max.z) / 2, r]]);
+  }
+  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+  for (let i = list.length - 1; i >= 0; i--) {
+    const g = list[i];
+    if (isSlot(g, SL.lens)) { list.splice(i, 1); continue; }
+    if (isSlot(g, SL.glow)) continue;
+    bb.setFromBufferAttribute(g.attributes.position);
+    const cx = (bb.min.x + bb.max.x) / 2, cy = (bb.min.y + bb.max.y) / 2, r = Math.max(bb.max.x - bb.min.x, bb.max.y - bb.min.y) / 2;
+    const gr = groups.find((q) => Math.abs(q.cx - cx) < 0.003 && Math.abs(q.cy - cy) < 0.003 && r <= q.r * 1.2 && bb.max.z > q.z0 && bb.min.z < q.z1);
+    if (!gr) continue;
+    gr.minR = Math.min(gr.minR ?? Infinity, r);
+    const P = g.attributes.position, keep = [];
+    for (let t = 0; t < P.count; t += 3) {
+      a.fromBufferAttribute(P, t); b.fromBufferAttribute(P, t + 1); c.fromBufferAttribute(P, t + 2);
+      const n = b.clone().sub(a).cross(c.clone().sub(a)).normalize(), z = (a.z + b.z + c.z) / 3;
+      if (!(Math.abs(n.z) > 0.95 && z > gr.z0 && z < gr.z1)) keep.push(t);
+    }
+    if (keep.length * 3 === P.count) continue;
+    const ng = new THREE.BufferGeometry();
+    for (const k of Object.keys(g.attributes)) { const src = g.attributes[k], sz = src.itemSize, arr = new Float32Array(keep.length * 3 * sz); keep.forEach((t, j) => arr.set(src.array.subarray(t * sz, (t + 3) * sz), j * 3 * sz)); ng.setAttribute(k, new THREE.BufferAttribute(arr, sz)); }
+    g.dispose(); list[i] = ng;
+  }
+  // tüp içi (ters yüzlü koyu silindir, mercekten merceğe): cam arkasında dış kabuğun arka yüzleri / kuleler görünmesin, içeriden bakınca karanlık tünel + ön mercekten dünya
+  for (const gr of groups) {
+    if (gr.ls.length < 2) continue;
+    gr.ls.sort((p, q) => p[0] - q[0]);
+    const zf = gr.ls[0][0], zb = gr.ls[gr.ls.length - 1][0], L = zb - zf, R = Math.min(gr.minR ?? Infinity, ...gr.ls.map((x) => x[1])) * 0.97;      // en dar tüp / mercek: dış kabuğun içinde kalır (yandan taşmaz)
+    const t = new THREE.CylinderGeometry(R, R, L, 12, 1, true).toNonIndexed(); t.deleteAttribute('normal'); t.deleteAttribute('uv');
+    const P = t.attributes.position.array;
+    for (let i = 0; i < P.length; i += 9) for (let j = 0; j < 3; j++) { const q = P[i + 3 + j]; P[i + 3 + j] = P[i + 6 + j]; P[i + 6 + j] = q; }      // sarım ters → yüzler içe bakar
+    t.computeVertexNormals(); t.rotateX(Math.PI / 2); t.translate(gr.cx, gr.cy, (zf + zb) / 2);
+    k._push(t, 'acc', { sh: 0.35 });
+  }
+  const out = mergeGeometries(lens, false); for (const g of lens) g.dispose();
+  out.deleteAttribute('wf');
+  return out;
 }
 
 // sekizgen kesit (pahlı dikdörtgen) ve XY şeklinden Z'ye çekme

@@ -68,14 +68,14 @@ function acog(k, yb, z) {
   const cy = yb + 0.034, ze = z + 0.066;
   if (k.lod) { k.box([0.034, 0.024, 0.08], [0, yb + 0.012, z], 'acc'); k.cyl(0.024, 0.02, 0.17, [0, cy, z - 0.012], 'acc', { seg: 6 }); return { sight: [0, cy, ze], dist: ADS_DIST.acog, near: ADS_NEAR.acog, overlay: 'scope' }; }
   k.box([0.034, 0.012, 0.08], [0, yb + 0.006, z], 'acc', { c: 0.003 });
-  k.box([0.016, 0.012, 0.05], [0, yb + 0.016, z], 'acc', { c: 0.002 });
+  k.box([0.016, 0.0035, 0.05], [0, yb + 0.0132, z], 'acc', { c: 0.001 });                             // yükseltici (tüp içine girmez: cam arkasından görünmesin)
   k.cyl(0.0195, 0.0195, 0.08, [0, cy, z - 0.004], 'acc', { seg: 16 });                                  // gövde
   k.cyl(0.0245, 0.0195, 0.026, [0, cy, z - 0.057], 'acc', { seg: 18 });                                 // objektif konisi
   k.cyl(0.0245, 0.0245, 0.016, [0, cy, z - 0.078], 'acc', { seg: 18, sh: 0.9 });                        // objektif çanı
   k.cyl(0.0175, 0.021, 0.03, [0, cy, z + 0.05], 'acc', { seg: 18 });                                    // göz çanı
-  k.box([0.012, 0.01, 0.07], [0, cy + 0.022, z - 0.01], 'acc', { c: 0.002 });                           // fiber kanalı
-  k.box([0.014, 0.012, 0.016], [0, cy + 0.024, z - 0.002], 'acc', { c: 0.002, d: 1 });                  // yükseklik kapağı
-  k.box([0.012, 0.014, 0.016], [0.024, cy, z - 0.002], 'acc', { c: 0.002, d: 1 });                      // yan kapak
+  k.box([0.012, 0.01, 0.07], [0, cy + 0.024, z - 0.01], 'acc', { c: 0.002 });                           // fiber kanalı (iç tüp çeperinin dışında)
+  k.box([0.014, 0.012, 0.016], [0, cy + 0.0255, z - 0.002], 'acc', { c: 0.002, d: 1 });                 // yükseklik kapağı
+  k.box([0.012, 0.014, 0.016], [0.0255, cy, z - 0.002], 'acc', { c: 0.002, d: 1 });                     // yan kapak
   k.cyl(0.022, 0.022, 0.002, [0, cy, z - 0.0855], 'lens', { seg: 18 });                                 // ön mercek
   k.cyl(0.0198, 0.0198, 0.002, [0, cy, ze - 0.001], 'lens', { seg: 18 });                               // göz merceği
   for (const s of [-1, 1]) k.box([0.0042, 0.0007, 0.0006], [s * 0.0013, cy - 0.00182, ze + 0.0004], 'glow', { rot: [0, 0, -s * 0.9] });   // şevron: çizginin üst kenarının tepesi = nişan noktası (eksende)
@@ -281,10 +281,10 @@ export function sniper(mat = skinMaterial('sniper'), lod = false) {
   k.cyl(0.025, 0.025, 0.04, [0, 0.142, 0.137], 'acc', { seg: 14, sh: 0.85 });
   k.cyl(0.031, 0.019, 0.055, [0, 0.142, -0.212], 'acc', { seg: 14 });
   k.cyl(0.031, 0.031, 0.065, [0, 0.142, -0.27], 'acc', { seg: 14 });
-  k.cyl(0.0145, 0.0145, 0.03, [0, 0.172, -0.05], 'acc', { ax: 'y', seg: 10 });
-  k.cyl(0.0145, 0.0145, 0.03, [0.03, 0.142, -0.05], 'acc', { ax: 'x', seg: 10 });
-  if (!lod) { k.cyl(0.0155, 0.0155, 0.007, [0, 0.19, -0.05], 'acc', { ax: 'y', seg: 10, pat: 2, sh: 0.8 }); k.cyl(0.0155, 0.0155, 0.007, [0.048, 0.142, -0.05], 'acc', { ax: 'x', seg: 10, pat: 2, sh: 0.8 }); }
-  k.box([0.03, 0.03, 0.03], [-0.026, 0.142, -0.05], 'acc', { d: 1, c: 0.004 });                    // paralaks kulesi (sol)
+  k.cyl(0.0145, 0.0145, 0.03, [0, 0.176, -0.05], 'acc', { ax: 'y', seg: 10 });                         // kuleler tüp içine girmez (cam arkasından görünmesin)
+  k.cyl(0.0145, 0.0145, 0.03, [0.034, 0.142, -0.05], 'acc', { ax: 'x', seg: 10 });
+  if (!lod) { k.cyl(0.0155, 0.0155, 0.007, [0, 0.194, -0.05], 'acc', { ax: 'y', seg: 10, pat: 2, sh: 0.8 }); k.cyl(0.0155, 0.0155, 0.007, [0.052, 0.142, -0.05], 'acc', { ax: 'x', seg: 10, pat: 2, sh: 0.8 }); }
+  k.box([0.03, 0.03, 0.03], [-0.034, 0.142, -0.05], 'acc', { d: 1, c: 0.004 });                    // paralaks kulesi (sol)
   k.cyl(0.028, 0.028, 0.002, [0, 0.142, -0.303], 'lens', { seg: 14 });
   k.cyl(0.022, 0.022, 0.002, [0, 0.142, 0.158], 'lens', { seg: 14, d: 1 });
   for (const [w, hh] of [[0.012, 0.0006], [0.0006, 0.012]]) k.box([w, hh, 0.0005], [0, 0.142, 0.1594], 'glow', { d: 1 });   // göz merceğinde ince artı

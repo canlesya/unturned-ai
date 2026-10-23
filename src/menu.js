@@ -37,7 +37,7 @@ export function loadPrefs() {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) || localStorage.getItem('blockfront.v2') || localStorage.getItem('blockfront.v1') || '{}');
     if (raw.fovMv !== 1) { if (raw.fovM === 85) raw.fovM = 80; raw.fovMv = 1; }        // telefon yatay FOV varsayılanı 85 → 80 (uzak düşman ≈ %8 büyük); eski varsayılanda kalanlar bir kez taşınır
-    return { ...DEFAULTS, ...raw, stats: { ...DEFAULTS.stats, ...(raw.stats || {}) }, loadouts: raw.loadouts || {}, skins: raw.skins && typeof raw.skins === 'object' ? raw.skins : {} };      // skins: silah başına kaplama (yalnız bu tarayıcıda; hesap profili yalnız xp / istatistik tutar)
+    return { ...DEFAULTS, ...raw, stats: { ...DEFAULTS.stats, ...(raw.stats || {}) }, loadouts: raw.loadouts || {}, skins: raw.skins && typeof raw.skins === 'object' ? raw.skins : {} };      // skins: silah başına kaplama (tarayıcıda; hesaplıda profilde de, 12.123)
   } catch (e) { return { ...DEFAULTS }; }
 }
 function savePrefs(p) { try { localStorage.setItem(KEY, JSON.stringify(p)); } catch (e) { /* yok say */ } }
@@ -58,6 +58,12 @@ function pushProfile(p) {
   const s = getSession();
   if (s?.kind !== 'acct' || p.acctName !== s.name) return;
   api(apiBase(p.server), 'PUT', '/api/profile', profileOf(p), s.tok).catch(() => {});
+}
+// Hesaplı oyuncu: kaplama seçimi hesap profiline yazılır (diğer cihazda da gelir); misafir yalnız yerel
+function pushSkins(p) {
+  const s = getSession();
+  if (s?.kind !== 'acct' || p.acctName !== s.name) return;
+  api(apiBase(p.server), 'PUT', '/api/profile', { skins: p.skins || {} }, s.tok).catch(() => {});
 }
 const levelOf = (xp) => Math.floor(Math.sqrt(xp / 120)) + 1;
 
@@ -612,7 +618,7 @@ export function showMenu(onStart, onOnline) {
       case 'slot': slot = v; break;
       case 'pick': loadoutOf(p.cls)[slot] = v; break;
       case 'optic': p.optic = v; scene?.iconCache.clear(); break;
-      case 'skin': { const w = b.dataset.w; if (!SKIN_WEAPONS.includes(w) || !SKIN_IDS.includes(v)) break; if (v === 'std') delete p.skins[w]; else p.skins[w] = v; break; }
+      case 'skin': { const w = b.dataset.w; if (!SKIN_WEAPONS.includes(w) || !SKIN_IDS.includes(v)) break; if (v === 'std') delete p.skins[w]; else p.skins[w] = v; pushSkins(p); break; }      // hesaplıda profile de yazılır (12.123)
       case 'quality': p[Q_KEY] = +v; break;
       case 'shadows': p.shadows = !p.shadows; break;
       case 'adaptive': p.adaptive = p.adaptive === false; break;
@@ -678,10 +684,12 @@ export function showMenu(onStart, onOnline) {
     auth = { ...auth, busy: kind, msg: '' }; renderAuth();
     try {
       const body = { name, pass };
-      if (kind === 'register' && !p.acctName) body.profile = profileOf(p);          // misafirken kazandığın seviye yeni hesaba taşınır
+      if (kind === 'register' && !p.acctName) { body.profile = profileOf(p); body.skins = p.skins || {}; }          // misafirken kazandığın seviye + kaplamalar yeni hesaba taşınır
       const r = await api(apiBase(p.server), 'POST', kind === 'register' ? '/api/register' : '/api/login', body);
-      if (!p.acctName) p.guestSave = { name: p.name, ...profileOf(p) };            // çıkışta misafir profili geri gelir
+      if (!p.acctName) p.guestSave = { name: p.name, ...profileOf(p), skins: { ...(p.skins || {}) } };            // çıkışta misafir profili (+ kaplamaları) geri gelir
       Object.assign(p, { xp: r.profile.xp, stats: { ...DEFAULTS.stats, ...r.profile.stats }, acctName: r.name, name: r.name });
+      if (r.skins && typeof r.skins === 'object') p.skins = { ...r.skins };                                    // kaplama: hesapta kayıtlıysa sunucu kazanır, değilse yereldekiler yüklenir
+      else if (Object.keys(p.skins || {}).length) api(apiBase(p.server), 'PUT', '/api/profile', { skins: p.skins }, r.tok).catch(() => {});
       setSession({ kind: 'acct', name: r.name, tok: r.tok }); save(); closeAuth(); render();
     } catch (e) { if (auth) authSay(e.message); }
   }
@@ -691,6 +699,7 @@ export function showMenu(onStart, onOnline) {
     clearSession();
     const g = p.guestSave || { name: DEFAULTS.name, xp: 0, stats: { ...DEFAULTS.stats } };
     Object.assign(p, { name: g.name || DEFAULTS.name, xp: g.xp || 0, stats: { ...DEFAULTS.stats, ...g.stats } });
+    if (g.skins) p.skins = { ...g.skins };                                                  // misafirken seçtiğin kaplamalar
     delete p.acctName; delete p.guestSave; save(); render();
     openAuth('guest');
   }
@@ -704,8 +713,11 @@ export function showMenu(onStart, onOnline) {
     }
     if (getSession()?.tok !== s.tok || !el.contains(authEl)) return;
     const m = p.acctName === s.name ? maxProfile(profileOf(p), sv) : sv;          // başka hesabın / misafirin yerel profili karışmasın
+    const mine = p.acctName === s.name, up = !sv.skins && mine && Object.keys(p.skins || {}).length;      // kaplama: sunucuda varsa sunucu kazanır, yoksa (bu hesabın) yerel seçimi yüklenir
+    if (sv.skins && typeof sv.skins === 'object') p.skins = { ...sv.skins };
     Object.assign(p, { xp: m.xp, stats: { ...DEFAULTS.stats, ...m.stats }, acctName: s.name }); save(); renderUser();
-    if (!sameProfile(m, sv)) api(apiBase(p.server), 'PUT', '/api/profile', m, s.tok).catch(() => {});
+    if (sv.skins && screen === 'loadout') render();
+    if (!sameProfile(m, sv) || up) api(apiBase(p.server), 'PUT', '/api/profile', up ? { ...m, skins: p.skins } : m, s.tok).catch(() => {});
   }
   authEl.addEventListener('click', (e) => {
     const b = e.target.closest('[data-u]'); if (!b || !auth) return;
