@@ -401,6 +401,8 @@ export function resolveOptic(id, pref = 'reddot') {
 export const SKIN_IDS = ['std', 'desert', 'wood', 'urban', 'gold'];
 export const SKIN_WEAPONS = ['ak47', 'm4a1', 'pistol', 'sniper', 'shotgun'];
 SKIN_WEAPONS.push('knife', 'machete', 'tomahawk');      // s3items: yakın dövüş kaplamaları (atılan / kurulan eşyalar yalnız Standart)
+// s3smg: ikinci tur S3 silahları (src/models/s3smg.js)
+SKIN_WEAPONS.push('mp5', 'vector', 'p90', 'mac10', 'lmg', 'pkm', 'm1911', 'deagle', 'revolver', 'rpg');
 // Ağdan / profilden gelen kaplama seçimini temizle: bilinen silah → bilinen kaplama (std yazılmaz); geçersiz → null
 export function cleanSkins(o) {
   if (!o || typeof o !== 'object') return null;

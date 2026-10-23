@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="tr">
+<head><meta charset="utf-8" /><title>S3 vitrin</title><style>html,body{margin:0;background:#202328;color:#fff;font:13px system-ui}</style></head>
+<body>
+<!-- S3 silah vitrini (test aracı): window.__turn({ ids, skins, W, H, lod, optic }) → her silah bir satır × kaplama sütunları (dönen açılar), PNG dataURL + üçgen / çizim çağrısı -->
+<script type="module">
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { createWeapon } from '/src/models/weapons.js';
+const r = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+r.toneMapping = THREE.ACESFilmicToneMapping; r.outputColorSpace = THREE.SRGBColorSpace;
+const env = new THREE.PMREMGenerator(r).fromScene(new RoomEnvironment(), 0.04).texture;
+window.__turn = async ({ ids, skins = ['std', 'desert', 'wood', 'urban', 'gold'], W = 420, H = 230, lod = false, optic = 'reddot', yaws = null, label = true }) => {
+  r.setSize(W, H); r.setPixelRatio(1);
+  const sheet = document.createElement('canvas'); sheet.width = W * skins.length; sheet.height = H * ids.length;
+  const cx = sheet.getContext('2d'); cx.fillStyle = '#202328'; cx.fillRect(0, 0, sheet.width, sheet.height);
+  const Y = yaws || [-Math.PI / 2, -Math.PI / 2 + 0.75, Math.PI / 2 - 0.6, -Math.PI / 2 - 0.7, Math.PI / 2];
+  const stats = {};
+  ids.forEach((id, row) => skins.forEach((sk, col) => {
+    const scene = new THREE.Scene(); scene.environment = env; scene.background = new THREE.Color('#2a2e35');
+    const dl = new THREE.DirectionalLight('#ffffff', 2.2); dl.position.set(2, 4, 5); scene.add(dl, new THREE.HemisphereLight('#ffffff', '#556', 0.7));
+    const w = createWeapon(id, optic, lod, sk); const piv = new THREE.Group(); piv.add(w); scene.add(piv);
+    w.updateMatrixWorld(true);
+    const b = new THREE.Box3().setFromObject(w), c = b.getCenter(new THREE.Vector3()), s = b.getSize(new THREE.Vector3());
+    w.position.copy(c).multiplyScalar(-1); piv.rotation.y = Y[col % Y.length]; piv.rotation.x = col === 2 ? 0.35 : 0.08;
+    const half = Math.max(s.z * 0.58, s.y * 0.6 * (W / H), 0.08);
+    const cam = new THREE.OrthographicCamera(-half, half, half * H / W, -half * H / W, 0.01, 20); cam.position.set(0, 0, 5); cam.lookAt(0, 0, 0);
+    r.render(scene, cam); cx.drawImage(r.domElement, col * W, row * H);
+    if (label) { cx.fillStyle = 'rgba(0,0,0,.55)'; cx.fillRect(col * W, row * H, W, 20); cx.fillStyle = '#ffd27a'; cx.fillText(`${id} · ${sk}${lod ? ' · LOD' : ''}`, col * W + 6, row * H + 14); }
+    if (col === 0) { let t = 0, n = 0; w.traverse((o) => { if (o.isMesh) { n++; t += (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3; } }); stats[id] = { tris: Math.round(t), calls: n, s3: !!w.userData.s3 }; }
+    w.traverse((o) => { o.geometry?.dispose(); if (o.material?.userData?.skinMat && !o.material.userData.shared) o.material.dispose(); });
+  }));
+  return { url: sheet.toDataURL('image/png'), stats };
+};
+window.__ready = true;
+</script>
+</body>
+</html>
