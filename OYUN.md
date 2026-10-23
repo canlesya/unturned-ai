@@ -1186,3 +1186,7 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 - Kollar (`ARM`): tetik kolu kabza arkasından dipçiğin dışından sağ-aşağı, destek kolu şarjörün dışından sol-aşağı (P90 ayrı). Nişanda kollar gizlenmiyor (destek kolu sol alttan görünür). `scripts/armclip.mjs`: 41 kombinasyonda kol ↔ silah 0 mm (önce 12–55 mm).
 - Ölçüm: adsalign masaüstü + Pixel 7 59 + 59 ≤ 2 px (en kötü 1,2 px). Görüntüler `scripts/adsshots.mjs`.
 - Bilinen: demir nişanda silah yalnız yatar (AK'da toz kapağı alt ekranı kaplar, tabanca hâlâ dar); dürbünde tam nişanda HUD örtüsü devralır.
+
+### 12.125 Nişan 12.123'e geri alındı (kol düzeltmesi kaldı)
+- Kullanıcı: "en son nişan olayı çok kötü, geri alalım; sadece kollar silaha girmesin nişan aldığımızda". 12.124'ün yatık / sapmalı nişan duruşu, yaylı geçiş, kavis ve yaylı tepme kaldırıldı; nişan, HUD ve yakın düzlem kesmesi `d4bdc8a`'daki gibi (`hud.js`, `s3weapons.js` birebir).
+- Korunan: 12.124 kol yönleri (`ARM`): tetik kolu dipçiğin dışından sağ-aşağı, destek kolu şarjörün dışından sol-aşağı (P90 ayrı); belde ve geçişte kol silaha girmiyor (`armclip` 41/41, 0 mm). Tam nişanda 12.123'teki gibi destek kolu 0,85'ten sonra, tüfekte tetik eli gizli (açık bırakılınca alt ekranda mavi levha gibi duruyordu). adsalign 59/59 ≤ 2 px.
