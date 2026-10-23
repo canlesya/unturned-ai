@@ -64,7 +64,7 @@ const CSS = `
 #cross .l{left:calc(-8px - var(--g,6px))}#cross .r{left:var(--g,6px)}#cross .t{top:calc(-8px - var(--g,6px))}#cross .b{top:var(--g,6px)}
 #cross .dot{width:3px;height:3px;left:-1.5px;top:-1.5px;border-radius:50%}
 #cross.ads span:not(.dot){display:none}
-#rdot{position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:#ff2a1a;box-shadow:0 0 6px 2px #ff2a1acc,0 0 14px 5px #ff2a1a55;display:none}
+#rdot{position:absolute;left:50%;top:50%;width:11px;height:11px;margin:-5.5px 0 0 -5.5px;border-radius:50%;background:#ff2a1a;box-shadow:0 0 6px 2px #ff2a1acc,0 0 14px 5px #ff2a1a55;display:none}
 #hitm{position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;opacity:0;transition:opacity .25s}
 #hitm::before,#hitm::after{content:'';position:absolute;left:12px;top:-2px;width:2px;height:30px;background:#fff;transform:rotate(45deg)}
 #hitm::after{transform:rotate(-45deg)}
@@ -124,13 +124,13 @@ const CSS = `
 .arrow{position:absolute;left:-14px;top:-130px;width:28px;height:40px;transform-origin:14px 130px;opacity:.9;animation:ar 1.4s forwards}
 .arrow::before{content:'';position:absolute;left:0;top:0;border:14px solid transparent;border-bottom:26px solid #ff3b2f;border-top:0}
 @keyframes ar{to{opacity:0}}
-#holo{position:absolute;left:50%;top:50%;width:5.07vh;height:5.07vh;margin:-2.535vh 0 0 -2.535vh;border-radius:50%;border:2px solid #ff3326;box-shadow:0 0 6px 1px #ff3326aa,inset 0 0 5px #ff332655;display:none}
-#holo::before{content:'';position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:50%;background:#ff3326;box-shadow:0 0 6px 2px #ff3326cc}
+#holo{position:absolute;left:50%;top:50%;width:9.2vh;height:9.2vh;margin:-4.6vh 0 0 -4.6vh;border-radius:50%;border:3px solid #ff3326;box-shadow:0 0 6px 1px #ff3326aa,inset 0 0 5px #ff332655;display:none}
+#holo::before{content:'';position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:#ff3326;box-shadow:0 0 6px 2px #ff3326cc}
 #holo i{position:absolute;background:#ff3326;box-shadow:0 0 4px #ff3326aa}
-#holo i:nth-child(1){left:50%;top:-12px;width:2px;height:10px;margin-left:-1px}
-#holo i:nth-child(2){left:50%;bottom:-12px;width:2px;height:10px;margin-left:-1px}
-#holo i:nth-child(3){top:50%;left:-12px;height:2px;width:10px;margin-top:-1px}
-#holo i:nth-child(4){top:50%;right:-12px;height:2px;width:10px;margin-top:-1px}
+#holo i:nth-child(1){left:50%;top:-21px;width:2px;height:18px;margin-left:-1px}
+#holo i:nth-child(2){left:50%;bottom:-21px;width:2px;height:18px;margin-left:-1px}
+#holo i:nth-child(3){top:50%;left:-21px;height:2px;width:18px;margin-top:-1px}
+#holo i:nth-child(4){top:50%;right:-21px;height:2px;width:18px;margin-top:-1px}
 /* paintball halka nişangâhı (nişanda): halka = topun o anki sapması (seri atışta büyür), ortada nokta, altta 20 / 30 / 40 m düşüş çizgileri */
 #pbret{position:absolute;left:50%;top:50%;width:0;height:0;display:none;--c:#ffe014;--r:10px}
 #pbret .rg{position:absolute;left:calc(-1 * var(--r));top:calc(-1 * var(--r));width:calc(2 * var(--r));height:calc(2 * var(--r));border-radius:50%;border:2px solid var(--c);box-sizing:border-box;box-shadow:0 0 0 1px rgba(0,0,0,.55),inset 0 0 0 1px rgba(0,0,0,.45);transition:width .06s,height .06s,left .06s,top .06s}

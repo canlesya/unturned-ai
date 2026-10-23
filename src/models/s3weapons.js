@@ -11,7 +11,7 @@ const guard = (k, outer, hole, w, slot = 'metal') => k.prof(outer, w, slot, { ho
 const circ = (cx, cy, r, n = 14) => Array.from({ length: n }, (_, i) => [cx + Math.cos((i / n) * Math.PI * 2) * r, cy + Math.sin((i / n) * Math.PI * 2) * r]);
 
 // Nişan alırken gözden nişan noktasına uzaklık (kamera uzayı, m): nişangâh türü başına SABİT → her silahta aynı ekran boyu (eski OPT_K / ADS_K karşılığı)
-export const ADS_DIST = { iron: 0.286, reddot: 0.36, rmr: 0.33, holo: 0.39, acog: 0.042, scope: 0.042 };
+export const ADS_DIST = { iron: 0.286, reddot: 0.36, rmr: 0.33, holo: 0.39, acog: 0.2, scope: 0.042 };      // taslak: ACOG göz 20 cm geride (ADS_FOV 40 ile ≈ eski FOV 68 + 12 cm) → silah üstünde küçük mercek (ekranı kaplamaz), içinden şevron
 // 12.126: ADS_NEAR (nişanda 25–33 cm yakın düzlem) kalktı → silah kesilmez; cam neredeyse görünmez (BattleBit: yalnız ince çerçeve + ışıyan retikül)
 const GLASS_MAT = new THREE.MeshStandardMaterial({ color: '#9fd4ff', transparent: true, opacity: 0.045, roughness: 0.05, metalness: 0.3, depthWrite: false });
 GLASS_MAT.userData.glass = true;
@@ -50,7 +50,7 @@ function holo(k, yb, z) {
   k.box([0.028, 0.009, 0.05], [0, yb + 0.0045, z - 0.016], 'acc', { c: 0.002 });                        // küçük alçak taban (çerçeveden göze doğru)
   k.box([0.016, 0.004, 0.012], [0, yb + 0.011, z - 0.005], 'acc', { c: 0.001, sh: 0.8 });               // arka düğme şeridi (alçak)
   hoop(k, 0, cy, hw, hh, 0.011, 0.0025, zf + 0.004, zf - 0.004, 4);                                      // ince tel çerçeve (iç 53 × 45 mm, yuvarlak köşe)
-  k.ring(0.0145, 0.0005, [0, cy, zf], 'glow', { ax: 'z', seg: 32, rs: 3, d: 1 });                        // ışıyan halka: HUD #holo halkasıyla aynı ekran boyu (5,07vh)
+  k.ring(0.0145, 0.0005, [0, cy, zf], 'glow', { ax: 'z', seg: 32, rs: 3, d: 1 });                        // ışıyan halka: HUD #holo halkasıyla aynı ekran boyu (taslak ADS_FOV 40: 9,2vh + 3 px çerçeve)
   k.box([0.0018, 0.0018, 0.0006], [0, cy, zf], 'glow');                                                   // merkez nokta
   k.glass.push({ rect: [0.052, 0.044], pos: [0, cy, zf - 0.0005] });
   return { sight: [0, cy, z], dist: ADS_DIST.holo, overlay: 'holo' };
