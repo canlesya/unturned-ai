@@ -42,7 +42,8 @@ await page.evaluate(async () => {
     fin();
   };
 });
-const SHOTS = [['ak47', 'iron'], ['ak47', 'holo'], ['m4a1', 'reddot'], ['m4a1', 'acog'], ['m4a1', 'acog', 0.8], ['m4a1', 'holo'], ['scarh', 'holo'], ['mp5', 'reddot'], ['lmg', 'holo'], ['sniper', 'scope', 0.7], ['sniper', 'scope', 1], ['pistol', 'iron'], ['shotgun', 'holo'], ['aug', 'acog', 0.75]];
+const SHOTS = [['ak47', 'iron'], ['ak47', 'holo'], ['m4a1', 'reddot'], ['m4a1', 'acog'], ['m4a1', 'acog', 0.8], ['m4a1', 'holo'], ['scarh', 'holo'], ['mp5', 'reddot'], ['lmg', 'holo'], ['sniper', 'scope', 0.7], ['sniper', 'scope', 1], ['pistol', 'iron'], ['pistol', 'reddot'], ['shotgun', 'holo'], ['aug', 'acog', 0.75]];
+if (process.env.EXTRA) for (const e of process.env.EXTRA.split(',')) { const [i, op, t] = e.split(':'); SHOTS.push([i, op, t ? +t : 1]); }      // EXTRA=scarh:iron,pkm:iron:0.8 (ek kareler)
 for (const [id, optic, t = 1] of SHOTS) {
   const name = `${dev}-${id}-${optic}-${Math.round(t * 100)}`;
   if (only && !only.test(name)) continue;

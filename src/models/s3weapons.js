@@ -12,74 +12,66 @@ const circ = (cx, cy, r, n = 14) => Array.from({ length: n }, (_, i) => [cx + Ma
 
 // Nişan alırken gözden nişan noktasına uzaklık (kamera uzayı, m): nişangâh türü başına SABİT → her silahta aynı ekran boyu (eski OPT_K / ADS_K karşılığı)
 export const ADS_DIST = { iron: 0.286, reddot: 0.36, rmr: 0.33, holo: 0.39, acog: 0.042, scope: 0.042 };
-// Nişanda silah kamerasının yakın düzlemi (kamera uzayı, m) = nişangâhın göze en yakın yüzünün hemen önü: arkadaki gövde / dipçik / el kesilir, kesik içi açık kalır
-// (arka yüzler çizilmez → alt ekranda koyu kütle yerine yalnız silahın üst yüzü + nişangâh görünür)
-export const ADS_NEAR = { iron: 0.27, reddot: 0.32, rmr: 0.25, holo: 0.335, acog: 0.03, scope: 0.03, pistol: 0.25 };   // tabanca: sürgü arkası + el görünür
-const GLASS_MAT = new THREE.MeshStandardMaterial({ color: '#9fd4ff', transparent: true, opacity: 0.16, roughness: 0.05, metalness: 0.3, depthWrite: false });
+// 12.126: ADS_NEAR (nişanda 25–33 cm yakın düzlem) kalktı → silah kesilmez; cam neredeyse görünmez (BattleBit: yalnız ince çerçeve + ışıyan retikül)
+const GLASS_MAT = new THREE.MeshStandardMaterial({ color: '#9fd4ff', transparent: true, opacity: 0.045, roughness: 0.05, metalness: 0.3, depthWrite: false });
 GLASS_MAT.userData.glass = true;
 
 // ── nişangâhlar (yb = monte yüzeyi, z = gövde merkezi). Döndürür: nişan noktası + uzaklık + HUD örtüsü; camlar k.glass'a ──
-// Red dot (Aimpoint T-2 tarzı): ince tüp, iki uçta halka, ön cam, eksende ışıyan nokta
+// Yuvarlak köşeli dikdörtgen (x, y düzleminde; r köşe yarıçapı, n köşe başına kenar)
+const rrect = (cx, cy, hw, hh, r, n = 3) => { const p = []; for (const [sx, sy, a0] of [[1, 1, 0], [-1, 1, 0.5], [-1, -1, 1], [1, -1, 1.5]]) for (let i = 0; i <= n; i++) { const a = (a0 + (i / n) * 0.5) * Math.PI; p.push([cx + sx * (hw - r) + Math.cos(a) * r, cy + sy * (hh - r) + Math.sin(a) * r]); } return p; };
+// İnce tel çerçeve (12.126, BattleBit): dış yuvarlak dikdörtgen − t kalınlıkta iç pencere, z0..z1 derinlik
+const hoop = (k, cx, cy, hw, hh, r, t, z0, z1, n = 3) => k.xsec(rrect(cx, cy, hw, hh, r, n), z0, z1, 'acc', { holes: [rrect(cx, cy, hw - t, hh - t, Math.max(0.0005, r - t), n)], c: 0 });
+// Red dot (12.126 sade): alçak monte + ince tüp (iki uçta 2,6 mm halka), eksende ışıyan nokta; ayar kulesi / topuz yok
 function redDot(k, yb, z) {
   const R = 0.0168, cy = yb + 0.03;
-  if (k.lod) { k.box([0.03, 0.019, 0.046], [0, yb + 0.0095, z], 'acc'); k.cyl(R + 0.002, R + 0.002, 0.042, [0, cy, z], 'acc', { seg: 6 }); return { sight: [0, cy, z], dist: ADS_DIST.reddot, near: ADS_NEAR.reddot, overlay: 'dot' }; }   // 3. şahıs: iki parça
-  k.box([0.03, 0.007, 0.046], [0, yb + 0.0035, z], 'acc', { c: 0.002 });                               // monte tabanı
-  k.box([0.016, 0.012, 0.03], [0, yb + 0.012, z], 'acc', { c: 0.002 });                                 // yükseltici
-  k.box([0.007, 0.012, 0.03], [0.018, yb + 0.006, z + 0.002], 'acc', { d: 1, c: 0.0015 });              // kelepçe somunu
-  k.cyl(R + 0.0018, R + 0.0018, 0.04, [0, cy, z], 'acc', { seg: 20, open: true });                       // ince gövde (içi açık)
-  k.ring(R + 0.0006, 0.0024, [0, cy, z + 0.021], 'acc', { ax: 'z', seg: 22, rs: 5 });                   // arka halka
-  k.ring(R + 0.0012, 0.003, [0, cy, z - 0.021], 'acc', { ax: 'z', seg: 22, rs: 5 });                    // ön göz kapağı halkası
-  k.box([0.011, 0.008, 0.012], [0, cy + R + 0.005, z], 'acc', { c: 0.002 });                            // üst ayar kulesi
-  k.cyl(0.0055, 0.0055, 0.008, [R + 0.005, cy, z + 0.002], 'acc', { ax: 'x', seg: 10 });                // yan parlaklık topuzu
-  k.box([0.0024, 0.0024, 0.0008], [0, cy, z - 0.0185], 'glow');                                          // ışıyan nokta (cam arkasında)
-  k.glass.push({ disc: R, pos: [0, cy, z - 0.0195] });
-  return { sight: [0, cy, z], dist: ADS_DIST.reddot, near: ADS_NEAR.reddot, overlay: 'dot' };
+  if (k.lod) { k.box([0.022, 0.012, 0.03], [0, yb + 0.006, z], 'acc'); k.cyl(R + 0.0013, R + 0.0013, 0.032, [0, cy, z], 'acc', { seg: 8, open: true }); return { sight: [0, cy, z], dist: ADS_DIST.reddot, overlay: 'dot' }; }   // 3. şahıs: iki parça
+  k.box([0.024, 0.006, 0.032], [0, yb + 0.003, z], 'acc', { c: 0.0015 });                               // alçak monte tabanı
+  k.box([0.01, cy - R - yb - 0.005, 0.02], [0, (yb + 0.005 + cy - R) / 2 + 0.0005, z], 'acc', { c: 0.001 });   // ince dikme (tüpün altına)
+  k.cyl(R + 0.0012, R + 0.0012, 0.03, [0, cy, z], 'acc', { seg: 24, open: true });                        // ince tüp (içi açık, cidar yok)
+  for (const dz of [0.015, -0.015]) k.ring(R + 0.0012, 0.0013, [0, cy, z + dz], 'acc', { ax: 'z', seg: 24, rs: 4 });   // iki uç halkası (önden bakınca 2,6 mm ince halka)
+  k.box([0.0024, 0.0024, 0.0008], [0, cy, z - 0.0135], 'glow');                                          // ışıyan nokta
+  k.glass.push({ disc: R, pos: [0, cy, z - 0.0145] });
+  return { sight: [0, cy, z], dist: ADS_DIST.reddot, overlay: 'dot' };
 }
-// Tabanca red dot (RMR): sürgü üstünde açık pencereli kısa gövde
+// Tabanca red dot (RMR, 12.126 sade): sürgü üstünde ince tel pencere (2 mm), alçak taban
 function rmr(k, yb, z) {
   const cy = yb + 0.0165;
-  if (k.lod) { k.box([0.028, 0.03, 0.034], [0, yb + 0.015, z], 'acc'); return { sight: [0, cy, z], dist: ADS_DIST.rmr, near: ADS_NEAR.rmr, overlay: 'dot' }; }
-  k.box([0.028, 0.005, 0.034], [0, yb + 0.0025, z], 'acc', { c: 0.0015 });
-  k.xsec([[-0.0145, yb + 0.004], [0.0145, yb + 0.004], [0.0145, yb + 0.016], [0.0105, yb + 0.03], [-0.0105, yb + 0.03], [-0.0145, yb + 0.016]], z + 0.006, z - 0.006, 'acc',
-    { c: 0.001, holes: [[[-0.0115, yb + 0.0065], [0.0115, yb + 0.0065], [0.0115, yb + 0.0165], [0.0082, yb + 0.0268], [-0.0082, yb + 0.0268], [-0.0115, yb + 0.0165]]] });
-  k.box([0.029, 0.008, 0.012], [0, yb + 0.008, z + 0.012], 'acc', { c: 0.0015 });                       // arka gövde (pil)
+  if (k.lod) { k.box([0.026, 0.006, 0.03], [0, yb + 0.003, z], 'acc'); k.box([0.026, 0.024, 0.006], [0, yb + 0.016, z - 0.004], 'acc'); return { sight: [0, cy, z], dist: ADS_DIST.rmr, overlay: 'dot' }; }
+  k.box([0.026, 0.0045, 0.03], [0, yb + 0.00225, z + 0.002], 'acc', { c: 0.001 });                     // alçak taban
+  hoop(k, 0, cy, 0.0135, 0.0125, 0.004, 0.002, z + 0.003, z - 0.004, 2);                                 // ince pencere çerçevesi (iç 23 × 21 mm)
   k.box([0.0022, 0.0022, 0.0008], [0, cy, z - 0.0045], 'glow');
-  k.glass.push({ rect: [0.022, 0.019], pos: [0, cy, z - 0.005] });
-  return { sight: [0, cy, z], dist: ADS_DIST.rmr, near: ADS_NEAR.rmr, overlay: 'dot' };
+  k.glass.push({ rect: [0.023, 0.021], pos: [0, cy, z - 0.005] });
+  return { sight: [0, cy, z], dist: ADS_DIST.rmr, overlay: 'dot' };
 }
-// Holografik (EOTech EXPS tarzı): açık dikdörtgen pencere (iki ince çerçeve), yan kanatlar, ön pil yuvası, camda ışıyan halka + nokta
+// Holografik (12.126, BattleBit tarzı): tek ince tel çerçeve (yuvarlak köşeli, 2,5 mm), küçük alçak taban, kaput / yan duvar yok; camda ışıyan halka + nokta
 function holo(k, yb, z) {
-  const cy = yb + 0.0335, win = [[-0.019, yb + 0.014], [0.019, yb + 0.014], [0.019, yb + 0.053], [-0.019, yb + 0.053]];
-  if (k.lod) { k.box([0.046, 0.014, 0.096], [0, yb + 0.007, z], 'acc'); k.box([0.052, 0.046, 0.076], [0, yb + 0.037, z - 0.002], 'acc'); return { sight: [0, cy, z], dist: ADS_DIST.holo, near: ADS_NEAR.holo, overlay: 'holo' }; }
-  const frame = [[-0.026, yb + 0.01], [0.026, yb + 0.01], [0.026, yb + 0.052], [0.02, yb + 0.06], [-0.02, yb + 0.06], [-0.026, yb + 0.052]];
-  k.box([0.046, 0.014, 0.096], [0, yb + 0.007, z], 'acc', { c: 0.003 });                               // taban
-  for (const [z0, z1] of [[z + 0.042, z + 0.03], [z - 0.032, z - 0.046]]) k.xsec(frame, z0, z1, 'acc', { holes: [win], c: 0.0015 });
-  for (const sx of [-1, 1]) k.box([0.0035, 0.034, 0.064], [sx * 0.0235, yb + 0.032, z - 0.002], 'acc', { c: 0.001, d: 1, sh: 0.9 });   // ince yan duvarlar
-  k.box([0.034, 0.004, 0.064], [0, yb + 0.058, z - 0.002], 'acc', { c: 0.001, d: 1 });                 // ince tavan
-  k.box([0.036, 0.016, 0.03], [0, yb + 0.012, z - 0.064], 'acc', { c: 0.004 });                         // pil yuvası
-  for (const x of [-0.01, 0.01]) k.box([0.008, 0.005, 0.006], [x, yb + 0.016, z + 0.05], 'acc', { d: 1, sh: 0.6 });   // düğmeler
-  k.ring(0.0145, 0.0005, [0, cy, z - 0.031], 'glow', { ax: 'z', seg: 32, rs: 3, d: 1 });                // ışıyan halka: HUD #holo halkasıyla aynı ekran boyu (5,07vh)
-  k.box([0.0018, 0.0018, 0.0006], [0, cy, z - 0.031], 'glow');                                           // merkez nokta
-  k.glass.push({ rect: [0.038, 0.039], pos: [0, cy, z - 0.0315] });
-  return { sight: [0, cy, z], dist: ADS_DIST.holo, near: ADS_NEAR.holo, overlay: 'holo' };
+  const cy = yb + 0.0335, zf = z - 0.031, hw = 0.029, hh = 0.025;                                         // çerçeve: 58 × 50 mm dış, alt kenarı yb + 0,0085
+  if (k.lod) { k.box([0.028, 0.009, 0.05], [0, yb + 0.0045, z - 0.016], 'acc'); hoop(k, 0, cy, hw, hh, 0.008, 0.003, zf + 0.004, zf - 0.004, 1); return { sight: [0, cy, z], dist: ADS_DIST.holo, overlay: 'holo' }; }
+  k.box([0.028, 0.009, 0.05], [0, yb + 0.0045, z - 0.016], 'acc', { c: 0.002 });                        // küçük alçak taban (çerçeveden göze doğru)
+  k.box([0.016, 0.004, 0.012], [0, yb + 0.011, z - 0.005], 'acc', { c: 0.001, sh: 0.8 });               // arka düğme şeridi (alçak)
+  hoop(k, 0, cy, hw, hh, 0.011, 0.0025, zf + 0.004, zf - 0.004, 4);                                      // ince tel çerçeve (iç 53 × 45 mm, yuvarlak köşe)
+  k.ring(0.0145, 0.0005, [0, cy, zf], 'glow', { ax: 'z', seg: 32, rs: 3, d: 1 });                        // ışıyan halka: HUD #holo halkasıyla aynı ekran boyu (5,07vh)
+  k.box([0.0018, 0.0018, 0.0006], [0, cy, zf], 'glow');                                                   // merkez nokta
+  k.glass.push({ rect: [0.052, 0.044], pos: [0, cy, zf - 0.0005] });
+  return { sight: [0, cy, z], dist: ADS_DIST.holo, overlay: 'holo' };
 }
 // ACOG 3× (TA31 tarzı): dövme gövde, objektif / göz çanı, üstte fiber kanalı, göz merceğinde ışıyan şevron (HUD dürbün örtüsüne geçmeden önce de görünür)
 function acog(k, yb, z) {
   const cy = yb + 0.034, ze = z + 0.066;
-  if (k.lod) { k.box([0.034, 0.024, 0.08], [0, yb + 0.012, z], 'acc'); k.cyl(0.024, 0.02, 0.17, [0, cy, z - 0.012], 'acc', { seg: 6 }); return { sight: [0, cy, ze], dist: ADS_DIST.acog, near: ADS_NEAR.acog, overlay: 'scope' }; }
+  if (k.lod) { k.box([0.034, 0.024, 0.08], [0, yb + 0.012, z], 'acc'); k.cyl(0.0205, 0.017, 0.17, [0, cy, z - 0.012], 'acc', { seg: 6 }); return { sight: [0, cy, ze], dist: ADS_DIST.acog, overlay: 'scope' }; }
   k.box([0.034, 0.012, 0.08], [0, yb + 0.006, z], 'acc', { c: 0.003 });
   k.box([0.016, 0.0035, 0.05], [0, yb + 0.0132, z], 'acc', { c: 0.001 });                             // yükseltici (tüp içine girmez: cam arkasından görünmesin)
-  k.cyl(0.0195, 0.0195, 0.08, [0, cy, z - 0.004], 'acc', { seg: 16 });                                  // gövde
-  k.cyl(0.0245, 0.0195, 0.026, [0, cy, z - 0.057], 'acc', { seg: 18 });                                 // objektif konisi
-  k.cyl(0.0245, 0.0245, 0.016, [0, cy, z - 0.078], 'acc', { seg: 18, sh: 0.9 });                        // objektif çanı
-  k.cyl(0.0175, 0.021, 0.03, [0, cy, z + 0.05], 'acc', { seg: 18 });                                    // göz çanı
-  k.box([0.012, 0.01, 0.07], [0, cy + 0.024, z - 0.01], 'acc', { c: 0.002 });                           // fiber kanalı (iç tüp çeperinin dışında)
-  k.box([0.014, 0.012, 0.016], [0, cy + 0.0255, z - 0.002], 'acc', { c: 0.002, d: 1 });                 // yükseklik kapağı
-  k.box([0.012, 0.014, 0.016], [0.0255, cy, z - 0.002], 'acc', { c: 0.002, d: 1 });                     // yan kapak
-  k.cyl(0.022, 0.022, 0.002, [0, cy, z - 0.0855], 'lens', { seg: 18 });                                 // ön mercek
-  k.cyl(0.0198, 0.0198, 0.002, [0, cy, ze - 0.001], 'lens', { seg: 18 });                               // göz merceği
+  k.cyl(0.0165, 0.0165, 0.08, [0, cy, z - 0.004], 'acc', { seg: 16 });                                  // gövde (12.126: 39 → 33 mm)
+  k.cyl(0.0205, 0.0165, 0.026, [0, cy, z - 0.057], 'acc', { seg: 18 });                                 // objektif konisi
+  k.cyl(0.0205, 0.0205, 0.016, [0, cy, z - 0.078], 'acc', { seg: 18, sh: 0.9 });                        // objektif çanı
+  k.cyl(0.0155, 0.018, 0.03, [0, cy, z + 0.05], 'acc', { seg: 18 });                                    // göz çanı
+  k.box([0.01, 0.008, 0.07], [0, cy + 0.0205, z - 0.01], 'acc', { c: 0.002 });                           // fiber kanalı (iç tüp çeperinin dışında)
+  k.box([0.012, 0.01, 0.014], [0, cy + 0.021, z - 0.002], 'acc', { c: 0.002, d: 1 });                 // yükseklik kapağı
+  k.box([0.01, 0.012, 0.014], [0.021, cy, z - 0.002], 'acc', { c: 0.002, d: 1 });                     // yan kapak
+  k.cyl(0.0185, 0.0185, 0.002, [0, cy, z - 0.0855], 'lens', { seg: 18 });                                 // ön mercek
+  k.cyl(0.0168, 0.0168, 0.002, [0, cy, ze - 0.001], 'lens', { seg: 18 });                               // göz merceği
   for (const s of [-1, 1]) k.box([0.0042, 0.0007, 0.0006], [s * 0.0013, cy - 0.00182, ze + 0.0004], 'glow', { rot: [0, 0, -s * 0.9] });   // şevron: çizginin üst kenarının tepesi = nişan noktası (eksende)
-  return { sight: [0, cy, ze], dist: ADS_DIST.acog, near: ADS_NEAR.acog, overlay: 'scope' };
+  return { sight: [0, cy, ze], dist: ADS_DIST.acog, overlay: 'scope' };
 }
 // Seçilen nişangâhı kur (iron → null: silah kendi demir nişanını kurar)
 function optic(k, o, yb, z, pistol = false) {
@@ -92,8 +84,8 @@ function optic(k, o, yb, z, pistol = false) {
 function flipRear(k, x, yRail, z, line, up, R = 0.0068) {
   k.box([0.024, 0.01, 0.03], [x, yRail + 0.005, z], 'acc', { c: 0.002 });
   if (!up) { k.box([0.022, 0.006, 0.026], [x, yRail + 0.013, z + 0.004], 'acc', { c: 0.002, sh: 0.9 }); return null; }
-  for (const sx of [-1, 1]) k.box([0.004, 0.026, 0.016], [x + sx * 0.0135, line - 0.002, z], 'acc', { c: 0.001 });   // koruyucu kulaklar
-  k.xsec([[-0.0115, yRail + 0.008], [0.0115, yRail + 0.008], [0.0115, line + 0.0095], [0.007, line + 0.0145], [-0.007, line + 0.0145], [-0.0115, line + 0.0095]], z + 0.003, z - 0.003, 'acc',
+  for (const sx of [-1, 1]) k.box([0.003, 0.024, 0.012], [x + sx * 0.0115, line - 0.003, z], 'acc', { c: 0.001 });   // koruyucu kulaklar (12.126 ince)
+  k.xsec([[-0.0095, yRail + 0.008], [0.0095, yRail + 0.008], [0.0095, line + 0.0085], [0.0055, line + 0.0115], [-0.0055, line + 0.0115], [-0.0095, line + 0.0085]], z + 0.002, z - 0.002, 'acc',
     { holes: [circ(x, line, R, 16)], c: 0.0008 });
   return [x, line, z];
 }
@@ -105,7 +97,7 @@ function done(k, mat, meta, sg) {
     const geos = k.glass.map((c) => { const gg = c.disc ? new THREE.CircleGeometry(c.disc, 20) : new THREE.PlaneGeometry(c.rect[0], c.rect[1]); gg.translate(...c.pos); return gg; });
     const mesh = new THREE.Mesh(geos.length > 1 ? mergeAll(geos) : geos[0], GLASS_MAT); mesh.renderOrder = 2; g.add(mesh);
   }
-  if (sg) { g.userData.sight = sg.sight; g.userData.pivot = sg.pivot; g.userData.dist = sg.dist; g.userData.near = sg.near; g.userData.overlay = sg.overlay; }
+  if (sg) { g.userData.sight = sg.sight; g.userData.pivot = sg.pivot; g.userData.dist = sg.dist; g.userData.overlay = sg.overlay; }
   return g;
 }
 function mergeAll(geos) { const pos = []; for (const g of geos) { const n = g.index ? g.toNonIndexed() : g; pos.push(...n.attributes.position.array); } const r = new THREE.BufferGeometry(); r.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); r.computeVertexNormals(); return r; }
@@ -130,7 +122,7 @@ export function ak47(mat = skinMaterial('ak47'), lod = false, o = 'iron') {
   // arka gez bloğu + U çentikli yaprak (çentik dibi = arpacık tepesi = nişan çizgisi 0,105)
   k.box([0.032, 0.026, 0.056], [0, 0.066, -0.282], 'metal', { c: 0.004 });
   k.prof([[-0.262, 0.079], [-0.31, 0.079], [-0.31, 0.087], [-0.268, 0.091]], 0.024, 'metal', { c: 0.002 });
-  k.xsec([[-0.0105, 0.089], [0.0105, 0.089], [0.0105, 0.1105], [0.003, 0.1105], [0.003, 0.105], [-0.003, 0.105], [-0.003, 0.1105], [-0.0105, 0.1105]], -0.268, -0.274, 'metal', { c: 0 });
+  k.xsec([[-0.009, 0.089], [0.009, 0.089], [0.009, 0.1105], [0.003, 0.1105], [0.003, 0.105], [-0.003, 0.105], [-0.003, 0.1105], [-0.009, 0.1105]], -0.269, -0.273, 'metal', { c: 0 });
   // gaz borusu + üst / alt tutamaç (ahşap)
   k.cyl(0.0105, 0.0105, 0.3, [0, 0.064, -0.41], 'metal', { seg: 10 });
   k.xsec([[-0.022, 0.046], [0.022, 0.046], [0.022, 0.068], [0.016, 0.08], [0.006, 0.085], [-0.006, 0.085], [-0.016, 0.08], [-0.022, 0.068]], -0.31, -0.462, 'furn', { c: 0.005 });
@@ -142,8 +134,8 @@ export function ak47(mat = skinMaterial('ak47'), lod = false, o = 'iron') {
   k.prof([[-0.545, 0.075], [-0.588, 0.075], [-0.592, 0.06], [-0.585, -0.002], [-0.548, -0.002], [-0.545, 0.03]], 0.03, 'metal', { c: 0.004 });
   k.box([0.016, 0.02, 0.026], [0, -0.012, -0.572], 'metal', { d: 1, c: 0.002 });                      // süngü tırnağı
   k.prof([[-0.632, -0.006], [-0.674, -0.006], [-0.674, 0.028], [-0.664, 0.034], [-0.66, 0.084], [-0.645, 0.084], [-0.642, 0.034], [-0.632, 0.028]], 0.024, 'metal', { c: 0.003 });
-  for (const sx of [-1, 1]) k.box([0.004, 0.03, 0.014], [sx * 0.0095, 0.094, -0.653], 'metal', { c: 0.001 });   // kule kulakları
-  k.box([0.004, 0.021, 0.004], [0, 0.0945, -0.653], 'metal', { sh: 0.8 });                            // arpacık (tepe 0,105)
+  for (const sx of [-1, 1]) k.box([0.003, 0.03, 0.014], [sx * 0.0095, 0.094, -0.653], 'metal', { c: 0.001 });   // kule kulakları
+  k.box([0.003, 0.021, 0.003], [0, 0.0945, -0.653], 'metal', { sh: 0.8 });                            // arpacık (tepe 0,105)
   k.cyl(0.003, 0.003, 0.2, [0, -0.007, -0.565], 'metal', { seg: 6, d: 1 });
   k.cyl(0.0135, 0.0135, 0.042, [0, 0.012, -0.729], 'metal', { seg: 10, sh: 0.8 });
   k.box([0.02, 0.012, 0.028], [0, 0.024, -0.734], 'metal', { d: 1, sh: 0.45, rot: [-0.25, 0, 0] });   // eğik fren kesiği
@@ -163,7 +155,7 @@ export function ak47(mat = skinMaterial('ak47'), lod = false, o = 'iron') {
     k.box([0.008, 0.03, 0.09], [-0.029, 0.05, -0.1], 'acc', { c: 0.002 });                             // sol yan ray kelepçesi
     k.box([0.06, 0.006, 0.07], [0, 0.095, -0.1], 'acc', { c: 0.002 });                                // köprü
     sg = optic(k, o, 0.098, -0.1);
-  } else sg = { sight: [0, 0.105, -0.271], pivot: [0, 0.105, -0.653], dist: ADS_DIST.iron, near: ADS_NEAR.iron, overlay: 'none' };
+  } else sg = { sight: [0, 0.105, -0.271], pivot: [0, 0.105, -0.653], dist: 0.36, overlay: 'none' };      // AK gezi gövde ortasında: göz 8 cm geride (12.126), toz kapağı alt ekranı daha az doldurur
   // kavisli şarjör (grup): Bézier kenarlar + yan kaburgalar + taban plakası
   const R = bez([-0.083, -0.016], [-0.095, -0.17], [-0.19, -0.29], lod ? 3 : 7), F = bez([-0.168, -0.016], [-0.185, -0.15], [-0.27, -0.255], lod ? 3 : 7);
   k.prof([...R, ...[...F].reverse()], 0.036, 'body', { c: 0.004, g: 'mag', sh: 0.95 });
@@ -211,15 +203,15 @@ export function m4a1(mat = skinMaterial('m4a1'), lod = false, o = 'iron') {
   k.cyl(0.0095, 0.0095, 0.13, [0, 0.05, -0.6], 'metal', { seg: 10 });
   k.prof([[-0.545, 0.032], [-0.585, 0.032], [-0.585, 0.066], [-0.574, 0.072], [-0.571, iron ? 0.088 : 0.08], [-0.558, iron ? 0.088 : 0.08], [-0.555, 0.072], [-0.545, 0.066]], 0.018, 'metal', { c: 0.002 });
   if (iron) {
-    for (const sx of [-1, 1]) k.box([0.004, 0.032, 0.012], [sx * 0.0105, 0.096, -0.565], 'metal', { c: 0.001 });   // kule kulakları (tepe 0,112: arpacığın altında kalır, arpacık seçilsin)
-    k.box([0.004, 0.032, 0.004], [0, 0.102, -0.565], 'metal', { sh: 0.85 });                          // arpacık (tepe 0,118)
+    for (const sx of [-1, 1]) k.box([0.003, 0.032, 0.012], [sx * 0.0105, 0.096, -0.565], 'metal', { c: 0.001 });   // kule kulakları (tepe 0,112: arpacığın altında kalır, arpacık seçilsin)
+    k.box([0.003, 0.032, 0.003], [0, 0.102, -0.565], 'metal', { sh: 0.85 });                          // arpacık (tepe 0,118)
   }
   k.box([0.024, 0.012, 0.03], [0, 0.03, -0.565], 'metal', { d: 1, c: 0.002 });                       // süngü tırnağı
   k.cyl(0.0125, 0.0125, 0.05, [0, 0.05, -0.685], 'metal', { seg: 10, sh: 0.85 });
   if (!lod) for (let i = 0; i < 4; i++) k.box([0.0035, 0.026, 0.004], [Math.cos(i * 1.57) * 0.012, 0.05 + Math.sin(i * 1.57) * 0.012, -0.688], 'metal', { sh: 0.3, rot: [0, 0, i * 1.57] });
   // nişangâh: demirde katlanır arka gez açık, optikte yatık
   const rear = flipRear(k, 0, 0.096, 0.006, 0.118, iron);
-  const sg = iron ? { sight: rear, pivot: [0, 0.118, -0.565], dist: ADS_DIST.iron, near: ADS_NEAR.iron, overlay: 'none' } : optic(k, o, 0.096, -0.14);
+  const sg = iron ? { sight: rear, pivot: [0, 0.118, -0.565], dist: ADS_DIST.iron, overlay: 'none' } : optic(k, o, 0.096, -0.14);
   // STANAG şarjör (grup): hafif kavis + uzun yan oluklar + taban
   const R = bez([-0.078, -0.04], [-0.08, -0.14], [-0.098, -0.236], lod ? 2 : 5), F = bez([-0.15, -0.04], [-0.156, -0.13], [-0.178, -0.222], lod ? 2 : 5);
   k.prof([...R, ...[...F].reverse()], 0.034, 'body', { c: 0.003, g: 'mag', sh: 0.9 });
@@ -241,7 +233,7 @@ export function pistol(mat = skinMaterial('pistol'), lod = false, o = 'iron') {
   // demir nişan: U çentikli gez + arpacık (tritium noktaları); çentik dibi = arpacık tepesi = 0,086
   k.xsec([[-0.01, 0.0785], [0.01, 0.0785], [0.01, 0.0918], [0.0028, 0.0918], [0.0028, 0.086], [-0.0028, 0.086], [-0.0028, 0.0918], [-0.01, 0.0918]], 0.05, 0.042, 'acc', { c: 0 });
   k.box([0.004, 0.0075, 0.007], [0, 0.08225, -0.158], 'acc', { c: 0.0006 });                        // arpacık
-  if (!lod) { for (const sx of [-1, 1]) k.box([0.0016, 0.0016, 0.001], [sx * 0.0062, 0.0888, 0.0415], 'glow', { sh: 0.6 }); k.box([0.0016, 0.0016, 0.001], [0, 0.0835, -0.154], 'glow', { sh: 0.6 }); }
+  if (!lod && o !== 'reddot') { for (const sx of [-1, 1]) k.box([0.0016, 0.0016, 0.001], [sx * 0.0062, 0.0888, 0.0415], 'glow', { sh: 0.6 }); k.box([0.0016, 0.0016, 0.001], [0, 0.0835, -0.154], 'glow', { sh: 0.6 }); }      // RMR'de tritium yok (ince pencereden ön nokta görünüp retikülü karıştırıyordu)
   // gövde (polimer): sürgü altı + aksesuar rayı, kabza (benekli + kuyruk), tetik korkuluğu, tetik, sürgü kilidi
   k.prof([[0.052, 0.031], [-0.168, 0.031], [-0.168, 0.012], [-0.03, 0.01], [-0.004, 0.004], [0.052, 0.004]], 0.03, 'furn', { c: 0.003 });
   for (let i = 0; i < 2; i++) k.box([0.031, 0.006, 0.008], [0, 0.016, -0.12 - i * 0.022], 'furn', { d: 1, sh: 0.3 });
@@ -251,7 +243,7 @@ export function pistol(mat = skinMaterial('pistol'), lod = false, o = 'iron') {
   k.prof([[-0.012, 0.006], [-0.02, 0.006], [-0.024, -0.014], [-0.018, -0.02], [-0.013, -0.01]], 0.006, 'metal', { d: 1 });
   k.box([0.003, 0.006, 0.02], [-0.0162, 0.026, -0.03], 'metal', { d: 1 });                           // sürgü kilidi
   k.box([0.003, 0.006, 0.008], [0.0152, 0.024, -0.06], 'metal', { d: 1 });                           // söküm kolu
-  const sg = o === 'reddot' ? optic(k, o, 0.0785, 0.012, true) : { sight: [0, 0.086, 0.046], pivot: [0, 0.086, -0.158], dist: ADS_DIST.iron, near: ADS_NEAR.pistol, overlay: 'none' };
+  const sg = o === 'reddot' ? optic(k, o, 0.0785, 0.012, true) : { sight: [0, 0.086, 0.046], pivot: [0, 0.086, -0.158], dist: ADS_DIST.iron, overlay: 'none' };
   // şarjör (grup): kabza içinde gövde + dışta taban plakası
   k.prof([[0.012, 0.0], [0.048, 0.002], [0.084, -0.11], [0.046, -0.114]], 0.024, 'acc', { g: 'mag' });
   k.prof([[0.042, -0.117], [0.09, -0.112], [0.094, -0.13], [0.04, -0.134]], 0.031, 'furn', { c: 0.003, g: 'mag', sh: 0.85 });
@@ -297,7 +289,7 @@ export function sniper(mat = skinMaterial('sniper'), lod = false) {
   k.box([0.03, 0.007, 0.075], [0, -0.038, -0.11], 'metal', { g: 'mag', c: 0.002 });
   k.box([0.026, 0.05, 0.07], [0, -0.01, -0.11], 'metal', { g: 'mag' });
   return done(k, mat, { name: 'M24 Keskin', hold: 'rifle', gripR: [0, -0.03, 0.054], gripL: [0, -0.03, -0.36], muzzle: [0, 0.058, -0.93], length: 1.3, boltPivot: 0.058 },
-    { sight: [0, 0.142, 0.159], dist: ADS_DIST.scope, near: ADS_NEAR.scope, overlay: 'scope' });
+    { sight: [0, 0.142, 0.159], dist: ADS_DIST.scope, overlay: 'scope' });
 }
 
 // ───────────────────────── Pompalı (Remington 870 tarzı, yeni) ─────────────────────────
@@ -328,14 +320,14 @@ export function shotgun(mat = skinMaterial('shotgun'), lod = false, o = 'iron') 
   const iron = !o || o === 'iron', line = 0.078;
   if (iron) {
     k.box([0.022, 0.008, 0.026], [0, 0.065, 0.0], 'acc', { c: 0.002 });
-    for (const sx of [-1, 1]) k.box([0.004, 0.022, 0.014], [sx * 0.0125, 0.077, 0.0], 'acc', { c: 0.001 });
+    for (const sx of [-1, 1]) k.box([0.003, 0.022, 0.014], [sx * 0.0125, 0.077, 0.0], 'acc', { c: 0.001 });
     k.xsec([[-0.0105, 0.068], [0.0105, 0.068], [0.0105, line + 0.009], [0.006, line + 0.0135], [-0.006, line + 0.0135], [-0.0105, line + 0.009]], 0.003, -0.003, 'acc', { holes: [circ(0, line, 0.0058, 16)], c: 0.0008 });
     k.box([0.016, 0.006, 0.022], [0, 0.061, -0.64], 'metal', { c: 0.001 });
     for (const sx of [-1, 1]) k.box([0.0035, 0.02, 0.012], [sx * 0.0072, 0.07, -0.64], 'metal', { c: 0.0008 });
-    k.box([0.0045, 0.018, 0.0045], [0, 0.069, -0.64], 'metal', { sh: 0.9 });                          // arpacık (tepe 0,078)
+    k.box([0.003, 0.018, 0.003], [0, 0.069, -0.64], 'metal', { sh: 0.9 });                          // arpacık (tepe 0,078)
     k.box([0.002, 0.002, 0.001], [0, 0.0765, -0.6373], 'glow', { d: 1, sh: 0.8 });                     // fiber uç
   } else k.box([0.006, 0.006, 0.006], [0, 0.061, -0.645], 'metal');
-  const sg = iron ? { sight: [0, line, 0.0], pivot: [0, line, -0.64], dist: ADS_DIST.iron, near: ADS_NEAR.iron, overlay: 'none' } : optic(k, o, 0.069, -0.06);
+  const sg = iron ? { sight: [0, line, 0.0], pivot: [0, line, -0.64], dist: ADS_DIST.iron, overlay: 'none' } : optic(k, o, 0.069, -0.06);
   // tabanca kabzalı dipçik + benekli kabza + dipçik pedi, tetik korkuluğu + tetik, emniyet düğmesi
   k.prof([[0.024, 0.052], [0.11, 0.046], [0.39, 0.03], [0.395, 0.03], [0.395, -0.096], [0.385, -0.1], [0.3, -0.078], [0.17, -0.04], [0.11, -0.03], [0.024, -0.018]], 0.042, 'furn', { c: 0.007 });
   k.prof([[0.395, 0.032], [0.414, 0.032], [0.414, -0.1], [0.395, -0.1]], 0.046, 'acc', { c: 0.004, pat: 1 });

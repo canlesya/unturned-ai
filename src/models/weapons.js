@@ -8,7 +8,7 @@ import { MORE, MOUNT_MORE } from './weapons_more.js';
 import { S3R } from './s3rifles.js';   // s3rifles
 import { finishWeapon } from './weaponFinish.js';
 import { PAINTBALL, MOUNT_PB } from './paintball.js';
-import { S3W, s3Optic, ADS_DIST, ADS_NEAR } from './s3weapons.js';
+import { S3W, s3Optic, ADS_DIST } from './s3weapons.js';
 import { skinMaterial } from './skins.js';
 import { S3SMG } from './s3smg.js';                                    // s3smg
 
@@ -82,7 +82,7 @@ function attachSight(g, id, optic, lod) {
     const sc = m0.scale || 1;
     ironRear(g, 0, m0.y, m0.rearZ, m0.front, sc);
     if (!m0.ownFront) ironFront(g, 0, m0.frontZ, m0.frontBase, m0.front);
-    return { sight: [0, m0.front, m0.rearZ], dist: ADS_DIST.iron, near: g.userData.hold === 'pistol' ? ADS_NEAR.pistol : ADS_NEAR.iron, overlay: 'none' };
+    return { sight: [0, m0.front, m0.rearZ], dist: ADS_DIST.iron, overlay: 'none' };
   }
   const y = mountY(g, m0, m0.z) + (m0.lift || 0);                                          // lift: üst kapak/besleme tepsisi için ek yükseltme
   const o = s3Optic(optic, y, m0.z, lod, g.userData.hold === 'pistol');
@@ -276,7 +276,7 @@ export function createWeapon(id, optic = 'reddot', lod = false, skin = 'std') {
   g.userData.id = id;
   g.userData.optic = o;
   const sg = o && o !== 'scope' ? attachSight(g, id, o, lod) : null;
-  if (sg) { g.userData.sight = sg.sight; g.userData.dist = sg.dist; g.userData.near = sg.near; g.userData.overlay = sg.overlay; }
+  if (sg) { g.userData.sight = sg.sight; g.userData.dist = sg.dist; g.userData.overlay = sg.overlay; }
   if (sg && o === 'iron') {                                              // demir: nişan sallanması / tepmesi arpacık tepesi çevresinde (arpacık ortada kalır, gez oynar)
     let fz = MOUNT[id].frontZ; g.updateMatrixWorld(true);
     g.traverse((n) => { if (n.userData.frontSight) { const b = new THREE.Box3().setFromObject(n); if (!b.isEmpty()) fz = Math.min(fz ?? 0, b.min.z); } });

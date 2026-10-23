@@ -291,9 +291,9 @@ export class ViewModel {
       _w.copy(U.dir0).lerp(U.dirA, kk).normalize();
       sl.position.copy(_w).multiplyScalar(U.len / 2 + U.off).add(_e.copy(U.lat).lerp(U.latA, kk)); sl.quaternion.setFromUnitVectors(Z, _w);
     }
-    // tam nişanda 12.123 kuralı aynen: destek kolu kutusu (yakın düzlemin önünde alt ekranda mavi levha gibi duruyordu) > 0,85'te gizli, eldiven kundakta kalır; tüfekte tetik eli gizli (tabancada görünür)
-    const slL = this.handL?.userData.sleeve; if (slL) slL.visible = !(u.near && ads > 0.85 && !st.adsLow && !ra);
-    if (this.handR && !this.zh && !isMelee) this.handR.visible = !(u.near && u.hold !== 'pistol' && ads > 0.85 && !st.adsLow);
+    // tam nişan (12.126): yakın düzlem kesmesi kalktı → destek kolu sol-altta görünür (BattleBit gibi, armclip 0 mm); tüfekte tetik eli ads > 0,85'te gizli (kabza arkası göz altında, tabancada görünür)
+    const slL0 = this.handL?.userData.sleeve; if (slL0) slL0.visible = true;
+    if (this.handR && !this.zh && !isMelee) this.handR.visible = !(!u.noAds && u.sight && u.hold !== 'pistol' && ads > 0.85 && !st.adsLow);
     // ── yakın dövüş savurması ──
     if (isMelee && s.swing) {
       const sw = s.swing;
@@ -366,7 +366,7 @@ export class ViewModel {
     }
     // nişan alırken silah kamerasının görüş açısı genişler: silah/nişangâh ekranda küçülür, rakip örtülmez (dürbünsüz silahlarda)
     const fovT = 54 + (ADS_FOV - 54) * (u.noAds ? 0 : ads);
-    const nearT = u.noAds || !u.near || st.adsLow ? 0.01 : lerp(0.01, u.near, clamp((ads - 0.55) / 0.45, 0, 1) ** 2);      // nişanda yakın düzlem (nişangâhın hemen önü): göze yakın dipçik / kol / gövde kesilir; geçişin sonunda devreye girer
+    const nearT = 0.01;      // yakın düzlem hep 1 cm (12.126): nişanda kesme yok → dipçik / kabza / gövde arkası alt-ortada bütün kütle (eski ADS_NEAR 25–33 cm'de silahı dilimliyordu)
     if (Math.abs(this.cam.fov - fovT) > 0.01 || Math.abs(this.cam.near - nearT) > 1e-4) { this.cam.fov = fovT; this.cam.near = nearT; this.cam.updateProjectionMatrix(); }
     // dokunmatik: dürbünsüz nişanda (demir / red dot / holo) silah modeli yarı saydamlaşır. Küçük ekranda nişangâh gövdesi merkezin
     // %36-50'sini (3° içinde, bkz. adsview.mjs) kapatıyor, hedef tamamen arkasında kalıyordu; nişangâh HUD'da (#rdot / #holo / nokta) net kalır
