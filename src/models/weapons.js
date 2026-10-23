@@ -5,6 +5,7 @@ import { mat } from '../core/geo.js';
 import { resolveOptic, WSTATS, SKIN_IDS } from '../game/stats.js';
 import { M, finish, railTicks, magGroup, frontSight, magRibs, studs, gripTexture, sling, vents } from './weapon_util.js';
 import { MORE, MOUNT_MORE } from './weapons_more.js';
+import { S3R } from './s3rifles.js';   // s3rifles
 import { finishWeapon } from './weaponFinish.js';
 import { PAINTBALL, MOUNT_PB } from './paintball.js';
 import { S3W, s3Optic, ADS_DIST, ADS_NEAR } from './s3weapons.js';
@@ -247,6 +248,7 @@ function grenade() {
 export const WEAPONS = {
   ...S3W, mp5, lmg, rpg, knife, grenade, ...MORE, ...PAINTBALL,
 };
+Object.assign(S3W, S3R); Object.assign(WEAPONS, S3R);   // s3rifles: S3 tüfek / DMR / pompalı / M79 (eski modellerin yerine)
 
 // Görüntüleyici alt yazısı: WSTATS açıklamasından
 export const WEAPON_INFO = new Proxy({}, { get: (_, id) => WSTATS[id]?.desc || '' });

@@ -8,13 +8,14 @@
 //   HUD — HUD retikülü (#rdot / #holo / dürbün çizgileri / telefonda #idot), silah gizli: kırmızı / beyaz piksellerin merkezi
 import { chromium, devices } from 'playwright';
 import { mkdirSync, writeFileSync } from 'fs';
+import { SKIN_WEAPONS } from '../src/game/stats.js';
 const base = process.argv[2] || 'http://127.0.0.1:5281', LIMIT = +(process.env.LIMIT || 2), OUT = process.env.OUT || '';
 const only = process.env.ONLY ? new RegExp(process.env.ONLY) : null;
 if (OUT) mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch({ headless: false, args: ['--use-angle=metal', '--ignore-gpu-blocklist'] });
 const strip = (d) => { const { defaultBrowserType, ...r } = d; return r; };
 const rows = [], errs = [];
-const SKINNED = new Set(['ak47', 'm4a1', 'pistol', 'sniper', 'shotgun']);          // S3 modelli (3B retikül her nişangâhta)
+const SKINNED = new Set(SKIN_WEAPONS);                                            // S3 modelli (3B retikül her nişangâhta)
 
 // Görüntü çözümleme (tarayıcıda): PNG → piksel dizisi → ölçüm
 const ANALYZE = async ({ b64, kind, mode }) => {
