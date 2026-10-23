@@ -1206,6 +1206,7 @@ export class Game {
     this.pickups.draw();
     const now = performance.now(), dt = Math.min(0.1, (now - (this._rT || now)) / 1000); this._rT = now;
     this._vmLightUpdate(dt);
+    if (this.playerSoldier.alive && !this.showSelf) this.player.vm.renderPip(r, this.scene, this.camera);      // 12.128: ACOG merceği (PiP) ana çizimden önce, gölgesiz
     const post = this.post?.on ? this.post : null;
     if (post) post.begin();
     r.clear();

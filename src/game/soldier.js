@@ -127,7 +127,7 @@ export class Soldier {
   skinOf(id) { return (this.skins && this.skins[id]) || 'std'; }
   get opticDef() { const o = this.opticId; return o ? OPTICS[o] : null; }
   get zoomNow() { const st = this.stat; if (!st.zoom) return 0; return this.opticDef && !st.ball ? this.opticDef.zoom : st.zoom; }      // paintball: nişangâhtan bağımsız hafif yakınlaştırma
-  get overlay() { return this.stat.ball ? 'pbring' : this.opticDef ? this.opticDef.overlay : 'none'; }          // paintball: HUD'da halka nişangâh (#pbret)
+  get overlay() { return this.stat.ball ? 'pbring' : this.opticDef ? (this.lensHud && this.opticDef.overlay === 'lens' ? 'scope' : this.opticDef.overlay) : 'none'; }          // paintball: HUD'da halka nişangâh (#pbret)
 
   setClass(cls) {
     this.cls = cls;
@@ -624,7 +624,7 @@ export class Soldier {
     }
     // hedef nişan geçişi
     const wantAds = this.ads && this.reloadT <= 0 && this.switchT <= 0 && this.zoomNow && !this.sprinting;
-    this.adsT = clamp(this.adsT + (wantAds ? 1 : -1) * dt * (this.overlay === 'scope' ? 6 : 9), 0, 1);
+    this.adsT = clamp(this.adsT + (wantAds ? 1 : -1) * dt * (this.opticDef?.overlay === 'scope' ? 6 : 9), 0, 1);      // 12.128: lensHud (telefon ACOG yedeği) benzetimi değiştirmez
     if (this.prone) this.crouching = false;
     this.height = this.prone ? H_PRONE : this.crouching ? H_CROUCH : H_STAND;
     this.crouchT = clamp(this.crouchT + (this.crouching ? 1 : -1) * dt * 7, 0, 1);

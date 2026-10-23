@@ -11,7 +11,7 @@ const guard = (k, outer, hole, w, slot = 'metal') => k.prof(outer, w, slot, { ho
 const circ = (cx, cy, r, n = 14) => Array.from({ length: n }, (_, i) => [cx + Math.cos((i / n) * Math.PI * 2) * r, cy + Math.sin((i / n) * Math.PI * 2) * r]);
 
 // Nişan alırken gözden nişan noktasına uzaklık (kamera uzayı, m): nişangâh türü başına SABİT → her silahta aynı ekran boyu (eski OPT_K / ADS_K karşılığı)
-export const ADS_DIST = { iron: 0.286, reddot: 0.36, rmr: 0.33, holo: 0.39, acog: 0.2, scope: 0.042 };      // taslak: ACOG göz 20 cm geride (ADS_FOV 40 ile ≈ eski FOV 68 + 12 cm) → silah üstünde küçük mercek (ekranı kaplamaz), içinden şevron
+export const ADS_DIST = { iron: 0.286, reddot: 0.36, rmr: 0.33, holo: 0.39, acog: 0.125, scope: 0.042 };      // 12.128: ACOG göz 12,5 cm geride → göz merceği (r 16,8 mm, ADS_FOV 40) ekran yüksekliğinin ≈ %34'ü; içinde 3× resim-içinde-resim (PiP) + şevron
 // 12.126: ADS_NEAR (nişanda 25–33 cm yakın düzlem) kalktı → silah kesilmez; cam neredeyse görünmez (BattleBit: yalnız ince çerçeve + ışıyan retikül)
 const GLASS_MAT = new THREE.MeshStandardMaterial({ color: '#9fd4ff', transparent: true, opacity: 0.045, roughness: 0.05, metalness: 0.3, depthWrite: false });
 GLASS_MAT.userData.glass = true;
@@ -70,8 +70,9 @@ function acog(k, yb, z) {
   k.box([0.01, 0.012, 0.014], [0.021, cy, z - 0.002], 'acc', { c: 0.002, d: 1 });                     // yan kapak
   k.cyl(0.0185, 0.0185, 0.002, [0, cy, z - 0.0855], 'lens', { seg: 18 });                                 // ön mercek
   k.cyl(0.0168, 0.0168, 0.002, [0, cy, ze - 0.001], 'lens', { seg: 18 });                               // göz merceği
-  for (const s of [-1, 1]) k.box([0.0042, 0.0007, 0.0006], [s * 0.0013, cy - 0.00182, ze + 0.0004], 'glow', { rot: [0, 0, -s * 0.9] });   // şevron: çizginin üst kenarının tepesi = nişan noktası (eksende)
-  return { sight: [0, cy, ze], dist: ADS_DIST.acog, overlay: 'scope' };
+  k.xsec(circ(0, cy, 0.0215, 28), ze + 0.007, ze - 0.004, 'acc', { holes: [circ(0, cy, 0.0169, 28)], c: 0.0008, sh: 0.8 });      // 12.128: kalın göz çanı halkası (BattleBit: PiP merceğinin çevresinde koyu gövde)
+  for (const s of [-1, 1]) k.box([0.0042, 0.0007, 0.0006], [s * 0.0013, cy - 0.00182, ze + 0.0004], 'glow', { rot: [0, 0, -s * 0.9] });   // şevron: çizginin üst kenarının tepesi = nişan noktası (eksende); PiP açıkken söner (mercekte gölgelendirici şevronu)
+  return { sight: [0, cy, ze], dist: ADS_DIST.acog, overlay: 'scope', lens: [0.0168, 0, cy, ze + 0.0003] };      // lens: PiP diski (yarıçap, merkez; göz merceğinin hemen önünde)
 }
 // Seçilen nişangâhı kur (iron → null: silah kendi demir nişanını kurar)
 function optic(k, o, yb, z, pistol = false) {
@@ -97,7 +98,7 @@ function done(k, mat, meta, sg) {
     const geos = k.glass.map((c) => { const gg = c.disc ? new THREE.CircleGeometry(c.disc, 20) : new THREE.PlaneGeometry(c.rect[0], c.rect[1]); gg.translate(...c.pos); return gg; });
     const mesh = new THREE.Mesh(geos.length > 1 ? mergeAll(geos) : geos[0], GLASS_MAT); mesh.renderOrder = 2; g.add(mesh);
   }
-  if (sg) { g.userData.sight = sg.sight; g.userData.pivot = sg.pivot; g.userData.dist = sg.dist; g.userData.overlay = sg.overlay; }
+  if (sg) { g.userData.sight = sg.sight; g.userData.pivot = sg.pivot; g.userData.dist = sg.dist; g.userData.overlay = sg.overlay; g.userData.lens = sg.lens; }
   return g;
 }
 function mergeAll(geos) { const pos = []; for (const g of geos) { const n = g.index ? g.toNonIndexed() : g; pos.push(...n.attributes.position.array); } const r = new THREE.BufferGeometry(); r.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); r.computeVertexNormals(); return r; }

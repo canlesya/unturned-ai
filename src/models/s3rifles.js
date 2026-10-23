@@ -259,14 +259,14 @@ function pso(k, yb, z) {
   k.cyl(0.021, 0.0155, 0.03, [0, cy, z - 0.08], 'acc', { seg: 18 });                                     // objektif konisi
   k.cyl(0.021, 0.021, 0.07, [0, cy, z - 0.13], 'acc', { seg: 18, sh: 0.92 });                            // güneşlik
   k.cyl(0.0185, 0.0165, 0.022, [0, cy, z + 0.054], 'acc', { seg: 18 });                                  // göz merceği çanı
-  k.cyl(0.0205, 0.0205, 0.016, [0, cy, ze + 0.008], 'acc', { seg: 18, open: true, sh: 0.7 });            // lastik göz kapağı (içi açık)
+  k.xsec(circ(0, cy, 0.0205, 24), ze + 0.016, ze - 0.001, 'acc', { holes: [circ(0, cy, 0.0166, 24)], c: 0.0008, sh: 0.7 });      // lastik göz kapağı: kalın halka (12.128; eski açık tüpün içi görünmüyordu, PiP merceği çerçevesiz kalıyordu)
   k.cyl(0.012, 0.012, 0.02, [0, cy + 0.0255, z - 0.01], 'acc', { ax: 'y', seg: 12, pat: 2 });            // yükseklik tamburu (boru yarıçapının dışında)
   k.cyl(0.0105, 0.0105, 0.018, [0.0245, cy, z - 0.01], 'acc', { ax: 'x', seg: 12, pat: 2 });             // yan tambur
   k.cyl(0.007, 0.007, 0.016, [-0.02, cy + 0.012, z - 0.05], 'acc', { ax: 'x', seg: 8, d: 1 });           // aydınlatma pil kapağı
   k.cyl(0.0195, 0.0195, 0.002, [0, cy, z - 0.164], 'lens', { seg: 18 });
   k.cyl(0.0165, 0.0165, 0.002, [0, cy, ze - 0.001], 'lens', { seg: 18 });
   for (const s of [-1, 1]) k.box([0.0042, 0.0007, 0.0006], [s * 0.0013, cy - 0.00182, ze + 0.0004], 'glow', { rot: [0, 0, -s * 0.9] });   // şevron ucu = nişan noktası
-  return { sight: [0, cy, ze], dist: ADS_DIST.acog, overlay: 'scope' };
+  return { sight: [0, cy, ze], dist: ADS_DIST.acog, overlay: 'scope', lens: [0.0165, 0, cy, ze + 0.0003] };      // 12.128: ACOG ile aynı PiP mercek
 }
 
 // ───────────────────────── SVD Dragunov ─────────────────────────

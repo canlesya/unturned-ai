@@ -2,7 +2,7 @@
 // (= mermi noktası) piksel sapması ölçülür. Masaüstü 1600×900 + Pixel 7 yatay + iPhone 13 yatay (CSS piksel). Eşik ≤ 2 px (LIMIT).
 //   node scripts/adsalign.mjs [taban url]    DEV=desk,mob,iph  ONLY=regex (silah:nişangâh)  OUT=klasör (görüntüler)  JSON=dosya  SWAY=1 (nefes / sallanma / tepme açık)
 // Ölçümler (dünya gizli, yeşil zemin, son işleme kapalı, nefes / sallanma kapalı):
-//   3D  — S3 retikülü (ışıyan yuva) eflatun çizilir: red dot / holo / dürbün = eflatun piksellerin ağırlık merkezi; ACOG şevronu = tepe noktası
+//   3D  — S3 retikülü (ışıyan yuva) eflatun çizilir: red dot / holo / dürbün = eflatun piksellerin ağırlık merkezi; ACOG şevronu = tepe noktası (12.128: PiP merceğinde gölgelendirici şevronu)
 //   gez — demir nişan: arpacık tepesi (orta sütunda) + gez deliği / çentiği merkezi (yeşil boşluk dolgusu)
 //   cam — nişangâh penceresi (yeşil boşluk) merkezi (eski / yeni karşılaştırma için; eski modellerde retikül yok)
 //   HUD — HUD retikülü (#rdot / #holo / dürbün çizgileri / telefonda #idot), silah gizli: kırmızı / beyaz piksellerin merkezi
@@ -75,7 +75,7 @@ for (const dev of (process.env.DEV || 'desk,mob,iph').split(',')) {
   await page.goto(`${base}/?autostart=3v3&map=colgecidi&type=tdm&debug=1&dev=1&nolock=1&third=0${dev !== 'desk' ? '&touch=1' : ''}`);
   await page.waitForFunction('window.__game && window.__game.running && window.__game.player', null, { timeout: 120000 });
   const combos = await page.evaluate(async () => {
-    const { WSTATS, OPTIC_ALLOWED } = await import('/src/game/stats.js');
+    const { WSTATS, OPTIC_ALLOWED } = await import('/src/game/stats.js'); const { zoomFov } = await import('/src/game/util.js');
     const g = window.__game, p = g.player, s = p.s;
     g.brains.forEach((b) => (b.update = () => {}));
     g.soldiers.filter((o) => o !== s).forEach((o) => { o.pos.y = -90; });
@@ -95,12 +95,13 @@ for (const dev of (process.env.DEV || 'desk,mob,iph').split(',')) {
       const SL = WSTATS[o.id].slot === 'secondary' ? 1 : 0;
       s.cur = SL; s.items[SL] = { id: o.id, mag: 30, reserve: 90 }; s.optic = o.optic; if (s.model) s.model.optic = o.optic;
       p.refreshWeapon();
+      p.pipForce = true;                                                             // 12.128: ACOG PiP (telefonda düşük FPS yedeğine düşmesin)
       const vm = p.vm; vm.noSway = true; vm.noFade = true; vm.forceShow = o.mode !== 'hud'; vm.probe?.(o.mode === 'probe');
       vm.raise = 0; vm.kick = 0; vm.kickR = 0; vm.hitKick = 0; vm.inspectT = 0; vm.bobT = 0; vm.sprintT = 0; vm.breathT = 0; vm.sx = 0; vm.sy = 0;
       s.swing = null; s.reloadT = 0; s.cd = 0; s.vel.set(0, 0, 0); s.sprinting = false; s.useT = 0; s.recoilP = 0; s.leanT = 0; s.ads = true;
       if (o.sway) { vm.noSway = false; vm.breathT = o.sway; }                            // SWAY=1: nefes / sallanma + tepme açıkken de retikül ortada mı
       for (let i = 0; i < 30; i++) { s.adsT = 1; if (o.sway) vm.kickR = 0.35; p.update(1 / 60); }
-      g.camera.fov = p.baseFov() / p.zoomEff(); g.camera.updateProjectionMatrix();
+      g.camera.fov = zoomFov(p.baseFov(), p.camZoom()); g.camera.updateProjectionMatrix();      // 12.128: oyundaki gerçek dünya FOV'u (ACOG PiP'te mercek dışı ×1,15)
       vm.root.visible = o.mode !== 'hud';
       g.hud.update(1 / 60);
       window.__show(o.mode);

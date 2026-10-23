@@ -29,6 +29,7 @@ export { SKIN_IDS };
 export const SKIN_SWATCH = { std: '#3a3c40', desert: '#a8895c', wood: '#56603a', urban: '#7d8187', gold: '#d9a93c' };
 const ORDER = ['body', 'furn', 'metal', 'acc'];
 const PROBE = { value: 0 };
+export const SKIN_PROBE = PROBE;      // 12.128: ACOG mercek gölgelendiricisi de aynı adsalign bayrağını okur
 export function setSkinProbe(on) { PROBE.value = on ? 1 : 0; }
 
 const VERT_HEAD = /* glsl */ `
