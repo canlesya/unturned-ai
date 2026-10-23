@@ -9,6 +9,7 @@ import { finishWeapon } from './weaponFinish.js';
 import { PAINTBALL, MOUNT_PB } from './paintball.js';
 import { S3W, s3Optic, ADS_DIST, ADS_NEAR } from './s3weapons.js';
 import { skinMaterial } from './skins.js';
+import { S3SMG } from './s3smg.js';                                    // s3smg
 
 // Her silah: origin = tabanca kabzası (sağ el), namlu -Z yönünde.
 // userData: name, hold (rifle|pistol|launcher|melee|grenade), gripR, gripL, muzzle, length, mag (şarjör grubu), bolt
@@ -247,6 +248,8 @@ function grenade() {
 export const WEAPONS = {
   ...S3W, mp5, lmg, rpg, knife, grenade, ...MORE, ...PAINTBALL,
 };
+// s3smg: MP5 / Vector / P90 / MAC-10 / M249 / PKM / M1911 / Desert Eagle / Revolver / RPG-7 S3 kitine geçti (src/models/s3smg.js) → createWeapon S3 yolunu kullanır
+for (const id of Object.keys(S3SMG)) S3W[id] = WEAPONS[id] = S3SMG[id];
 
 // Görüntüleyici alt yazısı: WSTATS açıklamasından
 export const WEAPON_INFO = new Proxy({}, { get: (_, id) => WSTATS[id]?.desc || '' });

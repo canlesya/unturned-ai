@@ -160,7 +160,7 @@ export class MenuScene {
     const w = createWeapon(o.id, o.optic, false, o.skin);
     w.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(w), c = box.getCenter(new THREE.Vector3()), sz = box.getSize(new THREE.Vector3());
-    const k = o.id === 'pistol' ? 2.2 : 1.15 / Math.max(0.3, sz.z);                 // tabanca büyütülür, tüfek ~1,15 m boyuna sığdırılır
+    const k = Math.min(2.2, 1.15 / Math.max(0.3, sz.z));                            // tabanca (kısa silah) en çok ×2,2 büyütülür, tüfek ~1,15 m boyuna sığdırılır
     const piv = new THREE.Group(); w.position.copy(c).multiplyScalar(-1); piv.add(w); piv.scale.setScalar(k);
     piv.position.set(0.05, 0.42, 1.15);
     w.traverse((m) => { if (m.isMesh) m.castShadow = true; });
