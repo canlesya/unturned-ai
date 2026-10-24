@@ -16,9 +16,11 @@ export const TUNE = {
   plSpeed: 1.0, plCrowd: 0.25, plRadius: 3.5, plBackDelay: 20, plBackSpeed: 0.35, plBonus: 120, plOverGrace: 1.5, plSupply: 0.08, plAtkRespawn: 1.0, plDefRespawn: 0.75,   // Vagon modu: taban hız (m/sn), ek iten başına +%, itme yarıçapı, geri kayma bekleme / hız, kontrol noktası süre ödülü, uzatma payı, vagon yanı ikmal, doğma süresi çarpanı (12.150: botlar vagonu gerçekten oynayınca saldıran 1,0 / savunan 0,75 — savunan doğuşu raydan uzak)
   spaceGrav: 0.36, spaceJump: 0.86, spaceAir: 3.4,                  // 12.157 Uzay modu: yer çekimi çarpanı (Dünya'nın ~1/3'ü), zıplama hızı çarpanı (zirve ≈ 2 m, havada ≈ 1,7 sn), havada yön denetimi (normal 2,2)
 };
+Object.assign(TUNE, { frBonus: 0.45, frAtkRespawn: 1.0, frDefRespawn: 1.45, frCapMul: 1.3 });      // 12.158 bot maçlarıyla (12v12 normal, 25 maç) saldıran ≈ %45   // Cephe (12.158): sektör başına saldırana bilet (başlangıcın oranı), doğma süresi çarpanları, ele geçirme hızı çarpanı
 // Oyun modu sınırları (oda kurulumu + menü)
 export const LIMITS = { maxPerTeam: 32, dmMax: 10, dmKills: 40, infMin: 4, infMax: 24, pbMin: 2, pbMax: 12, pbKills: 30, plTime: 300, time: 900 };
 
+LIMITS.frTickets = 21;                                                  // Cephe: saldıranın oyuncu başına bileti (12v12 → 250)
 const ROOTS = { tune: TUNE, mode: LIMITS, w: WSTATS, cls: CLASS_DEFS, diff: DIFFICULTY, zombie: ZOMBIE, boss: BOSS, zt: ZTYPES };
 
 // ───────── Alan listesi (panelde gösterim + doğrulama) ─────────
@@ -130,6 +132,9 @@ export function balanceSections() {
         f('tune.plBackDelay', 'Geri kayma bekleme', 0, 60, 1, 'sn'), f('tune.plBackSpeed', 'Geri kayma hızı', 0, 3, 0.05, 'm/sn'), f('tune.plOverGrace', 'Uzatma payı', 0, 10, 0.5, 'sn'), f('tune.plSupply', 'Vagon yanı ikmal (2 sn)', 0, 1, 0.01, '×'), f('tune.plAtkRespawn', 'Saldıran doğma süresi çarpanı', 0.2, 3, 0.05, '×'), f('tune.plDefRespawn', 'Savunan doğma süresi çarpanı', 0.2, 3, 0.05, '×')] },
       { id: 'space', name: 'Uzay', preview: { kind: 'icon', icon: 'planet' }, fields: [      // 12.157
         f('tune.spaceGrav', 'Yer çekimi çarpanı', 0.1, 1, 0.01, '×'), f('tune.spaceJump', 'Zıplama hızı çarpanı', 0.5, 1.5, 0.01, '×'), f('tune.spaceAir', 'Havada yön denetimi', 0.5, 10, 0.1)] },
+      { id: 'front', name: 'Cephe', preview: { kind: 'icon', icon: 'flag' }, fields: [
+        f('mode.frTickets', 'Saldıranın oyuncu başına bileti', 2, 40), f('tune.frBonus', 'Sektör başına bilet (başlangıcın oranı)', 0, 2, 0.05, '×'),
+        f('tune.frCapMul', 'Ele geçirme hızı çarpanı', 0.2, 4, 0.05, '×'), f('tune.frAtkRespawn', 'Saldıran doğma süresi çarpanı', 0.2, 3, 0.05, '×'), f('tune.frDefRespawn', 'Savunan doğma süresi çarpanı', 0.2, 3, 0.05, '×')] },
     ] },
     { id: 'bots', label: 'Botlar', icon: 'robot', items: [
       ...Object.keys(DIFFICULTY).map((k) => ({ id: k, name: DIFFICULTY[k].label + ' bot', preview: { kind: 'char', cls: 'assault', team: 'red' }, fields: [

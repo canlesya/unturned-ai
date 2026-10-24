@@ -475,3 +475,81 @@ export function spaceLoadout(cls, team, choice = {}, rng = Math.random) {
   items[0] = gun(p); items[1] = gun(S.secondary[0]);
   return items;
 }
+// ───────── 1940'lar silahları (Cephe modu, 12.158; yalnız bu modun sınıf donanımında — FRONT_KIT) ─────────
+// Modeller src/models/ww2weapons.js. clip = şerit / en-bloc klips doldurma (anim.js), ping = son mermide klips fırlar (yarı otomatik).
+Object.assign(WSTATS, {
+  ww_bolt: {
+    name: 'Sürgülü Tüfek', kind: 'gun', slot: 'primary', desc: 'Beş mermilik sürgülü piyade tüfeği: gövdeye iki, kafaya tek atış.', stats: { dmg: 92, range: 92, rate: 16, control: 58, mobility: 62 },
+    auto: false, bolt: true, dmg: 74, rpm: 52, mag: 5, reserve: 45, reload: 2.5, reloadStyle: 'clip', equip: 0.32,
+    hip: 0.026, ads: 0.0004, kickV: 0.04, kickH: 0.006, range: [110, 240], minMul: 0.82, zoom: 1.35, move: 0.96,
+    sight: [0, 0.071, -0.277], dist: 0.56, sound: 'ww_bolt', tracer: '#e8dcc0', era: 'ww2',
+  },
+  ww_sniper: {
+    name: 'Dürbünlü Tüfek', kind: 'gun', slot: 'primary', desc: 'Uzun eski tip dürbünlü sürgülü tüfek (4×).', stats: { dmg: 100, range: 100, rate: 12, control: 60, mobility: 50 },
+    auto: false, bolt: true, dmg: 104, rpm: 46, mag: 5, reserve: 30, reload: 2.8, reloadStyle: 'clip', equip: 0.35,
+    hip: 0.032, noscope: 0.09, ads: 0.0002, kickV: 0.05, kickH: 0.006, range: [150, 300], minMul: 0.85, zoom: 4, move: 0.92,
+    sight: [0, 0.104, 0.115], dist: 0.042, sound: 'ww_bolt', scope: true, tracer: '#e8dcc0', adsTime: 0.26, era: 'ww2',
+  },
+  ww_semi: {
+    name: 'Yarı Otomatik Tüfek', kind: 'gun', slot: 'primary', desc: 'Sekiz mermilik klipsle beslenir; son mermide klips "ping" diye fırlar.', stats: { dmg: 66, range: 78, rate: 44, control: 62, mobility: 64 },
+    auto: false, dmg: 46, rpm: 330, mag: 8, reserve: 64, reload: 2.1, reloadStyle: 'clip', ping: true, equip: 0.32,
+    hip: 0.016, ads: 0.0008, kickV: 0.024, kickH: 0.006, range: [60, 150], minMul: 0.72, zoom: 1.3, move: 0.97,
+    sight: [0, 0.082, 0.062], dist: 0.286, sound: 'ww_semi', era: 'ww2',
+  },
+  ww_smgb: {
+    name: 'Kundaklı HMK', kind: 'gun', slot: 'primary', desc: 'Ahşap kundaklı hafif makineli: ağır mermi, yakın mesafede sert.', stats: { dmg: 52, range: 36, rate: 76, control: 52, mobility: 80 },
+    auto: true, dmg: 26, rpm: 680, mag: 30, reserve: 150, reload: 2.0, equip: 0.3,
+    hip: 0.0095, ads: 0.0018, kickV: 0.012, kickH: 0.0065, range: [16, 55], minMul: 0.45, zoom: 1.2, move: 1.03,
+    sight: [0, 0.084, 0.042], dist: 0.286, sound: 'ww_smgb', era: 'ww2',
+  },
+  ww_smgr: {
+    name: 'Katlanır HMK', kind: 'gun', slot: 'primary', desc: 'Katlanır dipçikli hafif makineli: yavaş atış, kontrolü kolay.', stats: { dmg: 44, range: 40, rate: 62, control: 74, mobility: 84 },
+    auto: true, dmg: 23, rpm: 540, mag: 32, reserve: 160, reload: 1.9, equip: 0.28,
+    hip: 0.009, ads: 0.0015, kickV: 0.008, kickH: 0.004, range: [18, 62], minMul: 0.45, zoom: 1.2, move: 1.05,
+    sight: [0, 0.083, 0.006], dist: 0.32, sound: 'ww_smgr', era: 'ww2',
+  },
+  ww_lmg: {
+    name: 'Hafif Makineli Tüfek', kind: 'gun', slot: 'primary', desc: 'Çatallı ağır destek tüfeği: 20\'lik şarjör, güçlü mermi.', stats: { dmg: 74, range: 76, rate: 58, control: 40, mobility: 38 },
+    auto: true, dmg: 38, rpm: 520, mag: 20, reserve: 140, reload: 2.4, equip: 0.4,
+    hip: 0.012, ads: 0.0013, kickV: 0.017, kickH: 0.0075, range: [55, 140], minMul: 0.65, zoom: 1.3, move: 0.88,
+    sight: [0, 0.098, 0.05], dist: 0.286, sound: 'ww_lmg', tracer: '#ff9a6a', era: 'ww2',
+  },
+  ww_mg: {
+    name: 'Ağır Makineli', kind: 'gun', slot: 'primary', desc: 'Şeritli ağır makineli: çok yüksek atış hızı, 50\'lik tambur, sert tepme.', stats: { dmg: 62, range: 70, rate: 96, control: 28, mobility: 30 },
+    auto: true, dmg: 28, rpm: 1150, mag: 50, reserve: 150, reload: 3.2, equip: 0.45,
+    hip: 0.016, ads: 0.0022, kickV: 0.013, kickH: 0.009, range: [45, 130], minMul: 0.6, zoom: 1.3, move: 0.84,
+    sight: [0, 0.094, -0.18], dist: 0.42, sound: 'ww_mg', tracer: '#ff8a5a', era: 'ww2',
+  },
+  ww_pistol: {
+    name: 'Tabanca', kind: 'gun', slot: 'secondary', desc: 'Yedi mermilik subay tabancası.', stats: { dmg: 48, range: 30, rate: 54, control: 62, mobility: 94 },
+    auto: false, dmg: 30, rpm: 360, mag: 7, reserve: 42, reload: 1.3, equip: 0.22,
+    hip: 0.007, ads: 0.0018, kickV: 0.02, kickH: 0.005, range: [14, 48], minMul: 0.5, zoom: 1.2, move: 1.05,
+    sight: [0, 0.084, 0.042], dist: 0.286, sound: 'ww_pistol', era: 'ww2',
+  },
+  ww_nade: {
+    name: 'Saplı El Bombası', kind: 'throwable', gtype: 'frag', slot: 'gadget', desc: 'Uzun saplı el bombası: daha uzağa atılır, 3,5 sn fitil.', stats: { dmg: 80, range: 48, rate: 30, control: 50, mobility: 100 },
+    count: 2, dmg: 130, radius: 7.5, fuse: 3.5, cook: true, speed: 21, rpm: 40, mag: 2, reserve: 0, move: 1.0, equip: 0.3, sound: 'throw', era: 'ww2',
+  },
+});
+Object.assign(OPTIC_ALLOWED, { ww_mg: ['iron'], ww_bolt: ['iron'], ww_semi: ['iron'], ww_smgb: ['iron'], ww_smgr: ['iron'], ww_lmg: ['iron'], ww_pistol: ['iron'], ww_sniper: ['scope'] });
+// Cephe modunun sınıf donanımı (CLASS_DEFS'in yerine; mod dışında görünmez). d = takım varsayılanı (Mavi Garand / Thompson tarzı, Kırmızı sürgülü / MP40 tarzı)
+export const FRONT_KIT = {
+  assault: { primary: ['ww_semi', 'ww_bolt'], d: { blue: 'ww_semi', red: 'ww_bolt' }, secondary: ['ww_pistol'], gadget: ['ww_nade', 'smoke'], melee: ['knife'] },
+  medic: { primary: ['ww_smgb', 'ww_smgr'], d: { blue: 'ww_smgb', red: 'ww_smgr' }, secondary: ['ww_pistol'], gadget: ['medkit', 'smoke'], melee: ['knife'] },
+  sniper: { primary: ['ww_sniper', 'ww_bolt'], d: { blue: 'ww_sniper', red: 'ww_sniper' }, secondary: ['ww_pistol'], gadget: ['ww_nade', 'smoke'], melee: ['knife'] },
+  heavy: { primary: ['ww_lmg', 'ww_mg'], d: { blue: 'ww_lmg', red: 'ww_mg' }, secondary: ['ww_pistol'], gadget: ['ww_nade', 'ammobox'], melee: ['knife'] },
+  engineer: { primary: ['ww_smgb', 'ww_smgr', 'ww_bolt'], d: { blue: 'ww_smgb', red: 'ww_smgr' }, secondary: ['ww_pistol'], gadget: ['ww_nade', 'ammobox'], melee: ['knife'] },
+};
+export const FRONT_TEAM = { ww_semi: 'blue', ww_smgb: 'blue', ww_lmg: 'blue', ww_smgr: 'red', ww_mg: 'red' };
+export function frontLoadout(cls, team, choice = {}, rng = Math.random) {
+  const K = FRONT_KIT[cls] || FRONT_KIT.assault;
+  const mine = (id) => !FRONT_TEAM[id] || FRONT_TEAM[id] === team;                       // botların rastgele seçimi takım kimliğini bozmasın (Kırmızı MG42 / katlanır HMK …)
+  const opt = (list, want, dflt) => { if (!choice.random) return list.includes(want) ? want : dflt; const L = list.filter(mine); return L[Math.floor(rng() * L.length)] || dflt; };
+  const primary = opt(K.primary, choice.primary, K.d[team] || K.d.blue), secondary = opt(K.secondary, choice.secondary, K.secondary[0]);
+  const gadget = opt(K.gadget, choice.gadget, K.gadget[0]), melee = opt(K.melee, choice.melee, K.melee[0]);
+  const gun = (id) => ({ id, mag: WSTATS[id].mag, reserve: WSTATS[id].reserve });
+  const gs = WSTATS[gadget], n = gs.count || 1;
+  return [gun(primary), gun(secondary), { id: gadget, mag: n, reserve: 0 }, { id: melee, mag: 1, reserve: 0 }];
+}
+// moda göre donanım (Cephe: FRONT_KIT, diğerleri CLASS_DEFS)
+export const modeLoadout = (mode, cls, team, choice, rng) => (mode && mode.front && !CLASS_DEFS[cls]?.zombie ? frontLoadout(cls, team, choice, rng) : makeLoadout(cls, team, choice, rng));

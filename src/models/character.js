@@ -5,6 +5,7 @@ import { createWeapon } from './weapons.js';
 import { reloadAnim, meleePose } from '../game/anim.js';
 import { ZTYPES, ZBOSS, BOSS } from '../game/stats.js';
 import { buildZombie, ZMAT } from './zombieBody.js';
+import { ww2Gear, ww2Look } from './ww2gear.js';                       // 12.158: Cephe modu 1940'lar üniformaları
 
 // Unturned/BattleBit tarzı kutu karakter. ~1.79 m boyunda, ileri = -Z.
 // Hiyerarşi: root > torso(> head, kollar, silah bağlantısı) + bacaklar. Kollar iki kemikli IK ile silaha kilitlenir.
@@ -51,14 +52,15 @@ function makeArm(torso, side, c) {
   taperBox(upper, [0.14, L1 + 0.01, 0.14], c.shirt, [0, -L1 / 2, 0], null, [1, 1], [0.88, 0.88]);
   taperBox(fore, [0.125, L2 + 0.01, 0.125], c.shirt, [0, -L2 / 2, 0], null, [1, 1], [0.86, 0.86]);
   box(fore, [0.13, 0.05, 0.13], c.gloves, [0, -L2 + 0.045, 0]);        // bilek bandı
-  box(fore, [0.1, 0.09, 0.05], '#1b1c20', [0, -0.03, 0.075]);           // dirsek koruyucu
-  box(upper, [0.01, 0.075, 0.07], side === 'L' ? c.accent : '#d8d8d2', [side === 'R' ? 0.075 : -0.075, -0.1, 0]);   // omuz yaması
+  if (!c.ww2) box(fore, [0.1, 0.09, 0.05], '#1b1c20', [0, -0.03, 0.075]);           // dirsek koruyucu (1940'lar üniformasında yok)
+  if (!c.ww2) box(upper, [0.01, 0.075, 0.07], side === 'L' ? c.accent : '#d8d8d2', [side === 'R' ? 0.075 : -0.075, -0.1, 0]);   // omuz yaması
+  else if (side === 'L') box(upper, [0.152, 0.06, 0.152], c.accent, [0, -0.11, 0]);                                     // 12.158: takım kol bandı (nişansız)
   box(upper, [0.152, 0.025, 0.152], new THREE.Color(c.shirt).multiplyScalar(0.78).getStyle(), [0, -L1 + 0.04, 0]);   // kol kıvrımı
   box(hand, [0.1, 0.11, 0.115], c.gloves, [0, -0.05, 0.0]);             // eldiven
   box(hand, [0.085, 0.03, 0.04], c.gloves, [0, -0.1, -0.03]);           // parmak ucu
   for (let i = 0; i < 4; i++) box(hand, [0.02, 0.05, 0.02], c.gloves, [-0.036 + i * 0.024, -0.105, -0.045]);   // parmaklar
   box(hand, [0.03, 0.045, 0.026], c.gloves, [side === 'R' ? -0.06 : 0.06, -0.07, -0.02], [0, 0, side === 'R' ? 0.35 : -0.35]);   // başparmak
-  box(hand, [0.102, 0.03, 0.117], '#15161a', [0, -0.02, 0.0]);           // el sırtı koruması
+  if (!c.ww2) box(hand, [0.102, 0.03, 0.117], '#15161a', [0, -0.02, 0.0]);           // el sırtı koruması
   torso.add(upper, fore, hand);
   return { upper, fore, hand, side, shoulder: V(side === 'R' ? SHOULDER_X : -SHOULDER_X, SHOULDER_Y, 0) };
 }
@@ -260,6 +262,7 @@ function spaceGear(parts, c, cls) {
 }
 
 function addGear(cls, team, c, parts, skin, ztype, look) {
+  if (look?.ww2) { ww2Gear(parts, c, team, cls, skin, face); return; }                                 // 12.158: Cephe modu üniforması
   if (look?.space) { spaceGear(parts, c, cls); return; }
   if (look) { paintballGear(parts, c, skin, look.num); return; }
   const { torso, head, legs } = parts;
@@ -385,8 +388,8 @@ function addGear(cls, team, c, parts, skin, ztype, look) {
 // ── Karakter oluşturucu ──
 // outfit 'paintball' + paint (renk) + num (forma numarası): paintball oyuncusu görünümü (sınıf teçhizatı yerine)
 export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0, weapon = null, blade = 0.38, optic = 'reddot', ztype = 'walker', outfit = null, paint = '#ff2b3a', num = 7, wskin = 'std' } = {}) {
-  const look = outfit === 'paintball' && cls !== 'zombie' ? { num } : outfit === 'space' && cls !== 'zombie' ? { space: true } : null;      // 12.157: Uzay kıyafeti
-  const c = look?.space ? { ...TEAMS[team], ...spaceLook(team) } : look ? { ...TEAMS[team], ...pbLook(paint) } : TEAMS[team];
+  const look = outfit === 'paintball' && cls !== 'zombie' ? { num } : outfit === 'space' && cls !== 'zombie' ? { space: true } : outfit === 'ww2' && cls !== 'zombie' ? { ww2: true } : null;      // 12.157: Uzay kıyafeti · 12.158: 1940'lar üniforması
+  const c = look?.space ? { ...TEAMS[team], ...spaceLook(team) } : look?.ww2 ? { ...TEAMS[team], ...ww2Look(team) } : look ? { ...TEAMS[team], ...pbLook(paint) } : TEAMS[team];
   const skin = SKINS[skinIndex % SKINS.length];
   const root = new THREE.Group();
   root.rotation.order = 'YXZ';   // önce yön (yaw), sonra gövde eğimi/yatma: baktığı yöne göre devrilir
@@ -565,14 +568,14 @@ function applyPose(api, w, o = {}) {
   // şarjör / sürgü alt grupları
   if (u.mag) {
     const ax = u.magAxis || [0, -1, 0], off = ra ? ra.magOut * 0.24 : 0;
-    u.mag.visible = ra ? ra.magVis : true;
+    u.mag.visible = ra ? ra.magVis : !u.magHidden;
     u.mag.position.set(ax[0] * off, ax[1] * off, ax[2] * off);
     u.mag.rotation.x = ra ? -ra.magOut * 0.35 : 0;
   }
   if (u.bolt) {
     const b = ra ? ra.bolt : 0;
     u.bolt.g.position.set(0, u.bolt.pivot, b * 0.085);
-    u.bolt.g.rotation.z = b * 0.9;
+    u.bolt.g.rotation.z = u.boltSlide ? 0 : b * 0.9;
   }
   mount.updateMatrix();
   const toTorso = (v) => v.clone().applyMatrix4(mount.matrix);

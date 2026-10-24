@@ -748,7 +748,7 @@ export class Hud {
     if (g.ffa) [kb, kr] = this.ffaScore(p);                           // herkes-tek: sol = sen, sağ = lider (sen öndeysen ikinci)
     $('tkB').textContent = Math.max(0, Math.round(kb));
     $('tkR').textContent = Math.max(0, Math.round(kr));
-    if (!g.ffa && g.mode.objectives.length) {                       // bayrak kanaması: daha çok bayrağı olan takım, farkı kadar rakip bileti 5 sn'de eksiltir
+    if (!g.ffa && g.mode.objectives.length && !g.front) {           // bayrak kanaması (Cephe modunda yok: frontHud): daha çok bayrağı olan takım, farkı kadar rakip bileti 5 sn'de eksiltir
       const nb = g.mode.objectives.filter((o) => o.owner === 'blue').length, nr = g.mode.objectives.filter((o) => o.owner === 'red').length;
       const bb = nr > nb ? nr - nb : 0, br = nb > nr ? nb - nr : 0;
       $('tnB').textContent = t('hud.blue') + (bb ? ` ▼${bb}` : '');

@@ -179,7 +179,7 @@ export class Sfx {
     if (P.m && (!pos || v.d < 2.5)) this._clk(v, 0.03 + Math.random() * 0.012, 3000 + Math.random() * 600, 0.07);    // kendi silahın: sürgü / mekanizma tıkırtısı
     if (kind === 'shotgun') this.pump(pos, 0.34);
     else if (kind === 'dbl') this._noise({ v, gain: 0.7, dur: 0.3, f0: 4000, f1: 280, delay: 0.035 });
-    else if (kind === 'sniper') this.bolt(pos, 0.55);
+    else if (kind === 'sniper' || kind === 'ww_bolt') this.bolt(pos, 0.55);
     else if (kind === 'rpg') this._noise({ v, gain: 0.3, dur: 0.55, f0: 7000, f1: 2500, type: 'highpass', delay: 0.04, att: 0.05 });   // roket tıslaması
   }
 
@@ -193,7 +193,7 @@ export class Sfx {
     if (m > 0.001) this._buf(v, B.far, m, rate);
     if (own && B.mech) this._buf(v, B.mech, 1, 0.96 + Math.random() * 0.08);
     if (kind === 'shotgun') this.pump(pos, 0.34);
-    else if (kind === 'sniper') this.bolt(pos, 0.55);
+    else if (kind === 'sniper' || kind === 'ww_bolt') this.bolt(pos, 0.55);
   }
   _buf(v, buf, g, rate = 1, delay = 0) {
     const c = this.ctx, t = c.currentTime + delay + v.delay, src = c.createBufferSource();
@@ -258,6 +258,7 @@ export class Sfx {
     if (!this.ctx || style === 'shell') return;                // mermi başına ayrı (shell)
     const t = total, v = this._voice(pos, 1, { ref: 10, rv: 0.1 });
     if (v.gain < 0.003) { for (const x of v.nodes) x.disconnect(); return; }
+    if (style === 'clip') { this.clipReload(v, pos, t); return; }                                // 12.158: şerit / en-bloc klips
     this._clk(v, t * 0.12, 3200, 0.2);                                                              // şarjör bırakma düğmesi
     this._noise({ v, gain: 0.16, dur: 0.11, f0: 1300, f1: 600, type: 'bandpass', q: 0.9, delay: t * 0.22, att: 0.02 });   // şarjör sıyrılır
     this._noise({ v, gain: 0.1, dur: 0.1, f0: 1700, f1: 900, type: 'bandpass', delay: t * 0.36, att: 0.02 });             // kemerden yeni şarjör
@@ -322,3 +323,37 @@ export class Sfx {
   }
   capture() { if (!this.ctx) return; const v = this._voice(null, 1); this._tone({ v, gain: 0.3, dur: 0.25, f0: 523, f1: 523, type: 'triangle' }); this._tone({ v, gain: 0.3, dur: 0.32, f0: 784, f1: 784, type: 'triangle', delay: 0.15 }); this._tone({ v, gain: 0.12, dur: 0.4, f0: 1046, f1: 1046, delay: 0.15 }); }
 }
+
+// ───── 12.158 Cephe modu: 1940'lar silah sesleri (taslak A = GUN tablosu, ayrı blok) + klips doldurma + yarı otomatik "ping" ─────
+// ww_bolt: tok çatlama + uzun kuyruk, ardından sürgü · ww_semi: ağır tüfek · ww_smgb: kalın .45 "tok" · ww_smgr: hafif 9 mm · ww_lmg: ağır · ww_mg: çok kısa, sert, yırtıcı (1150 atış/dk) · ww_pistol: subay tabancası
+Object.assign(GUN, {
+  ww_bolt: { c: [0.85, 0.028, 1900], b: [0.9, 0.36, 4600, 240], t: [0.68, 0.32, 92, 30], k: [0.36, 1.05, 1150, 130], r: 0.4 },
+  ww_semi: { c: [0.72, 0.022, 2100], b: [0.78, 0.22, 4000, 330], t: [0.56, 0.2, 105, 38], k: [0.27, 0.75, 1350, 160], r: 0.34, m: 1 },
+  ww_smgb: { c: [0.42, 0.014, 2400], b: [0.5, 0.11, 3800, 520], t: [0.36, 0.1, 140, 52], k: [0.12, 0.32, 1700, 240], r: 0.24, m: 1 },
+  ww_smgr: { c: [0.34, 0.012, 2900], b: [0.4, 0.085, 5600, 860], t: [0.24, 0.07, 200, 76], k: [0.08, 0.24, 2100, 300], r: 0.2, m: 1 },
+  ww_lmg: { c: [0.62, 0.02, 2200], b: [0.7, 0.17, 3700, 400], t: [0.52, 0.15, 104, 40], k: [0.22, 0.55, 1450, 180], r: 0.32, m: 1 },
+  ww_mg: { c: [0.6, 0.011, 2600], b: [0.62, 0.07, 4800, 700], t: [0.4, 0.06, 130, 60, 'sawtooth'], k: [0.12, 0.28, 1800, 260], r: 0.26, m: 1 },
+  ww_pistol: { c: [0.5, 0.02, 2300], b: [0.55, 0.12, 3700, 520], t: [0.4, 0.11, 155, 52], k: [0.14, 0.38, 1500, 210], r: 0.26, m: 1 },
+});
+// klips doldurma (anim.js 'clip' ile aynı zaman çizgisi): sürgü açılır, klips kemerden, bastırılır (iki tık), sürgü kapanır
+Sfx.prototype.clipReload = function (v, pos, t) {
+  this._clk(v, t * 0.1, 1900, 0.24); this._noise({ v, gain: 0.14, dur: 0.07, f0: 1500, f1: 800, type: 'bandpass', delay: t * 0.12 });
+  this._noise({ v, gain: 0.1, dur: 0.1, f0: 1700, f1: 900, type: 'bandpass', delay: t * 0.22, att: 0.02 });
+  this._clk(v, t * 0.4, 2700, 0.26); this._noise({ v, gain: 0.16, dur: 0.12, f0: 2400, f1: 1200, type: 'bandpass', delay: t * 0.44, att: 0.01 }); this._clk(v, t * 0.56, 2300, 0.32);
+  this._clk(v, t * 0.74, 1800, 0.3); this._clk(v, t * 0.82, 2500, 0.32);
+};
+// yarı otomatik tüfekte son mermi: boş en-bloc klipsin fırlaması (yüksek metalik "ping" + kısa çınlama)
+Sfx.prototype.clipPing = function (pos) {
+  if (!this.ctx) return;
+  const v = this._voice(pos, 1, { ref: 14, rv: 0.15 });
+  this._tone({ v, gain: 0.22, dur: 0.32, f0: 3100, f1: 2950, type: 'triangle', delay: 0.06, att: 0.002 });
+  this._tone({ v, gain: 0.1, dur: 0.24, f0: 4650, f1: 4500, type: 'sine', delay: 0.06, att: 0.002 });
+  this._noise({ v, gain: 0.08, dur: 0.03, f0: 7000, f1: 4000, type: 'highpass', delay: 0.055 });
+};
+// uzak top ateşi (Cephe ortamı, frontFx.js): konumsuz, boğuk, kısık gümbürtü
+Sfx.prototype.distantBoom = function () {
+  if (!this.ctx) return;
+  const v = this._voice(null, 0.5, { rv: 0.35 });
+  this._tone({ v, gain: 0.09, dur: 1.1, f0: 62, f1: 34, att: 0.06 });
+  this._noise({ v, gain: 0.07, dur: 1.4, f0: 420, f1: 120, att: 0.08 });
+};

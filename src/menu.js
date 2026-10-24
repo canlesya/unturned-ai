@@ -4,6 +4,7 @@ import { SKIN_SWATCH } from './models/skins.js';
 import './i18n/skins.js';
 import { MATCH_TYPES, TODS_LIST, defaultTickets, defaultScoreLimit, isTotalType as tot, totalMin as totMin, totalMax as totMax } from './game/match.js';
 import { LIMITS, TUNE } from './game/balance.js';
+import { frontTickets } from './game/match.js';                          // Cephe (12.158): saldıranın otomatik bileti
 import { MENU_CSS } from './menuStyle.js';
 import { loadEdits, clearEdits } from './game/mapEditor.js';
 import { MenuScene } from './menuScene.js';
@@ -206,7 +207,7 @@ export function showMenu(onStart, onOnline) {
   }
 
   // ───── Maç kurucu (Özel Oyun + Oda Kur ortak): 1 Mod → 2 Harita → 3 Ayarlar; sağda canlı özet + Oyna ─────
-  const MODE_ICON = { conquest: '⚑', tdm: '⚔', dm: '☠', gg: '🔫', inf: '🧟', pb: '🎨', payload: '🚃' };
+  const MODE_ICON = { conquest: '⚑', tdm: '⚔', dm: '☠', gg: '🔫', inf: '🧟', pb: '🎨', payload: '🚃', front: '🪖' };
   MODE_ICON.space = '🚀';                                                              // 12.157 Uzay (tdm kuralları: skor sınırı kartı tdm gibi)
   function builderHTML(c, online) {
     const LOCAL = { map: 'map', type: 'type', tod: 'tod', weather: 'weather', third: 'third', diff: 'diff', time: 'time', tickets: 'tickets', perTeam: 'size', team: 'team' };
@@ -218,8 +219,8 @@ export function showMenu(onStart, onOnline) {
     const ftod = cm && cm.forceTod;
     const eff = c.tickets || (tq === 'tdm' ? defaultScoreLimit(c.perTeam) : defaultTickets(c.perTeam));
     const lk = tp === 'inf' || tp === 'gg' || tp === 'dm' || tp === 'pb' || tq === 'tdm' ? tq : 'conquest';
-    const limitTitle = tp === 'payload' ? t('payload.limitTitle') : t('menu.limit.' + lk);
-    const limitSum = tp === 'payload' ? t('payload.limitSum') : t('menu.limitSum.' + lk, { n: eff, dm: LIMITS.dmKills, pb: LIMITS.pbKills });
+    const limitTitle = tp === 'payload' ? t('payload.limitTitle') : tp === 'front' ? t('front.limitTitle') : t('menu.limit.' + lk);
+    const limitSum = tp === 'payload' ? t('payload.limitSum') : tp === 'front' ? t('front.limitSum', { n: c.tickets || frontTickets(c.perTeam) }) : t('menu.limitSum.' + lk, { n: eff, dm: LIMITS.dmKills, pb: LIMITS.pbKills });
     const n = c.perTeam, sizeTxt = tot(tp) ? t('menu.nPeople', { n }) : `${n} vs ${n}`;
     const diffKey = tp === 'inf' ? 'hard' : c.diff, botsOn = online ? c.bots : true;
     const todLbl = ftod === 'day' ? t('space.todLbl') : ftod ? t('menu.nightMap') : c.tod === 'random' ? t('menu.random') : todLabel(c.tod);
@@ -234,7 +235,7 @@ export function showMenu(onStart, onOnline) {
     const mapDs = cm ? `<div class="mapdesc"><b>${mapNm(cm.id)}.</b> ${mapDesc(cm.id)}</div>` : `<div class="mapdesc">${t('menu.randomMapDesc')}</div>`;
     const tods = ftod ? `<div class="hint">${t(ftod === 'day' ? 'space.todHint' : 'menu.nightOnly', { m: mapNm(cm.id) })}</div>`
       : `<div class="tods">${TODS_LIST.map(([k]) => `<button class="tod ${k} ${c.tod === k ? 'on' : ''}" ${at('tod', k)}><span>${todLabel(k)}</span></button>`).join('')}<button class="tod rnd ${c.tod === 'random' ? 'on' : ''}" ${at('tod', 'random')}><span>${t('menu.random')}</span></button></div>`;
-    const limitBody = tp === 'payload' ? `<div class="hint">${t('payload.limitHint', { t: Math.round(LIMITS.plTime / 60), b: TUNE.plBonus, r: TUNE.plRadius, d: TUNE.plBackDelay })}</div>` : tp === 'inf' || tp === 'gg' || tp === 'dm' || tp === 'pb' ? `<div class="hint">${t('menu.limitHint.' + tp, { dm: LIMITS.dmKills, pb: LIMITS.pbKills })}</div>`
+    const limitBody = tp === 'payload' ? `<div class="hint">${t('payload.limitHint', { t: Math.round(LIMITS.plTime / 60), b: TUNE.plBonus, r: TUNE.plRadius, d: TUNE.plBackDelay })}</div>` : tp === 'front' ? `<div class="hint">${t('front.limitHint', { n: c.tickets || frontTickets(c.perTeam), b: Math.round((c.tickets || frontTickets(c.perTeam)) * TUNE.frBonus) })}</div>` : tp === 'inf' || tp === 'gg' || tp === 'dm' || tp === 'pb' ? `<div class="hint">${t('menu.limitHint.' + tp, { dm: LIMITS.dmKills, pb: LIMITS.pbKills })}</div>`
       : `<div class="row">${(tq === 'tdm' ? SCORE_OPTS : TICKET_OPTS).map((v) => `<button class="chip ${c.tickets === v ? 'on' : ''}" ${at('tickets', v)}>${v || t('menu.auto')}</button>`).join('')}</div><div class="hint">${t('menu.now')}: <b>${eff}</b></div>`;
     const sizeAttrs = online ? { id: 'ocSize', num: 'ocSizeV' } : { id: 'rSize', num: 'vSize' };
     const sizeCard = `<div class="sc wide"><h4>${t('menu.size')} <em>${tot(tp) ? t('menu.sizeTot', { n: hi(tp) }) : t('menu.sizeTeam')}${botsOn ? t('menu.sizeBots') : t('menu.sizeNoBots')}</em></h4>
@@ -591,7 +592,7 @@ export function showMenu(onStart, onOnline) {
       case 'edmap': p.edMap = v; break;
       case 'edopen': launchEditor(); return;
       case 'edclear': if (confirm(t('menu.ed.confirm', { m: mapNm(p.edMap) }))) { clearEdits(p.edMap); } break;
-      case 'type': if (p.type !== v) adv = 'bs2'; p.type = v; if (tot(v)) p.perTeam = Math.max(lo(v), Math.min(hi(v), p.perTeam)); if (v === 'inf') p.map = 'newyork'; else if (v === 'pb') { if (!MAPS[p.map]?.only?.includes('pb') && p.map !== 'random') p.map = 'boyakulesi'; } else if (v === 'payload') p.map = 'maden'; else if (v === 'space') p.map = 'yorunge'; else if (MAPS[p.map]?.only && !MAPS[p.map].only.includes(v)) p.map = DEFAULT_MAP; break;
+      case 'type': if (p.type !== v) adv = 'bs2'; p.type = v; if (tot(v)) p.perTeam = Math.max(lo(v), Math.min(hi(v), p.perTeam)); if (v === 'inf') p.map = 'newyork'; else if (v === 'pb') { if (!MAPS[p.map]?.only?.includes('pb') && p.map !== 'random') p.map = 'boyakulesi'; } else if (v === 'payload') p.map = 'maden'; else if (v === 'front') p.map = 'cephe'; else if (v === 'space') p.map = 'yorunge'; else if (MAPS[p.map]?.only && !MAPS[p.map].only.includes(v)) p.map = DEFAULT_MAP; break;
       case 'team': p.team = v; break;
       case 'diff': p.diff = v; break;
       case 'size': p.perTeam = +v; break;
@@ -604,7 +605,7 @@ export function showMenu(onStart, onOnline) {
         if ((k === 'type' || k === 'map') && c[k] !== v) adv = k === 'type' ? 'bs2' : 'bs3';
         c[k] = v === 'true' ? true : v === 'false' ? false : (k === 'perTeam' || k === 'tickets' || k === 'time') ? +v : v;
         if (k === 'type' && tot(v)) c.perTeam = Math.max(lo(v), Math.min(hi(v), c.perTeam));
-        if (k === 'type' && v === 'inf') c.map = 'newyork'; else if (k === 'type' && v === 'pb') { if (!MAPS[c.map]?.only?.includes('pb') && c.map !== 'random') c.map = 'boyakulesi'; } else if (k === 'type' && v === 'payload') c.map = 'maden'; else if (k === 'type' && v === 'space') c.map = 'yorunge'; else if (k === 'type' && MAPS[c.map]?.only && !MAPS[c.map].only.includes(v)) c.map = DEFAULT_MAP;
+        if (k === 'type' && v === 'inf') c.map = 'newyork'; else if (k === 'type' && v === 'pb') { if (!MAPS[c.map]?.only?.includes('pb') && c.map !== 'random') c.map = 'boyakulesi'; } else if (k === 'type' && v === 'payload') c.map = 'maden'; else if (k === 'type' && v === 'front') c.map = 'cephe'; else if (k === 'type' && v === 'space') c.map = 'yorunge'; else if (k === 'type' && MAPS[c.map]?.only && !MAPS[c.map].only.includes(v)) c.map = DEFAULT_MAP;
         break;
       }
       case 'rjoin': {

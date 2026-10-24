@@ -25,8 +25,8 @@ export const TACTICS = {
 };
 export const tacOf = (b) => TACTICS[b.dk] || TACTICS.normal;
 
-const SNIPER_W = new Set(['sniper', 'svd', 'barrett']);
-const CLOSE_W = new Set(['shotgun', 'aa12', 'dbl', 'mp5', 'vector', 'p90', 'ak74u', 'mac10']);
+const SNIPER_W = new Set(['sniper', 'svd', 'barrett', 'ww_sniper']);
+const CLOSE_W = new Set(['shotgun', 'aa12', 'dbl', 'mp5', 'vector', 'p90', 'ak74u', 'mac10', 'ww_smgb', 'ww_smgr']);
 SNIPER_W.add('railgun'); CLOSE_W.add('plasma').add('scatter');      // 12.157 Uzay modu enerji silahları
 const tA = new THREE.Vector3(), tB = new THREE.Vector3();
 
@@ -34,7 +34,7 @@ const tA = new THREE.Vector3(), tB = new THREE.Vector3();
 // Hesap (~100–300 ms) tek seferde yapılmaz: üreteç her oyun adımında en çok BUDGET ms ilerler (sunucu tik'i takılmaz); bitene kadar tacMap null döner
 // ve nişancı / pusucu geçici olarak tüfekçi gibi hedef seçer.
 const CACHE = new Map(), JOBS = new Map(), BUDGET = 4;
-export const tacEligible = (g) => !!(g.nav && !g.nav.nearestNode && !g.mode.infection && !g.payload && !g.mode.gungame && !g.mode.paintball && g.map.spawns?.blue?.[0] && g.map.spawns?.red?.[0]);
+export const tacEligible = (g) => !!(g.nav && !g.nav.nearestNode && !g.mode.infection && !g.payload && !g.front && !g.mode.gungame && !g.mode.paintball && g.map.spawns?.blue?.[0] && g.map.spawns?.red?.[0]);
 export function tacMap(g) {
   if (g._tac) return g._tac;
   if (g._tac === null) return null;
@@ -195,7 +195,7 @@ function* buildAmbush(g, tr, own, foe) {
 export function tacRole(b) {
   const g = b.game, s = b.s, T = tacOf(b), M = tacEligible(g);
   const p0 = s.items?.[0]?.id, ffa = g.ffa;
-  if (s.def.zombie || g.mode.infection || g.payload) return 'rifle';
+  if (s.def.zombie || g.mode.infection || g.payload || g.front) return 'rifle';      // Cephe: roller frontBots.js
   if (s.cls === 'medic' || (s.cls === 'heavy' && s.items[2]?.id === 'ammobox')) return 'support';
   const mates = g.brains.filter((o) => o !== b && o.s.alive && (ffa || o.s.team === s.team));
   const n = mates.length + 1, count = (r) => mates.filter((o) => o.role === r).length;
@@ -341,5 +341,5 @@ export function tacMateDown(b, victim, killer) {
   let x = victim.pos.x, z = victim.pos.z;
   if (killer && killer !== victim) { const kx = killer.pos.x - x, kz = killer.pos.z - z, L = Math.hypot(kx, kz) || 1, j = rand(-0.3, 0.3), c = Math.cos(j), sn = Math.sin(j); x += ((kx * c - kz * sn) / L) * Math.min(L, 10); z += ((kx * sn + kz * c) / L) * Math.min(L, 10); }
   b.alertT = g.time; b.alertPos = (b.alertPos || new THREE.Vector3()).set(x, victim.pos.y, z);
-  if (!b.spot && !g.payload && b.role !== 'support' && Math.random() < 0.5) b.setGoal(victim.pos.x + rand(-3, 3), victim.pos.z + rand(-3, 3), 8, victim.pos.y);
+  if (!b.spot && !g.payload && !g.front && b.role !== 'support' && Math.random() < 0.5) b.setGoal(victim.pos.x + rand(-3, 3), victim.pos.z + rand(-3, 3), 8, victim.pos.y);
 }

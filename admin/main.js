@@ -365,15 +365,16 @@ const MAPIMG = {
   depo: new URL('../public/img/depo.jpg', import.meta.url).href, boyakulesi: new URL('../public/img/boyakulesi.jpg', import.meta.url).href,
   ormankale: new URL('../public/img/ormankale.jpg', import.meta.url).href,
   maden: new URL('../public/img/maden.jpg', import.meta.url).href,
+  cephe: new URL('../public/img/cephe.jpg', import.meta.url).href,
   yorunge: new URL('../public/img/yorunge.jpg', import.meta.url).href,      // 12.157
 };
-const MODES = [['conquest', 'Ele Geçirme'], ['tdm', 'Takım Çatışması'], ['dm', 'Ölüm Maçı'], ['gg', 'Silah Yarışı'], ['inf', 'Enfekte'], ['pb', 'Paintball'], ['payload', 'Vagon'], ['space', 'Uzay']];
+const MODES = [['conquest', 'Ele Geçirme'], ['tdm', 'Takım Çatışması'], ['dm', 'Ölüm Maçı'], ['gg', 'Silah Yarışı'], ['inf', 'Enfekte'], ['pb', 'Paintball'], ['payload', 'Vagon'], ['space', 'Uzay'], ['front', 'Cephe']];
 const TODS = [['day', 'Gündüz'], ['sunset', 'Gün batımı'], ['night', 'Gece']];
 const WEATHERS = [['clear', 'Açık'], ['rain', 'Yağmur'], ['fog', 'Sis']];
 const DIFFS = [['easy', 'Kolay'], ['normal', 'Normal'], ['hard', 'Zor']];
 const lbl = (L, v) => (L.find((x) => x[0] === v) || [, v])[1];
 const isTotal = (t) => t === 'dm' || t === 'gg' || t === 'inf' || t === 'pb';
-const mapsFor = (t) => (t === 'space' ? ['yorunge'] : t === 'inf' ? ['newyork'] : t === 'pb' ? ['boyakulesi', 'ormankale'] : t === 'payload' ? ['maden'] : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman']);
+const mapsFor = (t) => (t === 'space' ? ['yorunge'] : t === 'inf' ? ['newyork'] : t === 'pb' ? ['boyakulesi', 'ormankale'] : t === 'payload' ? ['maden'] : t === 'front' ? ['cephe'] : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman']);
 function sizeRange(t, L) {
   if (t === 'inf') return [L.infMin, L.infMax, 2];
   if (t === 'pb') return [L.pbMin ?? 2, L.pbMax ?? 12, 1];

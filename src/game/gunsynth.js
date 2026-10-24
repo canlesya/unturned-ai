@@ -38,6 +38,11 @@ export const SYN = {
   suppressed: { b: [0.4, 22, 2600, 500], k: [0.5, 16, 850, 0.9], t: [0.3, 30, 150, 64], tl: [0.03, 80, 1200, 300], hs: [0.08, 30, 5000, 1], m: 'pistol', r: 0.1, g: 0.7 },      // susturucu: oyunda henüz silah yok (taslak / ileride)
 };
 SYN.def = SYN.rifle;
+// 12.158 Cephe: 1940'lar silahları (taslak B / C; varsayılan A = audio.js GUN bloğu)
+Object.assign(SYN, {
+  ww_bolt: { ...SYN.sniper, g: 1.3, tl: [0.34, 620, 1250, 130] }, ww_semi: { ...SYN.battle, g: 1.08 }, ww_smgb: { ...SYN.pistol45, m: 'smg', g: 0.9 },
+  ww_smgr: { ...SYN.smg }, ww_lmg: { ...SYN.pkm }, ww_mg: { ...SYN.lmg, b: [0.6, 22, 4800, 700], t: [0.5, 40, 130, 60], g: 0.95 }, ww_pistol: { ...SYN.pistol45 },
+});
 
 // Taslak çarpanları: B = tok / arcade (gümbürtü ve doyum yüksek, kuyruk kısa, mekanik belirgin) · C = açık hava / gerçekçi (çatlama + N-dalgası parlak, doyum az, uzun kuyruk + çift yansıma)
 export const DRAFTS = {

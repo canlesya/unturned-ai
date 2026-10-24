@@ -171,12 +171,44 @@ export class NavGrid {
     }
   }
 
+  // Bağlı bölge kimlikleri (findPath ile aynı komşuluk kuralları; adım sınırı başına bir kez): ayrı bölgedeki hedef için A* hiç başlamaz
+  comps(maxStep) {
+    const C = (this._comps ||= new Map());
+    let cm = C.get(maxStep);
+    if (cm) return cm;
+    const W = this.w, H = this.h, N = W * H, q = new Int32Array(N);
+    cm = new Int32Array(N).fill(-1);
+    let id = 0;
+    for (let s0 = 0; s0 < N; s0++) {
+      if (this.blocked[s0] || cm[s0] >= 0) continue;
+      let qh = 0, qt = 0; q[qt++] = s0; cm[s0] = id;
+      while (qh < qt) {
+        const cur = q[qh++], cx = cur % W, cz = (cur / W) | 0;
+        for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) {
+          if (!dx && !dz) continue;
+          const nx = cx + dx, nz = cz + dz;
+          if (nx < 0 || nz < 0 || nx >= W || nz >= H) continue;
+          const ni = nz * W + nx;
+          if (cm[ni] >= 0 || this.blocked[ni]) continue;
+          if (this.floor && Math.abs(this.floor[ni] - this.floor[cur]) > maxStep) continue;
+          if (dx && dz && (this.blocked[cz * W + nx] || this.blocked[nz * W + cx])) continue;
+          cm[ni] = id; q[qt++] = ni;
+        }
+      }
+      id++;
+    }
+    C.set(maxStep, cm);
+    return cm;
+  }
+
   // Yol: [Vector3...] ya da null
   findPath(sx, sz, gx, gz, maxStep = 0.7) {
     this._ms = maxStep;
     const s = this.nearestFree(sx, sz), g = this.nearestFree(gx, gz);
     if (s < 0 || g < 0) return null;
     if (s === g) return [new THREE.Vector3(this.cx(g), 0, this.cz(g))];
+    const cm = this.comps(maxStep);
+    if (cm[s] !== cm[g]) return null;                                    // 12.158: ulaşılamaz hedef (ayrı bölge): tüm ızgarayı taramadan aynı sonuç (büyük haritada 30+ ms)
     this.stamp++;
     const W = this.w, st = this.stamp;
     const open = new Heap();

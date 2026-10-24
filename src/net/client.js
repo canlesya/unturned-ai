@@ -166,6 +166,7 @@ export class NetClient {
     g.tickets.blue = m.tk[0]; g.tickets.red = m.tk[1];
     g.timeLeft = m.tl < 0 ? Infinity : m.tl;
     if (m.pl && g.payload) g.payload.applyNet(m.pl);                           // Vagon: konum + durum (gösterim netFrame'de yumuşar)
+    if (m.fr && g.front) g.front.applyNet(m.fr);                               // Cephe: etkin sektör (doğuş aşaması + şerit)
     m.o.forEach((o, i) => { const ob = g.mode.objectives[i]; if (!ob) return; const prev = ob.owner; ob.owner = o[0] === 1 ? 'blue' : o[0] === 2 ? 'red' : null; ob.p = o[1]; if (ob.owner !== prev) g.onFlag?.(ob, prev); });
     this.reconcile(m.me);
   }
