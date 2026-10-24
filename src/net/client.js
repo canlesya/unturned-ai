@@ -99,6 +99,42 @@ export class NetClient {
     if (this.hist.length > 240) this.hist.shift();
   }
 
+  // Son gönderilen girdinin adım sonundaki cephanesi (ateş / şarjör sonrası). Sunucu aynı girdiyi işleyince ack anındaki cephaneyi (me.aa) yollar.
+  markAmmo(s) { const h = this.hist[this.hist.length - 1]; if (h) h.am = s.items.map((it) => [it.mag, it.reserve]); }
+
+  // 12.138: kendini toparlayan cephane uzlaştırması. Eskiden cephane yalnız "uçuşta ateş yokken" sunucuya eşitleniyordu; sürekli ateşte
+  // (ya da gecikme / kuyruk yüzünden onaylanmamış girdi hep varken) istemci ile sunucu ayrışırsa (kaçan / fazladan atış, sunucuda erken
+  // şarjör, cephane kutusu) istemci boş şarjörle "ateş ediyor" görünebiliyordu. Artık her onaylanan girdide sunucunun o andaki cephanesi
+  // istemcinin AYNI girdideki kaydıyla karşılaştırılır; fark varsa şimdiki değere fark eklenir (sonraki tahminler korunur), kayıtlı tahminler de kaydırılır.
+  fixAmmo(s, rec, aa) {
+    const items = s.items, ra = rec.am;
+    if (!aa || !ra || aa.length !== items.length || ra.length !== items.length) return;
+    let off = false;
+    for (let i = 0; i < aa.length; i++) if (aa[i][0] !== ra[i][0] || aa[i][1] !== ra[i][1]) { off = true; break; }
+    if (!off) return;
+    for (let i = 0; i < aa.length; i++) {
+      const dm = aa[i][0] - ra[i][0], dr = aa[i][1] - ra[i][1];
+      if (!dm && !dr) continue;
+      const it = items[i], cap = WSTATS[it.id]?.mag;
+      it.mag = Math.max(0, it.mag + dm); if (Number.isFinite(cap) && it.mag > cap) it.mag = cap;
+      it.reserve = Math.max(0, it.reserve + dr);
+      for (const h of this.hist) if (h.am && h.am[i]) { h.am[i][0] += dm; h.am[i][1] += dr; }
+    }
+    this.stats.ammoFix = (this.stats.ammoFix || 0) + 1;
+  }
+
+  // 12.138: eşya listesi sunucudakinden farklıysa (yaşarken değişti: Silah Yarışı seviye atlama vb.) sunucununkine geç. Eskiden yerel oyuncunun
+  // eşyaları yalnız doğuşta eşitleniyordu → istemci ölene kadar başka silahı tutuyor / sayıyordu.
+  fixItems(s, me) {
+    const ids = me.now.it;
+    if (!ids || (ids.length === s.items.length && ids.every((id, i) => id === s.items[i].id))) return;
+    s.items = ids.map(mkItem); this.applyAmmo(s, me);
+    s.cur = Math.max(0, Math.min(ids.length - 1, me.now.c | 0)); s.reloadT = 0; s.useT = 0; s.swing = null; s.burstLeft = 0;
+    s._modelWeapon = undefined;
+    for (const h of this.hist) h.am = null;
+    this.game.emit('switch', s);
+  }
+
   // ── snapshot ──
   onSnap(m) {
     const now = performance.now();
@@ -185,13 +221,16 @@ export class NetClient {
     // ölüm/yaşam durumu SUNUCUNUN ŞU ANKİ durumundan (me.now) alınır: ack anındaki durum (me.st) ölünce güncellenmez (girdi işlenmez)
     if (!me.now.a) { if (s.alive) this.applyState(s, me.now, true); this.hist.length = 0; s.respawnT = me.rt; return; }
     if (!s.alive) { this.applyState(s, me.now, true); }
+    this.fixItems(s, me);
     s.hp = st.hp;
     s.protNet = !!(me.now.f & F_PROT);                              // doğma koruması: sunucunun şu anki durumundan (kalkan görseli)
     // sunucunun işlediği son girdi (ack) anındaki tahminimizle karşılaştır
     let rec = null;
     while (this.hist.length && this.hist[0].q <= me.ack) rec = this.hist.shift();
-    if (!this.hist.some((h) => h.fire)) this.applyAmmo(s, me);     // uçuşta ateş/şarjör yoksa cephaneyi sunucuya eşitle
+    const idle = !this.hist.some((h) => h.fire);
+    if (idle) { this.applyAmmo(s, me); for (const h of this.hist) h.am = null; }     // uçuşta ateş/şarjör yoksa cephaneyi sunucuya eşitle (uçuştaki kayıtlar artık temel değil)
     if (!rec || rec.q !== me.ack) return;
+    if (!idle) this.fixAmmo(s, rec, me.aa);
     const err = Math.hypot(rec.st.x - st.x, rec.st.y - st.y, rec.st.z - st.z);
     this.stats.lastErr = err;
     if (err > POS_EPS) { this.stats.errSum = (this.stats.errSum || 0) + err; this.stats.errMax = Math.max(this.stats.errMax || 0, err); }

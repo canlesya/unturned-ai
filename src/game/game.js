@@ -480,6 +480,7 @@ export class Game {
     if (inp.fp) h.fireBuf = 0.15;
     h.fireBuf = Math.max(0, h.fireBuf - dt);
     s.rewindTick = Number.isFinite(inp.vt) ? inp.vt : null;
+    if (s.rewindTick != null) h.vtLag = this.tick - s.rewindTick;          // teşhis (dbg ask): girdinin gördüğü an ile işlendiği adım arası
     s.inSeq = inp.q;                                                  // paintball: tohumlu saçılım + istemci tahmininin top eşlemesi
     // 3. şahıs: kameranın gözden ofseti. Yalnızca odada izinliyse, ≤ 4,5 m ve göz→kamera arasında duvar yoksa kabul edilir; aksi halde atış gözden.
     s.stanceLeft = this.thirdAllowed && !!inp.sd;                      // yalnızca görsel: diğer oyuncular sol omuz duruşunu görsün
@@ -503,6 +504,7 @@ export class Game {
       // Her işlenen girdi 1 hak harcar. Böylece ağ dalgalanmasında yığılan girdiler biriken zamanla eritilir (kalıcı gecikme
       // kalmaz), ama oyuncunun simüle edilen toplam süresi gerçek süreyi aşamaz: saniyede 60'tan fazla girdi yollamak hız kazandırmaz.
       h.budget = Math.min((h.budget ?? 1) + 1, 30);
+      this.drainBacklog(h);
       let n = h.queue.length > 2 ? 2 : 1, did = false;
       while (n-- > 0 && h.queue.length && h.budget >= 1) {
         const inp = h.queue.shift();
@@ -516,6 +518,24 @@ export class Game {
         this.humanTick(h, { yw: s.yaw, pt: s.pitch, a: 0, w: s.cur, f: 0, r: 0, l: 0, s: 0, j: 0, c: 0, p: 0, u: 0, rl: 0, fm: 0, o: 0, fh: 0, fp: 0 }, dt);
       }
     }
+  }
+
+  // 12.138: KALICI GİRDİ BİRİKMESİNİ ERİT. Bağlantı > 0,5 sn takılınca (yeniden iletim, dalgalı ping) o sürenin girdileri bir anda gelir; bütçe
+  // en çok 30 hak (0,5 sn) biriktirdiği için fazlası kuyrukta kalır ve istemci tam 60/sn yolladığından HİÇ erimez (yalnız ölünce silinirdi).
+  // Sonuç: oyuncunun her atışı ~0,5 sn geç işlenir, görüş farkı (vt) geri sarma penceresini (HN − 3 = 37 adım) aşar, hedef yanlış yere
+  // sarılır → hareketli düşmana ölene kadar isabet yok. Çözüm: 0,5 sn'lik pencerede kuyruğun EN AZ uzunluğu (kalıcı fazlalık) 2'yi aşıyorsa
+  // fazlası atlanır. Yalnız "sessiz" girdi atlanır (tuş kenarı / silah değişimi yok); duran oyuncunun girdisi her adım, hareket edeninki 3 adımda
+  // bir (atlanan adımın yürüyüşü kaybolur → istemci küçük, yumuşatılan düzeltme alır). Atlamak simülasyonu kısaltır, uzatmaz: hız hilesine kapı açmaz.
+  drainBacklog(h) {
+    const q = h.queue;
+    h.qMin = Math.min(h.qMin ?? 99, q.length);
+    if ((h.qWin = (h.qWin || 0) + 1) >= 30) { h.backlog = Math.max(0, h.qMin - 2); h.qMin = 99; h.qWin = 0; }
+    if (!(h.backlog > 0) || q.length <= 2) return;
+    const inp = q[0];
+    if (inp.c || inp.p || inp.u || inp.fp || inp.rl || inp.fm || inp.o || inp.ab || inp.w !== h.s.cur) return;
+    const idle = !inp.f && !inp.r && !inp.j;
+    if (!idle && this.tick % 3) return;
+    q.shift(); h.backlog--; h.dropped = (h.dropped || 0) + 1;
   }
 
   // ───── olaylar ─────
@@ -740,7 +760,7 @@ export class Game {
   respawn(s, first = false) {
     if (this.mode.infection) { if (s.infectNext) this.infect(s); else if (s.willCure) this.cure(s); }
     const ctl = this.ctlOf(s);
-    if (ctl && ctl.queue) { ctl.queue.length = 0; ctl.budget = 1; }        // insan: doğmadan önceki eski girdiler (örn. eski silah seçimi) uygulanmasın
+    if (ctl && ctl.queue) { ctl.queue.length = 0; ctl.budget = 1; ctl.backlog = 0; ctl.qMin = 99; }        // insan: doğmadan önceki eski girdiler (örn. eski silah seçimi) uygulanmasın
     if (ctl && ctl.pendingLoadout) { s.choice = ctl.pendingLoadout; ctl.pendingLoadout = null; if (!this.mode.fixed) s.items = makeLoadout(s.cls, s.team, s.choice); }
     if (ctl && ctl.pendingClass && ctl.pendingClass !== s.cls && !s.def.zombie && !this.mode.fixed) s.setClass(ctl.pendingClass);      // sabit teçhizatlı modda (silah yarışı / paintball) sınıf değişmez
     if (s.def.zombie) {                                                // yeniden doğan zombi: seçtiği tür; botlar her doğuşta rastgele

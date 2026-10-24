@@ -844,6 +844,7 @@ export class Player {
         if (st.kind === 'melee') { if (this.fireHeld || this.fireBuf > 0) { if (s.tryFire()) this.fireBuf = 0; } }
         else if (s.triggerUpdate(this.fireHeld, this.fireBuf)) this.fireBuf = 0;
       }
+      if (g.online) g.online.markAmmo(s);                                              // bu girdinin sonundaki cephane (sunucunun ack anındakiyle karşılaştırılır, 12.138)
       // adım sesi
       const sp = Math.hypot(s.vel.x, s.vel.z);
       if (s.onGround && sp > 1.5 && !s.crouching && !s.prone) {
