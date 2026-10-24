@@ -16,6 +16,7 @@ export class World {
     this.colliders = colliders;
     this.bounds = bounds;
     this.terrain = terrain;
+    this.grav = 1;                 // 12.157: yer çekimi çarpanı (Uzay modu: TUNE.spaceGrav; Game kurar, sunucu = istemci)
     this.cell = 8;
     this.grid = new Map();
     this.stamp = 0;
@@ -81,7 +82,7 @@ export class World {
     const wasOnGround = s.onGround;
     if (s.launchT > 0) s.launchT = wasOnGround ? 0 : s.launchT - dt;          // zıplama minderi uçuşu: havada yön değişimi azdır (sim/input.js)
     const list = this.query(p.x - 2, p.z - 2, p.x + 2, p.z + 2, (this._tmp ||= []));
-    v.y -= TUNE.gravity * dt;
+    v.y -= TUNE.gravity * this.grav * dt;
     if (v.y < -40) v.y = -40;
     let stepped = false;
 
@@ -134,7 +135,7 @@ export class World {
     // Derin suya (Vadi nehri) ya da minder / uçuş sonrası iniş hasarsız.
     if (s.onGround) {
       if (!wasOnGround) {
-        if (!s.fallSafe && !(T && !s.onCollider && gh < (T.deepWater ?? DEEP_WATER))) s.landH = Math.max(0, Math.min((s.fallTop ?? p.y) - p.y, fallHeight(-vIn, TUNE.gravity) + 0.6));
+        if (!s.fallSafe && !(T && !s.onCollider && gh < (T.deepWater ?? DEEP_WATER))) s.landH = Math.max(0, Math.min((s.fallTop ?? p.y) - p.y, fallHeight(-vIn, TUNE.gravity * this.grav) + 0.6));
         s.fallSafe = false;
       }
       s.fallTop = p.y;

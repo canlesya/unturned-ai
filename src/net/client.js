@@ -259,7 +259,7 @@ export class NetClient {
     const keepYaw = s.yaw, keepPitch = s.pitch, keepAds = s.ads, keepAdsT = s.adsT, bx = s.pos.x, by = s.pos.y, bz = s.pos.z;
     s.pos.set(st.x, st.y, st.z); s.vel.set(st.vx, st.vy, st.vz);
     applyFlags(s, st.f);
-    s.fallTop = s.onGround ? st.y : st.y + fallHeight(Math.abs(st.vy), TUNE.gravity);     // havadaysa zirve sunucu durumundan (balistik uçuş: y + v² / 2g); düşme tahmini sunucuyla aynı yükseklikten
+    s.fallTop = s.onGround ? st.y : st.y + fallHeight(Math.abs(st.vy), TUNE.gravity * g.world.grav);     // havadaysa zirve sunucu durumundan (balistik uçuş: y + v² / 2g); düşme tahmini sunucuyla aynı yükseklikten
     for (const h of this.hist) {
       g.world.move(s, SIM_DT);
       if (s.landH > 0) g.fallReplay?.(s, h.q);                    // yeniden oynatmada iniş: bu girdinin sunucu adımında düşme hasarı (tahmin)

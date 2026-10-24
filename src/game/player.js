@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { createWeapon } from '../models/weapons.js';
 import { setSkinAlpha, setSkinProbe, SKIN_PROBE } from '../models/skins.js';
-import { pbLook } from '../models/character.js';
+import { pbLook, spaceLook } from '../models/character.js';
 import { tintPaint } from '../models/paintball.js';
 import { paintColorOf } from './paint.js';
 import { TEAMS } from '../core/palette.js';
@@ -275,6 +275,7 @@ export class ViewModel {
       const sleeve = box(grp, [0.11, 0.11, len], c.shirt, [0, 0, 0], null, DS);
       sleeve.position.copy(dir).multiplyScalar(len / 2 + off).add(lat);
       sleeve.quaternion.setFromUnitVectors(Z, dir);
+      if (c.cuff) { const cf = box(sleeve, [0.135, 0.135, 0.07], c.cuff, [0, 0, -len / 2 + 0.035], null, DS); cf.userData.cuff = true; }      // 12.157 Uzay: kalın bilek halkası (kolla birlikte döner)
       grp.userData.sleeve = sleeve; grp.userData.dir0 = dir; grp.userData.dirA = dirA; grp.userData.len = len; grp.userData.off = off; grp.userData.lat = lat; grp.userData.latA = latA;
       g.add(grp);
       return grp;
@@ -776,7 +777,7 @@ export class Player {
 
   refreshWeapon() {
     const s = this.s;
-    this.vm.look = this.game.mode.paintball && !s.def?.zombie ? pbLook(paintColorOf(s)) : null;      // paintball: birinci şahıs kolu / eldiven forma renginde (yalnız renk)
+    this.vm.look = this.game.mode.paintball && !s.def?.zombie ? pbLook(paintColorOf(s)) : this.game.mode.space && !s.def?.zombie ? spaceLook(s.team) : null;      // 12.157: Uzay kıyafeti kolu (beyaz kol, takım renginde eldiven, koyu bilek halkası)      // paintball: birinci şahıs kolu / eldiven forma renginde (yalnız renk)
     this.vm.setItem(s.item.id, s.team, s.stat.kind, s.optic, s.def?.zombie ? s.zt?.skin : null, s.skinOf(s.item.id));
     if (s.stat.ball) { tintPaint(this.vm.model, paintColorOf(s)); this.vm.flash?.removeFromParent(); this.vm.flash = null; }      // paintball: hazne / tüp kendi boya rengimde, namlu alevi yok
   }

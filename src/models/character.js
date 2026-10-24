@@ -198,7 +198,68 @@ function paintballGear(parts, c, skin, num) {
   box(head, [0.09, 0.03, 0.012], col, [0, -0.13, -0.19]);                                           // çene şeridi
 }
 
+// ── 12.157 Uzay kıyafeti (mod space): kırık beyaz basınçlı kıyafet + takım rengi paneller (omuz, göğüs, uyluk bandı, kask şeridi, sırt ışığı),
+// alçak poligon kask (kürecik kabuk) + koyu altın yansıtıcı vizör + ışıyan vizör kenarı, sırtta yaşam destek ünitesi + iki oksijen tankı, kalın eklem halkaları, ay botları.
+// Vuruş kutuları değişmez (mantık modelden bağımsız). Birinci şahıs kolu / eldiveni spaceLook ile (player.js vm.look).
+export const SPACE_TEAM = { blue: '#2f6fd6', red: '#d0443a' };
+export function spaceLook(team) {
+  const tc = SPACE_TEAM[team] || '#8a8f96';
+  return { shirt: '#dedcd5', pants: '#d4d2ca', vest: '#2b2f35', helmet: '#e4e2db', gloves: new THREE.Color(tc).multiplyScalar(0.62).getStyle(), boots: '#3a3d42', accent: tc, team: tc, cuff: '#2b2f35' };
+}
+function spaceGear(parts, c, cls) {
+  const { torso, head, legs } = parts, T = c.team, D = '#2b2f35', SH = '#c4c2ba', W = '#e4e2db';
+  const glow = { emissive: T, emissiveIntensity: 1.3 };
+  // gövde: göğüs paneli (takım), kumanda kutusu + ışıklar, bel kemeri, boyun bileziği
+  for (const sx of [-1, 1]) box(torso, [0.13, 0.17, 0.02], T, [sx * 0.125, 0.13, -0.14]);
+  box(torso, [0.2, 0.13, 0.06], D, [0, -0.06, -0.15]);
+  box(torso, [0.03, 0.03, 0.01], T, [-0.06, -0.04, -0.185], null, glow);
+  box(torso, [0.03, 0.03, 0.01], '#58d68d', [0, -0.04, -0.185], null, { emissive: '#58d68d', emissiveIntensity: 1.1 });
+  box(torso, [0.03, 0.03, 0.01], '#f0b443', [0.06, -0.04, -0.185], null, { emissive: '#f0b443', emissiveIntensity: 1.1 });
+  box(torso, [0.48, 0.08, 0.28], D, [0, -0.25, 0]);
+  box(torso, [0.08, 0.05, 0.02], '#9aa3ad', [0, -0.25, -0.145], null, { metalness: 0.5 });
+  cylY(torso, 0.16, 0.17, 0.07, D, [0, 0.31, 0], 10);
+  // omuz yastıkları (takım rengi, kalın) + kol bandı
+  const heavy = cls === 'heavy';
+  for (const sx of [-1, 1]) {
+    box(torso, [heavy ? 0.24 : 0.2, heavy ? 0.12 : 0.1, heavy ? 0.26 : 0.22], T, [sx * SHOULDER_X, SHOULDER_Y + 0.055, 0]);
+    box(torso, [heavy ? 0.245 : 0.205, 0.025, heavy ? 0.265 : 0.225], D, [sx * SHOULDER_X, SHOULDER_Y + (heavy ? 0.12 : 0.105), 0]);
+  }
+  if (heavy) { box(torso, [0.42, 0.34, 0.06], new THREE.Color(T).multiplyScalar(0.55).getStyle(), [0, 0.08, -0.17], null, { metalness: 0.3 }); box(torso, [0.2, 0.06, 0.065], D, [0, -0.05, -0.18]); }
+  // sırt: yaşam destek ünitesi + iki oksijen tankı (kapaklı) + hortumlar + takım rengi ışık şeridi
+  box(torso, heavy ? [0.42, 0.5, 0.18] : [0.38, 0.46, 0.16], W, [0, 0.04, heavy ? 0.22 : 0.21]);
+  box(torso, [0.3, 0.035, 0.012], T, [0, 0.2, heavy ? 0.316 : 0.296], null, glow);
+  for (const sx of [-1, 1]) {
+    cylY(torso, 0.06, 0.06, 0.36, '#aeb3b9', [sx * 0.1, 0.06, heavy ? 0.355 : 0.335], 10, null, { metalness: 0.45, roughness: 0.4 });
+    cylY(torso, 0.064, 0.064, 0.05, sx < 0 ? '#e07a2a' : D, [sx * 0.1, 0.26, heavy ? 0.355 : 0.335], 10);
+    box(torso, [0.025, 0.025, 0.2], D, [sx * 0.17, 0.27, 0.1], [0.5, 0, 0]);                 // hortum (tanktan kaska)
+  }
+  if (cls === 'medic') for (const [w, h] of [[0.12, 0.035], [0.035, 0.12]]) box(torso, [w, h, 0.012], '#d23a2e', [0, -0.07, heavy ? 0.316 : 0.296]);
+  if (cls === 'engineer') { box(torso, [0.14, 0.11, 0.07], '#e07a2a', [0.19, -0.2, -0.12]); box(torso, [0.16, 0.02, 0.075], D, [0.19, -0.14, -0.12]); }
+  // bacaklar: uyluk bandı (takım), kalın diz halkası, ay botu
+  for (const s of ['L', 'R']) {
+    const th = legs[s].thigh, kn = legs[s].knee, ft = legs[s].foot;
+    box(th, [0.19, 0.05, 0.22], T, [0, -0.13, 0]);
+    box(th, [0.2, 0.08, 0.23], D, [0, -0.44, 0]);
+    if (cls === 'engineer') box(th, [0.012, 0.3, 0.07], '#e07a2a', [(s === 'R' ? 1 : -1) * 0.096, -0.25, 0]);
+    box(kn, [0.18, 0.06, 0.21], D, [0, -0.3, 0]);
+    box(ft, [0.2, 0.17, 0.24], '#cfcdc6', [0, 0.02, 0.0]);
+    box(ft, [0.2, 0.09, 0.33], '#cfcdc6', [0, -0.03, -0.045]);
+    box(ft, [0.205, 0.035, 0.335], D, [0, -0.08, -0.045]);
+  }
+  // kask: alçak poligon kabuk + koyu altın vizör (yansıtıcı) + ışıyan vizör kenarı + takım şeridi; sınıfa göre anten / dürbün / lamba
+  ico(head, 0.215, W, [0, 0.015, 0.01], 1, [1, 0.97, 1.03]);
+  ico(head, 0.19, new THREE.Color(T).multiplyScalar(0.25).getStyle(), [0, 0.0, -0.075], 1, [0.95, 0.66, 0.62], { metalness: 0.7, roughness: 0.14, emissive: T, emissiveIntensity: 0.42 });      // parlayan vizör (takım renginde hafif ışıma)
+  box(head, [0.26, 0.018, 0.04], T, [0, 0.105, -0.165], [-0.35, 0, 0], glow);
+  box(head, [0.07, 0.03, 0.44], T, [0, 0.215, 0.0]);
+  for (const sx of [-1, 1]) box(head, [0.05, 0.1, 0.12], D, [sx * 0.2, 0.0, 0.03]);           // kulak modülleri
+  if (cls === 'sniper') { box(head, [0.05, 0.06, 0.14], D, [0.235, 0.05, -0.04]); box(head, [0.012, 0.36, 0.012], D, [-0.2, 0.25, 0.08]); }
+  else if (cls === 'engineer') { box(head, [0.08, 0.05, 0.06], D, [0.17, 0.1, -0.12]); box(head, [0.05, 0.035, 0.01], '#fff4d6', [0.17, 0.1, -0.152], null, { emissive: '#fff4d6', emissiveIntensity: 1.5 }); }
+  else if (cls === 'medic') for (const [w, h] of [[0.08, 0.025], [0.025, 0.08]]) box(head, [0.012, h, w], '#d23a2e', [-0.218, 0.07, 0.03]);
+  else box(head, [0.012, 0.18, 0.012], D, [-0.19, 0.2, 0.08]);
+}
+
 function addGear(cls, team, c, parts, skin, ztype, look) {
+  if (look?.space) { spaceGear(parts, c, cls); return; }
   if (look) { paintballGear(parts, c, skin, look.num); return; }
   const { torso, head, legs } = parts;
   // ortak: yelek + kemer + omuz kayışları
@@ -323,8 +384,8 @@ function addGear(cls, team, c, parts, skin, ztype, look) {
 // ── Karakter oluşturucu ──
 // outfit 'paintball' + paint (renk) + num (forma numarası): paintball oyuncusu görünümü (sınıf teçhizatı yerine)
 export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0, weapon = null, blade = 0.38, optic = 'reddot', ztype = 'walker', outfit = null, paint = '#ff2b3a', num = 7, wskin = 'std' } = {}) {
-  const look = outfit === 'paintball' && cls !== 'zombie' ? { num } : null;
-  const c = look ? { ...TEAMS[team], ...pbLook(paint) } : TEAMS[team];
+  const look = outfit === 'paintball' && cls !== 'zombie' ? { num } : outfit === 'space' && cls !== 'zombie' ? { space: true } : null;      // 12.157: Uzay kıyafeti
+  const c = look?.space ? { ...TEAMS[team], ...spaceLook(team) } : look ? { ...TEAMS[team], ...pbLook(paint) } : TEAMS[team];
   const skin = SKINS[skinIndex % SKINS.length];
   const root = new THREE.Group();
   root.rotation.order = 'YXZ';   // önce yön (yaw), sonra gövde eğimi/yatma: baktığı yöne göre devrilir

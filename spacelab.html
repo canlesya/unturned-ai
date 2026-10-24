@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Uzay Laboratuvarı</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #0d0f14; font-family: Arial, sans-serif; }
+    canvas { display: block; }
+    #labels { position: fixed; inset: 0; pointer-events: none; }
+    .lbl { position: absolute; transform: translate(-50%, 0); color: #fff; text-align: center; white-space: nowrap; text-shadow: 0 1px 3px rgba(0,0,0,.9); }
+    .lbl b { display: block; font-size: 17px; }
+    .lbl span { display: block; font-size: 12px; opacity: .78; }
+    #title { position: fixed; left: 18px; top: 12px; color: #fff; font-size: 22px; font-weight: 700; text-shadow: 0 1px 4px rgba(0,0,0,.8); }
+    #title small { display: block; font-size: 13px; font-weight: 400; opacity: .75; margin-top: 3px; }
+  </style>
+</head>
+<body>
+  <div id="title"></div>
+  <div id="labels"></div>
+  <!-- 12.157 Uzay modu taslak / son görsel sayfaları (oyun modelleri, oyun malzemeleri): ?v=weapons | chars | tex  — scripts/spacesheets.mjs ekran görüntüsünü alır -->
+  <script type="module" src="/src/lab4/spaceLab.js"></script>
+</body>
+</html>

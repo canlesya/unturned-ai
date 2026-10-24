@@ -24,9 +24,10 @@ export function applyInput(s, input, dt) {
   let wx = fx * f + rx * r, wz = fz * f + rz * r;
   const wl = Math.hypot(wx, wz);
   if (wl > 0) { const m = Math.min(1, wl); wx = (wx / wl) * spd * m; wz = (wz / wl) * spd * m; }     // çapraz (klavye) normalize; analog joystick yarım itilirse yarım hız
-  const acc = s.onGround ? 14 : s.launchT > 0 ? 0.1 : 2.2;             // minderden fırlayan: yay çizer (havada az yön değişimi)
+  const lowG = s.game?.world?.grav < 1;                                    // 12.157 Uzay: düşük yer çekimi → havada biraz daha fazla yön denetimi, zıplama TUNE.spaceJump
+  const acc = s.onGround ? 14 : s.launchT > 0 ? 0.1 : lowG ? TUNE.spaceAir : 2.2;             // minderden fırlayan: yay çizer (havada az yön değişimi)
   const a = 1 - Math.exp(-acc * dt);
   s.vel.x += (wx - s.vel.x) * a;
   s.vel.z += (wz - s.vel.z) * a;
-  if (input.jump && !(s.def.zombie && s.game.graceLeft > 0) && s.onGround && !s.prone && !s.crouching) { s.vel.y = TUNE.jumpSpeed * (s.jumpMul || 1); s.onGround = false; }
+  if (input.jump && !(s.def.zombie && s.game.graceLeft > 0) && s.onGround && !s.prone && !s.crouching) { s.vel.y = TUNE.jumpSpeed * (s.jumpMul || 1) * (lowG ? TUNE.spaceJump : 1); s.onGround = false; }
 }
