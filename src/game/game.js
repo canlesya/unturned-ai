@@ -1144,7 +1144,7 @@ export class Game {
           this.effects.tracer(o, p, st.tracer);
           if (ev.k === 'f') this.effects.blood(p, 7, dir.clone().negate());
           else if (ev.k === 'w') { const n = new V(...ev.n); this.effects.spark(p, 4, n); this.effects.dust(p, n); this.effects.decal(p, n); }
-          if (ev.m) { this.effects.muzzle(o, dir); this.sfx.shot(st.sound, by.pos); by.flashT = 0.06; }
+          if (ev.m) { this.effects.muzzle(o, dir); this.sfx.shot(st.sound, by.pos); by.flashT = 0.06; if (st.charge) by.railT = 0; }      // 12.160 railT: ray tüfeği şarjı 3. şahısta (yeni ağ alanı yok)
           break;
         }
         case 'hm': if (ev.by === me.id) this.emit('hitmark', { zone: ev.hd ? 'head' : 'body', dead: !!ev.dead }); break;

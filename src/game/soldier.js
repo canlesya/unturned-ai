@@ -9,6 +9,7 @@ import { paintColorOf } from './paint.js';
 import { tintPaint } from '../models/paintball.js';
 import { pbItems } from './match.js';
 import { throwState, pinSfx } from './grenade.js';
+import { spaceTp } from './space.js';
 
 const _v = new THREE.Vector3();
 const _d = new THREE.Vector3();
@@ -377,6 +378,7 @@ export class Soldier {
     if (!st.ball && !(this.isPlayer && (g.player?.scopeOn || (!g.showSelf && g.player && g.player.thirdT < 0.5)))) g.effects.muzzle(muzzle, base);      // paintball: alev yok (gazla atar) · 12.153: dürbünde kendi alevi görüşü kapatmaz · 12.141: birinci şahısta dünya alevi (göz önünde düz sarı kutu) yok, silah modelinin alevi yeter
     g.sfx.shot(st.sound, this.pos);
     this.flashT = 0.06;
+    if (st.charge) this.railT = 0;                                               // 12.160: 3. şahıs ray tüfeği şarjı (space.js spaceTp)
     this.sinceShot = 0;
     this.bloom = st.ball ? Math.min(this.bloom + (st.bloom ?? 0.003), st.bloomMax ?? 0.03) : Math.min(this.bloom + (st.kickV || 0.01) * 0.07, 0.005);
     if (this.isPlayer || this.human) {
@@ -767,6 +769,7 @@ export class Soldier {
     if (this.isPlayer) this._syncWeaponModel();                                         // 3. şahıs: elindeki silah modeli güncel olsun
     root.visible = this.alive || this.deadT < 5;
     this._shield(this.protected);
+    if (this.game.mode?.space) spaceTp(this, dt);                                      // 12.160: ray tüfeği şarj ışıması 3. şahısta
     if (this.cloaked && this.alive && !this.isPlayer && this.pos.distanceTo(this.game.camera.position) > 3) root.visible = false;   // görünmez zombi: yalnızca 3 m içinde seçilir
     root.position.set(this.pos.x, this.pos.y + (m.groundOffset ?? m.root.position.y), this.pos.z);
     // Bacaklar (root) bakış yönüne gecikmeli döner; gövde (silah) hep bakış yönünde kalır: yerinde dönerken ayaklar takip eder, koşarken hızla hizalanır
