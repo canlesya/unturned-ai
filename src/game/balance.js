@@ -14,6 +14,7 @@ export const TUNE = {
   captureRate: 0.085, bleed: BLEED_S,
   sightDay: 130, sightSunset: 105, sightNight: 62,
   plSpeed: 1.0, plCrowd: 0.25, plRadius: 3.5, plBackDelay: 20, plBackSpeed: 0.35, plBonus: 120, plOverGrace: 1.5, plSupply: 0.08, plAtkRespawn: 1.0, plDefRespawn: 0.75,   // Vagon modu: taban hız (m/sn), ek iten başına +%, itme yarıçapı, geri kayma bekleme / hız, kontrol noktası süre ödülü, uzatma payı, vagon yanı ikmal, doğma süresi çarpanı (12.150: botlar vagonu gerçekten oynayınca saldıran 1,0 / savunan 0,75 — savunan doğuşu raydan uzak)
+  spaceGrav: 0.36, spaceJump: 0.86, spaceAir: 3.4,                  // 12.157 Uzay modu: yer çekimi çarpanı (Dünya'nın ~1/3'ü), zıplama hızı çarpanı (zirve ≈ 2 m, havada ≈ 1,7 sn), havada yön denetimi (normal 2,2)
 };
 Object.assign(TUNE, { frBonus: 0.4, frAtkRespawn: 1.0, frDefRespawn: 1.15, frCapMul: 1.0 });   // Cephe (12.158): sektör başına saldırana bilet (başlangıcın oranı), doğma süresi çarpanları, ele geçirme hızı çarpanı
 // Oyun modu sınırları (oda kurulumu + menü)
@@ -39,6 +40,7 @@ export const WEAPON_GROUPS = {
   melee: ['knife', 'machete', 'tomahawk'],
   paint: ['pbrifle', 'pbpistol'],
 };
+WEAPON_GROUPS.space = ['laser', 'plasma', 'epistol', 'railgun', 'scatter', 'elmg']; GUN_KINDS.space = 'Uzay (enerji)';     // 12.157: yalnız Uzay modunda kuşanılır
 export const GROUP_LABELS = GUN_KINDS;
 export const ITEM_IDS = ['medkit', 'grenade', 'smoke', 'flash', 'claymore', 'ammobox'];
 
@@ -128,6 +130,8 @@ export function balanceSections() {
         f('mode.plTime', 'Saldırı ilk süresi', 60, 1800, 30, 'sn'), f('tune.plBonus', 'Kontrol noktası süre ödülü', 0, 600, 10, 'sn'),
         f('tune.plSpeed', 'Vagon taban hızı (1 kişi)', 0.2, 4, 0.05, 'm/sn'), f('tune.plCrowd', 'Ek iten başına hız', 0, 1, 0.05, '×'), f('tune.plRadius', 'İtme yarıçapı', 1.5, 8, 0.1, 'm'),
         f('tune.plBackDelay', 'Geri kayma bekleme', 0, 60, 1, 'sn'), f('tune.plBackSpeed', 'Geri kayma hızı', 0, 3, 0.05, 'm/sn'), f('tune.plOverGrace', 'Uzatma payı', 0, 10, 0.5, 'sn'), f('tune.plSupply', 'Vagon yanı ikmal (2 sn)', 0, 1, 0.01, '×'), f('tune.plAtkRespawn', 'Saldıran doğma süresi çarpanı', 0.2, 3, 0.05, '×'), f('tune.plDefRespawn', 'Savunan doğma süresi çarpanı', 0.2, 3, 0.05, '×')] },
+      { id: 'space', name: 'Uzay', preview: { kind: 'icon', icon: 'planet' }, fields: [      // 12.157
+        f('tune.spaceGrav', 'Yer çekimi çarpanı', 0.1, 1, 0.01, '×'), f('tune.spaceJump', 'Zıplama hızı çarpanı', 0.5, 1.5, 0.01, '×'), f('tune.spaceAir', 'Havada yön denetimi', 0.5, 10, 0.1)] },
       { id: 'front', name: 'Cephe', preview: { kind: 'icon', icon: 'flag' }, fields: [
         f('mode.frTickets', 'Saldıranın oyuncu başına bileti', 2, 40), f('tune.frBonus', 'Sektör başına bilet (başlangıcın oranı)', 0, 2, 0.05, '×'),
         f('tune.frCapMul', 'Ele geçirme hızı çarpanı', 0.2, 4, 0.05, '×'), f('tune.frAtkRespawn', 'Saldıran doğma süresi çarpanı', 0.2, 3, 0.05, '×'), f('tune.frDefRespawn', 'Savunan doğma süresi çarpanı', 0.2, 3, 0.05, '×')] },

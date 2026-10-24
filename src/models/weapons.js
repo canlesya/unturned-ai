@@ -259,6 +259,8 @@ Object.assign(S3W, S3I); Object.assign(WEAPONS, S3I);
 Object.assign(S3W, S3R); Object.assign(WEAPONS, S3R);   // s3rifles: S3 tüfek / DMR / pompalı / M79 (eski modellerin yerine)
 import { WW2W } from './ww2weapons.js';
 Object.assign(S3W, WW2W); Object.assign(WEAPONS, WW2W);   // 12.158: 1940'lar silahları (Cephe modu)
+import { S3SPACE } from './s3space.js';
+Object.assign(S3W, S3SPACE); Object.assign(WEAPONS, S3SPACE);   // 12.157 Uzay modu enerji silahları (s3space.js)
 
 // Görüntüleyici alt yazısı: WSTATS açıklamasından
 export const WEAPON_INFO = new Proxy({}, { get: (_, id) => WSTATS[id]?.desc || '' });

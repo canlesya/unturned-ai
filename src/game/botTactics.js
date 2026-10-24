@@ -27,6 +27,7 @@ export const tacOf = (b) => TACTICS[b.dk] || TACTICS.normal;
 
 const SNIPER_W = new Set(['sniper', 'svd', 'barrett', 'ww_sniper']);
 const CLOSE_W = new Set(['shotgun', 'aa12', 'dbl', 'mp5', 'vector', 'p90', 'ak74u', 'mac10', 'ww_smgb', 'ww_smgr']);
+SNIPER_W.add('railgun'); CLOSE_W.add('plasma').add('scatter');      // 12.157 Uzay modu enerji silahları
 const tA = new THREE.Vector3(), tB = new THREE.Vector3();
 
 // ───── Harita taktik verisi (harita + mod + doğuş başına bir kez; modül önbelleği: sunucuda aynı haritadaki odalar paylaşır) ─────

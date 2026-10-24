@@ -26,4 +26,5 @@ export const fallHeight = (v, g) => (v > 0 && g > 0 ? (v * v) / (2 * g) : 0);
 
 // Bu savaşçı düşme hasarı alır mı (mod kuralı). Paintball: kaleden (9 m) atlamak oyunun parçası, kuyu zaten eler → yok.
 // Enfekte: zombiler (çatıdan sıçrayan avcılar) almaz, insanlar alır.
-export const fallApplies = (s, mode) => !mode?.paintball && !s.def?.zombie;
+// Uzay (12.157): düşük yer çekiminde düşme hasarı yok.
+export const fallApplies = (s, mode) => !mode?.paintball && !mode?.space && !s.def?.zombie;

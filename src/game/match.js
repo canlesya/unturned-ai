@@ -6,12 +6,14 @@ export const MATCH_TYPES = {
   gg: { label: 'Silah Yarışı', desc: 'Herkes tek. Her öldürmede bir sonraki silah; 15. silah bıçak. Bıçakla öldürülen bir seviye geriler; bıçakla ilk öldüren kazanır (en çok 10 kişi).' },
   dm: { label: 'Ölüm Maçı', desc: 'Herkes tek. Rastgele doğ, ilk 40 öldürmeye ulaşan kazanır (en çok 10 kişi).' },
   payload: { get label() { return t('payload.label'); }, get desc() { return t('payload.desc'); } },     // Vagon: Mavi saldırır (vagonu iter), Kırmızı savunur (src/game/payload.js)
+  space: { get label() { return t('space.label'); }, get desc() { return t('space.desc'); } },     // 12.157 Uzay: takım çatışması (tdm kuralları) + düşük yer çekimi + enerji silahları + uzay kıyafeti (src/game/space.js)
   front: { get label() { return t('mode.front.label'); }, get desc() { return t('mode.front.desc'); } },        // Cephe: sektör sektör ilerleme, Mavi saldırır (src/game/front.js)
   pb: { label: 'Paintball', desc: 'Herkes tek, herkesin kendi boya rengi. Sabit boya silahları, Boya Kulesi\'nde üç kat: zemin siperleri, kaleler, kule tepesi. Kuyuya düşen elenir; ilk 30 elemeye ulaşan kazanır.' },
 };
 import { LIMITS } from './balance.js';
 import { t } from '../i18n/index.js';
 import '../i18n/payload.js';
+import '../i18n/space.js';
 import '../i18n/front.js';
 import { WSTATS } from './stats.js';
 
@@ -31,7 +33,7 @@ export const PRESETS = {
   '10v10': { label: 'Büyük Savaş 10v10', perTeam: 10, tickets: 200, time: 900 },
 };
 // Skor tabanlı modlarda (TDM) 'tickets' alanı skor sınırıdır; takım skorları 0'dan yukarı sayar
-export const isScoreType = (t) => t === 'tdm';
+export const isScoreType = (t) => t === 'tdm' || t === 'space';
 export function defaultScoreLimit(perTeam) { return Math.max(30, Math.min(150, perTeam * 10)); }
 export function frontTickets(perTeam) { return Math.max(60, Math.round(perTeam * LIMITS.frTickets / 10) * 10); }   // Cephe: saldıranın başlangıç bileti (oyuncu başına LIMITS.frTickets)
 export function defaultTickets(perTeam) { return Math.max(40, Math.round(perTeam * 20 / 10) * 10); }
@@ -39,6 +41,7 @@ export function defaultTickets(perTeam) { return Math.max(40, Math.round(perTeam
 export const ffaMetric = (s, gg) => (gg ? s.ggLevel + 1 : s.kills);          // gg: seviye (1..15), değilse öldürme
 export const ffaRanking = (soldiers, gg) => soldiers.filter((s) => !s.vacant).sort((a, b) => (gg ? b.ggLevel - a.ggLevel : 0) || b.kills - a.kills || b.score - a.score);
 export function makeMatch(o = {}) {
+  if (o.type === 'space') return { ...makeMatch({ ...o, type: 'tdm' }), type: 'space', space: true };      // 12.157 Uzay: tdm kuralları (skor sınırı / süre) + mode.space (yer çekimi, silahlar, kıyafet)
   const fr = o.type === 'front';                                    // Cephe (12.158): conquest bayrakları sektörlere kilitli, yalnız saldıranın bileti
   const pl = o.type === 'payload', pb = o.type === 'pb', dm = o.type === 'dm' || o.type === 'gg' || pb, inf = o.type === 'inf', gg = o.type === 'gg';
   // Ölüm maçında perTeam = toplam oyuncu sayısı (2–10)

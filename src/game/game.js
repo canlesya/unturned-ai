@@ -3,6 +3,7 @@ import { SightMap } from './sight.js';
 import { MapEditor, loadEdits } from './mapEditor.js';
 import * as THREE from 'three';
 import { warmup } from './warmup.js';
+import { RemoteTorches } from './remoteTorch.js';
 import { setupEnvironment } from '../maps/environment.js';
 import { MAPS, DEFAULT_MAP } from '../maps/index.js';
 import { World } from './collision.js';
@@ -40,6 +41,7 @@ import { t as $t } from '../i18n/index.js';
 import { placeName, banText } from '../i18n/game.js';                                                         // oyun içi sözlük (hud. / death. / end. …)
 import { Payload } from './payload.js';
 import { Front } from './front.js';                                  // Cephe modu (12.158)
+import { spaceSetup } from './space.js';
 import { NADE, nadeStep, simulateNade, NadeView } from './grenade.js';
 import { createWeapon } from '../models/weapons.js';
 import { initGadgets, updateGadgets, spawnSmoke, flashBang, smokeBlocks, smokeDensity, placeDeployable, netDeploy, netUndeploy } from './gadgets.js';
@@ -157,6 +159,7 @@ export class Game {
 
     // opts.match: özel maç ayarları; opts.mode: '3v3' | '10v10' hazır ayarı (test/uyumluluk)
     this.mode = makeMatch(opts.match || PRESETS[opts.mode] || {});
+    if (this.mode.space) { this.world.grav = TUNE.spaceGrav; opts.weather = 'clear'; }      // 12.157 Uzay: düşük yer çekimi (sunucu, çevrimdışı oyun ve istemci tahmini aynı World.grav), hava yok
     if (this.mode.infection) { opts.diff = 'hard'; this.bossCount = this.mode.total < ZOMBIE.bossSplit ? ZOMBIE.bossCount[0] : ZOMBIE.bossCount[1]; }                                  // Enfekte yalnızca Zor botlarla (menü/sunucu da öyle sabitler)
     // 3. şahıs kamera (H): odada izinli mi? sunucu açıkça true ister; offline varsayılan açık
     this.thirdAllowed = opts.online ? !!opts.online.cfg?.third : headless ? opts.third === true : opts.third !== false;
@@ -194,6 +197,7 @@ export class Game {
       music.setVolume((this.settings.volume ?? 0.6) * (this.settings.vMusic ?? 0.5));
       music.play('match');
       this.weather = new Weather(this, opts.weather || 'clear');
+      spaceSetup(this);                                                            // 12.157: Uzay — parçacıklar düşük yer çekiminde, kask içi hafif boğuk ses
     }
     this.paint = new Paint(this);                         // paintball: boya topları + lekeler (başsızda yalnız simülasyon)
     this.paintColor = paintColorOf;                       // skor tablosunda oyuncunun boya rengi (hud.js)
@@ -337,6 +341,7 @@ export class Game {
         else if (e.code === 'Escape' && this._tm) this.toggleTeamMenu(false);
       });
     } else for (const s of this.soldiers) if (!s.vacant) this.respawn(s, true);
+    this.remoteTorch = new RemoteTorches(this);      // 12.159: başkalarının feneri (sabit ışık havuzu; ön ısıtmadan önce kurulur → ışık sayısı hiç değişmez)
     this.warm = warmup(this);                          // 12.151: gölgelendirici ön ısıtma (yükleme ekranı açıkken; Firefox'ta ilk ACOG / nişan / silah çekme donmasını önler)
     this.running = true;
     this.simulate = !!opts.nolock || !!this.online;
@@ -443,7 +448,7 @@ export class Game {
     s.human = true; s.name = name;
     s.choice = { primary: choice.primary, secondary: choice.secondary, gadget: choice.gadget, melee: choice.melee };
     if (!CLASS_DEFS[cls] || cls === 'zombie' || this.mode.fixed) cls = s.cls === 'zombie' ? 'zombie' : 'assault';
-    if (s.cls !== cls) s.setClass(cls); else s.items = modeLoadout(this.mode, cls, s.team, s.choice);
+    if (s.cls !== cls) s.setClass(cls); else s.items = s.loadout();
     if (this.mode.infection && this.opts.bots === false && s.team === 'blue') {      // botsuz odada hiç zombi yoksa ikinci oyuncu ilk zombi olur
       const live = this.soldiers.filter((e) => !e.vacant && e !== s);
       if (live.length && !live.some((e) => e.team === 'red')) { this.makeZombie(s, true); this.netEvent({ e: 'inf', v: s.id, bs: 1, zt: 1, zl: s.zLives }); }
@@ -500,6 +505,7 @@ export class Game {
     if (s.rewindTick != null) h.vtLag = this.tick - s.rewindTick;          // teşhis (dbg ask): girdinin gördüğü an ile işlendiği adım arası
     s.inSeq = inp.q;                                                  // paintball: tohumlu saçılım + istemci tahmininin top eşlemesi
     // 3. şahıs: kameranın gözden ofseti. Yalnızca odada izinliyse, ≤ 4,5 m ve göz→kamera arasında duvar yoksa kabul edilir; aksi halde atış gözden.
+    if (inp.tl !== undefined) s.flashOn = !!inp.tl && !s.def.zombie;    // 12.159: fener durumu (diğer istemcilere F_TORCH; botlar da görür) · sessiz adımın sahte girdisinde tl yok → değişmez
     s.stanceLeft = this.thirdAllowed && !!inp.sd;                      // yalnızca görsel: diğer oyuncular sol omuz duruşunu görsün
     s.shotOff = null;
     if (this.thirdAllowed && Array.isArray(inp.co)) {
@@ -803,7 +809,7 @@ export class Game {
     if (this.mode.infection) { if (s.infectNext) this.infect(s); else if (s.willCure) this.cure(s); }
     const ctl = this.ctlOf(s);
     if (ctl && ctl.queue) { ctl.queue.length = 0; ctl.budget = 1; ctl.backlog = 0; ctl.qMin = 99; }        // insan: doğmadan önceki eski girdiler (örn. eski silah seçimi) uygulanmasın
-    if (ctl && ctl.pendingLoadout) { s.choice = ctl.pendingLoadout; ctl.pendingLoadout = null; if (!this.mode.fixed) s.items = modeLoadout(this.mode, s.cls, s.team, s.choice); }
+    if (ctl && ctl.pendingLoadout) { s.choice = ctl.pendingLoadout; ctl.pendingLoadout = null; if (!this.mode.fixed) s.items = s.loadout(); }
     if (ctl && ctl.pendingClass && ctl.pendingClass !== s.cls && !s.def.zombie && !this.mode.fixed) s.setClass(ctl.pendingClass);      // sabit teçhizatlı modda (silah yarışı / paintball) sınıf değişmez
     if (s.def.zombie) {                                                // yeniden doğan zombi: seçtiği tür; botlar her doğuşta rastgele
       const want = s.boss ? null : ctl ? ctl.pendingZ : randomZType();
@@ -983,7 +989,7 @@ export class Game {
   loop(now) {
     this.raf = requestAnimationFrame(this.loop);
     const dt = this.frameDt(now);
-    this.last = now;
+    this.last = now; this._rdt = dt;
     this.perfTick(now, dt);
     if (this.online && !this.ended) {
       // çevrimiçi: sunucuyla aynı sabit adım (tahmin birebir tutsun)
@@ -1143,7 +1149,7 @@ export class Game {
           this.effects.tracer(o, p, st.tracer);
           if (ev.k === 'f') this.effects.blood(p, 7, dir.clone().negate());
           else if (ev.k === 'w') { const n = new V(...ev.n); this.effects.spark(p, 4, n); this.effects.dust(p, n); this.effects.decal(p, n); }
-          if (ev.m) { this.effects.muzzle(o, dir); this.sfx.shot(st.sound, by.pos); by.flashT = 0.06; }
+          if (ev.m) { this.effects.muzzle(o, dir); this.sfx.shot(st.sound, by.pos); by.flashT = 0.06; if (st.charge) by.railT = 0; }      // 12.160 railT: ray tüfeği şarjı 3. şahısta (yeni ağ alanı yok)
           break;
         }
         case 'hm': if (ev.by === me.id) this.emit('hitmark', { zone: ev.hd ? 'head' : 'body', dead: !!ev.dead }); break;
@@ -1335,6 +1341,7 @@ export class Game {
     const ty = p.y;
     this.sun.target.position.set(tx, ty, tz);
     this.sun.position.set(tx + this.sunOff.x, ty + this.sunOff.y, tz + this.sunOff.z);
+    this.remoteTorch?.update(this._rdt ?? 0.016);
     if (this.map.fx) this.map.fx.update(performance.now() / 1000);            // harita efektleri (New York: ateş ışığı titremesi, duman / kıvılcım zamanı)
     this.paint.draw();
     this.pickups.draw();

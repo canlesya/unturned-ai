@@ -357,7 +357,7 @@ function renderRooms(main) {
 }
 
 // ───────── Resmi sunucular ─────────
-const MAPN = { kasaba: 'Kasaba', vadi: 'Vadi', us: 'Askeri Üs', colgecidi: 'Çöl Geçidi', depo: 'Depo', liman: 'Liman', newyork: 'New York', boyakulesi: 'Boya Kulesi', ormankale: 'Orman Kalesi', maden: 'Maden Ocağı' };
+const MAPN = { kasaba: 'Kasaba', vadi: 'Vadi', us: 'Askeri Üs', colgecidi: 'Çöl Geçidi', depo: 'Depo', liman: 'Liman', newyork: 'New York', boyakulesi: 'Boya Kulesi', ormankale: 'Orman Kalesi', maden: 'Maden Ocağı', yorunge: 'Yörünge Üssü' };
 const MAPIMG = {
   kasaba: new URL('../public/img/kasaba.jpg', import.meta.url).href, vadi: new URL('../public/img/vadi.jpg', import.meta.url).href,
   us: new URL('../public/img/us.jpg', import.meta.url).href, colgecidi: new URL('../public/img/colgecidi.jpg', import.meta.url).href, liman: new URL('../public/img/liman.jpg', import.meta.url).href,
@@ -366,14 +366,15 @@ const MAPIMG = {
   ormankale: new URL('../public/img/ormankale.jpg', import.meta.url).href,
   maden: new URL('../public/img/maden.jpg', import.meta.url).href,
   cephe: new URL('../public/img/cephe.jpg', import.meta.url).href,
+  yorunge: new URL('../public/img/yorunge.jpg', import.meta.url).href,      // 12.157
 };
-const MODES = [['conquest', 'Ele Geçirme'], ['tdm', 'Takım Çatışması'], ['dm', 'Ölüm Maçı'], ['gg', 'Silah Yarışı'], ['inf', 'Enfekte'], ['pb', 'Paintball'], ['payload', 'Vagon'], ['front', 'Cephe']];
+const MODES = [['conquest', 'Ele Geçirme'], ['tdm', 'Takım Çatışması'], ['dm', 'Ölüm Maçı'], ['gg', 'Silah Yarışı'], ['inf', 'Enfekte'], ['pb', 'Paintball'], ['payload', 'Vagon'], ['space', 'Uzay'], ['front', 'Cephe']];
 const TODS = [['day', 'Gündüz'], ['sunset', 'Gün batımı'], ['night', 'Gece']];
 const WEATHERS = [['clear', 'Açık'], ['rain', 'Yağmur'], ['fog', 'Sis']];
 const DIFFS = [['easy', 'Kolay'], ['normal', 'Normal'], ['hard', 'Zor']];
 const lbl = (L, v) => (L.find((x) => x[0] === v) || [, v])[1];
 const isTotal = (t) => t === 'dm' || t === 'gg' || t === 'inf' || t === 'pb';
-const mapsFor = (t) => (t === 'inf' ? ['newyork'] : t === 'pb' ? ['boyakulesi', 'ormankale'] : t === 'payload' ? ['maden'] : t === 'front' ? ['cephe'] : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman']);
+const mapsFor = (t) => (t === 'space' ? ['yorunge'] : t === 'inf' ? ['newyork'] : t === 'pb' ? ['boyakulesi', 'ormankale'] : t === 'payload' ? ['maden'] : t === 'front' ? ['cephe'] : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman']);
 function sizeRange(t, L) {
   if (t === 'inf') return [L.infMin, L.infMax, 2];
   if (t === 'pb') return [L.pbMin ?? 2, L.pbMax ?? 12, 1];

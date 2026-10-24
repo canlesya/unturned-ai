@@ -16,6 +16,15 @@ export const STD = {
   optic: { body: ['#1d1e21', 0.6, 0.2], furn: ['#25272a', 0.7, 0], metal: ['#333437', 0.4, 0.6], acc: ['#1c1d20', 0.6, 0.2] },
 };
 const LENS = ['#10201f', 0.06, 0.6], GLOW = ['#ff2a1f', 1, 0];
+// 12.157 Uzay modu enerji silahları: kırık beyaz kabuk, koyu iskelet; en = ışıyan enerji parçalarının rengi (desen 3, uEn)
+Object.assign(STD, {
+  laser: { body: ['#d6d6d0', 0.42, 0.05], furn: ['#2c3036', 0.6, 0.1], metal: ['#4a5058', 0.35, 0.65], acc: ['#1e2126', 0.5, 0.25], en: '#3fe2ff' },
+  plasma: { body: ['#cfd2d6', 0.42, 0.05], furn: ['#2a2b33', 0.6, 0.1], metal: ['#4b4f58', 0.35, 0.65], acc: ['#1f1f26', 0.5, 0.25], en: '#b46cff' },
+  epistol: { body: ['#dcdbd4', 0.4, 0.05], furn: ['#2b2f33', 0.62, 0.1], metal: ['#4a5056', 0.35, 0.65], acc: ['#1d2024', 0.5, 0.25], en: '#5cff9c' },
+  railgun: { body: ['#d3d6da', 0.4, 0.08], furn: ['#2a2e35', 0.6, 0.1], metal: ['#59616b', 0.3, 0.75], acc: ['#1c1f24', 0.5, 0.3], en: '#8fd8ff' },
+  elmg: { body: ['#cfccc4', 0.45, 0.06], furn: ['#2c2e33', 0.6, 0.1], metal: ['#4f5359', 0.35, 0.65], acc: ['#1e1f23', 0.5, 0.25], en: '#ff6a3a' },
+  scatter: { body: ['#d8d4cb', 0.45, 0.05], furn: ['#32302d', 0.62, 0.1], metal: ['#55575a', 0.35, 0.65], acc: ['#211f1d', 0.5, 0.25], en: '#ffa040' },
+});
 // Kaplamalar: yuva geçersiz kılma + kamuflaj (mode 1 orman lekeleri, 2 şehir dijital piksel); cm = kamuflajın uygulandığı yuvalar. Adlar arayüzde i18n (src/i18n/skins.js)
 export const SKINS = {
   std: {},
@@ -38,7 +47,7 @@ varying vec3 vCol; varying vec3 vPBR; varying vec3 vOP; varying vec2 vSP;`;
 const VERT_BODY = /* glsl */ `
   { int s = int(wf.x + 0.5); vCol = uCol[s]; vPBR = uPBR[s]; vOP = position; vSP = vec2(wf.y, wf.z + (s == 5 ? 10.0 : 0.0)); }`;
 const FRAG_HEAD = /* glsl */ `
-uniform int uCamo; uniform vec3 uCC[4]; uniform float uCS; uniform float uAlpha; uniform float uGlowA; uniform float uProbe;
+uniform int uCamo; uniform vec3 uCC[4]; uniform float uCS; uniform float uAlpha; uniform float uGlowA; uniform float uProbe; uniform vec3 uEn; uniform float uEnK;
 varying vec3 vCol; varying vec3 vPBR; varying vec3 vOP; varying vec2 vSP;
 float h31(vec3 p){ p = fract(p * 0.1031); p += dot(p, p.yzx + 33.33); return fract((p.x + p.y) * p.z); }
 float vn(vec3 p){ vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -57,6 +66,8 @@ const FRAG_COLOR = /* glsl */ `
   if (wpat > 9.5) { wglow = 1.0; wpat -= 10.0; if (uGlowA < 0.01) discard; }      // sönmüş retikül derinlik yazmasın (arkasındaki cam halka şeklinde kesilmesin)
   if (uCamo > 0 && vPBR.z > 0.5) wcol = camo(vOP);
   wcol *= wsh;
+  float wen = 0.0;                                                                         // 12.157: desen 3 = ışıyan enerji parçası (silahın enerji rengi; adsalign eflatun ölçümünde sönük)
+  if (wpat > 2.5 && wpat < 3.5) { wen = uProbe > 0.5 ? 0.0 : 1.0; wcol = uEn * (uProbe > 0.5 ? 0.25 : min(1.0, 0.35 + 0.65 * uEnK)); wpat = 0.0; }      // uEnK: ışıma gücü (ray tüfeği şarjı, makineli ısınması; space.js)
   if (wpat > 0.5 && wpat < 1.5) { float st = h31(floor(vOP * 700.0)); wcol *= 0.78 + 0.34 * st; wrough = min(1.0, wrough + 0.2); }     // benekli kabza (stipple)
   else if (wpat > 1.5) { wcol *= 0.82 + 0.22 * step(0.5, fract(vOP.z * 260.0 + vOP.y * 120.0)); }                                            // tırtıl / oluk
   diffuseColor.rgb = wcol * (1.0 - wglow); diffuseColor.a = opacity * (wglow > 0.5 ? uGlowA : uAlpha);      // 12.139: ışıyan retikül ışıklandırılmaz (yalnız kendi rengi)`;
@@ -68,7 +79,7 @@ export function skinMaterial(weapon = 'ak47', skin = 'std', shared = false) {
   if (shared && SHARED.has(key)) return SHARED.get(key);
   const U = {
     uCol: { value: Array.from({ length: 6 }, () => new THREE.Color()) }, uPBR: { value: Array.from({ length: 6 }, () => new THREE.Vector3()) },
-    uCamo: { value: 0 }, uCC: { value: Array.from({ length: 4 }, () => new THREE.Color()) }, uCS: { value: 15 }, uAlpha: { value: 1 }, uGlowA: { value: 1 }, uProbe: PROBE,
+    uEn: { value: new THREE.Color('#44e0ff') }, uEnK: { value: 1 }, uCamo: { value: 0 }, uCC: { value: Array.from({ length: 4 }, () => new THREE.Color()) }, uCS: { value: 15 }, uAlpha: { value: 1 }, uGlowA: { value: 1 }, uProbe: PROBE,
   };
   const m = new THREE.MeshStandardMaterial({ flatShading: true, roughness: 1, metalness: 0 });
   m.userData.U = U; m.userData.weapon = weapon; m.userData.skinMat = true; m.userData.shared = shared;
@@ -79,10 +90,10 @@ export function skinMaterial(weapon = 'ak47', skin = 'std', shared = false) {
       .replace('#include <color_fragment>', '#include <color_fragment>\n' + FRAG_COLOR)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  roughnessFactor = wrough;')
       .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\n  metalnessFactor = vPBR.y;')
-      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  totalEmissiveRadiance += wcol * wglow * 0.86;')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  totalEmissiveRadiance += wcol * wglow * 0.86 + uEn * wen * 1.15 * uEnK;')
       .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n  if (uProbe > 0.5 && wglow > 0.5) gl_FragColor = vec4(1.0, 0.0, 1.0, 1.0);');
   };
-  m.customProgramCacheKey = () => 'wb-skin-3';      // 12.139: ışıma ×3 → ×0,86 (doğrusal ≤ 1: Neutral ton eşlemede pembeleşmez, ACOG PiP şevronuyla aynı kırmızı)
+  m.customProgramCacheKey = () => 'wb-skin-4';      // 12.139: ışıma ×3 → ×0,86 (doğrusal ≤ 1: Neutral ton eşlemede pembeleşmez, ACOG PiP şevronuyla aynı kırmızı)
   setSkin(m, skin);
   if (shared) SHARED.set(key, m);
   return m;
@@ -94,6 +105,7 @@ export function setSkin(m, skin) {
   U.uCol.value[4].copy(h(LENS[0])); U.uPBR.value[4].set(LENS[1], LENS[2], 0);
   U.uCol.value[5].copy(h(GLOW[0])); U.uPBR.value[5].set(GLOW[1], GLOW[2], 0);
   U.uCamo.value = s.camo || 0; U.uCS.value = s.cs || 15;
+  U.uEn.value.copy(h(base.en || '#44e0ff'));
   if (s.cc) s.cc.forEach((c, i) => U.uCC.value[i].copy(h(c)));
   m.userData.skin = SKINS[skin] ? skin : 'std';
   return m;
