@@ -45,7 +45,14 @@ P.stages.forEach((S, si) => {
     ok(g >= 0 && pb && pr, `aşama ${si + 1}: ray d=${d.toFixed(0)} (${q.x.toFixed(0)}, ${q.z.toFixed(0)}) iki doğuştan yürünebilir: mavi ${len(pb, S.blue[0])} m, kırmızı ${len(pr, S.red[0])} m`);
   }
 });
-// ── vagon geçişi: 1,5 × 1,45 m kutu ray boyunca hiçbir statik kutuya girmez; ray avlu / bina içinden geçerken tavan ≥ 1,6 m ──
+// ── bot ipuçları (payload.hints): tutma noktası yürünebilir, zemin kotu doğru, savunan doğuştan ulaşılır; kanat rotası noktaları saldıran doğuştan ulaşılır ──
+(P.hints || []).forEach((H, si) => {
+  const S = P.stages[si], bad = [];
+  for (const h of H.hold) if (!nav.isFree(h.x, h.z) || Math.abs(nav.floorAt(h.x, h.z) - h.y) > 0.1 || !nav.findPath(S.red[0].x, S.red[0].z, h.x, h.z)) bad.push(`tut (${h.x}, ${h.z})`);
+  for (const f of H.flank) for (const [x, z] of f) if (!nav.isFree(x, z) || !nav.findPath(S.blue[0].x, S.blue[0].z, x, z)) bad.push(`kanat (${x}, ${z})`);
+  ok(bad.length === 0 && H.hold.length > 0 && H.flank.length > 0, `aşama ${si + 1} bot ipuçları: ${H.hold.length} tutma noktası (${H.hold.filter((h) => h.kind === 'high').length} yüksek), ${H.flank.length} kanat rotası ${bad.join(' ')}`);
+});
+// ── vagon geçişi:1,5 × 1,45 m kutu ray boyunca hiçbir statik kutuya girmez; ray avlu / bina içinden geçerken tavan ≥ 1,6 m ──
 {
   let hits = 0, where = '';
   const q = {};

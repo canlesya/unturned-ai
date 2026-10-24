@@ -30,7 +30,7 @@ addStrings('tr', {
   'map.ormankale.name': 'Orman Kalesi', 'map.ormankale.tag': 'Paintball · orman · dere',
   'map.ormankale.desc': 'Çam ormanında senaryo sahası: ortada surlu, iki katlı kütük kale ve 5,6 m gözcü kulesi. Güneyden sığ bir dere geçer (üç tahta köprü, devrik kütük); köşelerde kütük kulübe, boyalı lastik kuleli hurda köşesi, gözetleme kulesi ve saman tarlası. Yayvan, ağaçlarla bölünmüş kısa-orta mesafe.',
   'map.maden.name': 'Maden Ocağı', 'map.maden.tag': 'Vagon · saldırı / savunma · ray', 'mode.payload.tag': 'Takımlı · saldırı / savunma',
-  'map.maden.desc': 'Vagon moduna özel kayalık maden vadisi: patlayıcı yüklü vagon Yükleme Avlusu\'ndan Kırma Tesisi, A · Makas, köy caddesi, B · Kantar ve Lavvar üzerinden C · Maden Ağzı\'na raylarla gider. Her kontrol noktasında iki takımın doğuşu ileri kayar.',
+  'map.maden.desc': 'Vagon moduna özel kayalık maden vadisi: patlayıcı yüklü vagon Yükleme Avlusu\'ndan Kırma Tesisi, A · Makas, köy caddesi, B · Kantar ve Lavvar üzerinden C · Maden Ağzı\'na raylarla gider. Savunan hep sıradaki noktanın ilerisinde doğar; kaya sırtları kestirmeleri kapatır, çatışma ray boyunca döner.',
   'mode.conquest.tag': 'Takımlı · bayrak', 'mode.tdm.tag': 'Takımlı · skor', 'mode.dm.tag': 'Herkes tek', 'mode.gg.tag': 'Herkes tek · 15 silah', 'mode.inf.tag': 'Zombi · Zor botlar', 'mode.pb.tag': 'Herkes tek · boya silahı',
   'stat.dmg': 'Hasar', 'stat.range': 'Menzil', 'stat.rate': 'Atış hızı', 'stat.control': 'Kontrol', 'stat.mobility': 'Hareket',
   'key.Space': 'Boşluk', 'data.random': 'Rastgele',
@@ -58,7 +58,7 @@ addStrings('en', {
   'map.ormankale.name': 'Forest Fort', 'map.ormankale.tag': 'Paintball · forest · creek',
   'map.ormankale.desc': 'A woodsball field in a pine forest: a walled, two-storey log fort with a 5.6 m watchtower in the middle. A shallow creek runs along the south (three wooden bridges and a fallen log); log cabin, scrap corner with a painted tyre tower, lookout tower and hay field in the corners. Wide, tree-broken short-to-mid range.',
   'map.maden.name': 'Quarry Mine', 'map.maden.tag': 'Payload · attack / defend · rails', 'mode.payload.tag': 'Teams · attack / defend',
-  'map.maden.desc': 'A rocky mining valley made for Payload: the explosive cart rolls on rails from the loading yard through the crusher, A · Junction, the village street, B · Weighbridge and the wash plant to C · Mine Entrance. Both teams\' spawns move forward at every checkpoint.',
+  'map.maden.desc': 'A rocky mining valley made for Payload: the explosive cart rolls on rails from the loading yard through the crusher, A · Junction, the village street, B · Weighbridge and the wash plant to C · Mine Entrance. Defenders always spawn just past the next checkpoint and rock ridges close the shortcuts, so the fight follows the rails.',
 
   'mode.conquest.label': 'Conquest', 'mode.conquest.tag': 'Teams · flags', 'mode.conquest.desc': 'Capture the flags and drain the enemy tickets.',
   'mode.tdm.label': 'Team Deathmatch', 'mode.tdm.tag': 'Teams · score', 'mode.tdm.desc': 'No flags, just frags. Every kill adds to the team score; first team to the score limit wins.',
