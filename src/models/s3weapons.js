@@ -29,7 +29,7 @@ function redDot(k, yb, z) {
   k.box([0.01, cy - R - yb - 0.005, 0.02], [0, (yb + 0.005 + cy - R) / 2 + 0.0005, z], 'acc', { c: 0.001 });   // ince dikme (tüpün altına)
   k.cyl(R + 0.0012, R + 0.0012, 0.03, [0, cy, z], 'acc', { seg: 24, open: true });                        // ince tüp (içi açık, cidar yok)
   for (const dz of [0.015, -0.015]) k.ring(R + 0.0012, 0.0013, [0, cy, z + dz], 'acc', { ax: 'z', seg: 24, rs: 4 });   // iki uç halkası (önden bakınca 2,6 mm ince halka)
-  k.box([0.0024, 0.0024, 0.0008], [0, cy, z - 0.0135], 'glow');                                          // ışıyan nokta
+  k.box([0.0013, 0.0013, 0.0008], [0, cy, z - 0.0135], 'glow');                                          // ışıyan nokta (12.130 küçük, HUD #rdot ≈ 4,5 px)
   k.glass.push({ disc: R, pos: [0, cy, z - 0.0145] });
   return { sight: [0, cy, z], dist: ADS_DIST.reddot, overlay: 'dot' };
 }
@@ -39,7 +39,7 @@ function rmr(k, yb, z) {
   if (k.lod) { k.box([0.026, 0.006, 0.03], [0, yb + 0.003, z], 'acc'); k.box([0.026, 0.024, 0.006], [0, yb + 0.016, z - 0.004], 'acc'); return { sight: [0, cy, z], dist: ADS_DIST.rmr, overlay: 'dot' }; }
   k.box([0.026, 0.0045, 0.03], [0, yb + 0.00225, z + 0.002], 'acc', { c: 0.001 });                     // alçak taban
   hoop(k, 0, cy, 0.0135, 0.0125, 0.004, 0.002, z + 0.003, z - 0.004, 2);                                 // ince pencere çerçevesi (iç 23 × 21 mm)
-  k.box([0.0022, 0.0022, 0.0008], [0, cy, z - 0.0045], 'glow');
+  k.box([0.0012, 0.0012, 0.0008], [0, cy, z - 0.0045], 'glow');
   k.glass.push({ rect: [0.023, 0.021], pos: [0, cy, z - 0.005] });
   return { sight: [0, cy, z], dist: ADS_DIST.rmr, overlay: 'dot' };
 }

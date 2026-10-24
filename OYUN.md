@@ -1212,3 +1212,9 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 - Düzeltme: lens alanı s3smg'de de taşınıyor; ACOG / PSO halkasının ön yüzü diskle aynı düzlemde, ince (dış 21,5 → 19,2 mm / 20,5 → 19 mm; splitLens cap bayrağıyla kapağı silmez); PSO tamburları kısaldı (20 → 12, 18 → 11 mm); PiP kenar vinyeti hafif (0,62 → 0,4). 8 ACOG silahında mercek merkezde (0,0 px), çap %34 (SVD %33,4), mercek içi örtü yalnız artı / şevron (%1,4–2,2), merceğin dışındaki silah %10–14 → %7–10.
 - Paintball: 12.127'deki nişan silah kamerası 40° + adsLow marker'ı ekranın altından çıkarıyordu (tüfek tam nişanda ekranda %1,1). ADS_FOV_PB 68 (12.127 öncesi): marker sağ-altta görünür, telefonda soluklaşmaz; halka nişangâh aynen.
 - Ölçüm: adsalign acog|pb masaüstü 8/8 (0,5 px) + Pixel 7 8/8 (0,4 px), adszoom 9/9, vite build.
+
+### 12.130 Paintball nişanında silah ekranda kalır; red dot noktası küçük
+- Kullanıcı: "paintball silahında nişan alırken hâlâ silah kamera açısından çok kayboluyor; red dot nişangâhında kırmızı nokta çok kalın, küçük şık bir şey olsun". Ölçüm (acogshots, 1600×900): pbrifle belde ekranın %7,2'si, tam nişanda %2,9 (adsLow modeli kameraya 30 cm'ye çekip aşağı itiyordu → yalnız hazne görünüyordu).
+- adsLow yeni değerler: pbrifle [0,12, −0,062, −0,163], pbpistol [0,11, −0,104, −0,172] → nişanda model belden biraz yakın (~50 cm), sağ-altta; hazne üstü ekran ortasının altında, halka nişangâh açık. Tam nişanda pbrifle %5,0 (masaüstü) / %4,0 (Pixel 7), pbpistol %3,5 / %2,9.
+- Red dot: HUD #rdot 1,22 vh + geniş parıltı → 0,62 vh (masaüstü ≈ 5,6 px) + ince parıltı; telefonda max(5 px, 0,5 vh) × --rs, 1 px koyu çerçeve. 3D ışıyan nokta 2,4 → 1,3 mm (RMR 2,2 → 1,2 mm), geçişte HUD noktasıyla aynı boy.
+- Ölçüm: adsalign reddot|pb masaüstü + Pixel 7 34/34 (≤ 0,8 px), weaponaudit, vite build. scripts/acogshots.mjs RD=1: red dot tam nişan görüntüsü.

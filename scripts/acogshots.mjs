@@ -1,4 +1,4 @@
-// ACOG / paintball nişan görüntüleri + ACOG mercek ölçümü (gerçek GPU, headless:false, 12.129).
+// ACOG / paintball (/ RD=1 red dot) nişan görüntüleri + ACOG mercek ölçümü (gerçek GPU, headless:false, 12.129).
 //   node scripts/acogshots.mjs <çıktı klasörü> [taban url]    DEV=desk|mob  ONLY=regex (ad)  JSON=dosya
 // ACOG: her ACOG'lu silahta adsT 1 ve 0,7 — dünya görünür kare (<dev>-<silah>-acog-<yüzde>.png) + yeşil zeminli ölçüm karesi:
 //   merkez = mercek diskinin ekran merkezi − ekran ortası (px), çap = ekran yüksekliğine oran, örtü = mercek dairesinde yeşil olmayan (silah / gövde) oranı,
@@ -68,6 +68,7 @@ const ANALYZE = async ({ b64, lens, dpr }) => {
 const ACOG = ['m4a1', 'ak47', 'scarh', 'aug', 'g36', 'mp5', 'lmg', 'svd'];
 const JOBS = [];
 for (const id of ACOG) for (const t of [1, 0.7]) JOBS.push({ id, optic: 'acog', t });
+if (process.env.RD) for (const id of ['m4a1', 'ak47', 'mp5', 'pistol']) JOBS.push({ id, optic: 'reddot', t: 1 });      // RD=1: red dot tam nişan (12.130 nokta boyu)
 for (const id of ['pbrifle', 'pbpistol']) for (const t of [0, 0.5, 1]) JOBS.push({ id, optic: id === 'pbrifle' ? 'reddot' : 'iron', t });
 const dpr = await page.evaluate(() => devicePixelRatio), rows = [];
 for (const o of JOBS) {

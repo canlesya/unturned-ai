@@ -242,18 +242,18 @@ export const WSTATS = {
   // rpm 610: 60 Hz adımda 6 adımda bir = tam 10 atış/sn (600'de bekleme 0,1 sn kayan nokta payıyla 7 adım sürüp 8,6/sn oluyordu)
   // Top sapması (Soldier.spreadNow, yalnız ball): hip / ads = doğal sapma (ilk top da hafif sapar) · bloom = top başına açılma, bloomMax tavan,
   // bloomRec = bırakınca toparlanma (rad/sn; 0,12 sn ateş edilmeyince başlar) → kısa seri ödüllenir. Nişan / çömelme / durma açılmayı küçültür.
-  // zoom 1.15: hafif yakınlaştırma (dürbün hissi yok); adsLow: nişanda model aşağı / sağa iner (hazne görüş hattını kapatmasın), nişangâh HUD'da halka
+  // zoom 1.15: hafif yakınlaştırma (dürbün hissi yok); adsLow: nişanda model sağ-altta, belden biraz yakın kalır (12.130: kameraya yapışıp ekrandan çıkmasın; hazne üstü ortanın altında), nişangâh HUD'da halka
   pbrifle: {
     name: 'Paintball Tüfeği', kind: 'gun', slot: 'primary', desc: 'Tam otomatik marker: saniyede 10 boya topu, yaylı yol.', stats: { dmg: 42, range: 46, rate: 84, control: 70, mobility: 80 },
     auto: true, ball: true, dmg: 18, head: 1.5, legs: 1, speed: 78, grav: 4, life: 3, rpm: 610, mag: 50, reserve: 150, reload: 2.6, equip: 0.3,
     hip: 0.016, ads: 0.005, bloom: 0.0035, bloomMax: 0.04, bloomRec: 0.08, kickV: 0.0045, kickH: 0.0025, range: [60, 90], minMul: 1, zoom: 1.15, move: 1.0,
-    sight: [0, 0.204, 0.062], dist: 0.28, dot: true, sound: 'marker', adsLow: [0.085, -0.115, 0.04],
+    sight: [0, 0.204, 0.062], dist: 0.28, dot: true, sound: 'marker', adsLow: [0.12, -0.062, -0.163],
   },
   pbpistol: {
     name: 'Paintball Tabancası', kind: 'gun', slot: 'secondary', desc: 'Yarı otomatik: 3 isabette oyundan çıkarır, top daha çabuk düşer.', stats: { dmg: 70, range: 34, rate: 56, control: 70, mobility: 95 },
     auto: false, ball: true, dmg: 34, head: 1.5, legs: 1, speed: 66, grav: 6, life: 3, rpm: 400, mag: 12, reserve: 48, reload: 1.5, equip: 0.2,
     hip: 0.012, ads: 0.0045, bloom: 0.006, bloomMax: 0.03, bloomRec: 0.07, kickV: 0.012, kickH: 0.003, range: [45, 70], minMul: 1, zoom: 1.15, move: 1.05,
-    sight: [0, 0.104, 0.03], dist: 0.28, dot: true, sound: 'pbpistol', adsLow: [0.05, -0.07, 0.02],
+    sight: [0, 0.104, 0.03], dist: 0.28, dot: true, sound: 'pbpistol', adsLow: [0.11, -0.104, -0.172],
   },
 };
 

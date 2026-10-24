@@ -64,7 +64,7 @@ const CSS = `
 #cross .l{left:calc(-8px - var(--g,6px))}#cross .r{left:var(--g,6px)}#cross .t{top:calc(-8px - var(--g,6px))}#cross .b{top:var(--g,6px)}
 #cross .dot{width:3px;height:3px;left:-1.5px;top:-1.5px;border-radius:50%}
 #cross.ads span:not(.dot){display:none}
-#rdot{position:absolute;left:50%;top:50%;width:1.22vh;height:1.22vh;margin:-.61vh 0 0 -.61vh;border-radius:50%;background:#ff2a1a;box-shadow:0 0 6px 2px #ff2a1acc,0 0 14px 5px #ff2a1a55;display:none}
+#rdot{position:absolute;left:50%;top:50%;width:.62vh;height:.62vh;margin:-.31vh 0 0 -.31vh;border-radius:50%;background:#ff3a26;box-shadow:0 0 1.5px .5px #ff2a1ae6,0 0 5px 1px #ff2a1a40;display:none}
 #hitm{position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;opacity:0;transition:opacity .25s}
 #hitm::before,#hitm::after{content:'';position:absolute;left:12px;top:-2px;width:2px;height:30px;background:#fff;transform:rotate(45deg)}
 #hitm::after{transform:rotate(-45deg)}
@@ -164,7 +164,7 @@ body.mob #vitals,body.mob #ammo{background:none;border:0}       /* telefonda ark
    zemininde de seçilsin), parıltı az (hedefi örtmesin). Boyut: Dokunmatik ayarlar → Hassasiyet → Nişangâh boyutu (--rs, touch.js). Masaüstü aynı. */
 #idot{position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:#fff;box-shadow:0 0 0 1.5px rgba(0,0,0,.7);display:none}
 body.mob #idot.on{display:block;transform:scale(var(--rs,1))}      /* demir nişan (yalnız telefonda): silah yarı saydamken ön arpacık seçilmiyor, ortada küçük nokta */
-body.mob #rdot{width:max(9px,1.22vh);height:max(9px,1.22vh);margin:min(-4.5px,-.61vh) 0 0 min(-4.5px,-.61vh);background:#ff2414;box-shadow:0 0 0 1.5px rgba(0,0,0,.55),0 0 4px 1px #ff2a1a99;transform:scale(var(--rs,1))}
+body.mob #rdot{width:max(5px,.5vh);height:max(5px,.5vh);margin:min(-2.5px,-.25vh) 0 0 min(-2.5px,-.25vh);background:#ff2a18;box-shadow:0 0 0 1px rgba(0,0,0,.45),0 0 3px 1px #ff2a1a66;transform:scale(var(--rs,1))}
 body.mob #holo{width:9.2vh;height:9.2vh;margin:-4.6vh 0 0 -4.6vh;border-width:3px;box-shadow:0 0 0 1px rgba(0,0,0,.4),inset 0 0 0 1px rgba(0,0,0,.4),0 0 5px #ff332688;transform:scale(var(--rs,1))}
 body.mob #holo::before{width:7px;height:7px;margin:-3.5px 0 0 -3.5px;box-shadow:0 0 0 1.5px rgba(0,0,0,.55)}
 body.mob #holo i{box-shadow:0 0 0 1px rgba(0,0,0,.4)}
