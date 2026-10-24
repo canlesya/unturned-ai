@@ -9,6 +9,7 @@ import { buildLiman } from './liman.js';
 import { buildBoyaKulesi } from './boyakulesi.js';
 import { buildOrmanKale } from './ormankale.js';
 import { buildMaden } from './maden.js';
+import { buildCephe } from './cephe.js';
 
 // Harita kaydı. Her harita build() ile şunu döndürür:
 // { id, name, group, colliders, bounds, spawns:{blue,red}, objectives:[{id,name,x,z,r,core?}], roads?, terrain?, water?, env? }
@@ -66,6 +67,11 @@ MAPS.maden = {
   desc: 'Vagon moduna özel kayalık maden vadisi: patlayıcı yüklü vagon yükleme avlusundan Kırma Tesisi, A · Makas, köy caddesi, B · Kantar ve Lavvar üzerinden C · Maden Ağzı\'na raylarla gider. Her kontrol noktasında iki takımın doğuşu ileri kayar: savunan hep sıradaki noktanın ilerisinde doğar, çatışma ray boyunca döner. Kaya sırtları kestirmeleri kapatır; her bölümde bir ana hat, iki kanat ve savunana ahşap iskele (yüksek zemin) var.',
   build: () => buildMaden(),
 };
+MAPS.cephe = {
+  id: 'cephe', name: 'Batı Cephesi', tag: 'Cephe · siperler · harap köy', thumb: '/img/cephe.jpg', only: ['front'],
+  desc: 'Büyük 1940\'lar cephe hattı: iki ordunun zikzak siper ağları, beton sığınaklar ve makineli tüfek yuvaları, dikenli tel ve top mermisi kraterleriyle dolu ölüm bölgesi. Ortada harap köy, ardında çiftlik ve orman kenarı, en kuzeyde savunanın ana hattı.',
+  build: () => buildCephe(),
+};
 export const DEFAULT_MAP = 'kasaba';
 // Bu moda uygun haritalar (only: yalnızca o modlarda listelenir; dev hiçbirinde)
-export const mapsFor = (type) => (type === 'inf' ? [MAPS.newyork] : type === 'pb' ? [MAPS.boyakulesi, MAPS.ormankale] : type === 'payload' ? [MAPS.maden] : Object.values(MAPS).filter((m) => !m.dev && (!m.only || m.only.includes(type))));      // Enfekte yalnızca New York'ta, Paintball yalnızca paintball haritalarında (Boya Kulesi, Orman Kalesi)
+export const mapsFor = (type) => (type === 'inf' ? [MAPS.newyork] : type === 'pb' ? [MAPS.boyakulesi, MAPS.ormankale] : type === 'payload' ? [MAPS.maden] : type === 'front' ? [MAPS.cephe] : Object.values(MAPS).filter((m) => !m.dev && (!m.only || m.only.includes(type))));      // Enfekte yalnızca New York'ta, Paintball yalnızca paintball haritalarında (Boya Kulesi, Orman Kalesi)

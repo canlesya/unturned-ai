@@ -20,7 +20,7 @@ import { Soldier } from './soldier.js';
 import { Player } from './player.js';
 import { isTouch } from './touch.js';
 import { BotBrain } from './bot.js';
-import { CLASS_DEFS, WSTATS, BOT_NAMES, makeLoadout, BLEED_S, ZOMBIE, BOSS, ZTYPES, ZT_ORDER, randomZType, GG_LADDER } from './stats.js';
+import { CLASS_DEFS, WSTATS, BOT_NAMES, makeLoadout, modeLoadout, BLEED_S, ZOMBIE, BOSS, ZTYPES, ZT_ORDER, randomZType, GG_LADDER } from './stats.js';
 import { makeMatch, PRESETS, ffaRanking, ffaMetric } from './match.js';
 import { TUNE } from './balance.js';
 import { Weather } from './weather.js';
@@ -39,6 +39,7 @@ import { EndFlow } from './endFlow.js';
 import { t as $t } from '../i18n/index.js';
 import { placeName, banText } from '../i18n/game.js';                                                         // oyun içi sözlük (hud. / death. / end. …)
 import { Payload } from './payload.js';
+import { Front } from './front.js';                                  // Cephe modu (12.158)
 import { NADE, nadeStep, simulateNade, NadeView } from './grenade.js';
 import { createWeapon } from '../models/weapons.js';
 import { initGadgets, updateGadgets, spawnSmoke, flashBang, smokeBlocks, smokeDensity, placeDeployable, netDeploy, netUndeploy } from './gadgets.js';
@@ -168,10 +169,11 @@ export class Game {
       for (let i = 0; i < 32; i++) this.map.spawns['f' + i] = all;
       this.map.baseZones = null;                                    // üs cezası yok
     }
-    this.mode.objectives = this.mode.type !== 'conquest' ? [] : this.map.objectives.filter((o) => this.mode.allFlags || o.core).map((o) => ({ ...o, owner: null, p: 0 }));
+    this.mode.objectives = this.mode.type !== 'conquest' && !this.mode.front ? [] : this.map.objectives.filter((o) => this.mode.allFlags || o.core).map((o) => ({ ...o, owner: null, p: 0 }));
     this.tickets = this.mode.scoreBased ? { blue: 0, red: 0 } : { blue: this.mode.tickets, red: this.mode.tickets };   // skor modunda: takım skoru 0'dan başlar, mode.tickets = sınır
     this.timeLeft = this.mode.time || Infinity;
     this.payload = this.mode.payload && this.map.payload ? new Payload(this) : null;   // Vagon modu: ray + vagon + aşamalı doğuşlar (payload.js)
+    this.front = this.mode.front && this.map.front ? new Front(this) : null;           // Cephe modu: sektörler + aşamalı doğuşlar (front.js)
     this.spawnChoice = 'base';
 
     this.visMul = 1;
@@ -441,7 +443,7 @@ export class Game {
     s.human = true; s.name = name;
     s.choice = { primary: choice.primary, secondary: choice.secondary, gadget: choice.gadget, melee: choice.melee };
     if (!CLASS_DEFS[cls] || cls === 'zombie' || this.mode.fixed) cls = s.cls === 'zombie' ? 'zombie' : 'assault';
-    if (s.cls !== cls) s.setClass(cls); else s.items = makeLoadout(cls, s.team, s.choice);
+    if (s.cls !== cls) s.setClass(cls); else s.items = modeLoadout(this.mode, cls, s.team, s.choice);
     if (this.mode.infection && this.opts.bots === false && s.team === 'blue') {      // botsuz odada hiç zombi yoksa ikinci oyuncu ilk zombi olur
       const live = this.soldiers.filter((e) => !e.vacant && e !== s);
       if (live.length && !live.some((e) => e.team === 'red')) { this.makeZombie(s, true); this.netEvent({ e: 'inf', v: s.id, bs: 1, zt: 1, zl: s.zLives }); }
@@ -670,6 +672,7 @@ export class Game {
   // Oyuncu doğma noktası seçimi: 'base' ya da sahip olunan hedefin id'si
   spawnOptions(team = this.playerSoldier.team) {
     const out = [{ id: 'base', name: 'Üs', ok: true }];
+    if (this.front) return out;                                                     // Cephe: ileri doğuş yok (doğuş hattı sektörle kayar)
     for (const o of this.mode.objectives) out.push({ id: o.id, name: o.name, ok: this.canForwardSpawn(o, team), label: o.label || o.name[0] });
     return out;
   }
@@ -769,8 +772,8 @@ export class Game {
     // ileri doğma: seçilen / bot için ara sıra sahip olunan hedefin çevresi
     let target = null;
     const ctl = s ? this.ctlOf(s) : null;
-    if (ctl && ctl.spawnChoice !== 'base') target = this.mode.objectives.find((o) => o.id === ctl.spawnChoice);
-    else if (s && !ctl && Math.random() < 0.35) {
+    if (ctl && ctl.spawnChoice !== 'base') target = this.front ? null : this.mode.objectives.find((o) => o.id === ctl.spawnChoice);
+    else if (s && !ctl && !this.front && Math.random() < 0.35) {
       const own = this.mode.objectives.filter((o) => o.owner === team && this.canForwardSpawn(o, team));
       if (own.length) target = pick(own);
     }
@@ -800,7 +803,7 @@ export class Game {
     if (this.mode.infection) { if (s.infectNext) this.infect(s); else if (s.willCure) this.cure(s); }
     const ctl = this.ctlOf(s);
     if (ctl && ctl.queue) { ctl.queue.length = 0; ctl.budget = 1; ctl.backlog = 0; ctl.qMin = 99; }        // insan: doğmadan önceki eski girdiler (örn. eski silah seçimi) uygulanmasın
-    if (ctl && ctl.pendingLoadout) { s.choice = ctl.pendingLoadout; ctl.pendingLoadout = null; if (!this.mode.fixed) s.items = makeLoadout(s.cls, s.team, s.choice); }
+    if (ctl && ctl.pendingLoadout) { s.choice = ctl.pendingLoadout; ctl.pendingLoadout = null; if (!this.mode.fixed) s.items = modeLoadout(this.mode, s.cls, s.team, s.choice); }
     if (ctl && ctl.pendingClass && ctl.pendingClass !== s.cls && !s.def.zombie && !this.mode.fixed) s.setClass(ctl.pendingClass);      // sabit teçhizatlı modda (silah yarışı / paintball) sınıf değişmez
     if (s.def.zombie) {                                                // yeniden doğan zombi: seçtiği tür; botlar her doğuşta rastgele
       const want = s.boss ? null : ctl ? ctl.pendingZ : randomZType();
@@ -918,7 +921,7 @@ export class Game {
     this.world.settle(v);
     v.hp = v.maxHp * TUNE.reviveHp;
     v.revivable = false;
-    this.tickets[v.team] += 1;
+    if (!(this.front && v.team !== 'blue')) this.tickets[v.team] += 1;           // Cephe: savunanın bileti yok (kalan sektör)
     if (v.brain) v.brain.reset();
     medic.score += 80;
     if (v.isPlayer) { this.pendingClass = null; this.hud.onPlayerSpawn?.(); this.hud.toast($t('hud.t.revivedBy', { n: medic.name }), '#9be07f'); }
@@ -1088,6 +1091,7 @@ export class Game {
     this.effects.update(dt);
     this.hud.update(dt);
     this.payload?.frame(dt);
+    this.front?.frame(dt);
   }
 
   step(dt) {
@@ -1120,6 +1124,7 @@ export class Game {
     for (const s of this.soldiers) s.syncModel(dt);
     this.hud.update(dt);
     this.payload?.frame(dt);
+    this.front?.frame(dt);
     if (this.headless) { this.tick++; this.recordHist(); }
   }
 
@@ -1669,6 +1674,7 @@ export class Game {
       const step = 0.1;
       this.capT = step;
       for (const o of this.mode.objectives) {
+        if (this.front && !this.front.capturable(o)) continue;                     // Cephe: yalnız etkin sektörün noktaları (geçilen / sıradaki kilitli)
         let b = 0, r = 0;
         for (const s of this.soldiers) {
           if (!s.alive) continue;
@@ -1677,7 +1683,7 @@ export class Game {
         const net = clamp(b - r, -3, 3);
         if (net !== 0) {
           const prev = o.owner;
-          o.p = clamp(o.p + net * TUNE.captureRate * step, -1, 1);
+          o.p = clamp(o.p + net * TUNE.captureRate * (this.front ? TUNE.frCapMul : 1) * step, -1, 1);
           if (o.p >= 1 && o.owner !== 'blue') o.owner = 'blue';
           else if (o.p <= -1 && o.owner !== 'red') o.owner = 'red';
           else if (o.owner === 'blue' && o.p <= 0) o.owner = null;
@@ -1686,8 +1692,9 @@ export class Game {
         }
       }
     }
+    this.front?.update();                                                          // Cephe: etkin sektörün tüm noktaları saldıranda → sektör düşer
     this.bleedT -= dt;
-    if (this.bleedT <= 0) {
+    if (this.bleedT <= 0 && !this.front) {
       this.bleedT = TUNE.bleed;
       const nb = this.mode.objectives.filter((o) => o.owner === 'blue').length;
       const nr = this.mode.objectives.filter((o) => o.owner === 'red').length;
@@ -1762,7 +1769,7 @@ export class Game {
       if (knife && victim.ggLevel > 0) this.ggDemote(victim);                                       // bıçakla öldürülen bir seviye geriler
     }
     if (this.mode.scoreBased) { if (killer && killer.team !== victim.team) this.tickets[killer.team] += 1; }      // TDM: öldürmek takıma 1 skor
-    else if (!this.ffa) this.tickets[victim.team] -= 1;
+    else if (!this.ffa && !(this.front && victim.team !== 'blue')) this.tickets[victim.team] -= 1;     // Cephe: bilet yalnız saldıranda
     this.netEvent({ e: 'kill', k: killer ? killer.id : -1, v: victim.id, w: weapon || '', hs: hs ? 1 : 0 });
     if (!this.mode.infection) for (const b of this.brains) b.onMateDown?.(victim, killer);          // 12.152: yakındaki takım arkadaşları düştüğü yere bakar / araştırır
     this.hud.killFeed(killer, victim, weapon, hs);
@@ -1776,7 +1783,8 @@ export class Game {
     } else if (this.mode.gungame) victim.respawnT = victim.isPlayer || victim.human ? TUNE.respawnGG : rand(2.2, 3.6);
     else if (this.mode.paintball) victim.respawnT = victim.isPlayer || victim.human ? TUNE.respawnPB : rand(TUNE.respawnPB * 0.8, TUNE.respawnPB * 1.2);
     else victim.respawnT = victim.isPlayer || victim.human ? TUNE.respawn : rand(TUNE.botRespawnMin, TUNE.botRespawnMax);
-    if (this.payload) victim.respawnT *= victim.team === 'blue' ? TUNE.plAtkRespawn : TUNE.plDefRespawn;     // Vagon: saldıran daha çabuk, savunan biraz geç doğar (dalga dengesi)
+    if (this.payload) victim.respawnT *= victim.team === 'blue' ? TUNE.plAtkRespawn : TUNE.plDefRespawn;
+    if (this.front) victim.respawnT *= this.front.respawnMul(victim.team);                                  // Cephe: doğma süresi çarpanı (admin)     // Vagon: saldıran daha çabuk, savunan biraz geç doğar (dalga dengesi)
     if (victim.isPlayer && this.player) this.player.camPos.copy(victim.eye());
   }
 
@@ -1791,6 +1799,9 @@ export class Game {
       const [best, second] = ffaRanking(this.soldiers, false);
       if (best && best.kills >= this.mode.killLimit) { w = best.team; why = $t('end.dmReach', { n: best.name, k: best.kills }); }
       else if (this.timeLeft <= 0 && best) { w = best.team; why = $t('end.dmTime', { n: best.name, k: best.kills }) + (second && second.kills === best.kills ? $t('end.dmTie') : ''); }   // eşit öldürmede puan ayırır
+    } else if (this.front) {
+      const r = this.front.result();
+      if (r) [w, why] = r;
     } else if (this.payload) {
       const r = this.payload.result();
       if (r) [w, why] = r;
@@ -1827,7 +1838,7 @@ export class Game {
     const wname = this.ffa ? (this.soldiers.find((s) => s.team === w)?.name || '') : inf ? (w === 'red' ? t('match.zombies') : t('match.humans')) : TEAMS[w].name;
     const gg = this.mode.gungame, best = list[0] ? t('match.teamBest', { name: list[0].name, score: list[0].score }) : '';
     const tb = Math.max(0, Math.round(this.tickets.blue)), tr = Math.max(0, Math.round(this.tickets.red));
-    const sub = this.payload ? t('payload.endSub', { pct: Math.round(this.payload.progress * 100), cp: this.payload.reached, best: list[0].name, score: list[0].score }) : this.ffa ? `${t('match.rank')}: ${ffaRanking(this.soldiers, gg).slice(0, 3).map((s, i) => `${i + 1}. ${s.name} (${gg ? t('match.lvl') : ''}${ffaMetric(s, gg)})`).join(' · ')}` : `${t(inf ? 'match.humZom' : 'match.blueRed', { b: tb, r: tr })} · ${best}`;
+    const sub = this.front ? t('front.endSub', { cp: this.front.sector, n: this.front.n, tk: tb, best: list[0].name, score: list[0].score }) : this.payload ? t('payload.endSub', { pct: Math.round(this.payload.progress * 100), cp: this.payload.reached, best: list[0].name, score: list[0].score }) : this.ffa ? `${t('match.rank')}: ${ffaRanking(this.soldiers, gg).slice(0, 3).map((s, i) => `${i + 1}. ${s.name} (${gg ? t('match.lvl') : ''}${ffaMetric(s, gg)})`).join(' · ')}` : `${t(inf ? 'match.humZom' : 'match.blueRed', { b: tb, r: tr })} · ${best}`;
     const rows = `<div class="mvp"><div class="st"><b>${me.kills}</b><small>${t('match.kills')}</small></div><div class="st"><b>${me.deaths}</b><small>${t('match.deaths')}</small></div><div class="st"><b>${me.score}</b><small>${t('match.score')}</small></div><div class="st"><b>+${xp}</b><small>${t('match.xp')}</small></div></div><small style="opacity:.75">${sub}</small>`;
     this.opts.onMatchEnd?.({ score: me.score, kills: me.kills, deaths: me.deaths, win });
     this.hud.showEnd(win, win ? t('match.victory') : t('match.defeat'), this.ffa ? t('match.wonFfa', { why }) : t('match.won', { why, team: wname }), rows);
@@ -1848,6 +1859,7 @@ export class Game {
     if (!keepNet) this.online?.ws.close();
     this.mapEditor?.dispose();
     this.payload?.dispose();
+    this.front?.dispose();
     this._badge?.remove(); this._tm?.remove();
     if (this._km) document.removeEventListener('keydown', this._km);
     cancelAnimationFrame(this.raf);

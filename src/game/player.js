@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { createWeapon } from '../models/weapons.js';
 import { setSkinAlpha, setSkinProbe, SKIN_PROBE } from '../models/skins.js';
 import { pbLook } from '../models/character.js';
+import { ww2Look } from '../models/ww2gear.js';
 import { tintPaint } from '../models/paintball.js';
 import { paintColorOf } from './paint.js';
 import { TEAMS } from '../core/palette.js';
@@ -500,11 +501,11 @@ export class ViewModel {
     if (u.bolt && !ra) { const b = 1 - this.boltT; boltK = this.boltT > 0 ? Math.sin(Math.PI * clamp((b - 0.3) / 0.55, 0, 1)) : 0; rz -= boltK * 0.35; pos.x -= boltK * 0.02; }      // 12.153: sürgü sesiyle aynı anda (0,3–0,85 sn; ses 0,55 / 0,73)
     this.boltK = boltK;
     if (p.scopeOn && boltK > 0) { camRoll += boltK * 0.035 * (this.game.leftHand ? -1 : 1); camPitch -= boltK * 0.012; }      // 12.153: dürbünde kalınır; sürgü çekilirken görüş hafif yatar / iner (HUD'da dürbün halkası kayar), atış zaten bekleme süresinde
-    if (u.bolt) { const bb = ra ? ra.bolt : boltK; u.bolt.g.position.set(0, u.bolt.pivot, bb * 0.085); u.bolt.g.rotation.z = bb * 0.9; }
+    if (u.bolt) { const bb = ra ? ra.bolt : boltK; u.bolt.g.position.set(0, u.bolt.pivot, bb * 0.085); u.bolt.g.rotation.z = u.boltSlide ? 0 : bb * 0.9; }      // boltSlide (12.158): kurma kolu yalnız kayar
     // şarjör alt grubu
     if (u.mag) {
       const ax = u.magAxis || [0, -1, 0], off = ra ? ra.magOut * 0.24 : 0;
-      u.mag.visible = ra ? ra.magVis : true;
+      u.mag.visible = ra ? ra.magVis : !u.magHidden;                         // magHidden (12.158): şerit klips yalnız doldururken görünür
       u.mag.position.set(ax[0] * off, ax[1] * off, ax[2] * off);
       u.mag.rotation.x = ra ? -ra.magOut * 0.35 : 0;
     }
@@ -532,7 +533,7 @@ export class ViewModel {
         const fg = this.hLfg || REST_L;
         const mg = u.magPos ? u.magPos.clone().add(new THREE.Vector3(0, -0.02, 0)) : new THREE.Vector3(0, -0.03, -0.03);
         if (u.mag && ra.magOut > 0 && ra.w.mag > 0.4) mg.addScaledVector(new THREE.Vector3(...(u.magAxis || [0, -1, 0])), ra.magOut * 0.24);
-        const ch = new THREE.Vector3(0.02, 0.07, -0.09);
+        const ch = u.chargePos ? new THREE.Vector3(...u.chargePos) : new THREE.Vector3(0.02, 0.07, -0.09);
         const w = fe ? { ...ra.w, fg: ra.w.fg + ra.w.charge, charge: 0 } : ra.w;      // 12.141 tabanca: kol şarjı yok (sürgü bırakma: şarjör takılınca sürgü öne fırlar, sol el ekranın altına iner — eski kol ekranı kaplıyordu)
         this.handL.position.set(0, 0, 0).addScaledVector(fg, w.fg).addScaledVector(mg, w.mag).addScaledVector(POUCH_VM, w.pouch).addScaledVector(ch, w.charge);
         this.handL.position.z += ra.charge * 0.08 * w.charge;    // kol şarjını geri çek
@@ -776,7 +777,7 @@ export class Player {
 
   refreshWeapon() {
     const s = this.s;
-    this.vm.look = this.game.mode.paintball && !s.def?.zombie ? pbLook(paintColorOf(s)) : null;      // paintball: birinci şahıs kolu / eldiven forma renginde (yalnız renk)
+    this.vm.look = this.game.mode.paintball && !s.def?.zombie ? pbLook(paintColorOf(s)) : this.game.mode.front && !s.def?.zombie ? ww2Look(s.team) : null;      // Cephe: 1940'lar ceket kolu + çıplak el      // paintball: birinci şahıs kolu / eldiven forma renginde (yalnız renk)
     this.vm.setItem(s.item.id, s.team, s.stat.kind, s.optic, s.def?.zombie ? s.zt?.skin : null, s.skinOf(s.item.id));
     if (s.stat.ball) { tintPaint(this.vm.model, paintColorOf(s)); this.vm.flash?.removeFromParent(); this.vm.flash = null; }      // paintball: hazne / tüp kendi boya rengimde, namlu alevi yok
   }

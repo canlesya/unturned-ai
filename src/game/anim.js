@@ -31,6 +31,22 @@ export function reloadAnim(style, k, empty = true, ph = 0) {
     r.slap = Math.max(0, 1 - Math.abs(c - 0.55) * 14) * tilt;
     return r;
   }
+  if (style === 'clip') {
+    // 12.158 şerit / en-bloc klips (sürgülü ve yarı otomatik tüfek): sürgü / kurma kolu açılır (0,06–0,2), el kemerden klipsi alır, klips üstte belirir (0,24)
+    // ve 0,34–0,56'da yuvaya bastırılır (vuruş), sürgü kapanır (0,72–0,84, ikinci vuruş). mag grubu = klips (magAxis yukarı), magOut 1 = 24 cm yukarıda
+    const tl = smooth(seg(k, 0, 0.1)) * (1 - smooth(seg(k, 0.86, 1)));
+    r.tilt = tl * 0.42; r.lift = tl;
+    r.bolt = smooth(seg(k, 0.06, 0.2)) * (1 - smooth(seg(k, 0.72, 0.84)));
+    r.magVis = k > 0.24 && k < 0.62;
+    r.magOut = k < 0.34 ? 0.5 - smooth(seg(k, 0.24, 0.34)) * 0.12 : 0.38 * (1 - smooth(seg(k, 0.34, 0.56)));
+    r.slap = Math.max(0, 1 - Math.abs(k - 0.56) * 16) + Math.max(0, 1 - Math.abs(k - 0.8) * 18) * 0.7;
+    const ch1 = smooth(seg(k, 0.0, 0.07)) * (1 - smooth(seg(k, 0.16, 0.22))), ch2 = smooth(seg(k, 0.64, 0.7)) * (1 - smooth(seg(k, 0.84, 0.92)));
+    const pouch = smooth(seg(k, 0.18, 0.24)) * (1 - smooth(seg(k, 0.26, 0.32)));
+    const mag = smooth(seg(k, 0.26, 0.32)) * (1 - smooth(seg(k, 0.58, 0.64)));
+    const charge = Math.min(1, ch1 + ch2);
+    r.w = { fg: Math.max(0, 1 - pouch - mag - charge), mag, pouch, charge };
+    return r;
+  }
   const t = smooth(seg(k, 0, 0.1)) * (1 - smooth(seg(k, 0.8, 1)));
   r.tilt = t;
   r.lift = t;
