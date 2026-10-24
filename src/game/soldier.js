@@ -120,7 +120,7 @@ export class Soldier {
   setLevel(n) {
     this.ggLevel = n;
     this.items = ggItems(n);
-    this.cur = 0; this.cd = 0.25; this.reloadT = 0; this.useT = 0; this.swing = null; this.burstLeft = 0; this.switchT = 0.3;
+    this.cur = 0; this.cd = 0.25; this.reloadT = 0; this.useT = 0; this.swing = null; this.burstLeft = 0; this.switchT = 0.3; this.adsT = 0;      // 12.154: yeni silah belden başlar
     this._syncWeaponModel(true);
     this.game.emit('switch', this);
   }
@@ -204,6 +204,7 @@ export class Soldier {
     this.cook = null; this.backT = 0;                                              // pişirilen bombanın pimi geri takılır (silah değişince atılmaz)
     this.backTo = WSTATS[this.items[i].id].kind === 'throwable' ? this.cur : -1;   // attıktan sonra dönülecek silah
     this.cur = i; this.switchT = eq; this.reloadT = 0; this.useT = 0; this.swing = null; this.autoSwitchT = 0; this.burstLeft = 0;
+    this.adsT = 0;      // 12.154: nişan eski silahındı; yeni silah belden başlar (eski: adsT ≈ 1 kalıyor, yeni silahın büyütmesi / dürbün örtüsü o karede açılıyordu). Dünya kamerası eski büyütmeyi Player'da kendi eğrisiyle söndürür
     this._syncWeaponModel();
     this.game.emit('switch', this);
   }
@@ -574,6 +575,7 @@ export class Soldier {
     const list = OPTIC_ORDER.filter((o) => allowed.includes(o));
     if (list.length < 2) return null;
     this.optic = list[(list.indexOf(this.opticId) + 1) % list.length];
+    this.adsT = 0;      // 12.154: nişangâh değişince nişana yeniden girilir (eski: yeni nişangâhın büyütmesi tam nişanda o karede devreye giriyordu)
     this.model.optic = this.optic;
     this._syncWeaponModel(true);
     this.game.emit('switch', this);
@@ -630,7 +632,7 @@ export class Soldier {
 
   // Her kare: zamanlayıcılar
   update(dt) {
-    if (!this.alive) { this.deadT += dt; return; }
+    if (!this.alive) { this.deadT += dt; this.adsT = Math.max(0, this.adsT - dt * 9); return; }      // 12.154: ölünce nişan söner (eski: adsT donuyor, ölüm kamerası ×4 dürbün büyütmesinde kalıp doğuşta tek karede açılıyordu)
     this.cd = Math.max(0, this.cd - dt);
     this.abT = Math.max(0, this.abT - dt); this.abActive = Math.max(0, this.abActive - dt);
     this.switchT = Math.max(0, this.switchT - dt);
