@@ -337,7 +337,10 @@ export class Soldier {
     const right = new THREE.Vector3().crossVectors(base, UP).normalize();
     const up = new THREE.Vector3().crossVectors(right, base).normalize();
     g._firstPellet = true;
-    const rnd = st.ball ? g.paint.rngFor(this) : Math.random;            // paintball: insan atışında tohumlu (istemci tahmini = sunucu topu)
+    // insan atışında sapma tohumlu (girdi sıra no): istemci tahmini (iz / kan) ile sunucunun ışını aynı yöne gider. 12.146: eskiden yalnız paintball;
+    // mermide Math.random iki tarafta ayrı zar atıyordu → uzakta (sapma ≥ gövde) istemcinin gösterdiği kan ile sunucunun isabeti ayrışıyordu
+    const rnd = g.paint.rngFor(this);                                     // bot / çevrimdışı: Math.random
+
     for (let i = 0; i < pellets; i++) {
       const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * spread;
       const d = base.clone().addScaledVector(right, Math.cos(a) * r).addScaledVector(up, Math.sin(a) * r).normalize();

@@ -61,16 +61,23 @@ export class Effects {
     this.tracers.push(m);
   }
 
+  // 12.146: isabet efektinin uzaklık çarpanı. 0,03-0,1 m'lik parçacık 50 m'de < 1 piksel kalıyordu → uzaktaki isabet / ıskalama hiç görünmüyordu
+  // ("mermi gitmiyor" hissi). 18 m'den ötede boyut uzaklıkla büyür (ekrandaki açısal boyut 18 m'dekiyle aynı kalır), en çok 8 kat.
+  _far(p) { const c = this.cam; return c ? Math.min(8, Math.max(1, c.position.distanceTo(p) / 18)) : 1; }
+
   spark(p, n, normal, color = '#ffd27a', speed = 4) {
-    for (let i = 0; i < n; i++) this._part(p, color, rand(0.02, 0.05), normal, speed, 0.35 + Math.random() * 0.25, 9);
+    const k = this._far(p), v = speed * Math.sqrt(k);
+    for (let i = 0; i < n; i++) this._part(p, color, rand(0.02, 0.05) * k, normal, v, 0.35 + Math.random() * 0.25, 9);
   }
 
   blood(p, n = 8, normal) {
-    for (let i = 0; i < n; i++) this._part(p, '#b3170f', rand(0.03, 0.07), normal, 3, 0.6 + Math.random() * 0.4, 12);
+    const k = this._far(p), v = 3 * Math.sqrt(k);
+    for (let i = 0; i < n; i++) this._part(p, '#b3170f', rand(0.03, 0.07) * k, normal, v, 0.6 + Math.random() * 0.4, 12);
   }
 
   dust(p, normal) {
-    for (let i = 0; i < 3; i++) this._part(p, '#b7a98a', rand(0.05, 0.1), normal, 1.6, 0.5, 2);
+    const k = this._far(p), v = 1.6 * Math.sqrt(k);
+    for (let i = 0; i < 3; i++) this._part(p, '#b7a98a', rand(0.05, 0.1) * k, normal, v, 0.5, 2);
   }
 
   _part(p, color, size, normal, speed, life, grav) {
