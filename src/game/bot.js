@@ -61,6 +61,8 @@ export class BotBrain {
     if (!this.target && Math.random() < inv && this.goalT > 3 && !(this.game.payload && plAnchored(this))) this.setGoal(pos.x + rand(-6, 6), pos.z + rand(-6, 6), 8, pos.y);
   }
 
+  onMateDown(victim, killer) { if (!this.s.def.zombie) tacMateDown(this, victim, killer); }
+
   onDamaged(attacker, fromPos) {
     this.alertT = this.game.time;
     if (attacker && attacker.alive && (!this.target || Math.random() < 0.4)) {
@@ -253,13 +255,13 @@ export class BotBrain {
       if (sc < bd) { bd = sc; best = e; }
     }
     if (best) {
-      if (best !== this.target) { this.target = best; this.reactT = rand(this.d.react[0], this.d.react[1]) + (g.mode.infection ? rand(0, INF_BOT.desync) : 0); this.aimFrac = rand(0.55, 0.85); }
+      if (best !== this.target) { this.target = best; this.reactT = rand(this.d.react[0], this.d.react[1]) * (this.atSpot && this.role === 'ambush' ? 0.7 : 1) + (g.mode.infection ? rand(0, INF_BOT.desync) : 0); this.aimFrac = rand(0.55, 0.85); this.ambWait = 0; }      // pusucu rotaya önceden nişanlı: daha çabuk
       this.lostT = 0;
       this.lastKnown = (this.lastKnown || new THREE.Vector3()).copy(best.pos);
     } else if (this.target) {
       this.lostT += 0.22;
       if (this.lostT > 0.5) {
-        if (this.lastKnown && !(g.payload && plAnchored(this))) this.setGoal(this.lastKnown.x, this.lastKnown.z, 6, this.lastKnown.y);
+        if (this.lastKnown && !(g.payload && plAnchored(this)) && !this.spot) this.setGoal(this.lastKnown.x, this.lastKnown.z, 6, this.lastKnown.y);
         if (this.lastKnown && this.target?.alive && Math.hypot(this.target.vel.x, this.target.vel.z) < 2) { this.nadeSpot = this.lastKnown.clone(); this.nadeSpotT = g.time; }   // siper arkasında durdu (kamp): oraya bomba düşünülebilir
         this.target = null;
       }
@@ -396,7 +398,7 @@ export class BotBrain {
     if (this.senseT <= 0) { this.senseT = 0.2 + Math.random() * 0.08; this.sense(); }
     this.goalT -= dt;
     if (g.payload) plTick(this);                         // Vagon: takım rol planı + bayat hedef (vagon uzaklaştı)
-    if (!this.goal || this.goalT <= 0) this.pickGoal();
+    if (!this.goal || this.goalT <= 0) { this.pickGoal(); if (this.retacT) { this.retacT = 0; this.goalT = Math.min(this.goalT, 2.5); } }     // mevzi verisi hazırlanıyor: kısa hedef, sonra yeniden
     if (g.pickups.list.length && (this.pkT = (this.pkT ?? rand(0, 1.5)) - dt) <= 0) {        // paintball: canı / cephanesi azsa yakındaki kutuya git (çatışma yokken)
       this.pkT = 1.5;
       const pk = !this.target && g.pickups.botWant(s);

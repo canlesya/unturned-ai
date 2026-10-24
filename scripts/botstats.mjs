@@ -61,7 +61,7 @@ function run(sd) {
   const m = M = {
     g, shots: 0, shotEvents: 0, hits: 0, heads: 0, react: [], firstHit: [], shotDist: [], killDist: [], killDistSn: [], lives: [], dmgTaken: 0, dmgUnaware: 0,
     expo: 0, expoIdle: 0, samples: 0, moveF: 0, blockF: 0, stuck: 0, spin: 0, jumps: 0, objT: 0, aliveT: 0, brainMs: 0, roles: {}, cls: {}, wpn: {}, rep: [],
-    byTeam: { blue: { k: 0, d: 0, dmg: 0 }, red: { k: 0, d: 0, dmg: 0 } }, flags: 0,
+    byTeam: { blue: { k: 0, d: 0, dmg: 0 }, red: { k: 0, d: 0, dmg: 0 } }, flags: 0, byRole: {},
   };
   g.on('flag', () => m.flags++);
   const bornT = new Map(), cells = new Map(), prevCells = new Map();
@@ -79,6 +79,8 @@ function run(sd) {
   g.onKill = (killer, victim, w, hs) => {
     if (killer && killer !== victim && killer.team !== victim.team) {
       const d = Math.hypot(killer.pos.x - victim.pos.x, killer.pos.z - victim.pos.z);
+      if (killer.brain && !killer.def.zombie) { const r = killer.brain.role || '-'; (m.byRole[r] ||= { k: 0, d: 0, dist: [] }).k++; m.byRole[r].dist.push(d); }
+      if (victim.brain && !victim.def.zombie) { const r = victim.brain.role || '-'; (m.byRole[r] ||= { k: 0, d: 0, dist: [] }).d++; }
       if (killer.brain && !killer.def.zombie) { m.killDist.push(d); if (/Keskin|SVD|Barrett|M24/i.test(w || '') || ['sniper', 'svd', 'barrett'].includes(killer.items?.[0]?.id) && killer.cur === 0) m.killDistSn.push(d); }
       if (m.byTeam[killer.team]) m.byTeam[killer.team].k++;
       if (m.byTeam[victim.team]) m.byTeam[victim.team].d++;
@@ -159,6 +161,7 @@ const out = {
   objPct: +((100 * sum((r) => r.objT)) / Math.max(1, sum((r) => r.aliveT))).toFixed(1), flags: sum((r) => r.flags),
   routeRep: +avg(cat((r) => r.rep)).toFixed(2), brainMsStep: +(sum((r) => r.brainMs) / Math.max(1, sum((r) => r.steps))).toFixed(3), stepMs: +(sum((r) => r.simMs) / Math.max(1, sum((r) => r.steps))).toFixed(2),
   kd: Object.fromEntries(['blue', 'red'].map((t) => [t, `${sum((r) => r.byTeam[t].k)}/${sum((r) => r.byTeam[t].d)}`])),
+  byRole: Object.fromEntries([...new Set(R.flatMap((r) => Object.keys(r.byRole)))].map((k) => { const a = R.map((r) => r.byRole[k]).filter(Boolean); const k2 = a.reduce((x, y) => x + y.k, 0), d2 = a.reduce((x, y) => x + y.d, 0); return [k, `${k2}/${d2} ${(k2 / Math.max(1, d2)).toFixed(2)} ${med(a.flatMap((y) => y.dist)).toFixed(0)}m`]; })),
   roles: pct(merge((r) => r.roles)), cls: pct(merge((r) => r.cls)), wpn: pct(merge((r) => r.wpn)),
 };
 if (process.env.JSON) console.log(JSON.stringify(out));

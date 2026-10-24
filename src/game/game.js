@@ -1454,7 +1454,7 @@ export class Game {
   alertNear(pos, team, radius) {
     for (const s of this.soldiers) {
       if (!s.alive || s.team === team || !s.brain) continue;
-      if (Math.hypot(s.pos.x - pos.x, s.pos.z - pos.z) < radius) s.brain.hear(pos);
+      if (Math.hypot(s.pos.x - pos.x, s.pos.z - pos.z) < radius) s.brain.hear(pos, radius);
     }
   }
 
@@ -1742,6 +1742,7 @@ export class Game {
     if (this.mode.scoreBased) { if (killer && killer.team !== victim.team) this.tickets[killer.team] += 1; }      // TDM: öldürmek takıma 1 skor
     else if (!this.ffa) this.tickets[victim.team] -= 1;
     this.netEvent({ e: 'kill', k: killer ? killer.id : -1, v: victim.id, w: weapon || '', hs: hs ? 1 : 0 });
+    if (!this.mode.infection) for (const b of this.brains) b.onMateDown?.(victim, killer);          // 12.152: yakındaki takım arkadaşları düştüğü yere bakar / araştırır
     this.hud.killFeed(killer, victim, weapon, hs);
     if (killer && killer.isPlayer && killer !== victim) this.killfx.kill(victim, weapon, hs);
     if (victim.isPlayer) this.killfx.died();

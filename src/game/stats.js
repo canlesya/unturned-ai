@@ -340,7 +340,7 @@ export function ggItems(level) {
 export const DIFFICULTY = {
   easy: { label: 'Kolay', react: [0.7, 1.2], err: 0.075, turn: 3.6, burst: [2, 5], dmgMul: 0.8 },
   normal: { label: 'Normal', react: [0.4, 0.75], err: 0.04, turn: 5.2, burst: [3, 8], dmgMul: 1.0 },
-  hard: { label: 'Zor', react: [0.2, 0.4], err: 0.02, turn: 7.5, burst: [4, 10], dmgMul: 1.0 },
+  hard: { label: 'Zor', react: [0.26, 0.45], err: 0.02, turn: 7.5, burst: [4, 10], dmgMul: 1.0 },
 };
 
 export const BOT_NAMES = ['Kaan', 'Efe', 'Deniz', 'Mert', 'Ada', 'Ege', 'Can', 'Selin', 'Arda', 'Yağız', 'Barış', 'Ceren', 'Emre', 'Zeynep', 'Onur',
