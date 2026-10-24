@@ -47,6 +47,10 @@ const r2 = (v) => Math.round(v * 100) / 100;
 const v3 = (p) => [r2(p.x), r2(p.y), r2(p.z)];
 
 const UP = new THREE.Vector3(0, 1, 0);
+// 12.146: mermi ışınının en kısa erimi. Eskiden range[1] × 2,2 idi: tabanca 121 m, MAC-10 99 m, pompalı 70 m, MP5 154 m'den ötede ışın
+// hiçbir şeye değmiyordu (hasar yok, duvarda toz yok, iz duvarın içinden 120 m'ye uzanıyordu). Hasar düşüşü (range / minMul) aynı kalır;
+// yalnız ışın her silahta en az oynanan alanın köşegeni kadar gider (en büyüğü Vadi ≈ 216 m; ışın maliyeti boyla arttığı için 300).
+const SHOT_REACH = 300;
 
 function rayBox(o, d, min, max, maxT) {
   let t0 = 0, t1 = maxT;
@@ -178,6 +182,7 @@ export class Game {
       this.visMul = opts.weather === 'fog' ? 0.5 : opts.weather === 'rain' ? 0.8 : 1;   // Weather'ın bot görüşüne etkisi
     } else {
       this.effects = new Effects(this.scene);
+      this.effects.cam = this.camera;                              // 12.146: uzaktaki isabet efekti kameraya uzaklıkla büyür
       this.sfx = new Sfx();
       this.sfx.setVolume(this.settings.volume);
       this.sfx.setMix({ sfx: this.settings.vSfx ?? 1, amb: this.settings.vAmb ?? 1, rain: this.settings.rainSound !== false });
@@ -1352,7 +1357,7 @@ export class Game {
   }
 
   shootRay(shooter, origin, dir, st, muzzle, camO = null) {
-    const maxT = st.range ? st.range[1] * 2.2 : 300;
+    const maxT = Math.max(SHOT_REACH, st.range ? st.range[1] * 2.2 : 300);
     // sunucu: insanın atışı, istemcinin gördüğü ana geri sarılarak hesaplanır (lag compensation)
     const restore = shooter.rewindTick != null ? this.rewind(shooter, shooter.rewindTick) : null;
     if (camO) {
