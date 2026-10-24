@@ -185,7 +185,7 @@ export class Game {
       this.effects = nullSink({ shake: 0 });
       this.sfx = nullSink();
       this.weather = nullSink();
-      this.visMul = opts.weather === 'fog' ? 0.5 : opts.weather === 'rain' ? 0.8 : 1;   // Weather'ın bot görüşüne etkisi
+      this.visMul = (opts.weather === 'fog' ? 0.5 : opts.weather === 'rain' ? 0.8 : 1) * (this.map.visMul || 1);   // Weather'ın (+ haritanın kendi pusunun, 12.161 Cephe) bot görüşüne etkisi
     } else {
       this.effects = new Effects(this.scene);
       this.effects.cam = this.camera;                              // 12.146: uzaktaki isabet efekti kameraya uzaklıkla büyür
@@ -927,7 +927,7 @@ export class Game {
     this.world.settle(v);
     v.hp = v.maxHp * TUNE.reviveHp;
     v.revivable = false;
-    if (!(this.front && v.team !== 'blue')) this.tickets[v.team] += 1;           // Cephe: savunanın bileti yok (kalan sektör)
+    this.tickets[v.team] += 1;                                                    // canlandırma bileti geri verir (Cephe dahil: 12.161'den beri iki tarafta bilet)
     if (v.brain) v.brain.reset();
     medic.score += 80;
     if (v.isPlayer) { this.pendingClass = null; this.hud.onPlayerSpawn?.(); this.hud.toast($t('hud.t.revivedBy', { n: medic.name }), '#9be07f'); }
@@ -939,7 +939,7 @@ export class Game {
   squadGoal(s) { return this.squadGoals[s.team]?.[s.squad] || null; }
 
   assignSquads() {
-    const objs = this.front ? this.front.active() : this.mode.objectives;      // Cephe: yalnız etkin sektör
+    const objs = this.front ? this.front.activeList() : this.mode.objectives;  // Cephe: yalnız etkin nokta
     if (!objs.length) return;
     for (const team of ['blue', 'red']) {
       const nSq = Math.ceil(this.soldiers.filter((s) => s.team === team).length / 4);
@@ -1681,7 +1681,7 @@ export class Game {
       const step = 0.1;
       this.capT = step;
       for (const o of this.mode.objectives) {
-        if (this.front && !this.front.capturable(o)) continue;                     // Cephe: yalnız etkin sektörün noktaları (geçilen / sıradaki kilitli)
+        if (this.front && !this.front.capturable(o)) continue;                     // Cephe: yalnız etkin nokta (zincirin geri kalanı kilitli)
         let b = 0, r = 0;
         for (const s of this.soldiers) {
           if (!s.alive) continue;
@@ -1690,7 +1690,7 @@ export class Game {
         const net = clamp(b - r, -3, 3);
         if (net !== 0) {
           const prev = o.owner;
-          o.p = clamp(o.p + net * TUNE.captureRate * (this.front ? TUNE.frCapMul : 1) * step, -1, 1);
+          o.p = clamp(o.p + net * TUNE.captureRate * (this.front ? this.front.capMul(o) : 1) * step, -1, 1);
           if (o.p >= 1 && o.owner !== 'blue') o.owner = 'blue';
           else if (o.p <= -1 && o.owner !== 'red') o.owner = 'red';
           else if (o.owner === 'blue' && o.p <= 0) o.owner = null;
@@ -1699,7 +1699,7 @@ export class Game {
         }
       }
     }
-    this.front?.update();                                                          // Cephe: etkin sektörün tüm noktaları saldıranda → sektör düşer
+    this.front?.update();                                                          // Cephe: etkin nokta alındı → cephe kayar (+ nokta farkı kanaması)
     this.bleedT -= dt;
     if (this.bleedT <= 0 && !this.front) {
       this.bleedT = TUNE.bleed;
@@ -1742,7 +1742,7 @@ export class Game {
   onFlag(o, prev) {
     const mine = this.playerSoldier?.team;
     this.emit('flag', { o, prev });
-    if (this.headless) return;
+    if (this.headless || this.front) return;                                      // Cephe: bildirim front.js'te (cephe kayması)
     if (o.owner) {
       const good = o.owner === mine;
       this.hud.toast($t(good ? 'hud.t.captured' : 'hud.t.lost', { f: placeName(o.name) }), good ? '#7ec8ff' : '#ff8a7a');
@@ -1776,7 +1776,7 @@ export class Game {
       if (knife && victim.ggLevel > 0) this.ggDemote(victim);                                       // bıçakla öldürülen bir seviye geriler
     }
     if (this.mode.scoreBased) { if (killer && killer.team !== victim.team) this.tickets[killer.team] += 1; }      // TDM: öldürmek takıma 1 skor
-    else if (!this.ffa && !(this.front && victim.team !== 'blue')) this.tickets[victim.team] -= 1;     // Cephe: bilet yalnız saldıranda
+    else if (!this.ffa) this.tickets[victim.team] -= 1;                                                  // Cephe dahil (12.161: iki tarafa simetrik bilet)
     this.netEvent({ e: 'kill', k: killer ? killer.id : -1, v: victim.id, w: weapon || '', hs: hs ? 1 : 0 });
     if (!this.mode.infection) for (const b of this.brains) b.onMateDown?.(victim, killer);          // 12.152: yakındaki takım arkadaşları düştüğü yere bakar / araştırır
     this.hud.killFeed(killer, victim, weapon, hs);
@@ -1845,7 +1845,7 @@ export class Game {
     const wname = this.ffa ? (this.soldiers.find((s) => s.team === w)?.name || '') : inf ? (w === 'red' ? t('match.zombies') : t('match.humans')) : TEAMS[w].name;
     const gg = this.mode.gungame, best = list[0] ? t('match.teamBest', { name: list[0].name, score: list[0].score }) : '';
     const tb = Math.max(0, Math.round(this.tickets.blue)), tr = Math.max(0, Math.round(this.tickets.red));
-    const sub = this.front ? t('front.endSub', { cp: this.front.sector, n: this.front.n, tk: tb, best: list[0].name, score: list[0].score }) : this.payload ? t('payload.endSub', { pct: Math.round(this.payload.progress * 100), cp: this.payload.reached, best: list[0].name, score: list[0].score }) : this.ffa ? `${t('match.rank')}: ${ffaRanking(this.soldiers, gg).slice(0, 3).map((s, i) => `${i + 1}. ${s.name} (${gg ? t('match.lvl') : ''}${ffaMetric(s, gg)})`).join(' · ')}` : `${t(inf ? 'match.humZom' : 'match.blueRed', { b: tb, r: tr })} · ${best}`;
+    const sub = this.front ? t('front.endSub', { b: this.front.owned('blue'), r: this.front.owned('red'), n: this.front.n, sh: this.front.shifts, tb, tr, best: list[0].name, score: list[0].score }) : this.payload ? t('payload.endSub', { pct: Math.round(this.payload.progress * 100), cp: this.payload.reached, best: list[0].name, score: list[0].score }) : this.ffa ? `${t('match.rank')}: ${ffaRanking(this.soldiers, gg).slice(0, 3).map((s, i) => `${i + 1}. ${s.name} (${gg ? t('match.lvl') : ''}${ffaMetric(s, gg)})`).join(' · ')}` : `${t(inf ? 'match.humZom' : 'match.blueRed', { b: tb, r: tr })} · ${best}`;
     const rows = `<div class="mvp"><div class="st"><b>${me.kills}</b><small>${t('match.kills')}</small></div><div class="st"><b>${me.deaths}</b><small>${t('match.deaths')}</small></div><div class="st"><b>${me.score}</b><small>${t('match.score')}</small></div><div class="st"><b>+${xp}</b><small>${t('match.xp')}</small></div></div><small style="opacity:.75">${sub}</small>`;
     this.opts.onMatchEnd?.({ score: me.score, kills: me.kills, deaths: me.deaths, win });
     this.hud.showEnd(win, win ? t('match.victory') : t('match.defeat'), this.ffa ? t('match.wonFfa', { why }) : t('match.won', { why, team: wname }), rows);

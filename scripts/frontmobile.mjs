@@ -14,7 +14,7 @@ await page.evaluate(() => {
   window.__ft = []; let last = performance.now();
   r.render = (sc, cam) => { ro(sc, cam); if (sc === g.scene) { window.__info = { calls: r.info.render.calls, tris: r.info.render.triangles }; const t = performance.now(); window.__ft.push(t - last); last = t; } };
 });
-const VIEWS = [['siper', null], ['koy', [4, 0, 10, 0]], ['ana-hat', [10, 0, -88, 0]]];
+const VIEWS = [['siper', null], ['koy', [4, 0, 10, 0]], ['ana-hat', [10, 0, -88, 0]], ['olum-bolgesi', [8, 0, 76, 0]]];
 const rep = {};
 for (const [n, P] of VIEWS) {
   if (P) await page.evaluate((P) => { const s = window.__game.playerSoldier; s.pos.set(P[0], window.__game.world.heightAt(P[0], P[2]), P[2]); s.yaw = P[3]; s.protT = 5; window.__game.devGod = true; }, P);
@@ -22,6 +22,13 @@ for (const [n, P] of VIEWS) {
   await page.waitForTimeout(3000);
   await page.screenshot({ path: `${OUT}/pixel7-${n}.png` });
   rep[n] = await page.evaluate(() => { const f = window.__ft.slice(5).sort((a, b) => a - b); return { ...window.__info, msMed: +(f[f.length >> 1] || 0).toFixed(1), ms95: +(f[Math.floor(f.length * 0.95)] || 0).toFixed(1), w: innerWidth, h: innerHeight, pr: devicePixelRatio }; });
+}
+// 12.161 karşılaştırma: atmosfer katmanları (duman / ateş / kül / parlama) kapalı + eski sis (60–250 m) — aynı oturumda, aynı bakış
+if (!process.env.NOAB) {
+  await page.evaluate(() => { const g = window.__game, fx = g.front.fx; for (const o of [fx.smoke.mesh, fx.fire.mesh, fx.ash, ...fx.flashes.map((f) => f.sp)]) o.visible = false; g.scene.fog.near = 60; g.scene.fog.far = 250; window.__ft.length = 0; });
+  await page.waitForTimeout(3000);
+  await page.screenshot({ path: `${OUT}/pixel7-eski-atmosfer.png` });
+  rep.eskiAtmosfer = await page.evaluate(() => { const f = window.__ft.slice(5).sort((a, b) => a - b); return { ...window.__info, msMed: +(f[f.length >> 1] || 0).toFixed(1), ms95: +(f[Math.floor(f.length * 0.95)] || 0).toFixed(1) }; });
 }
 rep.errs = errs;
 console.log(JSON.stringify(rep));

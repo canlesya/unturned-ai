@@ -70,6 +70,37 @@ export class FrontTerrain {
   // siper duvarı: içeriden (yerde ya da zıplarken) kenara tırmanılmaz — yalnız rampadan çıkılır (World.move kancası)
   wallAt(x, z, y) { return this.heightAt(x, z) > y + 0.55; }
 
+  // 12.161: siper duvarı KATI HACİM (gövde yarıçapıyla). Eskiden yalnız gövde MERKEZİ denetlenirdi: merkez duvar düzlemine dek girer, gövdenin yarısı
+  // (0,32 m) ve kamera (yakın düzlem 0,05) duvarın içinde kalırdı → "duvarın içine giriyoruz". Şimdi kare ayak izi [x±r]×[z±r] komşu bir hücreye taşıyor ve
+  // o hücrenin yüzeyi (merkeze en yakın noktasında) ayak + climb'den yüksekse o hücre duvardır: ayak izi hücre kenarına itilir. Hücre kenarları eksen hizalı,
+  // duvar ağı da tam bu kenarlarda → görünen duvar = çarpışma. axis 'x' / 'z': yalnız o eksende (hareket adımı; merkez hücrenin o eksende dışındaysa);
+  // axis null: iki eksende en kısa itme (iniş / düşüş sonrası sızmayı temizler, adım başına en çok maxPush). Değişti mi döner.
+  pushOut(p, r, climb, axis = null, maxPush = 1) {
+    const c = this.cell, y = p.y + climb;
+    const i0 = Math.floor((p.x - r - this.minX) / c), i1 = Math.floor((p.x + r - this.minX) / c);
+    const j0 = Math.floor((p.z - r - this.minZ) / c), j1 = Math.floor((p.z + r - this.minZ) / c);
+    let moved = false;
+    for (let j = Math.max(0, j0); j <= Math.min(this.ch - 1, j1); j++) for (let i = Math.max(0, i0); i <= Math.min(this.cw - 1, i1); i++) {
+      const x0 = this.minX + i * c, x1 = x0 + c, z0 = this.minZ + j * c, z1 = z0 + c;
+      if (p.x + r <= x0 + 1e-6 || p.x - r >= x1 - 1e-6 || p.z + r <= z0 + 1e-6 || p.z - r >= z1 - 1e-6) continue;     // (önceki itmeden sonra) artık değmiyor
+      const inX = p.x >= x0 && p.x < x1, inZ = p.z >= z0 && p.z < z1;
+      if (inX && inZ) continue;                                                       // üstünde durulan hücre
+      const nx = Math.min(Math.max(p.x, x0), x1), nz = Math.min(Math.max(p.z, z0), z1);
+      if (this._cellH(i, j, Math.min(0.9999, (nx - x0) / c), Math.min(0.9999, (nz - z0) / c)) <= y) continue;
+      // itme: merkez hücrenin solundaysa x0 − r'ye, sağındaysa x1 + r'ye (z aynı)
+      const px = inX ? Infinity : p.x < x0 ? x0 - r - 1e-4 - p.x : x1 + r + 1e-4 - p.x;
+      const pz = inZ ? Infinity : p.z < z0 ? z0 - r - 1e-4 - p.z : z1 + r + 1e-4 - p.z;
+      let ax = axis;
+      if (ax === 'x' && inX) continue;                                                // bu eksende itilemez (yan komşu: öbür eksenin işi)
+      if (ax === 'z' && inZ) continue;
+      if (!ax) ax = Math.abs(px) <= Math.abs(pz) ? 'x' : 'z';
+      const d = ax === 'x' ? px : pz, dd = Math.max(-maxPush, Math.min(maxPush, d));
+      if (ax === 'x') p.x += dd; else p.z += dd;
+      moved = true;
+    }
+    return moved;
+  }
+
   // Işın - arazi: 0,35 m adım + ikili arama (siper kenarı / sırt kaçmasın). Işın en yüksek köşenin üstündeyse erken biter.
   raycast(o, d, maxT, out) {
     const step = 0.35, top = this._top ??= this.h.reduce((m, v) => Math.max(m, v), -1e9);

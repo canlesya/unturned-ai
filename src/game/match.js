@@ -7,7 +7,7 @@ export const MATCH_TYPES = {
   dm: { label: 'Ölüm Maçı', desc: 'Herkes tek. Rastgele doğ, ilk 40 öldürmeye ulaşan kazanır (en çok 10 kişi).' },
   payload: { get label() { return t('payload.label'); }, get desc() { return t('payload.desc'); } },     // Vagon: Mavi saldırır (vagonu iter), Kırmızı savunur (src/game/payload.js)
   space: { get label() { return t('space.label'); }, get desc() { return t('space.desc'); } },     // 12.157 Uzay: takım çatışması (tdm kuralları) + düşük yer çekimi + enerji silahları + uzay kıyafeti (src/game/space.js)
-  front: { get label() { return t('mode.front.label'); }, get desc() { return t('mode.front.desc'); } },        // Cephe: sektör sektör ilerleme, Mavi saldırır (src/game/front.js)
+  front: { get label() { return t('mode.front.label'); }, get desc() { return t('mode.front.desc'); } },        // Cephe: çekişmeli cephe hattı, 7 noktalık zincir (src/game/front.js, 12.161)
   pb: { label: 'Paintball', desc: 'Herkes tek, herkesin kendi boya rengi. Sabit boya silahları, Boya Kulesi\'nde üç kat: zemin siperleri, kaleler, kule tepesi. Kuyuya düşen elenir; ilk 30 elemeye ulaşan kazanır.' },
 };
 import { LIMITS } from './balance.js';
@@ -35,7 +35,7 @@ export const PRESETS = {
 // Skor tabanlı modlarda (TDM) 'tickets' alanı skor sınırıdır; takım skorları 0'dan yukarı sayar
 export const isScoreType = (t) => t === 'tdm' || t === 'space';
 export function defaultScoreLimit(perTeam) { return Math.max(30, Math.min(150, perTeam * 10)); }
-export function frontTickets(perTeam) { return Math.max(60, Math.round(perTeam * LIMITS.frTickets / 10) * 10); }   // Cephe: saldıranın başlangıç bileti (oyuncu başına LIMITS.frTickets)
+export function frontTickets(perTeam) { return Math.max(60, Math.round(perTeam * LIMITS.frTickets / 10) * 10); }   // Cephe: takım başına başlangıç bileti (iki taraf; oyuncu başına LIMITS.frTickets)
 export function defaultTickets(perTeam) { return Math.max(40, Math.round(perTeam * 20 / 10) * 10); }
 // Herkes-tek sıralaması (Ölüm Maçı / Silah Yarışı / boya): skor kutusu, skor tablosu, maç sonu ve süre bitiminde kazanan aynı ölçütü kullanır
 export const ffaMetric = (s, gg) => (gg ? s.ggLevel + 1 : s.kills);          // gg: seviye (1..15), değilse öldürme

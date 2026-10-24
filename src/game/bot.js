@@ -383,6 +383,9 @@ export class BotBrain {
         this.path = g.nav.findPath(s.pos.x, s.pos.z, tgt.x, tgt.z, 0.7, s.pos.y, tgt.y);
         this.repathT = rand(2.5, 4);
         if (!this.path) { this.goal = null; this.via = null; return null; }
+        // 12.161 Cephe: hedef kapalı hücrede (ev duvarı içi vb.) ve en yakın boş hücre botun kendi hücresi → tek noktalı yol hemen düşer, bot HER ADIM yeniden ister ve
+        // yol bütçesini (adım başına 1) tüketip sıradaki botları aç bırakırdı (maçın ortasında herkes donuyordu). Ulaşılamaz say, yeni hedef seçilsin.
+        if (g.front && this.path.length === 1 && Math.hypot(this.path[0].x - s.pos.x, this.path[0].z - s.pos.z) < 0.6) { this.path = null; this.goal = null; this.via = null; return null; }
       }
     }
     if (!this.path || !this.path.length) return null;

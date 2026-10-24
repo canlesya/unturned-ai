@@ -1,6 +1,6 @@
 // Batı Cephesi (Cephe modu) serbest kamera kareleri:  GPU=1 URL=http://127.0.0.1:5180 OUT=/tmp/wb-cephe/cam node scripts/frontcam.mjs [görünüm,…]
 // Görünüm: [ad, kamera [x,y,z], hedef [x,y,z], fov]. HUD + birinci şahıs silahı gizli; BOTS=1 ise botlar dondurulmadan sahnede kalır (mevzi görünümü).
-// Ayrıca SECTOR=n ile doğuş aşaması / sektör ileri alınır. Renderer çağrı / üçgen sayısı report.json'a yazılır.
+// Ayrıca SECTOR=n (0..6) ile etkin nokta / doğuş aşaması oraya kaydırılır (12.161 Cephe Hattı). Renderer çağrı / üçgen sayısı report.json'a yazılır.
 import { chromium } from 'playwright';
 import fs from 'fs';
 const URL0 = process.env.URL || 'http://127.0.0.1:5180', OUT = process.env.OUT || '/tmp/wb-cephe/cam';
@@ -25,6 +25,12 @@ export const CAMS = [
   ['y-k1', [-62, 26, 72], [-20, 0, 40], 55],
   ['y-koy', [34, 30, 26], [-2, 0, -12], 55],
   ['y-ana', [44, 30, -78], [8, 0, -118], 55],
+  // 12.161 atmosfer / görüş kırıcılar
+  ['a-cit', [-36, 1.7, -22], [-28, 0.9, -31], 66],
+  ['a-tank-ates', [12, 1.7, 64], [24, 2.2, 74], 62],
+  ['a-duman-koy', [-2, 1.7, 14], [40, 7, 0], 68],
+  ['a-duvar', [-4, 1.7, -52], [-8.5, 1.0, -60], 64],
+  ['a-kuzey-tarla', [0, 1.7, -22], [0, 1.2, -80], 70],
 ];
 const want = process.argv[2] ? process.argv[2].split(',') : null;
 const browser = await chromium.launch({ args: process.env.GPU ? ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu'] : ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
@@ -35,7 +41,7 @@ await page.waitForFunction('window.__game && window.__game.running', null, { tim
 await page.waitForTimeout(1500);
 await page.evaluate(([bots, sector]) => {
   const g = window.__game;
-  if (sector) while (g.front.sector < sector) g.front.advance(true);
+  if (sector >= 0) { let k = 0; while (g.front.a < sector && k++ < 9) { g.front.active.p = 1; g.front.shift(1, true); } while (g.front.a > sector && k++ < 9) { g.front.active.p = -1; g.front.shift(-1, true); } }   // 12.161: etkin nokta sırası (0..6)
   if (!bots) { for (const s of g.soldiers) if (s !== g.playerSoldier) { s.brain = null; s.alive = false; s.respawnT = 1e9; s.model.root.visible = false; } g.brains.length = 0; }
   g.timeLeft = 900; if (g.playerSoldier.model) g.playerSoldier.model.root.visible = false;
   g.hud.root.style.display = 'none'; g.player.vm.render = () => {};
@@ -43,7 +49,7 @@ await page.evaluate(([bots, sector]) => {
   P.render = function () { if (this._cam) { const [p, t, f] = this._cam; c.position.set(...p); c.lookAt(...t); c.fov = f; c.far = 900; c.updateProjectionMatrix(); } orig.call(this); };
   const r = g.renderer, ro = r.render.bind(r);
   r.render = (sc, cam) => { ro(sc, cam); if (sc === g.scene) window.__info = { calls: r.info.render.calls, tris: r.info.render.triangles }; };
-}, [!!process.env.BOTS, +(process.env.SECTOR || 0)]);
+}, [!!process.env.BOTS, +(process.env.SECTOR ?? -1)]);
 const rep = {};
 for (const [n, pos, tgt, fov] of CAMS) {
   if (want && !want.some((w) => n.startsWith(w))) continue;
