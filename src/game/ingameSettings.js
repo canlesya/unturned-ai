@@ -77,7 +77,7 @@ export class InGameSettings {
         break;
       case 'quality': {
         s.pixelRatio = v; this.save({ [mob() ? 'qualityM' : 'quality']: v });
-        const r = g.renderer, pr = Math.min(devicePixelRatio, v);
+        const r = g.renderer, pr = g.fitRatio ? g.fitRatio(Math.min(devicePixelRatio, v)) : Math.min(devicePixelRatio, v);
         if (g._perf) { g._perf.max = pr; g._perf.ratio = pr; }
         r?.setPixelRatio(pr); r?.setSize(innerWidth, innerHeight, false);
         g.applyGfx?.();                                                         // gölge haritası / yumuşaklık / son işleme kademesi

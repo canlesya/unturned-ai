@@ -2,6 +2,7 @@ import { MapBuilder } from '../maps/builder.js';
 import { SightMap } from './sight.js';
 import { MapEditor, loadEdits } from './mapEditor.js';
 import * as THREE from 'three';
+import { warmup } from './warmup.js';
 import { setupEnvironment } from '../maps/environment.js';
 import { MAPS, DEFAULT_MAP } from '../maps/index.js';
 import { World } from './collision.js';
@@ -83,7 +84,7 @@ export class Game {
     this.scene = new THREE.Scene();
     if (!headless) {
       r = this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-      r.setPixelRatio(Math.min(devicePixelRatio, this.settings.pixelRatio || 1.5));
+      r.setPixelRatio(this.fitRatio(Math.min(devicePixelRatio, this.settings.pixelRatio || 1.5)));
       r.setSize(innerWidth, innerHeight, false);   // CSS boyutunu biz belirleriz (yüksek DPI'da tuval taşmasın)
       r.autoClear = false;
       r.shadowMap.enabled = this.settings.shadows !== false;
@@ -321,6 +322,7 @@ export class Game {
         else if (e.code === 'Escape' && this._tm) this.toggleTeamMenu(false);
       });
     } else for (const s of this.soldiers) if (!s.vacant) this.respawn(s, true);
+    this.warm = warmup(this);                          // 12.151: gölgelendirici ön ısıtma (yükleme ekranı açıkken; Firefox'ta ilk ACOG / nişan / silah çekme donmasını önler)
     this.running = true;
     this.simulate = !!opts.nolock || !!this.online;
     this.hud.setPaused(!opts.nolock);
@@ -874,7 +876,7 @@ export class Game {
   // ───── ana döngü ─────
   loop(now) {
     this.raf = requestAnimationFrame(this.loop);
-    const dt = clamp((now - this.last) / 1000 || 0.016, 0, 0.05);
+    const dt = this.frameDt(now);
     this.last = now;
     this.perfTick(now, dt);
     if (this.online && !this.ended) {
@@ -907,6 +909,25 @@ export class Game {
     c.quaternion.slerpQuaternions(a.q, b.q, alpha);
   }
 
+  // 12.151: kare adımı yumuşatma. Firefox'ta rAF zaman damgası ~1 ms (parmak izi direnci / LibreWolf / Mullvad'da 16,7 ms) kuantalı: 60 Hz'de
+  // 16,7 / 33,3 / 0 ms dizisi kamerayı ve modelleri bir kare iki adım, bir kare hiç ilerletir (titreme = "donma" hissi). Adım, ortalama kare süresine
+  // yakın tutulur; gerçek zamanla fark (borç) her karede %15 kapatılır (uzun vadede toplam süre aynı). Gerçek takılmada (> 100 ms) eski davranış.
+  frameDt(now) {
+    const raw = (now - this.last) / 1000;
+    if (!(raw > 0) || raw > 0.1 || !this._ema) { if (raw > 0 && raw <= 0.1) this._ema = raw; this._debt = 0; return clamp(raw || 0.016, 0, 0.05); }
+    this._ema += (raw - this._ema) * 0.1;
+    this._debt = clamp(this._debt + raw, -0.05, 0.25);
+    const d = clamp(this._ema + (this._debt - this._ema) * 0.15, 0, 0.05);
+    this._debt -= d;
+    return d;
+  }
+
+  // Tuval çizim tamponu sürücü sınırını aşmasın (Firefox parmak izi direnci MAX_VIEWPORT_DIMS'i 4096'ya indirir; aşınca görüntü kırpılır / bulanır)
+  fitRatio(pr) {
+    if (!this._maxDim) { const gl = this.renderer.getContext(), v = gl.getParameter(gl.MAX_VIEWPORT_DIMS); this._maxDim = Math.min(v[0], v[1], gl.getParameter(gl.MAX_RENDERBUFFER_SIZE) * 2) || 4096; }
+    return Math.max(0.5, Math.min(pr, this._maxDim / Math.max(1, innerWidth), this._maxDim / Math.max(1, innerHeight)));
+  }
+
   // FPS ölçümü + uyarlanabilir çözünürlük: ortalama kare süresi uzun sürerse çözünürlük kademeli düşer, rahatlayınca geri yükselir (en çok seçilen kaliteye kadar)
   perfTick(now, dt) {
     const p = (this._perf ||= { n: 0, t: 0, fps: 0, ratio: null, max: 0, cool: 0 });
@@ -915,7 +936,8 @@ export class Game {
     if (p.t < 1.2) return;
     p.fps = p.n / p.t; const ms = (p.t / p.n) * 1000; p.n = 0; p.t = 0;
     const r = this.renderer;
-    if (p.ratio === null) { p.max = Math.min(devicePixelRatio, this.settings.pixelRatio || 1.5); p.ratio = p.max; }
+    if (p.ratio === null) { p.max = this.fitRatio(Math.min(devicePixelRatio, this.settings.pixelRatio || 1.5)); p.ratio = p.max; }
+    p.vs = !p.vs || ms < p.vs ? ms : p.vs + (ms - p.vs) * 0.02;                                          // ekran yenileme süresi tahmini (60 Hz'de ~16,7 ms)
     if (this.settings.adaptive === false) return;
     if (p.cool > 0) { p.cool--; return; }
     let want = p.ratio;
@@ -930,8 +952,9 @@ export class Game {
       else if (p.slow >= 3 && p.ratio > low + 0.01) { want = low; p.hold = 6; p.slow = 0; }
       else if (p.hold > 0) p.hold--;
       else if (ms < 17.5 && p.ratio < p.max) want = Math.min(p.max, p.ratio + 0.25);
-    } else if (ms > 25 && p.ratio > 0.6) want = Math.max(0.6, p.ratio * 0.85);                                   // masaüstü: < 40 FPS düşür
-    else if (ms < 13.5 && p.ratio < p.max) want = Math.min(p.max, p.ratio * 1.12);                               // rahat: geri yükselt
+    } else if (ms > 25 && p.ratio > 0.6) { want = Math.max(0.6, p.ratio * 0.85); p.hold = Math.min(40, 8 * (1 + (p.drops = (p.drops || 0) + 1))); }   // masaüstü: < 40 FPS düşür
+    else if (p.hold > 0) p.hold--;
+    else if ((ms < 13.5 || ms < p.vs * 1.12) && p.ratio < p.max) want = Math.min(p.max, p.ratio * 1.12);     // rahat: geri yükselt. 12.151: 60 Hz ekranda kare hiç 13,5 ms'nin altına inmez → eskiden çözünürlük bir kez düşünce hiç geri gelmezdi; artık yenileme hızına dayanmışsa (≈ tavan) yükselir, düşüşten sonra 10–48 sn bekler (salınım olmasın)
     if (Math.abs(want - p.ratio) > 0.01) {
       p.ratio = want; p.cool = 1;
       r.setPixelRatio(want); r.setSize(innerWidth, innerHeight, false);
@@ -1209,8 +1232,7 @@ export class Game {
     const now = performance.now(), dt = Math.min(0.1, (now - (this._rT || now)) / 1000); this._rT = now;
     this._vmLightUpdate(dt);
     if (this.playerSoldier.alive && !this.showSelf) this.player.vm.renderPip(r, this.scene, this.camera);      // 12.128: ACOG merceği (PiP) ana çizimden önce, gölgesiz
-    const post = this.post?.on ? this.post : null;
-    if (post) post.begin();
+    const post = this.post?.on && this.post.begin() ? this.post : null;      // begin() false: hedef sürücü sınırını aşıyor → doğrudan ekrana (12.151)
     r.clear();
     r.render(this.scene, this.camera);
     if (this.playerSoldier.alive && !this.showSelf) this.player.vm.render(r, innerWidth, innerHeight);
