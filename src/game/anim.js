@@ -44,7 +44,7 @@ export function reloadAnim(style, k, empty = true, ph = 0) {
     const pouch = smooth(seg(k, 0.18, 0.24)) * (1 - smooth(seg(k, 0.26, 0.32)));
     const mag = smooth(seg(k, 0.26, 0.32)) * (1 - smooth(seg(k, 0.58, 0.64)));
     const charge = Math.min(1, ch1 + ch2);
-    r.w = { fg: Math.max(0, 1 - pouch - mag - charge), mag, pouch, charge };
+    r.w = { fg: Math.max(0, 1 - pouch * 0.6 - mag * 0.5 - charge * 0.35), mag: mag * 0.5, pouch: pouch * 0.6, charge: charge * 0.35 };      // sol el yarı yolda kalır: kol ekranı kaplamasın (sürgüyü sağ el çeker)
     return r;
   }
   const t = smooth(seg(k, 0, 0.1)) * (1 - smooth(seg(k, 0.8, 1)));

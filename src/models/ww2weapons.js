@@ -16,6 +16,7 @@ Object.assign(STD, {
   ww_smgr: { body: ['#28292b', 0.48, 0.5], furn: ['#3b2d25', 0.42, 0.05], metal: ['#37383b', 0.42, 0.6], acc: ['#1f2022', 0.6, 0.2] },
   ww_lmg: { body: ['#2c2d2f', 0.45, 0.55], furn: [WOOD_D, 0.55, 0], metal: ['#38393c', 0.4, 0.6], acc: [BRASS, 0.35, 0.75] },
   ww_sniper: { body: [BLUE, 0.42, 0.55], furn: ['#4a3020', 0.55, 0], metal: [BLUE_M, 0.4, 0.6], acc: ['#1d1e20', 0.45, 0.4] },
+  ww_mg: { body: ['#2a2b2d', 0.5, 0.45], furn: ['#2c2622', 0.5, 0.05], metal: ['#3a3b3d', 0.42, 0.55], acc: [BRASS, 0.35, 0.75] },
   ww_pistol: { body: ['#2c2e31', 0.4, 0.6], furn: ['#4a2c1c', 0.5, 0], metal: ['#3a3b3e', 0.38, 0.65], acc: [BRASS, 0.35, 0.75] },
   ww_nade: { body: ['#4a4d42', 0.6, 0.3], furn: ['#8a6a44', 0.65, 0], metal: ['#3a3b3c', 0.45, 0.5], acc: ['#c9b26a', 0.6, 0] },
 });
@@ -88,7 +89,7 @@ function boltRifle(k, scoped) {
 export function ww_bolt(mat = skinMaterial('ww_bolt'), lod = false) {
   const k = newKit(lod), { line } = boltRifle(k, false);
   return done(k, mat, { name: 'Sürgülü Tüfek', hold: 'rifle', gripR: [0, -0.035, 0.052], gripL: [0, -0.026, -0.4], muzzle: [0, 0.038, -0.762], length: 1.17, boltPivot: 0.036, magAxis: [0, 1, 0], magHidden: true, chargePos: [0.045, 0.02, 0.05] },
-    { sight: [0, line, -0.277], pivot: [0, line, -0.728], dist: 0.44, overlay: 'none' });      // göz yanakta (sürgü topuzunun arkasında)
+    { sight: [0, line, -0.277], pivot: [0, line, -0.728], dist: 0.56, overlay: 'none' });      // göz dipçik sırtında: sürgü topuzu ekranın altında küçük kalır
 }
 
 // ───────────────────────── Dürbünlü Tüfek (eski tip uzun dürbün, 4×) ─────────────────────────
@@ -142,7 +143,7 @@ export function ww_semi(mat = skinMaterial('ww_semi'), lod = false) {
   // klips (mag grubu): sekiz fişek şaşırtmalı iki sıra + klips kenarları; yukarıdan bastırılır (magAxis +Y)
   if (!lod) for (let i = 0; i < 8; i++) round(k, (i % 2 ? 0.0045 : -0.0045), 0.034 + Math.floor(i / 2) * 0.0035 + 0.012, -0.072 - (i % 2) * 0.002, 'mag', 0.062);
   for (const sx of [-1, 1]) k.box([0.0015, 0.03, 0.066], [sx * 0.0115, 0.042, -0.075], 'metal', { g: 'mag' });
-  return done(k, mat, { name: 'Yarı Otomatik Tüfek', hold: 'rifle', gripR: [0, -0.036, 0.05], gripL: [0, -0.026, -0.44], muzzle: [0, bx, -0.8], length: 1.1, boltPivot: bx, boltSlide: true, magAxis: [0, 1, 0], chargePos: [0.035, 0.03, -0.05] },
+  return done(k, mat, { name: 'Yarı Otomatik Tüfek', hold: 'rifle', gripR: [0, -0.036, 0.05], gripL: [0, -0.026, -0.44], muzzle: [0, bx, -0.8], length: 1.1, boltPivot: bx, boltSlide: true, magAxis: [0, 1, 0], chargePos: [0.035, 0.03, -0.05], pingEmpty: true },
     { sight: [0, line, 0.062], pivot: [0, line, -0.705], dist: ADS_DIST.iron, overlay: 'none' });
 }
 
@@ -240,6 +241,38 @@ export function ww_lmg(mat = skinMaterial('ww_lmg'), lod = false) {
     { sight: [0, line, 0.05], pivot: [0, line, -0.9], dist: ADS_DIST.iron, overlay: 'none' });
 }
 
+// ───────────────────────── Ağır Makineli (MG42 tarzı; Kırmızı ağır destek) ─────────────────────────
+// Delikli namlu kılıfı (yan yarıklar), sac gövde, besleme kapağı + solda 50'lik şerit tamburu (mag grubu), çatal ayak (ön, katlı), koyu kundak
+export function ww_mg(mat = skinMaterial('ww_mg'), lod = false) {
+  const k = newKit(lod), line = 0.094, bx = 0.042;
+  k.xsec([[-0.02, -0.004], [0.02, -0.004], [0.02, 0.06], [0.015, 0.066], [-0.015, 0.066], [-0.02, 0.06]], 0.07, -0.2, 'body', { c: 0.003 });
+  k.xsec([[-0.024, 0.04], [0.024, 0.04], [0.024, 0.07], [0.018, 0.078], [-0.018, 0.078], [-0.024, 0.07]], -0.02, -0.17, 'body', { c: 0.003, sh: 1.06 });   // besleme kapağı
+  k.box([0.004, 0.018, 0.06], [0.02, 0.03, -0.06], 'body', { sh: 0.3, d: 1 });
+  k.box([0.03, 0.02, 0.05], [-0.034, 0.05, -0.1], 'body', { c: 0.002 });                                                          // besleme ağzı (sol)
+  // namlu kılıfı (kare kesit, delikler) + namlu ucu (koni alev gizleyici) + ön arpacık
+  k.xsec([[-0.021, 0.012], [0.021, 0.012], [0.021, 0.068], [-0.021, 0.068]], -0.2, -0.58, 'body', { c: 0.004 });
+  if (!lod) for (let i = 0; i < 6; i++) for (const sx of [-1, 1]) k.box([0.0025, 0.022, 0.04], [sx * 0.021, 0.04, -0.24 - i * 0.055], 'body', { sh: 0.25 });
+  if (!lod) for (let i = 0; i < 6; i++) k.box([0.026, 0.0025, 0.04], [0, 0.0685, -0.24 - i * 0.055], 'body', { sh: 0.3 });
+  k.cyl(0.009, 0.009, 0.07, [0, bx, -0.61], 'metal', { seg: 10 });
+  k.cyl(0.02, 0.012, 0.05, [0, bx, -0.665], 'metal', { seg: 10, sh: 0.85 });
+  frontPost(k, -0.56, 0.068, line, { ears: true });
+  // arka gez (tanjant yaprak, besleme kapağının önünde) + kundak (koyu) + kabza + tetik
+  k.box([0.024, 0.01, 0.05], [0, 0.083, -0.19], 'metal', { c: 0.002 });
+  rearNotch(k, -0.18, 0.088, line, 0.01, 0.0026);
+  k.prof([[0.07, 0.05], [0.12, 0.046], [0.36, 0.022], [0.36, -0.09], [0.3, -0.08], [0.15, -0.034], [0.07, -0.02]], 0.04, 'furn', { c: 0.006 });
+  k.prof([[0.36, 0.024], [0.372, 0.024], [0.372, -0.094], [0.36, -0.094]], 0.042, 'metal', { c: 0.002 });
+  k.prof([[0.012, -0.004], [0.05, -0.004], [0.056, -0.018], [0.086, -0.114], [0.08, -0.126], [0.048, -0.126], [0.042, -0.114], [0.022, -0.04], [0.012, -0.024]], 0.032, 'furn', { c: 0.005, pat: lod ? 0 : 1 });
+  trig(k, 0.0, -0.004, 'body');
+  // çatal ayak (katlı, kılıf altında)
+  k.box([0.03, 0.012, 0.02], [0, 0.006, -0.55], 'metal', { c: 0.002 });
+  for (const sx of [-1, 1]) bar(k, [-0.55, 0.0], [-0.33, -0.012], 0.007, 0.008, 'metal', { x: sx * 0.017 });
+  // şerit tamburu (mag grubu): solda tambur + şerit
+  k.cyl(0.045, 0.045, 0.05, [-0.05, 0.0, -0.1], 'body', { ax: 'x', seg: lod ? 8 : 14, g: 'mag' });
+  if (!lod) for (let i = 0; i < 4; i++) k.box([0.008, 0.012, 0.006], [-0.034, 0.05, -0.085 - i * 0.012], 'acc', { g: 'mag' });
+  return done(k, mat, { name: 'Ağır Makineli', hold: 'rifle', gripR: [0, -0.034, 0.04], gripL: [0, 0.004, -0.31], muzzle: [0, bx, -0.69], length: 1.12, magAxis: [-1, -0.3, 0] },
+    { sight: [0, line, -0.18], pivot: [0, line, -0.56], dist: 0.42, overlay: 'none' });
+}
+
 // ───────────────────────── Tabanca (subay tabancası; açık horoz, ahşap kabza) ─────────────────────────
 export function ww_pistol(mat = skinMaterial('ww_pistol'), lod = false) {
   const k = newKit(lod), line = 0.084;
@@ -280,6 +313,6 @@ export function ww_nade(mat = skinMaterial('ww_nade'), lod = false) {
   return done(k, mat, { name: 'Saplı El Bombası', hold: 'grenade', gripR: [0, 0, 0], gripL: null, muzzle: [0, 0, 0], length: 0.36 }, null);
 }
 
-export const WW2W = { ww_bolt, ww_sniper, ww_semi, ww_smgb, ww_smgr, ww_lmg, ww_pistol, ww_nade };
+export const WW2W = { ww_bolt, ww_sniper, ww_semi, ww_smgb, ww_smgr, ww_lmg, ww_mg, ww_pistol, ww_nade };
 export const WW2_IDS = Object.keys(WW2W);
 void THREE; void bez;

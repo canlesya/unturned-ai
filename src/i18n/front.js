@@ -34,6 +34,7 @@ addStrings('tr', {
   'weapon.ww_smgr.name': 'Katlanır HMK', 'weapon.ww_smgr.desc': 'Katlanır dipçikli hafif makineli: yavaş atış, kontrolü kolay.',
   'weapon.ww_lmg.name': 'Hafif Makineli Tüfek', 'weapon.ww_lmg.desc': 'Çatallı ağır destek tüfeği: 20\'lik şarjör, güçlü mermi.',
   'weapon.ww_sniper.name': 'Dürbünlü Tüfek', 'weapon.ww_sniper.desc': 'Uzun eski tip dürbünlü sürgülü tüfek (4×).',
+  'weapon.ww_mg.name': 'Ağır Makineli', 'weapon.ww_mg.desc': 'Şeritli ağır makineli: çok yüksek atış hızı, 50\'lik tambur, sert tepme.',
   'weapon.ww_pistol.name': 'Tabanca', 'weapon.ww_pistol.desc': 'Yedi mermilik subay tabancası.',
   'weapon.ww_nade.name': 'Saplı El Bombası', 'weapon.ww_nade.desc': 'Uzun saplı el bombası: daha uzağa atılır, 3,5 sn fitil.',
 });
@@ -71,6 +72,7 @@ addStrings('en', {
   'weapon.ww_smgr.name': 'Folding SMG', 'weapon.ww_smgr.desc': 'Folding-stock submachine gun: slow rate, easy to control.',
   'weapon.ww_lmg.name': 'Light Machine Rifle', 'weapon.ww_lmg.desc': 'Bipod support rifle: 20-round magazine, powerful rounds.',
   'weapon.ww_sniper.name': 'Scoped Rifle', 'weapon.ww_sniper.desc': 'Bolt-action rifle with a long old-style scope (4×).',
+  'weapon.ww_mg.name': 'Heavy Machine Gun', 'weapon.ww_mg.desc': 'Belt-fed machine gun: very high rate of fire, 50-round drum, hard recoil.',
   'weapon.ww_pistol.name': 'Pistol', 'weapon.ww_pistol.desc': 'Seven-round officer\'s pistol.',
   'weapon.ww_nade.name': 'Stick Grenade', 'weapon.ww_nade.desc': 'Long-handled grenade: throws farther, 3.5 s fuse.',
 });

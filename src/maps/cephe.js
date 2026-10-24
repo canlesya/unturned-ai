@@ -10,7 +10,7 @@ import { FrontTerrain, TK } from './cepheTerrain.js';
 // rampadan / ateş basamağından zıplayarak çıkılır. Ateş basamağı (0,45 m) üstünde ayakta göz kum torbası korkuluğunun üstünde, çömelince saklı.
 // Kural: görünen her katı parçanın çarpışması birebir (bileşik eşyada görsel parçalar çarpışmasız, çarpışma = dış zarf); görünmez engel yok.
 export const CEPHE_BOUNDS = { minX: -80, maxX: 80, minZ: -150, maxZ: 150 };
-export const FLOOR = -1.6, FSTEP = 0.45;
+export const FLOOR = -1.6, FSTEP = 0.5, PARAPET = 0.24;           // basamakta ayakta göz 0,52 (korkuluk 0,24 → 28 cm görüş), çömelik 0,06 (saklı)
 const P2 = Math.PI / 2, PI = Math.PI;
 const nk = (kind, o = {}) => ({ collide: false, ...o, kind });
 const kk = (kind, o = {}) => ({ ...o, kind });
@@ -28,7 +28,7 @@ export const FRONT_OBJECTIVES = [
   { id: 'D', name: 'Köy Meydanı', label: 'D', x: 16, z: -6, r: 10 },
   { id: 'E', name: 'Ambar', label: 'E', x: 30, z: -64, r: 10 },
   { id: 'F', name: 'Orman Kulübesi', label: 'F', x: -36, z: -62, r: 10 },
-  { id: 'G', name: 'Komuta Sığınağı', label: 'G', x: -8, z: -119, r: 9 },
+  { id: 'G', name: 'Komuta Sığınağı', label: 'G', x: -8, z: -115.5, r: 9 },
   { id: 'H', name: 'Batarya', label: 'H', x: 42, z: -130, r: 10 },
 ];
 export const FRONT_SECTORS = [{ objs: ['A', 'B'] }, { objs: ['C', 'D'] }, { objs: ['E', 'F'] }, { objs: ['G', 'H'] }];
@@ -37,10 +37,10 @@ export const FRONT_SECTORS = [{ objs: ['A', 'B'] }, { objs: ['C', 'D'] }, { objs
 // flank: saldıranın kanat rotaları (ara noktalar, son nokta hedefin yanında); cover: saldıranın krater / enkaz kapakları (ilerlerken durak)
 const FS = FLOOR + FSTEP;
 export const FRONT_HINTS = [
-  { hold: [...[-64, -42, -22, -2, 18, 38, 58].map((x) => ({ x, z: 51.6, y: FS, kind: 'fire', look: [0, 1] })),
+  { hold: [{ fire: 'k1' },
     { x: -37, z: 40.2, y: 0, kind: 'mg', look: [0, 1] }, { x: 34, z: 38.6, y: 0, kind: 'mg', look: [0, 1] }, { x: -58, z: 38.6, y: 0, kind: 'mg', look: [0, 1] },
-    { x: -22, z: -2.2, y: 8.4, kind: 'sniper', look: [0, 1] }, { x: -47, z: 39, y: FLOOR, kind: 'ambush', look: [0, 1] }, { x: 23, z: 39, y: FLOOR, kind: 'ambush', look: [0, 1] }, { x: -11, z: 39, y: FLOOR, kind: 'ambush', look: [0, 1] }],
-    flank: [[[-76, 100], [-77, 70], [-76, 56], [-70, 47]], [[76, 100], [77, 70], [76, 56], [68, 47]], [[-30, 92], [-26, 74], [-20, 62], [-23, 54]]],
+    { x: -22, z: -2.2, y: 8.4, kind: 'sniper', look: [0, 1] }, { x: -43, z: 39, y: FLOOR, kind: 'ambush', look: [0, 1] }, { x: 27, z: 39, y: FLOOR, kind: 'ambush', look: [0, 1] }, { x: -7, z: 39, y: FLOOR, kind: 'ambush', look: [0, 1] }],
+    flank: [[[-76, 92], [-77, 70], [-76, 56], [-70, 47]], [[76, 92], [77, 70], [76, 56], [68, 47]], [[-30, 84], [-26, 72], [-20, 62], [-23, 55]]],
     cover: [[24, 76], [-12, 76], [6, 82], [-50, 70], [44, 68], [-38, 68], [32, 78]] },
   { hold: [{ x: -22, z: -2.2, y: 8.4, kind: 'sniper', look: [0, 1] }, { x: -8, z: 0.5, y: 0, kind: 'ambush', look: [0, 1] }, { x: 17, z: 9, y: 0, kind: 'ambush', look: [0, 1] }, { x: -38, z: 6, y: 0, kind: 'ambush', look: [0.3, 1] },
     { x: 30, z: 6, y: 0, kind: 'ambush', look: [0, 1] }, { x: -4, z: 7.5, y: 0, kind: 'cover', look: [0, 1] }, { x: 26, z: -2.5, y: 0, kind: 'mg', look: [-0.2, 1] }, { x: -30, z: 11.5, y: 0, kind: 'cover', look: [0, 1] }, { x: 16, z: -20, y: 0, kind: 'ambush', look: [0, 1] }],
@@ -50,12 +50,12 @@ export const FRONT_HINTS = [
     { x: 33, z: -57, y: 0, kind: 'mg', look: [0, 1] }, { x: -28, z: -56, y: 0, kind: 'cover', look: [0.2, 1] }, { x: -48, z: -58, y: 0, kind: 'cover', look: [0.3, 1] }, { x: 44, z: -66.5, y: 0, kind: 'cover', look: [0, 1] }],
     flank: [[[-66, -30], [-66, -52], [-54, -64], [-42, -66]], [[60, -36], [60, -58], [52, -66], [40, -66]]],
     cover: [[12, -48.5], [-20, -48], [44, -44]] },
-  { hold: [...[-64, -44, -24, -4, 16, 36, 56].map((x) => ({ x, z: -102.4, y: FS, kind: 'fire', look: [0, 1] })),
+  { hold: [{ fire: 'k4' },
     { x: -30, z: -99.6, y: 0, kind: 'mg', look: [0, 1] }, { x: 30, z: -99.6, y: 0, kind: 'mg', look: [0, 1] }, { x: -8, z: -114.45, y: FS, kind: 'mg', look: [0, 1] },
-    { x: 42, z: -128, y: 0, kind: 'cover', look: [0, 1] }, { x: -66, z: -102.4, y: FS, kind: 'sniper', look: [0.3, 1] }, { x: 66, z: -102.4, y: FS, kind: 'sniper', look: [-0.3, 1] },
-    { x: -25, z: -115, y: FLOOR, kind: 'ambush', look: [0, 1] }, { x: 27, z: -115, y: FLOOR, kind: 'ambush', look: [0, 1] }],
+    { x: 42, z: -128, y: 0, kind: 'cover', look: [0, 1] }, { x: -69, z: -102.4, y: FS, kind: 'sniper', look: [0.3, 1] }, { x: 69, z: -102.4, y: FS, kind: 'sniper', look: [-0.3, 1] },
+    { x: -21, z: -115, y: FLOOR, kind: 'ambush', look: [0, 1] }, { x: 31, z: -115, y: FLOOR, kind: 'ambush', look: [0, 1] }],
     flank: [[[-76, -60], [-77, -86], [-76, -100], [-70, -108]], [[76, -60], [77, -86], [76, -100], [70, -108]]],
-    cover: [[-30, -88], [14, -90], [56, -92], [-24, -86], [2, -88]] },
+    cover: [[-26, -84.5], [14, -90], [56, -92], [-22, -86], [2, -88]] },
 ];
 
 // ── siper ağı (dünya koordinatı; genişlik 2 = 4 m (eksen çift koordinatta), 1 = 2 m (eksen tek koordinatta)) ──
@@ -83,24 +83,24 @@ export function buildCephe() {
   // ───────── 1. siper planı (arazi kurulmadan önce: düzleştirme maskesi için) ─────────
   const lines = [];      // { pts, w, kind: 'fire'|'sup'|'comm'|'road', face, rv, fl }
   const L = (pts, w, kind, o = {}) => { const l = { pts, w, kind, face: 0, rv: TK.EARTH, fl: FLOOR, ...o }; lines.push(l); return l; };
-  // Mavi (saldıran) başlangıç hattı: ateş siperi +96 (kuzeye bakar), destek +112, iletişim siperleri
-  L(crenel(-70, 70, 96, -1, 12, 8, 6, 0), 2, 'fire', { face: -1, rv: TK.PLANK });
-  L([[-60, 112], [-24, 112], [-24, 116], [20, 116], [20, 112], [60, 112]], 2, 'sup', { rv: TK.PLANK });
-  L([[-41, 103], [-37, 103], [-37, 109], [-41, 109], [-41, 113]], 1, 'comm');
-  L([[1, 101], [5, 101], [5, 107], [1, 107], [1, 115]], 1, 'comm');
-  L([[43, 103], [39, 103], [39, 109], [43, 109], [43, 113]], 1, 'comm');
+  // Mavi (saldıran) başlangıç hattı: ateş siperi +88 (kuzeye bakar; ilk doğuş, A / B'ye ≈ 50 m), destek +104, iletişim siperleri
+  L(crenel(-70, 70, 88, -1, 12, 8, 6, 0), 2, 'fire', { face: -1, rv: TK.PLANK });
+  L([[-60, 104], [-24, 104], [-24, 108], [20, 108], [20, 104], [60, 104]], 2, 'sup', { rv: TK.PLANK, face: -1 });
+  L([[-41, 97], [-37, 97], [-37, 101], [-41, 101], [-41, 105]], 1, 'comm');
+  L([[7, 95], [11, 95], [11, 99], [7, 99], [7, 107]], 1, 'comm');
+  L([[43, 97], [39, 97], [39, 101], [43, 101], [43, 105]], 1, 'comm');
   // Kırmızı birinci hat (sektör 1): ateş siperi +50 (güneye bakar), destek +34, yedek +20 (Kırmızı'nın ilk doğuşu), iletişim siperleri
   L(crenel(-72, 72, 50, 1, 12, 8, 6, 4), 2, 'fire', { face: 1, rv: TK.PLANK });
-  L([[-60, 34], [-20, 34], [-20, 30], [12, 30], [12, 34], [60, 34]], 2, 'sup', { rv: TK.PLANK });
-  L([[-50, 20], [50, 20]], 2, 'sup', { rv: TK.EARTH });
+  L([[-60, 34], [-20, 34], [-20, 30], [12, 30], [12, 34], [60, 34]], 2, 'sup', { rv: TK.PLANK, face: 1 });
+  L([[-50, 20], [50, 20]], 2, 'sup', { rv: TK.EARTH, face: 1 });
   for (const cx of [-47, -11, 23, 55]) L([[cx, 45], [cx, 41], [cx + 4, 41], [cx + 4, 37], [cx, 37], [cx, 33]], 1, 'comm');
   for (const cx of [-31, 9, 41]) L([[cx, 31], [cx, 27], [cx - 4, 27], [cx - 4, 21]], 1, 'comm');
   // Çukur yol (köyün kuzeyi, −40): Kırmızı'nın 2., Mavi'nin 3. doğuşu
-  L([[-64, -40], [64, -40]], 2, 'road', { fl: -1.15, rv: TK.EARTH });
+  L([[-64, -40], [64, -40]], 2, 'road', { fl: FLOOR, rv: TK.EARTH, face: 1 });
   // Kırmızı ana hat (sektör 4): ateş siperi −104 (güneye bakar), destek −122, yedek −138 (son doğuş), iletişim
   L(crenel(-72, 72, -104, 1, 12, 8, 6, 2), 2, 'fire', { face: 1, rv: TK.PLANK });
-  L([[-62, -122], [-22, -122], [-22, -126], [16, -126], [16, -122], [62, -122]], 2, 'sup', { rv: TK.PLANK });
-  L([[-50, -138], [50, -138]], 2, 'sup', { rv: TK.EARTH });
+  L([[-62, -122], [-22, -122], [-22, -126], [16, -126], [16, -122], [62, -122]], 2, 'sup', { rv: TK.PLANK, face: 1 });
+  L([[-50, -138], [50, -138]], 2, 'sup', { rv: TK.EARTH, face: 1 });
   for (const cx of [-45, -25, 27, 57]) L([[cx, -109], [cx, -113], [cx + 4, -113], [cx + 4, -117], [cx, -117], [cx, -121]], 1, 'comm');
   for (const cx of [-33, 5, 21]) L([[cx, -127], [cx, -131], [cx - 4, -131], [cx - 4, -137]], 1, 'comm');
 
@@ -113,12 +113,12 @@ export function buildCephe() {
   const segDist = (x, z) => { let d = 1e9; for (const s of segs) d = Math.min(d, Math.hypot(Math.max(0, s.x0 - x, x - s.x1), Math.max(0, s.z0 - z, z - s.z1))); return d; };
 
   // düz alanlar (köy, çiftlik, sığınak / batarya meydanları): yumuşak düzleştirme
-  const FLATS = [[-50, 40, -34, 18, 6], [8, 60, -82, -46, 5], [-52, -22, -76, -50, 4], [-30, 14, -122, -108, 3], [26, 56, -134, -114, 4], [-70, 70, 118, 150, 4], [-70, 70, -150, -134, 3]];
+  const FLATS = [[-50, 40, -34, 18, 6], [8, 60, -82, -46, 5], [-52, -22, -76, -50, 4], [-30, 14, -122, -108, 3], [26, 56, -134, -114, 4], [-70, 70, 110, 150, 4], [-70, 70, -150, -134, 3]];
   const flatW = (x, z) => { let w = 0; for (const [x0, x1, z0, z1, f] of FLATS) { const d = Math.hypot(Math.max(0, x0 - x, x - x1), Math.max(0, z0 - z, z - z1)); w = Math.max(w, 1 - Math.min(1, d / f)); } return w; };
 
   // kraterler: ölüm bölgeleri + açık tarlalar; siper / düz alanlardan uzak
   const craters = [];
-  const zones = [[-74, 74, 60, 90, 34], [-74, 74, -94, -82, 10], [-74, 74, 2, 14, 0], [-74, 74, -32, -22, 0], [-20, 74, -100, -70, 8], [-74, 74, 24, 28, 0], [-74, 74, 118, 146, 0]];
+  const zones = [[-74, 74, 60, 82, 30], [-74, 74, -94, -82, 10], [-74, 74, 2, 14, 0], [-74, 74, -32, -22, 0], [-20, 74, -100, -70, 8], [-74, 74, 24, 28, 0], [-74, 74, 112, 146, 0]];
   for (const [x0, x1, z0, z1, n] of zones) {
     let tries = 0, made = 0;
     while (made < n && tries++ < n * 40) {
@@ -154,7 +154,7 @@ export function buildCephe() {
   const dugouts = [];
   const dugout = (x0, x1, z0, z1, open, name) => { T.carve(x0, z0, x1, z1, FLOOR, TK.PLANK, TK.MUD); dugouts.push({ x0, x1, z0, z1, open, name }); };
   // Mavi destek hattının arkası (güney): Mavi 1. doğuş
-  dugout(-50, -44, 114, 120, 'n', 'mavi-1'); dugout(-14, -8, 118, 124, 'n', 'mavi-2'); dugout(6, 12, 118, 124, 'n', 'mavi-3'); dugout(34, 40, 114, 120, 'n', 'mavi-4');
+  dugout(-50, -44, 106, 112, 'n', 'mavi-1'); dugout(-14, -8, 110, 116, 'n', 'mavi-2'); dugout(12, 18, 110, 116, 'n', 'mavi-3'); dugout(34, 40, 106, 112, 'n', 'mavi-4');
   // Kırmızı yedek hattının arkası (kuzey): Kırmızı 1. doğuş
   dugout(-40, -34, 12, 18, 's', 'k1-1'); dugout(-16, -10, 12, 18, 's', 'k1-2'); dugout(26, 32, 12, 18, 's', 'k1-3');
   // Kırmızı ana ateş hattı arka bölmelerinin arkası: Kırmızı 3. doğuş
@@ -181,7 +181,7 @@ export function buildCephe() {
         if (!front) rampX(mid, zs - l.face * hw, -l.face);                                                               // geri çıkış (arka bölmeden)
       });
     } else if (l.kind === 'sup' || l.kind === 'road') {
-      const xs = l.kind === 'road' ? [-57, -41, -25, -9, 9, 25, 41, 57] : [-45, -13, 15, 47];
+      const xs = l.kind === 'road' ? [-57, -41, -25, -9, 9, 25, 41, 57] : [-53, -37, -21, -5, 11, 27, 43, 57];      // destek / yedek: 16 m'de bir çıkış (iki yana)
       for (const x of xs) {
         const s = H.find((q) => x > Math.min(q.ax, q.bx) + 1 && x < Math.max(q.ax, q.bx) - 1);
         if (!s) continue;
@@ -192,22 +192,23 @@ export function buildCephe() {
 
   // ateş basamağı (plat, 0,45 m) + kum torbası korkuluğu: ateş siperlerinin yüz duvarı boyunca (rampada boşluk)
   const parapets = [], steps = [];
+  const isCutAt = (x, z) => T.isCut(...T.ci(x, z));
   for (const l of lines) {
-    if (l.kind !== 'fire') continue;
+    if (!l.face || (l.kind !== 'fire' && l.kind !== 'road' && l.kind !== 'sup')) continue;
     for (const s of segs.filter((q) => q.l === l && q.horiz)) {
-      const zs = s.az, front = l.pts.every((p) => (zs - p[1]) * l.face >= 0);
-      let xa = Math.min(s.ax, s.bx) - 2, xb = Math.max(s.ax, s.bx) + 2;
-      if (!front) { xa += 4; xb -= 4; }
-      const edge = zs + l.face * 2, gaps = ramps.filter((r) => Math.abs(r.z - (edge + l.face)) < 0.1 && r.x > xa && r.x < xb).map((r) => r.x);
-      let x = xa;
-      for (const gx of [...gaps.sort((a, c) => a - c), null]) {
-        const e = gx == null ? xb : gx - 1.15;
-        if (e - x > 0.6) {
-          steps.push({ x0: x + 0.05, x1: e - 0.05, z0: l.face < 0 ? edge : edge - 0.8, z1: l.face < 0 ? edge + 0.8 : edge, face: l.face });
-          parapets.push({ x0: x, x1: e, z0: l.face < 0 ? edge - 0.75 : edge, z1: l.face < 0 ? edge : edge + 0.75, face: l.face });
-        }
-        if (gx != null) x = gx + 1.15;
+      const zs = s.az, edge = zs + l.face * 2, fz = edge + l.face * 0.4, tz = edge - l.face * 0.4;
+      // yüz duvarı olan yerler: siper hücresi kesik, tarla yanı (korkuluk şeridi) kesik değil (rampa / iletişim siperi / köşe bağlantısında boşluk)
+      let run = null;
+      const flush = () => { if (run && run[1] - run[0] > 0.9) {
+        const [x0, x1] = run;
+        steps.push({ x0: x0 + 0.05, x1: x1 - 0.05, z0: l.face < 0 ? edge : edge - 0.8, z1: l.face < 0 ? edge + 0.8 : edge, face: l.face });
+        parapets.push({ x0, x1, z0: l.face < 0 ? edge - 0.75 : edge, z1: l.face < 0 ? edge : edge + 0.75, face: l.face });
+      } run = null; };
+      for (let x = Math.min(s.ax, s.bx) - 2 + 0.125; x < Math.max(s.ax, s.bx) + 2; x += 0.25) {
+        const ok = isCutAt(x, tz) && !isCutAt(x, fz) && !isCutAt(x, edge + l.face * 1.2) && !ramps.some((r) => Math.abs(r.x - x) < 1.15 && Math.abs(r.z - (edge + l.face)) < 1.1);
+        if (ok) { if (!run) run = [x - 0.125, x + 0.125]; else run[1] = x + 0.125; } else flush();
       }
+      flush();
     }
   }
   for (const st of steps) b.obj('basamak:' + st.x0.toFixed(0) + ':' + st.z0.toFixed(0), () => {
@@ -215,7 +216,7 @@ export function buildCephe() {
   });
   for (const pp of parapets) b.obj('korkuluk:' + pp.x0.toFixed(0) + ':' + pp.z0.toFixed(0), () => {
     const y = Math.min(gy(pp.x0 + 0.3, (pp.z0 + pp.z1) / 2), gy(pp.x1 - 0.3, (pp.z0 + pp.z1) / 2), gy((pp.x0 + pp.x1) / 2, (pp.z0 + pp.z1) / 2)) - 0.04;
-    b.box((pp.x0 + pp.x1) / 2, y, (pp.z0 + pp.z1) / 2, pp.x1 - pp.x0, 0.36 - y, pp.z1 - pp.z0, BAG, kk(FK.SANDBAG));
+    b.box((pp.x0 + pp.x1) / 2, y, (pp.z0 + pp.z1) / 2, pp.x1 - pp.x0, PARAPET - y, pp.z1 - pp.z0, BAG, kk(FK.SANDBAG));
   });
   // siper direkleri (kalas kaplamalı duvarlarda 3,2 m'de bir; duvardan 4 cm taşar, çarpışmasız)
   {
@@ -264,20 +265,26 @@ export function buildCephe() {
     b.box(x0 + 0.5, FLOOR, cz + sd * 0.6, 0.9, 0.55, 2.0, PLANK, kk(FK.PLANK));
     b.box(x1 - 0.5, FLOOR, zf - sd * 0.5, 0.8, 0.6, 0.7, PLANK_D, kk(FK.PLANK));
     b.box(cx, Hw - 0.42, cz, 0.16, 0.22, 0.16, '#ffd58a', { collide: false, o: { glow: true } });
+    b.box(cx, FLOOR, ze - sd * 1.85, 2.4, 0.55 - FLOOR, 0.5, BAG2, kk(FK.SANDBAG));                                       // kapı önü perde (siper içinde, iki yandan geçilir)
   });
   // ───────── 4. beton sığınaklar: A Batı Tabyası (tarlada beton makineli yuvası, siperin arkasından ateş eder), G Komuta Sığınağı (gömülü, destek hattından girilir) ─────────
   const pillbox = (x0, x1, z0, z1, name) => b.obj('beton:' + name, () => {          // iç taban = tarla; yarık güneyde (1,3–1,6 m, ayakta göz 1,62), kapı kuzeyde
     const W = 0.6, Hc = 2.3, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, y0 = Math.min(gy(x0, z0), gy(x1, z1), gy(x0, z1), gy(x1, z0)) - 0.15;
-    const s0 = 1.28, s1 = 1.6, door = 1.3;
+    const s0 = 1.28, s1 = 1.6, door = 1.7;
     b.box(cx, y0, z1 + W / 2, x1 - x0 + W * 2, s0 - y0, W, CONC, kk(FK.CONC));
     b.box(cx, s1, z1 + W / 2, x1 - x0 + W * 2, Hc - s1, W, CONC, kk(FK.CONC));
     for (const [a, c] of [[x0 - W, x0 + 0.5], [cx - 0.35, cx + 0.35], [x1 - 0.5, x1 + W]]) b.box((a + c) / 2, s0, z1 + W / 2, c - a, s1 - s0, W, CONC, kk(FK.CONC));
-    for (const x of [x0 - W / 2, x1 + W / 2]) {                                      // yanlarda küçük yarık (yan ateş)
+    {                                                                                  // batı: yan yarıklı duvar
+      const x = x0 - W / 2;
       b.box(x, y0, cz, W, s0 - y0, z1 - z0, CONC, kk(FK.CONC)); b.box(x, s1, cz, W, Hc - s1, z1 - z0, CONC, kk(FK.CONC));
       b.box(x, s0, (z0 + cz) / 2 - 0.4, W, s1 - s0, (z1 - z0) / 2 + 0.8, CONC, kk(FK.CONC)); b.box(x, s0, z1 - 0.45, W, s1 - s0, 0.9, CONC, kk(FK.CONC));
     }
-    for (const [a, c] of [[x0 - W, cx - door / 2], [cx + door / 2, x1 + W]]) b.box((a + c) / 2, y0, z0 - W / 2, c - a, Hc - y0, W, CONC_D, kk(FK.CONC));
-    b.box(cx, 2.05, z0 - W / 2, door, Hc - 2.05, W, CONC_D, kk(FK.CONC));
+    {                                                                                  // doğu: kapı (adaya açılır: arka bölme rampasıyla siperlere bağlı)
+      const x = x1 + W / 2, zd0 = cz - door / 2, zd1 = cz + door / 2;
+      b.box(x, y0, (z0 + zd0) / 2, W, Hc - y0, zd0 - z0, CONC_D, kk(FK.CONC)); b.box(x, y0, (zd1 + z1) / 2, W, Hc - y0, z1 - zd1, CONC_D, kk(FK.CONC));
+      b.box(x, 2.05, cz, W, Hc - 2.05, door, CONC_D, kk(FK.CONC));
+    }
+    b.box(cx, y0, z0 - W / 2, x1 - x0 + W * 2, Hc - y0, W, CONC_D, kk(FK.CONC));
     b.box(cx, Hc, cz, x1 - x0 + W * 2 + 0.4, 0.5, z1 - z0 + W * 2 + 0.4, CONC_D, kk(FK.CONC));
     b.box(cx, Hc + 0.5, cz, x1 - x0 + W * 1.2, 0.25, z1 - z0 + W * 1.2, EARTH, kk(FK.EARTH));
     b.with(cx, 1.15, z1 - 0.15, PI, () => mgProp(0, 0, 0));
@@ -341,7 +348,7 @@ export function buildCephe() {
       }
     }
   };
-  wire(-74, 74, 86, [-55, -35, -15, 5, 25, 45, 65], 'mavi');
+  wire(-74, 74, 79, [-55, -35, -15, 5, 25, 45, 65], 'mavi');
   wire(-74, 74, 60, [-61, -41, -19, 1, 21, 41, 63], 'k1');
   wire(-74, 74, -94, [-59, -37, -17, 3, 23, 43, 61], 'k4');
   // tekil çapraz kazık (kirpi): ölüm bölgesinde ve köy yolunda
@@ -367,7 +374,7 @@ export function buildCephe() {
       piece(yb, hh);
     }
   };
-  const D = (at, w = 1.2) => ({ at, w, b: 0, top: 2.2 }), Wn = (at, w = 1.1, bb = 0.95, top = 2.15) => ({ at, w, b: bb, top });
+  const D = (at, w = 1.6) => ({ at, w, b: 0, top: 2.2 }), Wn = (at, w = 1.1, bb = 0.95, top = 2.15) => ({ at, w, b: bb, top });
   const rubble = (x, z, w, d, n = 3, col = STONE_D) => {
     let y = gy(x, z) - 0.08, ww = w, dd = d;
     for (let i = 0; i < n; i++) { const hh = 0.32 - i * 0.05; b.box(x + (i % 2 ? 0.2 : -0.15) * w * 0.3, y, z + (i % 2 ? -0.1 : 0.15) * d * 0.3, ww, hh, dd, i % 2 ? STONE : col, kk(FK.STONE)); y += hh; ww *= 0.68; dd *= 0.7; }
@@ -411,7 +418,7 @@ export function buildCephe() {
   house('h10', -44, -36, -26, -18, { h: 4.4, roof: 'half', ops: { e: [D(-22)], n: [Wn(-40)], s: [Wn(-41)] } });
   // bahçe duvarları (alçak taş: 1,1 m siper)
   const lowWall = (x0, z0, x1, z1, h = 1.1) => b.box((x0 + x1) / 2, gy((x0 + x1) / 2, (z0 + z1) / 2) - 0.1, (z0 + z1) / 2, Math.abs(x1 - x0) || 0.5, h + 0.1, Math.abs(z1 - z0) || 0.5, STONE, kk(FK.STONE));
-  lowWall(-3, 6, -3, 13); lowWall(9, 13, 9, 20); lowWall(23, -1, 30, -1); lowWall(-42, -14, -30, -14); lowWall(24, 13, 34, 13); lowWall(-34, 12.5, -24, 12.5);
+  lowWall(-3, 6, -3, 13); lowWall(9, 12, 9, 17); lowWall(23, -1, 30, -1); lowWall(-42, -14, -30, -14); lowWall(24, 13, 34, 13); lowWall(-34, 12.5, -24, 12.5);
   lowWall(22, -30, 34, -30); lowWall(-16, -34, -6, -34); lowWall(38, -9, 46, -9);
   co('Köy Girişi', 4, 14); co('Ana Yol', 4, -12); co('Kuzey Evleri', 0, -29); co('Değirmen Yolu', 40, 2);
 
@@ -420,8 +427,8 @@ export function buildCephe() {
     b.cyl(16, gy(16, -6) - 0.1, -6, 1.05, 1.15, 0.95, STONE, { seg: 10, kind: FK.STONE });
     for (const s of [-1, 1]) b.box(16 + s * 0.95, 0.8, -6, 0.14, 1.6, 0.14, TIMBER, nk(FK.TIMBER));
     b.box(16, 2.35, -6, 2.1, 0.16, 0.16, TIMBER, nk(FK.TIMBER));
-    b.with(11.5, gy(11.5, -10) - 0.05, -10, 0.5, () => {                            // devrik at arabası
-      b.box(0, 0.25, 0, 3.0, 0.9, 1.5, PLANK, kk(FK.PLANK, { rz: 0.12 }));
+    b.with(11.5, gy(11.5, -10) - 0.05, -10, 0, () => {                              // devrik at arabası (eksen hizalı: çarpışma = görünen kasa)
+      b.box(0, 0.25, 0, 3.0, 0.9, 1.5, PLANK, kk(FK.PLANK));
       b.cyl(1.0, 0.75, 0.85, 0.55, 0.55, 0.1, PLANK_D, { collide: false, kind: FK.PLANK, rx: P2, center: true, seg: 10 });
       b.cyl(-1.1, 0.2, -0.85, 0.55, 0.55, 0.1, PLANK_D, { collide: false, kind: FK.PLANK, rx: P2, rz: 0.3, center: true, seg: 10 });
     });
@@ -434,20 +441,20 @@ export function buildCephe() {
     const y0 = -0.1, t = 0.8, h = 6.6, X0 = -27, X1 = -17, Z0 = -20, Z1 = -4.4;
     // nef: taş duvar, uzun pencereler, batı duvarında top deliği (kırık tepe), doğuda kapı (iskeleye)
     ruinWall('x', X0 - t / 2, X1 + t / 2, Z0, y0, h, t, STONE, FK.STONE, [Wn(-22, 1.2, 2.2, 4.8)], 0, 1);
-    ruinWall('z', Z0 + t / 2, Z1 - t / 2, X0, y0, h, t, STONE, FK.STONE, [Wn(-16, 1.1, 2.2, 4.6), Wn(-11, 1.1, 2.2, 4.6), Wn(-7, 1.1, 2.2, 4.6)], 0.55, 2);
-    ruinWall('z', Z0 + t / 2, Z1 - t / 2, X1, y0, h, t, STONE, FK.STONE, [Wn(-16, 1.1, 2.2, 4.6), D(-11, 1.4), Wn(-7, 1.1, 2.2, 4.6)], 0.2, 3);
+    ruinWall('z', Z0 + t / 2, Z1 - t / 2, X0, y0, h, t, STONE, FK.STONE, [Wn(-16, 1.1, 2.2, 4.6), D(-11.5, 1.8), Wn(-7, 1.1, 2.2, 4.6)], 0.55, 2);      // batı: yan kapı
+    ruinWall('z', Z0 + t / 2, Z1 - t / 2, X1, y0, h, t, STONE, FK.STONE, [Wn(-16, 1.1, 2.2, 4.6), Wn(-11, 1.1, 2.2, 4.6), Wn(-7, 1.1, 2.2, 4.6)], 0.2, 3);      // doğu: iskelenin altı (kapı yok)
     // güney duvarı = kulenin kuzey duvarı (kuleye geçit) + yanlarda nef duvarı
-    ruinWall('x', X0 - t / 2, X1 + t / 2, Z1, y0, h, t, STONE, FK.STONE, [D(-22, 1.4)], 0, 4);
+    ruinWall('x', X0 - t / 2, X1 + t / 2, Z1, y0, h, t, STONE, FK.STONE, [D(-22, 1.6)], 0, 4);
     b.withKind(FK.TILE, () => b.prism(-22, y0 + h, -16, X1 - X0 + 1.4, 3.4, 8.4, TILE, {}));             // çatının kuzey yarısı (güney yarısı çökmüş)
     for (let k = 0; k < 4; k++) for (const s of [-1, 1]) b.box(-22 + s * 2.6, y0 + h + 1.55, -11 + k * 1.7, 5.6, 0.16, 0.14, '#3b3128', nk(FK.TIMBER, { rz: s * 0.55 }));
     // iç: devrik sıralar, sunak, moloz
-    for (let k = 0; k < 5; k++) for (const s of [-1, 1]) b.box(-22 + s * 2.3, y0, -17 + k * 2.2, 3.0, 0.5, 0.5, PLANK_D, kk(FK.PLANK, { ry: (k % 2 ? 0.2 : -0.15) * s }));
+    for (let k = 0; k < 5; k++) for (const s of [-1, 1]) b.box(-22 + s * 2.3 + (k % 2 ? 0.15 : -0.1) * s, y0, -17 + k * 2.2, 3.0, 0.5, 0.5, PLANK_D, kk(FK.PLANK));
     b.box(-22, y0, -19, 2.4, 1.0, 0.9, STONE, kk(FK.STONE));
-    rubble(-19.5, -8.5, 3.2, 2.6, 3); rubble(-25.2, -12, 2.4, 2.0, 2);
+    rubble(-19.5, -8.5, 3.2, 2.6, 3); rubble(-25.4, -6.4, 2.2, 1.6, 2);
     // kule: 4,4 × 4,4 m, 12,6 m; çan katı 8,4 m (döşeme plat), dört yanda açıklık, sivri çatı
     const TX0 = -24.2, TX1 = -19.8, TZ0 = -4.4, TZ1 = 0, TH = 12.6, tt = 0.7;
     const belf = (at) => ({ at, w: 1.8, b: 9.8, top: 11.5 });                                       // çan katı penceresi: eşik 9,8 (döşeme 8,4 → ayakta göz 10,02 dışarıyı görür, çömelince saklı)
-    ruinWall('x', TX0 - tt / 2, TX1 + tt / 2, TZ1, y0, TH, tt, STONE, FK.STONE, [D(-22, 1.4), belf(-22)], 0, 5);
+    ruinWall('x', TX0 - tt / 2, TX1 + tt / 2, TZ1, y0, TH, tt, STONE, FK.STONE, [D(-22, 1.6), belf(-22)], 0, 5);
     ruinWall('z', TZ0 + 0.4, TZ1 - tt / 2, TX0, y0, TH, tt, STONE, FK.STONE, [belf(-2.2)], 0, 6);
     ruinWall('z', TZ0 + 0.4, TZ1 - tt / 2, TX1, y0, TH, tt, STONE, FK.STONE, [{ at: -2.2, w: 1.3, b: 8.5, top: 10.8 }], 0, 7);   // doğu: iskele köprüsünden giriş
     b.box(-22, y0 + h, Z1, TX1 - TX0 + tt, TH - h, t, STONE, kk(FK.STONE));                             // kulenin kuzey duvarı (nef çatısının üstü) — çan katında açıklık yok
@@ -471,7 +478,7 @@ export function buildCephe() {
     const big = (at) => ({ at, w: 3.2, b: 0, top: 3.4 }), loft = (at) => ({ at, w: 2.0, b: 4.0, top: 4.85 });      // samanlık penceresi: kat 2,8 → ayakta göz 4,42 dışarıyı görür, çömelince saklı
     ruinWall('x', X0 - t / 2, X1 + t / 2, Z1, y0, h, t, PLANK, FK.PLANK, [big(33.5), loft(25)], 0, 1);
     ruinWall('x', X0 - t / 2, X1 + t / 2, Z0, y0, h, t, PLANK, FK.PLANK, [big(33.5), Wn(25, 1.4, 3.4, 4.4)], 0, 2);
-    ruinWall('z', Z0 + t / 2, Z1 - t / 2, X0, y0, h, t, PLANK, FK.PLANK, [D(-64, 1.4)], 0, 3);
+    ruinWall('z', Z0 + t / 2, Z1 - t / 2, X0, y0, h, t, PLANK, FK.PLANK, [D(-64, 1.6)], 0, 3);
     ruinWall('z', Z0 + t / 2, Z1 - t / 2, X1, y0, h, t, PLANK, FK.PLANK, [Wn(-64, 1.4, 1.2, 2.3)], 0, 4);
     for (const x of [X0, 26, 30, X1]) for (const z of [Z0, Z1]) b.box(x, y0, z, 0.32, h + 0.1, 0.36, TIMBER, kk(FK.TIMBER));    // dikmeler
     b.withKind(FK.TILE, () => b.prism(30, y0 + h, -64, Z1 - Z0 + 1.0, 3.0, X1 - X0 + 0.8, '#5a4c3e', { ry: P2 }));
@@ -522,12 +529,12 @@ export function buildCephe() {
       if (Math.hypot(jx + 37, jz + 63) < 9 || Math.abs(jz + 80) < 2.2 || (jx > -26 && rng() < 0.5) || segDist(jx, jz) < 2.5) continue;      // kulübe açıklığı + orman yolu
       tree(jx, jz, 0.85 + rng() * 0.4, rng() < 0.12);
     }
-    for (const [x, z] of [[-60, 70], [-30, 78], [12, 66], [36, 80], [58, 70], [-48, 64], [-8, 84], [62, 78], [-66, -88], [-2, -88], [30, -92], [52, -86], [-70, 6], [66, -20], [-62, -30], [70, 28]]) tree(x, z, 0.9 + rng() * 0.3, true);
-    for (const [x, z] of [[-74, 124], [-66, 132], [70, 126], [64, 136], [-72, -128], [70, -132], [62, -144], [-64, -146], [74, -60], [74, -12], [-76, 30], [-74, -16]]) tree(x, z, 1.0 + rng() * 0.3, false);
+    for (const [x, z] of [[-60, 70], [-30, 78], [12, 66], [36, 80], [58, 70], [-48, 64], [-8, 72], [62, 76], [-66, -88], [-2, -88], [30, -92], [52, -86], [-70, 6], [66, -20], [-62, -30], [70, 28]]) tree(x, z, 0.9 + rng() * 0.3, true);
+    for (const [x, z] of [[-74, 116], [-66, 126], [70, 118], [64, 130], [-72, -128], [70, -132], [62, -144], [-64, -146], [74, -60], [74, -12], [-76, 30], [-74, -16]]) tree(x, z, 1.0 + rng() * 0.3, false);
   });
   b.obj('kulübe', () => {
     const X0 = -40, X1 = -34, Z0 = -66, Z1 = -60, h = 2.7, t = 0.3, y0 = Math.min(gy(X0, Z0), gy(X1, Z1)) - 0.1;
-    ruinWall('x', X0 - t / 2, X1 + t / 2, Z1, y0, h, t, BARK, FK.TIMBER, [D(-37, 1.1)], 0, 1);
+    ruinWall('x', X0 - t / 2, X1 + t / 2, Z1, y0, h, t, BARK, FK.TIMBER, [D(-37, 1.6)], 0, 1);
     ruinWall('x', X0 - t / 2, X1 + t / 2, Z0, y0, h, t, BARK, FK.TIMBER, [Wn(-37, 1.0, 1.0, 1.9)], 0, 2);
     ruinWall('z', Z0 + t / 2, Z1 - t / 2, X0, y0, h, t, BARK, FK.TIMBER, [Wn(-63, 1.0, 1.0, 1.9)], 0, 3);
     ruinWall('z', Z0 + t / 2, Z1 - t / 2, X1, y0, h, t, BARK, FK.TIMBER, [Wn(-63, 1.0, 1.0, 1.9)], 0, 4);
@@ -539,11 +546,9 @@ export function buildCephe() {
 
   // ───────── 10. H Batarya: üç top çukuru (kum torbası halka, kuzeyi açık), sahra topları, mühimmat sandıkları, kamuflaj ağı ─────────
   const gunPit = (x, z, name) => b.obj('top:' + name, () => b.with(x, gy(x, z) - 0.08, z, 0, () => {
-    const R = 3.0, H = 0.95, gap = 0.62, n = 7, span = PI * 2 - gap * 2;
-    for (let k = 0; k < n; k++) {                                                   // yedi parçalı halka; kuzey (−z) açık (giriş)
-      const a = -P2 + gap + span * (k + 0.5) / n;
-      b.with(Math.cos(a) * R, 0, Math.sin(a) * R, -(a + P2), () => b.box(0, 0, 0, span / n * R + 0.12, H, 0.8, k % 2 ? BAG : BAG2, kk(FK.SANDBAG)));
-    }
+    const R = 3.0, H = 0.95, Tk = 0.8;                                             // eksen hizalı U (güney + iki yan; kuzey 3 m açık giriş): çarpışma = görünen torba
+    b.box(0, 0, R, R * 2 + Tk, H, Tk, BAG, kk(FK.SANDBAG));
+    for (const sx of [-1, 1]) { b.box(sx * R, 0, 0.4, Tk, H, R * 2 - 0.8, BAG2, kk(FK.SANDBAG)); b.box(sx * (R - 1.0), 0, -R + 0.4, 1.4, H * 0.8, Tk, BAG, kk(FK.SANDBAG)); }
     b.with(0, 0, 0.2, 0, () => {                                                     // sahra topu: iki teker, kalkan, namlu güneye
       for (const s of [-1, 1]) b.cyl(s * 0.85, 0.6, 0.3, 0.6, 0.6, 0.14, '#3e3a33', { collide: false, kind: FK.METAL, rz: P2, center: true, seg: 12 });
       b.box(0, 0.45, 0.3, 1.5, 0.25, 0.4, '#4d5040', kk(FK.METAL));
@@ -560,29 +565,31 @@ export function buildCephe() {
   co('Batarya', 42, -130, true); co('Komuta Sığınağı', -8, -119, true); co('Ana Hat', 0, -104); co('Yedek Hat', 0, -138);
 
   // ───────── 11. ölüm bölgesi / tarla eşyaları: tank enkazı, kamyon, kirpiler, sandık / varil, makineli yuvaları ─────────
-  const tankWreck = (x, z, ry, name) => b.obj('tank:' + name, () => b.with(x, gy(x, z) - 0.25, z, ry, () => {
+  const tankWreck = (x, z, ry, name) => b.obj('tank:' + name, () => b.with(x, gy(x, z) - 0.25, z, ry ? P2 : 0, () => {      // gövde eksen hizalı (çarpışma = görünen gövde); kule çarpık, yalnız çekirdeği çarpışır
     b.box(0, 0, 0, 3.0, 1.15, 5.8, '#4a4b42', kk(FK.METAL));                         // gövde
     b.box(0, 1.15, -0.6, 2.4, 0.4, 3.2, '#45463e', kk(FK.METAL, { rx: 0.05 }));
     for (const s of [-1, 1]) b.box(s * 1.75, 0, 0, 0.55, 0.95, 6.2, '#2f2f2b', kk(FK.METAL));          // paletler
-    b.box(0.2, 1.55, -0.2, 1.9, 0.75, 2.1, '#4a4b42', kk(FK.METAL, { ry: 0.5 }));                     // kule (çarpık)
+    b.box(0.2, 1.55, -0.2, 1.9, 0.75, 2.1, '#4a4b42', nk(FK.METAL, { ry: 0.5 }));                     // kule (çarpık, görsel)
+    b.collide(0.2, 1.55, -0.2, 1.5, 0.75, 1.5);
     b.cyl(0.9, 1.9, -1.8, 0.07, 0.08, 2.4, '#3a3a34', { collide: false, kind: FK.METAL, rx: P2 + 0.2, ry: 0.5, center: true, seg: 8 });
   }));
   tankWreck(24, 74, 0.45, 'nml1'); tankWreck(-30, -88, -0.7, 'nml4');
-  b.obj('kamyon', () => b.with(5, gy(5, -20) - 0.05, -20, 0.25, () => {            // yol kenarında devrik kamyon
+  b.obj('kamyon', () => b.with(5, gy(5, -20) - 0.05, -20, 0, () => {            // yol kenarında devrik kamyon
     b.box(0, 0.3, 0.9, 2.1, 1.6, 2.0, '#4f5244', kk(FK.METAL));
     b.box(0, 0.3, -1.6, 2.2, 1.0, 3.2, PLANK_D, kk(FK.PLANK));
     for (const [px, pz] of [[-1.1, 1.4], [1.1, 1.4], [-1.1, -2.2], [1.1, -2.2]]) b.cyl(px, 0.45, pz, 0.45, 0.45, 0.3, '#262624', { collide: false, kind: FK.METAL, rz: P2, center: true, seg: 10 });
   }));
-  for (const [x, z, r] of [[-50, 70, 0.3], [-12, 76, 1.1], [44, 68, 0.6], [6, 82, 2], [-66, 76, 0.1], [62, 64, 0.9], [-24, -86, 0.4], [14, -90, 1.4], [56, -92, 0.2], [2, 16, 0.5], [6, -34, 1.1]]) hedgehog(x, z, r);
+  for (const [x, z, r] of [[-50, 70, 0.3], [-12, 74, 1.1], [44, 68, 0.6], [6, 76, 2], [-66, 74, 0.1], [62, 64, 0.9], [-24, -86, 0.4], [14, -90, 1.4], [56, -92, 0.2], [2, 16, 0.5], [6, -34, 1.1]]) hedgehog(x, z, r);
   for (const [x, z] of [[-5, 72], [32, 78], [-38, 68]]) b.obj('sandık:' + x, () => { b.box(x, gy(x, z) - 0.05, z, 1.0, 0.7, 0.7, PLANK_D, kk(FK.PLANK)); b.box(x + 0.9, gy(x + 0.9, z) - 0.05, z + 0.2, 0.7, 0.5, 0.5, '#55603f', kk(FK.PLANK)); });
   mgNest(34, 39, 1, 'B'); mgNest(-58, 39, 1, 'bati1'); mgNest(-30, -99, 1, 'ana1'); mgNest(30, -99, 1, 'ana2');
-  co('Ölüm Bölgesi', 0, 74, true); co('Tank Enkazı', 24, 74); co('Mavi Siperi', 0, 104); co('Birinci Hat', 0, 50, true); co('Destek Siperi', 0, 33);
+  co('Ölüm Bölgesi', 0, 74, true); co('Tank Enkazı', 24, 74); co('Mavi Siperi', 0, 92); co('Birinci Hat', 0, 50, true); co('Destek Siperi', 0, 33);
   co('Doğu Kavşağı', 30, 41); co('Batı Tabyası', -37, 39); co('Yedek Siper', 0, 20); co('Çukur Yol', 0, -40, true); co('Kuzey Tarla', 0, -88);
 
   // ───────── 12. doğuşlar (aşama başına): siper tabanı / sığınak / avlu hücre ortaları; çarpışma kutusundan ve siper kenarından uzak ─────────
   const free = (x, z, r = 0.55) => {
     const y = gy(x, z);
-    return !b.colliders.some((c) => x > c.min[0] - r && x < c.max[0] + r && z > c.min[2] - r && z < c.max[2] + r && c.max[1] > y + 0.3 && c.min[1] < y + 1.85);
+    return !b.colliders.some((c) => x > c.min[0] - r && x < c.max[0] + r && z > c.min[2] - r && z < c.max[2] + r && c.max[1] > y + 0.3 && c.min[1] < y + 1.85)
+      && !b.colliders.some((c) => c.tag === 'plat' && x > c.min[0] - 0.3 && x < c.max[0] + 0.3 && z > c.min[2] - 0.3 && z < c.max[2] + 0.3 && c.min[1] > y + 1.0);      // üstünde kat (samanlık / iskele) olan yer değil (yol bulma o hücreyi katta sayar)
   };
   const trenchPts = (x0, x1, z0, z1, ry) => {
     const out = [];
@@ -603,17 +610,29 @@ export function buildCephe() {
     }
     return out;
   };
+  const roomPts = (list, ry) => {                                                       // örtülü sığınak odaları (dışarıdan görünmez)
+    const out = [];
+    for (const d of list) for (let z = d.z0 + 0.9; z < d.z1 - 0.5; z += 1.25) for (let x = d.x0 + 0.8; x < d.x1 - 0.5; x += 1.25) if (free(x, z, 0.45)) out.push({ x: +x.toFixed(2), z: +z.toFixed(2), ry });
+    return out;
+  };
   const zoneOf = (pts, m = 3) => ({ minX: Math.min(...pts.map((p) => p.x)) - m, maxX: Math.max(...pts.map((p) => p.x)) + m, minZ: Math.min(...pts.map((p) => p.z)) - m, maxZ: Math.max(...pts.map((p) => p.z)) + m });
   const stage = (blue, red) => ({ blue, red, zones: { blue: zoneOf(blue), red: zoneOf(red) } });
   const stages = [
-    stage(trenchPts(-62, 62, 108, 126, 0), trenchPts(-52, 52, 10, 24, PI)),                              // 1: Mavi destek hattı / Kırmızı yedek siper
-    stage(trenchPts(-62, 62, 27, 37, 0), trenchPts(-66, 66, -44, -36, PI)),                              // 2: Mavi (alınan) destek siperi / Kırmızı çukur yol
-    stage(fieldPts(-46, 46, -36, -24, 0), trenchPts(-60, 54, -120, -110, PI)),                          // 3: Mavi kuzey evleri / Kırmızı ana hat sığınakları
-    stage(fieldPts(4, 58, -60, -44, 0), trenchPts(-52, 52, -148, -134, PI)),                             // 4: Mavi çiftlik avlusu / Kırmızı yedek hat
+    stage(trenchPts(-62, 62, 85, 96, 0), roomPts(dugouts.filter((d) => d.name.startsWith('k1')), PI)),       // 1: Mavi ateş siperi (A / B'ye ≈ 50 m) / Kırmızı yedek hat sığınakları
+    stage(trenchPts(-62, 62, 27, 37, 0), trenchPts(-38, 38, -44, -36, PI).filter((p) => !ramps.some((r) => Math.abs(r.x - p.x) < 3))),                              // 2: Mavi (alınan) destek siperi / Kırmızı çukur yol (güney sırtı korkuluklu)
+    stage(fieldPts(-46, 46, -36, -24, 0), roomPts(dugouts.filter((d) => d.name.startsWith('k3')), PI)),     // 3: Mavi kuzey evleri / Kırmızı ana hat sığınakları
+    stage(fieldPts(4, 58, -80, -56, 0), roomPts(dugouts.filter((d) => d.name === 'k4-1' || d.name === 'k4-2'), PI)),      // batarya yanındaki k4-3 doğuş değil (H'ye 14 m: savunan anında yetişiyordu)       // 4: Mavi çiftlik avlusu / Kırmızı yedek hat sığınakları
   ];
   for (const S of stages) for (const k of ['blue', 'red']) if (S[k].length > 48) S[k] = S[k].filter((_, i) => i % Math.ceil(S[k].length / 48) === 0);
-  co('Mavi Sığınakları', 0, 118); co('Kırmızı Sığınakları', 0, 15);
+  co('Mavi Sığınakları', 0, 110); co('Kırmızı Sığınakları', 0, 15);
 
+  // ipuçlarındaki { fire: hat } yer tutucuları: o hattın ön bölme ateş basamaklarının ortaları (rampa boşlukları zaten dışarıda)
+  const hints = FRONT_HINTS.map((H) => ({ ...H, hold: H.hold.flatMap((h) => {
+    if (!h.fire) return [h];
+    const zf = h.fire === 'k1' ? 52 : -102;
+    return steps.filter((st) => st.face > 0 && Math.abs((st.face > 0 ? st.z1 : st.z0) - zf) < 0.01 && st.x1 - st.x0 > 2.5)
+      .map((st) => ({ x: +((st.x0 + st.x1) / 2).toFixed(2), z: +((st.z0 + st.z1) / 2).toFixed(2), y: FS, kind: 'fire', look: [0, 1] }));
+  }) }));
   // ───────── 13. ağ: arazi (siper duvarları dahil) + birleşik parçalar; harita dışı: düz tarla, ağaç sırası, tepeler ─────────
   const group = b.build();
   if (!MapBuilder.noVisual) {
@@ -669,13 +688,13 @@ export function buildCephe() {
     terrain: T,
     layered: true,                                                   // ateş basamakları, iskele, samanlık: hücre başına zemin kotu
     callouts,
-    mini: { bg: '#5d5a44', ground: [108, 106, 78], wall: '#3e372d', mid: '#5a5142', low: '#6f6650', roof: 'rgba(60,52,40,0.45)' },
+    mini: { bg: '#5d5a44', ground: [108, 106, 78], pit: [52, 42, 32], wall: '#3e372d', mid: '#5a5142', low: '#6f6650', roof: 'rgba(60,52,40,0.45)' },      // pit: siper / krater (koyu toprak)
     spawns: { blue: stages[0].blue, red: stages[0].red },
     baseZones: { ...stages[0].zones },
     objectives: FRONT_OBJECTIVES.map((o) => ({ ...o, y: gy(o.x, o.z) })),
     roads: [],
     trenches: segs.map((q) => [q.x0, q.z0, q.x1, q.z1]),           // mini harita / denetim: siper kesik dikdörtgenleri
-    front: { sectors: FRONT_SECTORS, stages, hints: FRONT_HINTS },
+    front: { sectors: FRONT_SECTORS, stages, hints, ramps },
     env: {
       sky: ['#7c8186', '#a7aaa6', '#c4c0b2'], fog: ['#a2a197', 60, 250],
       sun: ['#ece2cc', 1.3], hemi: ['#b5bac0', '#544b3b', 0.9], cloud: '#bdbdb8', clouds: 26,

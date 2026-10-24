@@ -62,19 +62,21 @@ ${NOISE}`)
     float gap = (1.0 - smoothstep(0.0, 0.18, min(sl, 1.0 - sl) * 1.6)) * aaM;
     c = mix(c, vec3(0.03, 0.022, 0.016), gap * 0.85);
     c = mix(c, c * vec3(0.7, 0.62, 0.55), smoothstep(0.55, 0.8, ff(p * 0.9 + seed)) * 0.6);      // çamur sıçraması
-  } else if (kind == 5.0) {                                    // ── KUM TORBASI: şaşırtmalı sıralar, yastık (yuvarlak kenar + sırt), çuval bezi, bağ ucu, çamur lekesi ──
-    vec2 bq = side > 0.5 ? vec2(u / 0.56, vWP.y / 0.17) : vec2(p.x / 0.56, p.y / 0.34);
+  } else if (kind == 5.0) {                                    // ── KUM TORBASI: yuvarlak köşeli şişkin çuvallar (süper elips), aralarda gölge, üstten ışık, çuval bezi, dikiş, çamur ──
+    vec2 bq = side > 0.5 ? vec2(u / 0.58, vWP.y / 0.16) : vec2(p.x / 0.58, p.y / 0.32);
     float row = floor(bq.y);
-    bq.x += 0.5 * mod(row, 2.0) + 0.13 * (fh(vec2(row, seed)) - 0.5);
+    bq.x += 0.5 * mod(row, 2.0) + 0.16 * (fh(vec2(row, seed)) - 0.5);
     vec2 bf = fract(bq), bi = floor(bq);
-    vec2 e = min(bf, 1.0 - bf);
-    float pil = smoothstep(0.0, 0.16, e.x) * smoothstep(0.0, 0.34, e.y);
-    float bulge = 1.0 - pow(abs(bf.y - 0.42) * 2.0, 2.0) * 0.35;                              // torbanın ortası kabarık (üstten ışık)
-    c *= 0.72 + 0.34 * fh(bi + seed);
-    c *= mix(0.5, 1.0, mix(1.0, pil, aaM)) * mix(1.0, bulge, aaM);
-    c *= 1.0 - 0.045 * (step(0.5, fract((side > 0.5 ? u : p.x) * 32.0)) * step(0.5, fract((side > 0.5 ? vWP.y : p.y) * 32.0))) * aaF;   // bez örgüsü
-    c *= 1.0 - 0.25 * smoothstep(0.86, 0.95, bf.x) * step(abs(bf.y - 0.5), 0.18) * aaM;                          // bağ ucu
-    c = mix(c, c * vec3(0.62, 0.55, 0.47), smoothstep(0.55, 0.85, ff(wq * 1.1 + p * 0.6)) * 0.65);                 // çamur lekesi
+    vec2 q = (bf - 0.5) * 2.0;
+    float e = pow(pow(abs(q.x), 3.0) + pow(abs(q.y) * 1.08, 3.0), 1.0 / 3.0);          // çuval silueti (yuvarlak köşe)
+    float bag = 1.0 - smoothstep(0.8, 1.0, e);
+    float lit = 0.84 + 0.2 * (side > 0.5 ? (0.5 - bf.y) * 0.6 + 0.5 * (1.0 - q.x * q.x) : 1.0 - dot(q, q) * 0.25);   // şişkinlik: ortası açık
+    c *= 0.8 + 0.28 * fh(bi + seed);                                                     // çuval başına ton
+    c *= mix(0.46, lit, mix(1.0, bag, aaM));
+    float weave = (step(0.5, fract((side > 0.5 ? u : p.x) * 42.0)) + step(0.5, fract((side > 0.5 ? vWP.y : p.y) * 42.0))) * 0.5;
+    c *= 1.0 - 0.06 * weave * aaF * bag;                                                 // çuval bezi örgüsü
+    c *= 1.0 - 0.22 * (1.0 - smoothstep(0.0, 0.035, abs(bf.x - 0.86))) * step(abs(q.y), 0.55) * aaM;   // bağ / dikiş
+    c = mix(c, c * vec3(0.66, 0.58, 0.5), smoothstep(0.55, 0.85, ff(wq * 1.1 + p * 0.6)) * 0.6);          // çamur lekesi
   } else if (kind == 6.0) {                                    // ── KALAS (siper kaplaması / sandık / kapı): düşey tahtalar, ek çizgisi ──
     float pv = side > 0.5 ? u : vWP.x;
     float pl = floor(pv / 0.21), edge = abs(fract(pv / 0.21) - 0.5);
@@ -148,6 +150,6 @@ ${NOISE}`)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\nif (gRough >= 0.0) roughnessFactor = gRough;')
       .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\nif (gMetal >= 0.0) metalnessFactor = gMetal;');
   };
-  material.customProgramCacheKey = () => 'cephe-surface-v1';
+  material.customProgramCacheKey = () => 'cephe-surface-v2';
   return material;
 }

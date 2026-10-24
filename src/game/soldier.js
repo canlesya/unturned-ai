@@ -386,6 +386,7 @@ export class Soldier {
       this.game.emit('fire', this);
     } else if (this.model.weapon) this.game.noiseAlert?.(this);
     if (st.bolt) this.game.emit('bolt', this);
+    if (st.ping && this.item.mag === 0) this.game.sfx.clipPing?.(this.isPlayer ? null : this.pos);      // 12.158: yarı otomatik tüfekte boş klips fırlar
     this.game.alertNear?.(this.pos, this.team, st.sound === 'pistol' ? 25 : 45);
   }
 

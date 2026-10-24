@@ -419,7 +419,7 @@ Object.assign(WSTATS, {
     name: 'Sürgülü Tüfek', kind: 'gun', slot: 'primary', desc: 'Beş mermilik sürgülü piyade tüfeği: gövdeye iki, kafaya tek atış.', stats: { dmg: 92, range: 92, rate: 16, control: 58, mobility: 62 },
     auto: false, bolt: true, dmg: 74, rpm: 52, mag: 5, reserve: 45, reload: 2.5, reloadStyle: 'clip', equip: 0.32,
     hip: 0.026, ads: 0.0004, kickV: 0.04, kickH: 0.006, range: [110, 240], minMul: 0.82, zoom: 1.35, move: 0.96,
-    sight: [0, 0.071, -0.277], dist: 0.44, sound: 'ww_bolt', tracer: '#e8dcc0', era: 'ww2',
+    sight: [0, 0.071, -0.277], dist: 0.56, sound: 'ww_bolt', tracer: '#e8dcc0', era: 'ww2',
   },
   ww_sniper: {
     name: 'Dürbünlü Tüfek', kind: 'gun', slot: 'primary', desc: 'Uzun eski tip dürbünlü sürgülü tüfek (4×).', stats: { dmg: 100, range: 100, rate: 12, control: 60, mobility: 50 },
@@ -451,6 +451,12 @@ Object.assign(WSTATS, {
     hip: 0.012, ads: 0.0013, kickV: 0.017, kickH: 0.0075, range: [55, 140], minMul: 0.65, zoom: 1.3, move: 0.88,
     sight: [0, 0.098, 0.05], dist: 0.286, sound: 'ww_lmg', tracer: '#ff9a6a', era: 'ww2',
   },
+  ww_mg: {
+    name: 'Ağır Makineli', kind: 'gun', slot: 'primary', desc: 'Şeritli ağır makineli: çok yüksek atış hızı, 50\'lik tambur, sert tepme.', stats: { dmg: 62, range: 70, rate: 96, control: 28, mobility: 30 },
+    auto: true, dmg: 28, rpm: 1150, mag: 50, reserve: 150, reload: 3.2, equip: 0.45,
+    hip: 0.016, ads: 0.0022, kickV: 0.013, kickH: 0.009, range: [45, 130], minMul: 0.6, zoom: 1.3, move: 0.84,
+    sight: [0, 0.094, -0.18], dist: 0.42, sound: 'ww_mg', tracer: '#ff8a5a', era: 'ww2',
+  },
   ww_pistol: {
     name: 'Tabanca', kind: 'gun', slot: 'secondary', desc: 'Yedi mermilik subay tabancası.', stats: { dmg: 48, range: 30, rate: 54, control: 62, mobility: 94 },
     auto: false, dmg: 30, rpm: 360, mag: 7, reserve: 42, reload: 1.3, equip: 0.22,
@@ -462,18 +468,20 @@ Object.assign(WSTATS, {
     count: 2, dmg: 130, radius: 7.5, fuse: 3.5, cook: true, speed: 21, rpm: 40, mag: 2, reserve: 0, move: 1.0, equip: 0.3, sound: 'throw', era: 'ww2',
   },
 });
-Object.assign(OPTIC_ALLOWED, { ww_bolt: ['iron'], ww_semi: ['iron'], ww_smgb: ['iron'], ww_smgr: ['iron'], ww_lmg: ['iron'], ww_pistol: ['iron'], ww_sniper: ['scope'] });
+Object.assign(OPTIC_ALLOWED, { ww_mg: ['iron'], ww_bolt: ['iron'], ww_semi: ['iron'], ww_smgb: ['iron'], ww_smgr: ['iron'], ww_lmg: ['iron'], ww_pistol: ['iron'], ww_sniper: ['scope'] });
 // Cephe modunun sınıf donanımı (CLASS_DEFS'in yerine; mod dışında görünmez). d = takım varsayılanı (Mavi Garand / Thompson tarzı, Kırmızı sürgülü / MP40 tarzı)
 export const FRONT_KIT = {
   assault: { primary: ['ww_semi', 'ww_bolt'], d: { blue: 'ww_semi', red: 'ww_bolt' }, secondary: ['ww_pistol'], gadget: ['ww_nade', 'smoke'], melee: ['knife'] },
   medic: { primary: ['ww_smgb', 'ww_smgr'], d: { blue: 'ww_smgb', red: 'ww_smgr' }, secondary: ['ww_pistol'], gadget: ['medkit', 'smoke'], melee: ['knife'] },
   sniper: { primary: ['ww_sniper', 'ww_bolt'], d: { blue: 'ww_sniper', red: 'ww_sniper' }, secondary: ['ww_pistol'], gadget: ['ww_nade', 'smoke'], melee: ['knife'] },
-  heavy: { primary: ['ww_lmg'], d: { blue: 'ww_lmg', red: 'ww_lmg' }, secondary: ['ww_pistol'], gadget: ['ww_nade', 'ammobox'], melee: ['knife'] },
+  heavy: { primary: ['ww_lmg', 'ww_mg'], d: { blue: 'ww_lmg', red: 'ww_mg' }, secondary: ['ww_pistol'], gadget: ['ww_nade', 'ammobox'], melee: ['knife'] },
   engineer: { primary: ['ww_smgb', 'ww_smgr', 'ww_bolt'], d: { blue: 'ww_smgb', red: 'ww_smgr' }, secondary: ['ww_pistol'], gadget: ['ww_nade', 'ammobox'], melee: ['knife'] },
 };
+export const FRONT_TEAM = { ww_semi: 'blue', ww_smgb: 'blue', ww_lmg: 'blue', ww_smgr: 'red', ww_mg: 'red' };
 export function frontLoadout(cls, team, choice = {}, rng = Math.random) {
   const K = FRONT_KIT[cls] || FRONT_KIT.assault;
-  const opt = (list, want, dflt) => (choice.random ? list[Math.floor(rng() * list.length)] : list.includes(want) ? want : dflt);
+  const mine = (id) => !FRONT_TEAM[id] || FRONT_TEAM[id] === team;                       // botların rastgele seçimi takım kimliğini bozmasın (Kırmızı MG42 / katlanır HMK …)
+  const opt = (list, want, dflt) => { if (!choice.random) return list.includes(want) ? want : dflt; const L = list.filter(mine); return L[Math.floor(rng() * L.length)] || dflt; };
   const primary = opt(K.primary, choice.primary, K.d[team] || K.d.blue), secondary = opt(K.secondary, choice.secondary, K.secondary[0]);
   const gadget = opt(K.gadget, choice.gadget, K.gadget[0]), melee = opt(K.melee, choice.melee, K.melee[0]);
   const gun = (id) => ({ id, mag: WSTATS[id].mag, reserve: WSTATS[id].reserve });

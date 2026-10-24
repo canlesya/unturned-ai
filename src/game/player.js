@@ -506,7 +506,7 @@ export class ViewModel {
     // şarjör alt grubu
     if (u.mag) {
       const ax = u.magAxis || [0, -1, 0], off = ra ? ra.magOut * 0.24 : 0;
-      u.mag.visible = ra ? ra.magVis : !u.magHidden;                         // magHidden (12.158): şerit klips yalnız doldururken görünür
+      u.mag.visible = ra ? ra.magVis : !u.magHidden && !(u.pingEmpty && s.item?.mag === 0);      // magHidden (12.158): şerit klips yalnız doldururken; pingEmpty: yarı otomatikte boş klips fırlamış
       u.mag.position.set(ax[0] * off, ax[1] * off, ax[2] * off);
       u.mag.rotation.x = ra ? -ra.magOut * 0.35 : 0;
     }

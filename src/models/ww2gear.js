@@ -4,11 +4,11 @@ import { box, taperBox, cylY } from '../core/geo.js';
 // 1940'lar üniformaları (Cephe modu, 12.158): iki genel / kurgusal ordu — GERÇEK nişan, sembol, bayrak YOK. Takımı sol koldaki renkli bant (Mavi / Kırmızı) ayırır.
 // Mavi: yeşil-haki ceket + yuvarlak çelik miğfer, kanvas tozluk + kahve bot, haki kemer / fişeklik, sırtta çanta + kürek.
 // Kırmızı: gri ceket + kenarlı (etekli) çelik miğfer, uzun siyah çizme, siyah deri kemer + Y askı + fişeklikler, sırtta silindir gaz maskesi kutusu + ekmek torbası.
-// Gövde / kol / bacak kutuları character.js'den (renkler buradan): shirt = ceket, pants = pantolon, gloves = çıplak el (ten), boots = bot.
+// Gövde / kol / bacak kutuları character.js'den (renkler buradan): shirt = ceket, pants = pantolon, gloves = koyu deri eldiven (birinci şahısta da), boots = bot.
 const LOOK = {
-  blue: { shirt: '#5f6142', pants: '#585a3d', vest: '#857857', helmet: '#4b5036', gloves: '#c49274', boots: '#3d2c1f', accent: '#4aa3ff',
+  blue: { shirt: '#5f6142', pants: '#585a3d', vest: '#857857', helmet: '#4b5036', gloves: '#3a2e24', boots: '#3d2c1f', accent: '#4aa3ff',
     belt: '#857857', pouch: '#7a6e50', strap: '#7c704f', metal: '#6a6a62', legging: '#958763', pack: '#6e6648', cuff: '#4f5137' },
-  red: { shirt: '#5c5f58', pants: '#53564f', vest: '#26221f', helmet: '#474b48', gloves: '#c49274', boots: '#1d1b19', accent: '#ff5a43',
+  red: { shirt: '#5c5f58', pants: '#53564f', vest: '#26221f', helmet: '#474b48', gloves: '#262220', boots: '#1d1b19', accent: '#ff5a43',
     belt: '#26221f', pouch: '#2b2622', strap: '#2b2622', metal: '#5e605c', legging: '#1d1b19', pack: '#4f513f', cuff: '#4b4e48' },
 };
 export const ww2Look = (team) => ({ ...(LOOK[team] || LOOK.blue), ww2: true });

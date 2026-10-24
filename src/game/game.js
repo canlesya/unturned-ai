@@ -933,7 +933,7 @@ export class Game {
   squadGoal(s) { return this.squadGoals[s.team]?.[s.squad] || null; }
 
   assignSquads() {
-    const objs = this.mode.objectives;
+    const objs = this.front ? this.front.active() : this.mode.objectives;      // Cephe: yalnız etkin sektör
     if (!objs.length) return;
     for (const team of ['blue', 'red']) {
       const nSq = Math.ceil(this.soldiers.filter((s) => s.team === team).length / 4);

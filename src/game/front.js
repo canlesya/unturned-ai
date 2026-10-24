@@ -2,6 +2,7 @@ import { TUNE } from './balance.js';
 import { t } from '../i18n/index.js';
 import '../i18n/front.js';
 import { FrontHud } from './frontHud.js';
+import { FrontFx } from './frontFx.js';
 
 // ───── Cephe modu (front, 12.158) ─────
 // Cephe ilerletme (Battlefield "Breakthrough" benzeri): harita sıralı SEKTÖRLERE bölünür (map.front.sectors), her sektörde 1–3 ele geçirme noktası.
@@ -93,6 +94,7 @@ export class Front {
     const g = this.g;
     if (g.headless || !g.hud || !g.playerSoldier) return;
     (this.ui ||= new FrontHud(g, this)).update(dt);
+    (this.fx ||= new FrontFx(g)).update(dt);                                      // uzak duman / top ateşi parıltısı
   }
-  dispose() { this.ui?.dispose(); }
+  dispose() { this.ui?.dispose(); this.fx?.dispose(); }
 }
