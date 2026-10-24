@@ -92,6 +92,7 @@ export class InGameSettings {
         if (g.renderer) { g.renderer.shadowMap.enabled = v; g.renderer.shadowMap.needsUpdate = true; }
         g.scene?.traverse((o) => { const m = o.material; if (!m) return; for (const x of Array.isArray(m) ? m : [m]) x.needsUpdate = true; });
         break;
+      case 'streakSound': s.streakSound = v; this.save({ streakSound: v }); break;          // seri sesleri (killfx.js / streakSfx.js)
       case 'adaptive': s.adaptive = v; this.save({ adaptive: v }); break;
       case 'fullscreen': s.fullscreen = v; this.save({ fullscreen: v }); break;
       case 'leftHand': g.leftHand = v; this.save({ leftHand: v }); break;
@@ -117,7 +118,7 @@ export class InGameSettings {
         ${sl('vSfx', t('set.sfx'), 0, 1, 0.05, s.vSfx ?? 1, FMT.pct)}
         ${sl('vMusic', t('set.music'), 0, 1, 0.05, s.vMusic ?? 0.5, FMT.pct)}
         ${sl('vAmb', t('set.amb'), 0, 1, 0.05, s.vAmb ?? 1, FMT.pct)}
-        <div class="row" style="margin-top:6px">${ch('rainSound', s.rainSound === false ? 1 : 0, s.rainSound !== false, `${t('set.rain')}: ${onoff(s.rainSound !== false)}`)}</div></div>
+        <div class="row" style="margin-top:6px">${ch('rainSound', s.rainSound === false ? 1 : 0, s.rainSound !== false, `${t('set.rain')}: ${onoff(s.rainSound !== false)}`)}${ch('streakSound', s.streakSound === false ? 1 : 0, s.streakSound !== false, `${t('set.streak')}: ${onoff(s.streakSound !== false)}`)}</div></div>
         <div class="pan"><h3>${t('set.gfx')}</h3><div class="row">
         ${[[1, 'set.low'], [1.5, 'set.mid'], [2, 'set.high']].map(([v, l]) => ch('quality', v, q === v, t(l))).join('')}
         ${ch('shadows', s.shadows === false ? 1 : 0, s.shadows !== false, `${t('set.shadows')}: ${onoff(s.shadows !== false)}`)}

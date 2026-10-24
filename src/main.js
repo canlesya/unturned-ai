@@ -65,7 +65,7 @@ function beginOnline({ net, welcome, name: name0, pw }) {
     optic: q.get('optic') || p.optic || 'reddot', team: me.team, cls, playerName: name,
     keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs,
     loadout, loadouts: p.loadouts || {}, skins: p.skins, onExit: () => { location.href = location.pathname; }, onRestart: () => location.reload(),
-    settings: { sens: p.sens, fov: p[FOV_KEY], volume: p.volume ?? 0.6, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, shadows: q.get('shadows') !== '0' && p.shadows !== false, post: q.has('post') ? q.get('post') === '1' : p.post, adaptive: p.adaptive !== false, fullscreen: p.fullscreen !== false, pixelRatio: +(q.get('pr') || p[Q_KEY] || 1) },
+    settings: { sens: p.sens, fov: p[FOV_KEY], volume: p.volume ?? 0.6, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, streakSound: p.streakSound !== false, shadows: q.get('shadows') !== '0' && p.shadows !== false, post: q.has('post') ? q.get('post') === '1' : p.post, adaptive: p.adaptive !== false, fullscreen: p.fullscreen !== false, pixelRatio: +(q.get('pr') || p[Q_KEY] || 1) },
   });
 }
 
