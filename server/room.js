@@ -170,17 +170,18 @@ export class Room {
     ws.send(JSON.stringify({ t: 'wait', ms: Math.max(0, this.resetAt - Date.now()) }));
   }
 
-  // Boş resmi oda kendiliğinden döner (listede harita / gün saati değişsin): idleMin dakikada bir (0 = kapalı)
+  // Boş resmi oda kendiliğinden döner (listede harita / gün saati değişsin): idleMin dakikada bir (0 = kapalı). Döndüyse true
   idleTick(now) {
     const o = this.official;
-    if (!o || this.clients.size || this.pending.length) return;
+    if (!o || this.clients.size || this.pending.length) return false;
     const ms = EMPTY_ENV || (o.idleMin ?? 10) * 60000;
-    if (!ms || now - this.gameAt < ms) return;
+    if (!ms || now - this.gameAt < ms) return false;
     this.activate();
     this.advance(null);
     this.game.dispose();
     this.newGame();
     console.log(`[${this.code}] boş oda: yeni harita ${this.cfg.map} / ${this.cfg.tod} / ${this.cfg.weather}`);
+    return true;
   }
 
   // Admin panelinden resmi sunucu ayarı değişti: boşsa hemen yeni maç, içinde oyuncu varsa sonraki maçta (değişmeyen sunucuya dokunulmaz: boş oda dönüşü sıfırlanmasın)
