@@ -4,6 +4,7 @@ import { TUNE } from './balance.js';
 import { clamp, rand, angleDiff, yawFromDir, lerp, pick } from './util.js';
 import { ballLead } from './paint.js';
 import { aimNade } from './grenade.js';
+import { tacRole, tacPickGoal, tacHold, tacAim, tacMayFire, tacFired, tacCombatMove, tacStrafeDir, tacHear, tacMateDown, tacOf } from './botTactics.js';
 import { plTick, plPickGoal, plArrive, plAnchored, plTargetBias, plCombatMove, plStuck } from './payloadBots.js';
 
 // silah rolleri (bot davranışı)
@@ -16,12 +17,14 @@ export const INF_BOT = { crowd: 0.12, desync: 0.3, kite: 9, kiteBoss: 14, kiteSp
 
 const NOIT = { id: '', mag: 0, reserve: 0 };                       // Silah Yarışı'nda eşya listesi 2 yuvalı: olmayan yuva boş sayılır
 const tA = new THREE.Vector3(), tB = new THREE.Vector3(), tC = new THREE.Vector3();
+const AO = [0, 0, 0, 0];                                            // tacAim çıktısı
 
 export class BotBrain {
   constructor(game, soldier, diffKey = 'normal') {
     this.game = game;
     this.s = soldier;
     this.d = DIFFICULTY[diffKey];
+    this.dk = diffKey;                                               // zorluk anahtarı (botTactics.TACTICS davranış katmanı)
     soldier.brain = this;
     soldier.dmgMul = this.d.dmgMul;
     this.reset();
@@ -43,16 +46,22 @@ export class BotBrain {
     this.aimFrac = rand(0.55, 0.82);
     this.holdT = 0;
     this.via = null; this.perching = false; this.perch = null;
+    this.role = undefined; this.spot = null; this.atSpot = false; this.aimTg = null; this.ambWait = 0; this.settleT = 0; this.settleNeed = null;     // 12.152 rol / mevzi / nişan (botTactics.js)
   }
 
   // flaşbang yedi: soldier.blind() çağırır; hedef unutulur
   onFlashed(t) { this.target = null; this.reactT = 0.6; this.lostT = 0; }
 
-  hear(pos) {
+  // radius: sesin duyulma menzili (alertNear); zorluk menzili ölçekler, sese gitme olasılığı zorluğa / role göre (tacHear)
+  hear(pos, radius) {
+    const inv = this.game.mode.infection ? 0.25 : tacHear(this, pos, radius);
+    if (inv < 0) return;
     this.alertT = this.game.time;
     this.alertPos = (this.alertPos || new THREE.Vector3()).copy(pos);
-    if (!this.target && Math.random() < 0.25 && this.goalT > 3 && !(this.game.payload && plAnchored(this))) this.setGoal(pos.x + rand(-6, 6), pos.z + rand(-6, 6), 8, pos.y);
+    if (!this.target && Math.random() < inv && this.goalT > 3 && !(this.game.payload && plAnchored(this))) this.setGoal(pos.x + rand(-6, 6), pos.z + rand(-6, 6), 8, pos.y);
   }
+
+  onMateDown(victim, killer) { if (!this.s.def.zombie) tacMateDown(this, victim, killer); }
 
   onDamaged(attacker, fromPos) {
     this.alertT = this.game.time;
@@ -81,6 +90,7 @@ export class BotBrain {
     this.via = null;
     if (g.mode.infection) { this.huddle(); return; }      // Enfekte: insan botlar zombiye koşmaz, birbirine yakın durup birlikte savunur
     if (g.payload) { plPickGoal(this); return; }          // Vagon: rol planı (payloadBots.js): eskort / öncü / yan · durdurucu / siper / yan
+    if (tacPickGoal(this)) return;                       // 12.152: nişancı mevzisi / pusu noktası (botTactics.js)
     if (!objs.length) { this.roam(); return; }       // takım çatışması: haritada dolaş, düşmana yönel
     const sq = g.squadGoal(s);
     let obj = sq || null;
@@ -115,7 +125,7 @@ export class BotBrain {
     const gx = obj.x + Math.cos(a) * r, gz = obj.z + Math.sin(a) * r;
     this.setGoal(gx, gz, rand(14, 28));
     // yan kol: bazen ara nokta üzerinden dolan (kanat manevrası)
-    if (Math.hypot(gx - s.pos.x, gz - s.pos.z) > 40 && Math.random() < 0.45) {
+    if (Math.hypot(gx - s.pos.x, gz - s.pos.z) > 40 && Math.random() < (this.role === 'rusher' ? 0.7 : 0.45)) {
       const mx = (gx + s.pos.x) / 2, mz = (gz + s.pos.z) / 2;
       const dx = gx - s.pos.x, dz = gz - s.pos.z, L = Math.hypot(dx, dz);
       const side = Math.random() < 0.5 ? -1 : 1, off = rand(18, 34);
@@ -213,7 +223,7 @@ export class BotBrain {
     const aim = aimNade(s, st, tB, g.world, gid === 'flash' ? 6 : 3.5);
     if (!aim) return false;
     tt[s.team] = g.time;
-    this.nadeReady = g.time + rand(16, 28);
+    this.nadeReady = g.time + rand(16, 28) * tacOf(this).nadeCd;
     if (turn && Math.abs(angleDiff(s.yaw, aim.yaw)) > 0.06) { this.pendNade = { gid, aim, t: 1.2 }; return true; }
     return this.throwNade(gid, aim);
   }
@@ -245,13 +255,13 @@ export class BotBrain {
       if (sc < bd) { bd = sc; best = e; }
     }
     if (best) {
-      if (best !== this.target) { this.target = best; this.reactT = rand(this.d.react[0], this.d.react[1]) + (g.mode.infection ? rand(0, INF_BOT.desync) : 0); this.aimFrac = rand(0.55, 0.85); }
+      if (best !== this.target) { this.target = best; this.reactT = rand(this.d.react[0], this.d.react[1]) * (this.atSpot && this.role === 'ambush' ? 0.7 : 1) + (g.mode.infection ? rand(0, INF_BOT.desync) : 0); this.aimFrac = rand(0.55, 0.85); this.ambWait = 0; }      // pusucu rotaya önceden nişanlı: daha çabuk
       this.lostT = 0;
       this.lastKnown = (this.lastKnown || new THREE.Vector3()).copy(best.pos);
     } else if (this.target) {
       this.lostT += 0.22;
       if (this.lostT > 0.5) {
-        if (this.lastKnown && !(g.payload && plAnchored(this))) this.setGoal(this.lastKnown.x, this.lastKnown.z, 6, this.lastKnown.y);
+        if (this.lastKnown && !(g.payload && plAnchored(this)) && !this.spot) this.setGoal(this.lastKnown.x, this.lastKnown.z, 6, this.lastKnown.y);
         if (this.lastKnown && this.target?.alive && Math.hypot(this.target.vel.x, this.target.vel.z) < 2) { this.nadeSpot = this.lastKnown.clone(); this.nadeSpotT = g.time; }   // siper arkasında durdu (kamp): oraya bomba düşünülebilir
         this.target = null;
       }
@@ -350,7 +360,7 @@ export class BotBrain {
     const gd = Math.hypot(this.goal.x - s.pos.x, this.goal.z - s.pos.z) + (g.nav.nearestNode ? Math.max(0, Math.abs(this.goal.y - s.pos.y) - 1.2) * 3 : 0);   // katlı: hedef katta değilse varılmış sayılmaz
     if (gd < 1.8 && !this.via) {
       this.holdT -= dt;
-      if (this.perching) { s.crouching = true; if (this.holdT <= 0) this.holdT = 3; } else if (g.payload && this.plRole) plArrive(this); else if (this.holdT <= 0) { this.holdT = rand(2, 5); if (g.nav.nearestNode && Math.random() < 0.6) this.pickGoal(); else this.setGoal(this.goal.x + rand(-6, 6), this.goal.z + rand(-6, 6), 10, this.goal.y); }      // katlı haritada yeni dolaşma noktası (kat değiştirsin)
+      if (this.perching) { if (this.spot) tacHold(this, dt); else { s.crouching = true; if (this.holdT <= 0) this.holdT = 3; } } else if (g.payload && this.plRole) plArrive(this); else if (this.holdT <= 0) { this.holdT = rand(2, 5); if (g.nav.nearestNode && Math.random() < 0.6) this.pickGoal(); else this.setGoal(this.goal.x + rand(-6, 6), this.goal.z + rand(-6, 6), 10, this.goal.y); }      // katlı haritada yeni dolaşma noktası (kat değiştirsin)
       return [0, 0, 0];
     }
     this.repathT -= dt;
@@ -366,7 +376,12 @@ export class BotBrain {
     if (!this.path || !this.path.length) return null;
     let wp = this.path[0];
     const off = (q) => (!g.nav.nearestNode ? 0 : Math.abs(q.y - s.pos.y) > 1.2 ? 9 : Math.abs(q.y - s.pos.y) > 0.2 ? 0.55 : 0);       // katlı: başka kattaki ara nokta (merdiven üstü) geçilmiş sayılmaz; basamak başı noktasına yakından varılır (yandan yüksek basamağa çarpmasın)
-    while (this.path.length > 1 && Math.hypot(wp.x - s.pos.x, wp.z - s.pos.z) + off(wp) < 0.9) { this.path.shift(); wp = this.path[0]; }
+    // ara noktayı geçmiş say: 0,9 m içinde VE bir sonraki nokta buradan ızgarada görünüyorsa (kapı pervazı / köşe: görünmüyorsa noktaya 0,35 m'ye kadar yürür, köşeyi kesip pervaza sürtünmez)
+    while (this.path.length > 1) {
+      const dd = Math.hypot(wp.x - s.pos.x, wp.z - s.pos.z) + off(wp);
+      if (dd >= 0.9 || (dd > 0.35 && !g.nav.nearestNode && !g.nav.los(g.nav.idx(s.pos.x, s.pos.z), g.nav.idx(this.path[1].x, this.path[1].z)))) break;
+      this.path.shift(); wp = this.path[0];
+    }
     const wd = Math.hypot(wp.x - s.pos.x, wp.z - s.pos.z);
     if (wd + off(wp) < 0.6 && this.path.length === 1) { this.path = null; return null; }
     return [(wp.x - s.pos.x) / (wd + 1e-6), (wp.z - s.pos.z) / (wd + 1e-6), 1.35];
@@ -376,12 +391,14 @@ export class BotBrain {
     const s = this.s, g = this.game;
     if (!s.alive) return;
     if (s.def.zombie) { this.updateZombie(dt); return; }
+    if (this.role === undefined) this.role = tacRole(this);
+    if (this.atSpot && this.spot && Math.hypot(this.spot.x - s.pos.x, this.spot.z - s.pos.z) > 2.5) this.atSpot = false;
     this.t += dt;
     this.senseT -= dt;
     if (this.senseT <= 0) { this.senseT = 0.2 + Math.random() * 0.08; this.sense(); }
     this.goalT -= dt;
     if (g.payload) plTick(this);                         // Vagon: takım rol planı + bayat hedef (vagon uzaklaştı)
-    if (!this.goal || this.goalT <= 0) this.pickGoal();
+    if (!this.goal || this.goalT <= 0) { this.pickGoal(); if (this.retacT) { this.retacT = 0; this.goalT = Math.min(this.goalT, 2.5); } }     // mevzi verisi hazırlanıyor: kısa hedef, sonra yeniden
     if (g.pickups.list.length && (this.pkT = (this.pkT ?? rand(0, 1.5)) - dt) <= 0) {        // paintball: canı / cephanesi azsa yakındaki kutuya git (çatışma yokken)
       this.pkT = 1.5;
       const pk = !this.target && g.pickups.botWant(s);
@@ -434,8 +451,11 @@ export class BotBrain {
 
       const ty = tp.y + tg.height * this.aimFrac;
       const dy = ty - eye.y;
-      const wantYaw = yawFromDir(dx, dz);
-      let wantPitch = Math.atan2(dy, dist);
+      const inf = g.mode.infection;
+      if (!inf) tacAim(this, tg, dt, AO);                                     // 12.152 insani nişan: ilk hata + titreme + hareketli hedefi gecikmeli izleme
+      const adx = inf ? dx : AO[2] - s.pos.x, adz = inf ? dz : AO[3] - s.pos.z;
+      const wantYaw = yawFromDir(adx, adz) + (inf ? 0 : AO[0]);
+      let wantPitch = Math.atan2(dy, Math.hypot(adx, adz)) + (inf ? 0 : AO[1]);
       if (dist > 35) wantPitch += dist * 0.0004;
       if (st.ball) wantPitch += ballLead(st, Math.hypot(dist, dy));                  // paintball: topun düşüşü kadar yukarı nişan
       const turn = this.d.turn * (0.7 + Math.min(Math.abs(angleDiff(s.yaw, wantYaw)), 1.5));
@@ -446,14 +466,17 @@ export class BotBrain {
 
       this.reactT -= dt;
       const aimed = Math.abs(dyaw) < 0.07 + 2 / (dist + 8);
-      s.botExtraSpread = this.d.err * (0.6 + dist / 45) * (this.reactT > -0.8 ? 1.8 : 1) * (g.mode.infection ? 1 + INF_BOT.crowd * this.crowd(tg) : 1);      // Enfekte: aynı hedefe çok kişi sıkarsa isabet düşer (herkesin aynı anda nişan alıp vurması engellenir)
-      if (this.reactT <= 0 && aimed) {
+      s.botExtraSpread = inf ? this.d.err * (0.6 + dist / 45) * (this.reactT > -0.8 ? 1.8 : 1) * (1 + INF_BOT.crowd * this.crowd(tg))
+        : this.d.err * tacOf(this).spread * (0.6 + dist / 70) * (st.scope && s.adsT > 0.8 ? 0.6 : 1);      // nişan hatası artık açıda (tacAim); burada kalan küçük dağılma      // Enfekte: aynı hedefe çok kişi sıkarsa isabet düşer (herkesin aynı anda nişan alıp vurması engellenir)
+      const may = inf || tacMayFire(this, tg, dist, aimed && this.reactT <= 0, dt);   // nişancı sabitlenir, pusucu yaklaştırır
+      if (this.reactT <= 0 && aimed && may) {
         if (this.burstPause > 0) this.burstPause -= dt;
         else {
           if (this.burstLeft <= 0) this.burstLeft = Math.round(rand(this.d.burst[0], this.d.burst[1]));
           const fired = s.tryFire();
           if (fired) {
             this.burstLeft--;
+            if (!inf) tacFired(this);
             if (this.burstLeft <= 0) this.burstPause = rand(0.25, 0.9) * (st.auto ? 1 : 0.3);
           }
         }
@@ -474,7 +497,7 @@ export class BotBrain {
       { const gid = s.items[2]?.id; if ((gid === 'grenade' || gid === 'flash') && this.reactT <= 0 && g.time >= this.nadeReady && !this.tryNade(gid, tp, dist, tg)) this.nadeReady = g.time + rand(1.5, 3); }
       // savaş hareketi
       this.strafeT -= dt;
-      if (this.strafeT <= 0) { this.strafeDir *= -1; this.strafeT = rand(0.7, 2.0); }
+      if (this.strafeT <= 0) { this.strafeDir = tacStrafeDir(this, tg, -this.strafeDir); this.strafeT = rand(0.7, 2.0); }
       const nx = dx / (dist + 1e-6), nz = dz / (dist + 1e-6);
       const pid = s.items[0].id;
       const holdRange = pid === 'sniper' || pid === 'barrett' ? 150 : pid === 'svd' ? 110 : LMGS.has(pid) ? 48 : 0;
@@ -484,7 +507,9 @@ export class BotBrain {
       const kite = g.mode.infection && tg.def && tg.def.zombie && !(g.map.perches && s.pos.y > 0.8);      // platformdaki insan geri çekilmez, yüksekten ateş eder
       s.crouching = false;
       const plm = g.payload && !kite ? plCombatMove(this, dt, nx, nz) : null;      // Vagon: eskort / durdurucu yarıçaptan, siperdeki siperinden kopmaz
+      const tcm = !plm && !kite && !inf && s.cur !== 3 && st.kind !== 'melee' ? tacCombatMove(this, dist, tg) : null;      // 12.152 rol: nişancı / pusucu yerinde, taarruzcu yaklaşır, canı az geri çekilir
       if (plm) { moveX = plm[0]; moveZ = plm[1]; speed *= plm[2]; }
+      else if (tcm) { moveX = nx * tcm[0] + (-nz) * this.strafeDir * tcm[1]; moveZ = nz * tcm[0] + nx * this.strafeDir * tcm[1]; speed *= tcm[2]; s.crouching = tcm[3]; }
       else if (kite) {                                           // zombiye karşı: yaklaşınca geri çekilerek ateş et, uzaktayken yerinde dur
         s.crouching = false;
         if (dist < (tg.boss ? INF_BOT.kiteBoss : INF_BOT.kite)) { moveX = -nx + (-nz) * this.strafeDir * 0.25; moveZ = -nz + nx * this.strafeDir * 0.25; speed *= INF_BOT.kiteSpeed; }
