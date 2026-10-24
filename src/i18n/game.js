@@ -114,7 +114,7 @@ addStrings('tr', {
   // duraklat
   'pause.ready': 'Hazır mısın?', 'pause.intro': 'Başlamak için tıkla. Fare ekrana kilitlenir, Esc ile duraklatırsın.',
   'pause.introTouch': "Başlamak için BAŞLA'ya dokun. Kontrolleri duraklat menüsündeki Dokunmatik ayarlar'dan değiştirebilirsin.",
-  'pause.paused': 'Duraklatıldı', 'pause.resumeHint': 'Devam etmek için tıkla.', 'pause.start': 'Başla', 'pause.resume': 'Devam', 'pause.kill': 'Kill (yeniden doğ)',
+  'pause.paused': 'Duraklatıldı', 'pause.clickResume': 'Devam etmek için tıkla', 'pause.escMenu': 'Esc · menü', 'pause.resumeHint': 'Devam etmek için tıkla.', 'pause.start': 'Başla', 'pause.resume': 'Devam', 'pause.kill': 'Kill (yeniden doğ)',
   'pause.killTip': 'Sıkıştıysan kendini öldürüp yeniden doğ', 'pause.settings': 'Ayarlar', 'pause.controls': 'Kontroller', 'pause.menu': 'Ana Menü', 'pause.again': 'Tekrar Oyna', 'pause.touch': 'Dokunmatik ayarlar',
   // skor tablosu
   'sb.player': 'Oyuncu', 'sb.k': 'Öl', 'sb.d': 'Ölüm', 'sb.score': 'Puan', 'sb.level': 'Seviye', 'sb.weapon': 'Silah',
@@ -186,7 +186,7 @@ addStrings('en', {
   'death.asZombie': 'You will respawn as a zombie', 'death.zLives': 'Respawning · lives left: {n}',
   'pause.ready': 'Ready?', 'pause.intro': 'Click to start. The mouse locks to the screen; press Esc to pause.',
   'pause.introTouch': 'Tap START to begin. You can change the controls under Touch settings in the pause menu.',
-  'pause.paused': 'Paused', 'pause.resumeHint': 'Click to continue.', 'pause.start': 'Start', 'pause.resume': 'Resume', 'pause.kill': 'Respawn (kill)',
+  'pause.paused': 'Paused', 'pause.clickResume': 'Click to continue', 'pause.escMenu': 'Esc · menu', 'pause.resumeHint': 'Click to continue.', 'pause.start': 'Start', 'pause.resume': 'Resume', 'pause.kill': 'Respawn (kill)',
   'pause.killTip': 'Stuck? Kill yourself and respawn', 'pause.settings': 'Settings', 'pause.controls': 'Controls', 'pause.menu': 'Main Menu', 'pause.again': 'Play Again', 'pause.touch': 'Touch settings',
   'sb.player': 'Player', 'sb.k': 'K', 'sb.d': 'D', 'sb.score': 'Score', 'sb.level': 'Level', 'sb.weapon': 'Weapon',
   'sb.ggTitle': 'Gun Game · {n} weapons', 'sb.pbTitle': 'Paintball · first to {n}', 'sb.dmTitle': 'Deathmatch · first to {n}',
