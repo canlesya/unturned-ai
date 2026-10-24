@@ -175,7 +175,6 @@ export class ViewModel {
       box(grp, [0.016, 0.06, 0.06], c.gloves, [0.03, 0.0, 0]);                         // yan
       box(grp, [0.016, 0.06, 0.06], c.gloves, [-0.03, 0.0, 0]);
       box(grp, [0.064, 0.022, 0.07], c.gloves, [0, -0.032, 0.005]);                    // avuç (alt)
-      box(grp, [0.02, 0.02, 0.05], c.gloves, [-0.02, 0.04, -0.045], [0, 0.3, 0]);      // başparmak (sapın üstünden ileri)
       const dir = new THREE.Vector3(0.12 * side, -0.2, 0.42).normalize(), len = 0.5;
       const sleeve = box(grp, [0.11, 0.11, len], c.shirt, [0, 0, 0]);
       sleeve.position.copy(dir).multiplyScalar(len / 2 + 0.05);

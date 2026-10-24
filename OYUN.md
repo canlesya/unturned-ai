@@ -1224,3 +1224,9 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 - player.js MELEE_IDLE artık silah başına: bıçak = kutu yumruk sağ-altta yakın, ağız ileri-sola yatık (yan yüzü görünür); satır = yukarı-sola eğik kılıç, yumruk sağ-altta; tomahawk = sap sağ-alttan çapraz yukarı, baş üstte, ağız ileri. Dik tutulanlarda (satır / tomahawk) koşu duruşu ayrı (spr), geriye yüze devrilmez.
 - anim.js chop (tomahawk): kaldırma kameraya yaklaşmaz, az kalkar (kol ekranı kaplıyordu); iniş ortaya kadar iner. 3. şahısta da aynı savurma, vuruş zamanlaması değişmedi.
 - Ölçüm: fphands2 (bekleme / savurma / koşu kareleri, masaüstü + Pixel 7; tomahawk / satır / koşu kareleri eklendi), meleehit hepsi geçti, vite build.
+
+### 12.132 Bıçak ağzında titreyen pikseller + havada başparmak
+- Kullanıcı: "bıçağın keskin kısmında pikseller gidip geliyor, iç içe girmiş gibi; başparmak havada kalmış, düzelt ya da yok say". Sebep: s3items parlak ağız şeridi (ve kan oluğu, sırt tırtılı, satır sırtı, tomahawk ağzı / deliği) gövdenin üstüne 0,3–0,7 mm kalın bindirilmişti → yan yüzler neredeyse aynı düzlemde, derinlik çakışması (z-fighting).
+- Bıçak: gövde + ağız yan yana iki parça (aynı kalınlık, bitişik kenar), oluk / tırtıl kaldırıldı. Satır: sırt / gövde / ağız yan yana üç parça. Tomahawk: baş + ağız yan yana, hafifletme deliği gerçek delik. 3. şahıs (lod) tek parça.
+- Yumruk (fist): başparmak kutusu kaldırıldı, sade kutu yumruk (Unturned).
+- Ölçüm: fphands2 bıçak / satır / tomahawk yakın kareleri, weaponaudit, vite build.
