@@ -104,7 +104,6 @@ ${NOISE}`)
       c = mix(c, st, dmg);
     }
     c *= 1.0 - 0.32 * smoothstep(0.5, 0.9, ff(wq * vec2(0.3, 0.12) + 5.0)) * side;                                        // is / yağmur akıntısı
-    c *= 1.0 - 0.3 * (1.0 - smoothstep(0.0, 0.012, abs(fn(wq * vec2(2.6, 1.8) + 2.0) - 0.5) * 0.5)) * aaM * side * step(0.62, fn(wq * 0.7 + 5.0));   // ince çatlak (seyrek)
     c = mix(c, c * vec3(0.55, 0.52, 0.5), smoothstep(0.62, 0.8, ff(wq * 0.25 + 9.0 + seed)) * 0.6 * side);                // yangın isi
     c *= 1.0 - 0.18 * (1.0 - smoothstep(0.0, 0.7, vWP.y)) * side;
   } else if (kind == 9.0) {                                    // ── BETON (sığınak): kalıp tahtası izleri, leke ──

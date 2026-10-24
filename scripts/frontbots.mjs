@@ -11,7 +11,7 @@ const res = [], STK = new Map(), HEAT = new Map(), SEC = +(process.env.SEC ?? -1
 const t0 = performance.now();
 for (let m = 0; m < N; m++) {
   const g = new Game(null, { headless: true, map: 'cephe', diff: DIFF, match: { perTeam: PT, type: 'front', time: TL } });
-  const st = { post: 0, postUp: 0, def: 0, atkNear: 0, atk: 0, stuck: 0, botT: 0, kills: { blue: 0, red: 0 }, deathD: [], secT: [] };
+  const st = { own: {}, post: 0, postUp: 0, def: 0, atkNear: 0, atk: 0, stuck: 0, botT: 0, kills: { blue: 0, red: 0 }, deathD: [], secT: [] };
   const last = new Map();
   g.on?.('kill', () => {});
   const origKill = g.onKill.bind(g);
@@ -27,6 +27,7 @@ for (let m = 0; m < N; m++) {
     if (g.front.sector !== sec) { sec = g.front.sector; st.secT.push(Math.round(g.time)); }
     if (steps % 60 === 0) {
       const act = g.front.active();
+      for (const o of act) st.own[o.id] = (st.own[o.id] || 0) + (o.owner === 'blue' ? 1 : 0);
       for (const b of g.brains) {
         const s = b.s; if (!s.alive) continue;
         if (s.team === 'red') { st.def++; if (b.frAt && Math.hypot(b.frAt.x - s.pos.x, b.frAt.z - s.pos.z) < 1.5) { st.post++; if (!s.crouching) st.postUp++; } }
@@ -43,7 +44,7 @@ for (let m = 0; m < N; m++) {
   const dd = st.deathD.sort((a, b) => a - b);
   res.push({ w: g.winner || '-', sec: g.front.sector, t: Math.round(g.time), tk: g.tickets.blue, k: st.kills, secT: st.secT, post: st.post / Math.max(1, st.def), up: st.postUp / Math.max(1, st.post), near: st.atkNear / Math.max(1, st.atk), stuck: st.stuck / Math.max(1, st.botT), dMed: dd[dd.length >> 1] || 0 });
   const r = res[res.length - 1];
-  console.log(`maç ${m + 1}: ${r.w === 'blue' ? 'MAVİ' : r.w === 'red' ? 'KIRMIZI' : r.w} · sektör ${r.sec}/4 (${r.secT.join(', ')} sn) · ${r.t} sn · bilet ${r.tk} · öldürme M ${r.k.blue} K ${r.k.red} · mevzide %${(r.post * 100).toFixed(0)} (ayakta %${(r.up * 100).toFixed(0)}) · saldıran noktada %${(r.near * 100).toFixed(0)} · takılma %${(r.stuck * 100).toFixed(1)} · Mavi ölüm → nokta ${r.dMed.toFixed(0)} m`);
+  console.log(`maç ${m + 1}: ${r.w === 'blue' ? 'MAVİ' : r.w === 'red' ? 'KIRMIZI' : r.w} · sektör ${r.sec}/4 (${r.secT.join(', ')} sn) · ${r.t} sn · bilet ${r.tk} · öldürme M ${r.k.blue} K ${r.k.red} · mevzide %${(r.post * 100).toFixed(0)} (ayakta %${(r.up * 100).toFixed(0)}) · saldıran noktada %${(r.near * 100).toFixed(0)} · takılma %${(r.stuck * 100).toFixed(1)} · Mavi ölüm → nokta ${r.dMed.toFixed(0)} m · Mavi'de tutulan sn ${Object.entries(st.own).map(([k, v]) => k + v).join(' ')}`);
 }
 const bw = res.filter((r) => r.w === 'blue').length, avgSec = res.reduce((a, r) => a + r.sec, 0) / N;
 const dist = [0, 1, 2, 3, 4].map((k) => res.filter((r) => r.sec === k).length);

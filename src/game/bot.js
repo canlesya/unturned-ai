@@ -514,7 +514,7 @@ export class BotBrain {
       if (this.strafeT <= 0) { this.strafeDir = tacStrafeDir(this, tg, -this.strafeDir); this.strafeT = rand(0.7, 2.0); }
       const nx = dx / (dist + 1e-6), nz = dz / (dist + 1e-6);
       const pid = s.items[0].id;
-      const holdRange = pid === 'sniper' || pid === 'barrett' || pid === 'railgun' ? 150 : pid === 'svd' ? 110 : LMGS.has(pid) ? 48 : 0;
+      const holdRange = pid === 'sniper' || pid === 'barrett' || pid === 'railgun' || pid === 'ww_sniper' ? 150 : pid === 'svd' ? 110 : LMGS.has(pid) ? 48 : 0;
       this.holdBudget = (this.holdBudget ?? 6) - dt;
       const holdPos = holdRange > 0 && dist < holdRange && dist > 14 && this.holdBudget > 0;
       if (this.holdBudget < -4) this.holdBudget = rand(5, 9);
@@ -583,8 +583,8 @@ export class BotBrain {
     if (this.stuckT > 1.2) {
       if (!combat && (moveX || moveZ) && s.pos.distanceTo(this.stuckPos) < 0.35) {
         this.path = null; this.repathT = 0;
-        if (g.payload) plStuck(this);
-        if (g.front) frStuck(this);                  // Vagon: kısa kaçış sapması (kapı pervazı / köşe), sonra rol hedefine
+        if (g.payload) plStuck(this);                  // Vagon: kısa kaçış sapması (kapı pervazı / köşe), sonra rol hedefine
+        else if (g.front) frStuck(this);               // Cephe: aynı kaçış, sonra rol hedefine
         else if (Math.random() < 0.4) this.setGoal(s.pos.x + rand(-10, 10), s.pos.z + rand(-10, 10), 6, s.pos.y);
       }
       this.stuckT = 0; this.stuckPos.copy(s.pos);

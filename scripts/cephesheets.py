@@ -19,20 +19,22 @@ def sheet_weapons():
     side = Image.open(f'{LAB}/silahlar-yandan.png').convert('RGB')
     W = side.width
     tw, th, cols = W // 4, int(W // 4 * 9 / 16), 4
-    hip = ['ww_bolt', 'ww_semi', 'ww_smgb', 'ww_smgr', 'ww_lmg', 'ww_sniper', 'ww_pistol', 'ww_nade']
-    ads = [('ww_bolt', 'nisan'), ('ww_semi', 'nisan'), ('ww_smgb', 'nisan'), ('ww_smgr', 'nisan'), ('ww_lmg', 'nisan'), ('ww_sniper', 'nisan'), ('ww_bolt', 'doldurma'), ('ww_semi', 'doldurma')]
-    rows = 2 + 2
-    out = Image.new('RGB', (W, side.height + 50 + rows * th + 60), (22, 24, 25))
+    sec1 = [(FPR, 'ww_bolt', 'bel', 'Sürgülü Tüfek (Kırmızı kolu)'), (FP, 'ww_semi', 'bel', 'Yarı Otomatik Tüfek (Mavi)'), (FP, 'ww_smgb', 'bel', 'Kundaklı HMK (Mavi)'), (FPR, 'ww_smgr', 'bel', 'Katlanır HMK (Kırmızı)'),
+            (FP, 'ww_lmg', 'bel', 'Hafif Makineli Tüfek (Mavi)'), (FPR, 'ww_mg', 'bel', 'Ağır Makineli (Kırmızı)'), (FP, 'ww_sniper', 'bel', 'Dürbünlü Tüfek'), (FP, 'ww_pistol', 'bel', 'Tabanca'),
+            (FP, 'ww_nade', 'bel', 'Saplı El Bombası'), (FP, 'ww_semi', 'doldurma', 'Yarı Otomatik · en-bloc klips'), (FPR, 'ww_bolt', 'doldurma', 'Sürgülü · şerit klips'), (FPR, 'ww_mg', 'doldurma', 'Ağır Makineli · tambur')]
+    sec2 = [(FPR, 'ww_bolt', 'nisan', 'Sürgülü · gez-arpacık'), (FP, 'ww_semi', 'nisan', 'Yarı Otomatik · dioptri'), (FP, 'ww_smgb', 'nisan', 'Kundaklı HMK'), (FPR, 'ww_smgr', 'nisan', 'Katlanır HMK'),
+            (FP, 'ww_lmg', 'nisan', 'Hafif Makineli Tüfek'), (FPR, 'ww_mg', 'nisan', 'Ağır Makineli'), (FP, 'ww_sniper', 'nisan', 'Dürbünlü · 4× eski tip'), (FP, 'ww_pistol', 'nisan', 'Tabanca')]
+    out = Image.new('RGB', (W, side.height + 100 + 5 * th), (22, 24, 25))
     out.paste(side, (0, 0))
     d = ImageDraw.Draw(out)
     y = side.height + 10
-    d.text((24, y), 'BİRİNCİ ŞAHIS · BEL (oyun içi, Batı Cephesi, Mavi kolu)', font=f(24), fill=(232, 228, 216)); y += 40
-    for i, id_ in enumerate(hip):
-        out.paste(tile(f'{FP}/{id_}-bel.png', tw, th, NAMES[id_]), ((i % cols) * tw, y + (i // cols) * th))
-    y += 2 * th + 10
-    d.text((24, y), 'NİŞAN (demir gez-arpacık, dürbün) · KLİPS DOLDURMA', font=f(24), fill=(232, 228, 216)); y += 40
-    for i, (id_, k) in enumerate(ads):
-        out.paste(tile(f'{FP}/{id_}-{k}.png', tw, th, NAMES[id_] + (' · nişan' if k == 'nisan' else ' · klips doldurma')), ((i % cols) * tw, y + (i // cols) * th))
+    d.text((24, y), 'BİRİNCİ ŞAHIS · BEL + DOLDURMA (oyun içi, Batı Cephesi; koyu deri eldiven, ceket kolu)', font=f(24), fill=(232, 228, 216)); y += 40
+    for i, (D, id_, k, lab) in enumerate(sec1):
+        out.paste(tile(f'{D}/{id_}-{k}.png', tw, th, lab), ((i % cols) * tw, y + (i // cols) * th))
+    y += 3 * th + 10
+    d.text((24, y), 'NİŞAN (demir gez-arpacık hizası ≤ 0,5 px, dürbün)', font=f(24), fill=(232, 228, 216)); y += 40
+    for i, (D, id_, k, lab) in enumerate(sec2):
+        out.paste(tile(f'{D}/{id_}-{k}.png', tw, th, lab), ((i % cols) * tw, y + (i // cols) * th))
     out = out.crop((0, 0, W, y + 2 * th))
     out.save(f'{OUT}/a-silahlar.png'); print('a-silahlar.png', out.size)
 
@@ -44,13 +46,13 @@ def sheet_chars():
     a2, b2 = crop(a), crop(b)
     out = Image.new('RGB', (W, 70 + a2.height + 50 + b2.height + 50 + th), (22, 24, 25))
     d = ImageDraw.Draw(out)
-    d.text((24, 14), 'CEPHE · İKİ ORDU (TASLAK)', font=f(32), fill=(240, 236, 224))
+    d.text((24, 14), 'CEPHE · İKİ ORDU', font=f(32), fill=(240, 236, 224))
     d.text((24, 50), 'Mavi: yeşil-haki ceket + yuvarlak çelik miğfer + kanvas tozluk · Kırmızı: gri ceket + kenarlı çelik miğfer + uzun çizme · nişan / sembol / bayrak yok, takım = kol bandı', font=f(17), fill=(200, 200, 190))
     y = 78
     out.paste(a2, (0, y)); y += a2.height + 8
     d.text((24, y), 'SINIFLAR (sıhhiye · keskin nişancı · ağır destek · istihkam)', font=f(22), fill=(232, 228, 216)); y += 38
     out.paste(b2, (0, y)); y += b2.height + 8
-    d.text((24, y), 'BİRİNCİ ŞAHIS KOL (ceket kolu + çıplak el, takım kol bandı 3. şahısta)', font=f(22), fill=(232, 228, 216)); y += 38
+    d.text((24, y), 'BİRİNCİ ŞAHIS KOL (üniforma renginde kol + koyu deri eldiven; takım kol bandı 3. şahısta)', font=f(22), fill=(232, 228, 216)); y += 38
     out = out.crop((0, 0, W, y + th))
     out.paste(tile(f'{FP}/ww_semi-bel.png', tw, th, 'Mavi · Yarı Otomatik Tüfek'), (0, y))
     out.paste(tile(f'{FPR}/ww_bolt-bel.png', tw, th, 'Kırmızı · Sürgülü Tüfek'), (tw, y))

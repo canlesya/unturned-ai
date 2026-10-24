@@ -487,7 +487,7 @@ Object.assign(WSTATS, {
   ww_sniper: {
     name: 'Dürbünlü Tüfek', kind: 'gun', slot: 'primary', desc: 'Uzun eski tip dürbünlü sürgülü tüfek (4×).', stats: { dmg: 100, range: 100, rate: 12, control: 60, mobility: 50 },
     auto: false, bolt: true, dmg: 104, rpm: 46, mag: 5, reserve: 30, reload: 2.8, reloadStyle: 'clip', equip: 0.35,
-    hip: 0.032, ads: 0.0002, kickV: 0.05, kickH: 0.006, range: [150, 300], minMul: 0.85, zoom: 4, move: 0.92,
+    hip: 0.032, noscope: 0.09, ads: 0.0002, kickV: 0.05, kickH: 0.006, range: [150, 300], minMul: 0.85, zoom: 4, move: 0.92,
     sight: [0, 0.104, 0.115], dist: 0.042, sound: 'ww_bolt', scope: true, tracer: '#e8dcc0', adsTime: 0.26, era: 'ww2',
   },
   ww_semi: {

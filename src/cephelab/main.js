@@ -26,10 +26,10 @@ const setTitle = (t, s) => { document.getElementById('title').innerHTML = `${t}<
 let camera;
 
 if (VIEW === 'weapons') {
-  setTitle('Cephe · 1940\'lar silahları', 'Taslak · S3 düşük poligon dil · ahşap kundak + mavi çelik · demir gez-arpacık');
-  const ids = (Q.get('ids') || 'ww_bolt,ww_semi,ww_smgb,ww_smgr,ww_lmg,ww_sniper,ww_pistol,ww_nade').split(',');
+  setTitle('Cephe · 1940\'lar silahları', 'S3 düşük poligon dil · ahşap kundak + mavi çelik · demir gez-arpacık / eski tip dürbün · Mavi BAR tarzı, Kırmızı MG42 tarzı ağır destek');
+  const ids = (Q.get('ids') || 'ww_bolt,ww_semi,ww_smgb,ww_smgr,ww_lmg,ww_mg,ww_sniper,ww_pistol,ww_nade,_').split(',');
   camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 50);
-  const cols = 2, rows = Math.ceil(ids.length / cols), cw = 1.5, rh = 0.5;
+  const cols = 2, rows = Math.ceil(ids.length / cols), cw = 1.5, rh = 0.44;
   const W = cols * cw, H = rows * rh + 0.18, asp = innerWidth / innerHeight;
   const half = Math.max(W / 2, H / 2 * asp) * 1.0;
   Object.assign(camera, { left: -half, right: half, top: half / asp, bottom: -half / asp }); camera.updateProjectionMatrix();
@@ -37,6 +37,7 @@ if (VIEW === 'weapons') {
   const back = new THREE.Mesh(new THREE.PlaneGeometry(20, 20), new THREE.MeshStandardMaterial({ color: '#2b2e2f', roughness: 1 })); back.rotation.y = Math.PI / 2; back.position.x = -1.2; scene.add(back);
   sun.position.set(6, 5, 3);
   ids.forEach((id, i) => {
+    if (id === '_') return;
     const c = i % cols, r = Math.floor(i / cols);
     const g = createWeapon(id, 'iron', false);
     const st = WSTATS[id], pist = id === 'ww_pistol' || id === 'ww_nade';
@@ -55,7 +56,7 @@ if (VIEW === 'weapons') {
   });
 } else if (VIEW === 'chars') {
   const set = Q.get('set') || 'views';
-  setTitle('Cephe · iki ordu', 'Taslak · Mavi: yeşil-haki + yuvarlak miğfer · Kırmızı: gri + kenarlı miğfer · nişan / sembol / bayrak yok, takım = kol bandı');
+  setTitle('Cephe · iki ordu', 'Mavi: yeşil-haki + yuvarlak miğfer · Kırmızı: gri + kenarlı miğfer · nişan / sembol / bayrak yok, takım = kol bandı');
   camera = new THREE.PerspectiveCamera(24, innerWidth / innerHeight, 0.1, 80);
   camera.position.set(0, 1.9, set === 'one' ? 5.2 : set === 'cls' ? 18.5 : 16.5); camera.lookAt(0, 1.05, 0);
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 20), new THREE.MeshStandardMaterial({ color: '#4b4436', roughness: 1 })); floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
@@ -65,7 +66,7 @@ if (VIEW === 'weapons') {
     : [['blue', 'medic', 2.7], ['blue', 'sniper', 2.7], ['blue', 'heavy', 2.7], ['blue', 'engineer', 2.7], ['red', 'medic', 3.6], ['red', 'sniper', 3.6], ['red', 'heavy', 3.6], ['red', 'engineer', 3.6]];
   const VN = { [Math.PI]: 'önden', [-Math.PI * 0.75]: '¾ önden', [-Math.PI / 2]: 'yandan', 0: 'arkadan', 2.7: '', 3.6: '' };
   const CN = { assault: 'Tüfekçi', medic: 'Sıhhiye', sniper: 'Keskin nişancı', heavy: 'Ağır destek', engineer: 'İstihkam' };
-  const WPN = { assault: { blue: 'ww_semi', red: 'ww_bolt' }, medic: { blue: 'ww_smgb', red: 'ww_smgr' }, sniper: { blue: 'ww_sniper', red: 'ww_sniper' }, heavy: { blue: 'ww_lmg', red: 'ww_lmg' }, engineer: { blue: 'ww_smgb', red: 'ww_smgr' } };
+  const WPN = { assault: { blue: 'ww_semi', red: 'ww_bolt' }, medic: { blue: 'ww_smgb', red: 'ww_smgr' }, sniper: { blue: 'ww_sniper', red: 'ww_sniper' }, heavy: { blue: 'ww_lmg', red: 'ww_mg' }, engineer: { blue: 'ww_smgb', red: 'ww_smgr' } };
   rows.forEach(([team, cls, ry], i) => {
     const ch = createCharacter({ team, cls, skinIndex: i + 1, weapon: WPN[cls][team], optic: 'iron', outfit: 'ww2' });
     const x = (i - (rows.length - 1) / 2) * (set === 'one' ? 1.6 : set === 'cls' ? 1.62 : 1.42);
@@ -77,7 +78,7 @@ if (VIEW === 'weapons') {
   });
   sun.position.set(3, 8, 8);
 } else {
-  setTitle('Batı Cephesi · yüzey örnekleri', 'Taslak · dünya koordinatlı prosedürel gölgelendirici (doku dosyası / UV yok, çizim çağrısı artmaz)');
+  setTitle('Batı Cephesi · yüzey örnekleri', 'Dünya koordinatlı prosedürel gölgelendirici (doku dosyası / UV yok, çizim çağrısı artmaz)');
   camera = new THREE.PerspectiveCamera(30, innerWidth / innerHeight, 0.1, 80);
   camera.position.set(0, 7.0, 13.2); camera.lookAt(0, 0.5, 0);
   scene.background = new THREE.Color('#2a2c2c');

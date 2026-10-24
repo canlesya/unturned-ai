@@ -28,7 +28,7 @@ export const FRONT_OBJECTIVES = [
   { id: 'D', name: 'Köy Meydanı', label: 'D', x: 16, z: -6, r: 10 },
   { id: 'E', name: 'Ambar', label: 'E', x: 30, z: -64, r: 10 },
   { id: 'F', name: 'Orman Kulübesi', label: 'F', x: -36, z: -62, r: 10 },
-  { id: 'G', name: 'Komuta Sığınağı', label: 'G', x: -8, z: -115.5, r: 9 },
+  { id: 'G', name: 'Komuta Sığınağı', label: 'G', x: -12, z: -111, r: 9 },      // sığınağın önündeki arka bölme + bağlantı (saldıran siperden alabilir)
   { id: 'H', name: 'Batarya', label: 'H', x: 42, z: -130, r: 10 },
 ];
 export const FRONT_SECTORS = [{ objs: ['A', 'B'] }, { objs: ['C', 'D'] }, { objs: ['E', 'F'] }, { objs: ['G', 'H'] }];
@@ -562,7 +562,7 @@ export function buildCephe() {
   gunPit(32, -130, 'b1'); gunPit(42, -131, 'b2'); gunPit(52, -130, 'b3');
   b.obj('kamuflaj', () => { for (const x of [32, 42, 52]) { for (const s of [-1, 1]) for (const dz of [-3.4, 3.4]) b.box(x + s * 3.4, gy(x + s * 3.4, -130 + dz) - 0.05, -130 + dz, 0.12, 2.9, 0.12, TIMBER, kk(FK.TIMBER)); b.box(x, 2.8, -130, 7.6, 0.06, 7.6, '#5a6146', nk(FK.LEAF)); b.softCover(x, 2.8, -130, 2.6); } });
   for (const [x, z] of [[37, -136], [47, -136], [36.2, -136.9]]) b.box(x, gy(x, z) - 0.03, z, 1.0, 0.6, 0.6, '#55603f', kk(FK.PLANK));
-  co('Batarya', 42, -130, true); co('Komuta Sığınağı', -8, -119, true); co('Ana Hat', 0, -104); co('Yedek Hat', 0, -138);
+  co('Batarya', 42, -130, true); co('Komuta Sığınağı', -10, -116, true); co('Ana Hat', 0, -104); co('Yedek Hat', 0, -138);
 
   // ───────── 11. ölüm bölgesi / tarla eşyaları: tank enkazı, kamyon, kirpiler, sandık / varil, makineli yuvaları ─────────
   const tankWreck = (x, z, ry, name) => b.obj('tank:' + name, () => b.with(x, gy(x, z) - 0.25, z, ry ? P2 : 0, () => {      // gövde eksen hizalı (çarpışma = görünen gövde); kule çarpık, yalnız çekirdeği çarpışır

@@ -11,7 +11,7 @@ import { ATK, DEF } from './front.js';
 //             · flank (ipucu kanat rotası, son durak noktanın yanı) · over (keskin nişancı: noktayı gören yüksek / uzak nokta, oyunun perch'ü).
 // Harita bağımsız: hint verisi yoksa (başka cephe haritası) savunan noktaların çevresinde, saldıran doğrudan noktaya gider.
 export const FR_BOT = {
-  roleT: 1.5, postFrac: { easy: 0.45, normal: 0.55, hard: 0.6 }, flankFrac: 0.2, coverP: 0.7, coverStop: [1.4, 3.2],
+  roleT: 1.5, postFrac: { easy: 0.5, normal: 0.65, hard: 0.7 }, flankFrac: 0.2, coverP: 0.7, coverStop: [1.4, 3.2],
   peekUp: [2.6, 4.4], peekDown: [0.9, 1.8], fireCrouch: [0.6, 1.3], hitCrouch: [1.0, 1.8], bias: 14, atkPush: 0.8,
 };
 const ANCHOR = new Set(['post']);
@@ -39,7 +39,7 @@ class FrPlan {
     const set = (b, r) => { if (b.frRole !== r) { b.frRole = r; b.frPost = null; b.frRoute = null; b.goalT = 0; } };
     if (team === DEF) {
       const act = this.F.active(), threat = act.some((o) => o.owner !== DEF || o.p > -0.98);
-      const nPost = Math.round(n * (FR_BOT.postFrac[b0dk(bots[0])] ?? 0.55) * (threat ? 0.8 : 1));
+      const nPost = Math.round(n * (FR_BOT.postFrac[b0dk(bots[0])] ?? 0.55) * (threat ? 0.85 : 1));
       // mevzisi olan / keskin nişancı / ağır önce postta kalır (rol değiştirme direnci)
       bots.sort((a, b) => postKey(b) - postKey(a));
       bots.forEach((b, i) => set(b, i < nPost ? 'post' : 'guard'));
@@ -113,7 +113,10 @@ class FrPlan {
     }
     const o = this.pickObj(b); b.frObj = o;
     if (!o) return null;
-    if (role === 'over' && g.perch) { const pp = g.perch(o, s.team); if (pp) return { x: pp.x, z: pp.z, t: rand(20, 35), perch: true }; }
+    if (role === 'over' && g.perch) {                                               // nişancı: noktayı gören yüksek / uzak nokta (oyunun perch'ü) — yalnız ulaşılabilirse
+      const pp = g.perch(o, s.team), cm = g.nav.comps?.(0.7), i0 = g.nav.nearestFree(s.pos.x, s.pos.z, 2), i1 = pp ? g.nav.nearestFree(pp.x, pp.z, 2) : -1;
+      if (pp && cm && i0 >= 0 && i1 >= 0 && cm[i0] === cm[i1]) return { x: pp.x, z: pp.z, t: rand(20, 35), perch: true };
+    }
     if (role === 'flank') {
       if (!b.frRoute) { const R = this.hints.flank || []; if (R.length) { const best = R.reduce((m, r) => (Math.hypot(r[r.length - 1][0] - o.x, r[r.length - 1][1] - o.z) < Math.hypot(m[m.length - 1][0] - o.x, m[m.length - 1][1] - o.z) ? r : m)); b.frRoute = best.map((p) => p.slice()); b.frRouteI = nearestIdx(best, s.pos); } }
       if (b.frRoute && b.frRouteI < b.frRoute.length) { const [x, z] = b.frRoute[b.frRouteI++]; return { x, z, t: 12, flank: true }; }

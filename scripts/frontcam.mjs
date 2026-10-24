@@ -15,8 +15,8 @@ export const CAMS = [
   ['g-olum-bolgesi', [8, 1.6, 76], [10, 0.6, 46], 70],
   ['g-tabya', [-37, 1.62, 39.6], [-37, 1.0, 70], 70],
   ['g-koy-yolu', [4, 1.6, 15], [3, 1.4, -20], 70],
-  ['g-kilise', [-6, 1.6, 4], [-22, 4.5, -10], 64],
-  ['g-kule', [-22, 10.0, -1.4], [-12, 0, 40], 70],
+  ['g-kilise', [-6, 1.7, 12], [-22, 5.5, -8], 62],
+  ['g-kule', [-22, 10.02, -0.9], [-20, 2, 60], 74],
   ['g-cukur-yol', [-21, 0.02, -40.4], [10, -0.4, -39.6], 72],
   ['g-ambar', [18, 1.6, -38], [30, 2.5, -64], 64],
   ['g-orman', [-24, 1.6, -50], [-37, 1.5, -63], 64],
@@ -37,7 +37,7 @@ await page.evaluate(([bots, sector]) => {
   const g = window.__game;
   if (sector) while (g.front.sector < sector) g.front.advance(true);
   if (!bots) { for (const s of g.soldiers) if (s !== g.playerSoldier) { s.brain = null; s.alive = false; s.respawnT = 1e9; s.model.root.visible = false; } g.brains.length = 0; }
-  g.timeLeft = 900;
+  g.timeLeft = 900; if (g.playerSoldier.model) g.playerSoldier.model.root.visible = false;
   g.hud.root.style.display = 'none'; g.player.vm.render = () => {};
   const c = g.camera, P = Object.getPrototypeOf(g), orig = P.render;
   P.render = function () { if (this._cam) { const [p, t, f] = this._cam; c.position.set(...p); c.lookAt(...t); c.fov = f; c.far = 900; c.updateProjectionMatrix(); } orig.call(this); };
