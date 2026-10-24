@@ -70,13 +70,25 @@ function beginOnline({ net, welcome, name: name0, pw }) {
 }
 
 // URL ile: /?online=new (oda kur) ya da /?online=ABCD (katıl)  &name=Ad [&server=ws://host:8787] [&map=&per=&tod=&weather=&type=&cls=&team=]
+// Davet linki (/?online=KOD, ad yok): bağlanmadan önce yalnız takma ad sorulur (12.133; hesaplı oyuncu sorulmaz)
+function askNick(def) {
+  return new Promise((res) => {
+    loading.style.display = 'flex';
+    loading.innerHTML = `<div class="lg">WAR<b>BYTE</b></div><form class="nk"><div class="lm">${t('menu.nick.title')}</div><input id="nkName" maxlength="16" autocomplete="nickname" autocapitalize="off" autocorrect="off" spellcheck="false" enterkeyhint="go" placeholder="${t('menu.nick.ph')}"><button type="submit">${t('menu.ol.join')}</button></form>`;
+    const f = loading.querySelector('form'), inp = f.querySelector('input');
+    inp.value = def; setTimeout(() => { inp.focus(); inp.select(); }, 50);
+    f.onsubmit = (e) => { e.preventDefault(); const n = inp.value.trim(); if (!n) { inp.focus(); return; } patchPrefs({ name: n }); res(n); };
+  });
+}
+
 async function startOnline() {
   const p = loadPrefs();
   document.getElementById('menu').style.display = 'none';
+  const code = q.get('online');
+  const acct = getSession()?.kind === 'acct' && getSession().name;
+  const name = acct || q.get('name') || (code.toLowerCase() !== 'new' ? await askNick(getSession()?.name || (p.name === 'Sen' || p.name === 'You' ? '' : p.name) || '') : p.name) || 'Oyuncu';      // hesaplı: sunucu da jetondan hesabın adını kullanır
   showLoading();
   const url = q.get('server') || p.server || defaultServerUrl();
-  const name = (getSession()?.kind === 'acct' && getSession().name) || q.get('name') || p.name || 'Oyuncu';      // hesaplı: sunucu da jetondan hesabın adını kullanır
-  const code = q.get('online');
   const cls = q.get('cls') || p.cls || 'assault', loadout = (p.loadouts && p.loadouts[cls]) || {};
   let pw = q.get('pw') || '';
   if (!pw && code.toLowerCase() !== 'new') { try { pw = sessionStorage.getItem('bf_pw_' + code.toUpperCase()) || ''; } catch (e) { /* yok say */ } }

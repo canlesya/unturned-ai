@@ -1230,3 +1230,10 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 - Bıçak: gövde + ağız yan yana iki parça (aynı kalınlık, bitişik kenar), oluk / tırtıl kaldırıldı. Satır: sırt / gövde / ağız yan yana üç parça. Tomahawk: baş + ağız yan yana, hafifletme deliği gerçek delik. 3. şahıs (lod) tek parça.
 - Yumruk (fist): başparmak kutusu kaldırıldı, sade kutu yumruk (Unturned).
 - Ölçüm: fphands2 bıçak / satır / tomahawk yakın kareleri, weaponaudit, vite build.
+
+### 12.133 Davet linki: takma ad sor → doğrudan odaya
+- Kullanıcı: "arkadaşlarıma atacağım link: çevrim içi, Çöl Geçidi, gündüz, botlar kapalı, hava açık, 10 kişilik ölüm maçı, maç bitince tekrar başlasın, sonsuza kadar giden oda; linke tıklayan nickini yazıp katılsın".
+- Oda: canlı sunucuda resmi oda (data/official.json): type dm, perTeam 10, time 600, bots false, rotation tek [colgecidi / day / clear], vote false (oylama yok, aynı ayarla yeni maç), idleMin 0. Resmi oda hiç kapanmaz.
+- İstemci (main.js askNick): /?online=KOD adresinde ad yoksa (hesaplı oyuncu hariç) yükleme ekranında takma ad kutusu + Katıl; ad tercihlere yazılır, katılınca adres çubuğuna &name= eklenir (yenileyince tekrar sormaz).
+- HUD: herkes tek modlarda (ffa) sınıf satırında çevrilmemiş "hud.team.f0" yerine yalnız sınıf adı.
+- Ölçüm: scripts/invitelink.mjs (masaüstü + Pixel 7, iki oyuncu, botsuz, ayarlar, WAIT=1 maç sonu yeni maç) OK.

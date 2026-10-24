@@ -777,7 +777,7 @@ export class Hud {
     $('hpfill').style.width = clamp((p.hp / p.maxHp) * 100, 0, 100) + '%';
     $('hpfill').style.background = p.hp < 30 ? 'linear-gradient(90deg,#d63a2e,#f06a4a)' : 'linear-gradient(90deg,#3ecf5b,#7be06f)';
     const ztk = p.def.zombie && !p.boss ? ZT_ORDER.find((z) => ZTYPES[z] === p.zt) : null;
-    setH($('clsname'), EN(g.mode.gungame ? t('hud.ggLevel', { n: p.ggLevel + 1, m: g.mode.killLimit }) : g.mode.paintball ? t('hud.pbElim', { n: p.kills, m: g.mode.killLimit }) : g.mode.infection ? (p.def.zombie ? `${p.boss ? 'BOSS' : className('zombie') + ' · ' + ztName(ztk || 'walker')} · ${'♥'.repeat(Math.max(0, p.zLives))}` : `${className(p.cls)} · ${t('hud.humans')}`) : `${className(p.cls)} · ${teamName(p.team)}`));
+    setH($('clsname'), EN(g.mode.gungame ? t('hud.ggLevel', { n: p.ggLevel + 1, m: g.mode.killLimit }) : g.mode.paintball ? t('hud.pbElim', { n: p.kills, m: g.mode.killLimit }) : g.mode.infection ? (p.def.zombie ? `${p.boss ? 'BOSS' : className('zombie') + ' · ' + ztName(ztk || 'walker')} · ${'♥'.repeat(Math.max(0, p.zLives))}` : `${className(p.cls)} · ${t('hud.humans')}`) : g.ffa ? className(p.cls) : `${className(p.cls)} · ${teamName(p.team)}`));      // herkes tek modlarda takım adı yok (f0… çevrilmiyordu)
     const wn = wName(it.id);
     setH($('wname'), EN(p.reloadT > 0 ? `${wn} · ${t('hud.reloading')}` : p.useT > 0 ? `${wn} · ${t('hud.using')}` : wn));
     $('mag').textContent = it.mag;

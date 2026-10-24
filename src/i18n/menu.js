@@ -77,7 +77,7 @@ addStrings('tr', {
   'menu.ed.hint1': 'Editör haritayı botsuz ve uçarak açar; panel sağda hazır gelir. Nişangâhla bakıp <kbd>sol tık</kbd> seç, <kbd>Delete</kbd> sil, ok tuşları / <kbd>PgUp</kbd> <kbd>PgDn</kbd> taşı, <kbd>+</kbd> <kbd>−</kbd> boyut, <kbd>Backspace</kbd> geri al. Düğmeler için <kbd>Esc</kbd>.',
   'menu.ed.hint2': 'Düzenlemeler <b>kaydedilmez</b>: yalnız editörde görünür, sayfayı yenileyince (F5) hepsi silinir. Maçlarda harita her zaman orijinal hâliyle yüklenir. Kalıcı olmasını istediklerini panelden <b>Düzenlemeleri kopyala</b> ile bana gönder, haritaya işleyeyim.',
   'menu.ed.confirm': '{m}: yaptığın tüm düzenlemeler silinsin mi?',
-  'menu.load.loading': 'Yükleniyor', 'menu.load.online': 'Sunucuya bağlanılıyor', 'menu.load.error': 'Hata: {m}', 'menu.load.noConnect': 'Bağlanılamadı: {m}', 'menu.load.back': 'Ana menüye dön', 'menu.load.editor': 'Harita Editörü',
+  'menu.nick.title': 'Takma adını yaz', 'menu.nick.ph': 'Takma ad', 'menu.load.loading': 'Yükleniyor', 'menu.load.online': 'Sunucuya bağlanılıyor', 'menu.load.error': 'Hata: {m}', 'menu.load.noConnect': 'Bağlanılamadı: {m}', 'menu.load.back': 'Ana menüye dön', 'menu.load.editor': 'Harita Editörü',
 });
 
 addStrings('en', {
@@ -156,5 +156,5 @@ addStrings('en', {
   'menu.ed.hint1': 'The editor opens the map without bots, in flight; the panel is ready on the right. Aim at an object and <kbd>left click</kbd> to select, <kbd>Delete</kbd> to delete, arrow keys / <kbd>PgUp</kbd> <kbd>PgDn</kbd> to move, <kbd>+</kbd> <kbd>−</kbd> to resize, <kbd>Backspace</kbd> to undo. <kbd>Esc</kbd> for the buttons.',
   'menu.ed.hint2': 'Edits are <b>not saved</b>: they only show in the editor and vanish on reload (F5). Matches always load the original map. Send the ones you want to keep with <b>Copy edits</b> in the panel and they get baked into the map.',
   'menu.ed.confirm': '{m}: delete all your edits?',
-  'menu.load.loading': 'Loading', 'menu.load.online': 'Connecting to server', 'menu.load.error': 'Error: {m}', 'menu.load.noConnect': 'Could not connect: {m}', 'menu.load.back': 'Back to main menu', 'menu.load.editor': 'Map Editor',
+  'menu.nick.title': 'Pick a nickname', 'menu.nick.ph': 'Nickname', 'menu.load.loading': 'Loading', 'menu.load.online': 'Connecting to server', 'menu.load.error': 'Error: {m}', 'menu.load.noConnect': 'Could not connect: {m}', 'menu.load.back': 'Back to main menu', 'menu.load.editor': 'Map Editor',
 });
