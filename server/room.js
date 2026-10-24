@@ -356,7 +356,7 @@ export class Room {
     const s = c.h.s;
     if (Array.isArray(m.tp)) { s.pos.set(m.tp[0], g.world.heightAt(m.tp[0], m.tp[1]), m.tp[2 - 1]); s.vel.set(0, 0, 0); g.world.settle(s); s.protT = 0; }
     if (Number.isFinite(m.hp)) s.hp = m.hp;
-    if (Array.isArray(m.item) && WSTATS[m.item[1]]) s.items[m.item[0] | 0] = { id: m.item[1], mag: 3, reserve: 0 };
+    if (Array.isArray(m.item) && WSTATS[m.item[1]]) s.items[m.item[0] | 0] = { id: m.item[1], mag: Number.isFinite(m.item[2]) ? m.item[2] : 3, reserve: Number.isFinite(m.item[3]) ? m.item[3] : 0 };   // { item:[yuva, id, şarjör?, yedek?] }
     if (m.kill) s.takeDamage(9999, s, 'body', s.pos, 'test'), s.protT = 0;
     if (Array.isArray(m.tk)) { g.tickets.blue = +m.tk[0]; g.tickets.red = +m.tk[1]; }
     if (Array.isArray(m.kl)) for (const [i, n] of m.kl) { const t = g.soldiers[i | 0]; if (t && Number.isFinite(+n)) t.kills = +n; }   // { kl:[[id,öldürme]…] } skor kutusu testi

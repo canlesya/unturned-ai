@@ -310,8 +310,20 @@ export class Soldier {
     if (st.kind === 'launcher') return this._rocket(st);
     this._shoot(st);
     this.firedSprinting = false;
-    if (it.mag <= 0 && it.reserve > 0 && !this.isPlayer) this.startReload();
-    return true;
+    return true;                                               // şarjör bittiyse otomatik değiştirme bir sonraki update'te (autoReload) başlar
+  }
+
+  // 12.140: şarjör / hazne boşsa ve yedek varsa şarjörü kendiliğinden değiştir. HER silah türü (gun + launcher: RPG, M79,
+  // pompalı 'shell', sürgülü 'bolt', paintball…) ve her durumda (tetik basılı, nişan, koşu, zıplama, silah çekildikten sonra).
+  // update() içinde çağrılır: istemci (yerel oyuncu) ve sunucu (humanTick → s.update) aynı adımda aynı kuralı uygular.
+  // Eskiden: oyuncuda hiç yoktu (boş tetiğe basınca, cd bitmişse başlıyordu → RPG / sürgülü cd'si yüzünden tık yutuluyordu),
+  // sunucuda insanlar için yalnız 'gun' türünde ateşten hemen sonra başlıyordu (istemci tahmin etmiyordu → uyuşmazlık).
+  autoReload() {
+    if (this.reloadT > 0 || this.switchT > 0 || this.swing || this.useT > 0) return;
+    if (this.game.online && !this.isPlayer) return;                     // çevrimiçi istemci: uzaktakilerin cephanesi tahmin edilmez
+    const it = this.item, k = this.stat?.kind;
+    if (!it || it.mag > 0 || it.reserve <= 0 || !(k === 'gun' || k === 'launcher')) return;
+    this.startReload();
   }
 
   muzzleWorld(out) {
@@ -610,6 +622,7 @@ export class Soldier {
         }
       }
     }
+    this.autoReload();
     if (this.useT > 0) {
       this.useT -= dt;
       if (this.useT <= 0) {
