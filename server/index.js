@@ -146,8 +146,10 @@ syncOfficial();
 // systemctl kill -s HUP warbyte: data/official.json'ı yeniden oku → değişen oda boşsa hemen, oyuncu varsa sonraki maçta (kimse düşmez)
 process.on('SIGHUP', () => { try { reloadOfficial(); syncOfficial(); console.log('[resmi] official.json yeniden yüklendi (SIGHUP)'); } catch (e) { console.error('[resmi] yeniden yükleme hatası', e); } });
 
-// boş resmi odalar idleMin dakikada bir yeni harita / gün saatine geçer (listede dönen haritalar)
-setInterval(() => { const now = Date.now(); for (const r of rooms.values()) if (r.official) r.idleTick(now); }, 1000);
+// boş resmi odalar idleMin dakikada bir yeni harita / gün saatine geçer (listede dönen haritalar).
+// Saniyede EN ÇOK BİR oda (12.137): yeni maç kurmak olay döngüsünü oda başına ~40-60 ms tutuyor; 8 boş oda aynı saniyede dönünce
+// dolu odadaki oyuncular 10 dakikada bir 170-230 ms snapshot boşluğu yaşıyordu (canlı ölçüm). Sırayla dönünce zamanları da kendiliğinden ayrışır.
+setInterval(() => { const now = Date.now(); for (const r of rooms.values()) if (r.official && r.idleTick(now)) break; }, 1000);
 
 // boş oyuncu odalarını temizle (resmi odalar hariç)
 setInterval(() => {

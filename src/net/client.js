@@ -1,11 +1,17 @@
 // İstemci ağ katmanı: bağlantı, istemci tarafı tahmin (prediction) + sunucu uzlaştırması (reconciliation),
 // uzaktaki oyuncular için snapshot interpolasyonu.
-import { SIM_HZ, SIM_DT, applyFlags, F_LEFT, F_PROT, defaultServerUrl, directServerUrl, skinsFrom } from './protocol.js';
+import { SIM_HZ, SIM_DT, SNAP_EVERY, applyFlags, F_LEFT, F_PROT, F_GROUND, defaultServerUrl, directServerUrl, skinsFrom } from './protocol.js';
 import { applyInput } from '../sim/input.js';
 import { WSTATS, ZT_ORDER } from '../game/stats.js';
 import { sanitizeBalance, useBalance } from '../game/balance.js';
 
-const INTERP_DELAY_TICKS = 6;          // 100 ms geriden göster (20 Hz snapshot'ta iki örnek arası interpolasyon)
+// Diğer oyuncuların gösterim gecikmesi (interpolasyon tamponu) ağın titremesine göre uyarlanır (12.137):
+// en az 6 adım = 100 ms (20 Hz snapshot'ta iki örnek arası), titreşimli bağlantıda en çok 15 adım = 250 ms (lag compensation HN=40 içinde).
+// Canlı ölçüm: doğrudan bağlantıda (RTT p50 30 ms) snapshot'ların %8'i en hızlı gelişe göre > 50 ms geç → sabit 100 ms tamponda saniyede ~1 donma.
+const INTERP_MIN = 6, INTERP_MAX = 15;
+const EXTRAP_MAX = 6;                  // tampon yine de boşalırsa en çok 100 ms hızla ileri tahmin (sonra son konumda bekler)
+const JIT_HALF = 4;                    // geç kalma tepesinin yarı ömrü (sn): ani gecikme hemen tamponu büyütür, sakinleşince yavaşça küçülür
+const TICK_MS = 1000 / SIM_HZ;
 const POS_EPS = 0.05;                  // tahmin–sunucu farkı bunu aşarsa düzelt (m)
 const lerp = (a, b, t) => a + (b - a) * t;
 const lerpAngle = (a, b, t) => a + (((b - a + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * t;
@@ -22,7 +28,8 @@ export class NetClient {
     this.edges = {};
     this.rt = 0;                       // son gösterilen (interpolasyon) sunucu adımı: atışta vt olarak gider
     this.rs = null;
-    this.stats = { corrections: 0, lastErr: 0, snaps: 0, rtt: 0 };
+    this.stats = { corrections: 0, lastErr: 0, snaps: 0, rtt: 0, jit: 0, delay: INTERP_MIN * TICK_MS, frames: 0, extrap: 0, hold: 0 };   // jit: geç kalma tepesi (ms) · delay: gösterim gecikmesi (ms) · extrap/hold: tampon boşaldı (ileri tahmin / bekleme) kare sayısı
+    this.jit = 0; this.idelay = INTERP_MIN; this._snapAt = null; this._iAt = null;
     this.pendingMe = null;
     this.viewOff = { x: 0, y: 0, z: 0, set(x, y, z) { this.x = x; this.y = y; this.z = z; } };            // kamera yumuşatma ofseti (Player uygular, sönümler)
     this._ping = setInterval(() => this.send({ t: 'ping', c: performance.now() }), 2000);
@@ -58,6 +65,7 @@ export class NetClient {
   resetMatch() {
     this.game = null; this.queued = null;
     this.snaps = []; this.offset = null; this.seq = 0; this.hist = []; this.edges = {}; this.rt = 0; this.rs = null; this.pendingMe = null; this.roster = null; this.stats.snaps = 0;
+    this.jit = 0; this.idelay = INTERP_MIN; this._snapAt = null; this._iAt = null;
   }
 
   attach(game) { this.game = game; for (const m of this.queued || []) this.onMessage(m); this.queued = null; }
@@ -103,7 +111,13 @@ export class NetClient {
   onSnap(m) {
     const now = performance.now();
     const cand = now - (m.k / SIM_HZ) * 1000;
-    this.offset = this.offset === null ? cand : cand < this.offset ? cand : this.offset + (cand - this.offset) * 0.02;
+    // offset = en hızlı gelişin saati: daha erken gelen anında alınır, yoksa yavaşça yükselir (rota / saat kayması). Yükselme örneği en çok 100 ms
+    // sayılır: tek bir çok geç snapshot (sekme / GC takılması) offset'i 30+ ms itip ardından geri düşürmesin (rakiplerde ileri-geri sıçrama)
+    this.offset = this.offset === null ? cand : cand < this.offset ? cand : this.offset + Math.min(cand - this.offset, 100) * 0.02;
+    // geç kalma = bu snapshot'ın en hızlı gelişe (offset) göre gecikmesi; tepe değeri hızlı yükselir, JIT_HALF yarı ömürle söner
+    const dS = this._snapAt === null ? 0 : (now - this._snapAt) / 1000; this._snapAt = now;
+    this.jit = Math.max(Math.min(cand - this.offset, INTERP_MAX * TICK_MS), this.jit * Math.pow(0.5, dS / JIT_HALF));     // tek örnek en çok 250 ms sayılır (sekme / GC takılması tamponu uzun süre şişirmesin)
+    this.stats.jit = this.jit;
     this.snaps.push({ k: m.k, s: m.s });
     if (this.snaps.length > 30) this.snaps.shift();
     this.stats.snaps++;
@@ -221,12 +235,21 @@ export class NetClient {
   interpolate(nowMs) {
     const g = this.game, S = this.snaps;
     if (!S.length || this.offset === null) return;
-    const rt = ((nowMs - this.offset) / 1000) * SIM_HZ - INTERP_DELAY_TICKS;   // gösterilecek sunucu adımı
+    // gösterim gecikmesi hedefe kayar: büyürken oynatma en çok %10 yavaşlar, küçülürken en çok %3 hızlanır (sıçrama yok)
+    const want = Math.max(INTERP_MIN, Math.min(INTERP_MAX, SNAP_EVERY + (this.jit + 5) / TICK_MS));
+    const dt = this._iAt === null ? 0 : Math.max(0, Math.min(0.1, (nowMs - this._iAt) / 1000)); this._iAt = nowMs;
+    this.idelay += Math.max(-0.03 * SIM_HZ * dt, Math.min(0.1 * SIM_HZ * dt, want - this.idelay));
+    this.stats.delay = this.idelay * TICK_MS;
+    const rt = ((nowMs - this.offset) / 1000) * SIM_HZ - this.idelay;   // gösterilecek sunucu adımı
     this.rt = rt;
     let a = S[0], b = S[0];
     for (let i = 0; i < S.length; i++) { if (S[i].k <= rt) { a = S[i]; b = S[Math.min(i + 1, S.length - 1)]; } else break; }
     if (S[0].k > rt) a = b = S[0];
     const t = b.k > a.k ? Math.max(0, Math.min(1, (rt - a.k) / (b.k - a.k))) : 0;
+    // tampon boşaldı (snapshot geç kaldı): son hızla en çok EXTRAP_MAX adım ileri tahmin; yerdeyken dikey tahmin yok
+    const last = S[S.length - 1], over = a === last ? rt - last.k : 0, ex = over > 0 ? Math.min(over, EXTRAP_MAX) / SIM_HZ : 0;
+    this.stats.frames++;
+    if (over > 0) { this.stats.extrap++; if (over > EXTRAP_MAX) this.stats.hold++; }
     const me = g.playerSoldier;
     const bi = new Map(b.s.map((p) => [p.i, p]));
     for (const pa of a.s) {
@@ -234,7 +257,8 @@ export class NetClient {
       if (!s || s === me) continue;
       const pb = bi.get(pa.i) || pa;
       this.applyState(s, pa, false);
-      s.pos.set(lerp(pa.x, pb.x, t), lerp(pa.y, pb.y, t), lerp(pa.z, pb.z, t));
+      if (ex && pa.a) s.pos.set(pa.x + pa.vx * ex, pa.y + (pa.f & F_GROUND ? 0 : pa.vy * ex), pa.z + pa.vz * ex);
+      else s.pos.set(lerp(pa.x, pb.x, t), lerp(pa.y, pb.y, t), lerp(pa.z, pb.z, t));
       s.vel.set(pa.vx, pa.vy, pa.vz);
       s.yaw = lerpAngle(pa.yw, pb.yw, t);
       s.pitch = lerp(pa.pt, pb.pt, t);
