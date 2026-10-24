@@ -93,6 +93,11 @@ addStrings('tr', {
   'hud.tm.mine': 'SENİN TAKIMIN', 'hud.tm.full': 'DOLU', 'hud.tm.join': 'KATIL', 'hud.tm.sending': 'İstek gönderiliyor…', 'hud.tm.switching': 'Geçiliyor…',
   // maç sonu (yalnız metin)
   'end.win': 'ZAFER!', 'end.lose': 'YENİLGİ', 'end.lost': 'BAĞLANTI KOPTU', 'end.lostInfo': 'Sunucuyla bağlantı kesildi.', 'end.won': '{w} kazandı.',
+  // moderasyon (12.136): atılma / ban ekranı ve giriş reddi
+  'ban.kickTitle': 'ODADAN ATILDIN', 'ban.banTitle': 'BANLANDIN', 'ban.kicked': 'Bir moderatör seni odadan attı.', 'ban.kickedAdmin': 'Yönetici seni odadan çıkardı.',
+  'ban.again': '{d} sonra tekrar girebilirsin.', 'ban.perm': 'Bu sunucudan kalıcı olarak banlandın.', 'ban.timed': 'Bu sunucudan banlandın · kalan süre: {d}.',
+  'ban.kickJoin': 'Yakın zamanda odadan atıldın · {d} sonra tekrar girebilirsin.', 'ban.reason': 'Sebep: {r}',
+  'ban.s': '{n} sn', 'ban.m': '{n} dk', 'ban.h': '{n} sa', 'ban.hm': '{n} sa {m} dk', 'ban.d': '{n} gün', 'ban.dh': '{n} gün {h} sa',
   'end.ggKnife': '{n} son silahla (bıçak) kazandı', 'end.ggTime': 'Süre doldu · {n} seviye {l} ile kazandı', 'end.dmReach': '{n} {k} öldürmeye ulaştı',
   'end.dmTime': 'Süre doldu · {n} {k} öldürmeyle kazandı', 'end.dmTie': ' (eşitlikte puanı yüksek)', 'end.infAll': 'Tüm insanlar enfekte oldu', 'end.infCured': 'Tüm zombiler iyileşti',
   'end.infSurv': '{n} insan hayatta kaldı', 'end.tdmBlue': 'Mavi takım {n} skora ulaştı', 'end.tdmRed': 'Kırmızı takım {n} skora ulaştı', 'end.time': 'Süre doldu',
@@ -163,6 +168,10 @@ addStrings('en', {
   'hud.wheel': 'SIGHT', 'hud.wheelHint': '{w} · pick with the mouse, left click', 'hud.zoom': '{n}x zoom',
   'hud.tm.mine': 'YOUR TEAM', 'hud.tm.full': 'FULL', 'hud.tm.join': 'JOIN', 'hud.tm.sending': 'Sending request…', 'hud.tm.switching': 'Switching…',
   'end.win': 'VICTORY!', 'end.lose': 'DEFEAT', 'end.lost': 'DISCONNECTED', 'end.lostInfo': 'The connection to the server was lost.', 'end.won': '{w} won.',
+  'ban.kickTitle': 'KICKED FROM ROOM', 'ban.banTitle': 'BANNED', 'ban.kicked': 'A moderator kicked you from the room.', 'ban.kickedAdmin': 'An administrator removed you from the room.',
+  'ban.again': 'You can rejoin in {d}.', 'ban.perm': 'You are permanently banned from this server.', 'ban.timed': 'You are banned from this server · time left: {d}.',
+  'ban.kickJoin': 'You were recently kicked from a room · you can rejoin in {d}.', 'ban.reason': 'Reason: {r}',
+  'ban.s': '{n} s', 'ban.m': '{n} min', 'ban.h': '{n} h', 'ban.hm': '{n} h {m} min', 'ban.d': '{n} d', 'ban.dh': '{n} d {h} h',
   'end.ggKnife': '{n} won with the final weapon (knife)', 'end.ggTime': 'Time is up · {n} won at level {l}', 'end.dmReach': '{n} reached {k} kills',
   'end.dmTime': 'Time is up · {n} won with {k} kills', 'end.dmTie': ' (higher score breaks the tie)', 'end.infAll': 'All humans were infected', 'end.infCured': 'All zombies were cured',
   'end.infSurv': '{n} humans survived', 'end.tdmBlue': 'Blue team reached {n} points', 'end.tdmRed': 'Red team reached {n} points', 'end.time': 'Time is up',
@@ -212,3 +221,22 @@ addStrings('en', {
   'class.assault.desc': 'Balanced rifle + 2 frag grenades', 'class.medic.desc': 'SMG, medkit, heals nearby allies', 'class.sniper.desc': 'One shot, long-range scope',
   'class.heavy.desc': '100-round LMG, extra health', 'class.engineer.desc': 'Shotgun + rocket launcher', 'class.zombie.desc': 'Clawed infected',
 });
+
+// Moderasyon (12.136): sunucunun ban nesnesi { k:'kick'|'ban', ms (kalan; 0 = kalıcı / atmada engel yok), r (sebep) } → okunur metin
+export function banDur(ms) {
+  const s = Math.max(1, Math.round(ms / 1000));
+  if (s < 60) return t('ban.s', { n: s });
+  const m = Math.round(s / 60);
+  if (m < 60) return t('ban.m', { n: m });
+  const h = Math.floor(m / 60), mm = m % 60;
+  if (h < 24) return mm ? t('ban.hm', { n: h, m: mm }) : t('ban.h', { n: h });
+  const d = Math.floor(h / 24), hh = h % 24;
+  return hh ? t('ban.dh', { n: d, h: hh }) : t('ban.d', { n: d });
+}
+// join: giriş reddi metni; değilse oyundayken atılma ekranının açıklaması
+export function banText(b, join = false) {
+  const r = b.r ? ' ' + t('ban.reason', { r: b.r }) : '';
+  if (b.k === 'ban') return (b.ms ? t('ban.timed', { d: banDur(b.ms) }) : t('ban.perm')) + r;
+  if (join) return t('ban.kickJoin', { d: banDur(b.ms) }) + r;
+  return t(b.adm ? 'ban.kickedAdmin' : 'ban.kicked') + (b.ms ? ' ' + t('ban.again', { d: banDur(b.ms) }) : '') + r;
+}

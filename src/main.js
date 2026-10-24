@@ -100,7 +100,7 @@ async function startOnline() {
     beginOnline({ net, welcome, name, pw });
   } catch (e) {
     loading.style.display = 'flex';
-    loading.innerHTML = `<div class="lg">WAR<b>BYTE</b></div><div class="lt">${t('menu.load.noConnect', { m: e.message })}<br><br><a href="${location.pathname}">${t('menu.load.back')}</a></div>`;
+    loading.innerHTML = `<div class="lg">WAR<b>BYTE</b></div><div class="lt">${String(e.ban ? e.message : t('menu.load.noConnect', { m: e.message })).replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c]))}<br><br><a href="${location.pathname}">${t('menu.load.back')}</a></div>`;
   }
 }
 

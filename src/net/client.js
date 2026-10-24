@@ -4,6 +4,7 @@ import { SIM_HZ, SIM_DT, applyFlags, F_LEFT, F_PROT, defaultServerUrl, directSer
 import { applyInput } from '../sim/input.js';
 import { WSTATS, ZT_ORDER } from '../game/stats.js';
 import { sanitizeBalance, useBalance } from '../game/balance.js';
+import { banText } from '../i18n/game.js';
 
 const INTERP_DELAY_TICKS = 6;          // 100 ms geriden göster (20 Hz snapshot'ta iki örnek arası interpolasyon)
 const POS_EPS = 0.05;                  // tahmin–sunucu farkı bunu aşarsa düzelt (m)
@@ -27,7 +28,7 @@ export class NetClient {
     this.viewOff = { x: 0, y: 0, z: 0, set(x, y, z) { this.x = x; this.y = y; this.z = z; } };            // kamera yumuşatma ofseti (Player uygular, sönümler)
     this._ping = setInterval(() => this.send({ t: 'ping', c: performance.now() }), 2000);
     ws.onmessage = (e) => this.onMessage(JSON.parse(e.data));
-    ws.onclose = () => { this.closed = true; clearInterval(this._ping); this.game?.onNetClosed?.(); };
+    ws.onclose = () => { this.closed = true; clearInterval(this._ping); this.game?.onNetClosed?.(this.kicked); };       // kicked: moderatör / yönetici attı ya da banladı (12.136)
   }
 
   // Sunucuya bağlan ve oda kur/katıl. Çözülen değer: { net, welcome }
@@ -44,13 +45,13 @@ export class NetClient {
       const ws = new WebSocket(url);
       const net = new NetClient(ws);
       let opened = false;
-      const fail = (msg, netFail) => { clearTimeout(timer); clearInterval(net._ping); ws.onclose = null; try { ws.close(); } catch (e) { /* yok say */ } reject(Object.assign(new Error(msg), { netFail })); };
+      const fail = (msg, netFail, ban) => { clearTimeout(timer); clearInterval(net._ping); ws.onclose = null; try { ws.close(); } catch (e) { /* yok say */ } reject(Object.assign(new Error(msg), { netFail, ban })); };
       let timer = setTimeout(() => fail('Sunucuya bağlanılamadı', !opened), ms);
       net.onWait = (m) => { clearTimeout(timer); timer = setTimeout(() => fail('Sunucuya bağlanılamadı', false), (+m.ms || 0) + 20000); o.onWait?.(m.ms); };
       ws.onerror = () => fail('Sunucuya bağlanılamadı: ' + url, !opened);
       ws.onopen = () => { opened = true; ws.send(JSON.stringify(hello)); };
       net.onWelcome = (w) => { clearTimeout(timer); resolve({ net, welcome: w }); };
-      net.onError = (msg) => fail(msg, false);
+      net.onError = (msg, ban) => fail(msg, false, ban);
     });
   }
 
@@ -67,7 +68,8 @@ export class NetClient {
   onMessage(m) {
     if (m.t === 'pong') { const r = performance.now() - m.c; this.stats.rtt = this.stats.rtt ? this.stats.rtt * 0.7 + r * 0.3 : r; return; }
     if (m.t === 'welcome') { useBalance(sanitizeBalance(m.bal)); return this.onWelcome?.(m); }       // odanın denge sürümü (admin paneli)
-    if (m.t === 'err') return this.onError?.(m.msg);
+    if (m.t === 'err') return this.onError?.(m.ban ? banText(m.ban, true) : m.msg, m.ban);                  // ban / atma engeli: oyuncunun dilinde
+    if (m.t === 'kicked') { this.kicked = m; return; }                                                 // ardından bağlantı kapanır → onNetClosed
     if (m.t === 'wait') return this.onWait?.(m);                                                      // maç sonu ekranındaki odaya girildi: yeni maçı bekle
     if (!this.game) { if (m.t !== 'restart') (this.queued ||= []).push(m); return; }
     if (m.t === 'snap') return this.onSnap(m);
