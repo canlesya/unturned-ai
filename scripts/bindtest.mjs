@@ -21,5 +21,7 @@ check(c.codes('crouch').length === 0 && c.is('prone', 'ControlLeft') && c.is('fo
 c.reset(); check(c.is('crouch', 'KeyC') && !c.is('prone', 'ControlLeft'), 'varsayılana dön');
 check(new Binds({ forward: ['Escape', 'KeyI'] }).codes('forward').join() === 'KeyI', 'Esc atanamaz');
 check(norm('ShiftRight') === 'ShiftLeft', 'sağ/sol Shift aynı');
+{ const o = new Binds(); check(o.is('holdBreath', 'ShiftLeft') && o.is('sprint', 'ShiftLeft') && o.is('holdBreath', 'ShiftRight'), 'nefes tut (12.156): varsayılan Shift, koşu ile ortak'); }
+{ const o = new Binds({ holdBreath: ['KeyK'] }); check(o.is('holdBreath', 'KeyK') && o.is('sprint', 'ShiftLeft') && o.slotOf('Digit3') === 2 && o.slotOf('Digit4') === 3, 'nefes tut özel tuş → koşu Shift kalır, 3 bıçak / 4 gadget bozulmaz'); }
 check(ACTIONS.every((a) => a.def.length >= 1 && a.def.length <= 2), 'her eylemin 1-2 varsayılan tuşu var');
 console.log(fail ? 'sonuç: HATA' : 'sonuç: OK'); process.exit(fail ? 1 : 0);
