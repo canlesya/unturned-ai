@@ -102,7 +102,7 @@ export class NetClient {
       t: 'in', q, f: inp.f, r: inp.r, l: inp.lean, s: inp.sprint ? 1 : 0, j: inp.jump ? 1 : 0, a: s.ads ? 1 : 0, w: s.cur,
       yw: +s.yaw.toFixed(4), pt: +s.pitch.toFixed(4), c: e.c | 0, p: e.p | 0, u: e.u | 0,
       fh: fireHeld ? 1 : 0, fp: e.fp | 0, rl: e.rl | 0, fm: e.fm | 0, o: e.o | 0, ab: e.ab | 0, vt: +this.rt.toFixed(2),
-      sd: s.stanceLeft ? 1 : 0,
+      sd: s.stanceLeft ? 1 : 0, tl: s.flashOn ? 1 : undefined,                      // 12.159: fener açık (yalnız açıkken yollanır; yoksa sunucu kapalı sayar)
       co: s.shotOff ? [+s.shotOff.x.toFixed(2), +s.shotOff.y.toFixed(2), +s.shotOff.z.toFixed(2)] : undefined,
     });
     const fire = !!(fireHeld || e.fp || e.rl);

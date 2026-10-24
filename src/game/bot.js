@@ -395,6 +395,7 @@ export class BotBrain {
     if (this.role === undefined) this.role = tacRole(this);
     if (this.atSpot && this.spot && Math.hypot(this.spot.x - s.pos.x, this.spot.z - s.pos.z) > 2.5) this.atSpot = false;
     this.t += dt;
+    if (g.night) { this.torchT = this.target ? 0 : (this.torchT || 0) + dt; s.flashOn = this.torchT > 2.5; }      // 12.159: gece arama / dolaşmada fener açık (uzaktan görünür olur), çatışmada söner
     this.senseT -= dt;
     if (this.senseT <= 0) { this.senseT = 0.2 + Math.random() * 0.08; this.sense(); }
     this.goalT -= dt;

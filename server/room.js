@@ -305,7 +305,7 @@ export class Room {
       c: m.c ? 1 : 0, p: m.p ? 1 : 0, u: m.u ? 1 : 0,
       fh: m.fh ? 1 : 0, fp: m.fp ? 1 : 0, rl: m.rl ? 1 : 0, fm: m.fm ? 1 : 0, o: m.o ? 1 : 0, ab: m.ab ? 1 : 0,
       vt: Number.isFinite(m.vt) ? m.vt : null,
-      sd: m.sd ? 1 : 0,
+      sd: m.sd ? 1 : 0, tl: m.tl ? 1 : 0,                                            // 12.159: fener (eski istemci yollamaz → kapalı)
       co: Array.isArray(m.co) && m.co.length === 3 && m.co.every(Number.isFinite) ? m.co.map((v) => Math.max(-4.5, Math.min(4.5, v))) : null,
     });
   }
