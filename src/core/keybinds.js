@@ -18,8 +18,9 @@ export const ACTIONS = [
   ['reload', 'Şarjör değiştir', 2, ['KeyR']],
   ['slot1', 'Ana silah', 2, ['Digit1']],
   ['slot2', 'Yedek silah', 2, ['Digit2']],
-  ['slot3', 'Gadget', 2, ['Digit3', 'KeyG']],
-  ['slot4', 'Bıçak', 2, ['Digit4', 'KeyV']],
+  // 12.140: bıçak 3, ekipman 4. Kimlikler (slot3 = gadget, slot4 = bıçak) kayıtlı tercihler bozulmasın diye aynı kaldı; yalnız varsayılan tuş + sıra değişti
+  ['slot4', 'Bıçak', 2, ['Digit3', 'KeyV']],
+  ['slot3', 'Gadget', 2, ['Digit4', 'KeyG']],
   ['fireMode', 'Ateş modu (tek → seri → otomatik)', 2, ['KeyX']],
   ['ability', 'Zombi özel gücü (Enfekte) · sağ tık da çalışır', 2, ['KeyF']],
   ['optic', 'Nişangâh değiştir (hızlı)', 2, ['KeyB']],
@@ -39,21 +40,32 @@ export const norm = (code) => (code === 'ControlRight' ? 'ControlLeft' : code ==
 // Atanamayan tuşlar
 export const RESERVED = new Set(['Escape', 'F5', 'F11', 'F12', 'MetaLeft', 'MetaRight', 'ContextMenu']);
 
+// Silah yuvası tuş sırası (12.140): 1 ana silah, 2 yedek, 3 bıçak, 4 ekipman. slotOf() bu SIRADAKİ konumu döndürür (0-3).
+export const SLOT_KEYS = ['slot1', 'slot2', 'slot4', 'slot3'];
+// konum → items indeksi. Standart yükleme items = [ana, yedek, ekipman, bıçak] (sunucu / ağ indeksi s.cur DEĞİŞMEDİ); 3 eşyalı paintball
+// [tüfek, tabanca, bıçak] ve 2 eşyalı silah oyunu [silah, bıçak] zaten doğal sırada. HUD şeridi, tuşlar, tekerlek, dokunmatik yuvalar bunu kullanır.
+export const slotOrder = (n) => (n >= 4 ? [0, 1, 3, 2] : Array.from({ length: n }, (_, i) => i));
+
 export class Binds {
   constructor(saved = {}) {
     this.map = {};
+    const own = new Set();                                  // kullanıcının kendi atadığı (varsayılandan farklı) tuşlar
     for (const a of ACTIONS) {
       const s = saved && saved[a.id];
       this.map[a.id] = Array.isArray(s) ? s.filter((c) => typeof c === 'string' && c && !RESERVED.has(c)).map(norm).slice(0, 2) : a.def.slice();
+      if (Array.isArray(s)) for (const c of this.map[a.id]) if (!a.def.includes(c)) own.add(c);
     }
+    // Varsayılanı sonradan değişen eylem (12.140: 3 ↔ 4) kullanıcının özel atadığı bir tuşla çakışırsa kullanıcınınki kalır, varsayılandan düşer.
+    // (Arayüzle atanan tuş zaten diğer eylemlerden silinip kaydedildiği için bu, değişmemiş varsayılanlarda hiçbir şey yapmaz.)
+    for (const a of ACTIONS) if (!(saved && Array.isArray(saved[a.id]))) this.map[a.id] = this.map[a.id].filter((c) => !own.has(c));
   }
   codes(action) { return this.map[action] || []; }
   is(action, code) { return this.codes(action).includes(norm(code)); }
   held(action, keys) { return this.codes(action).some((c) => keys.has(c)); }
   // bu tuş hangi eylemlere atanmış
   actionsOf(code) { code = norm(code); return ACTIONS.filter((a) => this.map[a.id].includes(code)).map((a) => a.id); }
-  // 0-3: silah yuvası eylemi (slot1..slot4); yoksa -1
-  slotOf(code) { for (let i = 0; i < 4; i++) if (this.is('slot' + (i + 1), code)) return i; return -1; }
+  // 0-3: silah yuvası tuşunun KONUMU (SLOT_KEYS sırası: 1 ana, 2 yedek, 3 bıçak, 4 ekipman); yoksa -1. items indeksi: slotOrder(n)[konum]
+  slotOf(code) { for (let i = 0; i < 4; i++) if (this.is(SLOT_KEYS[i], code)) return i; return -1; }
   // slot: 0 ya da 1. Başka eylemdeki aynı tuş oradan alınır; döner: alınan eylemin id'si ya da null
   set(action, slot, code) {
     code = norm(code);

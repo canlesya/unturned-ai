@@ -1,7 +1,7 @@
 import { InGameSettings } from './ingameSettings.js';
 import { WSTATS, CLASS_DEFS, ZTYPES, ZT_ORDER } from './stats.js';
-import { clamp, adsEase, ADS_HUD } from './util.js';
-import { codeLabel } from '../core/keybinds.js';
+import { clamp, adsEase, ADS_HUD, SCOPE_ON } from './util.js';
+import { codeLabel, slotOrder, SLOT_KEYS } from '../core/keybinds.js';
 import { TUNE } from './balance.js';
 import { ffaRanking, ffaMetric } from './match.js';
 import { ScreenPaint } from './screenPaint.js';
@@ -17,6 +17,7 @@ const EN = (s) => String(s).replace(/Paintball/g, '<span lang="en">Paintball</sp
 const setH = (el, h) => { if (el._h !== h) { el._h = h; el.innerHTML = h; } };     // yalnız değişince yaz (her kare)
 const NADE_SVG = '<svg class="hsi nd" viewBox="0 0 16 16"><ellipse cx="7.5" cy="10" rx="4.6" ry="5.2" fill="currentColor"/><rect x="5.6" y="2.6" width="4" height="2.6" fill="currentColor"/><path d="M9.6 3.6h3.2v3.4" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="12.8" cy="8.4" r="1.3" fill="none" stroke="currentColor" stroke-width="1.1"/></svg>';     // 12.144: el bombası öldürmesi
 const HS_SVG = '<svg class="hsi" viewBox="0 0 16 16"><circle cx="8" cy="7" r="4.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 0v4M8 10v6M0 7h4M12 7h4" stroke="currentColor" stroke-width="1.6"/></svg>';
+const FALL_SVG = '<svg class="fli" viewBox="0 0 16 16"><path d="M8 1v9M4.2 6.6 8 10.4l3.8-3.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 14.2h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';   // düşme (12.143): aşağı ok + zemin
 const CSS = `
 #hud{position:fixed;inset:0;pointer-events:none;font-family:Bahnschrift,'Rajdhani','Arial Narrow','Segoe UI',system-ui,sans-serif;color:#fff;user-select:none;z-index:5;letter-spacing:.5px;
   --acc:#ff8a1f;--acc2:#ffb347;--pan:rgba(9,13,19,.74);--pan2:rgba(14,19,27,.9);--ln:rgba(255,255,255,.12);--dim:rgba(255,255,255,.62)}
@@ -57,6 +58,7 @@ const CSS = `
 .kf .b{color:#8cc4ff}.kf .r{color:#ff9a88}
 .kf .w{font-size:11px;margin:0 9px;color:#ffe2bd;letter-spacing:1px;padding:1px 7px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);text-transform:uppercase;display:inline-flex;align-items:center;gap:5px}
 .kf .w .hsi{width:12px;height:12px;color:#ff6a4a}.kf .w .nd{color:#c9d68a}
+.kf .w .fli{width:12px;height:12px;color:#ffb36a}
 @keyframes kf{0%{opacity:0;transform:translateX(24px)}5%{opacity:1;transform:none}85%{opacity:1}100%{opacity:0}}
 /* nişan */
 #cross{position:absolute;left:50%;top:50%;width:0;height:0}
@@ -143,18 +145,18 @@ body.mob #pbret .rg{border-width:3px}body.mob #pbret .dt{width:6px;height:6px;le
 body.mob #pbdead{font-size:48px;-webkit-text-stroke:2px #10131a}
 .toast.pk{font-size:21px;letter-spacing:2px;border-color:currentColor;background:rgba(9,13,19,.8)}
 #advig{position:absolute;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,transparent 45%,rgba(0,0,0,.55) 100%)}
-#scope{position:absolute;inset:0;display:none}
-#scope .vg{position:absolute;left:50%;top:50%;width:66vh;height:66vh;margin:-33vh 0 0 -33vh;border-radius:50%;background:radial-gradient(circle,transparent 62%,rgba(0,0,0,.42) 100%)}   /* mercek içi hafif vinyet */
+#scope{position:absolute;inset:-9vh -9vw;display:none;transform-origin:50% 50%}   /* 12.153: ekrandan taşkın (sürgüde halka kayınca kenar açılmasın) */
+#scope .vg{position:absolute;left:50%;top:50%;width:68vh;height:68vh;margin:-34vh 0 0 -34vh;border-radius:50%;background:radial-gradient(circle,transparent 70%,rgba(0,0,0,.38) 100%)}   /* mercek içi hafif vinyet */
 #scopeblk{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none}   /* dürbüne girerken / çıkarken kısa kararma (göz merceğe yaklaşır) */
-#scope .bl{position:absolute;inset:0;backdrop-filter:blur(9px) brightness(.5);-webkit-backdrop-filter:blur(9px) brightness(.5);
-  -webkit-mask-image:radial-gradient(circle at center,transparent 36vh,#000 36.3vh);mask-image:radial-gradient(circle at center,transparent 36vh,#000 36.3vh)}
-#scope .rg{position:absolute;left:50%;top:50%;width:72vh;height:72vh;margin:-36vh 0 0 -36vh;border-radius:50%;border:3.4vh solid #1c1e21;box-sizing:border-box;box-shadow:inset 0 0 1.2vh #000a}
-#scope svg{position:absolute;left:50%;top:50%;width:65.2vh;height:65.2vh;margin:-32.6vh 0 0 -32.6vh}
+#scope .bl{position:absolute;inset:0;backdrop-filter:blur(10px) brightness(.3);-webkit-backdrop-filter:blur(10px) brightness(.3);
+  -webkit-mask-image:radial-gradient(circle at center,transparent 35.6vh,#000 35.9vh);mask-image:radial-gradient(circle at center,transparent 35.6vh,#000 35.9vh)}
+#scope .rg{position:absolute;left:50%;top:50%;width:72.4vh;height:72.4vh;margin:-36.2vh 0 0 -36.2vh;border-radius:50%;border:.9vh solid #0d0e10;box-sizing:border-box;box-shadow:0 0 0 .25vh #2a2d31,inset 0 0 2.2vh #000c}   /* 12.153: ince halka (eski 3,4 vh kalın kasnak) */
+#scope svg{position:absolute;left:50%;top:50%;width:70vh;height:70vh;margin:-35vh 0 0 -35vh}
 #scope.chev .mil,#scope.mil .chev{display:none}
 /* telefon: dürbün halkası ekran yüksekliğinin %94'ü (kısa ekranda küçük kalıyordu), dışı bulanık değil siyah (tam ekran backdrop-filter telefonda pahalı ve çamurlu) */
 body.mob #scope .bl{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(0,0,0,.93);-webkit-mask-image:radial-gradient(circle at center,transparent 46.6vh,#000 47vh);mask-image:radial-gradient(circle at center,transparent 46.6vh,#000 47vh)}
-body.mob #scope .rg{width:94vh;height:94vh;margin:-47vh 0 0 -47vh;border-width:2.6vh}
-body.mob #scope svg{width:88.8vh;height:88.8vh;margin:-44.4vh 0 0 -44.4vh}
+body.mob #scope .rg{width:94vh;height:94vh;margin:-47vh 0 0 -47vh;border-width:1.2vh}
+body.mob #scope svg{width:91.6vh;height:91.6vh;margin:-45.8vh 0 0 -45.8vh}
 body.mob #scope .vg{width:90vh;height:90vh;margin:-45vh 0 0 -45vh}
 body.mob #vitals,body.mob #ammo{background:none;border:0}       /* telefonda arka plan şeridi butonlara binmesin */
 /* telefon nişangâhları: küçük yüksek DPI ekranda 5 px nokta / 2 px halka seçilmiyordu → daha büyük, kalın ve ince koyu kenarlı (açık kum / gök
@@ -166,9 +168,9 @@ body.mob #holo{width:calc(9.47vh + 1.5px);height:calc(9.47vh + 1.5px);margin:cal
 body.mob #holo::before{width:4.5px;height:4.5px;margin:-2.25px 0 0 -2.25px;box-shadow:0 0 0 1px rgba(0,0,0,.45)}
 /* 12.127: telefon #holo eskiden sabit 78 px (3B çerçevenin ≈ 2,5 katı, iki halka üst üste): artık 3B çerçeveyle aynı 9,2vh (ADS_FOV 40) × nişangâh boyutu ayarı (--rs); red dot en az 9 px */
 /* telefon dürbünü: çizgiler ≈ 2 kat kalın, merkez noktası büyük (halka 94vh, 1 birim ≈ 2 px) */
-body.mob #scope .mil g path:first-child{stroke-width:.75}body.mob #scope .mil g path:nth-child(3){stroke-width:.85}
+body.mob #scope .mil g path:first-child{stroke-width:.6}body.mob #scope .mil g path:nth-child(3){stroke-width:.7}
 body.mob #scope .chev g path:first-child{stroke-width:2.8;transform:translateY(.49px)}   /* kalın çizgide miter ucu da merkezde kalsın */body.mob #scope .chev g path:nth-child(2){stroke-width:.65}body.mob #scope .chev g path:nth-child(3){stroke-width:1.1}
-body.mob #scope circle{transform:scale(1.9)}
+body.mob #scope svg>circle{transform:scale(1.9)}   /* yalnız kırmızı merkez (mil noktaları ölçeklenirse dışa kayar) */
 /* katmanlar: duraklat, ölüm, skor, maç sonu */
 .overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;background:radial-gradient(ellipse at center,rgba(5,8,12,.5),rgba(5,8,12,.82));pointer-events:auto}
 .overlay.intro{background-color:#05080c;background-size:cover;background-position:center}
@@ -188,6 +190,12 @@ body.mob #scope circle{transform:scale(1.9)}
 #pause .pbtns .btn.sec:hover{border-left-color:var(--acc);background:linear-gradient(90deg,#2c3747,#1f2733);filter:none}
 #pause #bQuit{color:#ffb3a6}
 #pause #ptext{font-size:14px;opacity:.75}
+#presume{position:absolute;inset:0;display:none;align-items:center;justify-content:center;pointer-events:auto;cursor:pointer;background:rgba(5,8,12,.28);animation:prsIn .15s .12s both}
+#presume .pr{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 30px 12px;background:rgba(9,13,19,.9);border:1px solid rgba(255,255,255,.16);border-top:3px solid var(--acc,#ff8a1f);box-shadow:0 10px 34px rgba(0,0,0,.55);clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,0 100%)}
+#presume .pr b{font-size:20px;letter-spacing:2px;text-transform:uppercase;font-style:italic}
+#presume .pr b::before{content:'';display:inline-block;margin-right:10px;border-left:12px solid var(--acc,#ff8a1f);border-top:8px solid transparent;border-bottom:8px solid transparent;vertical-align:1px}
+#presume .pr span{font-size:12px;letter-spacing:1.5px;opacity:.6}
+@keyframes prsIn{from{opacity:0}}
 /* ölüm / yeniden doğuş ekranı */
 #respawn{background:radial-gradient(ellipse at 50% 30%,rgba(70,8,6,.35),rgba(5,8,12,.86) 75%)}
 #respawn .dep{display:flex;flex-direction:column;gap:14px;width:min(1180px,94vw)}
@@ -296,7 +304,7 @@ export class Hud {
     el.id = 'hud';
     el.innerHTML = `
       <div id="scope"><div class="bl"></div><div class="vg"></div><div class="rg"></div>
-        <svg viewBox="-100 -100 200 200" class="mil"><g stroke="#000" fill="none"><path d="M-100 0H-12M12 0H100M0 -100V-12M0 12V100" stroke-width=".35"/><path d="M-100 0H-62M62 0H100M0 -100V-62M0 62V100" stroke-width="2.6"/><path d="M-40 0V3M-30 0V3M-20 0V3M20 0V3M30 0V3M40 0V3M0 20H3M0 30H3M0 40H3M0 -20H3M0 -30H3M0 -40H3" stroke-width=".5"/></g><circle r=".9" fill="#ff3b2a"/></svg>
+        <svg viewBox="-100 -100 200 200" class="mil"><g stroke="#000" fill="none"><path d="M-100 0H-1.6M1.6 0H100M0 -100V-1.6M0 1.6V100" stroke-width=".3"/><path d="M-100 0H-58M58 0H100M0 -100V-58M0 58V100" stroke-width="1.5"/><path d="M-5 0V0M5 0V0M-15 -1.4V1.4M15 -1.4V1.4M-25 -1.4V1.4M25 -1.4V1.4M-35 -1.4V1.4M35 -1.4V1.4M-1.4 -15H1.4M-1.4 15H1.4M-1.4 -25H1.4M-1.4 25H1.4M-1.4 -35H1.4M-1.4 35H1.4" stroke-width=".35"/><g fill="#000" stroke="none"><circle cx="-40" r=".75"/><circle cy="-40" r=".75"/><circle cx="-30" r=".75"/><circle cy="-30" r=".75"/><circle cx="-20" r=".75"/><circle cy="-20" r=".75"/><circle cx="-10" r=".75"/><circle cy="-10" r=".75"/><circle cx="10" r=".75"/><circle cy="10" r=".75"/><circle cx="20" r=".75"/><circle cy="20" r=".75"/><circle cx="30" r=".75"/><circle cy="30" r=".75"/><circle cx="40" r=".75"/><circle cy="40" r=".75"/></g></g><circle r=".55" fill="#ff3b2a"/></svg>
         <svg viewBox="-100 -100 200 200" class="chev"><g fill="none" stroke="#ff2e1f" stroke-linecap="round"><path d="M-14 19.29L0 1.29L14 19.29" stroke-width="2.2" stroke-linejoin="miter" stroke-miterlimit="8"/><path d="M0 -3V-100M-100 0H-30M30 0H100M0 28V100" stroke-width=".3" stroke="#000"/><path d="M-10 36H10M-14 56H14M-18 76H18" stroke-width=".8" stroke="#ff2e1f"/></g></svg></div>
       <div id="mmwrap"><canvas id="minimap" width="236" height="168"></canvas><div id="mmname"></div></div>
       <div id="topbar">
@@ -330,6 +338,7 @@ export class Hud {
       <div id="scoreboard" class="overlay"><div class="panel"><div class="scroll" id="sbbody"></div></div></div>
       <div id="pause" class="overlay"><div class="panel"><div class="ptag" id="ptag"></div><h2 id="ptitle"></h2><div id="pmeta"></div><p id="ptext"></p>
         <div class="pbtns"><button class="btn" id="bResume"></button><button class="btn sec" id="bKill"></button><button class="btn sec" id="bSet"></button><button class="btn sec" id="bCtl"></button><button class="btn sec" id="bQuit"></button></div></div></div>
+      <div id="presume"><div class="pr"><b id="prT"></b><span id="prS"></span></div></div>
       <div id="endscreen" class="overlay"><div class="panel"><h2 id="etitle"></h2><p id="einfo"></p><div id="estats" style="margin:10px 0"></div>
         <button class="btn" id="bAgain"></button><button class="btn sec" id="bMenu"></button></div></div>`;
     document.body.appendChild(el);
@@ -364,6 +373,7 @@ export class Hud {
     this.$('bAgain').onclick = () => game.restart();
     this.$('bMenu').onclick = () => game.exit();
     this.$('pause').addEventListener('mousedown', (e) => { if (e.target.id === 'pause') game.requestLock(); });
+    this.$('presume').addEventListener('mousedown', (e) => { if (e.button === 0) game.requestLock(); });      // 12.147: tek tık → kilit, oyun sürer
     this.pbMarks = [...this.root.querySelectorAll('#pbret .m')]; this._pbKey = '';
     game.on('spawn', (s) => { if (s === game.playerSoldier) this._sp?.clear(); });
   }
@@ -388,6 +398,7 @@ export class Hud {
     $('bResume').textContent = t('pause.start'); $('bKill').textContent = t('pause.kill'); $('bKill').title = t('pause.killTip');
     $('bSet').textContent = t('pause.settings'); $('bCtl').textContent = t('pause.controls'); $('bQuit').textContent = t('pause.menu');
     $('bAgain').textContent = t('pause.again'); $('bMenu').textContent = t('pause.menu');
+    $('prT').textContent = t('pause.clickResume'); $('prS').textContent = t('pause.escMenu');
     $('hcls').textContent = t('death.pickClass'); $('hspn').textContent = t('death.spawn'); $('hcnt').textContent = t('death.deploy');
     $('rkwl').textContent = t('death.weapon'); $('rkdl').textContent = t('death.dist'); $('rkpl').textContent = t('death.hpLeft');
     this.flagEls.forEach((f) => (f.title = placeName(f._nm)));
@@ -567,7 +578,7 @@ export class Hud {
     const wl = wLabel(weapon);
     d.innerHTML = killer && killer !== victim
       ? `<span class="${cls(killer)}">${nm(killer)}</span><span class="w">${weapon === 'El Bombası' ? NADE_SVG : ''}${EN(wl)}${hs ? HS_SVG : ''}</span><span class="${cls(victim)}">${nm(victim)}</span>`
-      : `<span class="${cls(victim)}">${nm(victim)}</span><span class="w">${wl && !/^(İntihar)$/.test(weapon) ? wl : t('hud.kf.died')}</span>`;
+      : `<span class="${cls(victim)}">${nm(victim)}</span><span class="w">${weapon === 'Düştü' ? FALL_SVG : ''}${wl && !/^(İntihar)$/.test(weapon) ? wl : t('hud.kf.died')}</span>`;
     f.appendChild(d);
     while (f.children.length > 6) f.firstChild.remove();
     setTimeout(() => d.remove(), 6000);
@@ -623,8 +634,18 @@ export class Hud {
     this.$('sbbody').innerHTML = `${head}<div class="cols">${col('blue')}${col('red')}</div>`;
   }
 
+  get pausedShown() { return this.$('pause').style.display === 'flex'; }
+  get resumeShown() { return this.$('presume').style.display === 'flex'; }
+  get endShown() { return this.$('endscreen').style.display === 'flex'; }
+  // 12.147: menüde Esc → menü kapanır, kilit alınamazsa ortada küçük "Devam etmek için tıkla" (tıkla = oyun, Esc = menüye geri)
+  showResume(v) {
+    if (v) { this.igs?.close(); this.$('pause').style.display = 'none'; }
+    this.$('presume').style.display = v ? 'flex' : 'none';
+  }
+
   setPaused(v) {
     const ov = this.$('pause'), g = this.game;
+    this.$('presume').style.display = 'none';
     if (!v) this.igs?.close();
     ov.style.display = v ? 'flex' : 'none';
     // maça girişte (henüz oynanmadı): sahne arkada görünmesin; harita görseliyle tam ekran kapak
@@ -656,7 +677,7 @@ export class Hud {
     this.$('einfo').textContent = info;
     this.$('estats').innerHTML = rows;
     this.$('endscreen').style.display = 'flex';
-    this.$('pause').style.display = 'none';
+    this.$('pause').style.display = 'none'; this.$('presume').style.display = 'none';
     this.$('respawn').style.display = 'none';
   }
 
@@ -776,10 +797,11 @@ export class Hud {
     setH($('wname'), EN(p.reloadT > 0 ? `${wn} · ${t('hud.reloading')}` : p.useT > 0 ? `${wn} · ${t('hud.using')}` : wn));
     $('mag').textContent = it.mag;
     $('res').textContent = st.kind === 'throwable' || st.kind === 'medkit' || st.kind === 'melee' ? '' : '/ ' + it.reserve;
-    const slotKey = p.items.map((x, i) => x.id + (i === p.cur ? '*' : '') + (p.canEquip(i) ? '' : '-')).join(',');
+    const slotKey = p.items.map((x, i) => x.id + (i === p.cur ? '*' : '') + (p.canEquip(i) ? '' : '-')).join(',') + SLOT_KEYS.map((a) => g.binds?.codes(a)[0]).join();
     if (slotKey !== this._slotKey) {                                         // yalnız değişince yeniden yaz (dil değişince applyLang sıfırlar)
       this._slotKey = slotKey;
-      $('slots').innerHTML = p.items.map((x, i) => `<div class="slot ${i === p.cur ? 'on' : ''} ${p.canEquip(i) ? '' : 'empty'}"><span><b>${i + 1}</b>${EN(wName(x.id))}</span></div>`).join('');
+      // 12.140: tuş sırası (1 ana, 2 yedek, 3 bıçak, 4 ekipman); numara = o konuma atanmış ilk tuş (özel atama varsa o), data-i = items indeksi (dokunmatik)
+      $('slots').innerHTML = slotOrder(p.items.length).map((i, k) => { const x = p.items[i], c = g.binds?.codes(SLOT_KEYS[k])[0]; return `<div class="slot ${i === p.cur ? 'on' : ''} ${p.canEquip(i) ? '' : 'empty'}" data-i="${i}"><span><b>${c ? codeLabel(c) : k + 1}</b>${EN(wName(x.id))}</span></div>`; }).join('');
     }
     this.$('ammo').querySelector('.n').classList.toggle('low', st.mag > 1 && it.mag <= st.mag * 0.25);
     // nişangâh / örtüler
@@ -800,10 +822,16 @@ export class Hud {
     const sc = $('scope');
     sc.style.display = scopeOn ? 'block' : 'none';
     if (scopeOn) sc.className = (p.opticDef.reticle === 'chevron') ? 'chev' : 'mil';
-    // dürbün kararması: göz merceğe yaklaşırken kararır (adsL 0,55 → 0,9), örtü açılınca / kapanınca ~0,15 sn'de açılır
+    // dürbün kararması (12.153): göz merceğe yaklaşırken kararır (adsL 0,3 → SCOPE_ON, eski 0,55 → 0,9: arada 3B göz merceği ekranı kaplıyordu), örtü açılınca ~0,12 sn'de açılır
+    // ve halka %94'ten oturur; çıkışta kısa kararma. Sürgü çekilirken (ViewModel.boltK) halka sağ-alta kayar / yatar: dürbünde kalınır, gözün mercekten kayması
     if (scopeOn !== !!this._scWas) { this._scWas = scopeOn; this._scBlk = 1; }
-    this._scBlk = Math.max(0, (this._scBlk || 0) - dt * 6.5);
-    const blk = p.alive && !tp && ov === 'scope' ? Math.max(this._scBlk, scopeOn ? 0 : clamp((adsL - 0.55) / 0.35, 0, 1) * (p.ads ? 1 : 0.6)) : 0;
+    this._scBlk = Math.max(0, (this._scBlk || 0) - dt * 8.5);
+    const blk = p.alive && !tp && ov === 'scope' ? Math.max(this._scBlk, scopeOn ? 0 : Math.pow(clamp((adsL - 0.3) / (SCOPE_ON - 0.3), 0, 1), 1.2) * (p.ads ? 1 : 0.6)) : 0;
+    if (scopeOn) {
+      const bk = g.player?.vm.boltK || 0, sIn = this._scBlk * this._scBlk;
+      const tf = bk > 0.001 || sIn > 0.001 ? `translate(${(bk * 2.4).toFixed(2)}vh,${(bk * 3.6).toFixed(2)}vh) rotate(${(bk * 2.2).toFixed(2)}deg) scale(${(1 - 0.06 * sIn).toFixed(4)})` : '';
+      if (sc.style.transform !== tf) sc.style.transform = tf;
+    }
     $('scopeblk').style.opacity = blk.toFixed(3);
     $('advig').style.opacity = p.alive && ov !== 'scope' && !tp ? (ads * 0.55).toFixed(2) : 0;
     const stTxt = [p.prone ? t('hud.prone') : p.crouching ? t('hud.crouch') : '', p.leanT > 0.3 ? t('hud.leanR') : p.leanT < -0.3 ? t('hud.leanL') : '', st.ball ? tr('pb.ring') : p.opticDef && st.kind === 'gun' ? opticName(p.opticId) : '', st.kind === 'gun' && st.auto ? `${fireName(p.fireModeNow, true)} [X]` : ''].filter(Boolean).join(' · ');

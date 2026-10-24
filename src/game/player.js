@@ -9,11 +9,11 @@ import { WSTATS, OPTICS, OPTIC_ALLOWED, ZT_ORDER } from './stats.js';
 import { reloadAnim, meleePose, SWING_HIT_K } from './anim.js';
 import { fpHand, handBasis, zombieColors } from '../models/fpHands.js';
 import { box } from '../core/geo.js';
-import { clamp, lerp, V3, adsEase, ADS_HUD, zoomFov } from './util.js';
+import { clamp, lerp, V3, adsEase, ADS_HUD, zoomFov, SCOPE_ON } from './util.js';
 import { applyInput } from '../sim/input.js';
 import { TUNE } from './balance.js';
 import { TouchControls, isTouch } from './touch.js';
-import { norm, codeLabel } from '../core/keybinds.js';
+import { norm, codeLabel, slotOrder } from '../core/keybinds.js';
 import { t as $t } from '../i18n/index.js';
 import { wName, opticName, fireName } from '../i18n/game.js';
 
@@ -398,7 +398,9 @@ export class ViewModel {
     }
     // sürgülü: ateşten sonra sürgü çekilir (kısa el hareketi)
     let boltK = 0;
-    if (u.bolt && !ra) { const b = 1 - this.boltT; boltK = this.boltT > 0 ? Math.sin(Math.PI * clamp((b - 0.22) / 0.55, 0, 1)) : 0; rz -= boltK * 0.35; pos.x -= boltK * 0.02; }
+    if (u.bolt && !ra) { const b = 1 - this.boltT; boltK = this.boltT > 0 ? Math.sin(Math.PI * clamp((b - 0.3) / 0.55, 0, 1)) : 0; rz -= boltK * 0.35; pos.x -= boltK * 0.02; }      // 12.153: sürgü sesiyle aynı anda (0,3–0,85 sn; ses 0,55 / 0,73)
+    this.boltK = boltK;
+    if (p.scopeOn && boltK > 0) { camRoll += boltK * 0.035 * (this.game.leftHand ? -1 : 1); camPitch -= boltK * 0.012; }      // 12.153: dürbünde kalınır; sürgü çekilirken görüş hafif yatar / iner (HUD'da dürbün halkası kayar), atış zaten bekleme süresinde
     if (u.bolt) { const bb = ra ? ra.bolt : boltK; u.bolt.g.position.set(0, u.bolt.pivot, bb * 0.085); u.bolt.g.rotation.z = bb * 0.9; }
     // şarjör alt grubu
     if (u.mag) {
@@ -511,7 +513,7 @@ export class ViewModel {
     }
     // dürbün örtüsü (12.127): adsT > 0,9'da açılır; çıkışta dünya büyütmesi ×2'nin altına inene dek açık kalır (eski: 0,9'da kapanıyor, ×4,6 dünyanın önünde 3B dürbün gövdesi ekranı kaplıyordu) → kapanınca HUD kısa kararma
     const zE = p.zoomEff?.() || 1;
-    p.scopeOn = s.alive && s.overlay === 'scope' && (s.adsT > 0.9 || (!!p.scopeOn && zE > 2 && p.zoomCur() >= 2));
+    p.scopeOn = s.alive && s.overlay === 'scope' && (s.adsT > SCOPE_ON || (!!p.scopeOn && zE > 2 && p.zoomCur() >= 2));      // 12.153: 0,9 → SCOPE_ON (göz merceği ekranı kaplamadan, tam kararmanın arkasında açılır)
     this.root.visible = this.forceShow || !p.scopeOn;      // dürbünlü silahta örtü açıkken model gizli (HUD aynı bayrağı kullanır; forceShow: adsalign testi)
     this.cam.rotation.z = -s.leanT * 0.2;   // yana eğilirken silah da kafayla birlikte yatar
     if (this.arms.length) {                    // zombi kolları: bilek ucundan dirsek noktasına (kamera uzayı; sol el modunda aynalı)
@@ -681,8 +683,8 @@ export class Player {
       if (s.alive && kb.is('crouch', code)) { s.toggleCrouch(); this.game.online?.edge('c'); }
       if (s.alive && kb.is('prone', code)) { s.toggleProne(); this.game.online?.edge('p'); }
       if (s.alive && kb.is('optic', code)) { this.game.online?.edge('o'); const o = s.cycleOptic(); if (o) this.game.hud.toast($t('hud.t.optic', { o: opticName(s.opticId) }), '#cfe6ff'); }
-      const slot = kb.slotOf(code);
-      if (slot >= 0) s.switchTo(slot);
+      const slot = kb.slotOf(code);                                                 // tuş konumu (1 ana, 2 yedek, 3 bıçak, 4 ekipman) → items indeksi
+      if (slot >= 0) { const i = slotOrder(s.items.length)[slot]; if (i !== undefined) s.switchTo(i); }
       if (kb.is('fireMode', code) && s.alive) { s.toggleFireMode(); this.game.online?.edge('fm'); }
       if (kb.is('scoreboard', code)) { e.preventDefault(); this.game.hud.showScoreboard(true); }
       if (kb.is('ability', code) && s.alive && s.def.zombie && !e.repeat) this.zAbility();
@@ -740,7 +742,8 @@ export class Player {
       if (!this.locked || !this.s.alive) return;
       const dir = e.deltaY > 0 ? 1 : -1, s = this.s;
       if (s.fly && this.devTools()) { this.flySpeed = Math.max(3, Math.min(120, (this.flySpeed || 13) * (dir > 0 ? 0.8 : 1.25))); this.game.hud.toast($t('hud.t.flySpeed', { n: this.flySpeed.toFixed(0) }), '#cfe6ff'); return; }       // uçarken tekerlek hız ayarlar
-      for (let k = 1; k <= 4; k++) { const j = (s.cur + dir * k + 8) % 4; if (j !== s.cur && s.canEquip(j)) { s.switchTo(j); break; } }       // boş slotları atla
+      const ord = slotOrder(s.items.length), n = ord.length, at = Math.max(0, ord.indexOf(s.cur));      // tuş / HUD sırasında (ana → yedek → bıçak → ekipman) döner
+      for (let k = 1; k <= n; k++) { const j = ord[(at + dir * k + n * 2) % n]; if (j !== s.cur && s.canEquip(j)) { s.switchTo(j); break; } }       // boş slotları atla
     }, { passive: true });
   }
 

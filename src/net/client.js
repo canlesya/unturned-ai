@@ -3,8 +3,9 @@
 import { SIM_HZ, SIM_DT, SNAP_EVERY, applyFlags, F_LEFT, F_PROT, F_GROUND, defaultServerUrl, directServerUrl, skinsFrom } from './protocol.js';
 import { applyInput } from '../sim/input.js';
 import { WSTATS, ZT_ORDER } from '../game/stats.js';
-import { sanitizeBalance, useBalance } from '../game/balance.js';
+import { sanitizeBalance, useBalance, TUNE } from '../game/balance.js';
 import { banText } from '../i18n/game.js';
+import { fallHeight } from '../sim/fall.js';
 
 // Diğer oyuncuların gösterim gecikmesi (interpolasyon tamponu) ağın titremesine göre uyarlanır (12.137):
 // en az 6 adım = 100 ms (20 Hz snapshot'ta iki örnek arası), titreşimli bağlantıda en çok 15 adım = 250 ms (lag compensation HN=40 içinde).
@@ -65,7 +66,7 @@ export class NetClient {
   // Oda yeni maça geçti (aynı bağlantıda yeni 'welcome'): tahmin / interpolasyon durumu sıfırlanır, yeni Game attach olana dek mesajlar biriktirilir
   resetMatch() {
     this.game = null; this.queued = null;
-    this.snaps = []; this.offset = null; this.seq = 0; this.hist = []; this.edges = {}; this.rt = 0; this.rs = null; this.pendingMe = null; this.roster = null; this.stats.snaps = 0;
+    this.snaps = []; this.offset = null; this.seq = 0; this.hist = []; this.edges = {}; this.rt = 0; this.rs = null; this.pendingMe = null; this.roster = null; this.stats.snaps = 0; this.fallPred = null;
     this.jit = 0; this.idelay = INTERP_MIN; this._snapAt = null; this._iAt = null;
   }
 
@@ -223,7 +224,7 @@ export class NetClient {
     if (me.ab) { s.abT = me.ab[0]; s.abActive = me.ab[1]; }          // zombi gücü: bekleme / etkin süre sunucudan (hız tahmini tutarlı kalsın)
     if (me.rs !== this.rs) {
       // ilk snapshot veya yeniden doğma: sunucunun şu anki durumuna geç
-      this.rs = me.rs; this.hist.length = 0;
+      this.rs = me.rs; this.hist.length = 0; this.fallPred = null;
       const p = me.now;
       this.applyState(s, p, true);
       s.pos.set(p.x, p.y, p.z); s.vel.set(p.vx, p.vy, p.vz);
@@ -238,7 +239,9 @@ export class NetClient {
     if (!me.now.a) { if (s.alive) this.applyState(s, me.now, true); this.hist.length = 0; s.respawnT = me.rt; return; }
     if (!s.alive) { this.applyState(s, me.now, true); }
     this.fixItems(s, me);
-    s.hp = st.hp;
+    const fp = this.fallPred;                                        // tahmin edilen düşme hasarı (game.fallPredict): sunucu o girdiyi işleyene dek sunucu canından düşülür, sonra sunucunun canı geçerli (çift düşülmez)
+    if (fp && me.ack >= fp.q) this.fallPred = null;
+    s.hp = this.fallPred ? Math.max(1, st.hp - fp.dmg) : st.hp;
     s.protNet = !!(me.now.f & F_PROT);                              // doğma koruması: sunucunun şu anki durumundan (kalkan görseli)
     // sunucunun işlediği son girdi (ack) anındaki tahminimizle karşılaştır
     let rec = null;
@@ -256,8 +259,10 @@ export class NetClient {
     const keepYaw = s.yaw, keepPitch = s.pitch, keepAds = s.ads, keepAdsT = s.adsT, bx = s.pos.x, by = s.pos.y, bz = s.pos.z;
     s.pos.set(st.x, st.y, st.z); s.vel.set(st.vx, st.vy, st.vz);
     applyFlags(s, st.f);
+    s.fallTop = s.onGround ? st.y : st.y + fallHeight(Math.abs(st.vy), TUNE.gravity);     // havadaysa zirve sunucu durumundan (balistik uçuş: y + v² / 2g); düşme tahmini sunucuyla aynı yükseklikten
     for (const h of this.hist) {
       g.world.move(s, SIM_DT);
+      if (s.landH > 0) g.fallReplay?.(s, h.q);                    // yeniden oynatmada iniş: bu girdinin sunucu adımında düşme hasarı (tahmin)
       s.yaw = h.yaw; s.pitch = h.pitch;
       if (h.e.u) s.standUp();
       if (h.e.c) s.toggleCrouch();
@@ -267,6 +272,7 @@ export class NetClient {
       h.st = { x: s.pos.x, y: s.pos.y, z: s.pos.z };
     }
     s.yaw = keepYaw; s.pitch = keepPitch; s.ads = keepAds; s.adsT = keepAdsT;
+    if (this.fallPred) s.hp = Math.max(1, st.hp - this.fallPred.dmg);
     // Küçük düzeltmeler (≤ 0.8 m) kamerada yumuşatılır: oyuncu gerçek konumda ama görüntü eski yerden hızla (~0.1 sn) yeni yere kayar → "takılma/sıçrama" hissi yok.
     // Büyük farklar (ışınlanma, sunucu itmesi) anında uygulanır.
     const ox = bx - s.pos.x, oy = by - s.pos.y, oz = bz - s.pos.z;

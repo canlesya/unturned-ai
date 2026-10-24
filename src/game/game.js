@@ -28,6 +28,7 @@ import { rand, pick, clamp } from './util.js';
 import { TEAMS } from '../core/palette.js';
 import { nullSink } from '../sim/nullSink.js';
 import { applyInput } from '../sim/input.js';
+import { fallDamage, fallApplies, FALL } from '../sim/fall.js';
 import { SIM_DT } from '../net/protocol.js';
 import { mat } from '../core/geo.js';
 import { t } from '../i18n/index.js';
@@ -46,6 +47,10 @@ const r2 = (v) => Math.round(v * 100) / 100;
 const v3 = (p) => [r2(p.x), r2(p.y), r2(p.z)];
 
 const UP = new THREE.Vector3(0, 1, 0);
+// 12.146: mermi ışınının en kısa erimi. Eskiden range[1] × 2,2 idi: tabanca 121 m, MAC-10 99 m, pompalı 70 m, MP5 154 m'den ötede ışın
+// hiçbir şeye değmiyordu (hasar yok, duvarda toz yok, iz duvarın içinden 120 m'ye uzanıyordu). Hasar düşüşü (range / minMul) aynı kalır;
+// yalnız ışın her silahta en az oynanan alanın köşegeni kadar gider (en büyüğü Vadi ≈ 216 m; ışın maliyeti boyla arttığı için 300).
+const SHOT_REACH = 300;
 
 function rayBox(o, d, min, max, maxT) {
   let t0 = 0, t1 = maxT;
@@ -177,6 +182,7 @@ export class Game {
       this.visMul = opts.weather === 'fog' ? 0.5 : opts.weather === 'rain' ? 0.8 : 1;   // Weather'ın bot görüşüne etkisi
     } else {
       this.effects = new Effects(this.scene);
+      this.effects.cam = this.camera;                              // 12.146: uzaktaki isabet efekti kameraya uzaklıkla büyür
       this.sfx = new Sfx();
       this.sfx.setVolume(this.settings.volume);
       this.sfx.setMix({ sfx: this.settings.vSfx ?? 1, amb: this.settings.vAmb ?? 1, rain: this.settings.rainSound !== false });
@@ -285,18 +291,22 @@ export class Game {
     });
     document.addEventListener('pointerlockchange', this._plc = () => {
       const locked = document.pointerLockElement === this.canvas;
-      if (locked) { this.lockFails = 0; this.player.skipMove = 2; this.lockKeys(true); }                 // kilit anındaki ilk fare olayı genelde zıplar: atla
+      const chatWas = !!this.chatOpen;
+      if (locked) { this.lockFails = 0; this._quietUntil = 0; this.player.skipMove = 2; this.lockKeys(true); }                 // kilit anındaki ilk fare olayı genelde zıplar: atla
       else {
         this.chat?.close();
-        this.lockKeys(false);
+        this._unlockBy = this._selfUnlock ? 'game' : 'user'; this._selfUnlock = false;   // 12.147: oyunun bıraktığı kilit jestsiz geri alınabilir
+        this.lockKeys(document.fullscreenElement && this.settings.fullscreen !== false ? 'esc' : false);   // tam ekran menüde Esc sayfada kalsın (yoksa tam ekrandan çıkar)
         this._unlockAt = performance.now();
         this.player.fireHeld = false; this.playerSoldier.ads = false;                // kilit kopunca takılı ateş/nişan kalmasın
       }
       this.player.locked = locked || !!this.opts.nolock;
       if (!this.ended) this.hud.setPaused(!this.player.locked);
+      if (!this.ended && !this.player.locked && chatWas) this.hud.showResume(true);      // sohbetteki Esc kilidi de düşürdü: menü değil, "tıkla devam"
       this.simulate = this.player.locked || this.ended;
     });
     document.addEventListener('pointerlockerror', this._ple = () => this.onLockError());
+    document.addEventListener('keydown', this._esc = (e) => { if (e.code === 'Escape' && !e.repeat) this.onEsc(e); });
     addEventListener('beforeunload', this._bu = (e) => { if (this.running && !this.ended && !this.opts.nolock) { e.preventDefault(); e.returnValue = ''; } });      // yanlışlıkla Ctrl+W / sekme kapatma: onay sorar
     addEventListener('resize', this._rs = () => {
       this.camera.aspect = innerWidth / innerHeight; this.camera.updateProjectionMatrix();
@@ -467,7 +477,7 @@ export class Game {
     const s = h.s;
     s.ads = !!inp.a;                                                  // 12.145: nişan isteği adsT güncellemesinden ÖNCE (istemcide fare olayı karenin s.update'inden önce gelir; eski sıra sunucu adsT'sini bir adım geride bırakıp nişandan koşuya dönüşte ~5 cm tahmin düzeltmesi yaptırıyordu)
     s.update(dt);
-    if (s.alive) this.world.move(s, dt);
+    if (s.alive) { this.world.move(s, dt); this.fallCheck(s); }
     if (!s.alive) return;
     s.yaw = inp.yw; s.pitch = Math.max(-1.5, Math.min(1.5, inp.pt));
     if (inp.w !== s.cur) s.switchTo(inp.w);
@@ -545,22 +555,28 @@ export class Game {
   on(n, fn) { (this.listeners.get(n) || this.listeners.set(n, []).get(n)).push(fn); }
   emit(n, p) { const a = this.listeners.get(n); if (a) for (const f of a) f(p); }
 
-  // Tam ekranda klavye kilidi: Ctrl+W / Ctrl+T gibi tarayıcı kısayolları yakalanır, oyun sırasında sekme kapanmaz (Esc serbest kalır)
+  // Tam ekranda klavye kilidi: Ctrl+W / Ctrl+T gibi tarayıcı kısayolları yakalanır, oyun sırasında sekme kapanmaz.
+  // 12.147: Esc de kilitli → kısa Esc sayfaya gelir (oyun menüyü kendisi açar / kapar), basılı tutunca tarayıcı tam ekrandan çıkar.
+  // on === 'esc': duraklatma menüsünde yalnız Esc (diğer kısayollar serbest).
   lockKeys(on) {
     const kb = navigator.keyboard;
+    if (on === 'esc') { try { kb?.lock(['Escape'])?.catch?.(() => {}); } catch (e) { /* desteklenmiyor */ } return; }
     if (!on) { try { kb?.unlock(); } catch (e) { /* desteklenmiyor */ } return; }
     if (this.settings.fullscreen !== false && !document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
-    const keys = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'KeyR', 'KeyT', 'KeyN', 'KeyC', 'KeyF', 'KeyG', 'KeyV', 'KeyX', 'KeyZ', 'KeyB', 'KeyH', 'ControlLeft', 'ControlRight', 'AltLeft', 'AltRight', 'ShiftLeft', 'ShiftRight', 'Space', 'Tab', 'F5'];
+    const keys = ['Escape', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'KeyR', 'KeyT', 'KeyN', 'KeyC', 'KeyF', 'KeyG', 'KeyV', 'KeyX', 'KeyZ', 'KeyB', 'KeyH', 'ControlLeft', 'ControlRight', 'AltLeft', 'AltRight', 'ShiftLeft', 'ShiftRight', 'Space', 'Tab', 'F5'];
     try { kb?.lock(keys)?.catch?.(() => {}); } catch (e) { /* desteklenmiyor */ }
   }
 
-  requestLock() {
+  // quiet: Esc ile dönme denemesi (kullanıcı jesti yok, reddedilebilir): hata sayılmaz / uyarı yok, "tıkla devam" katmanı açık kalır
+  requestLock(quiet = false) {
     this.sfx.init();
     if (this.opts.nolock) { this.player.locked = true; this.simulate = true; this.hud.setPaused(false); return; }
     if (this.noPointerLock) { this.player.locked = true; this.simulate = true; this.hud.setPaused(false); return; }
-    // Chrome, Esc ile çıkıştan hemen sonra (~1,3 sn) yapılan kilit isteğini reddeder: bekleyip sonra iste
-    const wait = 1350 - (performance.now() - (this._unlockAt || -1e9));
-    if (wait > 0) { clearTimeout(this._lockT); this._lockT = setTimeout(() => this.requestLock(), wait); return; }
+    // Chrome, kullanıcı Esc ile çıktıktan hemen sonra (~1,3 sn) yapılan kilit isteğini reddeder: bekleyip sonra iste (oyunun bıraktığı kilitte soğuma yok)
+    const wait = this._unlockBy === 'game' ? 0 : 1350 - (performance.now() - (this._unlockAt || -1e9));
+    clearTimeout(this._lockT);
+    if (wait > 0) { this._lockT = setTimeout(() => this.requestLock(quiet), wait); return; }
+    this._quietUntil = quiet ? performance.now() + 2000 : 0;
     const plain = () => { try { const p = this.canvas.requestPointerLock(); p?.catch?.((err) => this.onLockError(err)); } catch (e) { this.onLockError(e); } };
     try {
       // ham fare girdisi (işletim sistemi hızlandırması yok): daha tutarlı bakış; desteklenmezse normal istek
@@ -571,6 +587,7 @@ export class Game {
 
   // Kilit alınamadı: tek seferlik hatada kalıcı "kilitsiz moda" GEÇME (imleç ekranda kalıp bakışı bozuyordu); ancak art arda başarısızsa
   onLockError() {
+    if (performance.now() < (this._quietUntil || 0)) return;                 // Esc denemesi reddedildi: katman zaten "tıkla devam" diyor
     this.lockFails = (this.lockFails || 0) + 1;
     if (this.lockFails >= 4 || !this.canvas.requestPointerLock) { this.fallbackLock(); return; }
     this.hud.toast($t('hud.t.lockRetry'), '#ffd27a');
@@ -583,6 +600,23 @@ export class Game {
     this.player.locked = true; this.simulate = true;
     this.hud.setPaused(false);
     this.hud.toast($t('hud.t.lockFail'), '#ffd27a');
+  }
+
+  // 12.147 Esc: oyunda → duraklatma menüsü · menüde → oyuna dön · "tıkla devam" katmanında → menü.
+  // Kilit varken Esc'nin sayfaya gelmesi yalnız tam ekran + Keyboard Lock'ta olur (pencerede tarayıcı kilidi kendisi bırakır, olay gelmez).
+  // Alt sayfa (Ayarlar / Kontroller, tuş atama), sohbet, takım menüsü Esc'yi kendileri işler; dokunmatik / kilitsiz yedek mod player.js'te.
+  onEsc(e) {
+    const hud = this.hud;
+    if (!this.running || this.ended || hud.endShown || this.noPointerLock || this._tm || this.chatOpen || hud.igs?.open) return;
+    if (this.opts.nolock ? this.simulate : this.player.locked) {
+      e.preventDefault();
+      if (this.opts.nolock) { this.player.locked = false; this.simulate = false; hud.setPaused(true); return; }      // ?nolock=1 (test / editör): aynı durum geçişi
+      this._selfUnlock = true; document.exitPointerLock?.();               // pointerlockchange menüyü açar
+      return;
+    }
+    if (!this._unlockBy && hud.$('pause').classList.contains('intro')) return;     // ilk giriş ekranı ("Hazır mısın?"): ilk kilit tıkla alınır
+    if (hud.resumeShown) { e.preventDefault(); hud.setPaused(true); return; }                 // katman → menü
+    if (hud.pausedShown) { e.preventDefault(); hud.showResume(true); this.requestLock(true); }   // menü → oyun (reddedilirse katman kalır)
   }
 
   togglePause() {
@@ -781,6 +815,52 @@ export class Game {
     if (s.isPlayer) this.hud.onPlayerSpawn?.();
   }
 
+  // ───── düşme hasarı (12.143; tablo: sim/fall.js) ─────
+  // YETKİLİ taraf (çevrimdışı oyun / sunucu) uygular: World.move inişte s.landH'yi yazar. Koruma / ölümsüzlük takeDamage'daki gibi; saldıran yok
+  // (botun onDamaged'ı tetiklenmez, isabet işareti yok). Ölürse "Düştü": kendi kendine, puan kimseye (İntihar / Kuyu ile aynı akış).
+  fallCheck(s) {
+    const h = s.landH;
+    if (!(h > FALL.safe) || !s.alive || !fallApplies(s, this.mode)) return;
+    if (s.protT > 0 || (s.isPlayer && this.devGod)) return;
+    const dmg = fallDamage(h);
+    if (dmg <= 0) return;
+    s.hp -= dmg; s.lastDmgT = this.time; s.useT = 0;
+    if (s.isPlayer) this.fallFx(dmg);
+    else if (s.human) this.netEvent({ e: 'fall', v: s.id, d: dmg, h: +h.toFixed(1) });
+    this.emit('fall', { s, h, dmg });
+    if (s.hp <= 0) { s.lastHit = s; s.die(s, 'Düştü', false); }
+  }
+
+  // Çevrimiçi istemci: aynı tabloyla iniş anında tahmin (geri bildirim + can göstergesi); sunucu bu girdiyi onaylayınca (ack ≥ q) can sunucudan gelir
+  // (NetClient.reconcile), çift düşülmez. Ölüm kararı yalnız sunucuda.
+  fallPredict(me) {
+    const h = me.landH;
+    if (!(h > FALL.safe) || !fallApplies(me, this.mode) || me.protected || this.devGod) return;
+    const dmg = fallDamage(h);
+    if (dmg <= 0) return;
+    this.online.fallPred = { q: this.online.seq + 1, dmg };              // iniş, bir sonraki gönderilecek girdinin sunucu adımında olur (önce hareket, sonra girdi)
+    me.hp = Math.max(1, me.hp - dmg);
+    this.fallFx(dmg);
+  }
+
+  // Uzlaştırmada yeniden oynatılan adımda iniş (NetClient.reconcile): tahmini o girdiye bağla; geri bildirim son 1 sn'de verilmediyse şimdi
+  fallReplay(me, q) {
+    const h = me.landH;
+    const dmg = h > FALL.safe && fallApplies(me, this.mode) && !me.protected && !this.devGod ? fallDamage(h) : 0;
+    if (dmg <= 0) { if (this.online.fallPred?.q === q) this.online.fallPred = null; return; }
+    this.online.fallPred = { q, dmg };
+    if (!(this.time - (this._fallFxAt ?? -9) < 1)) this.fallFx(dmg);
+  }
+
+  // İniş darbesi: kısa kamera sarsıntısı + hasar sesi + genel (yönsüz) kırmızı kenar
+  fallFx(dmg) {
+    if (this.headless) return;
+    this._fallFxAt = this.time;
+    this.effects.shake = Math.max(this.effects.shake, clamp(0.25 + dmg / 80, 0.3, 1));
+    this.hud.damageFrom(null, this.playerSoldier);
+    this.sfx.hurt();
+  }
+
   // Kuyu (map.voidY altına düşen) elenir: ölüm sayılır; son 5 sn içinde biri vurduysa öldürme ona yazılır ("düşürdü"), yoksa kendi düştü
   updateVoid() {
     for (const s of this.soldiers) {
@@ -969,7 +1049,7 @@ export class Game {
     if (this._badge && (this._badgeT -= dt) <= 0) { this._badgeT = 0.5; const rtt = Math.round(this.online.stats.rtt || 0); this._badge.innerHTML = `ODA <b style="color:#ffb347">${this._badgeCode}</b> · ${rtt ? rtt + ' ms' : '…'} · ${Math.round(this._perf?.fps || 0)} FPS`; }
     const me = this.playerSoldier;
     for (const s of this.soldiers) s.update(dt);
-    if (me.alive) this.world.move(me, dt); else if (me.respawnT > 0) me.respawnT -= dt;
+    if (me.alive) { this.world.move(me, dt); this.fallPredict(me); } else if (me.respawnT > 0) me.respawnT -= dt;
     this.player.update(dt);
     { const m = this.playerSoldier.pos; if (!this._p0) { this._p0 = m.clone(); this._p1 = m.clone(); } else { const t = this._p0; this._p0 = this._p1; this._p1 = t; t.copy(m); } }       // yerel karakter konumu: son iki adım
     {                                                                                             // kamera ara değerleme için son iki adım (nesne yeniden kullanılır)
@@ -993,7 +1073,7 @@ export class Game {
     for (const s of this.soldiers) {
       if (s.human && s.alive) continue;            // canlı insanlar girdi güdümlü (updateHumans)
       s.update(dt);
-      if (s.alive) this.world.move(s, dt);
+      if (s.alive) { this.world.move(s, dt); this.fallCheck(s); }
     }
     if (this.player) this.player.update(dt); else this.updateHumans(dt);
     for (const b of this.brains) b.update(dt);
@@ -1040,6 +1120,7 @@ export class Game {
         }
         case 'hm': if (ev.by === me.id) this.emit('hitmark', { zone: ev.hd ? 'head' : 'body', dead: !!ev.dead }); break;
         case 'dmg': if (ev.v === me.id) { this.hud.damageFrom(new V(ev.x, 0, ev.z), me); this.sfx.hurt(); } break;
+        case 'fall': if (ev.v === me.id && !(this.time - (this._fallFxAt ?? -9) < 1)) this.fallFx(ev.d); break;     // düşme hasarı: tahmin etmediysek (yanlış tahmin) sunucudan geri bildirim
         case 'kill': {
           const victim = this.soldiers[ev.v], killer = this.soldiers[ev.k] || victim;
           if (!victim) break;
@@ -1276,7 +1357,7 @@ export class Game {
   }
 
   shootRay(shooter, origin, dir, st, muzzle, camO = null) {
-    const maxT = st.range ? st.range[1] * 2.2 : 300;
+    const maxT = Math.max(SHOT_REACH, st.range ? st.range[1] * 2.2 : 300);
     // sunucu: insanın atışı, istemcinin gördüğü ana geri sarılarak hesaplanır (lag compensation)
     const restore = shooter.rewindTick != null ? this.rewind(shooter, shooter.rewindTick) : null;
     if (camO) {
@@ -1752,7 +1833,7 @@ export class Game {
     document.removeEventListener('pointerlockchange', this._plc);
     removeEventListener('beforeunload', this._bu); this.lockKeys(false); if (document.fullscreenElement && !keepNet) document.exitFullscreen?.().catch(() => {});
     document.removeEventListener('keydown', this._kd);
-    document.removeEventListener('pointerlockerror', this._ple);
+    document.removeEventListener('pointerlockerror', this._ple); document.removeEventListener('keydown', this._esc); clearTimeout(this._lockT);
     clearTimeout(this._lockT);
     removeEventListener('resize', this._rs);
     this.player.dispose();
