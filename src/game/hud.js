@@ -1,7 +1,7 @@
 import { InGameSettings } from './ingameSettings.js';
 import { WSTATS, CLASS_DEFS, ZTYPES, ZT_ORDER } from './stats.js';
 import { clamp, adsEase, ADS_HUD } from './util.js';
-import { codeLabel } from '../core/keybinds.js';
+import { codeLabel, slotOrder, SLOT_KEYS } from '../core/keybinds.js';
 import { TUNE } from './balance.js';
 import { ffaRanking, ffaMetric } from './match.js';
 import { ScreenPaint } from './screenPaint.js';
@@ -776,10 +776,11 @@ export class Hud {
     setH($('wname'), EN(p.reloadT > 0 ? `${wn} · ${t('hud.reloading')}` : p.useT > 0 ? `${wn} · ${t('hud.using')}` : wn));
     $('mag').textContent = it.mag;
     $('res').textContent = st.kind === 'throwable' || st.kind === 'medkit' || st.kind === 'melee' ? '' : '/ ' + it.reserve;
-    const slotKey = p.items.map((x, i) => x.id + (i === p.cur ? '*' : '') + (p.canEquip(i) ? '' : '-')).join(',');
+    const slotKey = p.items.map((x, i) => x.id + (i === p.cur ? '*' : '') + (p.canEquip(i) ? '' : '-')).join(',') + SLOT_KEYS.map((a) => g.binds?.codes(a)[0]).join();
     if (slotKey !== this._slotKey) {                                         // yalnız değişince yeniden yaz (dil değişince applyLang sıfırlar)
       this._slotKey = slotKey;
-      $('slots').innerHTML = p.items.map((x, i) => `<div class="slot ${i === p.cur ? 'on' : ''} ${p.canEquip(i) ? '' : 'empty'}"><span><b>${i + 1}</b>${EN(wName(x.id))}</span></div>`).join('');
+      // 12.140: tuş sırası (1 ana, 2 yedek, 3 bıçak, 4 ekipman); numara = o konuma atanmış ilk tuş (özel atama varsa o), data-i = items indeksi (dokunmatik)
+      $('slots').innerHTML = slotOrder(p.items.length).map((i, k) => { const x = p.items[i], c = g.binds?.codes(SLOT_KEYS[k])[0]; return `<div class="slot ${i === p.cur ? 'on' : ''} ${p.canEquip(i) ? '' : 'empty'}" data-i="${i}"><span><b>${c ? codeLabel(c) : k + 1}</b>${EN(wName(x.id))}</span></div>`; }).join('');
     }
     this.$('ammo').querySelector('.n').classList.toggle('low', st.mag > 1 && it.mag <= st.mag * 0.25);
     // nişangâh / örtüler
