@@ -2,10 +2,11 @@
 //   spaceSetup(game)     maç başında: parçacıklar düşük yer çekimiyle, kask içi hafif boğuk ses
 //   spaceFire(vm, s, g)  birinci şahısta atış: namlu alevi silahın enerji renginde, enerji parçası kısa parlar; ray tüfeğinde şarj sıfırlanır + şarj sesi; makinelide ısı artar
 //   spaceVm(vm, s, dt)   her kare: ışıma gücü (uEnK) — ray tüfeği atıştan sonra 0,15'ten yeniden dolar, makineli seride kızarır (renk beyaz-turuncuya kayar), diğerlerinde atış parlaması söner
+//   spaceTp(s, dt)       12.160 her kare (3. şahıs model): ray tüfeği şarjı başkalarında da görünür (s.railT: _fire / ağ 'sh' olayı sıfırlar; yeni ağ alanı yok)
 import * as THREE from 'three';
 import { WSTATS } from './stats.js';
-import { STD } from '../models/skins.js';
-import { setHelmet, railCharge } from './spaceSfx.js';
+import { STD, skinMaterial, setSkin } from '../models/skins.js';
+import { setHelmet, railCharge, railReady } from './spaceSfx.js';
 
 export function spaceSetup(g) {
   if (g.headless || !g.mode.space) return;
@@ -45,5 +46,27 @@ export function spaceVm(vm, s, dt) {
     U.uEn.value.copy(vm._en0).lerp(HOT, 0.9 * Math.pow(vm.heat, 1.5));
   }
   U.uEnK.value = k;
+}
+
+// 12.160: 3. şahıs ray tüfeği şarjı (uzak oyuncu, bot, 3. şahısta kendin). Aynı eğri biçimi (karesel; 3. şahısta 0 → 1, atış parlaması), dolunca 0,3 sn "hazır" parıltısı.
+// 3. şahıs silahı (silah, kaplama) başına PAYLAŞILAN malzemededir → ilk atışta bu askerin silah ağlarına kendi kopyası takılır (skinMaterial paylaşımsız):
+// customProgramCacheKey + parametreler aynı → three.js mevcut programı yeniden kullanır (derleme yok, renderer.info.programs sabit); sonra yalnız uEnK uniform'u değişir.
+const RAIL_T = 60 / WSTATS.railgun.rpm, FLARE = 0.3;
+export function spaceTp(s, dt) {
+  const w = s.model?.weapon;
+  if (s.railT === undefined || !w || w.userData.id !== 'railgun') return;      // hiç ateş etmedi: paylaşılan malzeme tam parlak (uEnK 1)
+  if (w.userData.railMat !== s._railMat || !s._railMat) {                      // silah modeli yeniden kuruldu (silah değişimi / doğuş) → kopyayı yeniden tak
+    const sk = w.userData.skin || 'std';
+    if (!s._railMat) s._railMat = skinMaterial('railgun', sk, false); else if (s._railMat.userData.skin !== sk) setSkin(s._railMat, sk);
+    w.traverse((o) => { if (o.material?.userData?.skinMat && o.material.userData.weapon === 'railgun') o.material = s._railMat; });
+    w.userData.railMat = s._railMat;
+  }
+  const t0 = s.railT; s.railT += dt;
+  const c = Math.min(1, s.railT / RAIL_T), pulse = Math.max(0, 1 - s.railT * 9), fl = s.railT >= RAIL_T ? Math.max(0, 1 - (s.railT - RAIL_T) / FLARE) : 0;
+  s._railMat.userData.U.uEnK.value = c * c + 0.5 * pulse + 0.9 * fl;      // 1. şahıstaki eğri (karesel) ama 0'dan: küçük / uzak modelde sönük hâl okunsun (0,15'te ton eşleme farkı siliyordu)
+  if (t0 < RAIL_T && s.railT >= RAIL_T && !s.isPlayer && s.alive) {             // "hazır" tıkı: yalnız yakında (≤ 15 m), çok kısık, konumlu (kendi silahının sesi birinci şahıs railCharge'da)
+    const g = s.game, cam = g.camera?.position;
+    if (cam && cam.distanceTo(s.pos) <= 15) railReady(g.sfx, s.pos);
+  }
 }
 void WSTATS;

@@ -33,6 +33,14 @@ export function railCharge(sfx, t = 1.25) {
   sfx._tone({ v, gain: 0.12, dur: 0.06, f0: 2100, f1: 2050, type: 'triangle', delay: t, att: 0.002 });
 }
 
+// 12.160: başkasının ray tüfeği doldu — kısa, çok kısık, konumlu "hazır" tıkı (space.js spaceTp yalnız ≤ 15 m'de çağırır)
+export function railReady(sfx, pos) {
+  if (!sfx?.ctx) return;
+  const v = sfx._voice(pos, 0.28, { ref: 6 });
+  if (v.gain < 0.003) { for (const x of v.nodes) x.disconnect(); return; }
+  sfx._tone({ v, gain: 0.12, dur: 0.06, f0: 2100, f1: 2050, type: 'triangle', att: 0.002 });
+}
+
 // Kask içi: efekt yolu (sfxBus → master) arasına hafif alçak geçiren; müzik / arayüz sesi etkilenmez
 export function setHelmet(sfx, on) {
   if (!sfx.ctx || !sfx.sfxBus || !!sfx._helmet === !!on) return;
