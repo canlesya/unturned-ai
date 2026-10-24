@@ -97,7 +97,7 @@ export class NetClient {
       co: s.shotOff ? [+s.shotOff.x.toFixed(2), +s.shotOff.y.toFixed(2), +s.shotOff.z.toFixed(2)] : undefined,
     });
     const fire = !!(fireHeld || e.fp || e.rl);
-    this.hist.push({ q, fire, inp: { f: inp.f, r: inp.r, lean: inp.lean, sprint: !!inp.sprint, jump: !!inp.jump }, yaw: s.yaw, pitch: s.pitch, e, st: { x: s.pos.x, y: s.pos.y, z: s.pos.z } });
+    this.hist.push({ q, fire, inp: { f: inp.f, r: inp.r, lean: inp.lean, sprint: !!inp.sprint, jump: !!inp.jump }, ads: !!s.ads, adsT: s.adsT, yaw: s.yaw, pitch: s.pitch, e, st: { x: s.pos.x, y: s.pos.y, z: s.pos.z } });
     if (this.hist.length > 240) this.hist.shift();
   }
 
@@ -200,7 +200,7 @@ export class NetClient {
     if (err <= POS_EPS) return;
     this.stats.corrections++;
     // düzelt: sunucu durumuna dön, onaylanmamış girdileri yeniden oynat
-    const keepYaw = s.yaw, keepPitch = s.pitch, bx = s.pos.x, by = s.pos.y, bz = s.pos.z;
+    const keepYaw = s.yaw, keepPitch = s.pitch, keepAds = s.ads, keepAdsT = s.adsT, bx = s.pos.x, by = s.pos.y, bz = s.pos.z;
     s.pos.set(st.x, st.y, st.z); s.vel.set(st.vx, st.vy, st.vz);
     applyFlags(s, st.f);
     for (const h of this.hist) {
@@ -209,10 +209,11 @@ export class NetClient {
       if (h.e.u) s.standUp();
       if (h.e.c) s.toggleCrouch();
       if (h.e.p) s.toggleProne();
+      s.ads = h.ads; s.adsT = h.adsT;                                // 12.145: nişan koşuyu / hızı belirler → o girdideki nişan (eski: sunucunun ack anındaki bayrağı tüm yeniden oynatmaya yayılıyor, basılı nişan düzeltmede düşüyordu)
       applyInput(s, h.inp, SIM_DT);
       h.st = { x: s.pos.x, y: s.pos.y, z: s.pos.z };
     }
-    s.yaw = keepYaw; s.pitch = keepPitch;
+    s.yaw = keepYaw; s.pitch = keepPitch; s.ads = keepAds; s.adsT = keepAdsT;
     // Küçük düzeltmeler (≤ 0.8 m) kamerada yumuşatılır: oyuncu gerçek konumda ama görüntü eski yerden hızla (~0.1 sn) yeni yere kayar → "takılma/sıçrama" hissi yok.
     // Büyük farklar (ışınlanma, sunucu itmesi) anında uygulanır.
     const ox = bx - s.pos.x, oy = by - s.pos.y, oz = bz - s.pos.z;

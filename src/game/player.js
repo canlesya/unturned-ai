@@ -355,7 +355,7 @@ export class ViewModel {
     // sprint (bıçakta yukarıda tutulur; yüklerken sprint pozu azalır)
     const sp = s.sprinting ? 1 : 0;
     this.sprintT = lerp(this.sprintT || 0, sp, Math.min(1, dt * 9));
-    const sprK = this.sprintT * (1 - (ra ? ra.tilt * 0.8 : 0));
+    const sprK = this.sprK = this.sprintT * (1 - (ra ? ra.tilt * 0.8 : 0)) * (1 - ads);      // 12.145: nişan koşu pozunu bastırır (eski: tam nişanda %27 koşu pozu kalıyor, silah yan dönük)
     if (isMelee) {
       const MI = this.id === 'claws' ? CLAWS_IDLE : MELEE_IDLE[this.id] || MELEE_IDLE.knife;
       pos.x += MI.pos[0] - hip.x; pos.y += MI.pos[1] - hip.y; pos.z += MI.pos[2] - hip.z;
@@ -888,9 +888,12 @@ export class Player {
     if (s.alive && !g.opts.autoplay) {
       const k = this.keys;
       const kb = this.kb, T = this.touch;
-      if (g.opts.adsToggle && (s.sprinting || s.cur !== this._adsCur)) s.ads = false;           // aç-kapa nişan: koşmak ve silah değiştirmek nişanı kapatır
-      this._adsCur = s.cur;
       const f = (kb.held('forward', k) ? 1 : 0) - (kb.held('back', k) ? 1 : 0) || (T ? T.f : 0);
+      // koşu ↔ nişan (12.145): nişan isteği koşuyu o karede keser (applyInput: s.ads → koşu yok), bırakınca koşu tuşu basılıysa koşuya dönülür.
+      // Aç-kapa nişanda koşu tuşuna ileri giderken YENİDEN basmak nişanı kapatıp koşturur (basılı tutulan Shift nişanı kapatmaz; eski: koşu sürdükçe nişan hiç açılmıyordu). Silah değişimi nişanı kapatır.
+      const sprintReq = kb.held('sprint', k) && f > 0;
+      if (g.opts.adsToggle && ((sprintReq && !this._sprintReq) || s.cur !== this._adsCur)) s.ads = false;
+      this._sprintReq = sprintReq; this._adsCur = s.cur;
       const r = (kb.held('right', k) ? 1 : 0) - (kb.held('left', k) ? 1 : 0) || (T ? T.r : 0);
       const st = s.stat;
       const lean = (kb.held('leanRight', k) ? 1 : 0) - (kb.held('leanLeft', k) ? 1 : 0);                 // 3. şahısta da Q/E yatar (ve omuzu değiştirir)
