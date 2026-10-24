@@ -451,7 +451,11 @@ export class ViewModel {
     }
     // vuruş geri tepmesi ve fırlatma
     pos.z += this.hitKick * 0.06; rx += this.hitKick * 0.18;
-    if (this.throwT > 0) { const t = 1 - this.throwT; pos.z += Math.sin(t * Math.PI) * 0.12; rx += Math.sin(Math.min(1, t * 1.4) * Math.PI) * -0.5; pos.y -= Math.sin(t * Math.PI) * 0.06; }
+    // 12.144: bomba — pim çekilince (pişirme / önizleme) el geri ve yukarı kurulur; bırakınca ileri-aşağı savrulur, atılan bomba elde görünmez (cd boyunca)
+    this.cookK = (this.cookK || 0) + ((s.cook ? 1 : 0) - (this.cookK || 0)) * Math.min(1, dt * 12);
+    if (this.cookK > 0.001) { pos.z += 0.09 * this.cookK; pos.y += 0.06 * this.cookK; pos.x += 0.02 * this.cookK; rx += 0.45 * this.cookK; }
+    if (this.throwT > 0) { const f = Math.sin((1 - this.throwT) * Math.PI); pos.z -= f * 0.2; pos.y -= f * 0.07; rx -= f * 0.7; }
+    if (st.kind === 'throwable' && this.model?.children[0]) this.model.children[0].visible = !(s.cd > 0 && !s.cook);
     // sallanma (mouse)
     this.sx = lerp(this.sx || 0, -p.lookDX * 0.0006, Math.min(1, dt * 12));
     this.sy = lerp(this.sy || 0, p.lookDY * 0.0006, Math.min(1, dt * 12));
@@ -906,7 +910,7 @@ export class Player {
       if (this.locked) {
         if (st.kind === 'melee') { if (this.fireHeld || this.fireBuf > 0) { if (s.tryFire()) this.fireBuf = 0; } }
         else if (s.triggerUpdate(this.fireHeld, this.fireBuf)) this.fireBuf = 0;
-      }
+      } else if (s.cook) { this.fireHeld = false; s.triggerUpdate(false, 0); }                                    // kilit gitti (Esc): pişirilen bomba bırakılır (sunucu da tetiği bırakılmış görür)
       if (g.online) g.online.markAmmo(s);                                              // bu girdinin sonundaki cephane (sunucunun ack anındakiyle karşılaştırılır, 12.138)
       // adım sesi
       const sp = Math.hypot(s.vel.x, s.vel.z);

@@ -71,7 +71,7 @@ function itemFields(id) {
   const p = `w.${id}.`;
   switch (id) {
     case 'medkit': return [f(p + 'heal', 'Verdiği can', 1, 200), f(p + 'count', 'Adet', 1, 10), f(p + 'useTime', 'Kullanma süresi', 0.2, 5, 0.1, 'sn')];
-    case 'grenade': return [f(p + 'dmg', 'Hasar', 1, 400), f(p + 'radius', 'Patlama yarıçapı', 1, 15, 0.5, 'm'), f(p + 'fuse', 'Fitil', 0.5, 6, 0.1, 'sn'), f(p + 'count', 'Adet', 1, 6)];
+    case 'grenade': return [f(p + 'dmg', 'Hasar', 1, 400), f(p + 'radius', 'Patlama yarıçapı', 1, 15, 0.5, 'm'), f(p + 'fuse', 'Fitil', 0.5, 6, 0.1, 'sn'), f(p + 'speed', 'Atış hızı', 8, 30, 0.5, 'm/sn'), f(p + 'count', 'Adet', 1, 6)];
     case 'smoke': return [f(p + 'radius', 'Duman yarıçapı', 1, 12, 0.2, 'm'), f(p + 'smokeLife', 'Duman süresi', 2, 30, 1, 'sn'), f(p + 'count', 'Adet', 1, 6)];
     case 'flash': return [f(p + 'radius', 'Etki yarıçapı', 4, 50, 1, 'm'), f(p + 'count', 'Adet', 1, 6)];
     case 'claymore': return [f(p + 'dmg', 'Hasar', 1, 400), f(p + 'radius', 'Patlama yarıçapı', 1, 12, 0.5, 'm'), f(p + 'trigger', 'Tetik mesafesi', 1, 12, 0.5, 'm'), f(p + 'count', 'Adet', 1, 6)];

@@ -37,6 +37,8 @@ import { EndFlow } from './endFlow.js';
 import { t as $t } from '../i18n/index.js';
 import { placeName, banText } from '../i18n/game.js';                                                         // oyun içi sözlük (hud. / death. / end. …)
 import { Payload } from './payload.js';
+import { NADE, nadeStep, simulateNade, NadeView } from './grenade.js';
+import { createWeapon } from '../models/weapons.js';
 import { initGadgets, updateGadgets, spawnSmoke, flashBang, smokeBlocks, smokeDensity, placeDeployable, netDeploy, netUndeploy } from './gadgets.js';
 
 const STAT_ID = new Map(Object.entries(WSTATS).map(([k, v]) => [v, k]));      // WSTATS nesnesi → id (ağ olayları için)
@@ -255,6 +257,7 @@ export class Game {
     this.killfx = new KillFx(this);                                                // vuruş / öldürme hissi (kendi katmanı)
     if (this.online) this.chat = new Chat(this);                                   // sohbet yalnızca çevrimiçi odalarda
     this.player = new Player(this, this.playerSoldier, this.settings);
+    this.nadeView = new NadeView(this);                                            // 12.144: bomba yörünge önizlemesi + pişirme göstergesi
     this.player.locked = !!opts.nolock;
     this.abfx = new AbilityFx(this);                                                // zombi gücü: yerel oyuncunun ekran / ses geri bildirimi (abilityfx.js)
     this._vmLights();
@@ -1046,7 +1049,7 @@ export class Game {
           if (victim === me) me.lastHit = killer;
           break;
         }
-        case 'gr': if (by) this.spawnGrenade(by, new V(...ev.o), new V(...ev.v), WSTATS[ev.w], { id: ev.id }); break;
+        case 'gr': if (by) this.netGrenade(ev, by); break;
         case 'rk': if (by) this.spawnRocket(by, new V(...ev.o), new V(...ev.d), WSTATS[ev.w], { id: ev.id }); break;
         case 'sl': if (by) this.spawnShell(by, new V(...ev.o), new V(...ev.d), WSTATS[ev.w], { id: ev.id }); break;
         case 'boom': {
@@ -1226,6 +1229,7 @@ export class Game {
     if (this.map.fx) this.map.fx.update(performance.now() / 1000);            // harita efektleri (New York: ateş ışığı titremesi, duman / kıvılcım zamanı)
     this.paint.draw();
     this.pickups.draw();
+    this.nadeView?.draw();
     const now = performance.now(), dt = Math.min(0.1, (now - (this._rT || now)) / 1000); this._rT = now;
     this._vmLightUpdate(dt);
     if (this.playerSoldier.alive && !this.showSelf) this.player.vm.renderPip(r, this.scene, this.camera);      // 12.128: ACOG merceği (PiP) ana çizimden önce, gölgesiz
@@ -1390,16 +1394,47 @@ export class Game {
     this.netEvent({ e: 'rk', id, by: owner.id, w: STAT_ID.get(st), o: v3(pos), d: v3(dir) });
   }
 
-  spawnGrenade(owner, pos, vel, st, net) {
-    if (this.online && !net) return;
-    const col = st.gtype === 'smoke' ? '#9aa0a6' : st.gtype === 'flash' ? '#33373d' : '#4d5b3a';
-    const m = new THREE.Mesh(st.gtype === 'frag' || !st.gtype ? new THREE.IcosahedronGeometry(0.06, 0) : new THREE.CylinderGeometry(0.035, 0.035, 0.12, 8), mat(col));
-    m.position.copy(pos);
-    m.castShadow = true;
-    this.scene.add(m);
-    const id = net ? net.id : ++this.pidN;
-    this.projectiles.push({ id, type: 'grenade', mesh: m, pos: pos.clone(), vel: vel.clone(), owner, st, fuse: st.fuse, bounces: 0 });
-    this.netEvent({ e: 'gr', id, by: owner.id, w: STAT_ID.get(st), o: v3(pos), v: v3(vel) });
+  // Atılan bomba (el bombası / duman / flaş). o: { fuse (pişirilmişse kalan), inHand (elde patladı), pred (çevrimiçi: kendi atışımın tahmini, girdi sırası q) }
+  // Fizik grenade.js'te (sabit adım): sunucu, istemci tahmini ve önizleme aynı yolu çizer.
+  spawnGrenade(owner, pos, vel, st, net, o = {}) {
+    if (this.online && !net && !o.pred) return;
+    const id = net ? net.id : o.pred ? -(++this.pidN) : ++this.pidN;
+    let m;
+    if (this.headless) m = new THREE.Object3D();
+    else {
+      const wid = STAT_ID.get(st);
+      try { m = createWeapon(wid, null, true); m.scale.setScalar(1.25); } catch (e) { m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.07, 0), mat('#4d5b3a')); }
+      m.traverse((c) => { if (c.isMesh) c.castShadow = true; });
+      m.position.copy(pos);
+      this.scene.add(m);
+    }
+    const fuse = Number.isFinite(o.fuse) ? Math.max(0, o.fuse) : st.fuse;
+    // görüntü: bomba ilk 0,18 sn'de elden (göz hattının sağ-altı) gerçek yola süzülür (fizik gözden başlar: duvardan atılamaz)
+    const vis = new THREE.Vector3();
+    if (!this.headless && !o.inHand) { const r = owner.right(new THREE.Vector3()); vis.addScaledVector(r, 0.22).y -= 0.22; }
+    const p = { id, type: 'grenade', mesh: m, pos: pos.clone(), vel: vel.clone(), owner, st, fuse, bounces: 0, acc: 0, age: 0, steps: 0, ground: false, rest: false, vis, inHand: !!o.inHand, pred: !!o.pred, q: o.pred ? o.q : -1, ph: {} };
+    this.projectiles.push(p);
+    this.netEvent({ e: 'gr', id, by: owner.id, w: STAT_ID.get(st), o: v3(pos), v: v3(vel), f: +fuse.toFixed(3), q: Number.isFinite(owner.inSeq) ? owner.inSeq : -1, ih: o.inHand ? 1 : 0 });
+    return p;
+  }
+
+  // Çevrimiçi: sunucunun 'gr' olayı. Kendi atışımsa tahminle zaten havada: kimliğini eşle, sunucunun başlangıcından aynı adım sayısı kadar yeniden koş (yakınsar).
+  netGrenade(ev, by) {
+    const st = WSTATS[ev.w], V = THREE.Vector3;
+    if (!st) return;
+    if (by === this.playerSoldier) {
+      const mine = this.projectiles.filter((p) => p.pred && p.st === st);
+      const p = mine.find((q) => q.q === ev.q) || mine.sort((a, b) => b.age - a.age)[0];
+      if (p) {
+        p.id = ev.id; p.pred = false;
+        const s0 = { pos: new V(...ev.o), vel: new V(...ev.v), ground: false, rest: false };
+        for (let k = 0; k < p.steps; k++) nadeStep(s0, this.world, p.ph);
+        p.pos.copy(s0.pos); p.vel.copy(s0.vel); p.ground = s0.ground; p.rest = s0.rest;
+        p.fuse = (Number.isFinite(ev.f) ? ev.f : st.fuse) - p.steps * NADE.h;
+        return;
+      }
+    }
+    this.spawnGrenade(by, new V(...ev.o), new V(...ev.v), st, { id: ev.id }, { fuse: ev.f, inHand: !!ev.ih });
   }
 
   // M79 tarzı bomba: yaylı yol, çarpınca patlar
@@ -1437,25 +1472,36 @@ export class Game {
           p.trail -= dt;
           if (p.trail <= 0) { p.trail = 0.02; this.effects._part(p.pos, '#8a8a8a', 0.14, null, 0.6, 0.7, -0.5); this.effects._part(p.pos, '#ffb04a', 0.08, null, 0.3, 0.12, 0); }
         }
+      } else if (!p.shell) {
+        // atılan bomba: sabit adım (NADE.h) — kare hızından bağımsız, önizlemeyle birebir
+        p.acc += dt; p.age += dt;
+        while (p.acc >= NADE.h - 1e-9 && !boom) {
+          p.acc -= NADE.h;
+          if (p.fuse <= 1e-9) { boom = p.pos.clone(); break; }
+          const hit = nadeStep(p, this.world, p.ph);
+          p.steps++; p.fuse -= NADE.h;
+          if (hit > 2 && ++p.bounces < 6) this.sfx.impact(p.pos);
+          if (p.fuse <= 1e-9) boom = p.pos.clone();
+        }
+        if (!this.headless) {
+          const k = Math.max(0, 1 - p.age / 0.18);
+          p.mesh.position.copy(p.pos).addScaledVector(p.vis, k);
+          if (!p.rest) { const sp = Math.min(1, p.vel.length() / 6); p.mesh.rotation.x += dt * 9 * sp; p.mesh.rotation.z += dt * 5 * sp; }
+        }
+        if (p.pred && p.age > 1.6 + (this.online?.stats.rtt || 0) / 1000) { this.scene.remove(p.mesh); this.projectiles.splice(i, 1); continue; }   // sunucu onaylamadı (atış reddedildi)
       } else {
         p.fuse -= dt;
-        p.vel.y -= (p.shell ? 8 : 14) * dt;
+        p.vel.y -= 8 * dt;
         const step = p.vel.clone().multiplyScalar(dt), L = step.length();
         if (L > 1e-5) {
           const d = step.clone().normalize();
           const wh = this.world.raycast(p.pos, d, L + 0.05, (this._ph ||= {}));
-          if (wh && p.shell) boom = wh.point.clone().addScaledVector(wh.normal, 0.15);
-          else if (wh) {
-            p.pos.copy(wh.point).addScaledVector(wh.normal, 0.06);
-            const n = wh.normal, vn = p.vel.dot(n);
-            p.vel.addScaledVector(n, -2 * vn).multiplyScalar(0.45);
-            if (Math.abs(n.y) > 0.5) { p.vel.x *= 0.7; p.vel.z *= 0.7; if (Math.abs(p.vel.y) < 1.2) p.vel.y = 0; }
-            if (++p.bounces < 6 && p.vel.length() > 1.5) this.sfx.impact(p.pos);
-          } else p.pos.add(step);
+          if (wh) boom = wh.point.clone().addScaledVector(wh.normal, 0.15);
+          else p.pos.add(step);
         }
         p.mesh.position.copy(p.pos);
-        if (p.shell) p.mesh.lookAt(p.pos.clone().add(p.vel)); else { p.mesh.rotation.x += dt * 8; p.mesh.rotation.z += dt * 6; }
-        if (p.shell && !boom) {
+        p.mesh.lookAt(p.pos.clone().add(p.vel));
+        if (!boom) {
           // doğrudan düşmana isabet
           for (const e of this.soldiers) {
             if (!e.alive || e === p.owner || e.team === p.owner.team) continue;
@@ -1472,12 +1518,13 @@ export class Game {
         this.netEvent({ e: 'boom', id: p.id, k: gt === 'smoke' ? 's' : gt === 'flash' ? 'f' : 'x', p: v3(boom), r: p.st.radius, w: STAT_ID.get(p.st), by: p.owner.id });
         if (gt === 'smoke') spawnSmoke(this, boom, p.st, p.owner);
         else if (gt === 'flash') flashBang(this, boom, p.owner, p.st);
-        else this.explode(boom, p.st.radius, p.st.dmg, p.owner, p.st.name);
+        else this.explode(boom, p.st.radius, p.st.dmg, p.owner, p.st.name, p.inHand ? 9 : undefined);
       }
     }
   }
 
-  explode(pos, radius, dmg, owner, name) {
+  // selfMul: atanın kendi hasar çarpanı (varsayılan TUNE.selfBlast; elde patlayan bomba öldürür). Duvar arkası: patlamadan gövde merkezi YA DA başa açık hat yoksa hasar yok.
+  explode(pos, radius, dmg, owner, name, selfMul) {
     this.effects.explosion(pos, radius);
     this.sfx.explosion(pos);
     this.alertNear(pos, owner.team, 90);
@@ -1491,9 +1538,9 @@ export class Game {
       const c = e.center(new THREE.Vector3());
       const d = c.distanceTo(pos);
       if (d > radius) continue;
-      if (!this.world.clear(o, c)) continue;
+      if (!this.world.clear(o, c) && !this.world.clear(o, e.eye(_xe))) continue;
       let a = dmg * (1 - (d / radius) ** 2);
-      if (e === owner) a *= TUNE.selfBlast;
+      if (e === owner) a *= selfMul ?? TUNE.selfBlast;
       e.takeDamage(a, owner, 'body', pos, name);
       e.vel.x += (c.x - pos.x) / (d + 0.5) * 3; e.vel.z += (c.z - pos.z) / (d + 0.5) * 3;
     }
@@ -1709,6 +1756,7 @@ export class Game {
     clearTimeout(this._lockT);
     removeEventListener('resize', this._rs);
     this.player.dispose();
+    this.nadeView?.dispose();
     this.abfx?.dispose();
     this.chat?.dispose();
     this.killfx.dispose();
@@ -1721,5 +1769,5 @@ export class Game {
   }
 }
 
-const _sv = new THREE.Vector3(), _sq = new THREE.Quaternion();
+const _sv = new THREE.Vector3(), _sq = new THREE.Quaternion(), _xe = new THREE.Vector3();
 function lerpClamp(a, b, t) { return a + (b - a) * clamp(t, 0, 1); }
