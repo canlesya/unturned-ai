@@ -16,6 +16,7 @@ const _o = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
 // Koşarken / havadayken ateş serbest ama isabetsiz: ek saçılma (rad). 0,085 ≈ 4,9° → 20 m'de ~1,7 m, 50 m'de ~4,3 m (koşarak zıplayınca ikisi toplanır ≈ 9°).
 const smooth01 = (x) => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
+export const SCOPE_ACC = 0.85;      // 12.156: insan keskin nişancının isabeti bu adsT'den sonra açılır (0,85 → 1 yumuşak); altı = belden
 const SPRINT_SPREAD = 0.085, AIR_SPREAD = 0.075, sprintSpeed = () => TUNE.walkSpeed * 1.32;      // yürüme hızının 1,32 katı (eskiden 4,4 × 1,32 = 5,8): yürürken koşu cezası uygulanmaz
 
 export const EYE_STAND = 1.62;
@@ -273,8 +274,11 @@ export class Soldier {
     const speed = Math.hypot(this.vel.x, this.vel.z);
     if (st.ball) return this._ballSpread(st, hipv, adsv, speed);
     // 12.153: dürbünlü keskin nişancı (st.scope): isabet yalnız dürbün oturunca (adsT 0,6 → 1 yumuşak); belde / geçişte ilk atış indirimi yok (no-scope / erken quickscope şansa kalır)
-    const sk = st.scope ? smooth01((this.adsT - 0.6) / 0.4) : this.adsT;
-    let s = lerp(hipv, adsv, sk);
+    // 12.156: insan (oyuncu / sunucudaki insan) için belden keskin nişancı anlamlı isabetsiz (st.noscope koni; eski hip 0,03 → 10 m'de gövdeye %100) ve dürbün
+    // TAM oturmadan (adsT < SCOPE_ACC) atış belden sayılır. Botlar eski eğride (bot nişanı ayrı: tacAim + botExtraSpread)
+    const hum = st.scope && (this.isPlayer || this.human), a0 = hum ? SCOPE_ACC : 0.6;
+    const sk = st.scope ? smooth01((this.adsT - a0) / (1 - a0)) : this.adsT;
+    let s = lerp(hum ? st.noscope ?? hipv : hipv, adsv, sk);
     s += Math.min(speed * 0.0007, 0.0045) * (1 - this.adsT * 0.65);   // hareket cezası
     if (!this.onGround) s += AIR_SPREAD * (1 - this.adsT * 0.5);            // havadayken (zıplarken) atış çok dağılır
     if (this.firedSprinting || speed > sprintSpeed()) s += SPRINT_SPREAD * (1 - this.adsT);   // koşarken (Shift) atış serbest ama isabetsiz

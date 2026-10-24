@@ -5,7 +5,7 @@
 // Uzak tampon: çatlama yok (ses üstü mermide hafif), gövde boğuk, kuyruk ve yansıma uzun. İç / dış mekân farkı audio.js'in ortak yankısında (verbOut) kalır.
 //
 // TASLAK SEÇİMİ: SHOT_DRAFT = 'A' (eski katmanlı sentez, audio.js) · 'B' (tok, arcade) · 'C' (açık hava, gerçekçi). Oyunda ?sfx=A|B|C ile denenir.
-export const SHOT_DRAFT = 'B';
+export const SHOT_DRAFT = 'A';                       // 12.156: kullanıcı eski sesleri istedi (A); B / C ?sfx=B|C ile denenebilir
 
 // Sınıf tablosu (B ve C aynı tabloyu kullanır, DRAFTS çarpanlarıyla farklılaşır). Süreler ms, frekanslar Hz.
 // c = çatlama [kazanç, sönüm, yüksek geçiren] · nw = N-dalgası (ses üstü) · b = gövde [kazanç, sönüm, f0, f1] · k = havlama [kazanç, sönüm, f, Q]

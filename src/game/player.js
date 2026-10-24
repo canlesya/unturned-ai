@@ -14,6 +14,7 @@ import { clamp, lerp, V3, adsEase, ADS_HUD, zoomFov, SCOPE_ON } from './util.js'
 import { applyInput } from '../sim/input.js';
 import { TUNE } from './balance.js';
 import { TouchControls, isTouch } from './touch.js';
+import { ScopeBreath } from './breath.js';
 import { norm, codeLabel, slotOrder } from '../core/keybinds.js';
 import { t as $t } from '../i18n/index.js';
 import { wName, opticName, fireName } from '../i18n/game.js';
@@ -718,6 +719,7 @@ export class Player {
     this.lookDX = 0; this.lookDY = 0;
     this.locked = false;
     this.vm = new ViewModel(game);
+    this.breath = new ScopeBreath(game);                                       // 12.156: dürbün sallanması + nefes tutma (bakışa eklenir)
     this.fov = settings.fov;
     this.camPos = new THREE.Vector3();
     this.bodyVisible = false;
@@ -1027,14 +1029,19 @@ export class Player {
       if (kk.has('ArrowUp')) s.pitch = clamp(s.pitch + sp, -1.5, 1.5);
       if (kk.has('ArrowDown')) s.pitch = clamp(s.pitch - sp, -1.5, 1.5);
     }
+    if (!s.alive) this.breath.reset();
     if (s.alive && !g.opts.autoplay) {
       const k = this.keys;
       const kb = this.kb, T = this.touch;
+      // 12.156: dürbün sallanması bakışa (yaw / pitch) "sanal fare" olarak eklenir → kamera, retikül, mermi ve sunucuya giden yaw / pitch aynı
+      const bw = this.breath.step(dt, s, this.locked && (kb.held('holdBreath', k) || !!T?.breath));
+      if (bw[0] || bw[1]) { s.yaw += bw[0]; s.pitch = clamp(s.pitch + bw[1], -1.5, 1.5); }
       const f = (kb.held('forward', k) ? 1 : 0) - (kb.held('back', k) ? 1 : 0) || (T ? T.f : 0);
       // koşu ↔ nişan (12.145): nişan isteği koşuyu o karede keser (applyInput: s.ads → koşu yok), bırakınca koşu tuşu basılıysa koşuya dönülür.
       // Aç-kapa nişanda koşu tuşuna ileri giderken YENİDEN basmak nişanı kapatıp koşturur (basılı tutulan Shift nişanı kapatmaz; eski: koşu sürdükçe nişan hiç açılmıyordu). Silah değişimi nişanı kapatır.
       const sprintReq = kb.held('sprint', k) && f > 0;
-      if (g.opts.adsToggle && ((sprintReq && !this._sprintReq) || s.cur !== this._adsCur)) s.ads = false;
+      const brK = s.overlay === 'scope' && s.ads && kb.held('holdBreath', k);          // 12.156: dürbünde koşu tuşu = nefes tut (aç-kapa nişanda dürbünden çıkarmasın)
+      if (g.opts.adsToggle && ((sprintReq && !this._sprintReq && !brK) || s.cur !== this._adsCur)) s.ads = false;
       this._sprintReq = sprintReq; this._adsCur = s.cur;
       const r = (kb.held('right', k) ? 1 : 0) - (kb.held('left', k) ? 1 : 0) || (T ? T.r : 0);
       const st = s.stat;

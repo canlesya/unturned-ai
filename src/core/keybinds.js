@@ -25,6 +25,7 @@ export const ACTIONS = [
   ['ability', 'Zombi özel gücü (Enfekte) · sağ tık da çalışır', 2, ['KeyF']],
   ['optic', 'Nişangâh değiştir (hızlı)', 2, ['KeyB']],
   ['wheel', 'Nişangâh çarkı (basılı tut)', 2, ['KeyT']],
+  ['holdBreath', 'Nefes tut (dürbünde, basılı tut)', 2, ['ShiftLeft']],          // 12.156: varsayılan koşu ile ortak Shift (dürbünde koşu zaten yok)
   ['inspect', 'Silahı incele', 2, ['KeyY']],
   ['leftHand', 'Sol el ↔ sağ el (silahı tutan el)', 2, ['KeyU']],
   ['third', '3. şahıs kamera', 3, ['KeyH']],

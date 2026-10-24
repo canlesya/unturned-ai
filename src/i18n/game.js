@@ -205,7 +205,7 @@ addStrings('en', {
   'set.act.forward': 'Forward', 'set.act.back': 'Back', 'set.act.left': 'Left', 'set.act.right': 'Right', 'set.act.sprint': 'Sprint', 'set.act.jump': 'Jump / stand up',
   'set.act.crouch': 'Crouch', 'set.act.prone': 'Prone', 'set.act.leanLeft': 'Lean left', 'set.act.leanRight': 'Lean right', 'set.act.reload': 'Reload',
   'set.act.slot1': 'Primary weapon', 'set.act.slot2': 'Secondary weapon', 'set.act.slot3': 'Gadget', 'set.act.slot4': 'Knife', 'set.act.fireMode': 'Fire mode (single → burst → auto)',
-  'set.act.ability': 'Zombie ability (Infection) · right click works too', 'set.act.optic': 'Cycle sight (quick)', 'set.act.wheel': 'Sight wheel (hold)', 'set.act.inspect': 'Inspect weapon',
+  'set.act.ability': 'Zombie ability (Infection) · right click works too', 'set.act.optic': 'Cycle sight (quick)', 'set.act.wheel': 'Sight wheel (hold)', 'set.act.holdBreath': 'Hold breath (scoped, hold)', 'set.act.inspect': 'Inspect weapon',
   'set.act.leftHand': 'Left ↔ right hand (weapon hand)', 'set.act.third': 'Third-person camera', 'set.act.flashlight': 'Flashlight', 'set.act.team': 'Team select (online)',
   'set.act.chat': 'Chat (online) · Shift for team', 'set.act.scoreboard': 'Scoreboard (hold)',
   // veri adları (Türkçesi stats.js'te)

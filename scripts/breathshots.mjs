@@ -1,0 +1,22 @@
+// Pixel 7: dürbünde nefes düğmesi + nefes çubuğu (tek kare), belden artısız kare
+import { chromium, devices } from 'playwright';
+const base = process.argv[2] || 'http://127.0.0.1:5221', OUT = process.env.OUT || '/tmp/wb-breath/sonra/mob';
+const b = await chromium.launch({ headless: false, args: ['--use-angle=metal', '--ignore-gpu-blocklist'] });
+const { defaultBrowserType, ...dev } = devices['Pixel 7 landscape'];
+const ctx = await b.newContext(dev), p = await ctx.newPage(), errs = [];
+p.on('pageerror', (e) => errs.push(e.message));
+await p.goto(`${base}/?autostart=3v3&map=colgecidi&type=tdm&debug=1&nolock=1&third=0&touch=1`);
+await p.waitForFunction('window.__game && window.__game.running && window.__game.player', null, { timeout: 120000 });
+await p.waitForTimeout(1500);
+await p.evaluate(() => { const g = window.__game, pl = g.player, s = pl.s; g.brains.forEach((x) => (x.update = () => {})); s.protT = 1e9; s.items[0] = { id: 'sniper', mag: 5, reserve: 25 }; s.cur = 0; pl.refreshWeapon(); });
+await p.waitForTimeout(800);
+await p.screenshot({ path: `${OUT}/p7_bel.png` });
+const r0 = await p.evaluate(() => ({ cross: getComputedStyle(document.getElementById('cross')).display }));
+await p.evaluate(() => { window.__game.player.s.ads = true; });
+await p.waitForTimeout(900);
+await p.evaluate(() => { window.__game.player.touch.press('breath', true, { clientX: 0, clientY: 0 }); });
+await p.waitForTimeout(1200);
+const r = await p.evaluate(() => { const pl = window.__game.player, bt = document.querySelector('#tc [data-b=breath]'); return { btn: bt && !bt.classList.contains('hid') && getComputedStyle(bt).display !== 'none', on: bt?.classList.contains('on'), hold: +pl.breath.hold.toFixed(2), air: +pl.breath.air.toFixed(2), bar: document.getElementById('breath')?.style.display }; });
+await p.screenshot({ path: `${OUT}/p7_durbun_nefes.png` });
+console.log(JSON.stringify({ bel: r0, durbun: r, errs }));
+await b.close();

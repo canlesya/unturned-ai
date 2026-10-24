@@ -104,7 +104,7 @@ addStrings('en', {
   'action.crouch': 'Crouch', 'action.prone': 'Prone', 'action.leanLeft': 'Lean left', 'action.leanRight': 'Lean right',
   'action.reload': 'Reload', 'action.slot1': 'Primary weapon', 'action.slot2': 'Secondary weapon', 'action.slot3': 'Gadget', 'action.slot4': 'Knife',
   'action.fireMode': 'Fire mode (single → burst → auto)', 'action.ability': 'Zombie ability (Infected) · right click works too', 'action.optic': 'Switch sight (quick)',
-  'action.wheel': 'Sight wheel (hold)', 'action.inspect': 'Inspect weapon', 'action.leftHand': 'Left ↔ right hand (weapon hand)',
+  'action.wheel': 'Sight wheel (hold)', 'action.holdBreath': 'Hold breath (scoped, hold)', 'action.inspect': 'Inspect weapon', 'action.leftHand': 'Left ↔ right hand (weapon hand)',
   'action.third': '3rd person camera', 'action.flashlight': 'Flashlight', 'action.team': 'Team select (online)', 'action.chat': 'Chat (online) · Shift for team', 'action.scoreboard': 'Scoreboard (hold)',
   'key.Space': 'Space', 'data.random': 'Random',
 });

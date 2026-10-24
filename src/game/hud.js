@@ -810,7 +810,7 @@ export class Hud {
     const ov = p.overlay, adsL = p.adsT, ads = adsEase(adsL);           // adsL doğrusal (dürbün eşiği silah modeliyle aynı), ads görsel eğri
     const scopeOn = p.alive && ov === 'scope' && (g.player ? !!g.player.scopeOn : adsL > 0.9);      // 12.127: bayrak ViewModel'de (çıkışta dünya ×2'nin altına inene dek açık; model aynı bayrakla gizli)
     const tp = g.showSelf;                                   // 3. şahıs kamera: optik örtüsü yok, artı hep görünür
-    const showCross = p.alive && (ads < 0.6 || tp);
+    const showCross = p.alive && (ads < 0.6 || tp) && !st.scope;      // 12.156: dürbünlü keskin nişancıda belden artı yok (no-scope tahmine kalır; isabet işareti #hitm ayrı, çalışır)
     cross.style.display = showCross ? 'block' : 'none';
     cross.classList.toggle('ads', ads > 0.5 && !tp);
     const spread = p.spreadNow(st) * 900;
