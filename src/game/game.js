@@ -282,18 +282,22 @@ export class Game {
     });
     document.addEventListener('pointerlockchange', this._plc = () => {
       const locked = document.pointerLockElement === this.canvas;
-      if (locked) { this.lockFails = 0; this.player.skipMove = 2; this.lockKeys(true); }                 // kilit anındaki ilk fare olayı genelde zıplar: atla
+      const chatWas = !!this.chatOpen;
+      if (locked) { this.lockFails = 0; this._quietUntil = 0; this.player.skipMove = 2; this.lockKeys(true); }                 // kilit anındaki ilk fare olayı genelde zıplar: atla
       else {
         this.chat?.close();
-        this.lockKeys(false);
+        this._unlockBy = this._selfUnlock ? 'game' : 'user'; this._selfUnlock = false;   // 12.147: oyunun bıraktığı kilit jestsiz geri alınabilir
+        this.lockKeys(document.fullscreenElement && this.settings.fullscreen !== false ? 'esc' : false);   // tam ekran menüde Esc sayfada kalsın (yoksa tam ekrandan çıkar)
         this._unlockAt = performance.now();
         this.player.fireHeld = false; this.playerSoldier.ads = false;                // kilit kopunca takılı ateş/nişan kalmasın
       }
       this.player.locked = locked || !!this.opts.nolock;
       if (!this.ended) this.hud.setPaused(!this.player.locked);
+      if (!this.ended && !this.player.locked && chatWas) this.hud.showResume(true);      // sohbetteki Esc kilidi de düşürdü: menü değil, "tıkla devam"
       this.simulate = this.player.locked || this.ended;
     });
     document.addEventListener('pointerlockerror', this._ple = () => this.onLockError());
+    document.addEventListener('keydown', this._esc = (e) => { if (e.code === 'Escape' && !e.repeat) this.onEsc(e); });
     addEventListener('beforeunload', this._bu = (e) => { if (this.running && !this.ended && !this.opts.nolock) { e.preventDefault(); e.returnValue = ''; } });      // yanlışlıkla Ctrl+W / sekme kapatma: onay sorar
     addEventListener('resize', this._rs = () => {
       this.camera.aspect = innerWidth / innerHeight; this.camera.updateProjectionMatrix();
@@ -522,22 +526,28 @@ export class Game {
   on(n, fn) { (this.listeners.get(n) || this.listeners.set(n, []).get(n)).push(fn); }
   emit(n, p) { const a = this.listeners.get(n); if (a) for (const f of a) f(p); }
 
-  // Tam ekranda klavye kilidi: Ctrl+W / Ctrl+T gibi tarayıcı kısayolları yakalanır, oyun sırasında sekme kapanmaz (Esc serbest kalır)
+  // Tam ekranda klavye kilidi: Ctrl+W / Ctrl+T gibi tarayıcı kısayolları yakalanır, oyun sırasında sekme kapanmaz.
+  // 12.147: Esc de kilitli → kısa Esc sayfaya gelir (oyun menüyü kendisi açar / kapar), basılı tutunca tarayıcı tam ekrandan çıkar.
+  // on === 'esc': duraklatma menüsünde yalnız Esc (diğer kısayollar serbest).
   lockKeys(on) {
     const kb = navigator.keyboard;
+    if (on === 'esc') { try { kb?.lock(['Escape'])?.catch?.(() => {}); } catch (e) { /* desteklenmiyor */ } return; }
     if (!on) { try { kb?.unlock(); } catch (e) { /* desteklenmiyor */ } return; }
     if (this.settings.fullscreen !== false && !document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
-    const keys = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'KeyR', 'KeyT', 'KeyN', 'KeyC', 'KeyF', 'KeyG', 'KeyV', 'KeyX', 'KeyZ', 'KeyB', 'KeyH', 'ControlLeft', 'ControlRight', 'AltLeft', 'AltRight', 'ShiftLeft', 'ShiftRight', 'Space', 'Tab', 'F5'];
+    const keys = ['Escape', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'KeyR', 'KeyT', 'KeyN', 'KeyC', 'KeyF', 'KeyG', 'KeyV', 'KeyX', 'KeyZ', 'KeyB', 'KeyH', 'ControlLeft', 'ControlRight', 'AltLeft', 'AltRight', 'ShiftLeft', 'ShiftRight', 'Space', 'Tab', 'F5'];
     try { kb?.lock(keys)?.catch?.(() => {}); } catch (e) { /* desteklenmiyor */ }
   }
 
-  requestLock() {
+  // quiet: Esc ile dönme denemesi (kullanıcı jesti yok, reddedilebilir): hata sayılmaz / uyarı yok, "tıkla devam" katmanı açık kalır
+  requestLock(quiet = false) {
     this.sfx.init();
     if (this.opts.nolock) { this.player.locked = true; this.simulate = true; this.hud.setPaused(false); return; }
     if (this.noPointerLock) { this.player.locked = true; this.simulate = true; this.hud.setPaused(false); return; }
-    // Chrome, Esc ile çıkıştan hemen sonra (~1,3 sn) yapılan kilit isteğini reddeder: bekleyip sonra iste
-    const wait = 1350 - (performance.now() - (this._unlockAt || -1e9));
-    if (wait > 0) { clearTimeout(this._lockT); this._lockT = setTimeout(() => this.requestLock(), wait); return; }
+    // Chrome, kullanıcı Esc ile çıktıktan hemen sonra (~1,3 sn) yapılan kilit isteğini reddeder: bekleyip sonra iste (oyunun bıraktığı kilitte soğuma yok)
+    const wait = this._unlockBy === 'game' ? 0 : 1350 - (performance.now() - (this._unlockAt || -1e9));
+    clearTimeout(this._lockT);
+    if (wait > 0) { this._lockT = setTimeout(() => this.requestLock(quiet), wait); return; }
+    this._quietUntil = quiet ? performance.now() + 2000 : 0;
     const plain = () => { try { const p = this.canvas.requestPointerLock(); p?.catch?.((err) => this.onLockError(err)); } catch (e) { this.onLockError(e); } };
     try {
       // ham fare girdisi (işletim sistemi hızlandırması yok): daha tutarlı bakış; desteklenmezse normal istek
@@ -548,6 +558,7 @@ export class Game {
 
   // Kilit alınamadı: tek seferlik hatada kalıcı "kilitsiz moda" GEÇME (imleç ekranda kalıp bakışı bozuyordu); ancak art arda başarısızsa
   onLockError() {
+    if (performance.now() < (this._quietUntil || 0)) return;                 // Esc denemesi reddedildi: katman zaten "tıkla devam" diyor
     this.lockFails = (this.lockFails || 0) + 1;
     if (this.lockFails >= 4 || !this.canvas.requestPointerLock) { this.fallbackLock(); return; }
     this.hud.toast($t('hud.t.lockRetry'), '#ffd27a');
@@ -560,6 +571,23 @@ export class Game {
     this.player.locked = true; this.simulate = true;
     this.hud.setPaused(false);
     this.hud.toast($t('hud.t.lockFail'), '#ffd27a');
+  }
+
+  // 12.147 Esc: oyunda → duraklatma menüsü · menüde → oyuna dön · "tıkla devam" katmanında → menü.
+  // Kilit varken Esc'nin sayfaya gelmesi yalnız tam ekran + Keyboard Lock'ta olur (pencerede tarayıcı kilidi kendisi bırakır, olay gelmez).
+  // Alt sayfa (Ayarlar / Kontroller, tuş atama), sohbet, takım menüsü Esc'yi kendileri işler; dokunmatik / kilitsiz yedek mod player.js'te.
+  onEsc(e) {
+    const hud = this.hud;
+    if (!this.running || this.ended || hud.endShown || this.noPointerLock || this._tm || this.chatOpen || hud.igs?.open) return;
+    if (this.opts.nolock ? this.simulate : this.player.locked) {
+      e.preventDefault();
+      if (this.opts.nolock) { this.player.locked = false; this.simulate = false; hud.setPaused(true); return; }      // ?nolock=1 (test / editör): aynı durum geçişi
+      this._selfUnlock = true; document.exitPointerLock?.();               // pointerlockchange menüyü açar
+      return;
+    }
+    if (!this._unlockBy && hud.$('pause').classList.contains('intro')) return;     // ilk giriş ekranı ("Hazır mısın?"): ilk kilit tıkla alınır
+    if (hud.resumeShown) { e.preventDefault(); hud.setPaused(true); return; }                 // katman → menü
+    if (hud.pausedShown) { e.preventDefault(); hud.showResume(true); this.requestLock(true); }   // menü → oyun (reddedilirse katman kalır)
   }
 
   togglePause() {
@@ -1685,7 +1713,7 @@ export class Game {
     document.removeEventListener('pointerlockchange', this._plc);
     removeEventListener('beforeunload', this._bu); this.lockKeys(false); if (document.fullscreenElement && !keepNet) document.exitFullscreen?.().catch(() => {});
     document.removeEventListener('keydown', this._kd);
-    document.removeEventListener('pointerlockerror', this._ple);
+    document.removeEventListener('pointerlockerror', this._ple); document.removeEventListener('keydown', this._esc); clearTimeout(this._lockT);
     clearTimeout(this._lockT);
     removeEventListener('resize', this._rs);
     this.player.dispose();

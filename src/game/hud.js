@@ -194,6 +194,12 @@ body.mob #scope circle{transform:scale(1.9)}
 #pause .pbtns .btn.sec:hover{border-left-color:var(--acc);background:linear-gradient(90deg,#2c3747,#1f2733);filter:none}
 #pause #bQuit{color:#ffb3a6}
 #pause #ptext{font-size:14px;opacity:.75}
+#presume{position:absolute;inset:0;display:none;align-items:center;justify-content:center;pointer-events:auto;cursor:pointer;background:rgba(5,8,12,.28);animation:prsIn .15s .12s both}
+#presume .pr{display:flex;flex-direction:column;align-items:center;gap:6px;padding:14px 30px 12px;background:rgba(9,13,19,.9);border:1px solid rgba(255,255,255,.16);border-top:3px solid var(--acc,#ff8a1f);box-shadow:0 10px 34px rgba(0,0,0,.55);clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,0 100%)}
+#presume .pr b{font-size:20px;letter-spacing:2px;text-transform:uppercase;font-style:italic}
+#presume .pr b::before{content:'';display:inline-block;margin-right:10px;border-left:12px solid var(--acc,#ff8a1f);border-top:8px solid transparent;border-bottom:8px solid transparent;vertical-align:1px}
+#presume .pr span{font-size:12px;letter-spacing:1.5px;opacity:.6}
+@keyframes prsIn{from{opacity:0}}
 /* ölüm / yeniden doğuş ekranı */
 #respawn{background:radial-gradient(ellipse at 50% 30%,rgba(70,8,6,.35),rgba(5,8,12,.86) 75%)}
 #respawn .dep{display:flex;flex-direction:column;gap:14px;width:min(1180px,94vw)}
@@ -336,6 +342,7 @@ export class Hud {
       <div id="scoreboard" class="overlay"><div class="panel"><div class="scroll" id="sbbody"></div></div></div>
       <div id="pause" class="overlay"><div class="panel"><div class="ptag" id="ptag"></div><h2 id="ptitle"></h2><div id="pmeta"></div><p id="ptext"></p>
         <div class="pbtns"><button class="btn" id="bResume"></button><button class="btn sec" id="bKill"></button><button class="btn sec" id="bSet"></button><button class="btn sec" id="bCtl"></button><button class="btn sec" id="bQuit"></button></div></div></div>
+      <div id="presume"><div class="pr"><b id="prT"></b><span id="prS"></span></div></div>
       <div id="endscreen" class="overlay"><div class="panel"><h2 id="etitle"></h2><p id="einfo"></p><div id="estats" style="margin:10px 0"></div>
         <button class="btn" id="bAgain"></button><button class="btn sec" id="bMenu"></button></div></div>`;
     document.body.appendChild(el);
@@ -370,6 +377,7 @@ export class Hud {
     this.$('bAgain').onclick = () => game.restart();
     this.$('bMenu').onclick = () => game.exit();
     this.$('pause').addEventListener('mousedown', (e) => { if (e.target.id === 'pause') game.requestLock(); });
+    this.$('presume').addEventListener('mousedown', (e) => { if (e.button === 0) game.requestLock(); });      // 12.147: tek tık → kilit, oyun sürer
     this.pbMarks = [...this.root.querySelectorAll('#pbret .m')]; this._pbKey = '';
     game.on('spawn', (s) => { if (s === game.playerSoldier) this._sp?.clear(); });
   }
@@ -394,6 +402,7 @@ export class Hud {
     $('bResume').textContent = t('pause.start'); $('bKill').textContent = t('pause.kill'); $('bKill').title = t('pause.killTip');
     $('bSet').textContent = t('pause.settings'); $('bCtl').textContent = t('pause.controls'); $('bQuit').textContent = t('pause.menu');
     $('bAgain').textContent = t('pause.again'); $('bMenu').textContent = t('pause.menu');
+    $('prT').textContent = t('pause.clickResume'); $('prS').textContent = t('pause.escMenu');
     $('hcls').textContent = t('death.pickClass'); $('hspn').textContent = t('death.spawn'); $('hcnt').textContent = t('death.deploy');
     $('rkwl').textContent = t('death.weapon'); $('rkdl').textContent = t('death.dist'); $('rkpl').textContent = t('death.hpLeft');
     this.flagEls.forEach((f) => (f.title = placeName(f._nm)));
@@ -629,8 +638,18 @@ export class Hud {
     this.$('sbbody').innerHTML = `${head}<div class="cols">${col('blue')}${col('red')}</div>`;
   }
 
+  get pausedShown() { return this.$('pause').style.display === 'flex'; }
+  get resumeShown() { return this.$('presume').style.display === 'flex'; }
+  get endShown() { return this.$('endscreen').style.display === 'flex'; }
+  // 12.147: menüde Esc → menü kapanır, kilit alınamazsa ortada küçük "Devam etmek için tıkla" (tıkla = oyun, Esc = menüye geri)
+  showResume(v) {
+    if (v) { this.igs?.close(); this.$('pause').style.display = 'none'; }
+    this.$('presume').style.display = v ? 'flex' : 'none';
+  }
+
   setPaused(v) {
     const ov = this.$('pause'), g = this.game;
+    this.$('presume').style.display = 'none';
     if (!v) this.igs?.close();
     ov.style.display = v ? 'flex' : 'none';
     // maça girişte (henüz oynanmadı): sahne arkada görünmesin; harita görseliyle tam ekran kapak
@@ -662,7 +681,7 @@ export class Hud {
     this.$('einfo').textContent = info;
     this.$('estats').innerHTML = rows;
     this.$('endscreen').style.display = 'flex';
-    this.$('pause').style.display = 'none';
+    this.$('pause').style.display = 'none'; this.$('presume').style.display = 'none';
     this.$('respawn').style.display = 'none';
   }
 
