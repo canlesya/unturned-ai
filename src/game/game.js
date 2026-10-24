@@ -3,6 +3,7 @@ import { SightMap } from './sight.js';
 import { MapEditor, loadEdits } from './mapEditor.js';
 import * as THREE from 'three';
 import { warmup } from './warmup.js';
+import { RemoteTorches } from './remoteTorch.js';
 import { setupEnvironment } from '../maps/environment.js';
 import { MAPS, DEFAULT_MAP } from '../maps/index.js';
 import { World } from './collision.js';
@@ -335,6 +336,7 @@ export class Game {
         else if (e.code === 'Escape' && this._tm) this.toggleTeamMenu(false);
       });
     } else for (const s of this.soldiers) if (!s.vacant) this.respawn(s, true);
+    this.remoteTorch = new RemoteTorches(this);      // 12.159: başkalarının feneri (sabit ışık havuzu; ön ısıtmadan önce kurulur → ışık sayısı hiç değişmez)
     this.warm = warmup(this);                          // 12.151: gölgelendirici ön ısıtma (yükleme ekranı açıkken; Firefox'ta ilk ACOG / nişan / silah çekme donmasını önler)
     this.running = true;
     this.simulate = !!opts.nolock || !!this.online;
@@ -498,6 +500,7 @@ export class Game {
     if (s.rewindTick != null) h.vtLag = this.tick - s.rewindTick;          // teşhis (dbg ask): girdinin gördüğü an ile işlendiği adım arası
     s.inSeq = inp.q;                                                  // paintball: tohumlu saçılım + istemci tahmininin top eşlemesi
     // 3. şahıs: kameranın gözden ofseti. Yalnızca odada izinliyse, ≤ 4,5 m ve göz→kamera arasında duvar yoksa kabul edilir; aksi halde atış gözden.
+    if (inp.tl !== undefined) s.flashOn = !!inp.tl && !s.def.zombie;    // 12.159: fener durumu (diğer istemcilere F_TORCH; botlar da görür) · sessiz adımın sahte girdisinde tl yok → değişmez
     s.stanceLeft = this.thirdAllowed && !!inp.sd;                      // yalnızca görsel: diğer oyuncular sol omuz duruşunu görsün
     s.shotOff = null;
     if (this.thirdAllowed && Array.isArray(inp.co)) {
@@ -980,7 +983,7 @@ export class Game {
   loop(now) {
     this.raf = requestAnimationFrame(this.loop);
     const dt = this.frameDt(now);
-    this.last = now;
+    this.last = now; this._rdt = dt;
     this.perfTick(now, dt);
     if (this.online && !this.ended) {
       // çevrimiçi: sunucuyla aynı sabit adım (tahmin birebir tutsun)
@@ -1330,6 +1333,7 @@ export class Game {
     const ty = p.y;
     this.sun.target.position.set(tx, ty, tz);
     this.sun.position.set(tx + this.sunOff.x, ty + this.sunOff.y, tz + this.sunOff.z);
+    this.remoteTorch?.update(this._rdt ?? 0.016);
     if (this.map.fx) this.map.fx.update(performance.now() / 1000);            // harita efektleri (New York: ateş ışığı titremesi, duman / kıvılcım zamanı)
     this.paint.draw();
     this.pickups.draw();
