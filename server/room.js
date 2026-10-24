@@ -10,7 +10,8 @@ import { nextOptions, tallyVotes } from '../src/game/nextMatch.js';
 
 const RESTART_ENV = +process.env.BF_RESTART_MS || 0, RESTART_MS = RESTART_ENV || 15000;      // maç sonu ekranı (resmi odada oylama) süresi; ortam değişkeni resmi sunucunun voteSec'ini de ezer (test)
 const EMPTY_ENV = +process.env.BF_EMPTY_ROTATE_MS || 0;                                    // boş resmi oda harita değişimi (test); yoksa sunucunun idleMin alanı
-export const MAPS_FOR = (type) => (type === 'inf' ? ['newyork'] : type === 'pb' ? PB_MAPS : type === 'payload' ? ['maden'] : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman']);
+export const SPACE_MAPS = ['yorunge'];                              // 12.157 Uzay modu haritaları (başka mod bunlarda oynanmaz)
+export const MAPS_FOR = (type) => (type === 'space' ? SPACE_MAPS : type === 'inf' ? ['newyork'] : type === 'pb' ? PB_MAPS : type === 'payload' ? ['maden'] : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman']);
 
 const num = (v, lo, hi, d = 0) => (Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d);
 
@@ -18,12 +19,12 @@ export const PB_MAPS = ['boyakulesi', 'ormankale'];                 // Paintball
 
 export function sanitizeCfg(c = {}) {
   const pick = (v, list, d) => (list.includes(v) ? v : d);
-  const type0 = pick(c.type, ['conquest', 'tdm', 'dm', 'gg', 'inf', 'pb', 'payload'], 'conquest');
+  const type0 = pick(c.type, ['conquest', 'tdm', 'dm', 'gg', 'inf', 'pb', 'payload', 'space'], 'conquest');
   const pbMap = c.map === 'random' ? PB_MAPS[Math.floor(Math.random() * PB_MAPS.length)] : pick(c.map, PB_MAPS, PB_MAPS[0]);
   return {
-    map: type0 === 'inf' ? 'newyork' : type0 === 'pb' ? pbMap : type0 === 'payload' ? 'maden' : pick(c.map, ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman'], 'kasaba'),                  // Enfekte yalnızca New York'ta, Paintball yalnızca paintball haritalarında
+    map: type0 === 'space' ? pick(c.map, SPACE_MAPS, SPACE_MAPS[0]) : type0 === 'inf' ? 'newyork' : type0 === 'pb' ? pbMap : type0 === 'payload' ? 'maden' : pick(c.map, ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman'], 'kasaba'),                  // Enfekte yalnızca New York'ta, Paintball yalnızca paintball haritalarında
     tod: pick(c.tod, ['day', 'sunset', 'night'], 'day'),
-    weather: pick(c.weather, ['clear', 'rain', 'fog'], 'clear'),
+    weather: type0 === 'space' ? 'clear' : pick(c.weather, ['clear', 'rain', 'fog'], 'clear'),
     type: type0,
     diff: type0 === 'inf' ? 'hard' : pick(c.diff, ['easy', 'normal', 'hard'], 'normal'),                   // Enfekte yalnızca Zor botlarla
     perTeam: c.type === 'pb' ? Math.round(num(c.perTeam, LIMITS.pbMin, LIMITS.pbMax, 8)) : c.type === 'dm' || c.type === 'gg' ? Math.round(num(c.perTeam, 2, LIMITS.dmMax, LIMITS.dmMax)) : c.type === 'inf' ? Math.round(num(c.perTeam, LIMITS.infMin, LIMITS.infMax, 12)) : Math.round(num(c.perTeam, 1, LIMITS.maxPerTeam, 5)),     // ölüm maçında ve enfektede perTeam = toplam oyuncu

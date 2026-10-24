@@ -411,3 +411,67 @@ export function cleanSkins(o) {
   for (const w of SKIN_WEAPONS) if (typeof o[w] === 'string' && o[w] !== 'std' && SKIN_IDS.includes(o[w])) r[w] = o[w];
   return Object.keys(r).length ? r : null;
 }
+
+// ───────── 12.157 Uzay modu: enerji silahları + sınıf donanımı (yalnız Uzay modunda; sınıf seçeneklerinde / silah yarışında / diğer modlarda yok) ─────────
+// Hepsi anlık isabet (hitscan) + renkli enerji izi (tracer); denge mevcut silahlarla benzer TTK (lazer ≈ M4, plazma ≈ Vector, tabanca ≈ Glock, ray tüfeği ≈ M24, dağıtıcı ≈ pompalı).
+// Modeller src/models/s3space.js (S3 kiti, parlayan enerji parçaları), sesler src/game/spaceSfx.js (sound 'sp*').
+Object.assign(WSTATS, {
+  laser: {
+    name: 'Lazer Tüfeği', kind: 'gun', slot: 'primary', desc: 'Otomatik lazer: düz, kontrollü atış, orta hasar.', stats: { dmg: 56, range: 74, rate: 74, control: 74, mobility: 70 },
+    auto: true, dmg: 27, rpm: 760, mag: 32, reserve: 160, reload: 1.7, equip: 0.3,
+    hip: 0.007, ads: 0.0008, kickV: 0.0105, kickH: 0.004, range: [45, 125], minMul: 0.64, zoom: 1.4, move: 1.0,
+    sight: [0, 0.12, -0.1], dist: 0.28, dot: true, sound: 'splaser', tracer: '#45e6ff', space: true,
+  },
+  plasma: {
+    name: 'Plazma SMG', kind: 'gun', slot: 'primary', desc: 'Çok yüksek atış hızı, kısa menzil: plazma topları yakında eritir.', stats: { dmg: 40, range: 32, rate: 98, control: 58, mobility: 86 },
+    auto: true, dmg: 20, rpm: 1000, mag: 36, reserve: 180, reload: 1.5, equip: 0.27,
+    hip: 0.0085, ads: 0.0017, kickV: 0.0075, kickH: 0.0048, range: [16, 55], minMul: 0.45, zoom: 1.25, move: 1.06,
+    sight: [0, 0.1, -0.08], dist: 0.28, dot: true, sound: 'spplasma', tracer: '#c77bff', space: true,
+  },
+  epistol: {
+    name: 'Enerji Tabancası', kind: 'gun', slot: 'secondary', desc: 'Yarı otomatik yan silah: hızlı çekilir, hücresi çabuk dolar.', stats: { dmg: 44, range: 36, rate: 62, control: 70, mobility: 95 },
+    auto: false, dmg: 26, rpm: 420, mag: 14, reserve: 70, reload: 1.05, equip: 0.2,
+    hip: 0.006, ads: 0.0015, kickV: 0.017, kickH: 0.004, range: [16, 58], minMul: 0.5, zoom: 1.2, move: 1.05,
+    sight: [0, 0.09, -0.02], dist: 0.28, dot: true, sound: 'spistol', tracer: '#7dffb4', space: true,
+  },
+  railgun: {
+    name: 'Ray Tüfeği', kind: 'gun', slot: 'primary', desc: 'Manyetik ray: gövdeye tek atış, 4x dürbün; her atıştan sonra yeniden şarj olur.', stats: { dmg: 100, range: 100, rate: 10, control: 62, mobility: 42 },
+    auto: false, dmg: 110, rpm: 46, mag: 4, reserve: 20, reload: 2.3, equip: 0.35,
+    hip: 0.03, ads: 0.0002, kickV: 0.05, kickH: 0.006, range: [150, 300], minMul: 0.85, zoom: 4, move: 0.9,
+    sight: [0, 0.14, 0.12], dist: 0.06, sound: 'sprail', scope: true, noscope: 0.09, tracer: '#9fe2ff', adsTime: 0.25, space: true, charge: true,      // 12.156 kuralları: nefes / belden isabetsizlik / artısız bel (overlay 'scope')
+  },
+  scatter: {
+    name: 'Dağıtıcı', kind: 'gun', slot: 'primary', desc: 'Enerji pompalısı: yakında geniş yelpaze, hücre şarjörüyle dolar.', stats: { dmg: 86, range: 18, rate: 18, control: 42, mobility: 68 },
+    auto: false, dmg: 12, pellets: 8, rpm: 85, mag: 6, reserve: 30, reload: 2.2, equip: 0.32,
+    hip: 0.048, ads: 0.031, kickV: 0.038, kickH: 0.01, range: [12, 30], minMul: 0.15, zoom: 1.15, move: 0.97,
+    sight: [0, 0.09, -0.03], dist: 0.28, dot: true, sound: 'spscatter', tracer: '#ffb347', space: true,
+  },
+  elmg: {
+    name: 'Enerji Makineli', kind: 'gun', slot: 'primary', desc: '90 atımlık güç hücresi, bastırma ateşi; uzun seride namlu kanatları kızarır.', stats: { dmg: 50, range: 66, rate: 74, control: 44, mobility: 38 },
+    auto: true, dmg: 24, rpm: 720, mag: 90, reserve: 270, reload: 3.4, equip: 0.4,
+    hip: 0.011, ads: 0.0014, kickV: 0.0105, kickH: 0.0055, range: [40, 110], minMul: 0.6, zoom: 1.35, move: 0.9,
+    sight: [0, 0.128, -0.1], dist: 0.28, dot: true, sound: 'spelmg', tracer: '#ff6a3a', space: true, heat: true,
+  },
+});
+Object.assign(OPTIC_ALLOWED, { laser: ['iron', 'reddot', 'holo', 'acog'], plasma: ['iron', 'reddot', 'holo'], epistol: ['iron', 'reddot'], railgun: ['scope'], scatter: ['iron', 'reddot', 'holo'], elmg: ['iron', 'reddot', 'holo', 'acog'] });
+export const SPACE_WEAPONS = ['laser', 'plasma', 'epistol', 'railgun', 'scatter', 'elmg'];
+// Sınıf başına Uzay donanımı (gadget / yakın dövüş normal sınıftaki gibi)
+export const SPACE_CLASS = {
+  assault: { primary: ['laser', 'plasma'], secondary: ['epistol'], def: 'laser' },
+  medic: { primary: ['plasma', 'laser'], secondary: ['epistol'], def: 'plasma' },
+  sniper: { primary: ['railgun'], secondary: ['epistol'], def: 'railgun' },
+  heavy: { primary: ['elmg', 'laser', 'scatter'], secondary: ['epistol'], def: 'elmg' },
+  engineer: { primary: ['scatter', 'plasma'], secondary: ['epistol'], def: 'scatter' },
+};
+// Normal silah tercihini Uzay karşılığına çevir (menüde seçilen tür korunur): pompalı → dağıtıcı, dürbünlü → ray tüfeği, SMG → plazma, diğer → lazer
+const spaceOf = (id) => (!WSTATS[id] ? null : WSTATS[id].space ? id : WSTATS[id].pellets ? 'scatter' : WSTATS[id].scope || id === 'svd' ? 'railgun' : id === 'lmg' || id === 'pkm' ? 'elmg' : ['mp5', 'vector', 'p90', 'mac10', 'ak74u'].includes(id) ? 'plasma' : 'laser');
+export function spaceLoadout(cls, team, choice = {}, rng = Math.random) {
+  const items = makeLoadout(cls, team, choice, rng);
+  const S = SPACE_CLASS[cls];
+  if (!S) return items;
+  const gun = (id) => ({ id, mag: WSTATS[id].mag, reserve: WSTATS[id].reserve });
+  const want = spaceOf(choice.primary);
+  const p = choice.random ? S.primary[Math.floor(rng() * S.primary.length)] : S.primary.includes(want) ? want : S.def;
+  items[0] = gun(p); items[1] = gun(S.secondary[0]);
+  return items;
+}

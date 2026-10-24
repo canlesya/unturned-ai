@@ -9,6 +9,7 @@ import { buildLiman } from './liman.js';
 import { buildBoyaKulesi } from './boyakulesi.js';
 import { buildOrmanKale } from './ormankale.js';
 import { buildMaden } from './maden.js';
+import { buildYorunge } from './yorunge.js';
 
 // Harita kaydı. Her harita build() ile şunu döndürür:
 // { id, name, group, colliders, bounds, spawns:{blue,red}, objectives:[{id,name,x,z,r,core?}], roads?, terrain?, water?, env? }
@@ -66,6 +67,11 @@ MAPS.maden = {
   desc: 'Vagon moduna özel kayalık maden vadisi: patlayıcı yüklü vagon yükleme avlusundan Kırma Tesisi, A · Makas, köy caddesi, B · Kantar ve Lavvar üzerinden C · Maden Ağzı\'na raylarla gider. Her kontrol noktasında iki takımın doğuşu ileri kayar: savunan hep sıradaki noktanın ilerisinde doğar, çatışma ray boyunca döner. Kaya sırtları kestirmeleri kapatır; her bölümde bir ana hat, iki kanat ve savunana ahşap iskele (yüksek zemin) var.',
   build: () => buildMaden(),
 };
+MAPS.yorunge = {      // 12.157 Uzay modu
+  id: 'yorunge', name: 'Yörünge Üssü', tag: 'Uzay · Ay yüzeyi · üç hat', thumb: '/img/yorunge.jpg', only: ['space'], forceTod: 'day', noWeather: true,
+  desc: 'Ay yüzeyinde maden / araştırma üssü: ortada içine girilen cam kubbeli Merkez Modül (asma kat), hava kilidi koridorları, kuzeyde krater tarlası, güneş panelleri ve çatısına çıkılan anten istasyonu, güneyde iniş pisti ve küçük mekik. Düşük yer çekiminde yüksek platformlar ve köprüler; kaya sırtları doğal siper. Gökte Dünya.',
+  build: () => buildYorunge(),
+};
 export const DEFAULT_MAP = 'kasaba';
 // Bu moda uygun haritalar (only: yalnızca o modlarda listelenir; dev hiçbirinde)
-export const mapsFor = (type) => (type === 'inf' ? [MAPS.newyork] : type === 'pb' ? [MAPS.boyakulesi, MAPS.ormankale] : type === 'payload' ? [MAPS.maden] : Object.values(MAPS).filter((m) => !m.dev && (!m.only || m.only.includes(type))));      // Enfekte yalnızca New York'ta, Paintball yalnızca paintball haritalarında (Boya Kulesi, Orman Kalesi)
+export const mapsFor = (type) => (type === 'space' ? [MAPS.yorunge] : type === 'inf' ? [MAPS.newyork] : type === 'pb' ? [MAPS.boyakulesi, MAPS.ormankale] : type === 'payload' ? [MAPS.maden] : Object.values(MAPS).filter((m) => !m.dev && (!m.only || m.only.includes(type))));      // Enfekte yalnızca New York'ta, Paintball yalnızca paintball haritalarında (Boya Kulesi, Orman Kalesi)

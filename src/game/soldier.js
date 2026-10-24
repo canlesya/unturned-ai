@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createCharacter } from '../models/character.js';
-import { WSTATS, CLASS_DEFS, OPTICS, OPTIC_ORDER, OPTIC_ALLOWED, resolveOptic, makeLoadout, TAC_RELOAD, BACKSTAB_DMG, ZOMBIE, ZTYPES, BOSS, ZBOSS, ggItems, cleanSkins } from './stats.js';
+import { WSTATS, CLASS_DEFS, OPTICS, OPTIC_ORDER, OPTIC_ALLOWED, resolveOptic, makeLoadout, TAC_RELOAD, BACKSTAB_DMG, ZOMBIE, ZTYPES, BOSS, ZBOSS, ggItems, cleanSkins, spaceLoadout } from './stats.js';
 import { SWING_HIT_K } from './anim.js';
 import { H_STAND, H_CROUCH, H_PRONE } from './collision.js';
 import { dirFromAngles, clamp, rand, lerp } from './util.js';
@@ -126,6 +126,7 @@ export class Soldier {
     this.game.emit('switch', this);
   }
 
+  loadout() { return (this.game.mode?.space ? spaceLoadout : makeLoadout)(this.cls, this.team, this.choice); }      // 12.157: Uzay modunda enerji silahları (stats.js SPACE_CLASS)
   get opticId() { return resolveOptic(this.item.id, this.optic); }
   skinOf(id) { return (this.skins && this.skins[id]) || 'std'; }
   get opticDef() { const o = this.opticId; return o ? OPTICS[o] : null; }
@@ -139,7 +140,7 @@ export class Soldier {
     this.maxHp = def.hp;
     this.hp = def.hp;
     { const sc = def.zombie ? (this.boss ? BOSS.scale : [this.zt.scale, this.zt.scale, this.zt.scale]) : [1, 1, 1]; this.hbW = Math.max(sc[0], sc[2]); this.hbH = sc[1]; }      // model ölçeği = vuruş kutusu ölçeği
-    this.items = makeLoadout(cls, this.team, this.choice);
+    this.items = this.loadout();
     this.cur = 0;
     if (this.game.headless) {                                    // sunucu/test: 3B model kurulmaz (bellek+CPU); yalnızca model alanlarını okuyan mantık için hafif taslak
       this.model = this.model || { root: { visible: true, rotation: { x: 0 } }, weapon: {}, optic: this.optic, setWeapon() {} };
@@ -149,7 +150,7 @@ export class Soldier {
     // görünüm: sınıf teçhizatı değişir → modeli yeniden kur
     if (this.model) this.game.scene.remove(this.model.root);
     const pb = this.game.mode?.paintball && !def.zombie;            // paintball modu: herkes paintball oyuncusu kıyafetinde (kişisel boya rengi + forma no)
-    this.model = createCharacter({ team: def.zombie ? 'zomb' : this.team, cls, ztype: this.boss ? 'boss' : this.ztype, skinIndex: this.id, weapon: this.items[0].id, optic: this.optic, outfit: pb ? 'paintball' : null, paint: pb ? paintColorOf(this) : undefined, num: ((this.id * 7 + 11) % 90) + 10 });      // forma no: 10–99, savaşçıya göre sabit
+    this.model = createCharacter({ team: def.zombie ? 'zomb' : this.team, cls, ztype: this.boss ? 'boss' : this.ztype, skinIndex: this.id, weapon: this.items[0].id, optic: this.optic, outfit: pb ? 'paintball' : this.game.mode?.space && !def.zombie ? 'space' : null, paint: pb ? paintColorOf(this) : undefined, num: ((this.id * 7 + 11) % 90) + 10 });      // forma no: 10–99, savaşçıya göre sabit
     this.model.root.visible = this.alive;
     this.game.scene.add(this.model.root);
     this._modelWeapon = this.items[0].id;
@@ -167,7 +168,7 @@ export class Soldier {
     this.alive = true; this.deadT = 0; this.spawnN = (this.spawnN || 0) + 1;     // spawnN: ağ istemcisi yeniden doğmayı fark etsin
     if (this.def.zombie) { this.maxHp = this.zombieMaxHp(); this.abT = 2.5; this.abActive = 0; this.cloakNet = false; }    // türüne göre can; güç kısa bir bekleme ile başlar
     this.hp = this.maxHp;
-    this.items = this.game.mode.gungame ? ggItems(this.ggLevel) : this.game.mode.paintball ? pbItems() : makeLoadout(this.cls, this.team, this.choice);
+    this.items = this.game.mode.gungame ? ggItems(this.ggLevel) : this.game.mode.paintball ? pbItems() : this.loadout();
     this.cur = 0;
     this.cd = 0; this.reloadT = 0; this.switchT = 0; this.useT = 0; this.swing = null; this.comboT = 0; this.autoSwitchT = 0; this.blindT = 0; this.burstLeft = 0;
     this.cook = null; this.backT = 0; this.backTo = -1;

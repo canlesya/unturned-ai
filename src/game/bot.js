@@ -11,6 +11,7 @@ import { plTick, plPickGoal, plArrive, plAnchored, plTargetBias, plCombatMove, p
 const SNIPERS = new Set(['sniper', 'svd', 'barrett']);
 const LMGS = new Set(['lmg', 'pkm']);
 const SHOTGUNS = new Set(['shotgun', 'aa12', 'dbl']);
+SNIPERS.add('railgun'); LMGS.add('elmg'); SHOTGUNS.add('scatter');      // 12.157 Uzay modu enerji silahları
 
 // Enfekte insan botları ayarları: crowd = aynı hedefe kilitli her ek kişi için isabet düşüşü · desync = yeni hedefte ek tepki gecikmesi (sn) · kite = bu mesafeden yakına gelen zombiden geri çekilir
 export const INF_BOT = { crowd: 0.12, desync: 0.3, kite: 9, kiteBoss: 14, kiteSpeed: 0.8 };
@@ -501,7 +502,7 @@ export class BotBrain {
       if (this.strafeT <= 0) { this.strafeDir = tacStrafeDir(this, tg, -this.strafeDir); this.strafeT = rand(0.7, 2.0); }
       const nx = dx / (dist + 1e-6), nz = dz / (dist + 1e-6);
       const pid = s.items[0].id;
-      const holdRange = pid === 'sniper' || pid === 'barrett' ? 150 : pid === 'svd' ? 110 : LMGS.has(pid) ? 48 : 0;
+      const holdRange = pid === 'sniper' || pid === 'barrett' || pid === 'railgun' ? 150 : pid === 'svd' ? 110 : LMGS.has(pid) ? 48 : 0;
       this.holdBudget = (this.holdBudget ?? 6) - dt;
       const holdPos = holdRange > 0 && dist < holdRange && dist > 14 && this.holdBudget > 0;
       if (this.holdBudget < -4) this.holdBudget = rand(5, 9);

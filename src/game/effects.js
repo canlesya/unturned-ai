@@ -160,7 +160,7 @@ export class Effects {
     for (let i = this.parts.length - 1; i >= 0; i--) {
       const m = this.parts[i], u = m.userData;
       if ((u.life -= dt) <= 0) { this._remove(this.parts, i); continue; }
-      u.v.y -= u.grav * dt;
+      u.v.y -= u.grav * dt * (this.gravMul ?? 1);                   // 12.157: Uzay modunda parçacıklar da yavaş düşer
       m.position.addScaledVector(u.v, dt);
       if (m.position.y < 0.02) { m.position.y = 0.02; u.v.multiplyScalar(0.3); u.v.y = 0; }
       m.scale.multiplyScalar(1 - dt * 0.6);

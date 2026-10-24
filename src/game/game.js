@@ -40,6 +40,7 @@ import { EndFlow } from './endFlow.js';
 import { t as $t } from '../i18n/index.js';
 import { placeName, banText } from '../i18n/game.js';                                                         // oyun içi sözlük (hud. / death. / end. …)
 import { Payload } from './payload.js';
+import { spaceSetup } from './space.js';
 import { NADE, nadeStep, simulateNade, NadeView } from './grenade.js';
 import { createWeapon } from '../models/weapons.js';
 import { initGadgets, updateGadgets, spawnSmoke, flashBang, smokeBlocks, smokeDensity, placeDeployable, netDeploy, netUndeploy } from './gadgets.js';
@@ -157,6 +158,7 @@ export class Game {
 
     // opts.match: özel maç ayarları; opts.mode: '3v3' | '10v10' hazır ayarı (test/uyumluluk)
     this.mode = makeMatch(opts.match || PRESETS[opts.mode] || {});
+    if (this.mode.space) { this.world.grav = TUNE.spaceGrav; opts.weather = 'clear'; }      // 12.157 Uzay: düşük yer çekimi (sunucu, çevrimdışı oyun ve istemci tahmini aynı World.grav), hava yok
     if (this.mode.infection) { opts.diff = 'hard'; this.bossCount = this.mode.total < ZOMBIE.bossSplit ? ZOMBIE.bossCount[0] : ZOMBIE.bossCount[1]; }                                  // Enfekte yalnızca Zor botlarla (menü/sunucu da öyle sabitler)
     // 3. şahıs kamera (H): odada izinli mi? sunucu açıkça true ister; offline varsayılan açık
     this.thirdAllowed = opts.online ? !!opts.online.cfg?.third : headless ? opts.third === true : opts.third !== false;
@@ -193,6 +195,7 @@ export class Game {
       music.setVolume((this.settings.volume ?? 0.6) * (this.settings.vMusic ?? 0.5));
       music.play('match');
       this.weather = new Weather(this, opts.weather || 'clear');
+      spaceSetup(this);                                                            // 12.157: Uzay — parçacıklar düşük yer çekiminde, kask içi hafif boğuk ses
     }
     this.paint = new Paint(this);                         // paintball: boya topları + lekeler (başsızda yalnız simülasyon)
     this.paintColor = paintColorOf;                       // skor tablosunda oyuncunun boya rengi (hud.js)
@@ -443,7 +446,7 @@ export class Game {
     s.human = true; s.name = name;
     s.choice = { primary: choice.primary, secondary: choice.secondary, gadget: choice.gadget, melee: choice.melee };
     if (!CLASS_DEFS[cls] || cls === 'zombie' || this.mode.fixed) cls = s.cls === 'zombie' ? 'zombie' : 'assault';
-    if (s.cls !== cls) s.setClass(cls); else s.items = makeLoadout(cls, s.team, s.choice);
+    if (s.cls !== cls) s.setClass(cls); else s.items = s.loadout();
     if (this.mode.infection && this.opts.bots === false && s.team === 'blue') {      // botsuz odada hiç zombi yoksa ikinci oyuncu ilk zombi olur
       const live = this.soldiers.filter((e) => !e.vacant && e !== s);
       if (live.length && !live.some((e) => e.team === 'red')) { this.makeZombie(s, true); this.netEvent({ e: 'inf', v: s.id, bs: 1, zt: 1, zl: s.zLives }); }
@@ -803,7 +806,7 @@ export class Game {
     if (this.mode.infection) { if (s.infectNext) this.infect(s); else if (s.willCure) this.cure(s); }
     const ctl = this.ctlOf(s);
     if (ctl && ctl.queue) { ctl.queue.length = 0; ctl.budget = 1; ctl.backlog = 0; ctl.qMin = 99; }        // insan: doğmadan önceki eski girdiler (örn. eski silah seçimi) uygulanmasın
-    if (ctl && ctl.pendingLoadout) { s.choice = ctl.pendingLoadout; ctl.pendingLoadout = null; if (!this.mode.fixed) s.items = makeLoadout(s.cls, s.team, s.choice); }
+    if (ctl && ctl.pendingLoadout) { s.choice = ctl.pendingLoadout; ctl.pendingLoadout = null; if (!this.mode.fixed) s.items = s.loadout(); }
     if (ctl && ctl.pendingClass && ctl.pendingClass !== s.cls && !s.def.zombie && !this.mode.fixed) s.setClass(ctl.pendingClass);      // sabit teçhizatlı modda (silah yarışı / paintball) sınıf değişmez
     if (s.def.zombie) {                                                // yeniden doğan zombi: seçtiği tür; botlar her doğuşta rastgele
       const want = s.boss ? null : ctl ? ctl.pendingZ : randomZType();

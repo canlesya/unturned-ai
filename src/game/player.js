@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { createWeapon } from '../models/weapons.js';
 import { setSkinAlpha, setSkinProbe, SKIN_PROBE } from '../models/skins.js';
-import { pbLook } from '../models/character.js';
+import { pbLook, spaceLook } from '../models/character.js';
+import { spaceFire, spaceVm } from './space.js';
 import { tintPaint } from '../models/paintball.js';
 import { paintColorOf } from './paint.js';
 import { TEAMS } from '../core/palette.js';
@@ -119,6 +120,7 @@ export const PISTOL_FEEL = {
   m1911: { back: 0.058, up: 0.25, rise: 0.014, roll: 0.07, yaw: 0.03, cam: 0.0085, w: 31, z: 0.7, fl: 1.15, ej: 1, port: [0.0146, 0.058, -0.035] },
   deagle: { back: 0.075, up: 0.36, rise: 0.022, roll: 0.09, yaw: 0.035, cam: 0.016, w: 24, z: 0.74, fl: 1.65, ej: 1, port: [0.019, 0.062, -0.03] },
   revolver: { back: 0.07, up: 0.4, rise: 0.024, roll: 0.07, yaw: 0.03, cam: 0.019, w: 22, z: 0.76, fl: 1.8, ej: 0 },
+  epistol: { back: 0.042, up: 0.17, rise: 0.01, roll: 0.05, yaw: 0.02, cam: 0.005, w: 36, z: 0.7, fl: 0.7, ej: 0 },      // 12.157 enerji tabancası: kovansız, kısa alev
   pbpistol: { back: 0.026, up: 0.07, rise: 0.006, roll: 0.03, yaw: 0.015, cam: 0.0025, w: 36, z: 0.7, fl: 0, ej: 0 },
 };
 // Birinci şahıs namlu alevi dokusu (12.141): yıldız biçimli ışıma (eski düz sarı kutunun yerine; tüm silahlarda)
@@ -276,6 +278,7 @@ export class ViewModel {
       const sleeve = box(grp, [0.11, 0.11, len], c.shirt, [0, 0, 0], null, DS);
       sleeve.position.copy(dir).multiplyScalar(len / 2 + off).add(lat);
       sleeve.quaternion.setFromUnitVectors(Z, dir);
+      if (c.cuff) { const cf = box(sleeve, [0.135, 0.135, 0.07], c.cuff, [0, 0, -len / 2 + 0.035], null, DS); cf.userData.cuff = true; }      // 12.157 Uzay: kalın bilek halkası (kolla birlikte döner)
       grp.userData.sleeve = sleeve; grp.userData.dir0 = dir; grp.userData.dirA = dirA; grp.userData.len = len; grp.userData.off = off; grp.userData.lat = lat; grp.userData.latA = latA;
       g.add(grp);
       return grp;
@@ -408,6 +411,7 @@ export class ViewModel {
     this.bobT += dt * (speed > 0.5 && s.onGround ? 1 : 0) * (s.sprinting ? 12 : 8);
     const bobAmt = (1 - ads * 0.85) * clamp(speed / 5, 0, 1) * (s.sprinting ? 1.6 : 1);
     this.kick = Math.max(0, this.kick - dt * 6 * (0.2 + this.kick * 10));
+    if (st.space) spaceVm(this, s, dt);                                            // 12.157: enerji parçalarının ışıma gücü
     this.kickR = Math.max(0, this.kickR - dt * 5);
     this.raise = Math.max(0, this.raise - dt * this.raiseRate);
     this.hitKick = Math.max(0, this.hitKick - dt * 7);
@@ -738,6 +742,7 @@ export class Player {
       const vm = this.vm;
       if (vm.feel) vm.fireFeel(s); else { vm.kick = Math.min(vm.kick + 0.045, 0.12); vm.kickR = Math.min(vm.kickR + 0.18, 0.5); }      // 12.141: tabanca yay tepmesi, diğerleri eski
       vm.flashT = 0.045;
+      if (s.stat.space) spaceFire(vm, s, game);                                    // 12.157: enerji alevi rengi, ışıma darbesi, ray tüfeği şarjı, makineli ısınması
       if (vm.flash) { const f = vm.flash, k = (0.82 + Math.random() * 0.36) * (1 - 0.45 * s.adsT); f.rotation.z = Math.random() * Math.PI; f.scale.set(k, k, 0.85 + Math.random() * 0.3); }      // her atışta farklı alev (nişanda küçük: nişangâhı örtmesin)
     });
     game.on('bolt', (s) => { if (s === this.s) this.vm.kickR += 0.2; });
@@ -778,7 +783,7 @@ export class Player {
 
   refreshWeapon() {
     const s = this.s;
-    this.vm.look = this.game.mode.paintball && !s.def?.zombie ? pbLook(paintColorOf(s)) : null;      // paintball: birinci şahıs kolu / eldiven forma renginde (yalnız renk)
+    this.vm.look = this.game.mode.paintball && !s.def?.zombie ? pbLook(paintColorOf(s)) : this.game.mode.space && !s.def?.zombie ? spaceLook(s.team) : null;      // 12.157: Uzay kıyafeti kolu (beyaz kol, takım renginde eldiven, koyu bilek halkası)      // paintball: birinci şahıs kolu / eldiven forma renginde (yalnız renk)
     this.vm.setItem(s.item.id, s.team, s.stat.kind, s.optic, s.def?.zombie ? s.zt?.skin : null, s.skinOf(s.item.id));
     if (s.stat.ball) { tintPaint(this.vm.model, paintColorOf(s)); this.vm.flash?.removeFromParent(); this.vm.flash = null; }      // paintball: hazne / tüp kendi boya rengimde, namlu alevi yok
   }
