@@ -145,27 +145,24 @@ const fpGrip = (id, hold) => { const d = FP_GRIP[hold === 'pistol' ? 'pistol' : 
 const MELEE_SPRINT = { pos: [-0.04, 0.06, -0.06], rx: 0.65, ry: 0.3, rz: -0.1 };
 
 // ── ACOG resim-içinde-resim (12.128, BattleBit) ── dünya, namlu ekseninde ikinci kamerayla (büyütme = zoomCur, 3×) küçük hedefe çizilir; göz merceğindeki disk bu dokuyu gösterir.
-// Mercek dışı dünya ≈ bel / 1,15 (LENS_OUT). Şevron + ince çizgiler gölgelendiricide (HUD #scope .chev SVG'siyle aynı ölçü: -100..100 = mercek çapı); tepe = mercek merkezi = mermi noktası.
+// Mercek dışı dünya ≈ bel / 1,15 (LENS_OUT). 12.155: retikül sade kırmızı nokta (red dot diliyle: keskin çekirdek + çok hafif parıltı), mercek merkezinde = mermi noktası.
+// Nokta çapı uDot (ekran pikseli): 3× büyütmeyle büyümez; tam nişanda red dot HUD noktası boyu, geçişte 3B ışıyan noktanın ekran boyundan oraya kayar (renderPip).
 export const LENS_OUT = 1.15, PIP_ON = 0.3;
 const PIP_VS = /* glsl */ `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
 const PIP_FS = /* glsl */ `
-uniform sampler2D tPip; uniform float uMir, uOn, uProbe; varying vec2 vUv;
+uniform sampler2D tPip; uniform float uMir, uOn, uProbe, uDot; varying vec2 vUv;
 void main(){
-  vec2 p = vUv * 2.0 - 1.0; if (uMir > 0.5) p.x = -p.x;                                     // sol el modunda model aynalı: doku ve şevron düz kalsın
+  vec2 p = vUv * 2.0 - 1.0; if (uMir > 0.5) p.x = -p.x;                                     // sol el modunda model aynalı: doku düz kalsın
   float r = length(p); vec3 c = texture2D(tPip, p * 0.5 + 0.5).rgb;
   c *= 1.0 - 0.4 * smoothstep(0.82, 1.0, r);                                                // kenar vinyeti (12.129: 0,62 / 0,7'den hafif: koyu kenar gövde gibi görünüyordu)
   c = mix(vec3(0.012, 0.02, 0.02), c, uOn);                                                 // geçişte koyu camdan resme
-  vec2 q = vec2(p.x, -p.y) * 100.0; float px = max(fwidth(q.x), 1e-3);                       // SVG birimi (y aşağı), px = bir ekran pikseli
-  float k = 18.0 / 14.0, n = sqrt(1.0 + k * k), ax = abs(q.x);
-  float dv = max(max(max(ax - 0.6 * px, 0.0) * k - q.y, q.y - ax * k - 2.2 * n) / n, q.y - 18.0);   // şevron (kalınlık 2,2; üst kenarın tepesi tam merkezde, uç 1,2 px düz: piksel ızgarasında ilk satır boş kalmasın)
-  float lw = max(0.15, px * 0.6);                                                            // çizgi en az ~1,2 px (ince çizgi kesik kesik görünmesin)
-  float vL = (abs(q.x) < lw && (q.y < -3.0 || q.y > 28.0)) || (abs(q.y) < lw && ax > 30.0) ? 1.0 : 0.0;   // ince siyah artı (merkezde boşluk)
-  float bdc = 0.0; for (int i = 0; i < 3; i++) { float y = 36.0 + 20.0 * float(i), w = 10.0 + 4.0 * float(i); bdc = max(bdc, step(abs(q.y - y), max(0.4, px * 0.5)) * step(ax, w)); }   // düşüş çizgileri (kırmızı)
-  c = mix(c, vec3(0.0), vL * uOn);
-  float ch = uProbe > 0.5 ? step(dv, 0.0) : 1.0 - smoothstep(-0.5 * px, 0.5 * px, dv);
-  vec3 red = vec3(0.86, 0.035, 0.02);                                                         // doğrusal ≤ 1: ton eşlemede pembeleşmez, parıltı eşiğinin (1,4) altında
-  c = mix(c, red, max(ch, bdc) * uOn);
-  if (uProbe > 0.5 && ch > 0.5) c = vec3(1.0, 0.0, 1.0);
+  float px = max(fwidth(p.x), 1e-5), d = r / px, R = 0.5 * uDot, e = max(d - R, 0.0);      // d: merkeze uzaklık (ekran pikseli)
+  float core = 1.0 - smoothstep(R - 0.5, R + 0.5, d);                                       // keskin çekirdek (kenar 1 px yumuşatma)
+  float gs = clamp(uDot / 5.6, 0.3, 2.5), ge = e / gs;                                      // parıltı nokta boyuyla ölçeklenir (geçişte küçük noktada hale baskın olmasın; telefonda cihaz pikseli büyük)
+  float glow = min(gs, 1.0) * (0.55 * exp(-ge * 1.5) + 0.16 * exp(-ge * ge / 9.0));        // çok hafif parıltı (HUD #rdot gölgesi gibi: ~1 px yoğun + ~4 px soluk)
+  vec3 red = vec3(0.86, 0.035, 0.02);                                                         // doğrusal ≤ 1: ton eşlemede pembeleşmez, parıltı eşiğinin (1,4) altında (3B ışıyan retikülle aynı kırmızı)
+  c = mix(c, red, max(core, glow * (1.0 - core)));                                          // uOn'suz: geçişte koyu camda da tam parlak (3B noktadan PiP'e geçişte sönüp yanmaz)
+  if (uProbe > 0.5 && d <= R) c = vec3(1.0, 0.0, 1.0);
   gl_FragColor = vec4(c, 1.0);
   #include <tonemapping_fragment>
   #include <colorspace_fragment>
@@ -343,7 +340,7 @@ export class ViewModel {
     const S = mob ? 256 : 512;
     this.pipRT = new THREE.WebGLRenderTarget(S, S, { type: hf ? THREE.HalfFloatType : THREE.UnsignedByteType, samples: mob ? 0 : 4 }); this.pipCap = S;
     this.pipCam = new THREE.PerspectiveCamera(20, 1, 0.05, 1000);
-    this._pipMat = new THREE.ShaderMaterial({ vertexShader: PIP_VS, fragmentShader: PIP_FS, uniforms: { tPip: { value: this.pipRT.texture }, uMir: { value: 0 }, uOn: { value: 0 }, uProbe: SKIN_PROBE } });
+    this._pipMat = new THREE.ShaderMaterial({ vertexShader: PIP_VS, fragmentShader: PIP_FS, uniforms: { tPip: { value: this.pipRT.texture }, uMir: { value: 0 }, uOn: { value: 0 }, uProbe: SKIN_PROBE, uDot: { value: 5 } } });
     this._pipMat.toneMapped = true;
     return this._pipMat;
   }
@@ -370,7 +367,18 @@ export class ViewModel {
     r.setRenderTarget(this.pipRT); r.clear(); r.render(scene, pc);
     r.setRenderTarget(prev); sm.autoUpdate = au;
     const U = this._pipMat.uniforms; U.uMir.value = this.game.leftHand ? 1 : 0;
+    // 12.155 nokta çapı (cihaz pikseli): geçiş başında (PIP_ON) 3B ışıyan noktanın ekran boyu (zıplamaz), tam nişanda red dot HUD noktası boyu; 3× büyütmeden bağımsız
+    const R0 = d.geometry.parameters.radius, sD = u?.lens?.[4] || 0.00065, p3 = (rr) => (sD / R0) * rr * H / 2;
+    const e0 = adsEase(PIP_ON), t = clamp((adsEase(p.s.adsT) - e0) / (1 - e0), 0, 1);
+    U.uDot.value = p3(rN) * lerp(1, this.dotPx(H) / p3(rF), t);
     d.visible = true;
+  }
+
+  // ACOG noktasının tam nişandaki çapı (cihaz pikseli) = HUD #rdot: masaüstü 0,62 vh, telefon max(5 px, 0,5 vh) × nişangâh boyutu ayarı (--rs)
+  dotPx(H) {
+    if (!document.body.classList.contains('mob')) return 0.0062 * H;                                  // HUD #rdot ile aynı ölçüt (body.mob)
+    const ch = this.game.renderer.domElement.clientHeight || innerHeight, rs = parseFloat(document.body.style.getPropertyValue('--rs')) || 1;
+    return Math.max(5, 0.005 * ch) * rs * (H / ch);
   }
 
   // Silah inceleme (Y): ~3,4 sn; ateş/nişan/yükleme/sprint/silah değişimi/savurma iptal eder
@@ -655,7 +663,7 @@ export class ViewModel {
     // %36-50'sini (3° içinde, bkz. adsview.mjs) kapatıyor, hedef tamamen arkasında kalıyordu; nişangâh HUD'da (#rdot / #holo / nokta) net kalır
     // telefon (12.123): HUD retikülü (#rdot / #holo, nişangâh boyutu ayarıyla büyük) ads > 0,97'de çıkar → 3B ışıyan nokta / halka soluklaşmayla birlikte söner (iki farklı boy halka üst üste görünmez)
     // 12.127: ışıyan 3B halka / nokta tam HUD eşiğinde (ADS_HUD) söner: eski 0,95'te sıfırlanıp HUD 0,97'de geliyordu → arada retikülsüz kareler. HUD halkası artık 3B çerçeveyle aynı boy, geçiş zıplamaz
-    // 12.128: masaüstünde de 3B ışıma HUD retikülüyle aynı karede söner (ışıma ×3 ton eşlemede pembeleşip nefes / sallanmayla HUD noktasının arkasında kayıyordu); ACOG PiP açıkken 3B şevron söner (mercekte gölgelendirici şevronu)
+    // 12.128: masaüstünde de 3B ışıma HUD retikülüyle aynı karede söner (ışıma ×3 ton eşlemede pembeleşip nefes / sallanmayla HUD noktasının arkasında kayıyordu); ACOG PiP açıkken 3B nokta söner (mercekte gölgelendirici noktası)
     const fk = p.touch && s.overlay !== 'scope' && s.overlay !== 'lens' && !st.adsLow && !this.noFade ?      // 12.129: paintball marker sağ-altta, merkezi kapatmaz → telefonda soluklaşmaz
       clamp((ads - 0.55) / 0.4, 0, 1) : 0;
     this.pipWant = !!this.lensDisc && s.alive && s.overlay === 'lens' && s.adsT > PIP_ON && this.root.visible && !this.game.showSelf;

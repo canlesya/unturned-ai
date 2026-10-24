@@ -2,10 +2,11 @@
 // (= mermi noktası) piksel sapması ölçülür. Masaüstü 1600×900 + Pixel 7 yatay + iPhone 13 yatay (CSS piksel). Eşik ≤ 2 px (LIMIT).
 //   node scripts/adsalign.mjs [taban url]    DEV=desk,mob,iph  ONLY=regex (silah:nişangâh)  OUT=klasör (görüntüler)  JSON=dosya  SWAY=1 (nefes / sallanma / tepme açık)
 // Ölçümler (dünya gizli, yeşil zemin, son işleme kapalı, nefes / sallanma kapalı):
-//   3D  — S3 retikülü (ışıyan yuva) eflatun çizilir: red dot / holo / dürbün = eflatun piksellerin ağırlık merkezi; ACOG şevronu = tepe noktası (12.128: PiP merceğinde gölgelendirici şevronu)
+//   3D  — S3 retikülü (ışıyan yuva) eflatun çizilir: red dot / holo / dürbün / ACOG = eflatun piksellerin ağırlık merkezi (ACOG 12.155: PiP merceğinde gölgelendirici noktası; eski şevronda tepe noktası)
 //   gez — demir nişan: arpacık tepesi (orta sütunda) + gez deliği / çentiği merkezi (yeşil boşluk dolgusu)
 //   cam — nişangâh penceresi (yeşil boşluk) merkezi (eski / yeni karşılaştırma için; eski modellerde retikül yok)
 //   HUD — HUD retikülü (#rdot / #holo / dürbün çizgileri / telefonda #idot), silah gizli: kırmızı / beyaz piksellerin merkezi
+//   HUDy — telefonda ACOG yedeği (lensHud: PiP yok, tam ekran HUD dürbünü .adot noktası)
 import { chromium, devices } from 'playwright';
 import { mkdirSync, writeFileSync } from 'fs';
 import { SKIN_WEAPONS } from '../src/game/stats.js';
@@ -34,10 +35,7 @@ const ANALYZE = async ({ b64, kind, mode }) => {
   if (mode === 'probe' || mode === 'hud') {
     const c = cloud(mode === 'probe' ? magenta : kind === 'idot' ? white : red);
     if (!c.n) return { err: 'retikül bulunamadı' };
-    if (kind === 'chev') {                                                     // şevron: tepe satırı (en üst 2 satır) — ortadaki nokta da tepeyle çakışır
-      const top = c.pts.filter((p) => p[1] <= c.minY + 1); const tx = top.reduce((a, p) => a + p[0] + 0.5, 0) / top.length;
-      res.dx = tx - cx; res.dy = c.minY + 0.5 - cy; res.n = c.n;               // nişan noktası = şevronun ucu (en üst piksel satırının ortası)
-    } else { res.dx = c.x - cx; res.dy = c.y - cy; res.n = c.n; }
+    res.dx = c.x - cx; res.dy = c.y - cy; res.n = c.n;
     return res;
   }
   // gez / cam: yeşil boşluk dolgusu (merkeze en yakın yeşil tohumdan)
@@ -95,7 +93,7 @@ for (const dev of (process.env.DEV || 'desk,mob,iph').split(',')) {
       const SL = WSTATS[o.id].slot === 'secondary' ? 1 : 0;
       s.cur = SL; s.items[SL] = { id: o.id, mag: 30, reserve: 90 }; s.optic = o.optic; if (s.model) s.model.optic = o.optic;
       p.refreshWeapon();
-      p.pipForce = true;                                                             // 12.128: ACOG PiP (telefonda düşük FPS yedeğine düşmesin)
+      p.pipForce = !o.lensHud; s.lensHud = !!o.lensHud;                               // 12.128: ACOG PiP (telefonda düşük FPS yedeğine düşmesin); HUDy: yedek zorla
       const vm = p.vm; vm.noSway = true; vm.noFade = true; vm.forceShow = o.mode !== 'hud'; vm.probe?.(o.mode === 'probe');
       vm.raise = 0; vm.kick = 0; vm.kickR = 0; vm.hitKick = 0; vm.inspectT = 0; vm.bobT = 0; vm.sprintT = 0; vm.breathT = 0; vm.sx = 0; vm.sy = 0;
       s.swing = null; s.reloadT = 0; s.cd = 0; s.vel.set(0, 0, 0); s.sprinting = false; s.useT = 0; s.recoilP = 0; s.leanT = 0; s.ads = true;
@@ -119,14 +117,15 @@ for (const dev of (process.env.DEV || 'desk,mob,iph').split(',')) {
     const dot = optic === 'reddot', holo = optic === 'holo', scope = optic === 'acog' || optic === 'scope' || optic === 'scope6';
     const jobs = [];
     if (optic === 'iron') jobs.push(['gez', 'iron', 'iron']);
-    else { jobs.push(['3D', 'probe', optic === 'acog' ? 'chev' : 'c']); if (!scope) jobs.push(['cam', 'glass', 'c']); }
-    if (dot || holo || (optic !== 'acog' && (scope || dev !== 'desk'))) jobs.push(['HUD', 'hud', optic === 'acog' || optic === 'svd' ? 'chev' : optic === 'iron' ? 'idot' : 'c']);      // ACOG ('lens', 12.127): HUD retikülü yok (masaüstü + telefon), yalnız 3B şevron
+    else { jobs.push(['3D', 'probe', 'c']); if (!scope) jobs.push(['cam', 'glass', 'c']); }
+    if (dot || holo || (optic !== 'acog' && (scope || dev !== 'desk'))) jobs.push(['HUD', 'hud', optic === 'iron' ? 'idot' : 'c']);      // ACOG ('lens', 12.127): HUD retikülü yok (masaüstü + telefon), mercekte PiP noktası
+    if (optic === 'acog' && dev !== 'desk') jobs.push(['HUDy', 'hud', 'c']);                                 // 12.155: telefon yedeği (lensHud) HUD noktası
     for (const [name, mode, kind] of jobs) {
-      const info = await page.evaluate((o) => window.__pose(o), { id, optic, mode, sway: process.env.SWAY ? 1.7 + rows.length * 0.37 : 0 });
+      const info = await page.evaluate((o) => window.__pose(o), { id, optic, mode, lensHud: name === 'HUDy', sway: process.env.SWAY ? 1.7 + rows.length * 0.37 : 0 });
       await page.waitForTimeout(90);
       const buf = await page.screenshot({ scale: 'device' });                  // cihaz pikseli (küçük retikül kaybolmasın) → CSS pikseline bölünür
       if (OUT) writeFileSync(`${OUT}/${dev}-${id}-${optic}-${name}.png`, buf);
-      const k2 = name === 'HUD' ? (info.ret === 'chevron' ? 'chev' : optic === 'iron' ? 'idot' : 'c') : kind;
+      const k2 = kind;
       const r = await page.evaluate(ANALYZE, { b64: buf.toString('base64'), kind: k2, mode });
       for (const k of ['dx', 'dy', 'postDx', 'postDy', 'apDx', 'apDy', 'notchDx']) if (typeof r[k] === 'number') r[k] /= dpr;
       ret[name] = r;

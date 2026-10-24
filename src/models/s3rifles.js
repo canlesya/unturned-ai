@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { rail, sideRail, bez } from './s3kit.js';
 import { skinMaterial, STD } from './skins.js';
-import { S3PARTS, ADS_DIST } from './s3weapons.js';
+import { S3PARTS, ADS_DIST, ACOG_DOT } from './s3weapons.js';
 
 // S3 "BattleBit" ikinci tur (tüfek / DMR / keskin / pompalı / bomba atar): SCAR-H, AUG, G36, AK-74U, SVD, Barrett M82, AA-12, Çift Namlu, M79 — s3weapons.js kalıbıyla (yan profil çekme + pah, tek ağ + cam).
 // Sözleşme eski modellerle (weapons_more.js) birebir: muzzle / gripR / gripL / length aynı → mermi / tepme / hasar / sunucu değişmez; kutu eller aynı kabza noktalarında.
@@ -249,7 +249,7 @@ export function ak74u(mat = skinMaterial('ak74u'), lod = false, o = 'iron') {
   return done(k, mat, { name: 'AK-74U', hold: 'rifle', gripR: [0, -0.03, 0.045], gripL: [0, -0.03, -0.27], muzzle: [0, 0.015, -0.5], length: 0.88 }, sg);
 }
 
-// PSO-1 dürbünü (SVD): yan ray ayağı + köprü, uzun güneşlik, büyük yükseklik / yan tamburu, pil kapağı, lastik göz kapağı (açık), göz merceğinde ışıyan şevron (ACOG ile aynı eksen / ölçü)
+// PSO-1 dürbünü (SVD): yan ray ayağı + köprü, uzun güneşlik, büyük yükseklik / yan tamburu, pil kapağı, lastik göz kapağı (açık), göz merceğinde ışıyan nokta (12.155; ACOG ile aynı eksen / ölçü)
 function pso(k, yb, z) {
   const cy = yb + 0.034, ze = z + 0.066;
   coverMount(k, [[0.0275, 0.07], [0.0275, 0.0735], [0.02, 0.088], [0.012, yb + 0.006]], [[0.0245, 0.07], [0.0245, 0.072], [0.0175, 0.085], [0.005, 0.0885]], z - 0.01, 0.1);   // kapak ayağı: tek parça eyer (12.139; eski 50 mm köprü + yan ayak merceğin altında geniş plaka)
@@ -265,8 +265,8 @@ function pso(k, yb, z) {
   k.cyl(0.0055, 0.0055, 0.007, [-0.0185, cy, z - 0.05], 'acc', { ax: 'x', seg: 8, d: 1 });               // aydınlatma pil kapağı (12.139: yanda, alçak; eskiden sol üstte çıkıntı)
   k.cyl(0.0195, 0.0195, 0.002, [0, cy, z - 0.164], 'lens', { seg: 18 });
   k.cyl(0.0165, 0.0165, 0.002, [0, cy, ze - 0.001], 'lens', { seg: 18 });
-  for (const s of [-1, 1]) k.box([0.0042, 0.0007, 0.0006], [s * 0.0013, cy - 0.00182, ze + 0.0004], 'glow', { rot: [0, 0, -s * 0.9] });   // şevron ucu = nişan noktası
-  return { sight: [0, cy, ze], dist: ADS_DIST.acog, overlay: 'scope', lens: [0.0165, 0, cy, ze + 0.0003] };      // 12.128: ACOG ile aynı PiP mercek
+  k.box([ACOG_DOT, ACOG_DOT, 0.0006], [0, cy, ze + 0.0004], 'glow');                                     // 12.155: ışıyan nokta (eski şevron) = nişan noktası; PiP açıkken söner (mercekte gölgelendirici noktası, geçişte bu boydan başlar)
+  return { sight: [0, cy, ze], dist: ADS_DIST.acog, overlay: 'scope', lens: [0.0165, 0, cy, ze + 0.0003, ACOG_DOT] };      // 12.128: ACOG ile aynı PiP mercek
 }
 
 // ───────────────────────── SVD Dragunov ─────────────────────────
