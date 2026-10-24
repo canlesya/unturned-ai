@@ -50,12 +50,12 @@ function opt(k, mat, o, yb, z, pistol = false, remap = false) {
     if (remap) { const a = m.geometry.attributes.wf.array; for (let i = 0; i < a.length; i += 3) if (Math.round(a[i]) === 3) a[i] = 2; }
     k.lists.main.push(m.geometry);
   }
-  return { sight: r.sight, dist: r.dist, overlay: r.overlay };
+  return { sight: r.sight, dist: r.dist, overlay: r.overlay, lens: r.lens };      // 12.129: lens (ACOG PiP diski) da taşınır — eksikti, MP5 / M249'da ACOG merceğinden dürbün tüpünün içi görünüyordu
 }
 function done(k, mat, meta, sg) {
   const g = k.build(mat, meta);
   for (const m of k.glassMesh) g.add(m);
-  if (sg) { g.userData.sight = sg.sight; g.userData.pivot = sg.pivot; g.userData.dist = sg.dist; g.userData.overlay = sg.overlay; }
+  if (sg) { g.userData.sight = sg.sight; g.userData.pivot = sg.pivot; g.userData.dist = sg.dist; g.userData.overlay = sg.overlay; g.userData.lens = sg.lens; }
   return g;
 }
 // Kemer fişekleri (LMG): x-y düzleminde Bézier yolu boyunca namluya paralel fişekler + bağlantı halkaları (şarjör grubu)

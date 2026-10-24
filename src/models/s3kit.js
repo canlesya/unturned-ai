@@ -19,6 +19,7 @@ export class Kit {
     for (let i = 0; i < n; i++) { a[i * 3] = sl; a[i * 3 + 1] = o.sh ?? 1; a[i * 3 + 2] = o.pat ?? 0; }
     g.setAttribute('wf', new THREE.BufferAttribute(a, 3));
     if (o.rot || o.pos) g.applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(...(o.pos || [0, 0, 0])), new THREE.Quaternion().setFromEuler(new THREE.Euler(...(o.rot || [0, 0, 0]))), new THREE.Vector3(1, 1, 1)));   // parça merkezinde döner, sonra yerine taşınır
+    if (o.cap) g.userData.cap = 1;      // 12.129: splitLens ±Z kapaklarını silmesin (mercekle aynı düzlemdeki ince göz çanı halkası)
     this.lists[o.g || 'main'].push(g); this.parts++;
     return g;
   }
@@ -121,7 +122,7 @@ function splitLens(k) {
   for (let i = list.length - 1; i >= 0; i--) {
     const g = list[i];
     if (isSlot(g, SL.lens)) { list.splice(i, 1); continue; }
-    if (isSlot(g, SL.glow)) continue;
+    if (isSlot(g, SL.glow) || g.userData.cap) continue;
     bb.setFromBufferAttribute(g.attributes.position);
     const cx = (bb.min.x + bb.max.x) / 2, cy = (bb.min.y + bb.max.y) / 2, r = Math.max(bb.max.x - bb.min.x, bb.max.y - bb.min.y) / 2;
     const gr = groups.find((q) => Math.abs(q.cx - cx) < 0.003 && Math.abs(q.cy - cy) < 0.003 && r <= q.r * 1.2 && bb.max.z > q.z0 && bb.min.z < q.z1);

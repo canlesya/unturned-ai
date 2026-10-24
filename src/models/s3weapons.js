@@ -70,7 +70,7 @@ function acog(k, yb, z) {
   k.box([0.01, 0.012, 0.014], [0.021, cy, z - 0.002], 'acc', { c: 0.002, d: 1 });                     // yan kapak
   k.cyl(0.0185, 0.0185, 0.002, [0, cy, z - 0.0855], 'lens', { seg: 18 });                                 // ön mercek
   k.cyl(0.0168, 0.0168, 0.002, [0, cy, ze - 0.001], 'lens', { seg: 18 });                               // göz merceği
-  k.xsec(circ(0, cy, 0.0215, 28), ze + 0.007, ze - 0.004, 'acc', { holes: [circ(0, cy, 0.0169, 28)], c: 0.0008, sh: 0.8 });      // 12.128: kalın göz çanı halkası (BattleBit: PiP merceğinin çevresinde koyu gövde)
+  k.xsec(circ(0, cy, 0.0192, 28), ze + 0.0002, ze - 0.009, 'acc', { holes: [circ(0, cy, 0.0169, 28)], c: 0.0006, cap: 1, sh: 0.8 });      // 12.129: ince göz çanı halkası, ön yüzü PiP diskiyle aynı düzlemde (12.128'de 6,7 mm öne taşıyordu → mercek içinde gri tüp çeperi bandı; dış 21,5 → 19,2 mm: ince kenar)
   for (const s of [-1, 1]) k.box([0.0042, 0.0007, 0.0006], [s * 0.0013, cy - 0.00182, ze + 0.0004], 'glow', { rot: [0, 0, -s * 0.9] });   // şevron: çizginin üst kenarının tepesi = nişan noktası (eksende); PiP açıkken söner (mercekte gölgelendirici şevronu)
   return { sight: [0, cy, ze], dist: ADS_DIST.acog, overlay: 'scope', lens: [0.0168, 0, cy, ze + 0.0003] };      // lens: PiP diski (yarıçap, merkez; göz merceğinin hemen önünde)
 }

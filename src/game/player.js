@@ -21,6 +21,7 @@ const VM_SCALE = 0.92;
 const _pv = new THREE.Vector2();
 const _q = new THREE.Quaternion(), _eu = new THREE.Euler(), _sp = new THREE.Vector3(), _sp2 = new THREE.Vector3();
 export const FIRE_LABEL = { semi: 'Tek atış', burst: 'Seri (3-5 mermi)', auto: 'Otomatik' };
+const ADS_FOV_PB = 68;   // 12.129: paintball (adsLow) nişanında silah kamerası 12.127 öncesi gibi genişler → marker sağ-altta görünür kalır, hazne görüşü kapatmaz
 const ADS_FOV = 40;      // taslak (BattleBit): nişanda silah kamerası daralır → nişangâh ekranda ≈ 1,85 × (tan 34° / tan 20°); HUD #holo / #rdot aynı oranla büyüdü
 
 // ───────────── Birinci şahıs silah modeli: ilk kutu eller (73b388f) ─────────────
@@ -72,7 +73,7 @@ uniform sampler2D tPip; uniform float uMir, uOn, uProbe; varying vec2 vUv;
 void main(){
   vec2 p = vUv * 2.0 - 1.0; if (uMir > 0.5) p.x = -p.x;                                     // sol el modunda model aynalı: doku ve şevron düz kalsın
   float r = length(p); vec3 c = texture2D(tPip, p * 0.5 + 0.5).rgb;
-  c *= 1.0 - 0.62 * smoothstep(0.7, 1.0, r);                                                // kenar vinyeti (gövde içine gömülü göz merceği)
+  c *= 1.0 - 0.4 * smoothstep(0.82, 1.0, r);                                                // kenar vinyeti (12.129: 0,62 / 0,7'den hafif: koyu kenar gövde gibi görünüyordu)
   c = mix(vec3(0.012, 0.02, 0.02), c, uOn);                                                 // geçişte koyu camdan resme
   vec2 q = vec2(p.x, -p.y) * 100.0; float px = max(fwidth(q.x), 1e-3);                       // SVG birimi (y aşağı), px = bir ekran pikseli
   float k = 18.0 / 14.0, n = sqrt(1.0 + k * k), ax = abs(q.x);
@@ -456,7 +457,7 @@ export class ViewModel {
       }
     }
     // nişan alırken silah kamerasının görüş açısı genişler: silah/nişangâh ekranda küçülür, rakip örtülmez (dürbünsüz silahlarda)
-    const fovT = 54 + (ADS_FOV - 54) * (u.noAds ? 0 : ads);
+    const fovT = 54 + ((st.adsLow ? ADS_FOV_PB : ADS_FOV) - 54) * (u.noAds ? 0 : ads);      // 12.129: paintball 12.127 öncesi gibi genişler (40'ta adsLow ile aşağı inen marker ekranın altından çıkıyordu)
     const nearT = 0.01;      // yakın düzlem hep 1 cm (12.126): nişanda kesme yok → dipçik / kabza / gövde arkası alt-ortada bütün kütle (eski ADS_NEAR 25–33 cm'de silahı dilimliyordu)
     if (Math.abs(this.cam.fov - fovT) > 0.01 || Math.abs(this.cam.near - nearT) > 1e-4) { this.cam.fov = fovT; this.cam.near = nearT; this.cam.updateProjectionMatrix(); }
     // dokunmatik: dürbünsüz nişanda (demir / red dot / holo) silah modeli yarı saydamlaşır. Küçük ekranda nişangâh gövdesi merkezin
@@ -464,7 +465,8 @@ export class ViewModel {
     // telefon (12.123): HUD retikülü (#rdot / #holo, nişangâh boyutu ayarıyla büyük) ads > 0,97'de çıkar → 3B ışıyan nokta / halka soluklaşmayla birlikte söner (iki farklı boy halka üst üste görünmez)
     // 12.127: ışıyan 3B halka / nokta tam HUD eşiğinde (ADS_HUD) söner: eski 0,95'te sıfırlanıp HUD 0,97'de geliyordu → arada retikülsüz kareler. HUD halkası artık 3B çerçeveyle aynı boy, geçiş zıplamaz
     // 12.128: masaüstünde de 3B ışıma HUD retikülüyle aynı karede söner (ışıma ×3 ton eşlemede pembeleşip nefes / sallanmayla HUD noktasının arkasında kayıyordu); ACOG PiP açıkken 3B şevron söner (mercekte gölgelendirici şevronu)
-    const fk = p.touch && s.overlay !== 'scope' && s.overlay !== 'lens' && !this.noFade ? clamp((ads - 0.55) / 0.4, 0, 1) : 0;
+    const fk = p.touch && s.overlay !== 'scope' && s.overlay !== 'lens' && !st.adsLow && !this.noFade ?      // 12.129: paintball marker sağ-altta, merkezi kapatmaz → telefonda soluklaşmaz
+      clamp((ads - 0.55) / 0.4, 0, 1) : 0;
     this.pipWant = !!this.lensDisc && s.alive && s.overlay === 'lens' && s.adsT > PIP_ON && this.root.visible && !this.game.showSelf;
     if (this._pipMat) this._pipMat.uniforms.uOn.value = clamp((s.adsT - PIP_ON) / 0.15, 0, 1);
     this.setFade(fk * 0.5, ((s.overlay === 'dot' || s.overlay === 'holo') && ads > ADS_HUD && !this.noFade) || this.pipWant ? 0 : 1);      // noFade: adsalign 3B retikülü ölçer

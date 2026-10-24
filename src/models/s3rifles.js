@@ -259,9 +259,9 @@ function pso(k, yb, z) {
   k.cyl(0.021, 0.0155, 0.03, [0, cy, z - 0.08], 'acc', { seg: 18 });                                     // objektif konisi
   k.cyl(0.021, 0.021, 0.07, [0, cy, z - 0.13], 'acc', { seg: 18, sh: 0.92 });                            // güneşlik
   k.cyl(0.0185, 0.0165, 0.022, [0, cy, z + 0.054], 'acc', { seg: 18 });                                  // göz merceği çanı
-  k.xsec(circ(0, cy, 0.0205, 24), ze + 0.016, ze - 0.001, 'acc', { holes: [circ(0, cy, 0.0166, 24)], c: 0.0008, sh: 0.7 });      // lastik göz kapağı: kalın halka (12.128; eski açık tüpün içi görünmüyordu, PiP merceği çerçevesiz kalıyordu)
-  k.cyl(0.012, 0.012, 0.02, [0, cy + 0.0255, z - 0.01], 'acc', { ax: 'y', seg: 12, pat: 2 });            // yükseklik tamburu (boru yarıçapının dışında)
-  k.cyl(0.0105, 0.0105, 0.018, [0.0245, cy, z - 0.01], 'acc', { ax: 'x', seg: 12, pat: 2 });             // yan tambur
+  k.xsec(circ(0, cy, 0.019, 24), ze + 0.0002, ze - 0.012, 'acc', { holes: [circ(0, cy, 0.0166, 24)], c: 0.0006, cap: 1, sh: 0.7 });      // 12.129: kapak ön yüzü PiP diskiyle aynı düzlemde (12.128'de 16 mm öndeydi → mercek içinde kalın gri halka), ince kenar      // lastik göz kapağı: kalın halka (12.128; eski açık tüpün içi görünmüyordu, PiP merceği çerçevesiz kalıyordu)
+  k.cyl(0.012, 0.012, 0.012, [0, cy + 0.0215, z - 0.01], 'acc', { ax: 'y', seg: 12, pat: 2 });           // yükseklik tamburu (12.129: 20 → 12 mm; nişanda göz kapağı halkasının üstünden taşmasın)
+  k.cyl(0.0105, 0.0105, 0.011, [0.021, cy, z - 0.01], 'acc', { ax: 'x', seg: 12, pat: 2 });              // yan tambur (12.129: 18 → 11 mm, halkanın yanından taşmasın)
   k.cyl(0.007, 0.007, 0.016, [-0.02, cy + 0.012, z - 0.05], 'acc', { ax: 'x', seg: 8, d: 1 });           // aydınlatma pil kapağı
   k.cyl(0.0195, 0.0195, 0.002, [0, cy, z - 0.164], 'lens', { seg: 18 });
   k.cyl(0.0165, 0.0165, 0.002, [0, cy, ze - 0.001], 'lens', { seg: 18 });
