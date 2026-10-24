@@ -186,29 +186,7 @@ export class Payload {
     this.frameVisual(dt, this.shown - prev);
   }
 
-  // ── botlar: hedef nokta ──
-  // Saldıran: çoğu vagonun yanında (itme yarıçapı içinde, yanları), bir kısmı önde yol temizler. Savunan: bir kısmı vagonun önüne (çekişme), kalanı ileride / sıradaki kontrol noktasında siperde.
-  botGoal(s) {
-    const g = this.g, q = {}, atk = s.team === ATK, rnd = (a, b) => a + Math.random() * (b - a);
-    let d, lat, time, push = false;
-    const nextCp = this.reached < this.cps.length ? this.cps[this.reached] : this.end;
-    if (atk) {
-      if (Math.random() < 0.85) { d = this.d + rnd(-1.6, 1.2); lat = (Math.random() < 0.5 ? -1 : 1) * rnd(1.3, 2.3); time = rnd(2.5, 4.5); push = true; }
-      else { d = this.d + rnd(6, 16); lat = (Math.random() < 0.5 ? -1 : 1) * rnd(2.5, 7); time = rnd(5, 9); }
-    } else {
-      const rush = this.state === 'push' || nextCp - this.d < 14;
-      if (Math.random() < (rush ? 0.55 : 0.32)) { d = this.d + rnd(1.5, 4); lat = rnd(-1.8, 1.8); time = rnd(3, 5); push = true; }
-      else { d = Math.min(this.end, Math.min(this.d + rnd(8, 30), nextCp + 8)); lat = (Math.random() < 0.5 ? -1 : 1) * rnd(3, 10); time = rnd(8, 14); }
-    }
-    this.track.at(Math.max(this.start, Math.min(this.end, d)), q);
-    let x = q.x - q.dz * lat, z = q.z + q.dx * lat;                    // sola dik (−dz, dx)
-    if (Math.abs(lat) < 1.15) { x = q.x - q.dz * 1.3; z = q.z + q.dx * 1.3; }   // vagonun içi değil
-    const i = g.nav.nearestFree(x, z, 6);
-    if (i >= 0) { x = g.nav.cx(i); z = g.nav.cz(i); }
-    let perch = null;
-    if (s.cls === 'sniper' && g.perch) { this.track.at(Math.min(this.end, this.d + (atk ? 10 : 3)), q); perch = g.perch({ id: 'pl' + s.team + Math.round(this.d / 12), x: q.x, z: q.z }, s.team); }
-    return { x, z, t: time, push, perch };
-  }
+  // ── botlar: src/game/payloadBots.js (rol planı; buradan track / d / cps / reached / state / p / distTo okur) ──
 
   // ── görsel (yalnız tarayıcı) ──
   buildVisual() {
