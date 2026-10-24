@@ -15,7 +15,8 @@ for (const id of ['sniper', 'barrett']) {
   const scope = sp(1), hip = sp(0), q50 = sp(0.5), q80 = sp(0.8);
   console.log(`${id}: sapma (rad) dürbün ${scope.toExponential(2)} · %80 ${q80.toFixed(4)} · %50 ${q50.toFixed(4)} · bel ${hip.toFixed(4)}`);
   for (const d of [100, 200]) check(scope * d <= 0.03, `${id} dürbün ${d} m: ilk atış merkezden en çok ${(scope * d * 100).toFixed(1)} cm (kafa yarıçapı ≈ 12 cm)`);
-  check(hip >= st.hip * 0.99, `${id} bel: ilk atış indirimi yok (${hip.toFixed(4)} = hip ${st.hip})`);
+  check(hip >= (st.noscope ?? st.hip) * 0.99, `${id} bel (insan): ilk atış indirimi yok, no-scope konisi (${hip.toFixed(4)} = noscope ${st.noscope})`);
+  { const q = sp(0.84); check(q >= (st.noscope ?? st.hip) * 0.99, `${id} 12.156: dürbün tam oturmadan (adsT 0,84) atış belden sayılır (${q.toFixed(4)})`); }
   const p15 = hitP(hip, 15, 0.22);
   check(p15 < 0.45, `${id} no-scope 15 m gövde (r 22 cm) isabet olasılığı %${(p15 * 100).toFixed(0)} (< %45)`);
   check(q50 > hip * 0.8, `${id} %50 nişanda (erken quickscope) sapma hâlâ bele yakın (${q50.toFixed(4)})`);

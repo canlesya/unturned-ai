@@ -7,7 +7,8 @@ import { chromium } from 'playwright';
 import WebSocket from 'ws';
 const WS = process.env.WS || 'ws://127.0.0.1:8790', BASE = process.env.BASE || 'http://127.0.0.1:5180', MAP = process.env.MAP || 'colgecidi';
 const WEAPONS = (process.env.W || 'm4a1').split(','), DISTS = (process.env.D || '25,50,75,100').split(',').map(Number), N = +(process.env.N || 20);
-const MOVE = process.env.MOVE === '1', ADS = process.env.ADS !== '0', SPRAY = process.env.SPRAY === '1';     // SPRAY=1: 3 mermilik seri (bloom), tek tık yerine
+const MOVE = process.env.MOVE === '1', ADS = process.env.ADS !== '0', SPRAY = process.env.SPRAY === '1';
+const SWAY = process.env.SWAY === '1', AIMY = +(process.env.AIMY || 0.55);     // 12.156: SWAY=1 dürbün sallanması nişana eklenir (her kare düzeltilmez), AIMY: nişan yüksekliği (boyun oranı; 0,92 ≈ kafa)     // SPRAY=1: 3 mermilik seri (bloom), tek tık yerine
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const page = await browser.newPage({ viewport: { width: 800, height: 450 } });
@@ -56,7 +57,7 @@ const lanes = await page.evaluate((DISTS) => {
   return out;
 }, DISTS);
 
-await page.evaluate(({ bid, ADS, SPRAY }) => {
+await page.evaluate(({ bid, ADS, SPRAY, SWAY, AIMY }) => {
   const g = window.__game, me = g.playerSoldier, p = g.player, V = me.pos.constructor;
   const S = (window.__s = { shots: 0, pred: 0, conf: 0, aimOn: false });
   const bl = g.effects.blood.bind(g.effects); g.effects.blood = (...a) => { if (S.mine) S.pred++; return bl(...a); };
@@ -68,13 +69,14 @@ await page.evaluate(({ bid, ADS, SPRAY }) => {
     ip(t);
     const B = g.soldiers[bid];
     if (!S.aimOn || !B || !me.alive) return;
-    const e = me.eye(new V()), c = new V(B.pos.x, B.pos.y + B.height * 0.55, B.pos.z);
+    const e = me.eye(new V()), c = new V(B.pos.x, B.pos.y + B.height * AIMY, B.pos.z);
     me.yaw = Math.atan2(-(c.x - e.x), -(c.z - e.z)); me.pitch = Math.atan2(c.y - e.y, Math.hypot(c.x - e.x, c.z - e.z)) - me.recoilP;
+    if (SWAY && p.breath) { me.yaw += p.breath.ox; me.pitch += p.breath.oy; S.swMax = Math.max(S.swMax || 0, Math.hypot(p.breath.ox, p.breath.oy)); }      // sallanma ofseti nişanda kalır (Player.update bu karenin farkını ekler)
     me.ads = ADS;
   };
   window.__tap = () => { p.fireHeld = true; p.fireBuf = 0.15; g.online.edge('fp'); setTimeout(() => (p.fireHeld = false), 400); };      // otomatik modda tık = basılı; ilk mermide bırakılır (tek atış)
   S.spray = SPRAY;
-}, { bid: b.id, ADS, SPRAY });
+}, { bid: b.id, ADS, SPRAY, SWAY, AIMY });
 
 const rows = [];
 for (const w of WEAPONS) for (const D of DISTS) {
@@ -105,7 +107,7 @@ for (const w of WEAPONS) for (const D of DISTS) {
   const hp = b.last?.hp ?? lastHp; if (hp < lastHp) lost += lastHp - hp;
   const r1 = await page.evaluate(() => ({ ...window.__s }));
   const dist = await page.evaluate((bid) => { const g = window.__game, me = g.playerSoldier, B = g.soldiers[bid]; return B && me ? Math.hypot(B.pos.x - me.pos.x, B.pos.z - me.pos.z) : -1; }, b.id);
-  const row = { w, D, gercekD: +dist.toFixed(1), atis: r1.shots - r0.shots, istemciKan: r1.pred - r0.pred, sunucuOnay: r1.conf - r0.conf, hasar: lost, uyusmazlik: mism };
+  const row = { w, D, gercekD: +dist.toFixed(1), atis: r1.shots - r0.shots, istemciKan: r1.pred - r0.pred, sunucuOnay: r1.conf - r0.conf, hasar: lost, uyusmazlik: mism, sallanmaMaxMrad: r1.swMax ? +(r1.swMax * 1000).toFixed(2) : 0 };
   rows.push(row); console.log(JSON.stringify(row));
 }
 console.log(`\n== ${MAP} · ${WS} · ${ADS ? 'nişanda' : 'belden'} · ${MOVE ? 'hedef yana yürüyor' : 'hedef duruyor'}${SPRAY ? ' · 3\'lü seri' : ''} ==`);
