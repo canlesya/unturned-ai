@@ -462,11 +462,11 @@ export class Game {
   // istemci tahminiyle sunucuyu birbirinden koparmaz ve hız hilesi mümkün olmaz.
   humanTick(h, inp, dt) {
     const s = h.s;
+    s.ads = !!inp.a;                                                  // 12.145: nişan isteği adsT güncellemesinden ÖNCE (istemcide fare olayı karenin s.update'inden önce gelir; eski sıra sunucu adsT'sini bir adım geride bırakıp nişandan koşuya dönüşte ~5 cm tahmin düzeltmesi yaptırıyordu)
     s.update(dt);
     if (s.alive) this.world.move(s, dt);
     if (!s.alive) return;
     s.yaw = inp.yw; s.pitch = Math.max(-1.5, Math.min(1.5, inp.pt));
-    s.ads = !!inp.a;
     if (inp.w !== s.cur) s.switchTo(inp.w);
     if (inp.u) s.standUp();
     if (inp.c) s.toggleCrouch();
