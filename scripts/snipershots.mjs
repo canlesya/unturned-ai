@@ -5,14 +5,14 @@
 import { chromium, devices } from 'playwright';
 import { mkdirSync, writeFileSync } from 'fs';
 const base = process.argv[2] || 'http://127.0.0.1:5180', DEV = process.env.DEV || 'desk', W = process.env.W || 'sniper', TAG = process.env.TAG || '';
-const OUT = process.env.OUT || `/tmp/wb-sniper/${DEV}`;
+const OUT = process.env.OUT || `/tmp/wb-sniper/${DEV}`, BASEQ = process.env.Q || '';
 mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch({ headless: false, args: ['--use-angle=metal', '--ignore-gpu-blocklist'] });
 const strip = (d) => { const { defaultBrowserType, ...r } = d; return r; };
 const ctx = DEV === 'desk' ? await browser.newContext({ viewport: { width: 1600, height: 900 } }) : await browser.newContext(strip(devices['Pixel 7 landscape']));
 const page = await ctx.newPage(), errs = [];
 page.on('pageerror', (e) => errs.push(e.message));
-await page.goto(`${base}/?autostart=3v3&map=colgecidi&type=tdm&debug=1&dev=1&nolock=1&third=0${DEV !== 'desk' ? '&touch=1' : ''}`);
+await page.goto(`${base}/?autostart=3v3&map=colgecidi&type=tdm&debug=1&dev=1&nolock=1&third=0${DEV !== 'desk' ? '&touch=1' : ''}${BASEQ}`);
 await page.waitForFunction('window.__game && window.__game.running && window.__game.player', null, { timeout: 120000 });
 await page.waitForTimeout(1500);
 const setup = await page.evaluate(async (W) => {
@@ -80,16 +80,24 @@ const amp = (a) => Math.max(...a) - Math.min(...a);
 const sw = { x: +amp(trace.sway.map((o) => o.dx)).toFixed(1), y: +amp(trace.sway.map((o) => o.dy)).toFixed(1) };
 console.log(`dürbün sallanması (3 sn, fare yok): yatay ${sw.x} px · dikey ${sw.y} px (1 px = ${(1000 / pxPerRad).toFixed(3)} mrad)`);
 await snap('03_sallanma');
-// nefes tut (koşu tuşu): 1 sn sonra + 6 sn sonra (nefes bitti)
+// nefes tut (koşu tuşu, 12.156): 1,5 sn tutarken · süre bitince nefes nefese (2 sn) · bırakıp toparlanınca (2 sn sonra yine sallanma)
+const bst = () => page.evaluate(() => { const b = window.__game.player.breath, el = document.getElementById('breath'); return b ? { air: +b.air.toFixed(2), hold: +b.hold.toFixed(2), gasp: +b.gasp.toFixed(2), lock: b.lock, bar: el ? el.style.display + ' ' + el.style.opacity + (el.classList.contains('low') ? ' low' : '') : null } : null; });
+const ampOf = async (n, key) => { const a0 = await adv(0.01), arr = []; for (let i = 0; i < n; i++) { const r = await adv(0.05); arr.push({ t: i * 0.05, dx: (r.yaw - a0.yaw) * pxPerRad, dy: (r.pitch - a0.pitch) * pxPerRad }); } trace[key] = arr; return { x: +amp(arr.map((o) => o.dx)).toFixed(1), y: +amp(arr.map((o) => o.dy)).toFixed(1) }; };
+trace.breath = { idle: await bst() };
 await page.evaluate(() => { window.__game.player.keys.add('ShiftLeft'); });
-await adv(0.4); const h0 = await adv(0.01);
-for (let i = 0; i < 30; i++) { const r = await adv(0.05); trace.hold.push({ t: i * 0.05, dx: (r.yaw - h0.yaw) * pxPerRad, dy: (r.pitch - h0.pitch) * pxPerRad }); }
-const hs = { x: +amp(trace.hold.map((o) => o.dx)).toFixed(1), y: +amp(trace.hold.map((o) => o.dy)).toFixed(1) };
-console.log(`nefes tutarken (1,5 sn): yatay ${hs.x} px · dikey ${hs.y} px`);
+await adv(0.25); trace.breath.at025 = await bst();
+const hs = await ampOf(30, 'hold');
+console.log(`nefes tutarken (0,25 → 1,75 sn): yatay ${hs.x} px · dikey ${hs.y} px`, JSON.stringify(trace.breath.at025));
+trace.breath.holding = await bst();
 await snap('04_nefes_tut');
-await adv(4); await snap('05_nefes_bitti');
+await adv(2.9); trace.breath.end = await bst(); await snap('05_nefes_bitti');
+const gs = await ampOf(40, 'gaspSway');
+console.log(`nefes nefese (süre bitti, 2 sn): yatay ${gs.x} px · dikey ${gs.y} px`, JSON.stringify(trace.breath.end));
 await page.evaluate(() => { window.__game.player.keys.delete('ShiftLeft'); });
-await adv(2.5);
+await adv(2.5); trace.breath.after = await bst();
+const rs = await ampOf(60, 'swayAfter'); trace.breath.after2 = await bst();
+console.log(`toparlandıktan sonra (3 sn): yatay ${rs.x} px · dikey ${rs.y} px`, JSON.stringify(trace.breath.after2));
+trace.gaspPx = gs; trace.afterPx = rs;
 // atış + sürgü
 const before = await adv(0.01);
 const shot = await page.evaluate(() => { const g = window.__game, s = g.player.s; s.cd = 0; s.item.mag = 5; return s.tryFire(); });

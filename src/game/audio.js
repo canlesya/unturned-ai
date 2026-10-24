@@ -174,7 +174,7 @@ export class Sfx {
     if (P.b) this._noise({ v, gain: P.b[0], dur: P.b[1] * j, f0: P.b[2] * j, f1: P.b[3], type: P.b[4] || 'lowpass', att: 0.002 });
     if (P.t) this._tone({ v, gain: P.t[0], dur: P.t[1], f0: P.t[2] * j, f1: P.t[3], type: P.t[4] || 'sine', att: 0.003 });
     if (P.k && (!MOB || P.k[1] > 0.4)) this._noise({ v, gain: P.k[0], dur: P.k[1], f0: P.k[2], f1: P.k[3], att: 0.03, delay: 0.015 });
-    if (P.m && !pos) this._clk(v, 0.03 + Math.random() * 0.012, 3000 + Math.random() * 600, 0.07);    // kendi silahın: sürgü / mekanizma tıkırtısı
+    if (P.m && (!pos || v.d < 2.5)) this._clk(v, 0.03 + Math.random() * 0.012, 3000 + Math.random() * 600, 0.07);    // kendi silahın: sürgü / mekanizma tıkırtısı
     if (kind === 'shotgun') this.pump(pos, 0.34);
     else if (kind === 'dbl') this._noise({ v, gain: 0.7, dur: 0.3, f0: 4000, f1: 280, delay: 0.035 });
     else if (kind === 'sniper') this.bolt(pos, 0.55);

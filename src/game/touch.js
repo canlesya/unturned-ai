@@ -25,7 +25,7 @@ const LAYOUT = {
   fire: { x: 0.78, y: 0.60, s: 0.27 }, fire2: { x: 0.08, y: 0.36, s: 0.18 },
   ads: { x: 0.93, y: 0.36, s: 0.16 }, jump: { x: 0.93, y: 0.61, s: 0.18 }, crouch: { x: 0.93, y: 0.86, s: 0.16 },
   reload: { x: 0.655, y: 0.86, s: 0.15 }, swap: { x: 0.79, y: 0.89, s: 0.15 }, nade: { x: 0.655, y: 0.58, s: 0.15 }, abil: { x: 0.655, y: 0.6, s: 0.19 },
-  third: { x: 0.655, y: 0.34, s: 0.12 }, optic: { x: 0.81, y: 0.36, s: 0.12 }, pause: { x: 0.22, y: 0.075, s: 0.11 }, score: { x: 0.285, y: 0.075, s: 0.11 },
+  third: { x: 0.655, y: 0.34, s: 0.12 }, optic: { x: 0.81, y: 0.36, s: 0.12 }, breath: { x: 0.72, y: 0.4, s: 0.12 }, pause: { x: 0.22, y: 0.075, s: 0.11 }, score: { x: 0.285, y: 0.075, s: 0.11 },
 };
 const NAME = (id) => t('tc.n.' + id);                                            // düzenleyicideki buton adları (src/i18n/touch.js)
 const I = {
@@ -36,6 +36,7 @@ const I = {
   third: '<circle cx="12" cy="7" r="3"/><path d="M6 21v-3a6 6 0 0112 0v3"/><path d="M3 4l3 3M21 4l-3 3"/>',
   optic: '<rect x="3" y="8" width="12" height="6" rx="1.5"/><path d="M15 9.5l5-2v7l-5-2M6.5 8V5.5h5V8"/>',
   abil: '<path d="M13 2L5 13h6l-1 9 8-12h-6z"/>',
+  breath: '<path d="M3 9h11a3 3 0 10-3-3M3 15h14a3 3 0 11-3 3M3 12h8"/>',      // 12.156: nefes tut (dürbünde basılı tut)
   pause: '<path d="M8 5v14M16 5v14"/>', score: '<path d="M4 6h16M4 12h16M4 18h16"/>',
 };
 // seçici kartlarında küçük nişangâh önizlemesi ve buton etiketi
@@ -92,7 +93,7 @@ const CSS = `
 #tcEd .ep .rp i{width:24px;height:24px;border-radius:50%;border:2px solid #ff3326;display:grid;place-items:center;transform:scale(var(--rs,1))}
 #tcEd .ep .rp i::before{content:'';width:5px;height:5px;border-radius:50%;background:#ff2414;box-shadow:0 0 0 1px rgba(0,0,0,.5)}
 #tc.sb .b:not([data-b=score]),#tc.sb .jb{visibility:hidden}
-#tc.scoped .b:not(.fire):not([data-b=ads]),#tc.scoped .jb{opacity:.3!important}
+#tc.scoped .b:not(.fire):not([data-b=ads]):not([data-b=breath]),#tc.scoped .jb{opacity:.3!important}
 #tc .rot{position:fixed;inset:0;z-index:30;display:none;place-items:center;background:#0b0e13;color:#fff;font-size:18px;text-align:center;padding:24px;letter-spacing:1px}
 @media (orientation:portrait){#tc .rot{display:grid}}
 /* düzen düzenleyici */
@@ -149,7 +150,7 @@ export class TouchControls {
   constructor(player) {
     this.p = player; this.g = player.game;
     this.cfg = loadCfg();
-    this.f = 0; this.r = 0; this.sprint = false; this.jump = false; this.runLock = false;
+    this.f = 0; this.r = 0; this.sprint = false; this.jump = false; this.runLock = false; this.breath = false;
     this.joy = null; this.looks = new Map(); this.btnTouch = new Map();
     if (!document.getElementById('tcCss')) { const st = document.createElement('style'); st.id = 'tcCss'; st.textContent = CSS; document.head.appendChild(st); }
     const el = (this.el = document.createElement('div'));
@@ -308,6 +309,7 @@ export class TouchControls {
     this._snapT = Math.max(0, (this._snapT || 0) - dt);
     const kind = s.stat.kind, st = s.stat;                                           // el bombası / mayın / sağlık çantasında yardım yok
     if (!c.aim || !(c.aimStr > 0) || !s.alive || !p.locked || this.editing || s.fly || (kind !== 'gun' && kind !== 'launcher' && kind !== 'melee')) { this._trk = null; return; }
+    if (st.scope && s.adsT < 0.5) { this._trk = null; return; }                    // 12.156: belden keskin nişancıda (artı yok, no-scope) nişan yardımı yok
     const e = s.eye(this._ae || (this._ae = new THREE.Vector3())), tp = this._at || (this._at = new THREE.Vector3());
     const ads = s.adsT > 0.5, z = ads ? Math.max(1, p.zoomEff()) : 1, pit = s.pitch + (s.recoilP || 0);
     let best = null, bw = 0;
@@ -370,6 +372,7 @@ export class TouchControls {
       } else { p.fireHeld = this.anyFire(); this.looks.delete(t.identifier); if (b) b.style.transform = ''; }
       return;
     }
+    if (id === 'breath') { this.breath = down; return; }                         // 12.156: basılı tutulduğu sürece nefes tut (Player → ScopeBreath)
     if (id === 'score') { g.hud.showScoreboard(down); return; }
     if (!down) { if (id === 'jump') this.jump = false; return; }
     if (id === 'pause') { g.togglePause(); return; }
@@ -517,7 +520,7 @@ export class TouchControls {
     this.el.classList.toggle('off', !show);
     if (!show) {
       this.closeOptics();
-      this.f = this.r = 0; this.sprint = this.jump = false; this.runLock = false; this.joy = null; this.looks.clear();
+      this.f = this.r = 0; this.sprint = this.jump = this.breath = false; this.runLock = false; this.joy = null; this.looks.clear();
       this.jb.classList.remove('drag', 'run', 'locked', 'lockon');
       if (this.cfg.joy === 'float') this.jb.classList.add('float');
       if (p.fireHeld && this.anyFire()) p.fireHeld = false;
@@ -527,6 +530,8 @@ export class TouchControls {
     this.el.classList.toggle('sb', !!g.hud.sbShown);                                       // skor tablosu açıkken yalnız Skor butonu (tabloyu örtmesin)
     this.el.classList.toggle('scoped', s.overlay === 'scope' && s.adsT > 0.9);            // dürbünde butonlar soluklaşır (görüş açık kalsın)
     this.b.ads.classList.toggle('on', !!s.ads);
+    const bv = s.overlay === 'scope' && s.adsT > 0.6;                                     // 12.156: nefes düğmesi yalnız dürbündeyken
+    if (bv !== this._bv) { this._bv = bv; this.b.breath.classList.toggle('hid', !bv); if (!bv) { this.breath = false; this.b.breath.classList.remove('on'); } }
     this.b.crouch.classList.toggle('on', !!(s.crouching || s.prone));
     this.b.nade.classList.toggle('on', s.cur === 2);
     this.b.third.classList.toggle('on', !!p.third);
