@@ -1237,3 +1237,9 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 - İstemci (main.js askNick): /?online=KOD adresinde ad yoksa (hesaplı oyuncu hariç) yükleme ekranında takma ad kutusu + Katıl; ad tercihlere yazılır, katılınca adres çubuğuna &name= eklenir (yenileyince tekrar sormaz).
 - HUD: herkes tek modlarda (ffa) sınıf satırında çevrilmemiş "hud.team.f0" yerine yalnız sınıf adı.
 - Ölçüm: scripts/invitelink.mjs (masaüstü + Pixel 7, iki oyuncu, botsuz, ayarlar, WAIT=1 maç sonu yeni maç) OK.
+
+### 12.134 Resmi oda ayarı sunucu yeniden başlamadan (SIGHUP) + OFC9'a bot
+- Kullanıcı: "en son açtığımız odaya botları da aç, oyunda şu an biz varız, oyun bozulmasın". Panel şifreyle açıldığı için ayar dosyadan verildi; sunucu yeniden başlarsa içeridekiler düşer.
+- server: `process.on('SIGHUP')` → officialStore.reloadOfficial() (data/official.json yeniden okunur) + syncOfficial(): değişen oda boşsa hemen, oyuncu varsa sonraki maçta uygulanır, kimse düşmez. Kullanım: `systemctl kill -s HUP warbyte`.
+- OFC9: bots true, açıklama "bot destekli". Bu sürüm canlıya oyuncu sayısı 0 olunca (/health) kurulan tek seferlik bekçiyle alındı (update.sh), oynayanlar atılmadı.
+- Ölçüm: yerel sunucu, 2 oyuncu bağlıyken dosya değişti + SIGHUP → bağlantı kopmadı, maç sonu yeni maç bots: true.

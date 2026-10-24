@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import { Room } from './room.js';
-import { officialList } from './officialStore.js';
+import { officialList, reloadOfficial } from './officialStore.js';
 import { DEFAULT_PORT, makeRoomCode, cleanName } from '../src/net/protocol.js';
 import { MapBuilder } from '../src/maps/builder.js';
 import { useBalance } from '../src/game/balance.js';
@@ -143,6 +143,8 @@ function syncOfficial() {
   }
 }
 syncOfficial();
+// systemctl kill -s HUP warbyte: data/official.json'ı yeniden oku → değişen oda boşsa hemen, oyuncu varsa sonraki maçta (kimse düşmez)
+process.on('SIGHUP', () => { try { reloadOfficial(); syncOfficial(); console.log('[resmi] official.json yeniden yüklendi (SIGHUP)'); } catch (e) { console.error('[resmi] yeniden yükleme hatası', e); } });
 
 // boş resmi odalar idleMin dakikada bir yeni harita / gün saatine geçer (listede dönen haritalar)
 setInterval(() => { const now = Date.now(); for (const r of rooms.values()) if (r.official) r.idleTick(now); }, 1000);

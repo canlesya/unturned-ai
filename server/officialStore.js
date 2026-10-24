@@ -32,6 +32,8 @@ export function sanitizeOfficial(o, code) {
 }
 
 let list = null;
+// data/official.json diskten yeniden okunur (SIGHUP, 12.134: panel şifresi olmadan, sunucu yeniden başlamadan resmi oda ayarı)
+export function reloadOfficial() { list = null; return officialList(); }
 export function officialList() {
   if (list) return list;
   let raw = null;
