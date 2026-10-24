@@ -350,12 +350,13 @@ export class Room {
     if (typeof m.spawn === 'string') h.spawnChoice = m.spawn === 'base' || g.mode.objectives.some((o) => o.id === m.spawn) ? m.spawn : 'base';
   }
 
-  // BF_DEBUG=1 ile açılan test komutları (ask: kuyruk / bütçe / atıcı durumu da döner): { t:'dbg', tp:[x,z] } ışınla · { hp } can · { bots:false } botları sustur · { pb:1 } herkese paintball silahları · { zb:'brute' } zombi ol · { dmg:[id,hasar,kafa] } başkasını vur · { ask } durum
+  // BF_DEBUG=1 ile açılan test komutları (ask: kuyruk / bütçe / atıcı durumu da döner): { t:'dbg', tp:[x,z] } ışınla · { tpy:[x,y,z] } havada bırak · { hp } can · { bots:false } botları sustur · { pb:1 } herkese paintball silahları · { zb:'brute' } zombi ol · { dmg:[id,hasar,kafa] } başkasını vur · { ask } durum
   debug(id, m) {
     const c = this.clients.get(id), g = this.game;
     if (!c) return;
     const s = c.h.s;
     if (Array.isArray(m.tp)) { s.pos.set(m.tp[0], g.world.heightAt(m.tp[0], m.tp[1]), m.tp[2 - 1]); s.vel.set(0, 0, 0); g.world.settle(s); s.protT = 0; }
+    if (Array.isArray(m.tpy) && m.tpy.length === 3 && m.tpy.every(Number.isFinite)) { s.pos.set(m.tpy[0], m.tpy[1], m.tpy[2]); s.vel.set(0, 0, 0); s.onGround = false; s.fallTop = m.tpy[1]; s.protT = 0; }   // { tpy:[x,y,z] } havada bırak (düşme hasarı testi)
     if (Number.isFinite(m.hp)) s.hp = m.hp;
     if (Array.isArray(m.item) && WSTATS[m.item[1]]) s.items[m.item[0] | 0] = { id: m.item[1], mag: Number.isFinite(m.item[2]) ? m.item[2] : 3, reserve: Number.isFinite(m.item[3]) ? m.item[3] : 0 };   // { item:[yuva, id, şarjör?, yedek?] }
     if (Array.isArray(m.am)) { const it = s.items[m.am[0] | 0]; if (it) { it.mag = +m.am[1] || 0; it.reserve = +m.am[2] || 0; } }          // { am:[yuva, şarjör, yedek] } sunucu cephanesini değiştir (12.138 uzlaştırma testi)

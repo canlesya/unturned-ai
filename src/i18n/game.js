@@ -13,7 +13,7 @@ export function wLabel(name) {
   if (!byName) { byName = {}; for (const [id, s] of Object.entries(WSTATS)) byName[s.name] = id; }
   const id = WSTATS[name] ? name : byName[name];
   if (id) return wName(id) + suf;
-  const sp = { 'İntihar': 'hud.kf.suicide', 'Kuyuya düştü': 'hud.kf.pit', 'Kuyuya düşürdü': 'hud.kf.pushed', 'Düşman üssü': 'hud.kf.base' }[name];
+  const sp = { 'İntihar': 'hud.kf.suicide', 'Kuyuya düştü': 'hud.kf.pit', 'Kuyuya düşürdü': 'hud.kf.pushed', 'Düşman üssü': 'hud.kf.base', 'Düştü': 'hud.kf.fell' }[name];
   return (sp ? t(sp) : name) + suf;
 }
 export const classDesc = (id) => tf(`class.${id}.desc`, CLASS_DEFS[id]?.desc || '');
@@ -62,7 +62,7 @@ addStrings('tr', {
   'hud.flagYours': '{f} · senin', 'hud.flagCapturing': '{f} · ele geçiriliyor',
   'hud.zone.title': 'DÜŞMAN ÜSSÜNE GİRDİN!', 'hud.zone.back': 'GERİ DÖN · {n} sn', 'hud.zone.hurt': 'CAN KAYBEDİYORSUN',
   // öldürme akışı
-  'hud.kf.you': 'Sen', 'hud.kf.died': 'öldü', 'hud.kf.suicide': 'İntihar', 'hud.kf.pit': 'Kuyuya düştü', 'hud.kf.pushed': 'Kuyuya düşürdü', 'hud.kf.base': 'Düşman üssü', 'hud.kf.back': 'arkadan',
+  'hud.kf.you': 'Sen', 'hud.kf.died': 'öldü', 'hud.kf.suicide': 'İntihar', 'hud.kf.pit': 'Kuyuya düştü', 'hud.kf.pushed': 'Kuyuya düşürdü', 'hud.kf.base': 'Düşman üssü', 'hud.kf.fell': 'Düşerek öldü', 'hud.kf.back': 'arkadan',
   'hud.pop.kill': 'ÖLDÜRME', 'hud.pop.hs': 'KAFA ATIŞI', 'hud.pop.revive': 'CANLANDIRMA', 'hud.pop.level': 'SEVİYE',
   // can / cephane / duruş
   'hud.reloading': 'dolduruluyor…', 'hud.using': 'kullanılıyor…', 'hud.prone': 'Yatıyor', 'hud.crouch': 'Çömelmiş', 'hud.leanR': 'Sağa eğik', 'hud.leanL': 'Sola eğik',
@@ -141,7 +141,7 @@ addStrings('en', {
   'hud.bleedLose': 'Enemy holds {n} more flag(s): you lose {n} ticket(s) every {s}s', 'hud.bleedWin': 'You hold more flags: enemy tickets are draining',
   'hud.flagYours': '{f} · secured', 'hud.flagCapturing': '{f} · capturing',
   'hud.zone.title': 'ENEMY BASE!', 'hud.zone.back': 'GO BACK · {n} SEC', 'hud.zone.hurt': 'LOSING HEALTH',
-  'hud.kf.you': 'You', 'hud.kf.died': 'died', 'hud.kf.suicide': 'Suicide', 'hud.kf.pit': 'Fell into the pit', 'hud.kf.pushed': 'Pushed into the pit', 'hud.kf.base': 'Enemy base', 'hud.kf.back': 'backstab',
+  'hud.kf.you': 'You', 'hud.kf.died': 'died', 'hud.kf.suicide': 'Suicide', 'hud.kf.pit': 'Fell into the pit', 'hud.kf.pushed': 'Pushed into the pit', 'hud.kf.base': 'Enemy base', 'hud.kf.fell': 'Fell to death', 'hud.kf.back': 'backstab',
   'hud.pop.kill': 'KILL', 'hud.pop.hs': 'HEADSHOT', 'hud.pop.revive': 'REVIVE', 'hud.pop.level': 'LEVEL',
   'hud.reloading': 'reloading…', 'hud.using': 'using…', 'hud.prone': 'Prone', 'hud.crouch': 'Crouched', 'hud.leanR': 'Leaning right', 'hud.leanL': 'Leaning left',
   'hud.fire.semi': 'Single', 'hud.fire.burst': 'Burst (3-5 rounds)', 'hud.fire.auto': 'Full auto', 'hud.fireS.semi': 'Single', 'hud.fireS.burst': 'Burst', 'hud.fireS.auto': 'Auto',
