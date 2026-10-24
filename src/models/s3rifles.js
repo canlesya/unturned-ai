@@ -6,7 +6,7 @@ import { S3PARTS, ADS_DIST } from './s3weapons.js';
 // S3 "BattleBit" ikinci tur (tüfek / DMR / keskin / pompalı / bomba atar): SCAR-H, AUG, G36, AK-74U, SVD, Barrett M82, AA-12, Çift Namlu, M79 — s3weapons.js kalıbıyla (yan profil çekme + pah, tek ağ + cam).
 // Sözleşme eski modellerle (weapons_more.js) birebir: muzzle / gripR / gripL / length aynı → mermi / tepme / hasar / sunucu değişmez; kutu eller aynı kabza noktalarında.
 // Nişan noktası (sight) = gez deliği / çentik ortası ya da nişangâh merkezi; ışıyan retikül (glow yuvası) bu eksende → adsalign ekranda ölçer.
-const { optic, flipRear, done, newKit, circ, stripe, plate, guard } = S3PARTS;
+const { optic, flipRear, coverMount, akMount, done, newKit, circ, stripe, plate, guard } = S3PARTS;
 
 // Silah başına "Standart" palet (skins.js STD'ye eklenir): [renk, pürüzlülük, metaliklik]
 Object.assign(STD, {
@@ -26,8 +26,8 @@ Object.assign(STD, {
 const bar = (k, a, b, w, h, slot, o = {}) => { const L = Math.hypot(b[0] - a[0], b[1] - a[1]); k.box([w, h, L], [o.x || 0, (a[1] + b[1]) / 2, (a[0] + b[0]) / 2], slot, { ...o, rot: [Math.atan2(-(b[1] - a[1]), b[0] - a[0]), 0, 0] }); };
 // Katlanır ön arpacık (yb = taban, line = nişan çizgisi = arpacık tepesi); up=false → yatık (optik takılı)
 function frontPost(k, z, yb, line, up = true, slot = 'acc') {
+  if (!up) return;      // 12.139: optikte yatık arpacık çizilmez (red dot / holo penceresinin dibinde tümsek gibi görünüyordu)
   k.box([0.024, 0.008, 0.026], [0, yb + 0.004, z], slot, { c: 0.002 });
-  if (!up) { k.box([0.02, 0.006, 0.03], [0, yb + 0.011, z - 0.004], slot, { c: 0.002, sh: 0.9 }); return; }
   const y0 = yb + 0.008;
   for (const sx of [-1, 1]) k.box([0.003, line - 0.007 - y0, 0.012], [sx * 0.0105, (y0 + line - 0.007) / 2, z], slot, { c: 0.001 });   // kulaklar (tepesi arpacığın altında)
   k.box([0.003, line - y0, 0.003], [0, (y0 + line) / 2, z], slot, { sh: 0.85 });                                                      // arpacık (tepe = line)
@@ -44,7 +44,7 @@ function pgrip(k, dz, slot = 'furn', w = 0.032, pat = 1) {
 }
 function trigger(k, dz, y = -0.018) { k.prof([[-0.012, y], [-0.02, y], [-0.025, y - 0.022], [-0.019, y - 0.03], [-0.012, y - 0.02]].map(([z, yy]) => [z + dz, yy]), 0.006, 'metal', { d: 1 }); }
 // Göz merceğinde ince artı (keskin nişancı dürbünü, probe retikülü)
-const cross = (k, cy, z) => { for (const [w, hh] of [[0.012, 0.0006], [0.0006, 0.012]]) k.box([w, hh, 0.0005], [0, cy, z], 'glow', { d: 1 }); };
+const cross = (k, cy, z) => { for (const [w, hh] of [[0.012, 0.0004], [0.0004, 0.012]]) k.box([w, hh, 0.0005], [0, cy, z], 'glow', { d: 1 }); };
 // Üstten görünüş şekli (x, z) Y boyunca çekilir (Barrett ok ucu namlu freni)
 function topShape(k, pts, y0, y1, slot, o = {}) {
   const sh = new THREE.Shape(pts.map(([x, z]) => new THREE.Vector2(x, -z)));
@@ -212,8 +212,10 @@ export function ak74u(mat = skinMaterial('ak74u'), lod = false, o = 'iron') {
   k.prof([[-0.236, 0.043], [-0.345, 0.043], [-0.345, 0.004], [-0.335, -0.012], [-0.25, -0.014], [-0.236, 0.0]], 0.06, 'furn', { c: 0.006 });
   for (const y of [0.012, 0.026]) k.box([0.0615, 0.004, 0.08], [0, y, -0.29], 'furn', { d: 1, sh: 0.7 });
   k.prof([[-0.345, 0.078], [-0.392, 0.078], [-0.396, 0.06], [-0.39, -0.006], [-0.35, -0.006], [-0.345, 0.03]], 0.032, 'metal', { c: 0.004 });
-  for (const sx of [-1, 1]) k.box([0.003, 0.026, 0.014], [sx * 0.0095, 0.094, -0.376], 'metal', { c: 0.001 });   // kule kulakları (tepe 0,107)
-  k.box([0.003, line - 0.078, 0.003], [0, (0.078 + line) / 2, -0.376], 'metal', { sh: 0.8 });                   // arpacık (tepe = line)
+  if (iron) {                                                                                           // 12.139: optikte kulak + arpacık yok (pencerenin içinde dikmeler)
+    for (const sx of [-1, 1]) k.box([0.003, 0.026, 0.014], [sx * 0.0095, 0.094, -0.376], 'metal', { c: 0.001 });   // kule kulakları (tepe 0,107)
+    k.box([0.003, line - 0.078, 0.003], [0, (0.078 + line) / 2, -0.376], 'metal', { sh: 0.8 });                 // arpacık (tepe = line)
+  }
   // kısa namlu + namlu ağzı güçlendirici (silindir + koni)
   k.cyl(0.0095, 0.0095, 0.045, [0, 0.015, -0.41], 'metal', { seg: 10 });
   k.cyl(0.0165, 0.0165, 0.06, [0, 0.015, -0.458], 'metal', { seg: 12, sh: 0.85 });
@@ -235,8 +237,7 @@ export function ak74u(mat = skinMaterial('ak74u'), lod = false, o = 'iron') {
   // optik: yan ray kelepçesi + üst kapak üstüne köprü
   let sg;
   if (!iron) {
-    k.box([0.008, 0.03, 0.09], [-0.029, 0.05, -0.1], 'acc', { c: 0.002 });
-    k.box([0.06, 0.006, 0.07], [0, 0.095, -0.1], 'acc', { c: 0.002 });
+    akMount(k, 0.098, -0.1, 0.07);                                                                       // toz kapağı ayağı (12.139 tek parça eyer; eski 60 mm köprü + yan kelepçe)
     sg = optic(k, o, 0.098, -0.1);
   } else sg = { sight: [0, line, -0.165], pivot: [0, line, -0.376], dist: ADS_DIST.iron, overlay: 'none' };
   // vişne AK-74 şarjörü (grup): Bézier kenarlar + kenar kaburgaları + taban
@@ -251,18 +252,17 @@ export function ak74u(mat = skinMaterial('ak74u'), lod = false, o = 'iron') {
 // PSO-1 dürbünü (SVD): yan ray ayağı + köprü, uzun güneşlik, büyük yükseklik / yan tamburu, pil kapağı, lastik göz kapağı (açık), göz merceğinde ışıyan şevron (ACOG ile aynı eksen / ölçü)
 function pso(k, yb, z) {
   const cy = yb + 0.034, ze = z + 0.066;
-  k.box([0.008, 0.05, 0.11], [-0.03, yb - 0.02, z - 0.01], 'acc', { c: 0.002 });                       // yan ray ayağı (sol)
-  k.box([0.05, 0.01, 0.1], [0, yb + 0.002, z - 0.01], 'acc', { c: 0.002 });                             // köprü
-  k.box([0.016, 0.012, 0.05], [0, yb + 0.011, z - 0.01], 'acc', { c: 0.002 });                             // ayak (tepesi borunun altında: dürbün camından görünmez)
+  coverMount(k, [[0.0275, 0.07], [0.0275, 0.0735], [0.02, 0.088], [0.012, yb + 0.006]], [[0.0245, 0.07], [0.0245, 0.072], [0.0175, 0.085], [0.005, 0.0885]], z - 0.01, 0.1);   // kapak ayağı: tek parça eyer (12.139; eski 50 mm köprü + yan ayak merceğin altında geniş plaka)
+  k.box([0.014, cy - 0.0152 - yb - 0.006, 0.05], [0, (yb + 0.006 + cy - 0.0152) / 2, z - 0.01], 'acc', { c: 0.0015 });   // ayak (tepesi borunun alt yüzünde: dürbün camından görünmez)
   if (k.lod) { k.cyl(0.02, 0.0165, 0.24, [0, cy, z - 0.04], 'acc', { seg: 6 }); return { sight: [0, cy, ze], dist: ADS_DIST.acog, overlay: 'scope' }; }
   k.cyl(0.0155, 0.0155, 0.12, [0, cy, z - 0.005], 'acc', { seg: 16 });                                   // gövde borusu
   k.cyl(0.021, 0.0155, 0.03, [0, cy, z - 0.08], 'acc', { seg: 18 });                                     // objektif konisi
   k.cyl(0.021, 0.021, 0.07, [0, cy, z - 0.13], 'acc', { seg: 18, sh: 0.92 });                            // güneşlik
   k.cyl(0.0185, 0.0165, 0.022, [0, cy, z + 0.054], 'acc', { seg: 18 });                                  // göz merceği çanı
   k.xsec(circ(0, cy, 0.019, 24), ze + 0.0002, ze - 0.012, 'acc', { holes: [circ(0, cy, 0.0166, 24)], c: 0.0006, cap: 1, sh: 0.7 });      // 12.129: kapak ön yüzü PiP diskiyle aynı düzlemde (12.128'de 16 mm öndeydi → mercek içinde kalın gri halka), ince kenar      // lastik göz kapağı: kalın halka (12.128; eski açık tüpün içi görünmüyordu, PiP merceği çerçevesiz kalıyordu)
-  k.cyl(0.012, 0.012, 0.012, [0, cy + 0.0215, z - 0.01], 'acc', { ax: 'y', seg: 12, pat: 2 });           // yükseklik tamburu (12.129: 20 → 12 mm; nişanda göz kapağı halkasının üstünden taşmasın)
-  k.cyl(0.0105, 0.0105, 0.011, [0.021, cy, z - 0.01], 'acc', { ax: 'x', seg: 12, pat: 2 });              // yan tambur (12.129: 18 → 11 mm, halkanın yanından taşmasın)
-  k.cyl(0.007, 0.007, 0.016, [-0.02, cy + 0.012, z - 0.05], 'acc', { ax: 'x', seg: 8, d: 1 });           // aydınlatma pil kapağı
+  k.cyl(0.0095, 0.0095, 0.007, [0, cy + 0.0175, z - 0.01], 'acc', { ax: 'y', seg: 12, pat: 2 });         // yükseklik tamburu (12.139: tepe cy+27,5 → 21 mm; %70 nişanda göz kapağı halkasının üstünden taşıyordu)
+  k.cyl(0.009, 0.009, 0.007, [0.0185, cy, z - 0.01], 'acc', { ax: 'x', seg: 12, pat: 2 });               // yan tambur (dış uç 26,5 → 22 mm)
+  k.cyl(0.0055, 0.0055, 0.007, [-0.0185, cy, z - 0.05], 'acc', { ax: 'x', seg: 8, d: 1 });               // aydınlatma pil kapağı (12.139: yanda, alçak; eskiden sol üstte çıkıntı)
   k.cyl(0.0195, 0.0195, 0.002, [0, cy, z - 0.164], 'lens', { seg: 18 });
   k.cyl(0.0165, 0.0165, 0.002, [0, cy, ze - 0.001], 'lens', { seg: 18 });
   for (const s of [-1, 1]) k.box([0.0042, 0.0007, 0.0006], [s * 0.0013, cy - 0.00182, ze + 0.0004], 'glow', { rot: [0, 0, -s * 0.9] });   // şevron ucu = nişan noktası

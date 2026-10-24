@@ -124,13 +124,9 @@ const CSS = `
 .arrow{position:absolute;left:-14px;top:-130px;width:28px;height:40px;transform-origin:14px 130px;opacity:.9;animation:ar 1.4s forwards}
 .arrow::before{content:'';position:absolute;left:0;top:0;border:14px solid transparent;border-bottom:26px solid #ff3b2f;border-top:0}
 @keyframes ar{to{opacity:0}}
-#holo{position:absolute;left:50%;top:50%;width:9.2vh;height:9.2vh;margin:-4.6vh 0 0 -4.6vh;border-radius:50%;border:3px solid #ff3326;box-shadow:0 0 6px 1px #ff3326aa,inset 0 0 5px #ff332655;display:none}
-#holo::before{content:'';position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:#ff3326;box-shadow:0 0 6px 2px #ff3326cc}
-#holo i{position:absolute;background:#ff3326;box-shadow:0 0 4px #ff3326aa}
-#holo i:nth-child(1){left:50%;top:-2.33vh;width:2px;height:2vh;margin-left:-1px}
-#holo i:nth-child(2){left:50%;bottom:-2.33vh;width:2px;height:2vh;margin-left:-1px}
-#holo i:nth-child(3){top:50%;left:-2.33vh;height:2px;width:2vh;margin-top:-1px}
-#holo i:nth-child(4){top:50%;right:-2.33vh;height:2px;width:2vh;margin-top:-1px}      /* 12.127: işaretler vh (1600×900'de eski 18 / 21 px), her yükseklikte 3B çerçeveyle orantılı */
+#holo{position:absolute;left:50%;top:50%;box-sizing:border-box;width:calc(9.47vh + 2px);height:calc(9.47vh + 2px);margin:calc(-4.735vh - 1px) 0 0 calc(-4.735vh - 1px);border-radius:50%;border:2px solid #ff2a1a;box-shadow:0 0 3px #ff2a1a66;display:none}
+#holo::before{content:'';position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:50%;background:#ff2a1a;box-shadow:0 0 2px #ff2a1a88}
+#holo i{display:none}      /* 12.139 (BattleBit sade): ince halka + nokta; dış işaretler kalktı (3B halkada yoktu → tam nişanda zıplıyordu). Halka orta çizgisi 9,47vh = 3B halka (r 14,5 mm, göz 0,421 m, ADS_FOV 40) */
 /* paintball halka nişangâhı (nişanda): halka = topun o anki sapması (seri atışta büyür), ortada nokta, altta 20 / 30 / 40 m düşüş çizgileri */
 #pbret{position:absolute;left:50%;top:50%;width:0;height:0;display:none;--c:#ffe014;--r:10px}
 #pbret .rg{position:absolute;left:calc(-1 * var(--r));top:calc(-1 * var(--r));width:calc(2 * var(--r));height:calc(2 * var(--r));border-radius:50%;border:2px solid var(--c);box-sizing:border-box;box-shadow:0 0 0 1px rgba(0,0,0,.55),inset 0 0 0 1px rgba(0,0,0,.45);transition:width .06s,height .06s,left .06s,top .06s}
@@ -165,11 +161,8 @@ body.mob #vitals,body.mob #ammo{background:none;border:0}       /* telefonda ark
 #idot{position:absolute;left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;background:#fff;box-shadow:0 0 0 1.5px rgba(0,0,0,.7);display:none}
 body.mob #idot.on{display:block;transform:scale(var(--rs,1))}      /* demir nişan (yalnız telefonda): silah yarı saydamken ön arpacık seçilmiyor, ortada küçük nokta */
 body.mob #rdot{width:max(5px,.5vh);height:max(5px,.5vh);margin:min(-2.5px,-.25vh) 0 0 min(-2.5px,-.25vh);background:#ff2a18;box-shadow:0 0 0 1px rgba(0,0,0,.45),0 0 3px 1px #ff2a1a66;transform:scale(var(--rs,1))}
-body.mob #holo{width:9.2vh;height:9.2vh;margin:-4.6vh 0 0 -4.6vh;border-width:3px;box-shadow:0 0 0 1px rgba(0,0,0,.4),inset 0 0 0 1px rgba(0,0,0,.4),0 0 5px #ff332688;transform:scale(var(--rs,1))}
-body.mob #holo::before{width:7px;height:7px;margin:-3.5px 0 0 -3.5px;box-shadow:0 0 0 1.5px rgba(0,0,0,.55)}
-body.mob #holo i{box-shadow:0 0 0 1px rgba(0,0,0,.4)}
-body.mob #holo i:nth-child(1),body.mob #holo i:nth-child(2){width:3px;height:2.6vh;margin-left:-1.5px}body.mob #holo i:nth-child(1){top:-3.2vh}body.mob #holo i:nth-child(2){bottom:-3.2vh}
-body.mob #holo i:nth-child(3),body.mob #holo i:nth-child(4){height:3px;width:2.6vh;margin-top:-1.5px}body.mob #holo i:nth-child(3){left:-3.2vh}body.mob #holo i:nth-child(4){right:-3.2vh}
+body.mob #holo{width:calc(9.47vh + 1.5px);height:calc(9.47vh + 1.5px);margin:calc(-4.735vh - .75px) 0 0 calc(-4.735vh - .75px);border-width:1.5px;box-shadow:0 0 0 1px rgba(0,0,0,.35);transform:scale(var(--rs,1))}      /* 12.139: telefonda da ince (3 px + işaretler + iki koyu kontur kaba duruyordu) */
+body.mob #holo::before{width:4.5px;height:4.5px;margin:-2.25px 0 0 -2.25px;box-shadow:0 0 0 1px rgba(0,0,0,.45)}
 /* 12.127: telefon #holo eskiden sabit 78 px (3B çerçevenin ≈ 2,5 katı, iki halka üst üste): artık 3B çerçeveyle aynı 9,2vh (ADS_FOV 40) × nişangâh boyutu ayarı (--rs); red dot en az 9 px */
 /* telefon dürbünü: çizgiler ≈ 2 kat kalın, merkez noktası büyük (halka 94vh, 1 birim ≈ 2 px) */
 body.mob #scope .mil g path:first-child{stroke-width:.75}body.mob #scope .mil g path:nth-child(3){stroke-width:.85}
