@@ -1,6 +1,6 @@
 // Davet linki (12.133): /?online=KOD (ad yok) → takma ad ekranı → odaya katılım. İki oyuncu (masaüstü + Pixel 7), botsuz, harita / saat / hava / mod
 // odadaki gibi mi; maç bitince aynı ayarlarla kendiliğinden yeni maç (sunucu BF_RESTART_MS kısa, odanın time'ı kısa olmalı).
-//   node scripts/invitelink.mjs <istemci url> <ws url> <oda kodu>   (WAIT=1 → maç sonu yeniden başlamayı da bekle)   → /tmp/wb-inv/*.png
+//   node scripts/invitelink.mjs <istemci url> <ws url | - (varsayılan sunucu, linkin aynısı)> <oda kodu>   (WAIT=1 → maç sonu yeniden başlamayı da bekle)   → /tmp/wb-inv/*.png
 import { chromium, devices } from 'playwright';
 import { mkdirSync } from 'fs';
 const [base = 'http://127.0.0.1:5180', ws = 'ws://127.0.0.1:8836', code = 'OFC1'] = process.argv.slice(2), OUT = '/tmp/wb-inv';
@@ -12,7 +12,7 @@ const pages = [];
 for (const [dev, nick] of [['desk', 'Kanka1'], ['mob', 'Kanka2']]) {
   const ctx = dev === 'desk' ? await browser.newContext({ viewport: { width: 1280, height: 720 } }) : await browser.newContext(strip(devices['Pixel 7 landscape']));
   const page = await ctx.newPage(), errs = []; page.on('pageerror', (e) => errs.push(e.message));
-  await page.goto(`${base}/?online=${code}&server=${encodeURIComponent(ws)}&debug=1&nolock=1`);
+  await page.goto(ws === '-' ? `${base}/?online=${code}&debug=1&nolock=1` : `${base}/?online=${code}&server=${encodeURIComponent(ws)}&debug=1&nolock=1`);      // ws '-': linkin aynısı (canlı; debug yalnız __game için)
   await page.waitForSelector('#nkName', { timeout: 30000 });
   await page.screenshot({ path: `${OUT}/${dev}-nick.png` });
   check(await page.locator('#nkName').isVisible(), `${dev}: takma ad ekranı açıldı`);
