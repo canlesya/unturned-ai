@@ -928,7 +928,13 @@ export class Player {
     const baseFov = this.baseFov();
     // 12.127: nişan büyütmesi DOĞRUDAN modelle aynı eğriden yazılır (eski ikinci üstel gecikme dünyayı silahın ~100 ms arkasında bırakıyordu: dürbün çıkışında ×4,6 dünyada 3B gövde); yalnız güç FOV vuruşu yumuşatılır
     this._fovAdd = (this._fovAdd || 0) + ((g.abfx?.fovAdd || 0) - (this._fovAdd || 0)) * Math.min(1, dt * 18);
-    cam.fov = zoomFov(baseFov, this.camZoom()) + this._fovAdd;
+    // 12.154: silah / nişangâh nişandayken değişince (adsT Soldier'da sıfırlanır) dünya kamerası eski büyütmeyi o silahın çıkış eğrisiyle söndürür → tek karede sıçrama yok
+    const aimKey = s.item.id + '|' + s.opticId;
+    if (aimKey !== this._aimKey) { if (this._aimKey !== undefined && this._aimAds > 0 && this._aimZ > 1) this._zTail = { z: this._aimZ, t: this._aimAds, r: this._aimRate }; this._aimKey = aimKey; }
+    let zc = this.camZoom();
+    if (this._zTail) { const q = this._zTail; q.t = Math.max(0, q.t - dt * q.r); zc = Math.max(zc, lerp(1, q.z, adsEase(q.t))); if (q.t <= 0) this._zTail = null; }
+    this._aimAds = s.adsT; this._aimZ = s.overlay === 'lens' && this.vm.lensDisc ? LENS_OUT : this.vm.model?.userData.noAds ? 1 : this.zoomEff(); this._aimRate = s.opticDef?.overlay === 'scope' ? 6 : 9;
+    cam.fov = zoomFov(baseFov, zc) + this._fovAdd;
     cam.updateProjectionMatrix();
     const sh = g.effects.shake;
     // 3. şahıs geçişi: dürbünle nişan alırken (scope) otomatik 1. şahsa döner
