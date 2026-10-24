@@ -344,7 +344,7 @@ export class Soldier {
       if (st.ball) g.paint.fire(this, origin, d, st, muzzle, camO); else g.shootRay(this, origin, d, st, muzzle, camO);
     }
     this.protT = 0;                                                              // ateş eden artık dokunulmaz değil (korumayla düşmana ateş edilemez)
-    if (!st.ball) g.effects.muzzle(muzzle, base);                              // paintball: alev yok (gazla atar)
+    if (!st.ball && !(this.isPlayer && !g.showSelf && g.player && g.player.thirdT < 0.5)) g.effects.muzzle(muzzle, base);      // paintball: alev yok (gazla atar) · 12.141: birinci şahısta dünya alevi (göz önünde düz sarı kutu) yok, silah modelinin alevi yeter
     g.sfx.shot(st.sound, this.pos);
     this.flashT = 0.06;
     this.sinceShot = 0;

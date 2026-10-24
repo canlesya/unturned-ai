@@ -48,13 +48,14 @@ function opt(k, mat, o, yb, z, pistol = false, remap = false) {
     if (!m.isMesh) continue;
     if (m.material?.userData?.glass) { r.g.remove(m); k.glassMesh.push(m); continue; }
     if (remap) { const a = m.geometry.attributes.wf.array; for (let i = 0; i < a.length; i += 3) if (Math.round(a[i]) === 3) a[i] = 2; }
-    k.lists.main.push(m.geometry);
+    k.lists[(!k.lod && k.grp) || 'main'].push(m.geometry);      // 12.141: tabancada RMR sürgü grubunda
   }
+  if (k.grp && !k.lod) k.glassSlide = true;
   return { sight: r.sight, dist: r.dist, overlay: r.overlay, lens: r.lens };      // 12.129: lens (ACOG PiP diski) da taşınır — eksikti, MP5 / M249'da ACOG merceğinden dürbün tüpünün içi görünüyordu
 }
 function done(k, mat, meta, sg) {
   const g = k.build(mat, meta);
-  for (const m of k.glassMesh) g.add(m);
+  for (const m of k.glassMesh) (k.glassSlide && g.userData.slide ? g.userData.slide.g : g).add(m);
   if (sg) { g.userData.sight = sg.sight; g.userData.pivot = sg.pivot; g.userData.dist = sg.dist; g.userData.overlay = sg.overlay; g.userData.lens = sg.lens; }
   return g;
 }
@@ -367,6 +368,7 @@ export function pkm(mat = skinMaterial('pkm'), lod = false, o = 'iron') {
 // ───────────────────────── M1911 ─────────────────────────
 export function m1911(mat = skinMaterial('m1911'), lod = false, o = 'iron') {
   const k = newKit(lod), iron = !o || o === 'iron', line = 0.077;
+  k.grp = 'slide';      // 12.141: sürgü (+ burun, burç, nişan / RMR) ayrı grup
   // sürgü (yan düz, üstü pahlı) + arka tırtıllar + atım penceresi + namlu burcu + yay tıpası
   k.xsec([[-0.0145, 0.03], [0.0145, 0.03], [0.0145, 0.06], [0.011, 0.068], [-0.011, 0.068], [-0.0145, 0.06]], 0.045, -0.168, 'body', { c: 0.002 });
   if (!lod) for (let i = 0; i < 8; i++) for (const sx of [-1, 1]) k.box([0.002, 0.026, 0.0022], [sx * 0.0146, 0.047, 0.038 - i * 0.0045], 'body', { sh: 0.35 });
@@ -376,6 +378,11 @@ export function m1911(mat = skinMaterial('m1911'), lod = false, o = 'iron') {
   k.cyl(0.0095, 0.0095, 0.012, [0, 0.05, -0.174], 'metal', { seg: 12 });
   k.cyl(0.0048, 0.0048, 0.003, [0, 0.05, -0.1795], 'metal', { sh: 0.2, d: 1 });
   k.cyl(0.006, 0.006, 0.006, [0, 0.024, -0.169], 'metal', { seg: 8, d: 1 });
+  let sg;
+  k.box([0.003, 0.009, 0.008], [0, 0.0725, -0.155], 'acc', { c: 0.0005 });
+  if (iron) { notch(k, 0.068, line, 0.042, 0.035); sg = { sight: [0, line, 0.0385], pivot: [0, line, -0.155], dist: ADS_DIST.iron, overlay: 'none' }; }
+  else sg = opt(k, mat, o, 0.068, 0.012, true);
+  k.grp = null;
   // çerçeve + kabza gövdesi + ahşap paneller (benekli) + vidalar + kuyruk emniyeti + horoz
   k.prof([[0.05, 0.031], [-0.128, 0.031], [-0.128, 0.017], [-0.03, 0.014], [-0.01, 0.008], [0.05, 0.008]], 0.028, 'body', { c: 0.002, sh: 0.95 });
   k.prof([[0.002, 0.01], [0.048, 0.012], [0.06, 0.004], [0.064, -0.004], [0.092, -0.104], [0.088, -0.112], [0.04, -0.116], [0.034, -0.108], [0.012, -0.03], [0.002, -0.008]], 0.026, 'body', { c: 0.003 });
@@ -389,15 +396,11 @@ export function m1911(mat = skinMaterial('m1911'), lod = false, o = 'iron') {
   k.box([0.003, 0.008, 0.032], [-0.0155, 0.026, -0.04], 'metal', { d: 1 });
   k.box([0.003, 0.008, 0.018], [-0.0155, 0.026, 0.03], 'metal', { d: 1 });
   k.cyl(0.004, 0.004, 0.003, [-0.0145, 0.0, 0.002], 'metal', { ax: 'x', d: 1, seg: 8 });
-  // nişan: U çentikli gez + arpacık bıçağı · optik: RMR (gez yerine)
-  let sg;
-  k.box([0.003, 0.009, 0.008], [0, 0.0725, -0.155], 'acc', { c: 0.0005 });
-  if (iron) { notch(k, 0.068, line, 0.042, 0.035); sg = { sight: [0, line, 0.0385], pivot: [0, line, -0.155], dist: ADS_DIST.iron, overlay: 'none' }; }
-  else sg = opt(k, mat, o, 0.068, 0.012, true);
+  // nişan (U çentikli gez + arpacık bıçağı · optik: RMR) sürgü grubunda, yukarıda
   // şarjör (grup): kabza içinde gövde + taban plakası
   k.prof([[0.016, 0.0], [0.05, 0.002], [0.078, -0.112], [0.044, -0.114]], 0.02, 'metal', { g: 'mag', sh: 1.1 });
   k.prof([[0.04, -0.113], [0.084, -0.109], [0.087, -0.121], [0.038, -0.123]], 0.026, 'metal', { g: 'mag', c: 0.002 });
-  return done(k, mat, { name: 'M1911', hold: 'pistol', gripR: [0, -0.03, 0.025], gripL: null, muzzle: [0, 0.05, -0.18], length: 0.28 }, sg);
+  return done(k, mat, { name: 'M1911', hold: 'pistol', gripR: [0, -0.03, 0.025], gripL: null, muzzle: [0, 0.05, -0.18], length: 0.28, slideTravel: 0.028 }, sg);
 }
 
 // ───────────────────────── Desert Eagle ─────────────────────────
@@ -409,10 +412,15 @@ export function deagle(mat = skinMaterial('deagle'), lod = false, o = 'iron') {
   rail(k, -0.09, -0.24, 0.076, { w: 0.016 });
   k.cyl(0.0068, 0.0068, 0.003, [0, 0.04, -0.2855], 'metal', { sh: 0.2, seg: 10 });
   // sürgü (pahlı üst kesit) + arka tırtıllar + atım penceresi + emniyet kolları + horoz
+  k.grp = 'slide';      // 12.141: sürgü + emniyet kolları + gez / RMR ayrı grup (namlu bloğu ve arpacık sabit)
   k.xsec([[-0.019, 0.026], [0.019, 0.026], [0.019, 0.066], [0.014, 0.076], [-0.014, 0.076], [-0.019, 0.066]], 0.062, -0.068, 'body', { c: 0.002, sh: 1.05 });
   if (!lod) for (let i = 0; i < 6; i++) for (const sx of [-1, 1]) k.box([0.002, 0.032, 0.003], [sx * 0.0191, 0.05, 0.052 - i * 0.0065], 'body', { sh: 0.4 });
   k.box([0.003, 0.016, 0.04], [0.0192, 0.058, -0.03], 'body', { sh: 0.3 });
   for (const sx of [-1, 1]) k.box([0.004, 0.008, 0.016], [sx * 0.021, 0.058, 0.048], 'metal', { d: 1, c: 0.001 });
+  let sg;
+  if (iron) { notch(k, 0.076, line, 0.046, 0.038, 0.011, 0.0028, 0.006); sg = { sight: [0, line, 0.042], pivot: [0, line, -0.256], dist: ADS_DIST.iron, overlay: 'none' }; }
+  else sg = opt(k, mat, o, 0.076, 0.008, true);
+  k.grp = null;
   k.prof([[0.06, 0.04], [0.07, 0.044], [0.076, 0.066], [0.068, 0.068], [0.06, 0.054]], 0.01, 'metal', { c: 0.001 });
   // çerçeve (namlu altına uzanır) + iri köşeli korkuluk + tetik + sürgü durdurucu + kabza (lastik, benekli, parmak oyukları)
   k.prof([[0.062, 0.027], [-0.068, 0.027], [-0.068, 0.018], [-0.21, 0.018], [-0.215, 0.006], [-0.2, 0.0], [-0.03, 0.0], [-0.01, 0.004], [0.062, 0.004]], 0.034, 'body', { c: 0.002, sh: 0.9 });
@@ -422,15 +430,12 @@ export function deagle(mat = skinMaterial('deagle'), lod = false, o = 'iron') {
   k.prof([[0.006, 0.006], [0.06, 0.008], [0.072, -0.002], [0.076, -0.012], [0.094, -0.112], [0.088, -0.124], [0.042, -0.128], [0.032, -0.118], [0.014, -0.034], [0.006, -0.012]], 0.036, 'furn', { c: 0.004, pat: lod ? 0 : 1 });
   for (let i = 0; i < 3; i++) k.box([0.037, 0.004, 0.012], [0, -0.04 - i * 0.026, 0.018 + i * 0.0058], 'furn', { d: 1, sh: 0.6, rot: [0.22, 0, 0] });
   // nişan: çentikli gez + rayın önünde arpacık · optik: RMR (sürgüde)
-  let sg;
   k.box([0.012, 0.006, 0.012], [0, 0.079, -0.256], 'acc', { c: 0.001 });
   k.box([0.0035, 0.009, 0.007], [0, 0.0865, -0.256], 'acc', { sh: 0.85 });
-  if (iron) { notch(k, 0.076, line, 0.046, 0.038, 0.011, 0.0028, 0.006); sg = { sight: [0, line, 0.042], pivot: [0, line, -0.256], dist: ADS_DIST.iron, overlay: 'none' }; }
-  else sg = opt(k, mat, o, 0.076, 0.008, true);
   // şarjör (grup)
   k.prof([[0.02, 0.0], [0.056, 0.002], [0.08, -0.118], [0.046, -0.122]], 0.024, 'metal', { g: 'mag', sh: 1.1 });
   k.prof([[0.038, -0.124], [0.092, -0.118], [0.095, -0.13], [0.036, -0.132]], 0.032, 'metal', { g: 'mag', c: 0.002 });
-  return done(k, mat, { name: 'Desert Eagle', hold: 'pistol', gripR: [0, -0.03, 0.045], gripL: null, muzzle: [0, 0.04, -0.285], length: 0.36 }, sg);
+  return done(k, mat, { name: 'Desert Eagle', hold: 'pistol', gripR: [0, -0.03, 0.045], gripL: null, muzzle: [0, 0.04, -0.285], length: 0.36, slideTravel: 0.03 }, sg);
 }
 
 // ───────────────────────── Revolver (.44, paslanmaz, ahşap kabza) ─────────────────────────
@@ -445,10 +450,12 @@ export function revolver(mat = skinMaterial('revolver'), lod = false) {
   k.cyl(0.0058, 0.0058, 0.003, [0, 0.062, -0.4005], 'metal', { sh: 0.2, seg: 10 });
   // çerçeve (üst köprü) + silindir (oluklu, 6 yuva) + silindir mandalı + horoz + U çentikli gez
   k.prof([[0.058, 0.088], [-0.112, 0.088], [-0.118, 0.082], [-0.118, 0.03], [-0.11, 0.018], [-0.04, 0.008], [0.0, 0.0], [0.04, 0.0], [0.058, 0.03], [0.06, 0.06]], 0.03, 'body', { c: 0.002, holes: [[[-0.038, 0.022], [-0.106, 0.022], [-0.106, 0.077], [-0.038, 0.077]]] });   // çerçeve penceresi: silindir yandan ayrı görünsün
+  k.grp = 'slide';      // 12.141: silindir ayrı grup (atıştan sonra 60° döner)
   k.cyl(0.031, 0.031, 0.05, [0, 0.043, -0.074], 'metal', { seg: 14 });
   for (const s of [-1, 1]) k.cyl(s < 0 ? 0.027 : 0.031, s < 0 ? 0.031 : 0.027, 0.007, [0, 0.043, -0.074 + s * 0.0285], 'metal', { seg: 14 });   // ön / arka pah
   if (!lod) for (let i = 0; i < 6; i++) { const a = (i + 0.5) * (Math.PI / 3); k.box([0.008, 0.004, 0.03], [Math.cos(a) * 0.0302, 0.043 + Math.sin(a) * 0.0302, -0.074], 'metal', { sh: 0.3, rot: [0, 0, a + Math.PI / 2] }); }
   if (!lod) for (let i = 0; i < 6; i++) { const a = i * (Math.PI / 3) + Math.PI / 2; k.cyl(0.0058, 0.0058, 0.002, [Math.cos(a) * 0.019, 0.043 + Math.sin(a) * 0.019, -0.1065], 'metal', { sh: 0.2, seg: 8 }); }
+  k.grp = null;
   k.box([0.004, 0.01, 0.016], [-0.0165, 0.04, -0.03], 'metal', { d: 1, c: 0.001 });
   k.prof([[0.05, 0.06], [0.066, 0.066], [0.08, 0.082], [0.074, 0.086], [0.062, 0.078], [0.048, 0.07]], 0.009, 'metal', { c: 0.001 });
   notch(k, 0.086, line, 0.048, 0.04, 0.0095, 0.0026, 0.006);
@@ -457,7 +464,7 @@ export function revolver(mat = skinMaterial('revolver'), lod = false) {
   for (const sx of [-1, 1]) k.cyl(0.006, 0.006, 0.002, [sx * 0.0172, -0.03, 0.06], 'metal', { ax: 'x', d: 1, seg: 8 });
   guard(k, [[0.03, 0.004], [0.028, -0.008], [0.01, -0.034], [-0.03, -0.034], [-0.04, -0.022], [-0.04, 0.004]], [[0.02, -0.006], [0.006, -0.026], [-0.026, -0.026], [-0.032, -0.018], [-0.032, 0.002]], 0.016, 'body');
   trig(k, 0.004, 0.002);
-  return done(k, mat, { name: 'Revolver', hold: 'pistol', gripR: [0, -0.03, 0.05], gripL: null, muzzle: [0, 0.062, -0.4], length: 0.5 },
+  return done(k, mat, { name: 'Revolver', hold: 'pistol', gripR: [0, -0.03, 0.05], gripL: null, muzzle: [0, 0.062, -0.4], length: 0.5, slideKind: 'cyl', slidePivot: 0.043 },
     { sight: [0, line, 0.044], pivot: [0, line, -0.39], dist: ADS_DIST.iron, overlay: 'none' });
 }
 

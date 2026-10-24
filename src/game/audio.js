@@ -1,9 +1,11 @@
 import * as THREE from 'three';
 import { getCtx, noiseBuf, makeIR, isMobile, uiSound } from './actx.js';
+import { SYN, SHOT_DRAFT, shotBuffers } from './gunsynth.js';
 
 // WebAudio ile sentezlenmiş sesler (dosya yok). Her ses bir "ses kaynağı" (voice): mesafe kısması + mesafeye göre alçak geçiren (uzak = boğuk) + sağ/sol pan + ses hızı gecikmesi + yankı gönderimi.
 // Katmanlar: çatlama (kısa yüksek geçiren gürültü) + gövde (taranan alçak geçiren gürültü) + gümbürtü (perdesi düşen ton) + kuyruk (uzun boğuk yankı). Bitince düğümler ayrılır (sızıntı yok, this.live sayar).
 // Ortak AudioContext (actx.js): maç başına yeni bağlam açılmaz; ana çıkışta sınırlayıcı (kompresör) var, katmanlar üst üste binse de patlamaz (clip yok).
+// 12.141: atış sesleri gunsynth.js'te (taslak B / C, önceden hesaplanmış tampon). Aşağıdaki GUN tablosu = taslak A (eski katmanlı sentez), ?sfx=A ile ya da SHOT_DRAFT = 'A' ile geri gelir.
 // Silah ailesi profili: c = çatlama [kazanç, süre, yüksek geçiren Hz], b = gövde [kazanç, süre, f0, f1, tür?], t = gümbürtü [kazanç, süre, f0, f1, dalga?], k = kuyruk [kazanç, süre, f0, f1], r = yankı payı, m = mekanik tık (kendi silahın)
 const GUN = {
   pistol: { c: [0.5, 0.018, 2500], b: [0.45, 0.1, 4500, 700], t: [0.32, 0.09, 190, 60], k: [0.12, 0.35, 1800, 250], r: 0.25, m: 1 },
@@ -40,6 +42,8 @@ export class Sfx {
     this.live = 0;                                  // çalan kaynak sayısı (test / sızıntı denetimi)
     this.world = null;                              // game.js verir: kapalı alan yoklaması (tavan var mı → daha çok yankı)
     this.indoor = 0; this._envT = 0;
+    let q = null; try { q = new URLSearchParams(globalThis.location?.search || '').get('sfx'); } catch (e) { /* yok */ }
+    this.draft = /^[ABC]$/.test(q || '') ? q : SHOT_DRAFT;                 // 12.141: atış sesi taslağı (A eski / B tok / C açık hava)
   }
 
   // ctx verilirse onu kullanır (test: OfflineAudioContext), yoksa ortak bağlam
@@ -64,6 +68,12 @@ export class Sfx {
     this.verbIn.connect(this.verb); this.verb.connect(this.verbOut); this.verbOut.connect(this.sfxBus);
     this.setMix(this.mix);
     this.noise = noiseBuf(c);
+    // 12.141: atış tamponlarını boşta önceden hesapla (sınıf başına ~2–4 ms; ilk atışta takılma olmasın). Çevrimdışı (test) bağlamda gerektikçe.
+    if (this.draft !== 'A' && !(globalThis.OfflineAudioContext && c instanceof OfflineAudioContext)) {
+      const kinds = Object.keys(SYN).filter((k) => k !== 'def' && k !== 'suppressed');
+      const tick = () => { if (this.ctx !== c || !kinds.length) return; try { shotBuffers(c, kinds.shift(), this.draft); } catch (e) { console.error(e); } setTimeout(tick, 40); };
+      setTimeout(tick, 300);
+    }
   }
 
   dispose() {
@@ -153,9 +163,10 @@ export class Sfx {
     switch (kind) {
       case 'knife': this._noise({ pos, gain: 0.28, dur: 0.16, f0: 900, f1: 3200, type: 'bandpass', q: 1.2 }); return;
       case 'throw': this._noise({ pos, gain: 0.2, dur: 0.15, f0: 1500, f1: 600, type: 'bandpass' }); return;
-      case 'marker': { const v = this._voice(pos, 1, { rv: 0.12 }); this._noise({ v, gain: 0.34, dur: 0.05, f0: 2200, f1: 700, type: 'bandpass', q: 1.4 }); this._tone({ v, gain: 0.26, dur: 0.05, f0: 300, f1: 120, type: 'triangle' }); this._noise({ v, gain: 0.1, dur: 0.09, f0: 6000, f1: 2500, type: 'highpass', delay: 0.01 }); return; }   // paintball: kuru "pop" + gaz tıslaması
-      case 'pbpistol': { const v = this._voice(pos, 1, { rv: 0.1 }); this._noise({ v, gain: 0.3, dur: 0.045, f0: 2800, f1: 900, type: 'bandpass', q: 1.4 }); this._tone({ v, gain: 0.22, dur: 0.045, f0: 380, f1: 150, type: 'triangle' }); return; }
+      case 'marker': if (this.draft !== 'A') break; { const v = this._voice(pos, 1, { rv: 0.12 }); this._noise({ v, gain: 0.34, dur: 0.05, f0: 2200, f1: 700, type: 'bandpass', q: 1.4 }); this._tone({ v, gain: 0.26, dur: 0.05, f0: 300, f1: 120, type: 'triangle' }); this._noise({ v, gain: 0.1, dur: 0.09, f0: 6000, f1: 2500, type: 'highpass', delay: 0.01 }); return; }   // paintball: kuru "pop" + gaz tıslaması
+      case 'pbpistol': if (this.draft !== 'A') break; { const v = this._voice(pos, 1, { rv: 0.1 }); this._noise({ v, gain: 0.3, dur: 0.045, f0: 2800, f1: 900, type: 'bandpass', q: 1.4 }); this._tone({ v, gain: 0.22, dur: 0.045, f0: 380, f1: 150, type: 'triangle' }); return; }
     }
+    if (this.draft !== 'A') return this._shotS(kind, pos);
     const P = GUN[kind] || GUN.def, j = 0.94 + Math.random() * 0.12;            // her atış biraz farklı (makine tüfeği tekdüze olmasın)
     const v = this._voice(pos, 1, { ref: 30, rv: P.r });
     if (v.gain < 0.003) { for (const x of v.nodes) x.disconnect(); return; }
@@ -168,6 +179,26 @@ export class Sfx {
     else if (kind === 'dbl') this._noise({ v, gain: 0.7, dur: 0.3, f0: 4000, f1: 280, delay: 0.035 });
     else if (kind === 'sniper') this.bolt(pos, 0.55);
     else if (kind === 'rpg') this._noise({ v, gain: 0.3, dur: 0.55, f0: 7000, f1: 2500, type: 'highpass', delay: 0.04, att: 0.05 });   // roket tıslaması
+  }
+
+  // 12.141 taslak B / C: önceden hesaplanmış tampon. Yakın (2 çeşit) ↔ uzak (boğuk, uzun kuyruk) mesafeyle yumuşak geçer (25 → 90 m); kendi silahında mekanik ses
+  _shotS(kind, pos) {
+    const P = SYN[kind] || SYN.def, v = this._voice(pos, 1, { ref: 30, rv: P.r });
+    if (v.gain < 0.003) { for (const x of v.nodes) x.disconnect(); return; }
+    const B = shotBuffers(this.ctx, SYN[kind] ? kind : 'def', this.draft), own = !pos || v.d < 2.5;
+    const u = Math.min(1, Math.max(0, (v.d - 25) / 65)), m = u * u * (3 - 2 * u), rate = 0.965 + Math.random() * 0.07;
+    if (m < 0.999) this._buf(v, B.near[Math.random() < 0.5 ? 0 : 1], 1 - m, rate);
+    if (m > 0.001) this._buf(v, B.far, m, rate);
+    if (own && B.mech) this._buf(v, B.mech, 1, 0.96 + Math.random() * 0.08);
+    if (kind === 'shotgun') this.pump(pos, 0.34);
+    else if (kind === 'sniper') this.bolt(pos, 0.55);
+  }
+  _buf(v, buf, g, rate = 1, delay = 0) {
+    const c = this.ctx, t = c.currentTime + delay + v.delay, src = c.createBufferSource();
+    src.buffer = buf; src.playbackRate.value = rate;
+    const chain = [src];
+    if (g !== 1) { const e = c.createGain(); e.gain.value = g; src.connect(e); e.connect(v.in); chain.push(e); } else src.connect(v.in);
+    this._play(v, src, chain, t, t + buf.duration / rate + 0.02);
   }
 
   explosion(pos) {
