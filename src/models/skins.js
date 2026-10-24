@@ -59,7 +59,7 @@ const FRAG_COLOR = /* glsl */ `
   wcol *= wsh;
   if (wpat > 0.5 && wpat < 1.5) { float st = h31(floor(vOP * 700.0)); wcol *= 0.78 + 0.34 * st; wrough = min(1.0, wrough + 0.2); }     // benekli kabza (stipple)
   else if (wpat > 1.5) { wcol *= 0.82 + 0.22 * step(0.5, fract(vOP.z * 260.0 + vOP.y * 120.0)); }                                            // tırtıl / oluk
-  diffuseColor.rgb = wcol; diffuseColor.a = opacity * (wglow > 0.5 ? uGlowA : uAlpha);`;
+  diffuseColor.rgb = wcol * (1.0 - wglow); diffuseColor.a = opacity * (wglow > 0.5 ? uGlowA : uAlpha);      // 12.139: ışıyan retikül ışıklandırılmaz (yalnız kendi rengi)`;
 
 const SHARED = new Map();
 // Kaplama malzemesi: shared=true → (silah, kaplama) başına tek örnek (3. şahıs askerleri paylaşır; setSkin / setFade çağrılmaz)
@@ -79,10 +79,10 @@ export function skinMaterial(weapon = 'ak47', skin = 'std', shared = false) {
       .replace('#include <color_fragment>', '#include <color_fragment>\n' + FRAG_COLOR)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  roughnessFactor = wrough;')
       .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\n  metalnessFactor = vPBR.y;')
-      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  totalEmissiveRadiance += wcol * wglow * 3.0;')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  totalEmissiveRadiance += wcol * wglow * 0.86;')
       .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n  if (uProbe > 0.5 && wglow > 0.5) gl_FragColor = vec4(1.0, 0.0, 1.0, 1.0);');
   };
-  m.customProgramCacheKey = () => 'wb-skin-2';
+  m.customProgramCacheKey = () => 'wb-skin-3';      // 12.139: ışıma ×3 → ×0,86 (doğrusal ≤ 1: Neutral ton eşlemede pembeleşmez, ACOG PiP şevronuyla aynı kırmızı)
   setSkin(m, skin);
   if (shared) SHARED.set(key, m);
   return m;

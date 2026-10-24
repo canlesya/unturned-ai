@@ -1,6 +1,6 @@
 import { Kit, bez, rail } from './s3kit.js';
 import { skinMaterial, STD } from './skins.js';
-import { s3Optic, ADS_DIST } from './s3weapons.js';
+import { s3Optic, ADS_DIST, S3PARTS } from './s3weapons.js';
 
 // S3 (BattleBit tarzı) ikinci tur: MP5, Vector, P90, MAC-10, M249, PKM, M1911, Desert Eagle, Revolver, RPG-7 — s3weapons.js deseni (yan profil çekme + pah, tek ağ + şarjör alt grubu + cam).
 // Sözleşme eski modellerle aynı (gripR / gripL / muzzle / length / hold / mag / magAxis aynen; sunucu modelsiz). Nişangâh: s3Optic aynı malzemeyle kurulur, geometrisi silahın ana ağına katılır (ek çizim çağrısı yok), cam ayrı.
@@ -90,8 +90,10 @@ export function mp5(mat = skinMaterial('mp5'), lod = false, o = 'iron') {
   if (!lod) for (let i = 0; i < 3; i++) k.box([0.005, 0.005, 0.02], [Math.cos(i * 2.09 + 0.5) * 0.0135, 0.025 + Math.sin(i * 2.09 + 0.5) * 0.0135, -0.51], 'metal', { rot: [0, 0, i * 2.09 + 0.5] });
   // ön arpacık: halka korumalı dikme (tepe 0,0925 = nişan çizgisi; halka iç tepesi 0,0948 → arpacık üstünde boşluk)
   k.box([0.022, 0.016, 0.03], [0, 0.062, -0.45], 'acc', { c: 0.002 });
-  k.ring(0.015, 0.0022, [0, 0.082, -0.45], 'acc', { ax: 'z', seg: 18, rs: 4 });
-  k.box([0.0028, 0.0225, 0.004], [0, 0.08125, -0.45], 'acc', { sh: 0.85 });
+  if (iron) {                                                                                         // 12.139: optikte halka koruma + arpacık yok (red dot / holo penceresinin dibinde ikinci halka gibi duruyordu)
+    k.ring(0.015, 0.0022, [0, 0.082, -0.45], 'acc', { ax: 'z', seg: 18, rs: 4 });
+    k.box([0.0028, 0.0225, 0.004], [0, 0.08125, -0.45], 'acc', { sh: 0.85 });
+  }
   // demir: tambur gez (delik 0,0925) · optik: pençe ayak (claw mount) + ray
   let sg;
   k.box([0.024, 0.012, 0.03], [0, 0.062, -0.01], 'acc', { c: 0.002 });
@@ -336,8 +338,10 @@ export function pkm(mat = skinMaterial('pkm'), lod = false, o = 'iron') {
   k.prof([[-0.36, 0.058], [-0.372, 0.086], [-0.428, 0.086], [-0.44, 0.058]], 0.014, 'furn', { c: 0.003, holes: [[[-0.376, 0.062], [-0.382, 0.078], [-0.418, 0.078], [-0.424, 0.062]]] });
   // ön arpacık kulesi (namlu ucu): kaide + kulaklar + dikme (tepe 0,125)
   k.prof([[-0.825, 0.016], [-0.86, 0.016], [-0.86, 0.05], [-0.85, 0.062], [-0.836, 0.062], [-0.825, 0.05]], 0.028, 'metal', { c: 0.003 });
-  for (const sx of [-1, 1]) k.box([0.003, 0.068, 0.014], [sx * 0.0105, 0.096, -0.843], 'metal', { c: 0.001 });
-  k.box([0.003, 0.063, 0.003], [0, 0.0935, -0.843], 'metal', { sh: 0.85 });
+  if (iron) {                                                                                         // 12.139: optikte kulak + arpacık yok (pencerenin içinde dikmeler)
+    for (const sx of [-1, 1]) k.box([0.003, 0.068, 0.014], [sx * 0.0105, 0.096, -0.843], 'metal', { c: 0.001 });
+    k.box([0.003, 0.063, 0.003], [0, 0.0935, -0.843], 'metal', { sh: 0.85 });
+  }
   // tetik grubu + ahşap kabza + korkuluk + tetik; iskelet dipçik (büyük boşluk) + dipçik plakası
   k.box([0.044, 0.014, 0.13], [0, -0.03, 0.03], 'body', { c: 0.002 });
   k.prof([[0.033, -0.022], [0.077, -0.022], [0.083, -0.035], [0.121, -0.14], [0.115, -0.152], [0.077, -0.154], [0.069, -0.144], [0.045, -0.055], [0.033, -0.037]], 0.036, 'furn', { c: 0.006, sh: 0.88, pat: lod ? 0 : 2 });
@@ -350,8 +354,7 @@ export function pkm(mat = skinMaterial('pkm'), lod = false, o = 'iron') {
   let sg;
   if (iron) sg = { sight: [0, line, -0.271], pivot: [0, line, -0.843], dist: 0.36, overlay: 'none' };      // PKM gezi gövde önünde (AK gibi): göz 8 cm geride (12.126)
   else {
-    k.box([0.008, 0.036, 0.1], [-0.032, 0.07, -0.1], 'metal', { c: 0.002 });
-    k.box([0.064, 0.012, 0.08], [0, 0.104, -0.1], 'metal', { c: 0.002 });
+    S3PARTS.coverMount(k, [[0.0325, 0.078], [0.0325, 0.083], [0.016, 0.11]], [[0.0295, 0.078], [0.0295, 0.0815], [0.0195, 0.093]], -0.1, 0.08, 'metal');   // kapak ayağı: tek parça eyer (12.139; eski 64 mm köprü + yan kelepçe)
     sg = opt(k, mat, o, 0.11, -0.1, false, true);
   }
   // çelik fişek kutusu (grup, sağ altta) + bağlantı + sağdan çıkan kemer
@@ -391,7 +394,7 @@ export function m1911(mat = skinMaterial('m1911'), lod = false, o = 'iron') {
   k.cyl(0.004, 0.004, 0.003, [-0.0145, 0.0, 0.002], 'metal', { ax: 'x', d: 1, seg: 8 });
   // nişan: U çentikli gez + arpacık bıçağı · optik: RMR (gez yerine)
   let sg;
-  k.box([0.003, 0.009, 0.008], [0, 0.0725, -0.155], 'acc', { c: 0.0005 });
+  if (iron) k.box([0.003, 0.009, 0.008], [0, 0.0725, -0.155], 'acc', { c: 0.0005 });              // arpacık (12.139: RMR'de yok, pencerenin içinde dikme)
   if (iron) { notch(k, 0.068, line, 0.042, 0.035); sg = { sight: [0, line, 0.0385], pivot: [0, line, -0.155], dist: ADS_DIST.iron, overlay: 'none' }; }
   else sg = opt(k, mat, o, 0.068, 0.012, true);
   // şarjör (grup): kabza içinde gövde + taban plakası
@@ -406,7 +409,7 @@ export function deagle(mat = skinMaterial('deagle'), lod = false, o = 'iron') {
   // sabit namlu bloğu (yan düz, ön pahlı) + üst ray + yan yüz oyuğu + namlu ağzı
   k.prof([[-0.068, 0.076], [-0.272, 0.076], [-0.282, 0.068], [-0.285, 0.06], [-0.285, 0.024], [-0.275, 0.018], [-0.068, 0.018]], 0.036, 'body', { c: 0.003 });
   for (const sx of [-1, 1]) k.box([0.002, 0.03, 0.16], [sx * 0.018, 0.045, -0.18], 'body', { d: 1, sh: 0.82 });
-  rail(k, -0.09, -0.24, 0.076, { w: 0.016 });
+  if (iron) rail(k, -0.09, -0.24, 0.076, { w: 0.016 });                                               // 12.139: RMR'de namlu rayı yok (dişleri pencerenin dibinde koyu blok)
   k.cyl(0.0068, 0.0068, 0.003, [0, 0.04, -0.2855], 'metal', { sh: 0.2, seg: 10 });
   // sürgü (pahlı üst kesit) + arka tırtıllar + atım penceresi + emniyet kolları + horoz
   k.xsec([[-0.019, 0.026], [0.019, 0.026], [0.019, 0.066], [0.014, 0.076], [-0.014, 0.076], [-0.019, 0.066]], 0.062, -0.068, 'body', { c: 0.002, sh: 1.05 });
@@ -423,8 +426,10 @@ export function deagle(mat = skinMaterial('deagle'), lod = false, o = 'iron') {
   for (let i = 0; i < 3; i++) k.box([0.037, 0.004, 0.012], [0, -0.04 - i * 0.026, 0.018 + i * 0.0058], 'furn', { d: 1, sh: 0.6, rot: [0.22, 0, 0] });
   // nişan: çentikli gez + rayın önünde arpacık · optik: RMR (sürgüde)
   let sg;
-  k.box([0.012, 0.006, 0.012], [0, 0.079, -0.256], 'acc', { c: 0.001 });
-  k.box([0.0035, 0.009, 0.007], [0, 0.0865, -0.256], 'acc', { sh: 0.85 });
+  if (iron) {                                                                                         // 12.139: RMR'de arpacık yok (pencerenin içinde koyu blok)
+    k.box([0.012, 0.006, 0.012], [0, 0.079, -0.256], 'acc', { c: 0.001 });
+    k.box([0.0035, 0.009, 0.007], [0, 0.0865, -0.256], 'acc', { sh: 0.85 });
+  }
   if (iron) { notch(k, 0.076, line, 0.046, 0.038, 0.011, 0.0028, 0.006); sg = { sight: [0, line, 0.042], pivot: [0, line, -0.256], dist: ADS_DIST.iron, overlay: 'none' }; }
   else sg = opt(k, mat, o, 0.076, 0.008, true);
   // şarjör (grup)
