@@ -1243,3 +1243,17 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 - server: `process.on('SIGHUP')` → officialStore.reloadOfficial() (data/official.json yeniden okunur) + syncOfficial(): değişen oda boşsa hemen, oyuncu varsa sonraki maçta uygulanır, kimse düşmez. Kullanım: `systemctl kill -s HUP warbyte`.
 - OFC9: bots true, açıklama "bot destekli". Bu sürüm canlıya oyuncu sayısı 0 olunca (/health) kurulan tek seferlik bekçiyle alındı (update.sh), oynayanlar atılmadı.
 - Ölçüm: yerel sunucu, 2 oyuncu bağlıyken dosya değişti + SIGHUP → bağlantı kopmadı, maç sonu yeni maç bots: true.
+
+### 12.142 Paintball topu görünür: namludan çıkar, ekranda okunaklı boy, renk + kenar + iz
+- Kullanıcı (arkadaşlarıyla canlı test): "paintball'da mermiler gitmiyormuş gibi görünüyor".
+- Ölçüm (`scripts/pbball.mjs` çevrimdışı, `scripts/pbballnet.mjs` çevrim içi + `netproxy` 25-75 ms tek yön; atıştan sonra 0/50/100/200/400 ms kareleri): top ağda geç / hiç gelmiyor DEĞİL (B'ye 'pb' A'nın atışından ~100-145 ms sonra, sayılar tutuyor). Sorun çizimdeydi:
+  - Top ekranda sabit ~0,0048 rad çapla çiziliyordu (`r = max(0.014, uzaklık × 0.0024)`): 6 m'den ötesi masaüstü 720p'de 2,3 px, 540p'de 1,7 px, Pixel 7'de 2,5 CSS px. Kendi topum 50 ms'de (4 m) 3 px, sonra 2 px → "gitmiyor". Başkasının topu yandan da, bana gelirken de 2 px.
+  - Ton eşlemesi (Neutral) + sis rengi soldururdu; aynı renkli zeminde / atanın kendi boya renkli formasında kenar yoktu; iz yoktu.
+  - Birinci şahısta görüntü başlangıcı `muzzleWorld` (göz + sabit ofset) silah modelinin namlu ucuna denk gelmiyordu: silah ayrı kamerayla (FOV 54) çizilir → tüfekte 49 px, tabancada (nişanda) 73-91 px yanda doğup 0,1 sn'de nişangâha kayıyordu.
+- Düzeltme (yalnız `src/game/paint.js` görüntüsü; topun gerçek yolu, hızı, isabet / hasar, sunucu doğrulaması, tohumlu saçılım DEĞİŞMEDİ):
+  - Ekranda en küçük çap: ekran yüksekliğinin %0,85'i, en az 5 px (dokunmatikte 6): 720p 6 px, 1080p 9 px, telefon 6 CSS px; yakında gerçek boy (en az 1,1 cm yarıçap).
+  - Top `toneMapped:false, fog:false` (palet rengi aynen), üstüne topla aynı örnek matrislerini paylaşan koyu ters yüzlü kabuk (1,35×, %60) → yeşil top yeşil çimde, turuncu top turuncu formada seçilir.
+  - İz: 35 ms'lik (tüfekte ~2,7 m) sönen koni, topun boya renginde, namlunun gerisine uzamaz (yaş kadar), kayma payıyla birlikte görünen yolu izler.
+  - Birinci şahıs namlu ucu `_fpMuzzle`: silah modelindeki namlu ucunun (10 cm önü) silah kamerasındaki ekran noktası → dünya kamerasında aynı ekran noktası, aynı uzaklık. Top silahın ucundan çıkar (tüfek 9 px, tabanca 19 px; Pixel 7 5 / 9 px), 0,1 sn'de gerçek göz hattına düz çizgiyle kavuşur (önceki kayma aynen).
+  - Ek çizim: 2 çağrı (kabuk + iz), havuz aynı (ayırma yok).
+- Test: `pbball` önce 10 HATA → sonra OK (masaüstü + Pixel 7: kendi tüfek / tabanca, yandan geçen, bana gelen); `pbballnet` (RTT ~100-140 ms, B masaüstü + Pixel 7) önce 4 HATA → sonra OK (A kendi topunu 5 px, B A'nın topunu 150-300 ms karelerinde görüyor); `pbnet` doğrudan 14/14, gecikmeli 13/12 tahmin ↔ sunucu isabeti, duvar lekeleri 23/24 aynı yerde; `pbscreen`, `pbtest` OK; vite build OK. Montaj: `/tmp/wb-pball/montaj-cevrimdisi-{desktop,pixel7}.png`, `montaj-cevrimici-{desktop,pixel7}.png`.

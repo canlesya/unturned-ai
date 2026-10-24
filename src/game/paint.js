@@ -8,7 +8,10 @@ import { SIM_DT } from '../net/protocol.js';
 // topu, istemcinin ateş anında gördüğü ana (vt) + topun yaşı kadar geri sarılmış hedeflere çarpar (lag compensation: istemci ne gördüyse o).
 // Ağ: 'pb' (top doğdu: o, v kuantize, sunucu da aynı kuantize değerle simüle eder → istemcinin duvar lekesi birebir aynı yerde), 'pbh' (oyuncuya isabet).
 // Kendi topun tahminle hemen görünür; insan atışlarının saçılımı (id, girdi sırası q) tohumlu rastgele → istemci ve sunucu aynı yöne atar.
-// Çizim: toplar 1 örneklenmiş ağ, duvar lekeleri 1 (son 400), oyuncu üstü lekeler 1, damlalar 1 → toplam 4 çizim çağrısı; atışta / karede ayırma yok (havuz).
+// Çizim: toplar 1 örneklenmiş ağ (+ koyu kenar halkası + iz: aynı havuz, 2 çizim daha), duvar lekeleri 1 (son 400), oyuncu üstü lekeler 1, damlalar 1; atışta / karede ayırma yok (havuz).
+// 12.142 görünürlük: top ekranda sabit en az ~5-9 px (uzakta dünya boyu büyür, yakında gerçek boy), ton eşlemesiz / sissiz kendi boya rengi, koyu kenar
+// (aynı renkli zeminde de seçilir), arkasında kısa sönen iz; birinci şahısta görüntü SİLAH MODELİNİN namlu ucundan çıkar (silah kamerası ≠ dünya kamerası).
+// Yalnız görüntü: topun gerçek yolu / hızı / isabeti değişmez.
 
 export const PAINT_COLORS = ['#ff2b3a', '#2f7dff', '#ffe014', '#1fd65f', '#ff8a00', '#b44dff', '#14e3e0', '#ff3ec8', '#a6ff1a', '#f2f2f2', '#6f5cff', '#ff8f7a'];
 export const PAINT_NAMES = ['Kırmızı', 'Mavi', 'Sarı', 'Yeşil', 'Turuncu', 'Mor', 'Turkuaz', 'Pembe', 'Fıstık', 'Beyaz', 'Çivit', 'Mercan'];
@@ -20,8 +23,10 @@ export function ballLead(st, dist) { const t = dist / (st.speed || 70); return M
 
 const BALL_CAP = 1024, SPLAT_CAP = 400, MARK_CAP = 256, MARK_PER = 12, DROP_CAP = 480;
 const SLIDE_T = 0.1;                                   // görüntüde namludan göz hattına geçiş süresi
+const BALL_R = 0.011, TRAIL_T = 0.035, TRAIL_A = 0.6;  // görünen topun en küçük yarıçapı (m; yakında), iz uzunluğu (sn × hız), izin baştaki opaklığı
 const q2 = (v) => Math.round(v * 100) / 100;
 const _E = new THREE.Vector3(), _V1 = new THREE.Vector3(), _V2 = new THREE.Vector3(), _HP = new THREE.Vector3(), _P = new THREE.Vector3(), _D = new THREE.Vector3(), _Q = new THREE.Vector3(), _N = new THREE.Vector3(), _U = new THREE.Vector3(), _W = new THREE.Vector3();
+const _M1 = new THREE.Vector3(), _M2 = new THREE.Vector3(), _T = new THREE.Vector3();
 const _m = new THREE.Matrix4(), _m2 = new THREE.Matrix4(), _q = new THREE.Quaternion(), _s = new THREE.Vector3(), _c = new THREE.Color(), _bb = new THREE.Box3();
 const Z = new THREE.Vector3(0, 0, 1), ZERO = new THREE.Matrix4().makeScale(0, 0, 0);
 const COLS = PAINT_COLORS.map((h) => new THREE.Color(h));
@@ -87,7 +92,17 @@ export class Paint {
       game.scene.add(m);
       return m;
     };
-    this.balls = inst(new THREE.IcosahedronGeometry(1, 1), new THREE.MeshBasicMaterial({ color: '#ffffff' }), BALL_CAP);
+    const flat = { toneMapped: false, fog: false };                   // boya rengi ton eşlemesi / sisle soluklaşmasın
+    this.balls = inst(new THREE.IcosahedronGeometry(1, 2), new THREE.MeshBasicMaterial({ color: '#ffffff', ...flat }), BALL_CAP);
+    // koyu kenar: topun 1,35 katı ters yüzlü kabuk, topla AYNI örnek matrisleri (ek CPU yok) → yeşil top yeşil çimde, beyaz top gökte de seçilir
+    this.ballRim = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1.35, 1), new THREE.MeshBasicMaterial({ color: '#101010', side: THREE.BackSide, transparent: true, opacity: 0.6, depthWrite: false, ...flat }), BALL_CAP);
+    this.ballRim.instanceMatrix = this.balls.instanceMatrix; this.ballRim.frustumCulled = false; this.ballRim.count = 0; game.scene.add(this.ballRim);
+    // iz: baş (z=0, topun yarıçapı) → kuyruk (z=1, ince) koni, köşe alfası başta TRAIL_A kuyrukta 0; örnek rengi = boya rengi
+    const tg = new THREE.CylinderGeometry(0.2, 1, 1, 8, 1, true); tg.rotateX(Math.PI / 2); tg.translate(0, 0, 0.5);
+    const tp = tg.attributes.position, ta = new Float32Array(tp.count * 4);
+    for (let i = 0; i < tp.count; i++) { ta[i * 4] = ta[i * 4 + 1] = ta[i * 4 + 2] = 1; ta[i * 4 + 3] = tp.getZ(i) < 0.5 ? TRAIL_A : 0; }
+    tg.setAttribute('color', new THREE.BufferAttribute(ta, 4));
+    this.trails = inst(tg, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide, ...flat }), BALL_CAP);
     this.splats = inst(quad, smat, SPLAT_CAP, true); this.splats.receiveShadow = true; this.splatN = 0;
     this.marks = inst(quad, smat, MARK_CAP, true);
     this.drops = inst(new THREE.IcosahedronGeometry(1, 0), new THREE.MeshBasicMaterial({ color: '#ffffff' }), DROP_CAP);
@@ -130,6 +145,7 @@ export class Paint {
       _Q.copy(camO).addScaledVector(_D, wc ? wc.t : 300).sub(origin).normalize();
       if (_Q.dot(_D) > 0.9) _D.copy(_Q);
     }
+    if (!this.headless && s === g.playerSoldier && this._fpMuzzle(_M1)) muzzle = _M1;     // birinci şahıs: görüntü silah modelinin namlu ucundan
     const b = this._alloc();
     b.id = ++this.nid; b.by = s; b.st = st; b.w = s.item.id; b.col = paintIndexOf(s);
     b.x = origin.x; b.y = origin.y; b.z = origin.z; b.vx = _D.x * st.speed; b.vy = _D.y * st.speed; b.vz = _D.z * st.speed;
@@ -146,6 +162,21 @@ export class Paint {
       g.netEvent(ev);
     }
     return b;
+  }
+
+  // Birinci şahıs namlu ucu (yalnız görüntü): silah modeli ayrı kamerayla (farklı FOV) çizilir; namlu ucunun (10 cm önü: top namlunun arkasında kalmasın) EKRAN noktasını bulup dünya
+  // kamerasında aynı ekran noktasına, silah kamerasındaki uzaklıkta denk gelen dünya noktası. Silah görünmüyorsa / ekran dışındaysa null.
+  _fpMuzzle(out) {
+    const g = this.g, vm = g.player?.vm, w = vm?.model?.children?.[0], mz = w?.userData?.muzzle;
+    if (!mz || g.showSelf || !g.playerSoldier?.alive) return null;
+    const cam = vm.cam, wc = g.camera;
+    cam.aspect = innerWidth / innerHeight; cam.updateProjectionMatrix(); cam.updateMatrixWorld(); w.updateWorldMatrix(true, false);
+    _M2.set(mz.x, mz.y, mz.z - 0.1).applyMatrix4(w.matrixWorld);
+    const d = _M2.distanceTo(_T.setFromMatrixPosition(cam.matrixWorld));
+    _M2.project(cam);
+    if (!(Math.abs(_M2.x) < 1 && Math.abs(_M2.y) < 1 && _M2.z > -1 && _M2.z < 1) || d < 0.1 || d > 3) return null;
+    wc.updateMatrixWorld(); _T.setFromMatrixPosition(wc.matrixWorld);
+    return out.set(_M2.x, _M2.y, 0.5).unproject(wc).sub(_T).normalize().multiplyScalar(d).add(_T);
   }
 
   // Geri sarılmış hedef: geçmiş tamponundan (Game.recordHist) t adımındaki duruş — Game.rewind ile aynı formül, nesne değiştirmeden
@@ -386,17 +417,27 @@ export class Paint {
   draw() {
     if (this.headless) return;
     const g = this.g, cam = g.camera.position, alpha = g.online ? Math.min(1, (g._acc || 0) / SIM_DT) : 1;
-    const bm = this.balls; let n = 0;
+    // ekranda sabit en küçük top çapı (CSS px): ekran yüksekliğinin %0,85'i, en az 5 (telefonda 6) → dünya yarıçapı / uzaklık oranı K
+    const H = innerHeight || 720, px = Math.max(g.player?.touch ? 6 : 5, H * 0.0085), K = (px * 0.5 * 2 * Math.tan((g.camera.fov * Math.PI) / 360)) / H;
+    const bm = this.balls, tm = this.trails; let n = 0;
     for (const b of this.live) {
       if (b.pend > 0) continue;
       const k = Math.max(0, 1 - b.age / SLIDE_T);
       const x = b.px + (b.x - b.px) * alpha + b.ox * k, y = b.py + (b.y - b.py) * alpha + b.oy * k, z = b.pz + (b.z - b.pz) * alpha + b.oz * k;
-      const dc = Math.hypot(x - cam.x, y - cam.y, z - cam.z), r = Math.max(0.014, dc * 0.0024);
-      _D.set(b.vx, b.vy, b.vz).normalize(); _q.setFromUnitVectors(Z, _D);
-      _m.compose(_P.set(x, y, z), _q, _s.set(r, r, r * 2.2));                 // hafif uzatılmış: hareket bulanıklığı hissi
-      bm.setMatrixAt(n, _m); bm.setColorAt(n, COLS[b.col]); n++;
+      const dc = Math.hypot(x - cam.x, y - cam.y, z - cam.z), r = Math.max(BALL_R, dc * K);
+      _D.set(b.vx, b.vy, b.vz); const sp = _D.length() || 1; _D.multiplyScalar(1 / sp); _q.setFromUnitVectors(Z, _D);
+      _m.compose(_P.set(x, y, z), _q, _s.set(r, r, r * 1.7));                 // hafif uzatılmış: hareket bulanıklığı hissi
+      bm.setMatrixAt(n, _m); bm.setColorAt(n, COLS[b.col]);
+      // iz: τ sn önceki görünen konuma (namludan çıkışta kısa başlar, namlunun gerisine uzamaz); kayma payı (ox) da o ana göre
+      const tau = Math.min(TRAIL_T, b.age), k2 = Math.max(0, 1 - Math.max(0, b.age - tau) / SLIDE_T) - k;
+      _T.set(-_D.x * sp * tau + b.ox * k2, -_D.y * sp * tau + b.oy * k2, -_D.z * sp * tau + b.oz * k2);
+      const L = _T.length();
+      if (L > r) { _q.setFromUnitVectors(Z, _T.multiplyScalar(1 / L)); _m.compose(_P, _q, _s.set(r * 0.8, r * 0.8, L)); } else _m.copy(ZERO);
+      tm.setMatrixAt(n, _m); tm.setColorAt(n, COLS[b.col]);
+      n++;
     }
-    bm.count = n; if (n) { bm.instanceMatrix.needsUpdate = true; bm.instanceColor.needsUpdate = true; }
+    bm.count = this.ballRim.count = tm.count = n;
+    if (n) { bm.instanceMatrix.needsUpdate = true; bm.instanceColor.needsUpdate = true; tm.instanceMatrix.needsUpdate = true; tm.instanceColor.needsUpdate = true; }
     // oyuncu üstü lekeler: uzvun dünya matrisi × yerel
     const mk = this.marks; let mn = 0;
     for (let j = MARK_CAP - 1; j >= 0; j--) if (this.markSlots[j].s) { mn = j + 1; break; }
