@@ -19,9 +19,9 @@ import { clamp, rand, angleDiff, yawFromDir } from './util.js';
 //  investigate: sese gitme olasılığı · mate: ölen arkadaşın yerine bakma olasılığı · retreatHp: bu canın altında geri çekilir · nadeCd: el bombası bekleme çarpanı
 //  coord: aynı hedefe ateş eden arkadaşla açı farkı açma olasılığı · scan: mevzide sağa sola bakma (rad)
 export const TACTICS = {
-  easy: { aimTau: 0.8, flick: 2.4, jit: 0.011, lag: 0.17, spread: 0.45, snSettle: [1.5, 2.3], snReloc: 0, snRole: 0.5, ambush: 0.08, rusher: 0.3, ambHold: 1.5, hear: 0.55, investigate: 0.12, mate: 0, retreatHp: 0, nadeCd: 1.7, coord: 0, scan: 0.25 },
-  normal: { aimTau: 0.5, flick: 2.2, jit: 0.0065, lag: 0.11, spread: 0.32, snSettle: [1.0, 1.6], snReloc: 0.3, snRole: 1, ambush: 0.15, rusher: 0.25, ambHold: 3, hear: 0.85, investigate: 0.3, mate: 0.45, retreatHp: 25, nadeCd: 1.0, coord: 0.35, scan: 0.45 },
-  hard: { aimTau: 0.36, flick: 2.0, jit: 0.0045, lag: 0.075, spread: 0.26, snSettle: [0.8, 1.25], snReloc: 0.55, snRole: 1, ambush: 0.2, rusher: 0.25, ambHold: 4, hear: 1.0, investigate: 0.55, mate: 0.85, retreatHp: 38, nadeCd: 0.8, coord: 0.7, scan: 0.6 },
+  easy: { aimTau: 1.0, flick: 2.4, jit: 0.022, lag: 0.17, spread: 1.3, snSettle: [1.5, 2.3], snReloc: 0, snRole: 0.5, ambush: 0.08, rusher: 0.3, ambHold: 1.5, hear: 0.55, investigate: 0.12, mate: 0, retreatHp: 0, nadeCd: 1.7, coord: 0, scan: 0.25 },
+  normal: { aimTau: 0.55, flick: 2.2, jit: 0.009, lag: 0.11, spread: 0.75, snSettle: [1.0, 1.6], snReloc: 0.3, snRole: 1, ambush: 0.15, rusher: 0.25, ambHold: 3, hear: 0.85, investigate: 0.3, mate: 0.45, retreatHp: 25, nadeCd: 1.0, coord: 0.35, scan: 0.45 },
+  hard: { aimTau: 0.36, flick: 2.0, jit: 0.0045, lag: 0.075, spread: 0.3, snSettle: [0.8, 1.25], snReloc: 0.55, snRole: 1, ambush: 0.2, rusher: 0.25, ambHold: 4, hear: 1.0, investigate: 0.55, mate: 0.85, retreatHp: 38, nadeCd: 0.8, coord: 0.7, scan: 0.6 },
 };
 export const tacOf = (b) => TACTICS[b.dk] || TACTICS.normal;
 

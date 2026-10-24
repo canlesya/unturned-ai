@@ -467,7 +467,7 @@ export class BotBrain {
       this.reactT -= dt;
       const aimed = Math.abs(dyaw) < 0.07 + 2 / (dist + 8);
       s.botExtraSpread = inf ? this.d.err * (0.6 + dist / 45) * (this.reactT > -0.8 ? 1.8 : 1) * (1 + INF_BOT.crowd * this.crowd(tg))
-        : this.d.err * tacOf(this).spread * (0.6 + dist / 90) * (st.scope && s.adsT > 0.8 ? 0.6 : 1);      // nişan hatası artık açıda (tacAim); burada kalan küçük dağılma      // Enfekte: aynı hedefe çok kişi sıkarsa isabet düşer (herkesin aynı anda nişan alıp vurması engellenir)
+        : this.d.err * tacOf(this).spread * (0.6 + dist / 70) * (st.scope && s.adsT > 0.8 ? 0.6 : 1);      // nişan hatası artık açıda (tacAim); burada kalan küçük dağılma      // Enfekte: aynı hedefe çok kişi sıkarsa isabet düşer (herkesin aynı anda nişan alıp vurması engellenir)
       const may = inf || tacMayFire(this, tg, dist, aimed && this.reactT <= 0, dt);   // nişancı sabitlenir, pusucu yaklaştırır
       if (this.reactT <= 0 && aimed && may) {
         if (this.burstPause > 0) this.burstPause -= dt;
