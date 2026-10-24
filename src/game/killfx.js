@@ -2,9 +2,11 @@
 //   • İsabet işareti: hasara göre büyür (az hasar küçük, çok hasar iri), gövde beyaz, kafa altın, öldürmede kırmızı iri X + hafif dönüş
 //   • Merkez öldürme bildirimi: kurukafa simgesi + "ELENDİ" / "KAFADAN" rozeti + kurbanın adı + silah + puan; yenisi gelince eskisinin yerini alır
 //   • Çoklu öldürme (4,5 sn içinde): ÇİFT / ÜÇLÜ / DÖRTLÜ / KATLİAM; ölmeden seri: 3 / 5 / 7 / 10'da çağrı · öldürme sesi katmanları (notalar yükselir)
+//   • Seri sesi (streakSfx.js, 12.148): seri ≥ 2'de her öldürmede yükselen kısa "başarı" sesi (Ayarlar → Ses → Seri sesleri); takım arkadaşı / kendi ölümü sayılmaz
 //   • Hafif ekran sarsıntısı + kenar parlaması, öldürme akışında kendi öldürmelerin altın vurgulu; telefonda (body.mob) küçük ve ortadan biraz yukarıda
 import { t } from '../i18n/index.js';
 import '../i18n/fx.js';
+import { playStreak } from './streakSfx.js';
 
 const CSS = `
 #kfx{position:absolute;inset:0;pointer-events:none;overflow:hidden;z-index:2}
@@ -16,6 +18,7 @@ const CSS = `
 #kfx .nt{position:absolute;left:50%;top:61%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px}
 #kfx .sk{font-weight:900;font-size:30px;letter-spacing:4px;font-style:italic;color:#ffd35a;text-shadow:0 0 14px rgba(255,140,30,.65),0 2px 0 #7a3a00,0 3px 8px #000;white-space:nowrap}
 #kfx .sk b{display:inline-block;margin-left:10px;padding:0 8px;font-style:normal;font-size:20px;letter-spacing:1px;color:#1a0d00;background:#ffd35a;border-radius:2px;text-shadow:none;transform:translateY(-3px) skewX(-10deg)}
+#kfx .sk.sm{font-size:19px;letter-spacing:3px;color:#ffe08a;text-shadow:0 0 8px rgba(255,150,40,.45),0 2px 0 #6a3400,0 3px 6px #000}#kfx .sk.sm b{font-size:15px;margin-left:8px;padding:0 6px;transform:translateY(-1px) skewX(-10deg)}
 #kfx .sk.hot{color:#ff6a3a;text-shadow:0 0 16px rgba(255,60,20,.75),0 2px 0 #6a1000,0 3px 8px #000}#kfx .sk.hot b{background:#ff6a3a}
 #kfx .cd{display:flex;align-items:center;gap:12px;padding:7px 18px 7px 10px;background:linear-gradient(90deg,rgba(10,13,18,0),rgba(10,13,18,.78) 18%,rgba(10,13,18,.78) 82%,rgba(10,13,18,0));white-space:nowrap}
 #kfx .ic{width:34px;height:34px;flex:none;color:#fff;filter:drop-shadow(0 1px 2px #000)}
@@ -47,6 +50,7 @@ export class KillFx {
     (game.hud.root || document.body).appendChild(el);
     this.hm = el.querySelector('.hm'); this.fl = el.querySelector('.fl'); this.nt = el.querySelector('.nt');
     this.multi = 0; this.lastKill = -99; this.streak = 0; this.killT = 0;
+    this.streakSfxN = 0; this.lastStreakSfx = null;                       // test: çalınan seri sesi sayısı / son çağrı
   }
   dispose() { this.root.remove(); this.st.remove(); }
   now() { return performance.now() / 1000; }
@@ -68,21 +72,25 @@ export class KillFx {
 
   // oyuncu birini öldürdü: bildirim + çağrı + ses + sarsıntı
   kill(victim, weapon, hs, pts) {
-    const now = this.now(), g = this.g;
-    this.multi = now - this.lastKill < MULTI_WIN ? this.multi + 1 : 1;
-    this.lastKill = now; this.streak++;
-    const melee = g.playerSoldier?.stat?.kind === 'melee';
-    g.sfx.kill(hs, this.multi);
+    const now = this.now(), g = this.g, me = g.playerSoldier;
+    const mate = !g.ffa && !!victim && !!me && victim !== me && victim.team === me.team;    // takım arkadaşı: seriye / çoklu öldürmeye sayılmaz
+    if (!mate) { this.multi = now - this.lastKill < MULTI_WIN ? this.multi + 1 : 1; this.lastKill = now; this.streak++; }
+    const melee = me?.stat?.kind === 'melee';
+    const ss = !mate && g.settings?.streakSound !== false && this.streak >= 2;             // seri sesi: öldürme onayı sabit kalır, yükselen kısım seri sesinde
+    g.sfx.kill(hs, g.settings?.streakSound !== false ? 1 : this.multi);                         // kapalıysa eski davranış: çoklu öldürmede onay notaları yükselir
+    if (ss && playStreak(g.sfx, this.streak, { multi: this.multi })) { this.streakSfxN++; this.lastStreakSfx = { n: this.streak, multi: this.multi, at: now }; }
     g.effects.shake = Math.max(g.effects.shake || 0, hs ? 0.34 : 0.24);
     this.fl.className = 'fl' + (hs ? ' hs' : '');
     this.fl.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 420, easing: 'ease-out' });
-    // çağrı: çoklu öldürme önce, yoksa seri dönüm noktası
-    let call = null, hot = false;
-    if (this.multi >= 2) { call = t('fx.multi' + Math.min(5, this.multi)); hot = this.multi >= 3; }
+    // çağrı: çoklu öldürme önce, yoksa seri dönüm noktası (3 / 5 / 7 / 10 / 15 …), yoksa küçük "SERİ ×n" (seri ≥ 2)
+    let call = null, hot = false, sm = false;
+    if (mate) { /* çağrı yok */ }
+    else if (this.multi >= 2) { call = t('fx.multi' + Math.min(5, this.multi)); hot = this.multi >= 3; }
     else if ([3, 5, 7, 10].includes(this.streak) || (this.streak > 10 && this.streak % 5 === 0)) { call = t('fx.spree' + (this.streak > 10 ? 10 : this.streak)); hot = this.streak >= 5; }
+    else if (this.streak >= 2) { call = t('fx.spree'); sm = true; }
     const cls = g.ffa ? 'r' : victim?.team === 'blue' ? 'b' : 'r';
     const lbl = hs ? `<span class="hb">${t('fx.head')}</span>` : melee ? t('fx.melee') : t('fx.elim');
-    this.nt.innerHTML = (call ? `<div class="sk${hot ? ' hot' : ''}"></div>` : '') +
+    this.nt.innerHTML = (call ? `<div class="sk${hot ? ' hot' : ''}${sm ? ' sm' : ''}"></div>` : '') +
       `<div class="cd${hs ? ' hs' : ''}">${hs ? HEAD : SKULL}<div class="tx"><div class="lb">${lbl}</div><div class="nm ${cls}"></div><div class="wp"></div></div><div class="pt"></div></div>`;
     this.nt.querySelector('.nm').textContent = victim?.name || '';
     this.nt.querySelector('.wp').textContent = weapon || '';
@@ -90,7 +98,7 @@ export class KillFx {
     const sk = this.nt.querySelector('.sk');
     if (sk) {
       sk.textContent = call;
-      if (this.streak >= 3 && this.multi < 2) { const b = document.createElement('b'); b.textContent = '×' + this.streak; sk.appendChild(b); }
+      if (this.streak >= 2 && this.multi < 2) { const b = document.createElement('b'); b.textContent = '×' + this.streak; sk.appendChild(b); }
       else if (this.multi >= 2) { const b = document.createElement('b'); b.textContent = '×' + this.multi; sk.appendChild(b); }
       sk.animate([{ opacity: 0, transform: 'scale(1.9)', filter: 'blur(3px)' }, { opacity: 1, transform: 'scale(.94)', filter: 'blur(0)', offset: 0.14 }, { transform: 'scale(1)', offset: 0.22 }, { opacity: 1, offset: 0.8 }, { opacity: 0, transform: 'translateY(-10px)' }], { duration: 2400, easing: 'ease-out', fill: 'forwards' });
     }

@@ -349,7 +349,7 @@ export class Room {
     if (typeof m.spawn === 'string') h.spawnChoice = m.spawn === 'base' || g.mode.objectives.some((o) => o.id === m.spawn) ? m.spawn : 'base';
   }
 
-  // BF_DEBUG=1 ile açılan test komutları: { t:'dbg', tp:[x,z] } ışınla · { hp } can · { bots:false } botları sustur · { pb:1 } herkese paintball silahları · { zb:'brute' } zombi ol · { ask } durum
+  // BF_DEBUG=1 ile açılan test komutları: { t:'dbg', tp:[x,z] } ışınla · { hp } can · { bots:false } botları sustur · { pb:1 } herkese paintball silahları · { zb:'brute' } zombi ol · { dmg:[id,hasar,kafa] } başkasını vur · { ask } durum
   debug(id, m) {
     const c = this.clients.get(id), g = this.game;
     if (!c) return;
@@ -358,6 +358,7 @@ export class Room {
     if (Number.isFinite(m.hp)) s.hp = m.hp;
     if (Array.isArray(m.item) && WSTATS[m.item[1]]) s.items[m.item[0] | 0] = { id: m.item[1], mag: 3, reserve: 0 };
     if (m.kill) s.takeDamage(9999, s, 'body', s.pos, 'test'), s.protT = 0;
+    if (Array.isArray(m.dmg)) { const v = g.soldiers[m.dmg[0] | 0]; if (v && v.alive && v !== s) { v.protT = 0; v.takeDamage(+m.dmg[1] || 9999, s, m.dmg[2] ? 'head' : 'body', s.pos, s.item?.name || 'test'); } }   // { dmg:[kurban, hasar, kafa?] } bu oyuncu vurmuş gibi (seri sesi testi)
     if (Array.isArray(m.tk)) { g.tickets.blue = +m.tk[0]; g.tickets.red = +m.tk[1]; }
     if (Array.isArray(m.kl)) for (const [i, n] of m.kl) { const t = g.soldiers[i | 0]; if (t && Number.isFinite(+n)) t.kills = +n; }   // { kl:[[id,öldürme]…] } skor kutusu testi
     if (m.pb) {                                                                                     // paintball silahları (mod gelmeden test): herkese tüfek + tabanca, doğunca da
