@@ -109,6 +109,38 @@ export const FP_GRIP = {
   sniper: { r: [0, -0.065, 0], rx: 20, wrist: 1 }, svd: { r: [0, -0.062, 0.02], rx: 8, wrist: 1 }, dbl: { wrist: 1, l: [0, -0.016, 0] }, m79: { wrist: 1, l: [0, -0.015, 0] },      // düz dipçik: el bileğin yüzeyinde (gömülü değil), SVD başparmak deliğinin kabzasında
   ammobox: { r: [0.206, -0.01, 0.02] }, medkit: { r: [0.251, 0.06, 0.02] },      // eşyalar: kutu sağ yanından kavranır (eskiden %90–100 kutunun içinde; altı birinci şahısta görünmez, üstteki sapta kol kutusu kutuya girer)
 };
+// ── Tabanca hissi (12.141, BattleBit / arcade): yay-sönüm tepmesi (hızlı kalkış ≈ 30 ms, tok toparlanma ≈ 130 ms), sürgü, kovan, alev, görüş tepmesi ──
+// back = geri (m) · up = namlu kalkışı (rad, kabza çevresinde) · rise = yukarı kayma (m) · roll / yaw = yan yatış / sapma (rad, her atış rastgele yön) · cam = görüş tepmesi (rad, yalnız görsel: mermi yönü değişmez)
+// w = yay hızı (1/sn; büyük = hızlı toparlanma) · z = sönüm (< 1: hafif geri sekme) · fl = alev ölçeği (0 = alev yok) · ej = kovan atar · port = atım penceresi (silah yerelinde)
+// Denge (hasar / menzil / atış hızı / nişan tırmanması s.recoilP) DEĞİŞMEDİ: yalnız birinci şahıs görüntüsü + görüş tepmesi.
+export const PISTOL_FEEL = {
+  pistol: { back: 0.05, up: 0.2, rise: 0.012, roll: 0.06, yaw: 0.025, cam: 0.0065, w: 34, z: 0.68, fl: 1, ej: 1, port: [0.016, 0.068, -0.03] },
+  m1911: { back: 0.058, up: 0.25, rise: 0.014, roll: 0.07, yaw: 0.03, cam: 0.0085, w: 31, z: 0.7, fl: 1.15, ej: 1, port: [0.0146, 0.058, -0.035] },
+  deagle: { back: 0.075, up: 0.36, rise: 0.022, roll: 0.09, yaw: 0.035, cam: 0.016, w: 24, z: 0.74, fl: 1.65, ej: 1, port: [0.019, 0.062, -0.03] },
+  revolver: { back: 0.07, up: 0.4, rise: 0.024, roll: 0.07, yaw: 0.03, cam: 0.019, w: 22, z: 0.76, fl: 1.8, ej: 0 },
+  pbpistol: { back: 0.026, up: 0.07, rise: 0.006, roll: 0.03, yaw: 0.015, cam: 0.0025, w: 36, z: 0.7, fl: 0, ej: 0 },
+};
+// Birinci şahıs namlu alevi dokusu (12.141): yıldız biçimli ışıma (eski düz sarı kutunun yerine; tüm silahlarda)
+let _flashTex = null;
+function flashTex() {
+  if (_flashTex) return _flashTex;
+  const S = 128, cv = document.createElement('canvas'); cv.width = cv.height = S;
+  const c = cv.getContext('2d'), h = S / 2;
+  const gr = c.createRadialGradient(h, h, 0, h, h, h);
+  gr.addColorStop(0, 'rgba(255,255,240,1)'); gr.addColorStop(0.18, 'rgba(255,226,140,0.95)'); gr.addColorStop(0.5, 'rgba(255,150,40,0.35)'); gr.addColorStop(1, 'rgba(255,90,0,0)');
+  c.fillStyle = gr; c.fillRect(0, 0, S, S);
+  c.globalCompositeOperation = 'lighter';
+  for (let i = 0; i < 7; i++) {                                                       // ışın uçları
+    const a = (i / 7) * Math.PI * 2 + 0.3, L = h * (0.75 + 0.25 * ((i * 37) % 5) / 4);
+    c.save(); c.translate(h, h); c.rotate(a);
+    const g2 = c.createLinearGradient(0, 0, L, 0); g2.addColorStop(0, 'rgba(255,220,130,0.8)'); g2.addColorStop(1, 'rgba(255,120,20,0)');
+    c.fillStyle = g2; c.beginPath(); c.moveTo(0, -h * 0.09); c.lineTo(L, 0); c.lineTo(0, h * 0.09); c.fill(); c.restore();
+  }
+  _flashTex = new THREE.CanvasTexture(cv); _flashTex.colorSpace = THREE.SRGBColorSpace;
+  return _flashTex;
+}
+const _ej = new THREE.Vector3();
+const easeOutBack = (t, k = 1.7) => { t = clamp(t, 0, 1) - 1; return 1 + t * t * ((k + 1) * t + k); };
 const fpGrip = (id, hold) => { const d = FP_GRIP[hold === 'pistol' ? 'pistol' : hold === 'launcher' ? 'launcher' : hold === 'rifle' ? 'rifle' : 'item'], o = FP_GRIP[id] || {}; return { ...d, ...o }; };
 const MELEE_SPRINT = { pos: [-0.04, 0.06, -0.06], rx: 0.65, ry: 0.3, rz: -0.1 };
 
@@ -160,6 +192,42 @@ export class ViewModel {
     this.pos = new THREE.Vector3(0.2, -0.21, -0.66);           // bel duruşu (ilk kutu el sürümü)
     this.flash = null; this.flashT = 0;
     this.handL = null; this.handR = null;
+    // 12.141 tabanca hissi: yaylar (K = ana tepme, S = yan, C = görüş), sürgü / silindir, kovanlar, namlu ışığı
+    this.feel = null; this.rk = { K: 0, Kv: 0, S: 0, Sv: 0, C: 0, Cv: 0 }; this.punch = 0; this.punchR = 0;
+    this.slideT = 9; this.slideX = 0; this.cylA = 0; this.cylTo = 0; this._slLock = false;
+    this.casings = [];
+    this.mLight = new THREE.PointLight('#ffb35a', 0, 1.6, 2);                  // namlu ışığı: atış anında el + silah kısa parlar (hep sahnede: ışık sayısı sabit → yeniden derleme yok)
+    this.root.add(this.mLight);
+  }
+
+  // Tabanca: yay-sönüm tepmesi (tek atış ≈ 1; seri atışta üst üste biner, en çok ~1,7)
+  fireFeel(s, amt = 1) {
+    const f = this.feel, r = this.rk, E = Math.E;
+    if (r.K < 1.7) r.Kv += f.w * E * amt;
+    r.Sv += (Math.random() < 0.5 ? -1 : 1) * f.w * E * amt * (0.55 + Math.random() * 0.45);
+    r.Cv += f.w * 1.3 * E * amt;
+    if (amt < 1) return;
+    this.slideT = 0; this.cylTo += Math.PI / 3;
+    if (f.ej && this.model) this.eject();
+  }
+  // kovan (kamera uzayında; 0,5 sn uçar, döner, düşer)
+  eject() {
+    let c = this.casings.find((o) => !o.mesh.visible);
+    if (!c) {
+      if (this.casings.length >= 6) c = this.casings[0];
+      else {
+        const m = new THREE.Mesh(new THREE.CylinderGeometry(0.0045, 0.0045, 0.019, 7), new THREE.MeshStandardMaterial({ color: '#c99a3e', metalness: 0.85, roughness: 0.32 }));
+        m.rotation.order = 'XYZ'; m.frustumCulled = false; this.cam.add(m);
+        c = { mesh: m, v: new THREE.Vector3(), sp: new THREE.Vector3(), life: 0 }; this.casings.push(c);
+      }
+    }
+    const port = this.feel.port || [0.015, 0.06, -0.03], mir = this.game.leftHand ? -1 : 1;
+    this.model.updateWorldMatrix(true, false);
+    this.cam.worldToLocal(_ej.set(...port).applyMatrix4(this.model.matrixWorld));
+    c.mesh.position.copy(_ej); c.mesh.visible = true; c.life = 0.55;
+    c.mesh.rotation.set(Math.random() * 3, Math.random() * 3, Math.PI / 2);
+    c.v.set((1.15 + Math.random() * 0.5) * mir, 1.25 + Math.random() * 0.45, 0.2 + Math.random() * 0.2);
+    c.sp.set(18 + Math.random() * 10, 6 * (Math.random() - 0.5), 14 + Math.random() * 8);
   }
 
   setItem(id, team, kind, optic, skin, wskin = 'std') {
@@ -167,12 +235,12 @@ export class ViewModel {
     this.arms = [];
     if (this.model) { const own = this.model.userData.ownMat; this.root.remove(this.model); this.model.traverse((o) => { o.geometry?.dispose(); const mt = o.material; if (mt && !Array.isArray(mt) && (own || (mt.userData.skinMat && !mt.userData.shared))) mt.dispose(); }); }      // setFade kopyaları + modele özel kaplama malzemesi
     this.id = id;
-    this.raise = 1;
+    this.raise = 1; this.slideT = 9; this.cylA = this.cylTo = 0; this.rk.K = this.rk.Kv = this.rk.S = this.rk.Sv = 0;
     this.raiseRate = 1 / Math.max(0.15, Math.min(0.35, WSTATS[id]?.equip ?? 0.3));
     this.boltT = 0;
     const c = id !== 'claws' && this.look ? { ...TEAMS[team], ...this.look } : TEAMS[id === 'claws' ? 'zomb' : team];      // look: paintball forması (kol = boya rengi, eldiven koyu)
     const g = new THREE.Group();
-    this.flash = null;
+    this.flash = null; this.feel = null;
     this.zh = null;
     if (kind === 'medkit') {
       const m = createWeapon('medkit', null, false); m.scale.setScalar(1.5); m.position.set(0, -0.08, 0); g.add(m);      // S3 ilk yardım (12.123; eski eşya modeliyle aynı ölçü / konum)
@@ -183,13 +251,18 @@ export class ViewModel {
       const st = WSTATS[id];
       g.userData = { ...w.userData, sight: w.userData.sight ?? st.sight, dist: w.userData.dist ?? st.dist };
       if (kind === 'throwable' || kind === 'mine' || kind === 'ammobox' || kind === 'melee') g.userData.noAds = true;
-      if (kind === 'gun' || kind === 'launcher') {
-        // muzzle flash
-        const f = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.09, 0.18), new THREE.MeshBasicMaterial({ color: '#ffd36a', transparent: true, opacity: 0.95, blending: THREE.AdditiveBlending, depthWrite: false }));
-        f.position.copy(w.userData.muzzle).add(new THREE.Vector3(0, 0, -0.08));
-        f.visible = false;
-        w.add(f);
-        this.flash = f;
+      this.feel = (kind === 'gun' && w.userData.hold === 'pistol' && PISTOL_FEEL[id]) || null;      // 12.141: tabanca hissi (MAC-10 makineli: eski tepme)
+      if ((kind === 'gun' || kind === 'launcher') && !st.ball) {
+        // namlu alevi (12.141): iki çapraz yıldız düzlemi (namlu ekseni boyunca) + ön yıldız; her atışta rastgele döner / boy değiştirir
+        const fl = this.feel ? this.feel.fl : 1, L = 0.2 * fl, Wd = 0.13 * fl;
+        const f = new THREE.Group();
+        const mat = new THREE.MeshBasicMaterial({ map: flashTex(), color: '#ffe0a0', transparent: true, opacity: 1, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+        const pg = new THREE.PlaneGeometry(1, 1);
+        for (const rz of [0, Math.PI / 2]) { const q = new THREE.Mesh(pg, mat); q.rotation.set(0, Math.PI / 2, 0); q.rotateX(rz); q.scale.set(L, Wd, 1); q.position.z = -L * 0.42; f.add(q); }
+        const fr = new THREE.Mesh(pg, mat); fr.scale.set(Wd * 1.15, Wd * 1.15, 1); fr.position.z = -0.012; f.add(fr);
+        f.position.copy(w.userData.muzzle);
+        f.visible = false; f.userData.mat = mat; f.userData.fl = fl;
+        if (fl > 0) { w.add(f); this.flash = f; }
       }
     }
     // eller + kollar (silaha bağlı). Eller ayrı gruplardır: yükleme animasyonunda bağımsız hareket eder
@@ -332,7 +405,17 @@ export class ViewModel {
     this.throwT = Math.max(0, this.throwT - dt * 3);
     this.dryT = Math.max(0, this.dryT - dt * 8);
     this.boltT = Math.max(0, this.boltT - dt / 0.95);
-    const rz0 = this.raise * this.raise;
+    const fe = isGun ? this.feel : null;
+    if (fe) {                                                                   // 12.141: yay-sönüm (1/240 sn alt adım: kararlı)
+      const r = this.rk, n = Math.max(1, Math.ceil(dt * 240)), h = dt / n, w = fe.w, wc = w * 1.3, z = fe.z;
+      for (let i = 0; i < n; i++) {
+        r.Kv += (-w * w * r.K - 2 * z * w * r.Kv) * h; r.K += r.Kv * h;
+        r.Sv += (-w * w * r.S - 2 * z * w * r.Sv) * h; r.S += r.Sv * h;
+        r.Cv += (-wc * wc * r.C - 2 * 0.8 * wc * r.Cv) * h; r.C += r.Cv * h;
+      }
+      this.slideT += dt;
+    }
+    const rz0 = fe ? 0 : this.raise * this.raise;
 
     let pos = new THREE.Vector3().lerpVectors(hip, tgt, ads);
     pos.x += Math.sin(this.bobT) * 0.012 * bobAmt;
@@ -344,6 +427,14 @@ export class ViewModel {
     const br = Math.sin(this.breathT * 1.55) * (1 - ads) * (1 - clamp(speed / 3, 0, 1) * 0.6), br2 = Math.sin(this.breathT * 0.8 + 1.3) * (1 - ads);
     pos.y += br * 0.0035; rx += br * 0.008; rz += br2 * 0.008; pos.x += br2 * 0.0015;
     if (isMelee) { rz += Math.sin(this.bobT) * 0.035 * bobAmt; rx += Math.abs(Math.cos(this.bobT)) * 0.025 * bobAmt; }   // yürürken bıçak eli hafif yalpalar
+    if (fe) {
+      // 12.141 çekme: sağ-alttan yan yatık gelir, hafif aşıp yerine oturur (easeOutBack)
+      if (this.raise > 0) { const r = 1 - easeOutBack(1 - this.raise, 1.4); pos.y -= r * 0.3; rx -= r * 0.62; rz += r * 0.5; pos.x += r * 0.06; }
+      // atış: geri + yukarı vuruş + namlu kalkışı (kabza çevresinde) + yan yatış; nişanda kalkış aşağıda nişan noktası çevresinde
+      const K = this.rk.K, S = this.rk.S, hp = 1 - ads;
+      pos.z += K * fe.back * (1 - ads * 0.45); pos.y += K * fe.rise * hp;
+      rx += K * fe.up * hp; rz += S * fe.roll * (1 - ads * 0.7); ry += S * fe.yaw * hp;
+    }
 
     // yeniden doldurma ilerlemesi
     let ra = null;
@@ -409,6 +500,23 @@ export class ViewModel {
       u.mag.position.set(ax[0] * off, ax[1] * off, ax[2] * off);
       u.mag.rotation.x = ra ? -ra.magOut * 0.35 : 0;
     }
+    // 12.141 tabanca sürgüsü: atışta 14 ms'de geri, 24 ms'ye dek bekler, 70 ms'de önde; son mermide geride kilitli kalır. Boş doldurmada şarjör takılınca (%64) öne fırlar (+ küçük sarsıntı)
+    if (u.slide && fe) {
+      const sl = u.slide;
+      if (sl.kind === 'cyl') {                                                  // revolver: silindir atıştan 35 ms sonra 60° döner
+        if (this.slideT > 0.035) this.cylA += (this.cylTo - this.cylA) * Math.min(1, dt * 26);
+        sl.g.rotation.z = -this.cylA;
+      } else {
+        const t = this.slideT, it = s.item;
+        let x = t < 0.014 ? t / 0.014 : t < 0.024 ? 1 : 1 - (1 - (1 - clamp((t - 0.024) / 0.046, 0, 1)) ** 3);
+        let lock = !!it && it.mag <= 0 && st.mag > 0;
+        if (ra) { const kR = clamp((s.reloadTotal - s.reloadT) / s.reloadTotal, 0, 1); lock = s.reloadEmpty && kR < 0.64; if (s.reloadEmpty && kR >= 0.64) x = Math.max(x, 1 - clamp((kR - 0.64) / 0.035, 0, 1)); }
+        if (lock) x = t < 0.014 ? Math.max(x, this.slideX) : 1;
+        if (this._slLock && !lock && ra) this.fireFeel(s, 0.35);              // sürgü bırakıldı: tok "çak"
+        this._slLock = lock; this.slideX = x;
+        sl.g.position.z = x * sl.travel;
+      }
+    }
     // sol el
     if (this.handL) {
       if (ra) {
@@ -417,7 +525,7 @@ export class ViewModel {
         const mg = u.magPos ? u.magPos.clone().add(new THREE.Vector3(0, -0.02, 0)) : new THREE.Vector3(0, -0.03, -0.03);
         if (u.mag && ra.magOut > 0 && ra.w.mag > 0.4) mg.addScaledVector(new THREE.Vector3(...(u.magAxis || [0, -1, 0])), ra.magOut * 0.24);
         const ch = new THREE.Vector3(0.02, 0.07, -0.09);
-        const w = ra.w;
+        const w = fe ? { ...ra.w, fg: ra.w.fg + ra.w.charge, charge: 0 } : ra.w;      // 12.141 tabanca: kol şarjı yok (sürgü bırakma: şarjör takılınca sürgü öne fırlar, sol el ekranın altına iner — eski kol ekranı kaplıyordu)
         this.handL.position.set(0, 0, 0).addScaledVector(fg, w.fg).addScaledVector(mg, w.mag).addScaledVector(POUCH_VM, w.pouch).addScaledVector(ch, w.charge);
         this.handL.position.z += ra.charge * 0.08 * w.charge;    // kol şarjını geri çek
       } else {
@@ -492,8 +600,8 @@ export class ViewModel {
     if (ads > 0.001 && u.sight && !this.noSway) {
       const bt = this.breathT, mv = clamp(speed / 3, 0, 1) * (s.onGround ? 1 : 1.5), ik = u.pivot ? 0.4 : 1;      // demirde %40: arpacık ortada, gez yalnız birkaç piksel oynar
       // tepme nişanda 0,06 × (eskiden kabza çevresinde 0,1 ×): namlu kalkar, retikül ortada kalır, kickR sönümlenince geri oturur
-      let ax = ((Math.sin(bt * 1.13) * 0.0021 + Math.sin(bt * 2.31 + 0.7) * 0.0007) * (1 + mv * 1.6) + this.kickR * 0.06 + clamp(this.sy, -0.05, 0.05) * 0.3) * ads;
-      let ay = ((Math.sin(bt * 0.71 + 1.9) * 0.0024 + Math.sin(bt * 1.67) * 0.0006) * (1 + mv * 1.6) + clamp(this.sx, -0.05, 0.05) * 0.3) * ads;
+      let ax = ((Math.sin(bt * 1.13) * 0.0021 + Math.sin(bt * 2.31 + 0.7) * 0.0007) * (1 + mv * 1.6) + this.kickR * 0.06 + (fe ? this.rk.K * fe.up * 0.2 : 0) + clamp(this.sy, -0.05, 0.05) * 0.3) * ads;
+      let ay = ((Math.sin(bt * 0.71 + 1.9) * 0.0024 + Math.sin(bt * 1.67) * 0.0006) * (1 + mv * 1.6) + clamp(this.sx, -0.05, 0.05) * 0.3 + (fe ? this.rk.S * fe.yaw * 0.35 : 0)) * ads;
       const az = Math.sin(bt * 0.53 + 0.4) * 0.004 * ads;
       ax *= ik; ay *= ik;
       this.root.updateMatrix();
@@ -507,10 +615,22 @@ export class ViewModel {
     this.camRoll = lerp(this.camRoll, camRoll, Math.min(1, dt * 14));
     this.camPitch = lerp(this.camPitch, camPitch, Math.min(1, dt * 14));
 
+    this.flashT = Math.max(0, this.flashT - dt);
     if (this.flash) {
-      this.flashT = Math.max(0, this.flashT - dt);
       this.flash.visible = this.flashT > 0;
+      if (this.flashT > 0) this.flash.userData.mat.opacity = clamp(this.flashT / 0.03, 0.25, 1);
     }
+    this.mLight.intensity = this.flash && this.flashT > 0 ? 0.55 * (this.flash.userData.fl || 1) * clamp(this.flashT / 0.03, 0, 1) : 0;
+    if (this.flash) { this.mLight.position.copy(this.flash.position); this.mLight.position.z -= 0.04; }
+    for (const c of this.casings) {                                            // kovanlar
+      if (!c.mesh.visible) continue;
+      c.life -= dt; if (c.life <= 0) { c.mesh.visible = false; continue; }
+      c.v.y -= 7.5 * dt; c.mesh.position.addScaledVector(c.v, dt);
+      c.mesh.rotation.x += c.sp.x * dt; c.mesh.rotation.y += c.sp.y * dt; c.mesh.rotation.z += c.sp.z * dt;
+      c.mesh.visible = this.root.visible;
+    }
+    // görüş tepmesi (yalnız görsel; Player kamerasına eklenir): nişanda biraz az
+    this.punch = fe ? this.rk.C * fe.cam * (1 - ads * 0.3) : 0; this.punchR = fe ? this.rk.S * fe.cam * 0.35 : 0;
     // dürbün örtüsü (12.127): adsT > 0,9'da açılır; çıkışta dünya büyütmesi ×2'nin altına inene dek açık kalır (eski: 0,9'da kapanıyor, ×4,6 dünyanın önünde 3B dürbün gövdesi ekranı kaplıyordu) → kapanınca HUD kısa kararma
     const zE = p.zoomEff?.() || 1;
     p.scopeOn = s.alive && s.overlay === 'scope' && (s.adsT > SCOPE_ON || (!!p.scopeOn && zE > 2 && p.zoomCur() >= 2));      // 12.153: 0,9 → SCOPE_ON (göz merceği ekranı kaplamadan, tam kararmanın arkasında açılır)
@@ -603,7 +723,13 @@ export class Player {
     game.on('switch', (s) => { if (s === this.s) this.refreshWeapon(); });
     game.on('spawn', (s) => { if (s === this.s) this.refreshWeapon(); });
     if (this.devTools()) setTimeout(() => game.hud?.toast($t('hud.t.workshop'), '#ffb347'), 2500);
-    game.on('fire', (s) => { if (s === this.s) { this.vm.kick = Math.min(this.vm.kick + 0.045, 0.12); this.vm.kickR = Math.min(this.vm.kickR + 0.18, 0.5); this.vm.flashT = 0.045; } });
+    game.on('fire', (s) => {
+      if (s !== this.s) return;
+      const vm = this.vm;
+      if (vm.feel) vm.fireFeel(s); else { vm.kick = Math.min(vm.kick + 0.045, 0.12); vm.kickR = Math.min(vm.kickR + 0.18, 0.5); }      // 12.141: tabanca yay tepmesi, diğerleri eski
+      vm.flashT = 0.045;
+      if (vm.flash) { const f = vm.flash, k = (0.82 + Math.random() * 0.36) * (1 - 0.45 * s.adsT); f.rotation.z = Math.random() * Math.PI; f.scale.set(k, k, 0.85 + Math.random() * 0.3); }      // her atışta farklı alev (nişanda küçük: nişangâhı örtmesin)
+    });
     game.on('bolt', (s) => { if (s === this.s) this.vm.kickR += 0.2; });
     game.on('melee', (s) => { if (s === this.s) this.vm.kick = 0.02; });
     game.on('meleehit', () => { this.vm.hitKick = 1; });
@@ -950,9 +1076,9 @@ export class Player {
       s.eye(cam.position);
       cam.rotation.order = 'YXZ';
       cam.rotation.set(
-        s.pitch + s.recoilP + (Math.random() - 0.5) * sh * 0.06 + this.vm.camPitch,
+        s.pitch + s.recoilP + (Math.random() - 0.5) * sh * 0.06 + this.vm.camPitch + this.vm.punch * (1 - this.thirdT),      // 12.141: tabanca görüş tepmesi (görsel)
         s.yaw + (Math.random() - 0.5) * sh * 0.06,
-        -s.leanT * 0.2 * (1 - 0.6 * this.thirdT) + this.vm.camRoll + (Math.random() - 0.5) * sh * 0.03,
+        -s.leanT * 0.2 * (1 - 0.6 * this.thirdT) + this.vm.camRoll + this.vm.punchR * (1 - this.thirdT) + (Math.random() - 0.5) * sh * 0.03,
       );
       if (this.thirdT > 0.002) this.thirdCamera(dt, this.thirdT); else { this._cs = null; s.shotOff = null; this.bodyVisible = false; }
       const vo = g.online && g.online.viewOff;                      // çevrimiçi: tahmin düzeltmesi kamerada yumuşatılır (bkz. NetClient.reconcile)

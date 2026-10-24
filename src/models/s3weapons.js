@@ -106,7 +106,7 @@ function done(k, mat, meta, sg) {
   const g = k.build(mat, meta);
   if (k.glass.length && !k.lod) {
     const geos = k.glass.map((c) => { const gg = c.disc ? new THREE.CircleGeometry(c.disc, 20) : new THREE.PlaneGeometry(c.rect[0], c.rect[1]); gg.translate(...c.pos); return gg; });
-    const mesh = new THREE.Mesh(geos.length > 1 ? mergeAll(geos) : geos[0], GLASS_MAT); mesh.renderOrder = 2; g.add(mesh);
+    const mesh = new THREE.Mesh(geos.length > 1 ? mergeAll(geos) : geos[0], GLASS_MAT); mesh.renderOrder = 2; (k.glassSlide && g.userData.slide ? g.userData.slide.g : g).add(mesh);      // 12.141: RMR camı sürgüyle kayar
   }
   if (sg) { g.userData.sight = sg.sight; g.userData.pivot = sg.pivot; g.userData.dist = sg.dist; g.userData.overlay = sg.overlay; g.userData.lens = sg.lens; }
   return g;
@@ -237,6 +237,7 @@ export function m4a1(mat = skinMaterial('m4a1'), lod = false, o = 'iron') {
 // ───────────────────────── Glock 17 ─────────────────────────
 export function pistol(mat = skinMaterial('pistol'), lod = false, o = 'iron') {
   const k = newKit(lod);
+  k.grp = 'slide';      // 12.141: sürgü + üstündeki nişan / RMR ayrı grup (atışta geri-ileri kayar, son mermide geride kalır)
   // sürgü (pahlı üst kesit), arka tırtıllar, atım penceresi + namlu kapağı, burun pahı
   k.xsec([[-0.016, 0.03], [0.016, 0.03], [0.016, 0.068], [0.011, 0.079], [-0.011, 0.079], [-0.016, 0.068]], 0.056, -0.172, 'body', { c: 0.003 });
   if (!lod) for (let i = 0; i < 7; i++) for (const sx of [-1, 1]) k.box([0.002, 0.032, 0.0025], [sx * 0.0162, 0.052, 0.046 - i * 0.0055], 'body', { sh: 0.35, rot: [-0.08, 0, 0] });
@@ -249,6 +250,9 @@ export function pistol(mat = skinMaterial('pistol'), lod = false, o = 'iron') {
     k.box([0.004, 0.0075, 0.007], [0, 0.08225, -0.158], 'acc', { c: 0.0006 });                      // arpacık
   }
   if (!lod && o !== 'reddot') { for (const sx of [-1, 1]) k.box([0.0016, 0.0016, 0.001], [sx * 0.0062, 0.0888, 0.0415], 'glow', { sh: 0.6 }); k.box([0.0016, 0.0016, 0.001], [0, 0.0835, -0.154], 'glow', { sh: 0.6 }); }      // RMR'de tritium yok (ince pencereden ön nokta görünüp retikülü karıştırıyordu)
+  const sg = o === 'reddot' ? optic(k, o, 0.0785, 0.012, true) : { sight: [0, 0.086, 0.046], pivot: [0, 0.086, -0.158], dist: ADS_DIST.iron, overlay: 'none' };
+  if (o === 'reddot') k.glassSlide = true;
+  k.grp = null;
   // gövde (polimer): sürgü altı + aksesuar rayı, kabza (benekli + kuyruk), tetik korkuluğu, tetik, sürgü kilidi
   k.prof([[0.052, 0.031], [-0.168, 0.031], [-0.168, 0.012], [-0.03, 0.01], [-0.004, 0.004], [0.052, 0.004]], 0.03, 'furn', { c: 0.003 });
   for (let i = 0; i < 2; i++) k.box([0.031, 0.006, 0.008], [0, 0.016, -0.12 - i * 0.022], 'furn', { d: 1, sh: 0.3 });
@@ -258,11 +262,10 @@ export function pistol(mat = skinMaterial('pistol'), lod = false, o = 'iron') {
   k.prof([[-0.012, 0.006], [-0.02, 0.006], [-0.024, -0.014], [-0.018, -0.02], [-0.013, -0.01]], 0.006, 'metal', { d: 1 });
   k.box([0.003, 0.006, 0.02], [-0.0162, 0.026, -0.03], 'metal', { d: 1 });                           // sürgü kilidi
   k.box([0.003, 0.006, 0.008], [0.0152, 0.024, -0.06], 'metal', { d: 1 });                           // söküm kolu
-  const sg = o === 'reddot' ? optic(k, o, 0.0785, 0.012, true) : { sight: [0, 0.086, 0.046], pivot: [0, 0.086, -0.158], dist: ADS_DIST.iron, overlay: 'none' };
   // şarjör (grup): kabza içinde gövde + dışta taban plakası
   k.prof([[0.012, 0.0], [0.048, 0.002], [0.084, -0.11], [0.046, -0.114]], 0.024, 'acc', { g: 'mag' });
   k.prof([[0.042, -0.117], [0.09, -0.112], [0.094, -0.13], [0.04, -0.134]], 0.031, 'furn', { c: 0.003, g: 'mag', sh: 0.85 });
-  return done(k, mat, { name: 'Glock 17', hold: 'pistol', gripR: [0, -0.03, 0.02], gripL: null, muzzle: [0, 0.051, -0.18], length: 0.28 }, sg);
+  return done(k, mat, { name: 'Glock 17', hold: 'pistol', gripR: [0, -0.03, 0.02], gripL: null, muzzle: [0, 0.051, -0.18], length: 0.28, slideTravel: 0.026 }, sg);
 }
 
 // ───────────────────────── M24 Keskin ─────────────────────────

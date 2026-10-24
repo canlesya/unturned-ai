@@ -9,7 +9,7 @@ import { finish } from './weapon_util.js';
 export const SL = { body: 0, furn: 1, metal: 2, acc: 3, lens: 4, glow: 5 };
 
 export class Kit {
-  constructor(lod = false) { this.lod = lod; this.lists = { main: [], mag: [], bolt: [] }; this.parts = 0; }
+  constructor(lod = false) { this.lod = lod; this.lists = { main: [], mag: [], bolt: [], slide: [] }; this.parts = 0; this.grp = null; }      // grp: varsayılan alt grup (12.141: tabanca sürgüsü 'slide'; 3. şahısta (lod) ana ağa katılır)
   _push(geo, slot, o = {}) {
     let g = geo.index ? geo.toNonIndexed() : geo;
     if (g !== geo) geo.dispose();
@@ -20,7 +20,7 @@ export class Kit {
     g.setAttribute('wf', new THREE.BufferAttribute(a, 3));
     if (o.rot || o.pos) g.applyMatrix4(new THREE.Matrix4().compose(new THREE.Vector3(...(o.pos || [0, 0, 0])), new THREE.Quaternion().setFromEuler(new THREE.Euler(...(o.rot || [0, 0, 0]))), new THREE.Vector3(1, 1, 1)));   // parça merkezinde döner, sonra yerine taşınır
     if (o.cap) g.userData.cap = 1;      // 12.129: splitLens ±Z kapaklarını silmesin (mercekle aynı düzlemdeki ince göz çanı halkası)
-    this.lists[o.g || 'main'].push(g); this.parts++;
+    this.lists[o.g || (!this.lod && this.grp) || 'main'].push(g); this.parts++;
     return g;
   }
   skip(o) { return o && o.d && this.lod; }
@@ -90,7 +90,15 @@ export class Kit {
     let mag = null, bolt = null;
     if (this.lists.mag.length) { mag = new THREE.Group(); g.add(mag); mk(this.lists.mag, mag); }
     if (this.lists.bolt.length) { bolt = new THREE.Group(); g.add(bolt); const piv = meta.boltPivot || 0; for (const x of this.lists.bolt) x.translate(0, -piv, 0); mk(this.lists.bolt, bolt); bolt.position.y = piv; }
-    finish(g, { ...meta, mag, bolt: bolt ? { g: bolt, pivot: meta.boltPivot || 0 } : undefined });
+    // 12.141: tabanca sürgüsü (geri-ileri kayar) / revolver silindiri (namlu ekseninde döner, pivot = eksen yüksekliği): yalnız birinci şahıs (lod'da ana ağda)
+    let slide = null;
+    if (this.lists.slide.length) {
+      const sg = new THREE.Group(); g.add(sg); const piv = meta.slideKind === 'cyl' ? meta.slidePivot || 0 : 0;
+      for (const x of this.lists.slide) x.translate(0, -piv, 0);
+      mk(this.lists.slide, sg); sg.position.y = piv;
+      slide = { g: sg, kind: meta.slideKind || 'slide', pivot: piv, travel: meta.slideTravel ?? 0.026 };
+    }
+    finish(g, { ...meta, mag, bolt: bolt ? { g: bolt, pivot: meta.boltPivot || 0 } : undefined, slide: slide || undefined });
     if (meta.sight) { g.userData.sight = meta.sight; g.userData.dist = meta.dist; }
     if (mag) { g.updateMatrixWorld(true); g.userData.magPos = new THREE.Box3().setFromObject(mag).getCenter(new THREE.Vector3()); }
     let tris = 0, calls = 0; g.traverse((o) => { if (o.isMesh) { calls++; tris += o.geometry.attributes.position.count / 3; } });
