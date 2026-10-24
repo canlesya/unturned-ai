@@ -38,7 +38,7 @@ export const WEAPON_GROUPS = {
   melee: ['knife', 'machete', 'tomahawk'],
   paint: ['pbrifle', 'pbpistol'],
 };
-WEAPON_GROUPS.space = ['laser', 'plasma', 'epistol', 'railgun', 'scatter']; GUN_KINDS.space = 'Uzay (enerji)';     // 12.157: yalnız Uzay modunda kuşanılır
+WEAPON_GROUPS.space = ['laser', 'plasma', 'epistol', 'railgun', 'scatter', 'elmg']; GUN_KINDS.space = 'Uzay (enerji)';     // 12.157: yalnız Uzay modunda kuşanılır
 export const GROUP_LABELS = GUN_KINDS;
 export const ITEM_IDS = ['medkit', 'grenade', 'smoke', 'flash', 'claymore', 'ammobox'];
 

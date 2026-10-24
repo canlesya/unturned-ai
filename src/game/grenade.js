@@ -33,10 +33,10 @@ export function nadeStep(p, world, ph) {
   if (p.rest) return 0;
   const h = NADE.h, v = p.vel;
   if (p.ground) {
-    const sp = Math.hypot(v.x, v.z), ns = sp - NADE.roll * h;
+    const sp = Math.hypot(v.x, v.z), ns = sp - NADE.roll * (world.grav ?? 1) * h;      // 12.157: düşük yer çekiminde (Uzay) yuvarlanma sürtünmesi de azalır
     if (ns <= 0.05) { v.set(0, 0, 0); p.rest = true; return 0; }
     const k = ns / sp; v.x *= k; v.z *= k; v.y = 0;
-  } else v.y -= NADE.g * h;
+  } else v.y -= NADE.g * (world.grav ?? 1) * h;                   // 12.157: World.grav (Uzay 0,36) — sunucu, çevrimdışı ve önizleme aynı
   _s.copy(v).multiplyScalar(h);
   const L = _s.length();
   let impact = 0;

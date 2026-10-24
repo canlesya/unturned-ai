@@ -438,7 +438,7 @@ Object.assign(WSTATS, {
     name: 'Ray Tüfeği', kind: 'gun', slot: 'primary', desc: 'Manyetik ray: gövdeye tek atış, 4x dürbün; her atıştan sonra yeniden şarj olur.', stats: { dmg: 100, range: 100, rate: 10, control: 62, mobility: 42 },
     auto: false, dmg: 110, rpm: 46, mag: 4, reserve: 20, reload: 2.3, equip: 0.35,
     hip: 0.03, ads: 0.0002, kickV: 0.05, kickH: 0.006, range: [150, 300], minMul: 0.85, zoom: 4, move: 0.9,
-    sight: [0, 0.14, 0.12], dist: 0.06, sound: 'sprail', scope: true, tracer: '#9fe2ff', adsTime: 0.25, space: true,
+    sight: [0, 0.14, 0.12], dist: 0.06, sound: 'sprail', scope: true, noscope: 0.09, tracer: '#9fe2ff', adsTime: 0.25, space: true, charge: true,      // 12.156 kuralları: nefes / belden isabetsizlik / artısız bel (overlay 'scope')
   },
   scatter: {
     name: 'Dağıtıcı', kind: 'gun', slot: 'primary', desc: 'Enerji pompalısı: yakında geniş yelpaze, hücre şarjörüyle dolar.', stats: { dmg: 86, range: 18, rate: 18, control: 42, mobility: 68 },
@@ -446,19 +446,25 @@ Object.assign(WSTATS, {
     hip: 0.048, ads: 0.031, kickV: 0.038, kickH: 0.01, range: [12, 30], minMul: 0.15, zoom: 1.15, move: 0.97,
     sight: [0, 0.09, -0.03], dist: 0.28, dot: true, sound: 'spscatter', tracer: '#ffb347', space: true,
   },
+  elmg: {
+    name: 'Enerji Makineli', kind: 'gun', slot: 'primary', desc: '90 atımlık güç hücresi, bastırma ateşi; uzun seride namlu kanatları kızarır.', stats: { dmg: 50, range: 66, rate: 74, control: 44, mobility: 38 },
+    auto: true, dmg: 24, rpm: 720, mag: 90, reserve: 270, reload: 3.4, equip: 0.4,
+    hip: 0.011, ads: 0.0014, kickV: 0.0105, kickH: 0.0055, range: [40, 110], minMul: 0.6, zoom: 1.35, move: 0.9,
+    sight: [0, 0.128, -0.1], dist: 0.28, dot: true, sound: 'spelmg', tracer: '#ff6a3a', space: true, heat: true,
+  },
 });
-Object.assign(OPTIC_ALLOWED, { laser: ['iron', 'reddot', 'holo', 'acog'], plasma: ['iron', 'reddot', 'holo'], epistol: ['iron', 'reddot'], railgun: ['scope'], scatter: ['iron', 'reddot', 'holo'] });
-export const SPACE_WEAPONS = ['laser', 'plasma', 'epistol', 'railgun', 'scatter'];
+Object.assign(OPTIC_ALLOWED, { laser: ['iron', 'reddot', 'holo', 'acog'], plasma: ['iron', 'reddot', 'holo'], epistol: ['iron', 'reddot'], railgun: ['scope'], scatter: ['iron', 'reddot', 'holo'], elmg: ['iron', 'reddot', 'holo', 'acog'] });
+export const SPACE_WEAPONS = ['laser', 'plasma', 'epistol', 'railgun', 'scatter', 'elmg'];
 // Sınıf başına Uzay donanımı (gadget / yakın dövüş normal sınıftaki gibi)
 export const SPACE_CLASS = {
   assault: { primary: ['laser', 'plasma'], secondary: ['epistol'], def: 'laser' },
   medic: { primary: ['plasma', 'laser'], secondary: ['epistol'], def: 'plasma' },
   sniper: { primary: ['railgun'], secondary: ['epistol'], def: 'railgun' },
-  heavy: { primary: ['laser', 'scatter'], secondary: ['epistol'], def: 'laser' },
+  heavy: { primary: ['elmg', 'laser', 'scatter'], secondary: ['epistol'], def: 'elmg' },
   engineer: { primary: ['scatter', 'plasma'], secondary: ['epistol'], def: 'scatter' },
 };
 // Normal silah tercihini Uzay karşılığına çevir (menüde seçilen tür korunur): pompalı → dağıtıcı, dürbünlü → ray tüfeği, SMG → plazma, diğer → lazer
-const spaceOf = (id) => (!WSTATS[id] ? null : WSTATS[id].space ? id : WSTATS[id].pellets ? 'scatter' : WSTATS[id].scope || id === 'svd' ? 'railgun' : ['mp5', 'vector', 'p90', 'mac10', 'ak74u'].includes(id) ? 'plasma' : 'laser');
+const spaceOf = (id) => (!WSTATS[id] ? null : WSTATS[id].space ? id : WSTATS[id].pellets ? 'scatter' : WSTATS[id].scope || id === 'svd' ? 'railgun' : id === 'lmg' || id === 'pkm' ? 'elmg' : ['mp5', 'vector', 'p90', 'mac10', 'ak74u'].includes(id) ? 'plasma' : 'laser');
 export function spaceLoadout(cls, team, choice = {}, rng = Math.random) {
   const items = makeLoadout(cls, team, choice, rng);
   const S = SPACE_CLASS[cls];

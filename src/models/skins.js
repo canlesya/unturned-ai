@@ -22,6 +22,7 @@ Object.assign(STD, {
   plasma: { body: ['#cfd2d6', 0.42, 0.05], furn: ['#2a2b33', 0.6, 0.1], metal: ['#4b4f58', 0.35, 0.65], acc: ['#1f1f26', 0.5, 0.25], en: '#b46cff' },
   epistol: { body: ['#dcdbd4', 0.4, 0.05], furn: ['#2b2f33', 0.62, 0.1], metal: ['#4a5056', 0.35, 0.65], acc: ['#1d2024', 0.5, 0.25], en: '#5cff9c' },
   railgun: { body: ['#d3d6da', 0.4, 0.08], furn: ['#2a2e35', 0.6, 0.1], metal: ['#59616b', 0.3, 0.75], acc: ['#1c1f24', 0.5, 0.3], en: '#8fd8ff' },
+  elmg: { body: ['#cfccc4', 0.45, 0.06], furn: ['#2c2e33', 0.6, 0.1], metal: ['#4f5359', 0.35, 0.65], acc: ['#1e1f23', 0.5, 0.25], en: '#ff6a3a' },
   scatter: { body: ['#d8d4cb', 0.45, 0.05], furn: ['#32302d', 0.62, 0.1], metal: ['#55575a', 0.35, 0.65], acc: ['#211f1d', 0.5, 0.25], en: '#ffa040' },
 });
 // Kaplamalar: yuva geçersiz kılma + kamuflaj (mode 1 orman lekeleri, 2 şehir dijital piksel); cm = kamuflajın uygulandığı yuvalar. Adlar arayüzde i18n (src/i18n/skins.js)
@@ -46,7 +47,7 @@ varying vec3 vCol; varying vec3 vPBR; varying vec3 vOP; varying vec2 vSP;`;
 const VERT_BODY = /* glsl */ `
   { int s = int(wf.x + 0.5); vCol = uCol[s]; vPBR = uPBR[s]; vOP = position; vSP = vec2(wf.y, wf.z + (s == 5 ? 10.0 : 0.0)); }`;
 const FRAG_HEAD = /* glsl */ `
-uniform int uCamo; uniform vec3 uCC[4]; uniform float uCS; uniform float uAlpha; uniform float uGlowA; uniform float uProbe; uniform vec3 uEn;
+uniform int uCamo; uniform vec3 uCC[4]; uniform float uCS; uniform float uAlpha; uniform float uGlowA; uniform float uProbe; uniform vec3 uEn; uniform float uEnK;
 varying vec3 vCol; varying vec3 vPBR; varying vec3 vOP; varying vec2 vSP;
 float h31(vec3 p){ p = fract(p * 0.1031); p += dot(p, p.yzx + 33.33); return fract((p.x + p.y) * p.z); }
 float vn(vec3 p){ vec3 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
@@ -66,7 +67,7 @@ const FRAG_COLOR = /* glsl */ `
   if (uCamo > 0 && vPBR.z > 0.5) wcol = camo(vOP);
   wcol *= wsh;
   float wen = 0.0;                                                                         // 12.157: desen 3 = ışıyan enerji parçası (silahın enerji rengi; adsalign eflatun ölçümünde sönük)
-  if (wpat > 2.5 && wpat < 3.5) { wen = uProbe > 0.5 ? 0.0 : 1.0; wcol = uEn * (uProbe > 0.5 ? 0.25 : 1.0); wpat = 0.0; }
+  if (wpat > 2.5 && wpat < 3.5) { wen = uProbe > 0.5 ? 0.0 : 1.0; wcol = uEn * (uProbe > 0.5 ? 0.25 : min(1.0, 0.35 + 0.65 * uEnK)); wpat = 0.0; }      // uEnK: ışıma gücü (ray tüfeği şarjı, makineli ısınması; space.js)
   if (wpat > 0.5 && wpat < 1.5) { float st = h31(floor(vOP * 700.0)); wcol *= 0.78 + 0.34 * st; wrough = min(1.0, wrough + 0.2); }     // benekli kabza (stipple)
   else if (wpat > 1.5) { wcol *= 0.82 + 0.22 * step(0.5, fract(vOP.z * 260.0 + vOP.y * 120.0)); }                                            // tırtıl / oluk
   diffuseColor.rgb = wcol * (1.0 - wglow); diffuseColor.a = opacity * (wglow > 0.5 ? uGlowA : uAlpha);      // 12.139: ışıyan retikül ışıklandırılmaz (yalnız kendi rengi)`;
@@ -78,7 +79,7 @@ export function skinMaterial(weapon = 'ak47', skin = 'std', shared = false) {
   if (shared && SHARED.has(key)) return SHARED.get(key);
   const U = {
     uCol: { value: Array.from({ length: 6 }, () => new THREE.Color()) }, uPBR: { value: Array.from({ length: 6 }, () => new THREE.Vector3()) },
-    uEn: { value: new THREE.Color('#44e0ff') }, uCamo: { value: 0 }, uCC: { value: Array.from({ length: 4 }, () => new THREE.Color()) }, uCS: { value: 15 }, uAlpha: { value: 1 }, uGlowA: { value: 1 }, uProbe: PROBE,
+    uEn: { value: new THREE.Color('#44e0ff') }, uEnK: { value: 1 }, uCamo: { value: 0 }, uCC: { value: Array.from({ length: 4 }, () => new THREE.Color()) }, uCS: { value: 15 }, uAlpha: { value: 1 }, uGlowA: { value: 1 }, uProbe: PROBE,
   };
   const m = new THREE.MeshStandardMaterial({ flatShading: true, roughness: 1, metalness: 0 });
   m.userData.U = U; m.userData.weapon = weapon; m.userData.skinMat = true; m.userData.shared = shared;
@@ -89,7 +90,7 @@ export function skinMaterial(weapon = 'ak47', skin = 'std', shared = false) {
       .replace('#include <color_fragment>', '#include <color_fragment>\n' + FRAG_COLOR)
       .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n  roughnessFactor = wrough;')
       .replace('#include <metalnessmap_fragment>', '#include <metalnessmap_fragment>\n  metalnessFactor = vPBR.y;')
-      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  totalEmissiveRadiance += wcol * wglow * 0.86 + uEn * wen * 1.15;')
+      .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n  totalEmissiveRadiance += wcol * wglow * 0.86 + uEn * wen * 1.15 * uEnK;')
       .replace('#include <dithering_fragment>', '#include <dithering_fragment>\n  if (uProbe > 0.5 && wglow > 0.5) gl_FragColor = vec4(1.0, 0.0, 1.0, 1.0);');
   };
   m.customProgramCacheKey = () => 'wb-skin-4';      // 12.139: ışıma ×3 → ×0,86 (doğrusal ≤ 1: Neutral ton eşlemede pembeleşmez, ACOG PiP şevronuyla aynı kırmızı)

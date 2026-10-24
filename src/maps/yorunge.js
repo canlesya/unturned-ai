@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { ConvexGeometry } from 'three/examples/jsm/geometries/ConvexGeometry.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { MapBuilder, makeRng } from './builder.js';
 import { YK, makeYorungeMaterial } from './yorungeSurface.js';
 
@@ -19,51 +20,39 @@ const PI = Math.PI, P2 = PI / 2;
 export const MOD_H = 6.2, MOD_T = 0.5, COR_H = 3.2, DECK = 3.5;      // modül duvarı, kalınlık; koridor duvarı; koridor çatısı / iskele güvertesi üstü
 
 // renkler: gri regolit, kırık beyaz gövde, koyu metal; turuncu uyarı; takım rengi yalnız hangarlarda ince şerit
-const REG = '#8d8c88', REG2 = '#7d7c78', DUSTC = '#6c6b68', ROCKC = ['#6e6c68', '#64625e', '#77746e', '#5c5a56'];
+const REG = '#8d8c88', REG2 = '#7d7c78', DUSTC = '#6c6b68', ROCKC = ['#6e6c68', '#64625e', '#77736a', '#5c5e62', '#7a7468', '#666a70'];
 const HULL = '#d9d7cf', HULL2 = '#c4c2ba', INNER = '#b9bcbf', FLOOR = '#80868d', METAL = '#3d4247', METAL2 = '#555b62', GRATE = '#4a4f55';
-const ORANGE = '#e07a2a', SOLAR = '#1d2c4a', PADC = '#9a9890', CRATE = ['#c9c4b4', '#8e9aa3', '#b0763e', '#6f7c6b'], STRIPE = '#e2b52c';
+const ORANGE = '#e07a2a', SOLAR = '#1d2c4a', PADC = '#9a9890', CRATE = ['#c9c4b4', '#5f8fa8', '#c8692e', '#6f7c6b', '#b8463a', '#d8b03a'], STRIPE = '#e2b52c';
 export const TEAM_COL = { blue: '#2f6fd6', red: '#d0443a' };
 // sürekli ışıyan malzemeler (gün saatinden bağımsız; ışıyan kova başına 1 çizim çağrısı)
 const LIGHT = (c, i = 1.4) => ({ collide: false, o: { emissive: c, emissiveIntensity: i, roughness: 0.6 } });
 const L_CYAN = '#7fe6ff', L_WARM = '#fff1cf', L_ORANGE = '#ffae4a';
 
-// Tabela (yalnız tarayıcı): ışığa tepki veren düzlem
-function textPlane(text, w, h, { fg = '#20242a', bg = null, font = 'bold 300px Arial, sans-serif' } = {}) {
-  const c = document.createElement('canvas'); c.width = 512; c.height = Math.max(64, Math.round(512 * h / w));
-  const g = c.getContext('2d');
-  if (bg) { g.fillStyle = bg; g.fillRect(0, 0, c.width, c.height); }
-  g.font = font; g.textAlign = 'center'; g.textBaseline = 'middle';
-  const fit = Math.min(c.width * 0.86 / Math.max(1, g.measureText(text).width), c.height * 0.8 / (+/(\d+)px/.exec(font)[1]));
-  if (fit < 1) g.font = font.replace(/(\d+)px/, (_, n) => Math.floor(n * fit) + 'px');
-  g.fillStyle = fg; g.fillText(text, c.width / 2, c.height / 2 + 6);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
-  return new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: t, transparent: true, roughness: 0.8, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2 }));
-}
-
 // ── Uzay göğü (yalnız tarayıcı): yıldız alanı, Dünya (prosedürel doku, güneşle aydınlanan yarım küre + atmosfer halesi), güneş parlaması.
 // Hepsi kameraya kilitli (onBeforeRender: konum = kamera + sabit uzaklık) → harita içinde yürürken paralaks / kayma yok; sis yok; frustum ayıklaması kapalı.
 export const SUN_POS = [70, 52, 38];
-export const EARTH_DIR = new THREE.Vector3(-0.6, 0.55, -0.62).normalize();
+export const EARTH_DIR = new THREE.Vector3(-0.55, 0.72, -0.42).normalize();      // ≈ 46° yükseklikte: dış hatlardan da kubbelerin içinden de görünür
 const lockToCam = (o, off) => { o.frustumCulled = false; o.onBeforeRender = (r, s, cam) => { o.position.copy(cam.position).add(off); }; return o; };
-function vnoise(seed) {
-  const P = new Float32Array(512); let s = seed >>> 0; for (let i = 0; i < 512; i++) { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; P[i] = s / 4294967296; }
-  const h = (x, y) => P[((x & 255) + ((y & 255) * 31 & 255)) & 511];
-  const n = (x, y) => { const xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi, u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
-    return (h(xi, yi) * (1 - u) + h(xi + 1, yi) * u) * (1 - v) + (h(xi, yi + 1) * (1 - u) + h(xi + 1, yi + 1) * u) * v; };
-  return (x, y, o = 5) => { let a = 0, f = 1, w = 0.5, t = 0; for (let i = 0; i < o; i++) { a += n(x * f, y * f) * w; t += w; f *= 2.03; w *= 0.5; } return a / t; };
+// 3B değer gürültüsü (küre yüzeyinde dikişsiz; eski 2B karma şerit çizgileri yapıyordu) + fbm
+function vnoise3(seed) {
+  const hh = (x, y, z) => { let n = (Math.imul(x, 374761393) + Math.imul(y, 668265263) + Math.imul(z, 1274126177) + Math.imul(seed, 1442695041)) | 0; n = Math.imul(n ^ (n >>> 13), 1274126177); return ((n ^ (n >>> 16)) >>> 0) / 4294967296; };
+  const sm = (t) => t * t * (3 - 2 * t), L = (a, b, t) => a + (b - a) * t;
+  const n = (x, y, z) => { const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z), u = sm(x - xi), v = sm(y - yi), w = sm(z - zi);
+    return L(L(L(hh(xi, yi, zi), hh(xi + 1, yi, zi), u), L(hh(xi, yi + 1, zi), hh(xi + 1, yi + 1, zi), u), v), L(L(hh(xi, yi, zi + 1), hh(xi + 1, yi, zi + 1), u), L(hh(xi, yi + 1, zi + 1), hh(xi + 1, yi + 1, zi + 1), u), v), w); };
+  return (x, y, z, o = 5) => { let a = 0, f = 1, wt = 0.5, t = 0; for (let i = 0; i < o; i++) { a += n(x * f + i * 17.3, y * f, z * f) * wt; t += wt; f *= 2.03; wt *= 0.5; } return a / t; };
 }
 export function earthTexture(W = 512, H = 256) {
   const c = document.createElement('canvas'); c.width = W; c.height = H;
-  const g = c.getContext('2d'), img = g.createImageData(W, H), N = vnoise(11), C = vnoise(29);
+  const g = c.getContext('2d'), img = g.createImageData(W, H), N = vnoise3(11), C = vnoise3(29), Q = vnoise3(5);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-    const lon = (x / W) * Math.PI * 2, lat = (y / H - 0.5) * Math.PI, cx = Math.cos(lat) * Math.cos(lon), cz = Math.cos(lat) * Math.sin(lon), cy = Math.sin(lat);
-    const e = N(cx * 2.2 + 5, cz * 2.2 + cy * 1.7 + 5, 6), land = e > 0.53, polar = Math.abs(lat) > 1.22 + (N(cx * 6, cz * 6, 3) - 0.5) * 0.25;
+    const lon = (x / W) * Math.PI * 2, lat = (0.5 - y / H) * Math.PI, X = Math.cos(lat) * Math.cos(lon), Z = Math.cos(lat) * Math.sin(lon), Y = Math.sin(lat);
+    const e = N(X * 1.6, Y * 1.6, Z * 1.6, 6) + (Q(X * 5, Y * 5, Z * 5, 3) - 0.5) * 0.08, land = e > 0.54, polar = Math.abs(lat) > 1.2 + (Q(X * 4, Y * 4, Z * 4, 3) - 0.5) * 0.3;
     let r, gg, b;
-    if (polar) { r = 236; gg = 242; b = 248; }
-    else if (land) { const k = Math.min(1, (e - 0.53) * 6), dry = N(cx * 4 + 9, cz * 4 + cy * 3, 4); r = 62 + 70 * dry * k; gg = 104 + 36 * (1 - dry) - 10 * k; b = 52 + 22 * dry; }
-    else { const d = Math.min(1, (0.53 - e) * 5); r = 22 - 12 * d; gg = 74 - 30 * d; b = 150 - 40 * d; }
-    const cl = C(cx * 3.2 + 1, cz * 3.2 + cy * 2.6 + 1, 5), cw = Math.max(0, Math.min(1, (cl - 0.52) * 4));
-    r = r + (250 - r) * cw * 0.9; gg = gg + (252 - gg) * cw * 0.9; b = b + (255 - b) * cw * 0.9;
+    if (polar) { r = 232; gg = 238; b = 245; }
+    else if (land) { const k = Math.min(1, (e - 0.54) * 7), dry = Math.min(1, Math.max(0, (Q(X * 2.5 + 3, Y * 2.5, Z * 2.5, 4) - 0.42) * 2.2 + (1 - Math.abs(Y)) * 0.25 - 0.1)); r = 58 + 110 * dry - 10 * k; gg = 96 + 40 * (1 - dry) - 20 * k * dry; b = 50 + 30 * dry - 10 * k; }
+    else { const d = Math.min(1, (0.54 - e) * 6); r = 24 - 14 * d; gg = 78 - 36 * d; b = 150 - 46 * d; }
+    const wx = Q(X * 2, Y * 2, Z * 2, 3) * 1.4, cl = C(X * 2.6 + wx, Y * 3.4 + wx, Z * 2.6 - wx, 5), cw = Math.max(0, Math.min(1, (cl - 0.53) * 3.4)) * (0.6 + 0.4 * Math.abs(Math.sin(lat * 3 + wx)));
+    r += (248 - r) * cw * 0.9; gg += (250 - gg) * cw * 0.9; b += (255 - b) * cw * 0.9;
     const i = (y * W + x) * 4; img.data[i] = r; img.data[i + 1] = gg; img.data[i + 2] = b; img.data[i + 3] = 255;
   }
   g.putImageData(img, 0, 0);
@@ -112,10 +101,13 @@ export function buildYorunge() {
   const callouts = [];
   const co = (name, x, z, major = false) => callouts.push({ name, x, z, ...(major ? { major: true } : {}) });
   const domes = [];                                                                      // cam kubbeler (görsel, çarpışmasız, ulaşılmaz): [cx, cz, R, y]
+  const pools = [];                                                                      // sahte ışık havuzları (zeminde eklemeli yumuşak leke, tek örnekli ağ): [x, y, z, r, renk, güç]
+  const signs = [];                                                                      // tabelalar (tek doku atlası, tek ağ): { t, w, h, fg, bg, p:[x,y,z], ry }
+  const sign = (t, w, h, p, ry = 0, fg = '#1e2329', bg = null) => signs.push({ t, w, h, p, ry, fg, bg });
 
   // ───────── yardımcılar ─────────
   // Ay kayası: taban dikdörtgeni (w × d) birebir çarpışma kutusu; üst köşeler rastgele içe çekik / alçak, tepe ≈ h (çarpışma tepesi = 0,95 h)
-  const rock = (x, z, w, d, h, col = ROCKC[Math.floor(rng() * 4)], y0 = 0) => {
+  const rock = (x, z, w, d, h, col = ROCKC[Math.floor(rng() * ROCKC.length)], y0 = 0) => {
     const pts = [], hw = w / 2, hd = d / 2, j = () => (rng() - 0.5);
     for (const [sx, sz] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) pts.push(new THREE.Vector3(sx * hw, 0, sz * hd));
     const ins = 0.08 + rng() * 0.08;
@@ -138,8 +130,14 @@ export function buildYorunge() {
   };
   // Modül: beyaz gövde kabuğu (duvar 6,2 m), iç zemin plakası, çatı (kubbeli: dairesel açıklık + cam kubbe), kapı çerçeveleri + üstte ışık şeridi
   const door = (at, w = 3) => ({ at, w, b: 0, top: 3.0 });
-  const module = (id, x0, x1, z0, z1, ops, domeR = 0) => b.obj('modül:' + id, () => {
+  const module = (id, x0, x1, z0, z1, ops, domeR = 0, { band = ORANGE, lamp = L_WARM } = {}) => b.obj('modül:' + id, () => {
     b.shell(x0, x1, z0, z1, 0, MOD_H, MOD_T, HULL, ops, k(YK.HULL));
+    {                                                                                     // dış renk bandı (kapı üstünde, 4,2 m) + çatı köşelerinde uyarı lambaları
+      const o = MOD_T / 2 + 0.03, W2 = x1 - x0 + MOD_T + 0.06, D2 = z1 - z0 + MOD_T + 0.06;
+      b.box((x0 + x1) / 2, 4.15, z0 - o, W2, 0.42, 0.04, band, nk(YK.PANEL)); b.box((x0 + x1) / 2, 4.15, z1 + o, W2, 0.42, 0.04, band, nk(YK.PANEL));
+      b.box(x0 - o, 4.15, (z0 + z1) / 2, 0.04, 0.42, D2, band, nk(YK.PANEL)); b.box(x1 + o, 4.15, (z0 + z1) / 2, 0.04, 0.42, D2, band, nk(YK.PANEL));
+      for (const xx of [x0, x1]) for (const zz of [z0, z1]) b.box(xx, MOD_H + 0.3, zz, 0.3, 0.22, 0.3, '#ff4a2a', LIGHT('#ff4a2a', 2.0));
+    }
     b.box((x0 + x1) / 2, 0, (z0 + z1) / 2, x1 - x0 - MOD_T, 0.02, z1 - z0 - MOD_T, FLOOR, nk(YK.PLATE));
     b.box((x0 + x1) / 2, MOD_H - 0.35, z0 - MOD_T / 2 - 0.04, x1 - x0 + MOD_T + 0.1, 0.35, 0.08, METAL, nk(YK.METAL));      // çatı saçağı bandı (dört yüz)
     b.box((x0 + x1) / 2, MOD_H - 0.35, z1 + MOD_T / 2 + 0.04, x1 - x0 + MOD_T + 0.1, 0.35, 0.08, METAL, nk(YK.METAL));
@@ -159,7 +157,9 @@ export function buildYorunge() {
       b.collide(x1 + MOD_T / 2 - (W / 2 - domeR) / 2, MOD_H, cz, W / 2 - domeR, 0.3, 2 * domeR);
       const q = domeR * 0.72, e = domeR - q;                                         // köşe kademesi: dairenin dışında kalan kare köşe (levha içinde)
       for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.collide(cx + sx * (q + e / 2 + 0.02), MOD_H, cz + sz * (q + e / 2 + 0.02), e - 0.04, 0.3, e - 0.04);
-      b.cyl(cx, MOD_H + 0.3, cz, domeR + 0.25, domeR + 0.25, 0.22, METAL, nk(YK.METAL, { seg: 32 }));      // kubbe bileziği (görsel, ulaşılmaz)
+      { const rs = new THREE.Shape(); rs.absarc(0, 0, domeR + 0.3, 0, 2 * PI, false); const rh = new THREE.Path(); rh.absarc(0, 0, domeR - 0.05, 0, 2 * PI, true); rs.holes.push(rh);
+        const rg = new THREE.ExtrudeGeometry(rs, { depth: 0.22, bevelEnabled: false, curveSegments: 32 }); rg.rotateX(-P2);
+        b.withKind(YK.METAL, () => b.addGeo(rg, METAL, b._local(cx, MOD_H + 0.3, cz))); }                // kubbe bileziği: açık halka (eski dolu silindir içten kara disk gibi görünüyordu)
       domes.push([cx, cz, domeR, MOD_H + 0.52]);
     }
     // kapı çerçeveleri + ışık şeridi (iki yüzde; çarpışmasız, duvardan 6 cm taşar)
@@ -173,7 +173,7 @@ export function buildYorunge() {
     for (const o of ops.w || []) frame('z', o.at, x0);
     for (const o of ops.e || []) frame('z', o.at, x1);
     // iç tavan ışıkları (çatı altında, çarpışmasız)
-    for (let x = x0 + 3; x < x1 - 2; x += 6) b.box(x, MOD_H - 0.08, cz, 1.6, 0.06, 0.4, L_WARM, LIGHT(L_WARM, 1.1));
+    for (let x = x0 + 3; x < x1 - 2; x += 6) { b.box(x, MOD_H - 0.08, cz, 1.6, 0.06, 0.4, lamp, LIGHT(lamp, 1.1)); pools.push([x, 0.035, cz, 3.2, lamp, 0.22]); }
   });
   // Hava kilidi koridoru: x0..x1 boyunca, zc ekseninde; iç genişlik 4 m, duvar 3,2 m + 0,3 m çatı (üstü 3,5 m), kaburga halkaları, tavan ışığı
   const tube = (id, x0, x1, zc, ops = {}) => b.obj('koridor:' + id, () => {
@@ -187,6 +187,8 @@ export function buildYorunge() {
       b.box(x, COR_H + 0.3, zc, 0.3, 0.06, 5.04, METAL2, nk(YK.METAL));
     }
     b.box((x0 + x1) / 2, COR_H - 0.06, zc, x1 - x0 - 1, 0.05, 0.3, L_CYAN, LIGHT(L_CYAN, 1.0));
+    for (let x = x0 + 1.6; x < x1 - 1; x += 2.6) pools.push([x, 0.035, zc, 2.2, L_CYAN, 0.16]);
+    for (const o of [...(ops.n || []).map((o) => [o, zc - 2.46]), ...(ops.s || []).map((o) => [o, zc + 2.46])]) b.box(o[0].at, 3.25, o[1], 0.5, 0.16, 0.08, '#ff4a2a', LIGHT('#ff4a2a', 2.0));      // hava kilidi uyarı lambası
     for (const o of [...(ops.n || []).map((o) => [o, zc - 2.2]), ...(ops.s || []).map((o) => [o, zc + 2.2])]) {
       const [op, c] = o;
       for (const sx of [-1, 1]) b.box(op.at + sx * (op.w / 2 + 0.12), 0, c, 0.24, 3.24, 0.52, METAL, nk(YK.METAL));
@@ -203,9 +205,14 @@ export function buildYorunge() {
     b.box(x1 - 0.05, DECK + 0.98, (z0 + z1) / 2, 0.14, 0.06, z1 - z0, STRIPE, nk(YK.STRIPE));
   };
   // Kargo konteyneri / sandık (tek kutu, kaburgalı gölgelendirici), üstte ışık şeridi
-  const crate = (x, z, w, h, d, col = CRATE[Math.floor(rng() * 4)]) => {
+  let crateN = 0;
+  const crate = (x, z, w, h, d, col = CRATE[Math.floor(rng() * CRATE.length)]) => {
     b.box(x, 0, z, w, h, d, col, k(YK.CRATE));
     b.box(x, h, z, w * 0.6, 0.04, 0.12, L_ORANGE, LIGHT(L_ORANGE, 1.0));
+    const band = col === CRATE[2] || col === CRATE[4] || col === CRATE[5] ? '#2b2f35' : STRIPE;                   // köşe bandı (renk kontrastı) + şablon yazısı (uzun yüzde)
+    b.box(x, h * 0.62, z, w + 0.02, Math.min(0.22, h * 0.16), d + 0.02, band, nk(YK.PANEL));
+    if (h >= 1.1 && (w >= 1.6 || d >= 1.6)) { const n = 'WB-' + String(11 + (crateN++ * 7) % 89).padStart(2, '0'), along = w >= d;
+      for (const sd of [-1, 1]) sign(n, Math.min(1.4, (along ? w : d) * 0.5), 0.36, along ? [x, h * 0.34, z + sd * (d / 2 + 0.012)] : [x + sd * (w / 2 + 0.012), h * 0.34, z], along ? (sd > 0 ? 0 : PI) : (sd > 0 ? P2 : -P2), '#20242a'); }
   };
 
   // ───────── zemin + çevre krater duvarı ─────────
@@ -229,13 +236,16 @@ export function buildYorunge() {
   cliff(B.maxX, B.maxX + 8, B.minZ, B.maxZ, 'z', [[6.5, 13, 0], [13, 22, 7]]);
 
   // ───────── MERKEZ MODÜL (x ±12, z ±12): cam kubbe, reaktör çekirdeği, kuzey + güney asma kat ─────────
-  module('merkez', -12, 12, -12, 12, { w: [door(3)], e: [door(3)], n: [door(0, 3.2)], s: [door(0, 3.2)] }, 7.5);
+  module('merkez', -12, 12, -12, 12, { w: [door(3)], e: [door(3)], n: [door(0, 3.2)], s: [door(0, 3.2)] }, 7.5, { band: '#2f8fc4' });
   b.obj('merkez:çekirdek', () => {
     b.box(0, 0, 0, 5.6, 0.5, 5.6, METAL, k(YK.METAL));                                     // kaide
     b.box(0, 0.5, 0, 4.4, 4.0, 4.4, HULL2, k(YK.HULL));                                    // çekirdek gövdesi (4,5 m; kubbe altından görünür)
     for (const sx of [-1, 1]) { b.box(sx * 2.22, 1.0, 0, 0.06, 3.0, 0.5, L_CYAN, LIGHT(L_CYAN, 1.6)); b.box(0, 1.0, sx * 2.22, 0.5, 3.0, 0.06, L_CYAN, LIGHT(L_CYAN, 1.6)); }
     b.box(0, 4.5, 0, 3.2, 0.25, 3.2, L_CYAN, { ...LIGHT(L_CYAN, 1.8), collide: true });    // ışıyan tepe (çekirdeğin üstü, birebir)
+    for (const sx of [-1, 1]) { b.box(sx * 2.86, 0, 0, 0.08, 0.04, 5.8, L_CYAN, LIGHT(L_CYAN, 1.4)); b.box(0, 0, sx * 2.86, 5.8, 0.04, 0.08, L_CYAN, LIGHT(L_CYAN, 1.4)); }   // kaide çevresinde zemin ışığı
+    pools.push([0, 0.035, 0, 9.5, L_CYAN, 0.42]);
   });
+  for (const sx of [-1, 1]) for (const z of [-6.5, 6.5]) { b.box(sx * 11.72, 1.2, z, 0.06, 0.9, 1.6, '#16222e', nk(YK.METAL)); b.box(sx * 11.68, 1.3, z, 0.04, 0.7, 1.4, '#58e0c0', LIGHT('#58e0c0', 0.9)); }   // duvar ekranları
   for (const sz of [-1, 1]) {                                                              // asma katlar (z ±8 … ±11,75), 3,5 m; merdiven x = ±6,5
     const z0 = sz < 0 ? -11.75 : 8, z1 = sz < 0 ? -8 : 11.75;
     b.box(0, DECK - 0.3, (z0 + z1) / 2, 23.5, 0.3, z1 - z0, GRATE, k(YK.GRATE));
@@ -256,17 +266,21 @@ export function buildYorunge() {
     // Hangar (doğuş): x 44…56, z ±10; iç kapı koridora, kuzey / güney kapıları dışarı; kapıların arkasında perde duvar (içerisi dışarıdan görünmez)
     {
       const [x0, x1] = xr(44, 56), innerW = s < 0 ? 'e' : 'w';
-      module('hangar-' + team, x0, x1, -10, 10, { [innerW]: [door(0)], n: [door(X(48), 3.2)], s: [door(X(48), 3.2)] });
+      module('hangar-' + team, x0, x1, -10, 10, { [innerW]: [door(0)], n: [door(X(48), 3.2)], s: [door(X(48), 3.2)] }, 0, { band: TC, lamp: L_WARM });
+      for (const zz of [-9.72, 9.72]) { b.box(X(53.4), 2.3, zz, 4.2, 0.12, 0.06, TC, LIGHT(TC, 1.5)); b.box(X(47.9), 3.6, zz, 2.6, 0.12, 0.06, TC, LIGHT(TC, 1.5)); }                      // iç yan duvarlarda takım rengi ışık şeridi
+      for (const [x, z] of [[51.3, -2.6], [51.3, 2.6], [53.6, 0]]) { const rg = new THREE.RingGeometry(0.8, 1.0, 20); rg.rotateX(-P2); b.withKind(YK.PANEL, () => b.addGeo(rg, TC, b._local(X(x), 0.03, z))); }   // doğuş halkaları (zemin boyası, ince halka)
+      pools.push([X(50.5), 0.035, -8.2, 4.2, TC, 0.35], [X(50.5), 0.035, 8.2, 4.2, TC, 0.35], [X(55.2), 0.035, 0, 5.0, TC, 0.3]);
       b.obj('hangar-perde-' + team, () => {
-        b.box(X(48.2), 0, -6.8, 5.0, 3.2, 0.4, HULL2, k(YK.HULL)); b.box(X(48.2), 0, 6.8, 5.0, 3.2, 0.4, HULL2, k(YK.HULL));
-        b.box(X(46.6), 0, 0, 0.4, 3.2, 5.6, HULL2, k(YK.HULL));
-        for (const z of [-6.8, 6.8]) b.box(X(48.2), 2.6, z + (z < 0 ? -0.22 : 0.22), 5.0, 0.3, 0.04, TC, nk(YK.PANEL));
-        b.box(X(46.6) + s * 0.22, 2.6, 0, 0.04, 0.3, 5.6, TC, nk(YK.PANEL));
+        // kapı girişi (perde + kanca duvarı): dış kapıdan girilen giriş odası batıya açılır → dışarıdan, çapraz bile, doğuş noktaları görünmez (spacetest ölçer)
+        for (const z of [-6.8, 6.8]) { b.box(X(48.5), 0, z, 4.4, 3.2, 0.4, HULL2, k(YK.HULL)); b.box(X(50.9), 0, z + (z < 0 ? -1.475 : 1.475), 0.4, 3.2, 2.55, HULL2, k(YK.HULL)); }
+        b.box(X(46.6), 0, 0, 0.4, 3.2, 7.6, HULL2, k(YK.HULL));
+        for (const z of [-6.8, 6.8]) b.box(X(48.5), 2.6, z + (z < 0 ? 0.22 : -0.22), 4.4, 0.3, 0.04, TC, nk(YK.PANEL));
+        b.box(X(46.6) + s * 0.22, 2.6, 0, 0.04, 0.3, 7.6, TC, nk(YK.PANEL));
       });
       for (const z of [-9.0, 9.0]) for (const x of [52.5, 54.5]) crate(X(x), z, 1.6, 1.2, 1.2);
       b.box(X(55.72), 1.0, 0, 0.06, 0.8, 14, TC, LIGHT(TC, 0.9));                          // arka duvarda takım rengi ışık bandı
       spawnPts[team] = [];
-      for (let x = 48.0; x <= 54.6; x += 1.6) for (let z = -5.2; z <= 5.21; z += 1.6) if (!(x < 49.4 && Math.abs(z) < 3.4)) spawnPts[team].push({ x: +X(x).toFixed(2), z: +z.toFixed(2), ry: s < 0 ? -P2 : P2 });
+      for (let x = 49.6; x <= 54.5; x += 1.6) for (let z = -5.2; z <= 5.21; z += 1.6) spawnPts[team].push({ x: +X(x).toFixed(2), z: +z.toFixed(2), ry: s < 0 ? -P2 : P2 });
       zones[team] = { minX: Math.min(X(44), X(56)), maxX: Math.max(X(44), X(56)), minZ: -10, maxZ: 10 };
       co((s < 0 ? 'Mavi' : 'Kırmızı') + ' Hangar', X(50), 0, true);
     }
@@ -275,7 +289,9 @@ export function buildYorunge() {
     // Lab modülü (x 21…33, z ±6): dört kapı (hat kavşağı); içeride konsollar
     {
       const [x0, x1] = xr(21, 33), wIn = s < 0 ? 'e' : 'w', wOut = s < 0 ? 'w' : 'e';
-      module('lab-' + team, x0, x1, -6, 6, { [wIn]: [door(3)], [wOut]: [door(0)], n: [door(X(27))], s: [door(X(27))] }, 4.2);
+      module('lab-' + team, x0, x1, -6, 6, { [wIn]: [door(3)], [wOut]: [door(0)], n: [door(X(27))], s: [door(X(27))] }, 4.2, { band: ORANGE, lamp: '#bfefff' });
+      pools.push([X(27), 0.035, -1.2, 3.4, L_CYAN, 0.3]);
+      for (const z of [-3.6, 3.6]) { b.box(X(32.72), 1.2, z, 0.06, 0.8, 1.8, '#16222e', nk(YK.METAL)); b.box(X(32.68), 1.3, z, 0.04, 0.6, 1.6, z < 0 ? '#6aff9c' : '#7fe6ff', LIGHT(z < 0 ? '#6aff9c' : '#7fe6ff', 0.9)); }
       b.obj('lab-konsol-' + team, () => {
         b.box(X(27), 0, -1.2, 3.2, 1.0, 1.0, METAL2, k(YK.METAL)); b.box(X(27), 1.0, -1.2, 3.0, 0.05, 0.8, L_CYAN, LIGHT(L_CYAN, 1.2));
         b.box(X(30.4), 0, 3.6, 1.0, 1.3, 2.4, METAL2, k(YK.METAL)); b.box(X(23.6), 0, -3.8, 1.0, 1.3, 2.0, METAL2, k(YK.METAL));
@@ -376,6 +392,35 @@ export function buildYorunge() {
   co('İniş Pisti', 0, 26, true); co('Mekik', 0, 25);
   for (const [x, z, w, h, d] of [[-7.5, 17.4, 2.4, 1.2, 1.6], [7.5, 17.4, 2.4, 1.2, 1.6]]) crate(x, z, w, h, d);
 
+  // ───────── tabelalar (tek atlas, tek ağ; duvardan 1,2 cm önde) ─────────
+  sign('MERKEZ', 4.2, 1.05, [0, 5.1, -12.262], PI); sign('MERKEZ', 4.2, 1.05, [0, 5.1, 12.262], 0);
+  const Y = ['#20242a', '#e2b52c'];
+  sign('LAB-1 →', 1.6, 0.42, [-5, 2.2, -12.262], PI, ...Y); sign('← LAB-2', 1.6, 0.42, [5, 2.2, -12.262], PI, ...Y); sign('← LAB-1', 1.6, 0.42, [-5, 2.2, 12.262], 0, ...Y); sign('LAB-2 →', 1.6, 0.42, [5, 2.2, 12.262], 0, ...Y);
+  for (const s of [-1, 1]) {
+    const nm = s < 0 ? 'LAB-1' : 'LAB-2', tc = TEAM_COL[s < 0 ? 'blue' : 'red'], base = s < 0 ? 'MAVİ ÜS' : 'KIZIL ÜS';
+    sign(nm, 2.8, 0.75, [s * 27, 5.1, -6.262], PI); sign(nm, 2.8, 0.75, [s * 27, 5.1, 6.262], 0);
+    sign(base, 4.6, 1.15, [s * 48, 5.15, -10.262], PI, tc); sign(base, 4.6, 1.15, [s * 48, 5.15, 10.262], 0, tc);
+    sign(base + ' · DOĞUŞ', 5.0, 1.0, [s * 55.738, 2.9, 0], s < 0 ? P2 : -P2, '#ffffff', tc);
+    sign('HAVA KİLİDİ', 1.5, 0.4, [s < 0 ? -40.8 : 42.3, 2.4, 2.412], 0, '#20242a', '#e2b52c');
+    sign('⚠ YÜKSEK GERİLİM', 2.6, 0.5, [s * 37.5, 0.55, -35.5 + 0.462], 0, '#20242a', '#e2b52c');
+  }
+  sign('ANTEN · RÖLE İSTASYONU', 4.6, 0.62, [0, 3.1, -23.988], 0, '#20242a');
+
+  // ───────── zemin ayrıntısı (çarpışmasız, ≤ 6 cm): pist halkası, kablolar, tekerlek izleri ─────────
+  {
+    const ring = new THREE.RingGeometry(4.2, 4.55, 40); ring.rotateX(-P2);
+    b.withKind(YK.STRIPE, () => b.addGeo(ring, STRIPE, b._local(0, 0.356, 26)));
+    for (const sx of [-1, 1]) b.box(sx * 8.5, 0.35, 26, 2.4, 0.008, 0.5, '#e8e6df', nk(YK.PANEL));              // pist yan işaretleri
+    const cable = (pts, col = '#2b2f35') => { for (let i = 0; i < pts.length - 1; i++) { const [ax, az] = pts[i], [bx, bz] = pts[i + 1]; b.box((ax + bx) / 2, 0, (az + bz) / 2, Math.abs(bx - ax) + 0.1, 0.06, Math.abs(bz - az) + 0.1, col, nk(YK.METAL)); } };
+    for (const s of [-1, 1]) {
+      cable([[s * 36, -23.4], [s * 36, -14.6], [s * 29.3, -14.6], [s * 29.3, -6.3]]);                         // güneş tarlası → Lab
+      cable([[s * 33, -23.4], [s * 33, -14.9]], '#c8692e');
+      cable([[s * 4.6, -24.0], [s * 4.6, -16], [s * 6.8, -16], [s * 6.8, -12.3]]);                            // anten → Merkez
+      cable([[s * 3.2, 15.0], [s * 3.2, 12.3]], '#c8692e');                                                    // pist → Merkez
+      for (const dz of [-0.75, 0.75]) b.box(s * 33.5, 0, 12.2 + dz, 23, 0.008, 0.32, '#77766f', nk(YK.DUST));   // ay aracı tekerlek izi (hangar → araç)
+    }
+  }
+
   // ───────── dış silüet (çarpışmasız, sınır dışı): uzak krater kenarı ─────────
   const nCol = b.colliders.length;
   b.withKind(YK.ROCK, () => {
@@ -389,24 +434,47 @@ export function buildYorunge() {
   const group = b.build();
   if (typeof document !== 'undefined' && !MapBuilder.noVisual) {
     spaceSky(group);
-    // cam kubbeler: yarım küre cam + 6 meridyen kaburgası + orta bilezik
-    const glass = new THREE.MeshStandardMaterial({ color: '#cfeeff', transparent: true, opacity: 0.2, roughness: 0.04, metalness: 0.3, depthWrite: false, side: THREE.DoubleSide, emissive: '#2a5274', emissiveIntensity: 0.35 });
-    const ribM = new THREE.MeshStandardMaterial({ color: METAL, roughness: 0.45, metalness: 0.6, flatShading: true });
+    // cam kubbeler: tek ağda tüm kubbe camları (içten de yıldız / Dünya görünür: düşük opaklık, çok az ışıma) + tek ağda kaburgalar (6 meridyen + 2 bilezik)
+    const glass = new THREE.MeshStandardMaterial({ color: '#d8f0ff', transparent: true, opacity: 0.11, roughness: 0.03, metalness: 0.5, depthWrite: false, side: THREE.DoubleSide, emissive: '#1c3550', emissiveIntensity: 0.08, envMapIntensity: 1.6 });
+    const gg = [], rg = [];
     for (const [cx, cz, R, y] of domes) {
-      const m = new THREE.Mesh(new THREE.SphereGeometry(R, 28, 10, 0, 2 * PI, 0, P2), glass); m.position.set(cx, y, cz); m.renderOrder = 3; group.add(m);
-      const ribs = [];
-      for (let i = 0; i < 3; i++) { const t = new THREE.TorusGeometry(R + 0.02, 0.07, 4, 20, PI); t.rotateY((i / 3) * PI); ribs.push(t); }
-      const ring = new THREE.TorusGeometry(R * Math.cos(0.6) + 0.02, 0.06, 4, 32); ring.rotateX(P2); ring.translate(0, R * Math.sin(0.6), 0); ribs.push(ring);
-      for (const g of ribs) { const mm = new THREE.Mesh(g, ribM); mm.position.set(cx, y, cz); mm.castShadow = true; group.add(mm); }
+      const sg = new THREE.SphereGeometry(R, 28, 10, 0, 2 * PI, 0, P2); sg.translate(cx, y, cz); gg.push(sg);
+      for (let i = 0; i < 3; i++) { const t = new THREE.TorusGeometry(R + 0.02, 0.075, 4, 20, PI); t.rotateY((i / 3) * PI); t.translate(cx, y, cz); rg.push(t); }
+      for (const a of [0.45, 0.95]) { const t = new THREE.TorusGeometry(R * Math.cos(a) + 0.02, 0.065, 4, 32); t.rotateX(P2); t.translate(cx, y + R * Math.sin(a), cz); rg.push(t); }
     }
-    const add = (m, x, y, z, ry = 0) => { m.position.set(x, y, z); m.rotation.set(0, ry, 0); m.renderOrder = 2; group.add(m); return m; };
-    const sign = { fg: '#1e2329', font: 'bold 160px Arial, sans-serif' };
-    add(textPlane('MERKEZ', 4.2, 0.8, sign), 0, 4.0, -12.27, PI); add(textPlane('MERKEZ', 4.2, 0.8, sign), 0, 4.0, 12.27, 0);
-    for (const s of [-1, 1]) {
-      add(textPlane(s < 0 ? 'LAB-1' : 'LAB-2', 2.6, 0.7, sign), s * 27, 4.0, -6.27, PI); add(textPlane(s < 0 ? 'LAB-1' : 'LAB-2', 2.6, 0.7, sign), s * 27, 4.0, 6.27, 0);
-      const tc = s < 0 ? '#2f6fd6' : '#d0443a', nm = s < 0 ? 'MAVİ ÜS' : 'KIZIL ÜS';
-      add(textPlane(nm, 4.6, 1.0, { fg: tc, font: 'bold 200px Arial, sans-serif' }), s * 48, 4.2, -10.27, PI); add(textPlane(nm, 4.6, 1.0, { fg: tc, font: 'bold 200px Arial, sans-serif' }), s * 48, 4.2, 10.27, 0);
+    const gm = new THREE.Mesh(mergeGeometries(gg), glass); gm.renderOrder = 3; group.add(gm);
+    const rm = new THREE.Mesh(mergeGeometries(rg.map((g) => g.toNonIndexed())), new THREE.MeshStandardMaterial({ color: METAL, roughness: 0.45, metalness: 0.6, flatShading: true })); rm.castShadow = true; group.add(rm);
+    // tabelalar: tek doku atlası (512 × 128 hücre) + tek ağ
+    const cells = new Map(); for (const sn of signs) { const key = sn.t + '|' + sn.fg + '|' + (sn.bg || ''); if (!cells.has(key)) cells.set(key, cells.size); sn.cell = cells.get(key); }
+    const cv = document.createElement('canvas'); cv.width = 2048; cv.height = 128 * Math.max(1, Math.ceil(cells.size / 4)); const cx2 = cv.getContext('2d');
+    for (const [key, i] of cells) {
+      const [t, fg, bg] = key.split('|'), x0 = (i % 4) * 512, y0 = Math.floor(i / 4) * 128;
+      if (bg) { cx2.fillStyle = bg; cx2.fillRect(x0 + 4, y0 + 4, 504, 120); }
+      let fs = 96; cx2.font = `bold ${fs}px Arial, sans-serif`; const w = cx2.measureText(t).width; if (w > 470) { fs = Math.floor(fs * 470 / w); cx2.font = `bold ${fs}px Arial, sans-serif`; }
+      cx2.fillStyle = fg; cx2.textAlign = 'center'; cx2.textBaseline = 'middle'; cx2.fillText(t, x0 + 256, y0 + 68);
     }
+    const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+    const rows = Math.ceil(cells.size / 4), sgeo = [];
+    for (const sn of signs) {
+      const pg = new THREE.PlaneGeometry(sn.w, sn.h), uv = pg.attributes.uv, i = sn.cell, u0 = (i % 4) / 4, v1 = 1 - Math.floor(i / 4) / rows, v0 = v1 - 1 / rows;
+      for (let k2 = 0; k2 < uv.count; k2++) uv.setXY(k2, u0 + uv.getX(k2) / 4, v0 + uv.getY(k2) * (v1 - v0));
+      pg.rotateY(sn.ry); pg.translate(...sn.p); sgeo.push(pg);
+    }
+    if (sgeo.length) { const sm = new THREE.Mesh(mergeGeometries(sgeo), new THREE.MeshStandardMaterial({ map: tex, transparent: true, roughness: 0.8, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, emissive: '#ffffff', emissiveMap: tex, emissiveIntensity: 0.22 })); sm.renderOrder = 2; group.add(sm); }
+    // sahte ışık havuzları: zeminde eklemeli yumuşak leke (tek örnekli ağ, tek çizim çağrısı; gerçek ışık yok → telefonda ucuz)
+    const pc = document.createElement('canvas'); pc.width = pc.height = 128; const px = pc.getContext('2d'), pgr = px.createRadialGradient(64, 64, 0, 64, 64, 64);
+    pgr.addColorStop(0, 'rgba(255,255,255,1)'); pgr.addColorStop(0.45, 'rgba(255,255,255,0.45)'); pgr.addColorStop(1, 'rgba(255,255,255,0)'); px.fillStyle = pgr; px.fillRect(0, 0, 128, 128);
+    const ptex = new THREE.CanvasTexture(pc);
+    const pgeo = new THREE.PlaneGeometry(1, 1); pgeo.rotateX(-P2);
+    const im = new THREE.InstancedMesh(pgeo, new THREE.MeshBasicMaterial({ map: ptex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, polygonOffset: true, polygonOffsetFactor: -3 }), pools.length);
+    const M4 = new THREE.Matrix4(), cc = new THREE.Color();
+    pools.forEach(([x, y, z, r, c, i], j) => { M4.makeScale(r * 2, 1, r * 2).setPosition(x, y, z); im.setMatrixAt(j, M4); im.setColorAt(j, cc.set(c).multiplyScalar(i)); });
+    im.renderOrder = 1; group.add(im);
+    // reaktör halesi (eklemeli sprite, kubbenin altında)
+    const hc = document.createElement('canvas'); hc.width = hc.height = 128; const hx = hc.getContext('2d'), hg = hx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    hg.addColorStop(0, 'rgba(150,240,255,0.9)'); hg.addColorStop(0.3, 'rgba(90,210,255,0.35)'); hg.addColorStop(1, 'rgba(60,180,255,0)'); hx.fillStyle = hg; hx.fillRect(0, 0, 128, 128);
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(hc), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false }));
+    halo.position.set(0, 5.1, 0); halo.scale.set(7.5, 5.5, 1); group.add(halo);
   }
 
   return {
@@ -416,7 +484,7 @@ export function buildYorunge() {
     colliders: b.colliders,
     sight: b.sight,
     bounds: YORUNGE_BOUNDS,
-    layered: true,                                                   // iskele / asma kat / merdiven: yol bulma hücre başına zemin kotu tutar
+    layered: false,                                                  // bot yol bulma zemin katında (tek katlı NavGrid: güverte / asma kat altı yürünür; 12.152 rol mevzileri yalnız bu ızgarada çalışır). Üst katlar insan oyuncunun dikey avantajı
     callouts,
     mini: { bg: '#4a4a48', ground: [140, 139, 135], wall: '#2a2c30', mid: '#55585c', low: '#76777a', roof: 'rgba(40,44,50,0.45)' },
     spawns: spawnPts,

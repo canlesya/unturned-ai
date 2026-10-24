@@ -69,7 +69,7 @@ MAPS.maden = {
 };
 MAPS.yorunge = {      // 12.157 Uzay modu
   id: 'yorunge', name: 'Yörünge Üssü', tag: 'Uzay · Ay yüzeyi · üç hat', thumb: '/img/yorunge.jpg', only: ['space'], forceTod: 'day', noWeather: true,
-  desc: 'Ay yüzeyinde maden / araştırma üssü: ortada içine girilen cam kubbeli Merkez Modül (asma kat), hava kilidi koridorları, kuzeyde krater tarlası ve güneş panelleri, güneyde iniş pisti ve küçük mekik, anten kulesi. Düşük yer çekiminde yüksek platformlar ve köprüler; kaya sırtları doğal siper. Gökte Dünya.',
+  desc: 'Ay yüzeyinde maden / araştırma üssü: ortada içine girilen cam kubbeli Merkez Modül (asma kat), hava kilidi koridorları, kuzeyde krater tarlası, güneş panelleri ve çatısına çıkılan anten istasyonu, güneyde iniş pisti ve küçük mekik. Düşük yer çekiminde yüksek platformlar ve köprüler; kaya sırtları doğal siper. Gökte Dünya.',
   build: () => buildYorunge(),
 };
 export const DEFAULT_MAP = 'kasaba';

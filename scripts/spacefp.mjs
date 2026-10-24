@@ -30,13 +30,19 @@ await page.evaluate(([x, z, yaw, pitch]) => {
     return s.opticId;
   };
 }, (process.env.POS || '-24,-24,-1.9,0.04').split(',').map(Number));
-const W = [['laser', 0, 'holo'], ['plasma', 0, 'reddot'], ['epistol', 1, 'iron'], ['railgun', 0, 'scope'], ['scatter', 0, 'iron']];
+const W = [['laser', 0, 'holo'], ['plasma', 0, 'reddot'], ['epistol', 1, 'iron'], ['railgun', 0, 'scope'], ['scatter', 0, 'iron'], ['elmg', 0, 'iron']];
 for (const [id, slot, optic] of W) {
   for (const ads of [0, 1]) {
     await page.evaluate(([o, hud]) => { window.__hud(hud); return window.__pose(o); }, [{ id, slot, optic, ads }, !!process.env.HUD]);
     await page.waitForTimeout(150);
     await page.screenshot({ path: `${OUT}/${id}-${ads ? 'nisan' : 'bel'}.png` });
   }
+}
+// ısınan makineli (seri sonrası) + ray tüfeği şarjı (atıştan hemen sonra): ışıma gücü (uEnK) space.js
+for (const [id, slot, optic, set, nm] of [['elmg', 0, 'iron', { heat: 0.95 }, 'elmg-sicak'], ['railgun', 0, 'scope', { charge: 0.12 }, 'railgun-sarj'], ['railgun', 0, 'scope', { charge: 1 }, 'railgun-dolu']]) {
+  await page.evaluate(([o, set]) => { window.__hud(false); window.__pose(o); const p = window.__game.player; Object.assign(p.vm, set); p.update(1 / 60); }, [{ id, slot, optic, ads: 0 }, set]);
+  await page.waitForTimeout(150);
+  await page.screenshot({ path: `${OUT}/${nm}.png` });
 }
 console.log('hatalar:', errs);
 await browser.close();

@@ -33,12 +33,12 @@ const A = innerWidth / innerHeight;
 if (view === 'weapons') {
   title('UZAY MODU · ENERJİ SİLAHLARI', 'S3 kiti (BattleBit dili) · ışıyan enerji parçaları · aynı tutuş / nişan sözleşmesi');
   const H = 4.4; camera = new THREE.OrthographicCamera(-H * A / 2, H * A / 2, H / 2, -H / 2, 0.1, 50); camera.position.set(12, 0, 0); camera.lookAt(0, 0, 0);
-  const ids = ['laser', 'plasma', 'epistol', 'railgun', 'scatter'], optic = { laser: 'iron', plasma: 'iron', epistol: 'iron', railgun: 'scope', scatter: 'iron' };
+  const ids = ['laser', 'plasma', 'epistol', 'railgun', 'scatter', 'elmg'], optic = { laser: 'iron', plasma: 'iron', epistol: 'iron', railgun: 'scope', scatter: 'iron', elmg: 'iron' };
   ids.forEach((id, i) => {
-    const y = 1.74 - i * 0.8, st = WSTATS[id];
-    const w = createWeapon(id, optic[id], false); w.scale.setScalar(1.9); w.position.set(0, y - 0.05, 2.35); w.rotation.y = 0; scene.add(w);
-    const w2 = createWeapon(id, id === 'railgun' ? 'scope' : id === 'epistol' ? 'reddot' : 'holo', false); w2.scale.setScalar(1.75); w2.position.set(0, y + 0.06, -1.55); w2.rotation.set(0.25, -0.85, 0.08); scene.add(w2);
-    label(w, st.name, `${st.dmg}${st.pellets ? '×' + st.pellets : ''} hasar · ${st.rpm} atış/dk · şarjör ${st.mag}${st.scope ? ' · 4× dürbün' : ''}`, new THREE.Vector3(0, -0.36, -0.75));
+    const col = i % 2, row = Math.floor(i / 2), y = 1.05 - row * 1.32, zc = col ? -1.95 : 1.95, st = WSTATS[id];
+    const w = createWeapon(id, optic[id], false); w.scale.setScalar(2.1); w.position.set(0, y, zc + 0.45 * 2.1 * (WSTATS[id].slot === 'secondary' ? 0.2 : 1)); scene.add(w);
+    const w2 = createWeapon(id, id === 'railgun' ? 'scope' : id === 'epistol' ? 'reddot' : 'holo', false); w2.scale.setScalar(0.95); w2.position.set(0, y + 0.42, zc - 1.05); w2.rotation.set(0.25, -0.85, 0.08); scene.add(w2);
+    label(w, st.name, `${st.dmg}${st.pellets ? '×' + st.pellets : ''} hasar · ${st.rpm} atış/dk · şarjör ${st.mag}${st.scope ? ' · 4× dürbün' : ''}${st.heat ? ' · ısınan namlu' : ''}`, new THREE.Vector3(0, -0.36, -0.6));
   });
   const grid = new THREE.GridHelper(20, 40, '#2a3040', '#1c212c'); grid.rotation.z = Math.PI / 2; grid.position.x = -2; scene.add(grid);
 } else if (view === 'one') {

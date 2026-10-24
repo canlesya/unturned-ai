@@ -213,27 +213,28 @@ function spaceGear(parts, c, cls) {
   for (const sx of [-1, 1]) box(torso, [0.13, 0.17, 0.02], T, [sx * 0.125, 0.13, -0.14]);
   box(torso, [0.2, 0.13, 0.06], D, [0, -0.06, -0.15]);
   box(torso, [0.03, 0.03, 0.01], T, [-0.06, -0.04, -0.185], null, glow);
-  box(torso, [0.03, 0.03, 0.01], '#58d68d', [0, -0.04, -0.185], null, { emissive: '#58d68d', emissiveIntensity: 1.1 });
-  box(torso, [0.03, 0.03, 0.01], '#f0b443', [0.06, -0.04, -0.185], null, { emissive: '#f0b443', emissiveIntensity: 1.1 });
+  box(torso, [0.03, 0.03, 0.01], '#58d68d', [0, -0.04, -0.185]);                                  // kumanda ışıkları (düz renk: asker başına ek çizim çağrısı olmasın)
+  box(torso, [0.03, 0.03, 0.01], '#f0b443', [0.06, -0.04, -0.185]);
   box(torso, [0.48, 0.08, 0.28], D, [0, -0.25, 0]);
-  box(torso, [0.08, 0.05, 0.02], '#9aa3ad', [0, -0.25, -0.145], null, { metalness: 0.5 });
+  box(torso, [0.08, 0.05, 0.02], '#9aa3ad', [0, -0.25, -0.145]);
   cylY(torso, 0.16, 0.17, 0.07, D, [0, 0.31, 0], 10);
   // omuz yastıkları (takım rengi, kalın) + kol bandı
   const heavy = cls === 'heavy';
   for (const sx of [-1, 1]) {
-    box(torso, [heavy ? 0.24 : 0.2, heavy ? 0.12 : 0.1, heavy ? 0.26 : 0.22], T, [sx * SHOULDER_X, SHOULDER_Y + 0.055, 0]);
-    box(torso, [heavy ? 0.245 : 0.205, 0.025, heavy ? 0.265 : 0.225], D, [sx * SHOULDER_X, SHOULDER_Y + (heavy ? 0.12 : 0.105), 0]);
+    box(torso, [heavy ? 0.27 : 0.24, heavy ? 0.13 : 0.12, heavy ? 0.29 : 0.26], T, [sx * (SHOULDER_X + 0.015), SHOULDER_Y + 0.06, 0]);      // 12.157 v2: geniş takım rengi omuz (30–40 m'de okunur)
+    box(torso, [heavy ? 0.275 : 0.245, 0.025, heavy ? 0.295 : 0.265], D, [sx * (SHOULDER_X + 0.015), SHOULDER_Y + (heavy ? 0.135 : 0.125), 0]);
   }
-  if (heavy) { box(torso, [0.42, 0.34, 0.06], new THREE.Color(T).multiplyScalar(0.55).getStyle(), [0, 0.08, -0.17], null, { metalness: 0.3 }); box(torso, [0.2, 0.06, 0.065], D, [0, -0.05, -0.18]); }
+  if (heavy) { box(torso, [0.42, 0.34, 0.06], new THREE.Color(T).multiplyScalar(0.55).getStyle(), [0, 0.08, -0.17]); box(torso, [0.2, 0.06, 0.065], D, [0, -0.05, -0.18]); }
   // sırt: yaşam destek ünitesi + iki oksijen tankı (kapaklı) + hortumlar + takım rengi ışık şeridi
-  box(torso, heavy ? [0.42, 0.5, 0.18] : [0.38, 0.46, 0.16], W, [0, 0.04, heavy ? 0.22 : 0.21]);
+  box(torso, heavy ? [0.42, 0.5, 0.18] : [0.38, 0.46, 0.16], T, [0, 0.04, heavy ? 0.22 : 0.21]);                                   // sırt ünitesi takım renginde
+  box(torso, heavy ? [0.43, 0.06, 0.185] : [0.39, 0.06, 0.165], W, [0, -0.17, heavy ? 0.22 : 0.21]);
   box(torso, [0.3, 0.035, 0.012], T, [0, 0.2, heavy ? 0.316 : 0.296], null, glow);
   for (const sx of [-1, 1]) {
-    cylY(torso, 0.06, 0.06, 0.36, '#aeb3b9', [sx * 0.1, 0.06, heavy ? 0.355 : 0.335], 10, null, { metalness: 0.45, roughness: 0.4 });
+    cylY(torso, 0.06, 0.06, 0.36, '#aeb3b9', [sx * 0.1, 0.06, heavy ? 0.355 : 0.335], 8);
     cylY(torso, 0.064, 0.064, 0.05, sx < 0 ? '#e07a2a' : D, [sx * 0.1, 0.26, heavy ? 0.355 : 0.335], 10);
     box(torso, [0.025, 0.025, 0.2], D, [sx * 0.17, 0.27, 0.1], [0.5, 0, 0]);                 // hortum (tanktan kaska)
   }
-  if (cls === 'medic') for (const [w, h] of [[0.12, 0.035], [0.035, 0.12]]) box(torso, [w, h, 0.012], '#d23a2e', [0, -0.07, heavy ? 0.316 : 0.296]);
+  if (cls === 'medic') { box(torso, [0.15, 0.15, 0.008], W, [0, -0.06, heavy ? 0.314 : 0.294]); for (const [w, h] of [[0.12, 0.035], [0.035, 0.12]]) box(torso, [w, h, 0.012], '#d23a2e', [0, -0.06, heavy ? 0.316 : 0.296]); }
   if (cls === 'engineer') { box(torso, [0.14, 0.11, 0.07], '#e07a2a', [0.19, -0.2, -0.12]); box(torso, [0.16, 0.02, 0.075], D, [0.19, -0.14, -0.12]); }
   // bacaklar: uyluk bandı (takım), kalın diz halkası, ay botu
   for (const s of ['L', 'R']) {
@@ -248,12 +249,12 @@ function spaceGear(parts, c, cls) {
   }
   // kask: alçak poligon kabuk + koyu altın vizör (yansıtıcı) + ışıyan vizör kenarı + takım şeridi; sınıfa göre anten / dürbün / lamba
   ico(head, 0.215, W, [0, 0.015, 0.01], 1, [1, 0.97, 1.03]);
-  ico(head, 0.19, new THREE.Color(T).multiplyScalar(0.25).getStyle(), [0, 0.0, -0.075], 1, [0.95, 0.66, 0.62], { metalness: 0.7, roughness: 0.14, emissive: T, emissiveIntensity: 0.42 });      // parlayan vizör (takım renginde hafif ışıma)
+  ico(head, 0.19, new THREE.Color(T).multiplyScalar(0.25).getStyle(), [0, 0.0, -0.075], 1, [0.95, 0.66, 0.62], { metalness: 0.7, roughness: 0.14, emissive: T, emissiveIntensity: 0.85 });      // parlayan vizör (takım renginde hafif ışıma)
   box(head, [0.26, 0.018, 0.04], T, [0, 0.105, -0.165], [-0.35, 0, 0], glow);
-  box(head, [0.07, 0.03, 0.44], T, [0, 0.215, 0.0]);
+  box(head, [0.17, 0.035, 0.2], T, [0, 0.222, 0.01]); box(head, [0.17, 0.035, 0.13], T, [0, 0.18, -0.14], [-0.65, 0, 0]); box(head, [0.17, 0.035, 0.13], T, [0, 0.18, 0.16], [0.65, 0, 0]);      // geniş takım rengi kask şeridi (kubbeyi izleyen üç parça)
   for (const sx of [-1, 1]) box(head, [0.05, 0.1, 0.12], D, [sx * 0.2, 0.0, 0.03]);           // kulak modülleri
   if (cls === 'sniper') { box(head, [0.05, 0.06, 0.14], D, [0.235, 0.05, -0.04]); box(head, [0.012, 0.36, 0.012], D, [-0.2, 0.25, 0.08]); }
-  else if (cls === 'engineer') { box(head, [0.08, 0.05, 0.06], D, [0.17, 0.1, -0.12]); box(head, [0.05, 0.035, 0.01], '#fff4d6', [0.17, 0.1, -0.152], null, { emissive: '#fff4d6', emissiveIntensity: 1.5 }); }
+  else if (cls === 'engineer') { box(head, [0.08, 0.05, 0.06], D, [0.17, 0.1, -0.12]); box(head, [0.05, 0.035, 0.01], '#fff4d6', [0.17, 0.1, -0.152]); }
   else if (cls === 'medic') for (const [w, h] of [[0.08, 0.025], [0.025, 0.08]]) box(head, [0.012, h, w], '#d23a2e', [-0.218, 0.07, 0.03]);
   else box(head, [0.012, 0.18, 0.012], D, [-0.19, 0.2, 0.08]);
 }

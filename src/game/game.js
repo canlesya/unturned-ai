@@ -39,6 +39,7 @@ import { EndFlow } from './endFlow.js';
 import { t as $t } from '../i18n/index.js';
 import { placeName, banText } from '../i18n/game.js';                                                         // oyun içi sözlük (hud. / death. / end. …)
 import { Payload } from './payload.js';
+import { spaceSetup } from './space.js';
 import { NADE, nadeStep, simulateNade, NadeView } from './grenade.js';
 import { createWeapon } from '../models/weapons.js';
 import { initGadgets, updateGadgets, spawnSmoke, flashBang, smokeBlocks, smokeDensity, placeDeployable, netDeploy, netUndeploy } from './gadgets.js';
@@ -193,6 +194,7 @@ export class Game {
       music.setVolume((this.settings.volume ?? 0.6) * (this.settings.vMusic ?? 0.5));
       music.play('match');
       this.weather = new Weather(this, opts.weather || 'clear');
+      spaceSetup(this);                                                            // 12.157: Uzay — parçacıklar düşük yer çekiminde, kask içi hafif boğuk ses
     }
     this.paint = new Paint(this);                         // paintball: boya topları + lekeler (başsızda yalnız simülasyon)
     this.paintColor = paintColorOf;                       // skor tablosunda oyuncunun boya rengi (hud.js)

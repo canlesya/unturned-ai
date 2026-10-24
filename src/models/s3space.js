@@ -182,5 +182,41 @@ export function scatter(mat = skinMaterial('scatter'), lod = false, o = 'iron') 
   return done(k, mat, { name: 'Dağıtıcı', hold: 'rifle', gripR: [0, -0.03, 0.05], gripL: [0, -0.075, -0.32], muzzle: [0, 0.034, -0.55], length: 0.9 }, sg);
 }
 
-export const S3SPACE = { laser, plasma, epistol, railgun, scatter };
+// ───────────────────────── Enerji Makineli (LMG karşılığı) ─────────────────────────
+// Ağır gövde, üstte taşıma kolu, altta büyük güç hücresi (90 atım), namlu çevresinde soğutma kanatları: ışıyan kanatlar seri atışta ısınır (space.js uEnK)
+export function elmg(mat = skinMaterial('elmg'), lod = false, o = 'iron') {
+  const k = newKit(lod), iron = !o || o === 'iron';
+  k.prof([[0.05, 0.0], [0.05, 0.08], [0.02, 0.1], [-0.3, 0.1], [-0.33, 0.08], [-0.33, -0.005], [-0.24, -0.04], [-0.07, -0.04], [-0.05, -0.012], [0.01, -0.012]], 0.07, 'body', { c: 0.006 });
+  for (const sx of [-1, 1]) { k.box([0.004, 0.034, 0.2], [sx * 0.0355, 0.05, -0.15], 'furn', { sh: 0.7 }); k.box([0.004, 0.012, 0.18], [sx * 0.0372, 0.05, -0.15], 'acc', { ...EN }); }
+  rail(k, 0.03, -0.18, 0.1, { w: 0.026 });
+  // taşıma kolu + ayakları
+  k.box([0.018, 0.018, 0.12], [-0.046, 0.128, -0.25], 'furn', { c: 0.004 });                       // taşıma kolu sol yanda (nişan hattını kapatmaz)
+  for (const z of [-0.2, -0.3]) k.box([0.016, 0.034, 0.016], [-0.042, 0.108, z], 'furn', { c: 0.002 });
+  // dipçik + ped
+  k.prof([[0.05, 0.09], [0.22, 0.085], [0.32, 0.075], [0.325, -0.075], [0.3, -0.09], [0.26, -0.09], [0.17, -0.025], [0.05, -0.012]], 0.05, 'furn', { c: 0.006 });
+  k.prof([[0.325, 0.078], [0.345, 0.078], [0.345, -0.086], [0.325, -0.086]], 0.054, 'acc', { c: 0.004, pat: 1 });
+  // kabza + korkuluk + tetik
+  k.prof([[0.012, -0.012], [0.05, -0.012], [0.054, -0.024], [0.09, -0.126], [0.083, -0.138], [0.05, -0.138], [0.043, -0.126], [0.04, -0.104], [0.022, -0.06], [0.014, -0.034]], 0.034, 'furn', { c: 0.005, pat: 1 });
+  guard(k, [[0.014, -0.012], [0.016, -0.028], [-0.002, -0.06], [-0.07, -0.06], [-0.07, -0.012]], [[0.004, -0.027], [-0.009, -0.051], [-0.062, -0.051], [-0.062, -0.022]], 0.01, 'furn');
+  k.prof([[-0.012, -0.018], [-0.02, -0.018], [-0.025, -0.04], [-0.019, -0.048], [-0.012, -0.038]], 0.006, 'metal', { d: 1 });
+  // namlu örtüsü (kare kesit) + soğutma kanatları (ışıyan, ısınır) + uç
+  k.xsec([[-0.03, 0.0], [0.03, 0.0], [0.034, 0.012], [0.034, 0.078], [0.03, 0.088], [-0.03, 0.088], [-0.034, 0.078], [-0.034, 0.012]], -0.33, -0.6, 'body', { c: 0.004, sh: 0.95 });
+  for (let i = 0; i < 6; i++) { const z = -0.36 - i * 0.042; k.box([0.084, 0.01, 0.014], [0, 0.044, z], 'acc', { ...EN, d: i % 2 }); k.box([0.076, 0.096, 0.012], [0, 0.044, z], 'acc', { sh: 0.45 }); }
+  k.cyl(0.018, 0.018, 0.12, [0, 0.044, -0.66], 'metal', { seg: 10 });
+  k.cyl(0.024, 0.02, 0.03, [0, 0.044, -0.725], 'acc', { seg: 12 });
+  k.cyl(0.01, 0.01, 0.004, [0, 0.044, -0.741], 'acc', { seg: 10, ...EN });
+  // katlı iki ayak (kundak altında, süs)
+  for (const sx of [-1, 1]) k.box([0.01, 0.01, 0.16], [sx * 0.018, -0.006, -0.5], 'metal', { c: 0.002, d: 1 });
+  // demir nişan (çizgi 0,128): delikli gez + arpacık örtü üstünde
+  if (iron) { for (const sx of [-1, 1]) k.box([0.003, 0.03, 0.012], [sx * 0.0105, 0.105, -0.56], 'acc', { c: 0.001 }); k.box([0.003, 0.04, 0.003], [0, 0.108, -0.56], 'acc', { sh: 0.85 }); }
+  const rear = flipRear(k, 0, 0.106, 0.012, 0.128, iron);
+  const sg = iron ? { sight: rear, pivot: [0, 0.128, -0.56], dist: ADS_DIST.iron, overlay: 'none' } : optic(k, o, 0.106, -0.1);
+  // büyük güç hücresi (grup): gövde altında kutu + ışık penceresi + tutamak
+  k.box([0.07, 0.11, 0.13], [0, -0.095, -0.165], 'furn', { c: 0.006, g: 'mag' });
+  k.box([0.072, 0.05, 0.09], [0, -0.09, -0.165], 'acc', { g: 'mag', ...EN });
+  k.box([0.074, 0.014, 0.135], [0, -0.152, -0.165], 'body', { g: 'mag', c: 0.003 });
+  return done(k, mat, { name: 'Enerji Makineli', hold: 'rifle', gripR: [0, -0.03, 0.04], gripL: [0, -0.01, -0.45], muzzle: [0, 0.044, -0.745], length: 1.08 }, sg);
+}
+
+export const S3SPACE = { laser, plasma, epistol, railgun, scatter, elmg };
 void circ;

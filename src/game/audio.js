@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { getCtx, noiseBuf, makeIR, isMobile, uiSound } from './actx.js';
 import { SYN, SHOT_DRAFT, shotBuffers } from './gunsynth.js';
+import { isSpaceShot, spaceShot } from './spaceSfx.js';
 
 // WebAudio ile sentezlenmiş sesler (dosya yok). Her ses bir "ses kaynağı" (voice): mesafe kısması + mesafeye göre alçak geçiren (uzak = boğuk) + sağ/sol pan + ses hızı gecikmesi + yankı gönderimi.
 // Katmanlar: çatlama (kısa yüksek geçiren gürültü) + gövde (taranan alçak geçiren gürültü) + gümbürtü (perdesi düşen ton) + kuyruk (uzun boğuk yankı). Bitince düğümler ayrılır (sızıntı yok, this.live sayar).
@@ -160,6 +161,7 @@ export class Sfx {
   // Silah ailesine göre ayırt edilebilir sesler (katmanlı; uzak atışta çatlama katmanı kurulmaz → hem doğal hem ucuz)
   shot(kind, pos) {
     if (!this.ctx) return;
+    if (isSpaceShot(kind)) return spaceShot(this, kind, pos);              // 12.157 Uzay modu enerji silahları (spaceSfx.js)
     switch (kind) {
       case 'knife': this._noise({ pos, gain: 0.28, dur: 0.16, f0: 900, f1: 3200, type: 'bandpass', q: 1.2 }); return;
       case 'throw': this._noise({ pos, gain: 0.2, dur: 0.15, f0: 1500, f1: 600, type: 'bandpass' }); return;
