@@ -356,7 +356,7 @@ export function showMenu(onStart, onOnline) {
       const r = await NetClient.connect(url, hello);
       cleanup();
       onOnline?.({ net: r.net, welcome: r.welcome, name, pw });
-    } catch (e) { ol = { ...ol, msg: netErr(e.message), err: true, busy: false }; render(); }
+    } catch (e) { ol = { ...ol, msg: netErr(e.message), err: true, busy: false }; render(); q('.olmsg')?.scrollIntoView({ block: 'nearest' }); }      // hata kaydırma alanının başında: koddan katılınca görünür olsun (ban / şifre / dolu)
   }
 
   // Sınıfın bir yuvasında seçili (ya da varsayılan) silah

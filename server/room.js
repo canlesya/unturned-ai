@@ -272,12 +272,12 @@ export class Room {
     return c;
   }
 
-  leave(id, ws) {
+  leave(id, ws, quiet = false) {                                       // quiet: atılan / banlanan (moderation.js kendi mesajını yazar)
     if (ws) { const i = this.pending.findIndex((p) => p.ws === ws); if (i >= 0) this.pending.splice(i, 1); this.vote?.votes.delete(ws); }
     if (!this.clients.has(id) || (ws && this.clients.get(id).ws !== ws)) return;
     const nm = this.clients.get(id).name;
     this.clients.delete(id);
-    if (this.clients.size) this.sys(`${nm} odadan ayrıldı`);
+    if (this.clients.size && !quiet) this.sys(`${nm} odadan ayrıldı`);
     this._forceSlow = true;
     this.game.releaseSlot(id);
     if (!this.clients.size) {

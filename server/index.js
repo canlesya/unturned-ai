@@ -12,7 +12,8 @@ import { useBalance } from '../src/game/balance.js';
 import { cleanSkins } from '../src/game/stats.js';
 import { loadBalance, currentBalance } from './balanceStore.js';
 import { startAdmin } from './admin.js';
-import { handleApi, byToken, guestName } from './accounts.js';
+import { handleApi, byToken, guestName, ipOf, nameKey } from './accounts.js';
+import { runCommand, checkBan, refuse } from './moderation.js';
 MapBuilder.noVisual = true;          // sunucuda görsel geometri kurulmaz
 
 const PORT = +process.env.PORT || DEFAULT_PORT;
@@ -65,10 +66,12 @@ const wss = new WebSocketServer({ server, maxPayload: 4096 });
 
 function err(ws, msg) { ws.send(JSON.stringify({ t: 'err', msg })); }
 
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, req) => {
   ws.ctx = null;                 // { room, id }
   ws.pwFails = 0;
+  ws.ip = ipOf(req);             // ban / atma engeli (moderation.js)
   ws.on('message', (data) => {
+    if (ws.dead) return;         // atıldı / banlandı: kapanana dek hiçbir şey işlenmez
     let m;
     try { m = JSON.parse(data); } catch { return; }
     if (!m || typeof m.t !== 'string') return;
@@ -76,7 +79,11 @@ wss.on('connection', (ws) => {
     if (ws.ctx) ws.ctx.room.activate();                 // odanın denge sürümü (WSTATS vb. ortak)
     if (m.t === 'in') { if (ws.ctx) ws.ctx.room.input(ws.ctx.id, m); return; }
     if (m.t === 'kill') { if (ws.ctx) ws.ctx.room.suicide(ws.ctx.id); return; }
-    if (m.t === 'chat') { if (ws.ctx) ws.ctx.room.chat(ws.ctx.id, m); return; }
+    if (m.t === 'chat') {
+      if (!ws.ctx) return;
+      if (typeof m.m === 'string' && m.m.trimStart().startsWith('/')) return command(ws, m.m);      // moderatör komutu: sohbete yayınlanmaz
+      ws.ctx.room.chat(ws.ctx.id, m); return;
+    }
     if (m.t === 'opt') { if (ws.ctx) ws.ctx.room.opt(ws.ctx.id, m); return; }
     if (m.t === 'dbg' && process.env.BF_DEBUG && ws.ctx) { ws.ctx.room.debug(ws.ctx.id, m); return; }   // yalnızca test için
     if (m.t === 'vote') { if (ws.ctx) ws.ctx.room.castVote(ws, m.i); return; }      // maç sonu oylaması (yalnız insanlar)
@@ -87,6 +94,11 @@ wss.on('connection', (ws) => {
       return;
     }
     if (ws.ctx) return err(ws, 'Zaten bir odadasın');
+    if (m.t === 'create' || m.t === 'join') {                                        // banlı / yeni atılmış: odaya girmeden reddedilir
+      ws.who = identify(ws, m);
+      const b = checkBan(ws.who);
+      if (b) { console.log(`[mod] giriş reddedildi (${b.k}): ${ws.who.name} ${ws.ip}`); return refuse(ws, b); }
+    }
     if (m.t === 'create') {
       if ([...rooms.values()].filter((r) => !r.official).length >= MAX_ROOMS) return err(ws, 'Sunucu dolu, sonra tekrar dene');
       let code; do code = makeRoomCode(); while (rooms.has(code) || /^OFC\d/.test(code));            // OFC* resmi sunuculara ayrılmış
@@ -111,6 +123,28 @@ wss.on('connection', (ws) => {
   ws.on('close', () => { if (ws.ctx) { ws.ctx.room.activate(); ws.ctx.room.leave(ws.ctx.id, ws); } });
   ws.on('error', () => {});
 });
+
+// Kim: hesap (geçerli jeton) ya da misafir; ad anahtarı + IP (ban / moderatör yetkisi bununla)
+function identify(ws, m) {
+  const a = byToken(m.tok);
+  const name = a ? a.name : guestName(cleanName(m.name));
+  return { name, key: nameKey(name), acct: !!a, ip: ws.ip };
+}
+
+// Sohbetten '/' komutu (server/moderation.js): yanıt yalnız gönderene; hız sınırı 10 sn'de 8 (test: BF_CMD_RATE)
+const CMD_RATE = +process.env.BF_CMD_RATE || 8;
+function command(ws, text) {
+  const room = ws.ctx.room, c = room.clients.get(ws.ctx.id);
+  if (!c || c.ws !== ws) return;
+  const now = Date.now(), t = (ws.cmdT ||= []);
+  while (t.length && now - t[0] > 10000) t.shift();
+  const reply = (s) => { if (ws.readyState === 1) ws.send(JSON.stringify({ t: 'chat', sys: 1, m: s })); };
+  if (t.length >= CMD_RATE) return reply('Çok hızlı komut yazıyorsun, biraz bekle');
+  t.push(now);
+  let lines;
+  try { lines = runCommand(text.replace(/[\p{Cc}\p{Cf}]/gu, ' ').trim().slice(0, 160), { rooms, room, client: c, now }); } catch (e) { console.error('[mod]', e); lines = ['Komut çalıştırılamadı']; }
+  for (const s of lines) reply(s);
+}
 
 // Odadaki ad: geçerli jetonla hesabın adı (istemci değiştiremez); jetonsuz / sahte jetonla misafir, kayıtlı bir adı aldıysa sonuna sayı (Ali → Ali2)
 function playerName(m) {

@@ -35,7 +35,7 @@ import { Paint, paintColorOf } from './paint.js';
 import { Pickups } from './pickups.js';
 import { EndFlow } from './endFlow.js';
 import { t as $t } from '../i18n/index.js';
-import { placeName } from '../i18n/game.js';                                                         // oyun içi sözlük (hud. / death. / end. …)
+import { placeName, banText } from '../i18n/game.js';                                                         // oyun içi sözlük (hud. / death. / end. …)
 import { Payload } from './payload.js';
 import { initGadgets, updateGadgets, spawnSmoke, flashBang, smokeBlocks, smokeDensity, placeDeployable, netDeploy, netUndeploy } from './gadgets.js';
 
@@ -1118,10 +1118,12 @@ export class Game {
   // Eski sunucu: oda sıfırlandı, sayfa yenilenip yeniden katılınır. Yeni sunucu (re:1) aynı bağlantıda 'welcome' yollar (main.js oyunu yeniden kurar)
   onNetRestart(m) { if (!m || !m.re) location.reload(); }
 
-  onNetClosed() {
-    if (this.ended) return;
-    this.hud.toast($t('hud.t.disconnected'), '#ff8a7a');
+  // kicked: sunucunun { t:'kicked', k, ms, r } mesajı (moderatör attı / banladı) → genel "bağlantı koptu" yerine nedeni gösterilir
+  onNetClosed(kicked) {
+    if (this.ended && !kicked) return;
     this.ended = true; this.running = false;
+    if (kicked) { this.chat?.close?.(); document.exitPointerLock?.(); this.hud.showEnd(false, $t(kicked.k === 'ban' ? 'ban.banTitle' : 'ban.kickTitle'), banText(kicked), ''); this.hud.$('bAgain').style.display = 'none'; return; }      // tekrar katılma düğmesi yok: yalnız ana menü
+    this.hud.toast($t('hud.t.disconnected'), '#ff8a7a');
     this.hud.showEnd(false, $t('end.lost'), $t('end.lostInfo'), '');
   }
 
