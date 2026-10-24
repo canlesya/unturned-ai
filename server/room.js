@@ -349,12 +349,13 @@ export class Room {
     if (typeof m.spawn === 'string') h.spawnChoice = m.spawn === 'base' || g.mode.objectives.some((o) => o.id === m.spawn) ? m.spawn : 'base';
   }
 
-  // BF_DEBUG=1 ile açılan test komutları: { t:'dbg', tp:[x,z] } ışınla · { hp } can · { bots:false } botları sustur · { pb:1 } herkese paintball silahları · { zb:'brute' } zombi ol · { ask } durum
+  // BF_DEBUG=1 ile açılan test komutları: { t:'dbg', tp:[x,z] } ışınla · { tpy:[x,y,z] } havada bırak · { hp } can · { bots:false } botları sustur · { pb:1 } herkese paintball silahları · { zb:'brute' } zombi ol · { ask } durum
   debug(id, m) {
     const c = this.clients.get(id), g = this.game;
     if (!c) return;
     const s = c.h.s;
     if (Array.isArray(m.tp)) { s.pos.set(m.tp[0], g.world.heightAt(m.tp[0], m.tp[1]), m.tp[2 - 1]); s.vel.set(0, 0, 0); g.world.settle(s); s.protT = 0; }
+    if (Array.isArray(m.tpy) && m.tpy.length === 3 && m.tpy.every(Number.isFinite)) { s.pos.set(m.tpy[0], m.tpy[1], m.tpy[2]); s.vel.set(0, 0, 0); s.onGround = false; s.fallTop = m.tpy[1]; s.protT = 0; }   // { tpy:[x,y,z] } havada bırak (düşme hasarı testi)
     if (Number.isFinite(m.hp)) s.hp = m.hp;
     if (Array.isArray(m.item) && WSTATS[m.item[1]]) s.items[m.item[0] | 0] = { id: m.item[1], mag: 3, reserve: 0 };
     if (m.kill) s.takeDamage(9999, s, 'body', s.pos, 'test'), s.protT = 0;

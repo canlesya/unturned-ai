@@ -8,6 +8,7 @@ export const H_CROUCH = 1.3;
 export const H_PRONE = 0.55;
 const STEP = 0.5;
 import { TUNE } from './balance.js';
+import { fallHeight } from '../sim/fall.js';
 const GRAV = 15;                 // varsayılan; TUNE.gravity kullanılır
 
 export class World {
@@ -75,7 +76,8 @@ export class World {
 
   move(s, dt) {
     const p = s.pos, v = s.vel, h = s.height, T = this.terrain;
-    if (s.fly) { p.x += v.x * dt; p.y += v.y * dt; p.z += v.z * dt; s.onGround = false; return; }   // geliştirici haritası: serbest uçuş (çarpışmasız)
+    s.landH = 0;                                                               // bu adımda inildiyse eşdeğer düşüş yüksekliği (m; düşme hasarı: sim/fall.js, game.fallCheck)
+    if (s.fly) { p.x += v.x * dt; p.y += v.y * dt; p.z += v.z * dt; s.onGround = false; s.fallSafe = true; s.fallTop = p.y; return; }   // geliştirici haritası: serbest uçuş (çarpışmasız); uçuştan sonraki ilk iniş hasarsız
     const wasOnGround = s.onGround;
     if (s.launchT > 0) s.launchT = wasOnGround ? 0 : s.launchT - dt;          // zıplama minderi uçuşu: havada yön değişimi azdır (sim/input.js)
     const list = this.query(p.x - 2, p.z - 2, p.x + 2, p.z + 2, (this._tmp ||= []));
@@ -114,7 +116,7 @@ export class World {
 
     const gh = T ? T.heightAt(p.x, p.z) : 0;
     if (T && wasOnGround && !s.onCollider && !stepped && v.y <= 0 && p.y > gh && p.y - gh < 0.5) p.y = gh;   // yokuş aşağı yere yapış
-    const prevY = p.y;
+    const prevY = p.y, vIn = v.y;
     p.y += v.y * dt;
     s.onGround = false; s.onCollider = false;
     if (p.y <= gh) { p.y = gh; if (v.y < 0) v.y = 0; s.onGround = true; }
@@ -122,11 +124,21 @@ export class World {
     if (c) {
       if (v.y <= 0 && prevY >= c.max[1] - 0.05) {
         p.y = c.max[1]; v.y = 0; s.onGround = true; s.onCollider = true;
-        if (c.pad) { v.x = c.pad[0]; v.y = c.pad[1]; v.z = c.pad[2]; s.launchT = c.pad[3]; s.onGround = false; s.onCollider = false; s.game?.emit?.('pad', s); }   // zıplama minderi: fırlat
+        if (c.pad) { v.x = c.pad[0]; v.y = c.pad[1]; v.z = c.pad[2]; s.launchT = c.pad[3]; s.onGround = false; s.onCollider = false; s.fallSafe = true; s.game?.emit?.('pad', s); }   // zıplama minderi: fırlat (bu uçuşun inişi hasarsız)
       }
       else if (v.y > 0) { p.y = c.min[1] - h - 1e-3; v.y = 0; }
       else { p.y = prevY; v.y = 0; }
     }
+    // iniş: havadan yere / kutu üstüne değdi → düşüş yüksekliği = havadaki en yüksek nokta (zirve, zıplama dahil) − iniş noktası.
+    // Kare süresinden bağımsız olsun diye zirve izlenir; ışınlanma / düzeltme zirveyi bozarsa iniş hızı sınırlar (v² / 2g + 0,6 m).
+    // Derin suya (Vadi nehri) ya da minder / uçuş sonrası iniş hasarsız.
+    if (s.onGround) {
+      if (!wasOnGround) {
+        if (!s.fallSafe && !(T && !s.onCollider && gh < (T.deepWater ?? DEEP_WATER))) s.landH = Math.max(0, Math.min((s.fallTop ?? p.y) - p.y, fallHeight(-vIn, TUNE.gravity) + 0.6));
+        s.fallSafe = false;
+      }
+      s.fallTop = p.y;
+    } else s.fallTop = Math.max(s.fallTop ?? p.y, p.y);
 
     const b = this.bounds;
     p.x = Math.max(b.minX, Math.min(b.maxX, p.x));

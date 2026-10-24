@@ -28,6 +28,7 @@ import { rand, pick, clamp } from './util.js';
 import { TEAMS } from '../core/palette.js';
 import { nullSink } from '../sim/nullSink.js';
 import { applyInput } from '../sim/input.js';
+import { fallDamage, fallApplies, FALL } from '../sim/fall.js';
 import { SIM_DT } from '../net/protocol.js';
 import { mat } from '../core/geo.js';
 import { t } from '../i18n/index.js';
@@ -463,7 +464,7 @@ export class Game {
   humanTick(h, inp, dt) {
     const s = h.s;
     s.update(dt);
-    if (s.alive) this.world.move(s, dt);
+    if (s.alive) { this.world.move(s, dt); this.fallCheck(s); }
     if (!s.alive) return;
     s.yaw = inp.yw; s.pitch = Math.max(-1.5, Math.min(1.5, inp.pt));
     s.ads = !!inp.a;
@@ -758,6 +759,52 @@ export class Game {
     if (s.isPlayer) this.hud.onPlayerSpawn?.();
   }
 
+  // ───── düşme hasarı (12.143; tablo: sim/fall.js) ─────
+  // YETKİLİ taraf (çevrimdışı oyun / sunucu) uygular: World.move inişte s.landH'yi yazar. Koruma / ölümsüzlük takeDamage'daki gibi; saldıran yok
+  // (botun onDamaged'ı tetiklenmez, isabet işareti yok). Ölürse "Düştü": kendi kendine, puan kimseye (İntihar / Kuyu ile aynı akış).
+  fallCheck(s) {
+    const h = s.landH;
+    if (!(h > FALL.safe) || !s.alive || !fallApplies(s, this.mode)) return;
+    if (s.protT > 0 || (s.isPlayer && this.devGod)) return;
+    const dmg = fallDamage(h);
+    if (dmg <= 0) return;
+    s.hp -= dmg; s.lastDmgT = this.time; s.useT = 0;
+    if (s.isPlayer) this.fallFx(dmg);
+    else if (s.human) this.netEvent({ e: 'fall', v: s.id, d: dmg, h: +h.toFixed(1) });
+    this.emit('fall', { s, h, dmg });
+    if (s.hp <= 0) { s.lastHit = s; s.die(s, 'Düştü', false); }
+  }
+
+  // Çevrimiçi istemci: aynı tabloyla iniş anında tahmin (geri bildirim + can göstergesi); sunucu bu girdiyi onaylayınca (ack ≥ q) can sunucudan gelir
+  // (NetClient.reconcile), çift düşülmez. Ölüm kararı yalnız sunucuda.
+  fallPredict(me) {
+    const h = me.landH;
+    if (!(h > FALL.safe) || !fallApplies(me, this.mode) || me.protected || this.devGod) return;
+    const dmg = fallDamage(h);
+    if (dmg <= 0) return;
+    this.online.fallPred = { q: this.online.seq + 1, dmg };              // iniş, bir sonraki gönderilecek girdinin sunucu adımında olur (önce hareket, sonra girdi)
+    me.hp = Math.max(1, me.hp - dmg);
+    this.fallFx(dmg);
+  }
+
+  // Uzlaştırmada yeniden oynatılan adımda iniş (NetClient.reconcile): tahmini o girdiye bağla; geri bildirim son 1 sn'de verilmediyse şimdi
+  fallReplay(me, q) {
+    const h = me.landH;
+    const dmg = h > FALL.safe && fallApplies(me, this.mode) && !me.protected && !this.devGod ? fallDamage(h) : 0;
+    if (dmg <= 0) { if (this.online.fallPred?.q === q) this.online.fallPred = null; return; }
+    this.online.fallPred = { q, dmg };
+    if (!(this.time - (this._fallFxAt ?? -9) < 1)) this.fallFx(dmg);
+  }
+
+  // İniş darbesi: kısa kamera sarsıntısı + hasar sesi + genel (yönsüz) kırmızı kenar
+  fallFx(dmg) {
+    if (this.headless) return;
+    this._fallFxAt = this.time;
+    this.effects.shake = Math.max(this.effects.shake, clamp(0.25 + dmg / 80, 0.3, 1));
+    this.hud.damageFrom(null, this.playerSoldier);
+    this.sfx.hurt();
+  }
+
   // Kuyu (map.voidY altına düşen) elenir: ölüm sayılır; son 5 sn içinde biri vurduysa öldürme ona yazılır ("düşürdü"), yoksa kendi düştü
   updateVoid() {
     for (const s of this.soldiers) {
@@ -946,7 +993,7 @@ export class Game {
     if (this._badge && (this._badgeT -= dt) <= 0) { this._badgeT = 0.5; const rtt = Math.round(this.online.stats.rtt || 0); this._badge.innerHTML = `ODA <b style="color:#ffb347">${this._badgeCode}</b> · ${rtt ? rtt + ' ms' : '…'} · ${Math.round(this._perf?.fps || 0)} FPS`; }
     const me = this.playerSoldier;
     for (const s of this.soldiers) s.update(dt);
-    if (me.alive) this.world.move(me, dt); else if (me.respawnT > 0) me.respawnT -= dt;
+    if (me.alive) { this.world.move(me, dt); this.fallPredict(me); } else if (me.respawnT > 0) me.respawnT -= dt;
     this.player.update(dt);
     { const m = this.playerSoldier.pos; if (!this._p0) { this._p0 = m.clone(); this._p1 = m.clone(); } else { const t = this._p0; this._p0 = this._p1; this._p1 = t; t.copy(m); } }       // yerel karakter konumu: son iki adım
     {                                                                                             // kamera ara değerleme için son iki adım (nesne yeniden kullanılır)
@@ -970,7 +1017,7 @@ export class Game {
     for (const s of this.soldiers) {
       if (s.human && s.alive) continue;            // canlı insanlar girdi güdümlü (updateHumans)
       s.update(dt);
-      if (s.alive) this.world.move(s, dt);
+      if (s.alive) { this.world.move(s, dt); this.fallCheck(s); }
     }
     if (this.player) this.player.update(dt); else this.updateHumans(dt);
     for (const b of this.brains) b.update(dt);
@@ -1017,6 +1064,7 @@ export class Game {
         }
         case 'hm': if (ev.by === me.id) this.emit('hitmark', { zone: ev.hd ? 'head' : 'body', dead: !!ev.dead }); break;
         case 'dmg': if (ev.v === me.id) { this.hud.damageFrom(new V(ev.x, 0, ev.z), me); this.sfx.hurt(); } break;
+        case 'fall': if (ev.v === me.id && !(this.time - (this._fallFxAt ?? -9) < 1)) this.fallFx(ev.d); break;     // düşme hasarı: tahmin etmediysek (yanlış tahmin) sunucudan geri bildirim
         case 'kill': {
           const victim = this.soldiers[ev.v], killer = this.soldiers[ev.k] || victim;
           if (!victim) break;
