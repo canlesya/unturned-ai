@@ -5,14 +5,28 @@ import { makeTrack } from '../game/track.js';
 
 // "Maden Ocağı" — Vagon modu haritası (96 × 72 m, 5v5–8v8). Kayalık bir maden vadisi; patlayıcı yüklü vagon güneybatıdaki yükleme avlusundan
 // kuzeydoğudaki maden ağzına raylarla gider: Kırma Tesisi → A · Makas (1. kontrol) → köy caddesi → B · Kantar (2. kontrol) → Lavvar → C · Maden Ağzı.
-// Saldıran Mavi, savunan Kırmızı. Kontrol noktası geçildikçe iki takımın doğuş avlusu ileri kayar (plStages): avlular aşamalar arasında el değiştirir
-// (1. kontrolden sonra Mavi A'nın yanındaki Ambar'da doğar · kuzey avlusu: önce Kırmızı, sonra Mavi). Avlular 3 m taş duvarlı, her birinin ≥ 3 çıkışı var.
+// Saldıran Mavi, savunan Kırmızı. Kontrol noktası geçildikçe iki takımın doğuşu ileri kayar (plStages). v2 (12.149): oyun vagonun etrafında döner —
+// savunan her aşamada sıradaki noktanın hemen ilerisinde doğar (Demirci → Doğu Avlu → Vinç Avlusu) ve vagona rayın geldiği yönden yaklaşır; saldıran vagonun
+// arkasında (Yükleme Avlusu → Ambar → Kuzey Avlu). Ray dışındaki kestirmeler kaya kütleleriyle kapandı (Kuzeybatı Sırtı, Bunker Kayası, Kuzey Ocak);
+// her aşamada ray boyunca bir ana hat + iki kanat (PL_HINTS) kalır. Savunana yüksek zemin: Makas İskelesi (A), Cevher İskelesi (C), 1,4 m.
+// Yön: A kapısı (portal + sinyal), kantar kirişinde B levhası, raylar arasında sarı oklar, kontrol noktalarında sarı-siyah travers bandı.
 // Kural: görünen her katı parçanın çarpışması birebir (bileşik eşyada görsel parçalar çarpışmasız, çarpışma = dış zarf); görünmez engel yok; çatılara çıkılmaz.
 // Çizim: düz parçalar tek ağ (madenSurface gölgelendiricisi) + lamba (parlak) + cam + tabelalar + maden kapısı.
 
 export const MADEN_BOUNDS = { minX: -48, maxX: 48, minZ: -36, maxZ: 36 };
 // Ray: eksen hizalı köşe noktaları (köşede 2,5 m yay). Vagon x = −34'ten başlar; kontrol noktaları 2. ve 4. köşe yayının ortası; uç = maden kapısının önü.
 export const MADEN_TRACK = [[-46, 26], [-18, 26], [-18, 6], [8, 6], [8, -16], [30, -16], [30, -31]];
+// Bot ipuçları (v2, yalnız veri; harita bunları kullanmaz): aşama başına savunanın tutma noktaları (hold: x, z, y = zemin kotu, kind 'high' yüksek zemin /
+// 'cover' siper, look = bakış yönü) ve saldıranın kanat rotaları (flank: ara noktalar, son nokta vagonun / kontrol noktasının yanında).
+// Hepsi nav ızgarasında yürünebilir ve her aşamanın doğuşundan ulaşılabilir (scripts/pltest.mjs denetler).
+export const PL_HINTS = [
+  { hold: [{ x: -19.6, z: -5.0, y: 1.4, kind: 'high', look: [0, 1] }, { x: -14.6, z: -0.6, y: 0, kind: 'cover', look: [0, 1] }, { x: -11.5, z: 12.2, y: 0, kind: 'cover', look: [-1, 0.6] }, { x: -21.4, z: 8.2, y: 0, kind: 'cover', look: [0.3, 1] }],
+    flank: [[[-41.5, 12], [-33, 11], [-26, 13], [-26, 6.6], [-21.5, 3.6]], [[-21.7, 22.8], [-13, 22], [-11.4, 11.6], [-12.8, 5.0]]] },
+  { hold: [{ x: 7.9, z: -17.4, y: 0, kind: 'cover', look: [0, 1] }, { x: 3.8, z: -6.2, y: 0, kind: 'cover', look: [0, 1] }, { x: 12.3, z: -3.2, y: 0, kind: 'cover', look: [-0.4, 1] }, { x: 3.6, z: -12.8, y: 0, kind: 'cover', look: [0.3, 1] }],
+    flank: [[[-14.6, -1.6], [-14.6, -10.5], [-6.6, -10.8], [4.4, -9.8], [6.0, -13.6]], [[-5.5, 9.6], [12.6, 11.6], [12.3, -3.6], [11.8, -10.6]]] },
+  { hold: [{ x: 25.8, z: -30.0, y: 1.4, kind: 'high', look: [0.5, 1] }, { x: 33.3, z: -25.0, y: 0, kind: 'cover', look: [-0.5, 1] }, { x: 33.0, z: -18.5, y: 0, kind: 'cover', look: [-1, 0.2] }, { x: 26.8, z: -20.5, y: 0, kind: 'cover', look: [-1, 0.3] }],
+    flank: [[[6.5, -22.8], [16, -23.6], [24.5, -23.6], [27.6, -25.8]], [[12.4, -8.0], [24.5, -8.0], [27.6, -11.2], [32.6, -14.2]]] },
+];
 const NC = { collide: false };
 const k = (kind, o = {}) => ({ ...o, kind }), nk = (kind, o = {}) => ({ collide: false, ...o, kind });
 const PI = Math.PI, P2 = PI / 2;
@@ -20,7 +34,7 @@ const PI = Math.PI, P2 = PI / 2;
 // renkler: toprak / ahşap / taş; büyük doygun mavi-kırmızı yüzey yok (takım renkleri ve vagon öne çıksın)
 const DIRT = '#a3876a', GRAVEL = '#8a8174', PAVE = '#a39a8b', STONEC = '#9a9285', ROCK = '#7f6a57', ROCK2 = '#8b7560', ROCK3 = '#735f4e';
 const TIN = '#8e9190', TILE = '#97674c', STEEL = '#5b6168', STEEL_D = '#3a3e44', WOOD = '#a07a4c', WOOD_D = '#7a5a36', BEAM = '#6e5233';
-const ORE = '#5f5852', ORE_R = '#86624a', LAMP = '#ffe2a8', CONC = '#aaa498', MARK = '#e0c040';
+const SIG = '#ffbe45', ORE = '#5f5852', ORE_R = '#86624a', LAMP = '#ffe2a8', CONC = '#aaa498', MARK = '#e0c040';
 const HOUSE = ['#a2825c', '#8f7354', '#b0956c', '#7f8a7e', '#b59a64', '#8a7b6a'];
 
 // Tabela / zemin harfi (yalnız tarayıcı): ışığa tepki veren düzlem
@@ -135,7 +149,11 @@ export function buildMaden() {
       });
     }
     const n = Math.floor(tr.len / 0.7), q = {};
-    for (let i = 0; i <= n; i++) { tr.at(i * 0.7, q); if (opt.skip && opt.skip(q)) continue; b.with(q.x, 0.04, q.z, q.yaw, () => b.box(0, 0, 0, 1.6, 0.06, 0.2, '#6e5538', nk(MK.WOOD))); }
+    for (let i = 0; i <= n; i++) {
+      tr.at(i * 0.7, q); if (opt.skip && opt.skip(q)) continue;
+      const mk = (opt.marks || []).some((d) => Math.abs(i * 0.7 - d) < 1.5);                   // kontrol noktası: sarı-siyah boyalı travers bandı
+      b.with(q.x, 0.04, q.z, q.yaw, () => b.box(0, 0, 0, 1.6, 0.06, 0.2, mk ? (i % 2 ? MARK : '#2a2622') : '#6e5538', nk(mk ? MK.MARK : MK.WOOD)));
+    }
   };
 
   // ───────── zemin ─────────
@@ -147,7 +165,7 @@ export function buildMaden() {
   const patch = (x0, x1, z0, z1, c) => b.box((x0 + x1) / 2, 0, (z0 + z1) / 2, x1 - x0, 0.006, z1 - z0, c, nk(MK.DIRT));   // koyu toprak izi (6 mm)
   for (const [x0, x1, z0, z1, c] of [[-38, -14, 22.6, 29.4, '#957a5d'], [-21.4, -14.6, 6, 22.6, '#957a5d'], [-14.6, 10, 10, 13, '#9a7f61'], [4.6, 11.4, -12.6, 6, '#957a5d'], [8, 32, -19.4, -12.6, '#957a5d'], [26.6, 33.4, -32, -19.4, '#957a5d'],
     [-45, -41, -22, 14, '#9b8063'], [-12, -6, -26, 2, '#9b8063'], [-1, 2, -26, -19, '#9b8063'], [25, 38, -2, 1, '#9b8063'], [12, 16, 6, 24, '#9b8063']]) patch(x0, x1, z0, z1, c);
-  rails(track);
+  rails(track, { marks: [1, 3].map((i) => track.corners[i]) });
   rails(makeTrack([[-18, 3], [-31, 3]], 1), {});                                              // A meydanı yan hattı (makas)
 
   // ───────── çevre kayalıkları (iç yüz = sınır) + iç kaya kütleleri ─────────
@@ -157,11 +175,17 @@ export function buildMaden() {
   bench(B.minX - 10, B.minX, B.minZ, B.maxZ, 'e', [5, 9.5, 14]);                           // batı
   bench(B.maxX, B.maxX + 10, B.minZ, B.maxZ, 'w', [5, 9.5, 14]);                           // doğu
   bench(20, 48, 18, 36, 'nw', [4.5, 8, 11.5]);                                             // güneydoğu kaya kütlesi (taş ocağının arkası)
-  bench(-30, -18, -36, -27, 'swe', [4.5, 7.5]);                                            // kuzeybatı kaya burnu (iki avlu arasında görüş keser)
+  // Kuzeybatı Sırtı (v2): eski kuzeybatı avlu + kaya burnu tek kaya kütlesi. Batı kanadı (Kömür Bunkeri / Kantin) artık yalnız A'ya açılır,
+  // Kırmızı'nın kuzey avlusuna (ve doğuşlar arası kestirmeye) bağlanmaz; demircinin arkasındaki çıkıntı geçidi kapatır.
+  bench(-48.5, -12.3, -36.5, -20, 'se', [4.6, 8.2]);
+  bench(-22.25, -15.75, -20.4, -14.24, 's', [4.4]);                                        // demirci arkası çıkıntı (kuzey duvarına yaslı)
+  // Kuzey Ocak (v2): kuzey avlu ile maden avlusu arasında kaya; kuzey bandındaki doğuştan doğuşa uzun hat / kestirme kalkar,
+  // Lavvar'ın kuzeyinde 2,7 m'lik ara yol (kanat) kalır.
+  bench(4.4, 23.6, -36.5, -25, 'se', [4.6, 7.8]);
   bench(-12, -6, 30.5, 36, 'nwe', [4.2]);                                                  // güney kaya cebi
-  for (const [x, y, z, s] of [[-40, 9.3, -40.5, 1.1], [-22, 9.3, -40.6, 1.3], [-6, 14.2, -44, 1], [12, 9.3, -40.4, 1.2], [40, 14.2, -44.5, 1], [-52.5, 8.8, -10, 1.2], [-52.5, 8.8, 14, 1], [52.5, 8.8, -22, 1.1], [52.5, 8.8, 4, 1.3], [-30, 8.3, 40.5, 1], [6, 12.2, 44, 1.2], [30, 10.8, 30, 1.1], [36, 10.8, 31.5, 0.9], [42, 10.8, 29, 1.2], [24, 7.3, 22.4, 0.9]])
+  for (const [x, y, z, s] of [[-40, 9.3, -40.5, 1.1], [-22, 9.3, -40.6, 1.3], [-40, 7.6, -31, 1.1], [-31, 7.6, -32.5, 0.9], [-21, 7.6, -27, 1.0], [10, 7.2, -31, 1.0], [17, 7.2, -33, 1.2], [-6, 14.2, -44, 1], [12, 9.3, -40.4, 1.2], [40, 14.2, -44.5, 1], [-52.5, 8.8, -10, 1.2], [-52.5, 8.8, 14, 1], [52.5, 8.8, -22, 1.1], [52.5, 8.8, 4, 1.3], [-30, 8.3, 40.5, 1], [6, 12.2, 44, 1.2], [30, 10.8, 30, 1.1], [36, 10.8, 31.5, 0.9], [42, 10.8, 29, 1.2], [24, 7.3, 22.4, 0.9]])
     pine(x, y, z, s);
-  co('Kuzey Kayalığı', -24, -31);
+  co('Kuzeybatı Sırtı', -30, -28); co('Kuzey Ocak', 13, -30);
 
   // ───────── 1 · YÜKLEME AVLUSU (güneybatı, Mavi ilk doğuş) ─────────
   stoneWall('z', 14, 36, -38, 3.2, [{ at: 26, w: 8, b: 0, top: 3.2 }]);                  // doğu duvarı: ray kapısı
@@ -221,18 +245,37 @@ export function buildMaden() {
   co('Ambar', -26, 13);
   house('dogu', -14, -8, 13, 20, { col: HOUSE[1], ops: { w: [door(16.6)], s: [door(-11)], e: [win(16.5)], n: [win(-11)] }, inner: () => { b.box(-10, 0, 14.4, 1.4, 0.78, 0.8, WOOD, k(MK.WOOD)); crate(-13.0, 0, 18.9, 0.9); } });
   co('Doğu Evleri', -11, 16.5);
-  lamp(-20.4, 21.5, PI); lamp(-15.6, 9.5, 0);
+  lamp(-20.4, 21.5, PI);
   lowWall(-15.8, 23.4, 2.4, 0.5);
   barrel(-20.7, 19.4); crate(-20.6, 0, 22.8, 1.0);
 
   // ───────── A · MAKAS (1. kontrol noktası) ─────────
-  house('makas-kulubesi', -25.6, -22.4, -1.6, 1.6, { col: HOUSE[3], h: 2.8, roof: 'tin', ops: { e: [door(0, 1.2)], s: [win(-24, 1.0)] }, inner: () => b.box(-24.9, 0, 0.6, 0.8, 0.9, 0.8, STEEL, k(MK.STEEL)) });
+  house('makas-kulubesi', -25.6, -22.4, -1.6, 1.6, { col: HOUSE[3], h: 2.8, roof: 'tin', ops: { e: [door(0, 1.5)], s: [win(-24, 1.0)] }, inner: () => b.box(-24.9, 0, 0.6, 0.8, 0.9, 0.8, STEEL, k(MK.STEEL)) });
   b.obj('makas-kolu', () => { b.box(-19.7, 0, 4.1, 0.5, 0.8, 0.5, STEEL, k(MK.STEEL)); b.box(-19.7, 0.8, 4.1, 0.08, 0.7, 0.08, '#c33', NC); });
   oldWagon(-27.4, 3, P2);
   lowWall(-14.5, 0.6, 3.2, 0.5); lowWall(-12.3, 3.3, 0.5, 2.6);
   crate(-21.6, 0, 9.4, 1.1); crate(-20.5, 0, 9.6, 0.9);
   lamp(-12.6, -1.4, PI / 2);
-  co('A · Makas', -18, 6); co('Makas Kulübesi', -24, 0); co('Yan Hat', -28, 3);
+  // A kontrol kapısı (v2): rayın üstünde ahşap portal; harf tabelası + iki sinyal lambası (görsel kısım aşağıda). Dikmeler kendi kutusu, kiriş ulaşılmaz.
+  const portal = (id, cx, cz, alongX, half = 2.05, H = 4.4) => b.obj(id, () => {
+    for (const s of [-1, 1]) { const px = alongX ? cx : cx + s * half, pz = alongX ? cz + s * half : cz; b.box(px, 0, pz, 0.3, H, 0.3, BEAM, k(MK.WOOD)); b.box(px, 0, pz, 0.46, 0.5, 0.46, STONEC, k(MK.STONE)); }
+    b.box(cx, H, cz, alongX ? 0.36 : 2 * half + 0.6, 0.36, alongX ? 2 * half + 0.6 : 0.36, BEAM, k(MK.WOOD));
+    for (const s of [-1, 1]) b.box(alongX ? cx : cx + s * (half - 0.35), H - 0.62, alongX ? cz + s * (half - 0.35) : cz, alongX ? 0.14 : 0.62, 0.62, alongX ? 0.62 : 0.14, BEAM, nk(MK.WOOD));   // köşe payandası
+    for (const s of [-1, 1]) { const px = alongX ? cx : cx + s * half, pz = alongX ? cz + s * half : cz; b.box(px, H + 0.36, pz, 0.2, 0.16, 0.2, STEEL_D, NC); b.box(px, H + 0.52, pz, 0.24, 0.24, 0.24, SIG, { collide: false, o: { glow: true } }); }   // sinyal lambaları
+  });
+  portal('a-kapisi', -18, 10.5, false);
+  // Makas İskelesi (v2): savunanın yüksek zemini — 1,4 m ahşap cevher boşaltma iskelesi; A'ya gelen rayı (x = −18) boydan görür. Batıdan merdiven, önde 0,9 m kalas siper.
+  b.obj('makas-iskelesi', () => {
+    const X0 = -22, X1 = -17.2, Z0 = -6.8, Z1 = -3.2;
+    b.box((X0 + X1) / 2, 0, (Z0 + Z1) / 2, X1 - X0, 1.18, Z1 - Z0, '#8b7357', nk(MK.WOOD));
+    b.box((X0 + X1) / 2, 1.18, (Z0 + Z1) / 2, X1 - X0, 0.22, Z1 - Z0, WOOD, nk(MK.WOOD));
+    for (const x of [X0 + 0.2, (X0 + X1) / 2, X1 - 0.2]) for (const z of [Z0 + 0.2, Z1 - 0.2]) b.box(x, 0, z, 0.26, 1.18, 0.26, BEAM, nk(MK.WOOD));
+    b.collide((X0 + X1) / 2, 0, (Z0 + Z1) / 2, X1 - X0, 1.4, Z1 - Z0, 'plat');
+    b.stairs(X0 - 2.75, -5.0, 0, '+x', 2.2, 5, 0.28, 0.55, '#8b7357', { tag: 'plat' });
+    b.box(-19.0, 1.4, Z1 - 0.15, 3.6, 0.9, 0.3, WOOD_D, k(MK.WOOD));                                  // güney kenarı kalas siper (ray yönü)
+    b.box(X1 - 0.15, 1.4, -5.6, 0.3, 0.9, 2.2, WOOD_D, k(MK.WOOD));                                   // doğu kenarı
+  });
+  co('A · Makas', -18, 6); co('Makas İskelesi', -19.6, -5); co('Makas Kulübesi', -24, 0); co('Yan Hat', -28, 3);
 
   // ───────── batı orta: kömür bunkeri + kantin ─────────
   b.obj('kömür-bunkeri', () => {
@@ -243,18 +286,16 @@ export function buildMaden() {
     orePile(-42.5, 3.6, 6.0, 1.4, '#2f2c2a');
   });
   co('Kömür Bunkeri', -42.5, 4);
+  // Bunker Kayası (v2): bunker ile Ambar arasında kaya; Mavi'nin avlu kapılarından batı kolonuna (Kantin → Demirci önü) giden 37 m'lik kestirmeyi
+  // ve çapraz görüş hattını keser. Batı cebi artık Ambar'ın batı kapısından A'ya açılan kanat; Kantin tarafı yalnız A meydanından girilir.
+  bench(-37.02, -30.23, 2.0, 7.98, 'nsew', [4.4]);
+  co('Bunker Kayası', -33.6, 5);
   house('kantin', -33, -26, -16, -9, { col: HOUSE[4], ops: { s: [door(-29.5)], e: [door(-11.5)], n: [win(-30)], w: [win(-12.5)] }, inner: () => { b.box(-30.5, 0, -12.5, 2.0, 0.78, 0.9, WOOD, k(MK.WOOD)); crate(-32.0, 0, -15.0, 0.9); } });
   co('Kantin', -29.5, -12.5);
   for (const [x, z] of [[-38.5, -14.5], [-38.0, -18.5]]) crate(x, 0, z, 1.1);
-  timber(-22.0, -19.5, 3.4, 3, P2);
+  timber(-36.5, -17.6, 3.4, 3, 0);
   barrel(-23.8, -9.4); barrel(-24.4, -8.8);
   lamp(-35.5, -6.8, 0);
-
-  // ───────── 2 · KUZEYBATI AVLU (Kırmızı → Mavi) ─────────
-  stoneWall('x', -48, -36, -22, 3.2, [{ at: -44.75, w: 2.5, b: 0, top: 3.2 }, { at: -39.25, w: 2.5, b: 0, top: 3.2 }]);
-  stoneWall('z', -36, -22, -36, 3.2, [{ at: -23.75, w: 2.5, b: 0, top: 3.2 }]);
-  crate(-47.0, 0, -34.8, 1.1); crate(-37.2, 0, -34.8, 1.1);
-  co('Kuzeybatı Avlu', -42, -29, true);
 
   // ───────── 3 · KÖY CADDESİ (ray z = 6 boyunca doğuya) ─────────
   house('kuzey', -14, -6, -6, 1, { col: HOUSE[0], ops: { s: [door(-10)], e: [door(-2.5)], w: [win(-3)], n: [win(-10)] }, inner: () => { b.box(-12.4, 0, -4.4, 1.5, 0.78, 0.8, WOOD, k(MK.WOOD)); crate(-7.2, 0, -5.0, 0.9); } });
@@ -274,6 +315,8 @@ export function buildMaden() {
   co('Köy Caddesi', -5, 9.5, true); co('Muhtarlık', -1.5, 14.5); co('Kuzey Ev', -10, -2.5);
   lowWall(3.6, 9.9, 3.0, 0.5); lowWall(-12.0, 10.6, 3.0, 0.5);
   crate(-8.0, 0, 2.4, 1.1); crate(-3.9, 0, 9.6, 1.0); barrel(-6.6, 2.3); barrel(2.5, 2.6);
+  oldWagon(-1.0, 2.7, P2);                                                                     // v2: caddede terk edilmiş cevher vagonu (açık ray boyunca siper)
+  timber(6.6, 10.2, 2.6, 3, 0);
   lamp(-5.8, 9.3, 0); lamp(4.9, 2.4, PI);
   b.obj('kuyu', () => { b.cyl(-15.4, 0, -3.8, 0.9, 1.0, 0.85, STONEC, { seg: 12, kind: MK.STONE }); for (const s of [-1, 1]) b.box(-15.4 + s * 0.8, 0.85, -3.8, 0.12, 1.4, 0.12, BEAM, NC); b.box(-15.4, 2.2, -3.8, 1.8, 0.12, 0.16, BEAM, NC); });
 
@@ -281,9 +324,10 @@ export function buildMaden() {
   house('baraka', -11, -6, -20, -14, { col: HOUSE[5], h: 2.9, roof: 'tin', ops: { e: [door(-17)], s: [win(-8.5)] }, inner: () => crate(-9.6, 0, -18.6, 1.0) });
   house('kahvehane', -4, 3, -19, -10, { col: HOUSE[3], ops: { e: [door(-13)], s: [door(0.2), win(-2.4)], n: [win(-0.5)], w: [win(-15)] }, inner: () => { for (const [x, z] of [[-1.8, -16.5], [1.0, -16.5], [-1.8, -12.6]]) { b.cyl(x, 0, z, 0.45, 0.45, 0.76, WOOD, { seg: 10, kind: MK.WOOD }); } b.box(1.8, 0, -11.2, 1.6, 1.05, 0.6, WOOD_D, k(MK.WOOD)); } });
   co('Kahvehane', -0.5, -14.5); co('Baraka', -8.5, -17);
-  crate(-14.6, 0, -11.8, 1.1); timber(-17.5, -18.6, 3.0, 2, 0);
-  // demirci atölyesi (A meydanının kuzeyi; Ambar ile kuzey avlu arasında görüş keser): örs, ocak, kapılar doğu / güney / batı
-  house('demirci', -22, -16, -14, -8, { col: HOUSE[5], h: 3.0, roof: 'tin', ops: { s: [door(-19.8)], e: [door(-11.2, 1.3)], w: [door(-10.6, 1.3)], n: [win(-19)] }, inner: () => {
+  crate(-14.6, 0, -11.8, 1.1);
+  // demirci atölyesi (A meydanının kuzeyi; v2: Kırmızı'nın 1. aşama doğuş odası): örs, ocak; kapılar güney (iskeleye) / doğu. Kuzeyi kaya, batısı sağır
+  // (Mavi'nin avlu kapısından gelen çapraz görüş hattı kapıya / pencereye düşmesin).
+  house('demirci', -22, -16, -14, -8, { col: HOUSE[5], h: 3.0, roof: 'tin', ops: { s: [door(-17.5)], e: [door(-11.2, 1.3)] }, inner: () => {
     b.box(-21.0, 0, -12.8, 1.4, 1.0, 1.2, STONEC, k(MK.STONE));                                   // ocak
     b.box(-21.0, 1.0, -12.8, 0.6, 1.95, 0.6, '#5d544b', k(MK.STONE));                              // baca (tavana)
     b.box(-17.6, 0, -12.6, 0.5, 0.72, 0.5, BEAM, k(MK.WOOD)); b.box(-17.6, 0.72, -12.6, 0.8, 0.14, 0.32, STEEL_D, k(MK.STEEL));   // örs kütüğü + örs
@@ -293,8 +337,8 @@ export function buildMaden() {
   // ───────── 4 · KUZEY AVLU (Kırmızı → Mavi) ─────────
   stoneWall('x', -12, 4, -26, 3.2, [{ at: -8.75, w: 2.5, b: 0, top: 3.2 }, { at: 0.25, w: 2.5, b: 0, top: 3.2 }]);
   for (const x of [-8.75, 0.25]) stoneWall('x', x - 2.0, x + 2.0, -28.1, 3.2);                // kapı arkası perde duvarı (avlu içi dışarıdan görünmez; iki yandan dolanılır)
-  stoneWall('z', -36, -26, -12, 3.2, [{ at: -31.75, w: 2.5, b: 0, top: 3.2 }]);
-  stoneWall('z', -36, -26, 4, 3.2, [{ at: -31.75, w: 2.5, b: 0, top: 3.2 }]);
+  stoneWall('z', -36, -26, -12, 3.2);                                                         // batı / doğu: arkası kaya (v2), kapı yok
+  stoneWall('z', -36, -26, 4, 3.2);
   crate(-10.9, 0, -34.8, 1.1); crate(2.9, 0, -34.8, 1.1);
   co('Kuzey Avlu', -4, -31, true);
 
@@ -303,6 +347,7 @@ export function buildMaden() {
     for (const [x, z] of [[5.5, -12.4], [12.0, -12.4], [5.5, -19.9], [12.0, -19.9]]) b.box(x, 0, z, 0.32, 4.3, 0.32, BEAM, k(MK.WOOD));
     b.box(8.75, 4.3, -16.15, 7.3, 0.2, 8.3, TIN, k(MK.TIN, { tag: 'roof' }));
     for (const z of [-12.4, -19.9]) b.box(8.75, 3.95, z, 6.8, 0.35, 0.22, BEAM, k(MK.WOOD));
+    for (const x of [5.9, 11.6]) { b.box(x, 3.88, -12.4, 0.06, 0.08, 0.06, STEEL_D, NC); b.box(x, 3.66, -12.4, 0.24, 0.22, 0.24, SIG, { collide: false, o: { glow: true } }); }   // v2: B sinyal lambaları (kiriş altında)
     b.box(8.75, 0, -16.15, 5.2, 0.03, 5.2, '#55585b', nk(MK.STEEL));                              // kantar plakası (zeminde 3 cm)
     // kantar odası (kuzey yanı)
     b.shell(6.2, 9.6, -19.5, -17.9, 0, 2.6, 0.2, HOUSE[2], { s: [win(7.9, 1.6)], e: [door(-18.7, 1.0)] }, k(MK.PLANK, { trim: '#d9cdb4' }));
@@ -311,12 +356,13 @@ export function buildMaden() {
   });
   co('B · Kantar', 8, -16);
   crate(11.0, 0, 3.0, 1.1); crate(11.2, 0, 1.8, 0.9); lowWall(4.8, -6.5, 0.5, 3.0); barrel(11.4, -8.6); barrel(11.9, -9.2, '#4f5b45');
+  oldWagon(10.8, -3.2, 0); timber(4.6, -0.9, 3.0, 3, P2);                                      // v2: B yaklaşımında iki yana siper (açık %70+ idi)
   lamp(12.6, -11.0, PI);
 
   // Depo (rayın doğusu): üç kapı, içinde sandık sırası
   b.obj('depo', () => {
     const X0 = 13, X1 = 22, Z0 = -6, Z1 = 3, H = 4.0;
-    b.shell(X0, X1, Z0, Z1, 0, H, 0.35, '#7f6a54', { w: [door(-1.5, 2.2)], e: [door(-1.5, 2.2)], n: [door(17.5, 1.6)], s: [win(16), win(19.4)] }, k(MK.PLANK, { trim: '#d9cdb4' }));
+    b.shell(X0, X1, Z0, Z1, 0, H, 0.35, '#7f6a54', { w: [door(-3.6, 2.2)], e: [door(0.6, 2.2)], n: [door(17.5, 1.6)], s: [win(16), win(19.4)] }, k(MK.PLANK, { trim: '#d9cdb4' }));
     for (const [cx, cz] of [[X0, Z0], [X1, Z0], [X0, Z1], [X1, Z1]]) b.box(cx, 0, cz, 0.45, H, 0.45, BEAM, k(MK.WOOD));
     b.box(17.5, 0, -1.5, 8.6, 0.02, 8.6, '#7d6447', nk(MK.WOOD));
     b.box(17.5, H, -1.5, 9.5, 0.16, 9.5, BEAM, k(MK.WOOD));
@@ -350,6 +396,7 @@ export function buildMaden() {
     for (const x of [17.5, 22.5]) { b.box(x, H - 0.9, -16, 0.04, 0.6, 0.04, STEEL_D, NC); b.box(x, H - 1.05, -16, 0.6, 0.16, 0.3, STEEL_D, NC); b.box(x, H - 1.07, -16, 0.5, 0.03, 0.22, LAMP, { collide: false, o: { glow: true } }); }
   });
   co('Lavvar', 20, -19.5, true);
+  crate(21.3, 0, -9.18, 1.1); crate(21.3, 1.1, -9.18, 0.9);                                    // v2: Lavvar–Depo ara yolunda Lavvar duvarına yaslı sandık istifi (ara yol siperi)
   crate(13.6, 0, -21.0, 1.1); crate(13.6, 0, -19.9, 1.0); barrel(26.6, -10.8); barrel(27.3, -10.3, '#4f5b45');
 
   // ───────── C · MADEN AĞZI (kuzey kayalığında ahşap çerçeveli giriş, kapı) + maden avlusu ─────────
@@ -369,19 +416,48 @@ export function buildMaden() {
     b.cyl(35.35, 3.14, -25, 0.12, 0.12, 2.6, BEAM, { seg: 6, collide: false, kind: MK.WOOD });
   });
   co('Vinç Evi', 35.3, -25);
-  timber(26.0, -24.5, 3.4, 3, P2); crate(25.6, 0, -28.4, 1.1); crate(25.6, 1.1, -28.4, 0.9);
+  // Cevher İskelesi (v2): son noktada savunanın yüksek zemini — Kuzey Ocak kayasına ve ağız payandasına yaslı 1,4 m iskele; ray köşesini ve
+  // Lavvar çıkışını görür. Güneyden merdiven (kayaya yaslı); üstünde sandık siperi. Kuzey ara yoldan gelen saldıran merdivenin dibine çıkar.
+  b.obj('cevher-iskelesi', () => {
+    const X0 = 23.62, X1 = 27.9, Z0 = -33.18, Z1 = -27.0;
+    b.box((X0 + X1) / 2, 0, (Z0 + Z1) / 2, X1 - X0, 1.18, Z1 - Z0, '#8b7357', nk(MK.WOOD));
+    b.box((X0 + X1) / 2, 1.18, (Z0 + Z1) / 2, X1 - X0, 0.22, Z1 - Z0, WOOD, nk(MK.WOOD));
+    for (const x of [X1 - 0.2]) for (const z of [Z0 + 0.2, (Z0 + Z1) / 2, Z1 - 0.2]) b.box(x, 0, z, 0.26, 1.18, 0.26, BEAM, nk(MK.WOOD));
+    b.collide((X0 + X1) / 2, 0, (Z0 + Z1) / 2, X1 - X0, 1.4, Z1 - Z0, 'plat');
+    b.stairs(24.72, Z1 + 2.75, 0, '-z', 2.2, 5, 0.28, 0.55, '#8b7357', { tag: 'plat' });
+    crate(26.9, 1.4, -28.0, 1.0); crate(26.9, 1.4, -31.6, 1.0); crate(26.9, 2.4, -31.6, 0.8);
+  });
+  co('Cevher İskelesi', 25.8, -30);
+  timber(33.0, -19.6, 3.0, 3, 0);
   oldWagon(35.4, -31.6, 0);
-  orePile(36.4, -16.5, 3.4, 3.0, ORE_R);
+  orePile(35.4, -16.0, 3.4, 3.0, ORE_R);
   lamp(27.2, -21.0, 0); lamp(33.2, -30.0, PI);
   co('Maden Avlusu', 31, -23);
 
-  // ───────── doğu: taş ocağı (Kırmızı son avlu önü) ─────────
+  // ───────── 7 · VİNÇ AVLUSU (v2: Kırmızı son doğuş, C'nin hemen arkası) ─────────
+  // Son savunma: Kırmızı maden ağzının 10 m yanında doğar (vagon C'ye yaklaştıkça savunan en kısa yoldan döner). Batıda iki kapı (C meydanı /
+  // Lavvar arkası), güneyde bir kapı (doğu koridoru); kapı arkasında perde duvar (avlu içi dışarıdan görünmez, doğuşta öldürme yok).
+  stoneWall('z', -36, -19, 38, 3.2, [{ at: -30.25, w: 2.5, b: 0, top: 3.2 }, { at: -21.0, w: 2.5, b: 0, top: 3.2 }]);
+  stoneWall('x', 38, 48, -19, 3.2, [{ at: 43.25, w: 2.5, b: 0, top: 3.2 }]);
+  stoneWall('z', -32.25, -28.25, 40.6, 3.2);                                                  // batı kapısı perdesi
+  stoneWall('x', 41.25, 45.25, -21.5, 3.2);                                                   // güney kapısı perdesi
+  crate(46.8, 0, -34.8, 1.1); crate(46.8, 0, -20.4, 1.0);
+  co('Vinç Avlusu', 43, -27, true);
+
+  // ───────── doğu: taş ocağı (Kırmızı 2. aşama avlu önü) ─────────
   b.obj('kompresor', () => {
     b.shell(27, 32, 4, 9, 0, 2.8, 0.3, '#7d7f78', { w: [door(6.5, 1.3)], n: [win(29.5)] }, k(MK.PLANK, { trim: '#d9cdb4' }));
     b.box(29.5, 2.8, 6.5, 5.6, 0.14, 5.6, TIN, k(MK.TIN));
     b.box(30.6, 0, 7.4, 1.6, 1.2, 1.2, STEEL, k(MK.STEEL));
   });
   co('Kompresör', 29.5, 6.5);
+  // Barut Deposu (v2): kalın taş duvarlı küçük depo; köy caddesinden taş ocağına uzanan 80 m'lik doğu-batı görüş hattını keser, caddenin doğu ucuna siper
+  b.obj('barut-deposu', () => {
+    b.shell(15, 19, 6.5, 10.5, 0, 2.6, 0.45, STONEC, { w: [door(8.8, 1.2)] }, k(MK.STONE));
+    b.box(17, 2.6, 8.5, 4.9, 0.18, 4.9, STEEL_D, k(MK.TIN));
+    crate(17.9, 0, 7.4, 0.9); crate(17.9, 0, 9.6, 0.9); crate(17.9, 0.9, 9.6, 0.7);
+  });
+  co('Barut Deposu', 17, 8.5);
   // damperli kamyon (yerel +x ileri): kasa + kabin = iki çarpışma kutusu
   b.obj('kamyon', () => b.with(31.4, 0, -4.2, 0, () => {
     b.box(-1.2, 0.5, 0, 4.0, 0.5, 2.3, STEEL_D, nk(MK.STEEL));
@@ -398,7 +474,7 @@ export function buildMaden() {
   lamp(25.6, 3.0, 0);
   co('Taş Ocağı', 29, 12, true); co('Kamyon', 31, -4);
 
-  // ───────── 6 · DOĞU AVLU (Kırmızı son doğuş) ─────────
+  // ───────── 6 · DOĞU AVLU (Kırmızı 2. aşama doğuş) ─────────
   stoneWall('z', -8, 18, 38, 3.2, [{ at: -2.75, w: 2.5, b: 0, top: 3.2 }, { at: 8.25, w: 2.5, b: 0, top: 3.2 }]);
   stoneWall('x', 38, 48, -8, 3.2, [{ at: 42.25, w: 2.5, b: 0, top: 3.2 }]);
   crate(46.8, 0, -6.8, 1.1); crate(46.8, 0, 16.6, 1.1);
@@ -408,9 +484,9 @@ export function buildMaden() {
   house('ocak', 2, 9, 22, 29, { col: HOUSE[4], ops: { n: [door(5.5)], w: [door(25.5)], e: [win(25.5)], s: [win(5.5)] }, inner: () => { b.box(7.4, 0, 27.6, 1.4, 0.78, 0.8, WOOD, k(MK.WOOD)); crate(3.0, 0, 27.9, 0.9); } });
   co('Ocak Evi', 5.5, 25.5);
   house('kiler', -5, 0, 24, 29, { col: HOUSE[5], h: 2.8, roof: 'tin', ops: { e: [door(26.5, 1.2)], n: [win(-2.5)] } });
-  lowWall(12.6, 21.0, 0.5, 4.0); lowWall(-8.6, 21.4, 4.0, 0.5); crate(14.2, 0, 15.0, 1.1); crate(15.3, 0, 15.2, 0.9); barrel(10.8, 31.5); barrel(11.5, 32.2);
+  lowWall(12.6, 21.0, 0.5, 4.0); lowWall(-8.6, 21.4, 4.0, 0.5); timber(-9.6, 23.9, 3.0, 7, 0);   // v2: yüksek kereste istifi (güney bandındaki 80 m'lik çapraz görüş) crate(14.2, 0, 15.0, 1.1); crate(15.3, 0, 15.2, 0.9); barrel(10.8, 31.5); barrel(11.5, 32.2);
   timber(16.2, 27.0, 3.0, 3, P2);
-  lamp(-2.5, 21.3, 0); lamp(13.8, 9.0, PI);
+  lamp(-2.5, 21.3, 0); lamp(13.6, 11.8, PI);
   co('Kiler', -2.5, 26.5); co('Güney Yol', 12, 20);
 
   // ───────── dış silüet (çarpışmasız, sınır dışı): dağlar ─────────
@@ -432,15 +508,17 @@ export function buildMaden() {
   };
   const yardSW = grid(-46.4, -39.6, 15.6, 34.2, -P2, (x, z) => Math.abs(z - 26) < 1.6 || (x < -45.6 && (z < 17.2 || z > 33.2)) || (x > -40.2 && z > 33.8));
   const ambar = grid(-28.9, -23.7, 9.3, 17.1, -P2, (x, z) => (x < -28 && (z < 10.2 || z > 15.9)) || (x > -24 && z > 15.9), 1.3);
-  const yardNW = grid(-46.4, -37.6, -34.4, -23.6, PI * 0.75, (x, z) => (z < -33.6 && (x < -46 || x > -38.2)));
+  const demirci = grid(-21.3, -16.7, -13.3, -8.7, PI, (x, z) => (x < -19.8 && z < -11.6) || (x > -18.6 && z < -11.6 && z > -13.6), 0.92);
+  const yardNE = grid(41.7, 46.5, -34.4, -22.6, P2, (x, z) => (x > 46 && (z < -33.6 || z > -21.4)));
   const yardN = grid(-10.4, 2.4, -34.4, -29.6, PI, (x, z) => z < -33.6 && (x < -10 || x > 2));
   const yardE = grid(39.6, 46.4, -6.4, 16.4, P2, (x, z) => x > 45.5 && (z < -5.5 || z > 15.5));
   const zoneOf = (x0, x1, z0, z1) => ({ minX: x0, maxX: x1, minZ: z0, maxZ: z1 });
-  const Z = { SW: zoneOf(-48, -38, 14, 36), AM: zoneOf(-30.2, -21.8, 7.8, 18.2), NW: zoneOf(-48, -36, -36, -22), N: zoneOf(-12, 4, -36, -26), E: zoneOf(38, 48, -8, 18) };
+  const Z = { SW: zoneOf(-48, -38, 14, 36), AM: zoneOf(-30.2, -21.8, 7.8, 18.2), N: zoneOf(-12, 4, -36, -26), E: zoneOf(38, 48, -8, 18), DM: zoneOf(-22.2, -15.8, -14.2, -7.8), NE: zoneOf(38, 48, -36, -19) };
   const plStages = [
-    { blue: yardSW, red: yardNW, zones: { blue: Z.SW, red: Z.NW } },
-    { blue: ambar, red: yardN, zones: { blue: Z.AM, red: Z.N } },
-    { blue: yardN, red: yardE, zones: { blue: Z.N, red: Z.E } },
+    // v2: savunan her aşamada sıradaki kontrol noktasının ilerisinde doğar ve vagona rayın geldiği yönden yaklaşır; saldıran vagonun arkasında
+    { blue: yardSW, red: demirci, zones: { blue: Z.SW, red: Z.DM } },
+    { blue: ambar, red: yardE, zones: { blue: Z.AM, red: Z.E } },
+    { blue: yardN, red: yardNE, zones: { blue: Z.N, red: Z.NE } },
   ];
 
   const group = b.build();
@@ -452,10 +530,27 @@ export function buildMaden() {
     add(textPlane('KIRMA', 3.2, 0.9, sign), -23.18, 4.55, 26, P2); add(textPlane('KIRMA', 3.2, 0.9, sign), -30.82, 4.55, 26, -P2);
     add(textPlane('LAVVAR', 3.6, 1.0, sign), 14.73, 5.5, -16, -P2); add(textPlane('LAVVAR', 3.6, 1.0, sign), 25.27, 5.5, -16, P2);
     add(textPlane('KANTAR', 3.0, 0.7, sign), 8.75, 3.95, -12.27, 0);
+    add(textPlane('BARUT', 1.8, 0.5, sign), 14.75, 2.1, 8.8, -P2);
     const cp = { fg: '#1d1a14', bg: '#e0c040', font: 'bold 400px Arial, sans-serif' };
     add(textPlane('A', 1.0, 1.0, cp), -25.6 - 0.16, 1.9, 0.9, -P2);                                       // kontrol noktası harfleri (kulübe / kantar / ağız)
     add(textPlane('B', 1.0, 1.0, cp), 8.0, 2.0, -17.78, 0);
     add(textPlane('C', 1.2, 1.2, cp), 30, 4.05, -33.88, 0);
+    // v2: A kapısında iki yüzlü harf tabelası + sinyal lambaları, kantar kirişinde B levhaları
+    for (const s of [-1, 1]) add(textPlane('A', 1.1, 1.1, cp), -18, 3.62, 10.5 + s * 0.19, s > 0 ? 0 : PI);
+    for (const x of [6.6, 10.9]) add(textPlane('B', 0.62, 0.62, cp), x, 3.96, -12.27, 0);
+    // yön okları: raylar arasında 6 m'de bir sarı boya ok (tek örnekli ağ, tek çizim çağrısı); kontrol noktası yaylarında yok
+    {
+      const c = document.createElement('canvas'); c.width = c.height = 128;
+      const x2 = c.getContext('2d'); x2.fillStyle = '#e8c443'; x2.beginPath(); x2.moveTo(64, 10); x2.lineTo(118, 70); x2.lineTo(92, 70); x2.lineTo(64, 40); x2.lineTo(36, 70); x2.lineTo(10, 70); x2.closePath(); x2.fill();
+      x2.beginPath(); x2.moveTo(64, 58); x2.lineTo(118, 118); x2.lineTo(92, 118); x2.lineTo(64, 88); x2.lineTo(36, 118); x2.lineTo(10, 118); x2.closePath(); x2.fill();
+      const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
+      const ds = [], cps = [1, 3].map((i) => track.corners[i]);
+      for (let d = 15; d < track.len - 4; d += 6) if (!cps.some((cd) => Math.abs(cd - d) < 3)) ds.push(d);
+      const im = new THREE.InstancedMesh(new THREE.PlaneGeometry(0.72, 0.72), new THREE.MeshStandardMaterial({ map: tex, transparent: true, depthWrite: false, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -2 }), ds.length);
+      const q = {}, M4 = new THREE.Matrix4(), Q = new THREE.Quaternion(), E = new THREE.Euler(), S1 = new THREE.Vector3(1, 1, 1), Pv = new THREE.Vector3();
+      ds.forEach((d, i) => { track.at(d, q); E.set(-P2, q.yaw, 0, 'YXZ'); Q.setFromEuler(E); im.setMatrixAt(i, M4.compose(Pv.set(q.x, 0.115, q.z), Q, S1)); });
+      im.renderOrder = 2; im.receiveShadow = true; group.add(im);
+    }
     for (const [x, z, l] of [[-18, 6, 'A'], [8, -16, 'B']]) add(textPlane(l, 2.2, 2.2, { fg: 'rgba(236,200,70,.82)', font: 'bold 400px Arial, sans-serif' }), x + (l === 'A' ? -2.8 : 2.8), 0.03, z + (l === 'A' ? 2.6 : -2.4), 0, -P2);
     // maden kapısı (iki kanat; vagon ulaşınca patlar: Payload kapıyı gizler)
     const door = (mineDoor = new THREE.Group());
@@ -486,7 +581,7 @@ export function buildMaden() {
     objectives: [],
     roads: [],
     // Vagon modu: ray, kontrol noktaları (köşe sırası), aşamalara göre doğuş + üs bölgeleri, maden kapısı
-    payload: { track: MADEN_TRACK, radius: 2.5, start: 12, checkpoints: [1, 3], names: ['A · Makas', 'B · Kantar', 'C · Maden Ağzı'], stages: plStages, door: mineDoor },
+    payload: { track: MADEN_TRACK, radius: 2.5, start: 12, checkpoints: [1, 3], names: ['A · Makas', 'B · Kantar', 'C · Maden Ağzı'], stages: plStages, door: mineDoor, hints: PL_HINTS },
     env: {
       sky: ['#6f9fcf', '#c3d3df', '#ead8bc'], fog: ['#d8cdb8', 90, 320],
       sun: ['#fff0d0', 2.6], hemi: ['#d6e0ea', '#7d6a50', 1.0], cloud: '#f6f2ea', clouds: 14,

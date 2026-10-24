@@ -15,6 +15,7 @@ const _d = new THREE.Vector3();
 const _o = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
 // Koşarken / havadayken ateş serbest ama isabetsiz: ek saçılma (rad). 0,085 ≈ 4,9° → 20 m'de ~1,7 m, 50 m'de ~4,3 m (koşarak zıplayınca ikisi toplanır ≈ 9°).
+const smooth01 = (x) => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
 const SPRINT_SPREAD = 0.085, AIR_SPREAD = 0.075, sprintSpeed = () => TUNE.walkSpeed * 1.32;      // yürüme hızının 1,32 katı (eskiden 4,4 × 1,32 = 5,8): yürürken koşu cezası uygulanmaz
 
 export const EYE_STAND = 1.62;
@@ -271,7 +272,9 @@ export class Soldier {
     const hipv = st.hip ?? 0.01, adsv = st.ads ?? 0.002;
     const speed = Math.hypot(this.vel.x, this.vel.z);
     if (st.ball) return this._ballSpread(st, hipv, adsv, speed);
-    let s = lerp(hipv, adsv, this.adsT);
+    // 12.153: dürbünlü keskin nişancı (st.scope): isabet yalnız dürbün oturunca (adsT 0,6 → 1 yumuşak); belde / geçişte ilk atış indirimi yok (no-scope / erken quickscope şansa kalır)
+    const sk = st.scope ? smooth01((this.adsT - 0.6) / 0.4) : this.adsT;
+    let s = lerp(hipv, adsv, sk);
     s += Math.min(speed * 0.0007, 0.0045) * (1 - this.adsT * 0.65);   // hareket cezası
     if (!this.onGround) s += AIR_SPREAD * (1 - this.adsT * 0.5);            // havadayken (zıplarken) atış çok dağılır
     if (this.firedSprinting || speed > sprintSpeed()) s += SPRINT_SPREAD * (1 - this.adsT);   // koşarken (Shift) atış serbest ama isabetsiz
@@ -279,7 +282,7 @@ export class Soldier {
     if (this.crouching) s *= 0.7;
     s += this.bloom;                                                   // seri atışta açılma
     // duran oyuncunun ilk atışı (kısa bir aradan sonra) isabetli olsun
-    if (this.sinceShot > 0.3 && speed < 1.5 && this.onGround) s *= 0.2;
+    if (this.sinceShot > 0.3 && speed < 1.5 && this.onGround) s *= st.scope ? 1 - 0.8 * sk : 0.2;
     return s + this.botExtraSpread;
   }
 
@@ -316,13 +319,26 @@ export class Soldier {
     if (st.kind === 'launcher') return this._rocket(st);
     this._shoot(st);
     this.firedSprinting = false;
-    if (it.mag <= 0 && it.reserve > 0 && !this.isPlayer) this.startReload();
-    return true;
+    return true;                                               // şarjör bittiyse otomatik değiştirme bir sonraki update'te (autoReload) başlar
+  }
+
+  // 12.140: şarjör / hazne boşsa ve yedek varsa şarjörü kendiliğinden değiştir. HER silah türü (gun + launcher: RPG, M79,
+  // pompalı 'shell', sürgülü 'bolt', paintball…) ve her durumda (tetik basılı, nişan, koşu, zıplama, silah çekildikten sonra).
+  // update() içinde çağrılır: istemci (yerel oyuncu) ve sunucu (humanTick → s.update) aynı adımda aynı kuralı uygular.
+  // Eskiden: oyuncuda hiç yoktu (boş tetiğe basınca, cd bitmişse başlıyordu → RPG / sürgülü cd'si yüzünden tık yutuluyordu),
+  // sunucuda insanlar için yalnız 'gun' türünde ateşten hemen sonra başlıyordu (istemci tahmin etmiyordu → uyuşmazlık).
+  autoReload() {
+    if (this.reloadT > 0 || this.switchT > 0 || this.swing || this.useT > 0) return;
+    if (this.game.online && !this.isPlayer) return;                     // çevrimiçi istemci: uzaktakilerin cephanesi tahmin edilmez
+    const it = this.item, k = this.stat?.kind;
+    if (!it || it.mag > 0 || it.reserve <= 0 || !(k === 'gun' || k === 'launcher')) return;
+    this.startReload();
   }
 
   muzzleWorld(out) {
     if ((this.isPlayer && !this.game.showSelf) || this.game.headless) {
       const d = this.aimDir(_d), r = this.right(_v);
+      if (this.isPlayer && this.game.player?.scopeOn) return out.copy(this.eye(_o)).addScaledVector(UP, -0.12).addScaledVector(d, 5);      // 12.153: dürbündeyken iz mermisi 5 m önden, retikülün altından hedefe ince çizgi olarak gider (eski: sağ-alttan çapraz beyaz çizgi)
       return out.copy(this.eye(_o)).addScaledVector(r, this.game.leftHand ? -0.16 : 0.16).addScaledVector(UP, -0.1).addScaledVector(d, 0.8);
     }
     const w = this.model.weapon;
@@ -343,22 +359,25 @@ export class Soldier {
     const right = new THREE.Vector3().crossVectors(base, UP).normalize();
     const up = new THREE.Vector3().crossVectors(right, base).normalize();
     g._firstPellet = true;
-    const rnd = st.ball ? g.paint.rngFor(this) : Math.random;            // paintball: insan atışında tohumlu (istemci tahmini = sunucu topu)
+    // insan atışında sapma tohumlu (girdi sıra no): istemci tahmini (iz / kan) ile sunucunun ışını aynı yöne gider. 12.146: eskiden yalnız paintball;
+    // mermide Math.random iki tarafta ayrı zar atıyordu → uzakta (sapma ≥ gövde) istemcinin gösterdiği kan ile sunucunun isabeti ayrışıyordu
+    const rnd = g.paint.rngFor(this);                                     // bot / çevrimdışı: Math.random
+
     for (let i = 0; i < pellets; i++) {
       const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * spread;
       const d = base.clone().addScaledVector(right, Math.cos(a) * r).addScaledVector(up, Math.sin(a) * r).normalize();
       if (st.ball) g.paint.fire(this, origin, d, st, muzzle, camO); else g.shootRay(this, origin, d, st, muzzle, camO);
     }
     this.protT = 0;                                                              // ateş eden artık dokunulmaz değil (korumayla düşmana ateş edilemez)
-    if (!st.ball) g.effects.muzzle(muzzle, base);                              // paintball: alev yok (gazla atar)
+    if (!st.ball && !(this.isPlayer && g.player?.scopeOn)) g.effects.muzzle(muzzle, base);      // 12.153: dürbünde kendi namlu alevi görüşü kapatmaz                              // paintball: alev yok (gazla atar)
     g.sfx.shot(st.sound, this.pos);
     this.flashT = 0.06;
     this.sinceShot = 0;
     this.bloom = st.ball ? Math.min(this.bloom + (st.bloom ?? 0.003), st.bloomMax ?? 0.03) : Math.min(this.bloom + (st.kickV || 0.01) * 0.07, 0.005);
     if (this.isPlayer || this.human) {
-      const k = (st.kickV || 0.01) * (this.adsT > 0.5 ? 0.7 : 1);
-      this.pitch = Math.min(1.45, this.pitch + k * 0.55);   // kalıcı tırmanma: oyuncu aşağı çekerek telafi eder
-      this.recoilP += k * 0.45;
+      const k = (st.kickV || 0.01) * (this.adsT > 0.5 ? 0.7 : 1), perm = st.scope ? 0.1 : 0.55;      // 12.153: keskin nişancı tepmesi çoğunlukla geri döner (dürbün hedefe oturur; eski: %55 kalıcı → her atışta ~45 px yukarı)
+      this.pitch = Math.min(1.45, this.pitch + k * perm);   // kalıcı tırmanma: oyuncu aşağı çekerek telafi eder
+      this.recoilP += k * (1 - perm);
       this.yaw += rand(-1, 1) * (st.kickH || 0.004);
       this.game.emit('fire', this);
     } else if (this.model.weapon) this.game.noiseAlert?.(this);
@@ -657,6 +676,7 @@ export class Soldier {
         }
       }
     }
+    this.autoReload();
     if (this.useT > 0) {
       this.useT -= dt;
       if (this.useT <= 0) {
@@ -671,7 +691,7 @@ export class Soldier {
     }
     // hedef nişan geçişi
     const wantAds = this.ads && this.reloadT <= 0 && this.switchT <= 0 && this.zoomNow && !this.sprinting;
-    this.adsT = clamp(this.adsT + (wantAds ? 1 : -1) * dt * (this.opticDef?.overlay === 'scope' ? 6 : 9), 0, 1);      // 12.128: lensHud (telefon ACOG yedeği) benzetimi değiştirmez
+    this.adsT = clamp(this.adsT + (wantAds ? 1 : -1) * dt * (this.stat.adsTime ? 1 / this.stat.adsTime : this.opticDef?.overlay === 'scope' ? 6 : 9), 0, 1);      // 12.153: adsTime (sn) silaha özgü dürbün süresi      // 12.128: lensHud (telefon ACOG yedeği) benzetimi değiştirmez
     if (this.prone) this.crouching = false;
     this.height = this.prone ? H_PRONE : this.crouching ? H_CROUCH : H_STAND;
     this.crouchT = clamp(this.crouchT + (this.crouching ? 1 : -1) * dt * 7, 0, 1);

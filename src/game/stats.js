@@ -2,7 +2,7 @@
 // sight: ADS sırasında nişan noktası (silah yerelinde: x, y, z) · dist: gözden nişangaha mesafe.
 // slot: primary|secondary|gadget|melee · stats: arayüz için 0-100 değerleri · reload: boş şarjörle tam süre
 // (şarjörde mermi varsa "taktik reload" TAC_RELOAD çarpanıyla hızlanır) · shell: pompalı/çift namlu mermi başı süre
-// reloadStyle: mag | shell | bolt · equip: silahı çekme süresi · tracer: iz mermisi rengi
+// reloadStyle: mag | shell | bolt · equip: silahı çekme süresi · tracer: iz mermisi rengi · adsTime: nişana geçiş süresi (sn; yoksa dürbün 1/6, diğerleri 1/9)
 
 export const TAC_RELOAD = 0.65;
 
@@ -151,7 +151,7 @@ export const WSTATS = {
     name: 'M24 Keskin', kind: 'gun', slot: 'primary', desc: 'Sürgülü: gövdeye tek atış, 4x dürbün.', stats: { dmg: 100, range: 100, rate: 10, control: 60, mobility: 40 },
     auto: false, bolt: true, dmg: 105, rpm: 48, mag: 5, reserve: 25, reload: 2.2, reloadStyle: 'bolt', equip: 0.35,
     hip: 0.03, ads: 0.0002, kickV: 0.05, kickH: 0.006, range: [150, 300], minMul: 0.85, zoom: 4, move: 0.9,
-    sight: [0, 0.14, 0.12], dist: 0.06, sound: 'sniper', scope: true, tracer: '#cfe8ff',
+    sight: [0, 0.14, 0.12], dist: 0.06, sound: 'sniper', scope: true, tracer: '#cfe8ff', adsTime: 0.25,
   },
   svd: {
     name: 'SVD', kind: 'gun', slot: 'primary', desc: 'Yarı otomatik DMR: hızlı takip atışı, 3x dürbün.', stats: { dmg: 66, range: 88, rate: 38, control: 52, mobility: 50 },
@@ -163,7 +163,7 @@ export const WSTATS = {
     name: 'Barrett .50', kind: 'gun', slot: 'primary', desc: 'Anti-materyel: tek atışta kıyma, çok ağır.', stats: { dmg: 100, range: 100, rate: 12, control: 30, mobility: 26 },
     auto: false, dmg: 135, rpm: 80, mag: 5, reserve: 15, reload: 2.7, equip: 0.4,
     hip: 0.04, ads: 0.0002, kickV: 0.085, kickH: 0.01, range: [180, 400], minMul: 0.9, zoom: 6, move: 0.8,
-    sight: [0, 0.15, 0.1], dist: 0.06, sound: 'barrett', scope: true, tracer: '#ffd2a0',
+    sight: [0, 0.15, 0.1], dist: 0.06, sound: 'barrett', scope: true, tracer: '#ffd2a0', adsTime: 0.32,
   },
   // ───────── LMG ─────────
   lmg: {
