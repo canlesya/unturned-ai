@@ -1218,3 +1218,9 @@ Sunucu optimizasyonu: harita odalar arasında paylaşılır (`Game._mapCache`, D
 - adsLow yeni değerler: pbrifle [0,12, −0,062, −0,163], pbpistol [0,11, −0,104, −0,172] → nişanda model belden biraz yakın (~50 cm), sağ-altta; hazne üstü ekran ortasının altında, halka nişangâh açık. Tam nişanda pbrifle %5,0 (masaüstü) / %4,0 (Pixel 7), pbpistol %3,5 / %2,9.
 - Red dot: HUD #rdot 1,22 vh + geniş parıltı → 0,62 vh (masaüstü ≈ 5,6 px) + ince parıltı; telefonda max(5 px, 0,5 vh) × --rs, 1 px koyu çerçeve. 3D ışıyan nokta 2,4 → 1,3 mm (RMR 2,2 → 1,2 mm), geçişte HUD noktasıyla aynı boy.
 - Ölçüm: adsalign reddot|pb masaüstü + Pixel 7 34/34 (≤ 0,8 px), weaponaudit, vite build. scripts/acogshots.mjs RD=1: red dot tam nişan görüntüsü.
+
+### 12.131 Yakın dövüş tutuşu silaha göre (Unturned)
+- Kullanıcı (Unturned bıçak / balta görselleri): "bıçak tutuşları çok kötü, her bıçak türüne göre resimlerdeki gibi iyileştir". Eskiden bıçak / satır / tomahawk tek duruşla (MELEE_IDLE) meşale gibi dik ve uzakta tutuluyordu.
+- player.js MELEE_IDLE artık silah başına: bıçak = kutu yumruk sağ-altta yakın, ağız ileri-sola yatık (yan yüzü görünür); satır = yukarı-sola eğik kılıç, yumruk sağ-altta; tomahawk = sap sağ-alttan çapraz yukarı, baş üstte, ağız ileri. Dik tutulanlarda (satır / tomahawk) koşu duruşu ayrı (spr), geriye yüze devrilmez.
+- anim.js chop (tomahawk): kaldırma kameraya yaklaşmaz, az kalkar (kol ekranı kaplıyordu); iniş ortaya kadar iner. 3. şahısta da aynı savurma, vuruş zamanlaması değişmedi.
+- Ölçüm: fphands2 (bekleme / savurma / koşu kareleri, masaüstü + Pixel 7; tomahawk / satır / koşu kareleri eklendi), meleehit hepsi geçti, vite build.

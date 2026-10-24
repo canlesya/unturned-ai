@@ -29,7 +29,12 @@ const ADS_FOV = 40;      // taslak (BattleBit): nişanda silah kamerası daralı
 const Z = new THREE.Vector3(0, 0, 1);
 const REST_L = new THREE.Vector3(-0.2, -0.3, 0.2);      // sol el dinlenme (kullanılmıyorsa ekran dışı)
 const POUCH_VM = new THREE.Vector3(-0.3, -0.34, 0.3);   // yelek şarjör cebi (silah yerelinde)
-const MELEE_IDLE = { pos: [0.09, -0.15, -0.5], rx: 0.5, ry: 0.35, rz: -1.05 };
+// Yakın dövüş bekleme duruşu, silaha göre (12.131, Unturned): bıçak = kutu yumruk sağ-altta, ağız ileri-sola yatık · satır = yukarı-sola eğik kılıç · tomahawk = sap sağ-alttan çapraz, baş yukarıda
+export const MELEE_IDLE = {
+  knife: { pos: [0.15, -0.15, -0.38], rx: 0.28, ry: 0.68, rz: -1.3 },
+  machete: { pos: [0.22, -0.2, -0.55], rx: 0.8, ry: 0.38, rz: -0.5, spr: { pos: [-0.02, -0.03, 0.02], rx: 0.12, ry: 0.15, rz: -0.25 } },      // spr: dik tutulanlar koşarken geriye (yüze) devrilmesin
+  tomahawk: { pos: [0.2, -0.19, -0.48], rx: 1.1, ry: 0.3, rz: -0.45, spr: { pos: [-0.02, -0.03, 0.02], rx: 0.05, ry: 0.15, rz: -0.25 } },
+};
 const CLAWS_IDLE = { pos: [0.0, -0.1, -0.44], rx: 0.12, ry: 0.0, rz: 0.0 };      // zombi elleri: iki el kalkık, pençelemeye hazır
 // zombi eli (grup çerçevesinde): parmaklar yukarı-ileri ve hafif içe, el sırtı dışa-arkaya, ön kol ekranın altına iner
 const ZH_MAP = handBasis(new THREE.Vector3(0.6, 0.12, 0.8), new THREE.Vector3(-0.12, 0.92, -0.35));
@@ -308,12 +313,13 @@ export class ViewModel {
     this.sprintT = lerp(this.sprintT || 0, sp, Math.min(1, dt * 9));
     const sprK = this.sprintT * (1 - (ra ? ra.tilt * 0.8 : 0));
     if (isMelee) {
-      const MI = this.id === 'claws' ? CLAWS_IDLE : MELEE_IDLE;
+      const MI = this.id === 'claws' ? CLAWS_IDLE : MELEE_IDLE[this.id] || MELEE_IDLE.knife;
       pos.x += MI.pos[0] - hip.x; pos.y += MI.pos[1] - hip.y; pos.z += MI.pos[2] - hip.z;
       rx += MI.rx; ry += MI.ry; rz += MI.rz;
       if (this.id !== 'claws') {                                      // bıçak vb.: koşarken yukarıda tutulur · zombi elleri: aşağıdaki ayrı el animasyonu
-        pos.x += MELEE_SPRINT.pos[0] * sprK; pos.y += MELEE_SPRINT.pos[1] * sprK; pos.z += MELEE_SPRINT.pos[2] * sprK;
-        rx += MELEE_SPRINT.rx * sprK; ry += MELEE_SPRINT.ry * sprK; rz += MELEE_SPRINT.rz * sprK;
+        const MS = MI.spr || MELEE_SPRINT;
+        pos.x += MS.pos[0] * sprK; pos.y += MS.pos[1] * sprK; pos.z += MS.pos[2] * sprK;
+        rx += MS.rx * sprK; ry += MS.ry * sprK; rz += MS.rz * sprK;
       }
     } else {
       pos.x -= sprK * 0.1; pos.y -= sprK * 0.1; pos.z += sprK * 0.05;
