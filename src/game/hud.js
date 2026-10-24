@@ -15,6 +15,7 @@ import { wName, wLabel, classDesc, ztName, ztDesc, abilName, opticName, fireName
 
 const EN = (s) => String(s).replace(/Paintball/g, '<span lang="en">Paintball</span>');   // tr büyük harfte 'PAİNTBALL' olmasın (marka adı)
 const setH = (el, h) => { if (el._h !== h) { el._h = h; el.innerHTML = h; } };     // yalnız değişince yaz (her kare)
+const NADE_SVG = '<svg class="hsi nd" viewBox="0 0 16 16"><ellipse cx="7.5" cy="10" rx="4.6" ry="5.2" fill="currentColor"/><rect x="5.6" y="2.6" width="4" height="2.6" fill="currentColor"/><path d="M9.6 3.6h3.2v3.4" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="12.8" cy="8.4" r="1.3" fill="none" stroke="currentColor" stroke-width="1.1"/></svg>';     // 12.144: el bombası öldürmesi
 const HS_SVG = '<svg class="hsi" viewBox="0 0 16 16"><circle cx="8" cy="7" r="4.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 0v4M8 10v6M0 7h4M12 7h4" stroke="currentColor" stroke-width="1.6"/></svg>';
 const CSS = `
 #hud{position:fixed;inset:0;pointer-events:none;font-family:Bahnschrift,'Rajdhani','Arial Narrow','Segoe UI',system-ui,sans-serif;color:#fff;user-select:none;z-index:5;letter-spacing:.5px;
@@ -55,7 +56,7 @@ const CSS = `
 .kf.me{border-right-color:var(--acc);background:linear-gradient(90deg,rgba(60,34,8,.35),rgba(70,38,8,.85) 22%)}
 .kf .b{color:#8cc4ff}.kf .r{color:#ff9a88}
 .kf .w{font-size:11px;margin:0 9px;color:#ffe2bd;letter-spacing:1px;padding:1px 7px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);text-transform:uppercase;display:inline-flex;align-items:center;gap:5px}
-.kf .w .hsi{width:12px;height:12px;color:#ff6a4a}
+.kf .w .hsi{width:12px;height:12px;color:#ff6a4a}.kf .w .nd{color:#c9d68a}
 @keyframes kf{0%{opacity:0;transform:translateX(24px)}5%{opacity:1;transform:none}85%{opacity:1}100%{opacity:0}}
 /* nişan */
 #cross{position:absolute;left:50%;top:50%;width:0;height:0}
@@ -572,7 +573,7 @@ export class Hud {
     const nm = dispName;
     const wl = wLabel(weapon);
     d.innerHTML = killer && killer !== victim
-      ? `<span class="${cls(killer)}">${nm(killer)}</span><span class="w">${EN(wl)}${hs ? HS_SVG : ''}</span><span class="${cls(victim)}">${nm(victim)}</span>`
+      ? `<span class="${cls(killer)}">${nm(killer)}</span><span class="w">${weapon === 'El Bombası' ? NADE_SVG : ''}${EN(wl)}${hs ? HS_SVG : ''}</span><span class="${cls(victim)}">${nm(victim)}</span>`
       : `<span class="${cls(victim)}">${nm(victim)}</span><span class="w">${wl && !/^(İntihar)$/.test(weapon) ? wl : t('hud.kf.died')}</span>`;
     f.appendChild(d);
     while (f.children.length > 6) f.firstChild.remove();

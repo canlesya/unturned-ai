@@ -8,6 +8,7 @@ import { TUNE } from './balance.js';
 import { paintColorOf } from './paint.js';
 import { tintPaint } from '../models/paintball.js';
 import { pbItems } from './match.js';
+import { throwState, pinSfx } from './grenade.js';
 
 const _v = new THREE.Vector3();
 const _d = new THREE.Vector3();
@@ -167,6 +168,7 @@ export class Soldier {
     this.items = this.game.mode.gungame ? ggItems(this.ggLevel) : this.game.mode.paintball ? pbItems() : makeLoadout(this.cls, this.team, this.choice);
     this.cur = 0;
     this.cd = 0; this.reloadT = 0; this.switchT = 0; this.useT = 0; this.swing = null; this.comboT = 0; this.autoSwitchT = 0; this.blindT = 0; this.burstLeft = 0;
+    this.cook = null; this.backT = 0; this.backTo = -1;
     this.protT = protect; this.protNet = false;
     this.crouching = false; this.prone = false; this.proneT = 0; this.crouchT = 0; this.leanDir = 0; this.leanT = 0; this.leanOff.set(0, 0, 0);
     this.height = H_STAND; this.ads = false; this.adsT = 0;
@@ -198,6 +200,8 @@ export class Soldier {
   switchTo(i) {
     if (i === this.cur || !this.items[i] || !this.alive || !this.canEquip(i)) return;
     const eq = Math.min(0.35, WSTATS[this.items[i].id].equip ?? 0.3);
+    this.cook = null; this.backT = 0;                                              // pişirilen bombanın pimi geri takılır (silah değişince atılmaz)
+    this.backTo = WSTATS[this.items[i].id].kind === 'throwable' ? this.cur : -1;   // attıktan sonra dönülecek silah
     this.cur = i; this.switchT = eq; this.reloadT = 0; this.useT = 0; this.swing = null; this.autoSwitchT = 0; this.burstLeft = 0;
     this._syncWeaponModel();
     this.game.emit('switch', this);
@@ -247,6 +251,7 @@ export class Soldier {
   // Tetik: held = basılı, buf = yeni tık tamponu (>0). Dönen true → tampon tüketildi. Player ve sunucu (humanTick) aynı mantığı kullanır.
   triggerUpdate(held, buf) {
     if (!this.alive) { this.burstLeft = 0; return false; }
+    if (this.stat.kind === 'throwable') return this._nadeTrigger(held, buf);
     const mode = this.fireModeNow;
     if (mode === 'auto') { if (held) this.tryFire(); return false; }
     if (mode === 'burst') {
@@ -377,15 +382,45 @@ export class Soldier {
     return true;
   }
 
-  _throw(st) {
-    const d = this.aimDir(new THREE.Vector3());
-    const p = this.eye(new THREE.Vector3()).addScaledVector(d, 0.5);
-    const v = d.clone().multiplyScalar(st.speed);
-    v.y += 3.2;
-    v.x += this.vel.x * 0.5; v.z += this.vel.z * 0.5;
-    this.game.spawnGrenade(this, p, v, st);
-    this.game.sfx.shot('throw', this.pos);
-    if (this.isPlayer) this.game.emit('throw', this);
+  // Bomba tetiği (12.144; oyuncu ve sunucudaki insan aynı mantık): bas → pim çekilir (el bombasında fünye işlemeye başlar = pişirme),
+  // basılı tutarken yörünge önizlemesi (NadeView), bırakınca atılır. Bırakırken sağ tık (nişan) basılıysa alttan, kısa yuvarlama.
+  // Pişirilen el bombası elde süresi dolarsa elde patlar (atan ölür). Botlar tryFire → _throw ile pişirmeden atar.
+  _nadeTrigger(held, buf) {
+    const it = this.item, st = this.stat;
+    if (!this.cook) {
+      if (buf <= 0 || this.cd > 0 || this.switchT > 0 || this.useT > 0 || it.mag <= 0) return false;
+      this.cook = { t: 0, id: it.id };
+      if (this.isPlayer) pinSfx(this.game.sfx);
+      this.game.emit('pin', this);
+      return true;
+    }
+    if (held) return false;
+    const c = this.cook;
+    this.cook = null;
+    if (c.id !== it.id) return false;
+    this.cd = 60 / st.rpm;
+    it.mag--;
+    this.sprinting = false;
+    return this._throw(st, st.cook ? st.fuse - c.t : st.fuse, !!this.ads);
+  }
+
+  // Her adım: pişirme süresi; el bombası elde dolarsa patlar
+  _cookTick(dt) {
+    const c = this.cook, st = this.stat;
+    if (c.id !== this.item.id || st.kind !== 'throwable') { this.cook = null; return; }
+    c.t += dt;
+    if (st.cook && c.t >= st.fuse) { this.cook = null; this.cd = 60 / st.rpm; this.item.mag--; this._throw(st, 0, false, true); }
+  }
+
+  // fuse: kalan fünye (pişirilmişse kısa) · under: alttan atış · inHand: elde patladı (göğüs hizasında, hızsız)
+  _throw(st, fuse = st.fuse, under = false, inHand = false) {
+    const g = this.game, p = new THREE.Vector3(), v = new THREE.Vector3();
+    if (inHand) { this.eye(p); p.y -= 0.35; } else throwState(this, st, under, p, v, g.world);
+    const o = { fuse, inHand };
+    if (g.online && this.isPlayer) { o.pred = true; o.q = g.online.seq; }           // çevrimiçi: kendi bombam gecikmesiz (tahmin), sunucunun 'gr'si eşlenir
+    g.spawnGrenade(this, p, v, st, null, o);
+    if (!inHand) { g.sfx.shot('throw', this.pos); if (this.isPlayer) g.emit('throw', this); }
+    if (this.isPlayer || this.human) this.backT = 0.42;                           // attıktan sonra önceki silaha dön (BattleBit gibi); bomba kalsa da
     if (this.item.mag <= 0) this.autoSwitchT = 0.35;     // bitti: birincil silaha dön
     return true;
   }
@@ -559,6 +594,11 @@ export class Soldier {
 
   die(killer, weaponName, headshot) {
     if (!this.alive) return;
+    if (this.cook) {                                                                // pimi çekili el bombası elden düşer (kalan fünyeyle)
+      const c = this.cook, st = WSTATS[c.id];
+      this.cook = null;
+      if (st?.cook && this.item.id === c.id && this.item.mag > 0) { this.item.mag--; this.game.spawnGrenade(this, new THREE.Vector3(this.pos.x, this.pos.y + 0.9, this.pos.z), new THREE.Vector3(this.vel.x * 0.3, 0.5, this.vel.z * 0.3), st, null, { fuse: st.fuse - c.t }); }
+    }
     this.alive = false; this.hp = 0;
     this.deaths++;
     this.deadT = 0; this.deadDir = Math.random() > 0.5 ? 1 : -1;
@@ -580,6 +620,11 @@ export class Soldier {
     this.blindT = Math.max(0, this.blindT - dt);
     this.comboT = Math.max(0, this.comboT - dt);
     if (this.autoSwitchT > 0 && (this.autoSwitchT -= dt) <= 0 && this.alive && this.cur !== 0 && this.item.mag <= 0 && this.items[0]) this.switchTo(0);
+    if (this.cook) this._cookTick(dt);
+    if (this.backT > 0 && (this.backT -= dt) <= 0 && !this.cook && this.stat.kind === 'throwable') {
+      const b = this.backTo >= 0 && this.backTo !== this.cur && this.canEquip(this.backTo) ? this.backTo : this.cur !== 0 && this.canEquip(0) ? 0 : -1;
+      if (b >= 0) this.switchTo(b);
+    }
     if (this.swing) {
       const sw = this.swing;
       sw.t += dt;

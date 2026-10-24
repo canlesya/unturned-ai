@@ -3,6 +3,7 @@ import { DIFFICULTY, WSTATS } from './stats.js';
 import { TUNE } from './balance.js';
 import { clamp, rand, angleDiff, yawFromDir, lerp, pick } from './util.js';
 import { ballLead } from './paint.js';
+import { aimNade } from './grenade.js';
 
 // silah rolleri (bot davranışı)
 const SNIPERS = new Set(['sniper', 'svd', 'barrett']);
@@ -37,6 +38,7 @@ export class BotBrain {
     this.alertT = -99; this.alertPos = null;
     this.stuckT = 0; this.stuckPos = new THREE.Vector3();
     this.gadgetT = rand(6, 14);
+    this.nadeReady = (this.game.time || 0) + rand(6, 14); this.nadeSpot = null; this.pendNade = null;     // el bombası / flaş: kendi bekleme süresi (12.144)
     this.aimFrac = rand(0.55, 0.82);
     this.holdT = 0;
     this.via = null; this.perching = false; this.perch = null;
@@ -200,6 +202,38 @@ export class BotBrain {
     this.setGoal(x, z, rand(10, 20), t ? t.y : undefined);
   }
 
+  // El bombası / flaş kararı (12.144): hedef 8–32 m (flaş 6–30) ve gerekçe varsa (kalabalık: hedefin 5 m yakınında başka düşman, hedef duruyor,
+  // ya da %50 şans) aynı fizikle nişan (aimNade: yay engele çarpıp geri dönecekse ya da yanına düşecekse atmaz). Zorluk hatası kadar sapmalı hedef.
+  // Bekleme: bot başına 16–28 sn, takım başına 3 sn (aynı anda iki bot bomba yağdırmaz). turn: önce dön (sakin anda), sonra at.
+  // Saklanan düşman: görüşten çıktığında duruyorsa (siperde kamp) son görüldüğü yere (sense → nadeSpot, 4 sn içinde).
+  tryNade(gid, tp, dist, tg, turn = false) {
+    const g = this.game, s = this.s, it = s.items[2], st = WSTATS[gid];
+    if (!it || it.id !== gid || it.mag <= 0 || !st) return false;
+    if (dist < (gid === 'flash' ? 6 : 8) || dist > (gid === 'flash' ? 30 : 32)) return false;
+    const tt = (g.nadeTeamT ||= {});
+    if (g.time - (tt[s.team] ?? -99) < 3) return false;
+    if (gid === 'grenade' && tg) {
+      let crowd = 0;
+      for (const e of g.soldiers) if (e.alive && e !== tg && e.team === tg.team && Math.hypot(e.pos.x - tp.x, e.pos.z - tp.z) < 5) crowd++;
+      const still = Math.hypot(tg.vel.x, tg.vel.z) < 1.5;
+      if (!crowd && !still && Math.random() > 0.5) return false;
+    }
+    const e = this.d.err * 40, a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * e;
+    tB.set(tp.x + Math.cos(a) * r, tp.y, tp.z + Math.sin(a) * r);
+    const aim = aimNade(s, st, tB, g.world, gid === 'flash' ? 6 : 3.5);
+    if (!aim) return false;
+    tt[s.team] = g.time;
+    this.nadeReady = g.time + rand(16, 28);
+    if (turn && Math.abs(angleDiff(s.yaw, aim.yaw)) > 0.06) { this.pendNade = { gid, aim, t: 1.2 }; return true; }
+    return this.throwNade(gid, aim);
+  }
+
+  throwNade(gid, aim) {
+    const s = this.s;
+    s.yaw = aim.yaw; s.pitch = aim.pitch; s.recoilP = 0;
+    return s.useGadget(gid);
+  }
+
   sense() {
     const g = this.game, s = this.s;
     const eye = s.eye(tA);
@@ -228,6 +262,7 @@ export class BotBrain {
       this.lostT += 0.22;
       if (this.lostT > 0.5) {
         if (this.lastKnown) this.setGoal(this.lastKnown.x, this.lastKnown.z, 6, this.lastKnown.y);
+        if (this.lastKnown && this.target?.alive && Math.hypot(this.target.vel.x, this.target.vel.z) < 2) { this.nadeSpot = this.lastKnown.clone(); this.nadeSpotT = g.time; }   // siper arkasında durdu (kamp): oraya bomba düşünülebilir
         this.target = null;
       }
     }
@@ -436,7 +471,7 @@ export class BotBrain {
       this.gadgetT -= dt;
       if (this.gadgetT <= 0 && this.reactT <= 0) {
         const gid = s.items[2]?.id;
-        if ((gid === 'grenade' || gid === 'flash') && dist > (gid === 'flash' ? 6 : 9) && dist < 30) { s.pitch = Math.max(s.pitch, 0.18 + dist * 0.004); if (s.useGadget(gid)) this.gadgetT = rand(14, 25); }
+        if (gid === 'grenade' || gid === 'flash') this.gadgetT = 2;                                  // el bombası / flaş: aşağıda (tryNade, kendi bekleme süresi)
         else if (gid === 'smoke' && s.hp < s.maxHp * 0.55 && dist > 8 && dist < 40) { s.pitch = Math.max(s.pitch, 0.25); if (s.useGadget('smoke')) this.gadgetT = rand(18, 30); }
         else if ((gid === 'rpg' || gid === 'm79') && dist > 14 && dist < (gid === 'rpg' ? 70 : 55) && Math.random() < 0.5) {
           if (gid === 'm79') s.pitch = Math.max(s.pitch, 0.0044 * dist);
@@ -445,6 +480,7 @@ export class BotBrain {
         else this.gadgetT = 2;
       }
 
+      { const gid = s.items[2]?.id; if ((gid === 'grenade' || gid === 'flash') && this.reactT <= 0 && g.time >= this.nadeReady && !this.tryNade(gid, tp, dist, tg)) this.nadeReady = g.time + rand(1.5, 3); }
       // savaş hareketi
       this.strafeT -= dt;
       if (this.strafeT <= 0) { this.strafeDir *= -1; this.strafeT = rand(0.7, 2.0); }
@@ -478,6 +514,16 @@ export class BotBrain {
     } else {
       s.ads = false; s.crouching = false; s.botExtraSpread = 0;
       this.burstLeft = 0;
+      if (this.nadeSpot && g.time - this.nadeSpotT < 4 && g.time >= this.nadeReady && s.items[2]?.id === 'grenade' && s.items[2].mag > 0) {    // gözden kaybolan düşmanın son yerine
+        const sp = this.nadeSpot; this.nadeSpot = null;
+        this.tryNade('grenade', sp, Math.hypot(sp.x - s.pos.x, sp.z - s.pos.z), null, true);
+      }
+      if (this.pendNade) {                                                    // önce o yöne dön, sonra at
+        const pn = this.pendNade, d = angleDiff(s.yaw, pn.aim.yaw);
+        s.yaw += clamp(d, -this.d.turn * 1.5 * dt, this.d.turn * 1.5 * dt);
+        if ((pn.t -= dt) <= 0) this.pendNade = null;
+        else if (Math.abs(d) < 0.06) { this.pendNade = null; this.throwNade(pn.gid, pn.aim); }
+      }
       // sakin anlarda mayın / cephane kutusu kur
       this.gadgetT -= dt * 0.5;
       if (this.gadgetT <= 0) {
@@ -492,7 +538,8 @@ export class BotBrain {
       if (pm) { moveX = pm[0]; moveZ = pm[1]; speed *= pm[2]; }
       // yürüme yönüne dön, ya da son duyulan sese bak
       const ml = Math.hypot(moveX, moveZ);
-      if (ml > 0.1) s.yaw += clamp(angleDiff(s.yaw, yawFromDir(moveX, moveZ)), -6 * dt, 6 * dt);
+      if (this.pendNade) { moveX *= 0.3; moveZ *= 0.3; }                       // bomba atmak için dönüyor: yürüme yönüne dönmez, yavaşlar
+      else if (ml > 0.1) s.yaw += clamp(angleDiff(s.yaw, yawFromDir(moveX, moveZ)), -6 * dt, 6 * dt);
       else if (this.alertPos && g.time - this.alertT < 2.5) {
         const wy = yawFromDir(this.alertPos.x - s.pos.x, this.alertPos.z - s.pos.z);
         s.yaw += clamp(angleDiff(s.yaw, wy), -3 * dt, 3 * dt);

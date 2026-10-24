@@ -193,16 +193,16 @@ export const WSTATS = {
   },
   // ───────── Gadgetlar ─────────
   grenade: {
-    name: 'El Bombası', kind: 'throwable', gtype: 'frag', slot: 'gadget', desc: 'Patlayıcı bomba, 2.6 sn fitil.', stats: { dmg: 80, range: 40, rate: 30, control: 50, mobility: 100 },
-    count: 2, dmg: 130, radius: 6, fuse: 2.6, speed: 15, rpm: 40, mag: 2, reserve: 0, move: 1.0, equip: 0.3, sound: 'throw',
+    name: 'El Bombası', kind: 'throwable', gtype: 'frag', slot: 'gadget', desc: 'Patlayıcı bomba, 3 sn fitil. Basılı tut: pişir + yörünge; sağ tıkla bırak: alttan yuvarla.', stats: { dmg: 80, range: 40, rate: 30, control: 50, mobility: 100 },
+    count: 2, dmg: 130, radius: 7.5, fuse: 3.0, cook: true, speed: 19, rpm: 40, mag: 2, reserve: 0, move: 1.0, equip: 0.3, sound: 'throw',
   },
   smoke: {
     name: 'Dumanlı Bomba', kind: 'throwable', gtype: 'smoke', slot: 'gadget', desc: '10 sn duman perdesi: görüşü tamamen keser.', stats: { dmg: 0, range: 40, rate: 30, control: 70, mobility: 100 },
-    count: 2, radius: 5.2, fuse: 1.5, speed: 14, rpm: 40, mag: 2, reserve: 0, move: 1.0, equip: 0.3, sound: 'throw', smokeLife: 10,
+    count: 2, radius: 5.2, fuse: 2.2, speed: 19, rpm: 40, mag: 2, reserve: 0, move: 1.0, equip: 0.3, sound: 'throw', smokeLife: 10,
   },
   flash: {
     name: 'Flaşbang', kind: 'throwable', gtype: 'flash', slot: 'gadget', desc: 'Bakanları kör eder, botları şaşırtır.', stats: { dmg: 0, range: 40, rate: 30, control: 70, mobility: 100 },
-    count: 2, radius: 24, fuse: 1.5, speed: 15, rpm: 40, mag: 2, reserve: 0, move: 1.0, equip: 0.3, sound: 'throw',
+    count: 2, radius: 24, fuse: 1.6, speed: 19, rpm: 40, mag: 2, reserve: 0, move: 1.0, equip: 0.3, sound: 'throw',
   },
   claymore: {
     name: 'Claymore', kind: 'mine', slot: 'gadget', desc: 'Yere kurulur; önünden geçen düşmanı patlatır.', stats: { dmg: 90, range: 25, rate: 20, control: 60, mobility: 100 },

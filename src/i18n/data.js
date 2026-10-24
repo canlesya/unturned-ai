@@ -84,7 +84,7 @@ addStrings('en', {
   'weapon.sniper.name': 'M24 Sniper', 'weapon.sniper.desc': 'Bolt action: one shot to the body, 4x scope.', 'weapon.svd.desc': 'Semi-auto DMR: quick follow-up shots, 3x scope.', 'weapon.barrett.desc': 'Anti-materiel: one-shot mincer, very heavy.',
   'weapon.lmg.desc': '100 rounds of suppressive fire.', 'weapon.pkm.desc': 'Heavy machine gun: 7.62 mm, powerful but unwieldy.',
   'weapon.rpg.desc': 'Rocket launcher: explosive damage against vehicles and buildings.', 'weapon.m79.name': 'M79 Grenade Launcher', 'weapon.m79.desc': 'Lobs a 40 mm grenade that explodes on impact.',
-  'weapon.grenade.name': 'Frag Grenade', 'weapon.grenade.desc': 'Explosive grenade, 2.6 s fuse.', 'weapon.smoke.name': 'Smoke Grenade', 'weapon.smoke.desc': '10 s smoke screen: blocks vision completely.',
+  'weapon.grenade.name': 'Frag Grenade', 'weapon.grenade.desc': 'Explosive grenade, 3 s fuse. Hold: cook + trajectory; release with right click: underhand roll.', 'weapon.smoke.name': 'Smoke Grenade', 'weapon.smoke.desc': '10 s smoke screen: blocks vision completely.',
   'weapon.flash.name': 'Flashbang', 'weapon.flash.desc': 'Blinds anyone looking, confuses bots.', 'weapon.claymore.desc': 'Placed on the ground; blows up enemies walking past.',
   'weapon.ammobox.name': 'Ammo Box', 'weapon.ammobox.desc': 'Drop it to refill nearby teammates’ ammo.', 'weapon.medkit.name': 'First Aid Kit', 'weapon.medkit.desc': 'Restores health (60).',
   'weapon.knife.name': 'Knife', 'weapon.knife.desc': 'Fast combo, one-hit kill from behind.', 'weapon.machete.name': 'Machete', 'weapon.machete.desc': 'Long reach, heavy and wide swing.',
