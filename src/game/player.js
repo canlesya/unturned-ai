@@ -9,7 +9,7 @@ import { WSTATS, OPTICS, OPTIC_ALLOWED, ZT_ORDER } from './stats.js';
 import { reloadAnim, meleePose, SWING_HIT_K } from './anim.js';
 import { fpHand, handBasis, zombieColors } from '../models/fpHands.js';
 import { box } from '../core/geo.js';
-import { clamp, lerp, V3, adsEase, ADS_HUD, zoomFov } from './util.js';
+import { clamp, lerp, V3, adsEase, ADS_HUD, zoomFov, SCOPE_ON } from './util.js';
 import { applyInput } from '../sim/input.js';
 import { TUNE } from './balance.js';
 import { TouchControls, isTouch } from './touch.js';
@@ -398,7 +398,9 @@ export class ViewModel {
     }
     // sürgülü: ateşten sonra sürgü çekilir (kısa el hareketi)
     let boltK = 0;
-    if (u.bolt && !ra) { const b = 1 - this.boltT; boltK = this.boltT > 0 ? Math.sin(Math.PI * clamp((b - 0.22) / 0.55, 0, 1)) : 0; rz -= boltK * 0.35; pos.x -= boltK * 0.02; }
+    if (u.bolt && !ra) { const b = 1 - this.boltT; boltK = this.boltT > 0 ? Math.sin(Math.PI * clamp((b - 0.3) / 0.55, 0, 1)) : 0; rz -= boltK * 0.35; pos.x -= boltK * 0.02; }      // 12.153: sürgü sesiyle aynı anda (0,3–0,85 sn; ses 0,55 / 0,73)
+    this.boltK = boltK;
+    if (p.scopeOn && boltK > 0) { camRoll += boltK * 0.035 * (this.game.leftHand ? -1 : 1); camPitch -= boltK * 0.012; }      // 12.153: dürbünde kalınır; sürgü çekilirken görüş hafif yatar / iner (HUD'da dürbün halkası kayar), atış zaten bekleme süresinde
     if (u.bolt) { const bb = ra ? ra.bolt : boltK; u.bolt.g.position.set(0, u.bolt.pivot, bb * 0.085); u.bolt.g.rotation.z = bb * 0.9; }
     // şarjör alt grubu
     if (u.mag) {
@@ -511,7 +513,7 @@ export class ViewModel {
     }
     // dürbün örtüsü (12.127): adsT > 0,9'da açılır; çıkışta dünya büyütmesi ×2'nin altına inene dek açık kalır (eski: 0,9'da kapanıyor, ×4,6 dünyanın önünde 3B dürbün gövdesi ekranı kaplıyordu) → kapanınca HUD kısa kararma
     const zE = p.zoomEff?.() || 1;
-    p.scopeOn = s.alive && s.overlay === 'scope' && (s.adsT > 0.9 || (!!p.scopeOn && zE > 2 && p.zoomCur() >= 2));
+    p.scopeOn = s.alive && s.overlay === 'scope' && (s.adsT > SCOPE_ON || (!!p.scopeOn && zE > 2 && p.zoomCur() >= 2));      // 12.153: 0,9 → SCOPE_ON (göz merceği ekranı kaplamadan, tam kararmanın arkasında açılır)
     this.root.visible = this.forceShow || !p.scopeOn;      // dürbünlü silahta örtü açıkken model gizli (HUD aynı bayrağı kullanır; forceShow: adsalign testi)
     this.cam.rotation.z = -s.leanT * 0.2;   // yana eğilirken silah da kafayla birlikte yatar
     if (this.arms.length) {                    // zombi kolları: bilek ucundan dirsek noktasına (kamera uzayı; sol el modunda aynalı)
