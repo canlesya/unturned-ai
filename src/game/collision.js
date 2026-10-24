@@ -7,6 +7,7 @@ export const H_STAND = 1.78;
 export const H_CROUCH = 1.3;
 export const H_PRONE = 0.55;
 const STEP = 0.5;
+const WALL_CLIMB = 0.55;       // arazi duvarı (Cephe siperi): ayağın bu kadar üstündeki komşu hücre yüzeyi duvardır (cepheTerrain.wallAt ile aynı eşik)
 import { TUNE } from './balance.js';
 import { fallHeight } from '../sim/fall.js';
 const GRAV = 15;                 // varsayılan; TUNE.gravity kullanılır
@@ -96,6 +97,7 @@ export class World {
         const g1 = T.heightAt(p.x, p.z);
         if (p.y <= g0 + 0.08 && (g1 > g0 + 1.2 * Math.abs(d) || (g1 < (T.deepWater ?? DEEP_WATER) && g0 >= (T.deepWater ?? DEEP_WATER)))) { p[axis] -= d; v[axis] = 0; continue; }
         if (T.wallAt && T.wallAt(p.x, p.z, p.y)) { p[axis] -= d; v[axis] = 0; continue; }       // kuyu duvarı (Boya Kulesi): düşen kenara geri çıkamaz
+        if (T.pushOut && T.pushOut(p, R, WALL_CLIMB, axis)) v[axis] = 0;                          // 12.161 Cephe siper duvarı: gövde yarıçapıyla katı (merkez değil)
       }
       let guard = 0;
       let c;
@@ -130,6 +132,7 @@ export class World {
       else if (v.y > 0) { p.y = c.min[1] - h - 1e-3; v.y = 0; }
       else { p.y = prevY; v.y = 0; }
     }
+    if (T && T.pushOut) T.pushOut(p, R, WALL_CLIMB, null);                                         // 12.161: zıplayıp kenara yetişemeyen / düşen gövde duvara taşmışsa (ayak duvar tepesinin 0,55 m altına indi) en kısa yoldan dışarı (sıkışma yok)
     // iniş: havadan yere / kutu üstüne değdi → düşüş yüksekliği = havadaki en yüksek nokta (zirve, zıplama dahil) − iniş noktası.
     // Kare süresinden bağımsız olsun diye zirve izlenir; ışınlanma / düzeltme zirveyi bozarsa iniş hızı sınırlar (v² / 2g + 0,6 m).
     // Derin suya (Vadi nehri) ya da minder / uçuş sonrası iniş hasarsız.

@@ -534,13 +534,13 @@ Object.assign(WSTATS, {
 Object.assign(OPTIC_ALLOWED, { ww_mg: ['iron'], ww_bolt: ['iron'], ww_semi: ['iron'], ww_smgb: ['iron'], ww_smgr: ['iron'], ww_lmg: ['iron'], ww_pistol: ['iron'], ww_sniper: ['scope'] });
 // Cephe modunun sınıf donanımı (CLASS_DEFS'in yerine; mod dışında görünmez). d = takım varsayılanı (Mavi Garand / Thompson tarzı, Kırmızı sürgülü / MP40 tarzı)
 export const FRONT_KIT = {
-  assault: { primary: ['ww_semi', 'ww_bolt'], d: { blue: 'ww_semi', red: 'ww_bolt' }, secondary: ['ww_pistol'], gadget: ['ww_nade', 'smoke'], melee: ['knife'] },
+  assault: { primary: ['ww_semi', 'ww_bolt'], d: { blue: 'ww_semi', red: 'ww_semi' }, secondary: ['ww_pistol'], gadget: ['ww_nade', 'smoke'], melee: ['knife'] },
   medic: { primary: ['ww_smgb', 'ww_smgr'], d: { blue: 'ww_smgb', red: 'ww_smgr' }, secondary: ['ww_pistol'], gadget: ['medkit', 'smoke'], melee: ['knife'] },
   sniper: { primary: ['ww_sniper', 'ww_bolt'], d: { blue: 'ww_sniper', red: 'ww_sniper' }, secondary: ['ww_pistol'], gadget: ['ww_nade', 'smoke'], melee: ['knife'] },
   heavy: { primary: ['ww_lmg', 'ww_mg'], d: { blue: 'ww_lmg', red: 'ww_mg' }, secondary: ['ww_pistol'], gadget: ['ww_nade', 'ammobox'], melee: ['knife'] },
   engineer: { primary: ['ww_smgb', 'ww_smgr', 'ww_bolt'], d: { blue: 'ww_smgb', red: 'ww_smgr' }, secondary: ['ww_pistol'], gadget: ['ww_nade', 'ammobox'], melee: ['knife'] },
 };
-export const FRONT_TEAM = { ww_semi: 'blue', ww_smgb: 'blue', ww_lmg: 'blue', ww_smgr: 'red', ww_mg: 'red' };
+export const FRONT_TEAM = { ww_smgb: 'blue', ww_lmg: 'blue', ww_smgr: 'red', ww_mg: 'red' };
 export function frontLoadout(cls, team, choice = {}, rng = Math.random) {
   const K = FRONT_KIT[cls] || FRONT_KIT.assault;
   const mine = (id) => !FRONT_TEAM[id] || FRONT_TEAM[id] === team;                       // botların rastgele seçimi takım kimliğini bozmasın (Kırmızı MG42 / katlanır HMK …)

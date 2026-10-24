@@ -371,7 +371,7 @@ export class Room {
       for (const e of g.soldiers) arm(e);
       if (!g._pbArm) { g._pbArm = true; g.on('spawn', arm); }
     }
-    if (Number.isFinite(m.frs) && g.front) { while (g.front.sector < Math.min(g.front.n, m.frs | 0)) g.front.advance(true); }   // { frs } Cephe: sektörü ileri al (test)
+    if (Number.isFinite(m.frs) && g.front) { const A = Math.max(0, Math.min(g.front.n - 1, m.frs | 0)); let k = 0; while (!g.front.done && g.front.a < A && k++ < 12) g.front.shift(1, true); while (!g.front.done && g.front.a > A && k++ < 12) g.front.shift(-1, true); }   // { frs: sıra } Cephe: etkin noktayı oraya kaydır (test)
     if (Array.isArray(m.frt) && g.front) { const o = g.mode.objectives.find((q) => q.id === m.frt[0]); if (o) { o.owner = m.frt[1] === 'red' ? 'red' : m.frt[1] === 'blue' ? 'blue' : null; o.p = o.owner === 'blue' ? 1 : o.owner === 'red' ? -1 : 0; } }   // { frt:[nokta, sahip] } (test)
     if (Number.isFinite(m.pld) && g.payload) { g.payload.d = Math.max(g.payload.floorD, Math.min(g.payload.end, m.pld)); g.payload.idleT = 0; }   // { pld } vagonu yol mesafesine taşı (Vagon testi)
     if (typeof m.zb === 'string' && ZTYPES[m.zb] && g.mode.infection && s.alive) {                  // { zb:tür } hemen zombi ol, güç hazır, hazırlık süresi biter (dokunmatik güç butonu testi)
@@ -418,7 +418,7 @@ export class Room {
     const all = JSON.stringify(g.soldiers.map((s) => { const sg = slowSig(s), ch = force || sig[s.id] !== sg; if (ch) sig[s.id] = sg; return packSoldier(s, ch); }));
     const o = JSON.stringify(g.mode.objectives.map((ob) => [ob.owner === 'blue' ? 1 : ob.owner === 'red' ? 2 : 0, Math.round(ob.p * 100) / 100]));
     const tl = g.timeLeft === Infinity ? -1 : Math.round(g.timeLeft * 10) / 10;
-    const pl = (g.payload ? `"pl":${JSON.stringify(g.payload.pack())},` : '') + (g.front ? `"fr":${JSON.stringify(g.front.pack())},` : '');      // Cephe: [etkin sektör]                                   // Vagon: [yol mesafesi, iten | durduran | durum | uzatma]
+    const pl = (g.payload ? `"pl":${JSON.stringify(g.payload.pack())},` : '') + (g.front ? `"fr":${JSON.stringify(g.front.pack())},` : '');      // Cephe: [etkin nokta sırası, cephe değişimi, bitti]                                   // Vagon: [yol mesafesi, iten | durduran | durum | uzatma]
     const head = `{"t":"snap","k":${this.tick},"tk":[${Math.round(g.tickets.blue)},${Math.round(g.tickets.red)}],"tl":${tl},"o":${o},${pl}"s":${all},"me":`;
     for (const c of this.clients.values()) {
       if (c.ws.readyState !== 1) continue;

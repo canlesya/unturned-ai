@@ -7,7 +7,7 @@ export class Weather {
   constructor(game, kind) {
     this.g = game; this.kind = kind;
     this.t = 0; this.flash = 0; this.nextBolt = 10 + Math.random() * 14;
-    game.visMul = kind === 'fog' ? 0.5 : kind === 'rain' ? 0.8 : 1;
+    game.visMul = (kind === 'fog' ? 0.5 : kind === 'rain' ? 0.8 : 1) * (game.map?.visMul || 1);     // harita pusu (12.161 Cephe) da botların görüşünü kısar
     const sc = game.scene;
     this.sun = game.sun;
     this.sunI = game.sun.intensity;
