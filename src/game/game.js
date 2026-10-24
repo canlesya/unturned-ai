@@ -2,6 +2,7 @@ import { MapBuilder } from '../maps/builder.js';
 import { SightMap } from './sight.js';
 import { MapEditor, loadEdits } from './mapEditor.js';
 import * as THREE from 'three';
+import { warmup } from './warmup.js';
 import { setupEnvironment } from '../maps/environment.js';
 import { MAPS, DEFAULT_MAP } from '../maps/index.js';
 import { World } from './collision.js';
@@ -28,6 +29,7 @@ import { rand, pick, clamp } from './util.js';
 import { TEAMS } from '../core/palette.js';
 import { nullSink } from '../sim/nullSink.js';
 import { applyInput } from '../sim/input.js';
+import { fallDamage, fallApplies, FALL } from '../sim/fall.js';
 import { SIM_DT } from '../net/protocol.js';
 import { mat } from '../core/geo.js';
 import { t } from '../i18n/index.js';
@@ -35,8 +37,10 @@ import { Paint, paintColorOf } from './paint.js';
 import { Pickups } from './pickups.js';
 import { EndFlow } from './endFlow.js';
 import { t as $t } from '../i18n/index.js';
-import { placeName } from '../i18n/game.js';                                                         // oyun içi sözlük (hud. / death. / end. …)
+import { placeName, banText } from '../i18n/game.js';                                                         // oyun içi sözlük (hud. / death. / end. …)
 import { Payload } from './payload.js';
+import { NADE, nadeStep, simulateNade, NadeView } from './grenade.js';
+import { createWeapon } from '../models/weapons.js';
 import { initGadgets, updateGadgets, spawnSmoke, flashBang, smokeBlocks, smokeDensity, placeDeployable, netDeploy, netUndeploy } from './gadgets.js';
 
 const STAT_ID = new Map(Object.entries(WSTATS).map(([k, v]) => [v, k]));      // WSTATS nesnesi → id (ağ olayları için)
@@ -44,6 +48,10 @@ const r2 = (v) => Math.round(v * 100) / 100;
 const v3 = (p) => [r2(p.x), r2(p.y), r2(p.z)];
 
 const UP = new THREE.Vector3(0, 1, 0);
+// 12.146: mermi ışınının en kısa erimi. Eskiden range[1] × 2,2 idi: tabanca 121 m, MAC-10 99 m, pompalı 70 m, MP5 154 m'den ötede ışın
+// hiçbir şeye değmiyordu (hasar yok, duvarda toz yok, iz duvarın içinden 120 m'ye uzanıyordu). Hasar düşüşü (range / minMul) aynı kalır;
+// yalnız ışın her silahta en az oynanan alanın köşegeni kadar gider (en büyüğü Vadi ≈ 216 m; ışın maliyeti boyla arttığı için 300).
+const SHOT_REACH = 300;
 
 function rayBox(o, d, min, max, maxT) {
   let t0 = 0, t1 = maxT;
@@ -83,7 +91,7 @@ export class Game {
     this.scene = new THREE.Scene();
     if (!headless) {
       r = this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-      r.setPixelRatio(Math.min(devicePixelRatio, this.settings.pixelRatio || 1.5));
+      r.setPixelRatio(this.fitRatio(Math.min(devicePixelRatio, this.settings.pixelRatio || 1.5)));
       r.setSize(innerWidth, innerHeight, false);   // CSS boyutunu biz belirleriz (yüksek DPI'da tuval taşmasın)
       r.autoClear = false;
       r.shadowMap.enabled = this.settings.shadows !== false;
@@ -175,6 +183,7 @@ export class Game {
       this.visMul = opts.weather === 'fog' ? 0.5 : opts.weather === 'rain' ? 0.8 : 1;   // Weather'ın bot görüşüne etkisi
     } else {
       this.effects = new Effects(this.scene);
+      this.effects.cam = this.camera;                              // 12.146: uzaktaki isabet efekti kameraya uzaklıkla büyür
       this.sfx = new Sfx();
       this.sfx.setVolume(this.settings.volume);
       this.sfx.setMix({ sfx: this.settings.vSfx ?? 1, amb: this.settings.vAmb ?? 1, rain: this.settings.rainSound !== false });
@@ -255,6 +264,7 @@ export class Game {
     this.killfx = new KillFx(this);                                                // vuruş / öldürme hissi (kendi katmanı)
     if (this.online) this.chat = new Chat(this);                                   // sohbet yalnızca çevrimiçi odalarda
     this.player = new Player(this, this.playerSoldier, this.settings);
+    this.nadeView = new NadeView(this);                                            // 12.144: bomba yörünge önizlemesi + pişirme göstergesi
     this.player.locked = !!opts.nolock;
     this.abfx = new AbilityFx(this);                                                // zombi gücü: yerel oyuncunun ekran / ses geri bildirimi (abilityfx.js)
     this._vmLights();
@@ -282,18 +292,22 @@ export class Game {
     });
     document.addEventListener('pointerlockchange', this._plc = () => {
       const locked = document.pointerLockElement === this.canvas;
-      if (locked) { this.lockFails = 0; this.player.skipMove = 2; this.lockKeys(true); }                 // kilit anındaki ilk fare olayı genelde zıplar: atla
+      const chatWas = !!this.chatOpen;
+      if (locked) { this.lockFails = 0; this._quietUntil = 0; this.player.skipMove = 2; this.lockKeys(true); }                 // kilit anındaki ilk fare olayı genelde zıplar: atla
       else {
         this.chat?.close();
-        this.lockKeys(false);
+        this._unlockBy = this._selfUnlock ? 'game' : 'user'; this._selfUnlock = false;   // 12.147: oyunun bıraktığı kilit jestsiz geri alınabilir
+        this.lockKeys(document.fullscreenElement && this.settings.fullscreen !== false ? 'esc' : false);   // tam ekran menüde Esc sayfada kalsın (yoksa tam ekrandan çıkar)
         this._unlockAt = performance.now();
         this.player.fireHeld = false; this.playerSoldier.ads = false;                // kilit kopunca takılı ateş/nişan kalmasın
       }
       this.player.locked = locked || !!this.opts.nolock;
       if (!this.ended) this.hud.setPaused(!this.player.locked);
+      if (!this.ended && !this.player.locked && chatWas) this.hud.showResume(true);      // sohbetteki Esc kilidi de düşürdü: menü değil, "tıkla devam"
       this.simulate = this.player.locked || this.ended;
     });
     document.addEventListener('pointerlockerror', this._ple = () => this.onLockError());
+    document.addEventListener('keydown', this._esc = (e) => { if (e.code === 'Escape' && !e.repeat) this.onEsc(e); });
     addEventListener('beforeunload', this._bu = (e) => { if (this.running && !this.ended && !this.opts.nolock) { e.preventDefault(); e.returnValue = ''; } });      // yanlışlıkla Ctrl+W / sekme kapatma: onay sorar
     addEventListener('resize', this._rs = () => {
       this.camera.aspect = innerWidth / innerHeight; this.camera.updateProjectionMatrix();
@@ -321,6 +335,7 @@ export class Game {
         else if (e.code === 'Escape' && this._tm) this.toggleTeamMenu(false);
       });
     } else for (const s of this.soldiers) if (!s.vacant) this.respawn(s, true);
+    this.warm = warmup(this);                          // 12.151: gölgelendirici ön ısıtma (yükleme ekranı açıkken; Firefox'ta ilk ACOG / nişan / silah çekme donmasını önler)
     this.running = true;
     this.simulate = !!opts.nolock || !!this.online;
     this.hud.setPaused(!opts.nolock);
@@ -462,11 +477,11 @@ export class Game {
   // istemci tahminiyle sunucuyu birbirinden koparmaz ve hız hilesi mümkün olmaz.
   humanTick(h, inp, dt) {
     const s = h.s;
+    s.ads = !!inp.a;                                                  // 12.145: nişan isteği adsT güncellemesinden ÖNCE (istemcide fare olayı karenin s.update'inden önce gelir; eski sıra sunucu adsT'sini bir adım geride bırakıp nişandan koşuya dönüşte ~5 cm tahmin düzeltmesi yaptırıyordu)
     s.update(dt);
-    if (s.alive) this.world.move(s, dt);
+    if (s.alive) { this.world.move(s, dt); this.fallCheck(s); }
     if (!s.alive) return;
     s.yaw = inp.yw; s.pitch = Math.max(-1.5, Math.min(1.5, inp.pt));
-    s.ads = !!inp.a;
     if (inp.w !== s.cur) s.switchTo(inp.w);
     if (inp.u) s.standUp();
     if (inp.c) s.toggleCrouch();
@@ -480,6 +495,7 @@ export class Game {
     if (inp.fp) h.fireBuf = 0.15;
     h.fireBuf = Math.max(0, h.fireBuf - dt);
     s.rewindTick = Number.isFinite(inp.vt) ? inp.vt : null;
+    if (s.rewindTick != null) h.vtLag = this.tick - s.rewindTick;          // teşhis (dbg ask): girdinin gördüğü an ile işlendiği adım arası
     s.inSeq = inp.q;                                                  // paintball: tohumlu saçılım + istemci tahmininin top eşlemesi
     // 3. şahıs: kameranın gözden ofseti. Yalnızca odada izinliyse, ≤ 4,5 m ve göz→kamera arasında duvar yoksa kabul edilir; aksi halde atış gözden.
     s.stanceLeft = this.thirdAllowed && !!inp.sd;                      // yalnızca görsel: diğer oyuncular sol omuz duruşunu görsün
@@ -503,6 +519,7 @@ export class Game {
       // Her işlenen girdi 1 hak harcar. Böylece ağ dalgalanmasında yığılan girdiler biriken zamanla eritilir (kalıcı gecikme
       // kalmaz), ama oyuncunun simüle edilen toplam süresi gerçek süreyi aşamaz: saniyede 60'tan fazla girdi yollamak hız kazandırmaz.
       h.budget = Math.min((h.budget ?? 1) + 1, 30);
+      this.drainBacklog(h);
       let n = h.queue.length > 2 ? 2 : 1, did = false;
       while (n-- > 0 && h.queue.length && h.budget >= 1) {
         const inp = h.queue.shift();
@@ -518,26 +535,50 @@ export class Game {
     }
   }
 
+  // 12.138: KALICI GİRDİ BİRİKMESİNİ ERİT. Bağlantı > 0,5 sn takılınca (yeniden iletim, dalgalı ping) o sürenin girdileri bir anda gelir; bütçe
+  // en çok 30 hak (0,5 sn) biriktirdiği için fazlası kuyrukta kalır ve istemci tam 60/sn yolladığından HİÇ erimez (yalnız ölünce silinirdi).
+  // Sonuç: oyuncunun her atışı ~0,5 sn geç işlenir, görüş farkı (vt) geri sarma penceresini (HN − 3 = 37 adım) aşar, hedef yanlış yere
+  // sarılır → hareketli düşmana ölene kadar isabet yok. Çözüm: 0,5 sn'lik pencerede kuyruğun EN AZ uzunluğu (kalıcı fazlalık) 2'yi aşıyorsa
+  // fazlası atlanır. Yalnız "sessiz" girdi atlanır (tuş kenarı / silah değişimi yok); duran oyuncunun girdisi her adım, hareket edeninki 3 adımda
+  // bir (atlanan adımın yürüyüşü kaybolur → istemci küçük, yumuşatılan düzeltme alır). Atlamak simülasyonu kısaltır, uzatmaz: hız hilesine kapı açmaz.
+  drainBacklog(h) {
+    const q = h.queue;
+    h.qMin = Math.min(h.qMin ?? 99, q.length);
+    if ((h.qWin = (h.qWin || 0) + 1) >= 30) { h.backlog = Math.max(0, h.qMin - 2); h.qMin = 99; h.qWin = 0; }
+    if (!(h.backlog > 0) || q.length <= 2) return;
+    const inp = q[0];
+    if (inp.c || inp.p || inp.u || inp.fp || inp.rl || inp.fm || inp.o || inp.ab || inp.w !== h.s.cur) return;
+    const idle = !inp.f && !inp.r && !inp.j;
+    if (!idle && this.tick % 3) return;
+    q.shift(); h.backlog--; h.dropped = (h.dropped || 0) + 1;
+  }
+
   // ───── olaylar ─────
   on(n, fn) { (this.listeners.get(n) || this.listeners.set(n, []).get(n)).push(fn); }
   emit(n, p) { const a = this.listeners.get(n); if (a) for (const f of a) f(p); }
 
-  // Tam ekranda klavye kilidi: Ctrl+W / Ctrl+T gibi tarayıcı kısayolları yakalanır, oyun sırasında sekme kapanmaz (Esc serbest kalır)
+  // Tam ekranda klavye kilidi: Ctrl+W / Ctrl+T gibi tarayıcı kısayolları yakalanır, oyun sırasında sekme kapanmaz.
+  // 12.147: Esc de kilitli → kısa Esc sayfaya gelir (oyun menüyü kendisi açar / kapar), basılı tutunca tarayıcı tam ekrandan çıkar.
+  // on === 'esc': duraklatma menüsünde yalnız Esc (diğer kısayollar serbest).
   lockKeys(on) {
     const kb = navigator.keyboard;
+    if (on === 'esc') { try { kb?.lock(['Escape'])?.catch?.(() => {}); } catch (e) { /* desteklenmiyor */ } return; }
     if (!on) { try { kb?.unlock(); } catch (e) { /* desteklenmiyor */ } return; }
     if (this.settings.fullscreen !== false && !document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
-    const keys = ['KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'KeyR', 'KeyT', 'KeyN', 'KeyC', 'KeyF', 'KeyG', 'KeyV', 'KeyX', 'KeyZ', 'KeyB', 'KeyH', 'ControlLeft', 'ControlRight', 'AltLeft', 'AltRight', 'ShiftLeft', 'ShiftRight', 'Space', 'Tab', 'F5'];
+    const keys = ['Escape', 'KeyW', 'KeyA', 'KeyS', 'KeyD', 'KeyQ', 'KeyE', 'KeyR', 'KeyT', 'KeyN', 'KeyC', 'KeyF', 'KeyG', 'KeyV', 'KeyX', 'KeyZ', 'KeyB', 'KeyH', 'ControlLeft', 'ControlRight', 'AltLeft', 'AltRight', 'ShiftLeft', 'ShiftRight', 'Space', 'Tab', 'F5'];
     try { kb?.lock(keys)?.catch?.(() => {}); } catch (e) { /* desteklenmiyor */ }
   }
 
-  requestLock() {
+  // quiet: Esc ile dönme denemesi (kullanıcı jesti yok, reddedilebilir): hata sayılmaz / uyarı yok, "tıkla devam" katmanı açık kalır
+  requestLock(quiet = false) {
     this.sfx.init();
     if (this.opts.nolock) { this.player.locked = true; this.simulate = true; this.hud.setPaused(false); return; }
     if (this.noPointerLock) { this.player.locked = true; this.simulate = true; this.hud.setPaused(false); return; }
-    // Chrome, Esc ile çıkıştan hemen sonra (~1,3 sn) yapılan kilit isteğini reddeder: bekleyip sonra iste
-    const wait = 1350 - (performance.now() - (this._unlockAt || -1e9));
-    if (wait > 0) { clearTimeout(this._lockT); this._lockT = setTimeout(() => this.requestLock(), wait); return; }
+    // Chrome, kullanıcı Esc ile çıktıktan hemen sonra (~1,3 sn) yapılan kilit isteğini reddeder: bekleyip sonra iste (oyunun bıraktığı kilitte soğuma yok)
+    const wait = this._unlockBy === 'game' ? 0 : 1350 - (performance.now() - (this._unlockAt || -1e9));
+    clearTimeout(this._lockT);
+    if (wait > 0) { this._lockT = setTimeout(() => this.requestLock(quiet), wait); return; }
+    this._quietUntil = quiet ? performance.now() + 2000 : 0;
     const plain = () => { try { const p = this.canvas.requestPointerLock(); p?.catch?.((err) => this.onLockError(err)); } catch (e) { this.onLockError(e); } };
     try {
       // ham fare girdisi (işletim sistemi hızlandırması yok): daha tutarlı bakış; desteklenmezse normal istek
@@ -548,6 +589,7 @@ export class Game {
 
   // Kilit alınamadı: tek seferlik hatada kalıcı "kilitsiz moda" GEÇME (imleç ekranda kalıp bakışı bozuyordu); ancak art arda başarısızsa
   onLockError() {
+    if (performance.now() < (this._quietUntil || 0)) return;                 // Esc denemesi reddedildi: katman zaten "tıkla devam" diyor
     this.lockFails = (this.lockFails || 0) + 1;
     if (this.lockFails >= 4 || !this.canvas.requestPointerLock) { this.fallbackLock(); return; }
     this.hud.toast($t('hud.t.lockRetry'), '#ffd27a');
@@ -560,6 +602,23 @@ export class Game {
     this.player.locked = true; this.simulate = true;
     this.hud.setPaused(false);
     this.hud.toast($t('hud.t.lockFail'), '#ffd27a');
+  }
+
+  // 12.147 Esc: oyunda → duraklatma menüsü · menüde → oyuna dön · "tıkla devam" katmanında → menü.
+  // Kilit varken Esc'nin sayfaya gelmesi yalnız tam ekran + Keyboard Lock'ta olur (pencerede tarayıcı kilidi kendisi bırakır, olay gelmez).
+  // Alt sayfa (Ayarlar / Kontroller, tuş atama), sohbet, takım menüsü Esc'yi kendileri işler; dokunmatik / kilitsiz yedek mod player.js'te.
+  onEsc(e) {
+    const hud = this.hud;
+    if (!this.running || this.ended || hud.endShown || this.noPointerLock || this._tm || this.chatOpen || hud.igs?.open) return;
+    if (this.opts.nolock ? this.simulate : this.player.locked) {
+      e.preventDefault();
+      if (this.opts.nolock) { this.player.locked = false; this.simulate = false; hud.setPaused(true); return; }      // ?nolock=1 (test / editör): aynı durum geçişi
+      this._selfUnlock = true; document.exitPointerLock?.();               // pointerlockchange menüyü açar
+      return;
+    }
+    if (!this._unlockBy && hud.$('pause').classList.contains('intro')) return;     // ilk giriş ekranı ("Hazır mısın?"): ilk kilit tıkla alınır
+    if (hud.resumeShown) { e.preventDefault(); hud.setPaused(true); return; }                 // katman → menü
+    if (hud.pausedShown) { e.preventDefault(); hud.showResume(true); this.requestLock(true); }   // menü → oyun (reddedilirse katman kalır)
   }
 
   togglePause() {
@@ -740,7 +799,7 @@ export class Game {
   respawn(s, first = false) {
     if (this.mode.infection) { if (s.infectNext) this.infect(s); else if (s.willCure) this.cure(s); }
     const ctl = this.ctlOf(s);
-    if (ctl && ctl.queue) { ctl.queue.length = 0; ctl.budget = 1; }        // insan: doğmadan önceki eski girdiler (örn. eski silah seçimi) uygulanmasın
+    if (ctl && ctl.queue) { ctl.queue.length = 0; ctl.budget = 1; ctl.backlog = 0; ctl.qMin = 99; }        // insan: doğmadan önceki eski girdiler (örn. eski silah seçimi) uygulanmasın
     if (ctl && ctl.pendingLoadout) { s.choice = ctl.pendingLoadout; ctl.pendingLoadout = null; if (!this.mode.fixed) s.items = makeLoadout(s.cls, s.team, s.choice); }
     if (ctl && ctl.pendingClass && ctl.pendingClass !== s.cls && !s.def.zombie && !this.mode.fixed) s.setClass(ctl.pendingClass);      // sabit teçhizatlı modda (silah yarışı / paintball) sınıf değişmez
     if (s.def.zombie) {                                                // yeniden doğan zombi: seçtiği tür; botlar her doğuşta rastgele
@@ -756,6 +815,52 @@ export class Game {
     if (s.brain) s.brain.reset();
     if (ctl) ctl.pendingClass = null;
     if (s.isPlayer) this.hud.onPlayerSpawn?.();
+  }
+
+  // ───── düşme hasarı (12.143; tablo: sim/fall.js) ─────
+  // YETKİLİ taraf (çevrimdışı oyun / sunucu) uygular: World.move inişte s.landH'yi yazar. Koruma / ölümsüzlük takeDamage'daki gibi; saldıran yok
+  // (botun onDamaged'ı tetiklenmez, isabet işareti yok). Ölürse "Düştü": kendi kendine, puan kimseye (İntihar / Kuyu ile aynı akış).
+  fallCheck(s) {
+    const h = s.landH;
+    if (!(h > FALL.safe) || !s.alive || !fallApplies(s, this.mode)) return;
+    if (s.protT > 0 || (s.isPlayer && this.devGod)) return;
+    const dmg = fallDamage(h);
+    if (dmg <= 0) return;
+    s.hp -= dmg; s.lastDmgT = this.time; s.useT = 0;
+    if (s.isPlayer) this.fallFx(dmg);
+    else if (s.human) this.netEvent({ e: 'fall', v: s.id, d: dmg, h: +h.toFixed(1) });
+    this.emit('fall', { s, h, dmg });
+    if (s.hp <= 0) { s.lastHit = s; s.die(s, 'Düştü', false); }
+  }
+
+  // Çevrimiçi istemci: aynı tabloyla iniş anında tahmin (geri bildirim + can göstergesi); sunucu bu girdiyi onaylayınca (ack ≥ q) can sunucudan gelir
+  // (NetClient.reconcile), çift düşülmez. Ölüm kararı yalnız sunucuda.
+  fallPredict(me) {
+    const h = me.landH;
+    if (!(h > FALL.safe) || !fallApplies(me, this.mode) || me.protected || this.devGod) return;
+    const dmg = fallDamage(h);
+    if (dmg <= 0) return;
+    this.online.fallPred = { q: this.online.seq + 1, dmg };              // iniş, bir sonraki gönderilecek girdinin sunucu adımında olur (önce hareket, sonra girdi)
+    me.hp = Math.max(1, me.hp - dmg);
+    this.fallFx(dmg);
+  }
+
+  // Uzlaştırmada yeniden oynatılan adımda iniş (NetClient.reconcile): tahmini o girdiye bağla; geri bildirim son 1 sn'de verilmediyse şimdi
+  fallReplay(me, q) {
+    const h = me.landH;
+    const dmg = h > FALL.safe && fallApplies(me, this.mode) && !me.protected && !this.devGod ? fallDamage(h) : 0;
+    if (dmg <= 0) { if (this.online.fallPred?.q === q) this.online.fallPred = null; return; }
+    this.online.fallPred = { q, dmg };
+    if (!(this.time - (this._fallFxAt ?? -9) < 1)) this.fallFx(dmg);
+  }
+
+  // İniş darbesi: kısa kamera sarsıntısı + hasar sesi + genel (yönsüz) kırmızı kenar
+  fallFx(dmg) {
+    if (this.headless) return;
+    this._fallFxAt = this.time;
+    this.effects.shake = Math.max(this.effects.shake, clamp(0.25 + dmg / 80, 0.3, 1));
+    this.hud.damageFrom(null, this.playerSoldier);
+    this.sfx.hurt();
   }
 
   // Kuyu (map.voidY altına düşen) elenir: ölüm sayılır; son 5 sn içinde biri vurduysa öldürme ona yazılır ("düşürdü"), yoksa kendi düştü
@@ -874,7 +979,7 @@ export class Game {
   // ───── ana döngü ─────
   loop(now) {
     this.raf = requestAnimationFrame(this.loop);
-    const dt = clamp((now - this.last) / 1000 || 0.016, 0, 0.05);
+    const dt = this.frameDt(now);
     this.last = now;
     this.perfTick(now, dt);
     if (this.online && !this.ended) {
@@ -907,6 +1012,25 @@ export class Game {
     c.quaternion.slerpQuaternions(a.q, b.q, alpha);
   }
 
+  // 12.151: kare adımı yumuşatma. Firefox'ta rAF zaman damgası ~1 ms (parmak izi direnci / LibreWolf / Mullvad'da 16,7 ms) kuantalı: 60 Hz'de
+  // 16,7 / 33,3 / 0 ms dizisi kamerayı ve modelleri bir kare iki adım, bir kare hiç ilerletir (titreme = "donma" hissi). Adım, ortalama kare süresine
+  // yakın tutulur; gerçek zamanla fark (borç) her karede %15 kapatılır (uzun vadede toplam süre aynı). Gerçek takılmada (> 100 ms) eski davranış.
+  frameDt(now) {
+    const raw = (now - this.last) / 1000;
+    if (!(raw > 0) || raw > 0.1 || !this._ema) { if (raw > 0 && raw <= 0.1) this._ema = raw; this._debt = 0; return clamp(raw || 0.016, 0, 0.05); }
+    this._ema += (raw - this._ema) * 0.1;
+    this._debt = clamp(this._debt + raw, -0.05, 0.25);
+    const d = clamp(this._ema + (this._debt - this._ema) * 0.15, 0, 0.05);
+    this._debt -= d;
+    return d;
+  }
+
+  // Tuval çizim tamponu sürücü sınırını aşmasın (Firefox parmak izi direnci MAX_VIEWPORT_DIMS'i 4096'ya indirir; aşınca görüntü kırpılır / bulanır)
+  fitRatio(pr) {
+    if (!this._maxDim) { const gl = this.renderer.getContext(), v = gl.getParameter(gl.MAX_VIEWPORT_DIMS); this._maxDim = Math.min(v[0], v[1], gl.getParameter(gl.MAX_RENDERBUFFER_SIZE) * 2) || 4096; }
+    return Math.max(0.5, Math.min(pr, this._maxDim / Math.max(1, innerWidth), this._maxDim / Math.max(1, innerHeight)));
+  }
+
   // FPS ölçümü + uyarlanabilir çözünürlük: ortalama kare süresi uzun sürerse çözünürlük kademeli düşer, rahatlayınca geri yükselir (en çok seçilen kaliteye kadar)
   perfTick(now, dt) {
     const p = (this._perf ||= { n: 0, t: 0, fps: 0, ratio: null, max: 0, cool: 0 });
@@ -915,7 +1039,8 @@ export class Game {
     if (p.t < 1.2) return;
     p.fps = p.n / p.t; const ms = (p.t / p.n) * 1000; p.n = 0; p.t = 0;
     const r = this.renderer;
-    if (p.ratio === null) { p.max = Math.min(devicePixelRatio, this.settings.pixelRatio || 1.5); p.ratio = p.max; }
+    if (p.ratio === null) { p.max = this.fitRatio(Math.min(devicePixelRatio, this.settings.pixelRatio || 1.5)); p.ratio = p.max; }
+    p.vs = !p.vs || ms < p.vs ? ms : p.vs + (ms - p.vs) * 0.02;                                          // ekran yenileme süresi tahmini (60 Hz'de ~16,7 ms)
     if (this.settings.adaptive === false) return;
     if (p.cool > 0) { p.cool--; return; }
     let want = p.ratio;
@@ -930,8 +1055,9 @@ export class Game {
       else if (p.slow >= 3 && p.ratio > low + 0.01) { want = low; p.hold = 6; p.slow = 0; }
       else if (p.hold > 0) p.hold--;
       else if (ms < 17.5 && p.ratio < p.max) want = Math.min(p.max, p.ratio + 0.25);
-    } else if (ms > 25 && p.ratio > 0.6) want = Math.max(0.6, p.ratio * 0.85);                                   // masaüstü: < 40 FPS düşür
-    else if (ms < 13.5 && p.ratio < p.max) want = Math.min(p.max, p.ratio * 1.12);                               // rahat: geri yükselt
+    } else if (ms > 25 && p.ratio > 0.6) { want = Math.max(0.6, p.ratio * 0.85); p.hold = Math.min(40, 8 * (1 + (p.drops = (p.drops || 0) + 1))); }   // masaüstü: < 40 FPS düşür
+    else if (p.hold > 0) p.hold--;
+    else if ((ms < 13.5 || ms < p.vs * 1.12) && p.ratio < p.max) want = Math.min(p.max, p.ratio * 1.12);     // rahat: geri yükselt. 12.151: 60 Hz ekranda kare hiç 13,5 ms'nin altına inmez → eskiden çözünürlük bir kez düşünce hiç geri gelmezdi; artık yenileme hızına dayanmışsa (≈ tavan) yükselir, düşüşten sonra 10–48 sn bekler (salınım olmasın)
     if (Math.abs(want - p.ratio) > 0.01) {
       p.ratio = want; p.cool = 1;
       r.setPixelRatio(want); r.setSize(innerWidth, innerHeight, false);
@@ -946,7 +1072,7 @@ export class Game {
     if (this._badge && (this._badgeT -= dt) <= 0) { this._badgeT = 0.5; const rtt = Math.round(this.online.stats.rtt || 0); this._badge.innerHTML = `ODA <b style="color:#ffb347">${this._badgeCode}</b> · ${rtt ? rtt + ' ms' : '…'} · ${Math.round(this._perf?.fps || 0)} FPS`; }
     const me = this.playerSoldier;
     for (const s of this.soldiers) s.update(dt);
-    if (me.alive) this.world.move(me, dt); else if (me.respawnT > 0) me.respawnT -= dt;
+    if (me.alive) { this.world.move(me, dt); this.fallPredict(me); } else if (me.respawnT > 0) me.respawnT -= dt;
     this.player.update(dt);
     { const m = this.playerSoldier.pos; if (!this._p0) { this._p0 = m.clone(); this._p1 = m.clone(); } else { const t = this._p0; this._p0 = this._p1; this._p1 = t; t.copy(m); } }       // yerel karakter konumu: son iki adım
     {                                                                                             // kamera ara değerleme için son iki adım (nesne yeniden kullanılır)
@@ -970,7 +1096,7 @@ export class Game {
     for (const s of this.soldiers) {
       if (s.human && s.alive) continue;            // canlı insanlar girdi güdümlü (updateHumans)
       s.update(dt);
-      if (s.alive) this.world.move(s, dt);
+      if (s.alive) { this.world.move(s, dt); this.fallCheck(s); }
     }
     if (this.player) this.player.update(dt); else this.updateHumans(dt);
     for (const b of this.brains) b.update(dt);
@@ -1017,6 +1143,7 @@ export class Game {
         }
         case 'hm': if (ev.by === me.id) this.emit('hitmark', { zone: ev.hd ? 'head' : 'body', dead: !!ev.dead }); break;
         case 'dmg': if (ev.v === me.id) { this.hud.damageFrom(new V(ev.x, 0, ev.z), me); this.sfx.hurt(); } break;
+        case 'fall': if (ev.v === me.id && !(this.time - (this._fallFxAt ?? -9) < 1)) this.fallFx(ev.d); break;     // düşme hasarı: tahmin etmediysek (yanlış tahmin) sunucudan geri bildirim
         case 'kill': {
           const victim = this.soldiers[ev.v], killer = this.soldiers[ev.k] || victim;
           if (!victim) break;
@@ -1026,7 +1153,7 @@ export class Game {
           if (victim === me) me.lastHit = killer;
           break;
         }
-        case 'gr': if (by) this.spawnGrenade(by, new V(...ev.o), new V(...ev.v), WSTATS[ev.w], { id: ev.id }); break;
+        case 'gr': if (by) this.netGrenade(ev, by); break;
         case 'rk': if (by) this.spawnRocket(by, new V(...ev.o), new V(...ev.d), WSTATS[ev.w], { id: ev.id }); break;
         case 'sl': if (by) this.spawnShell(by, new V(...ev.o), new V(...ev.d), WSTATS[ev.w], { id: ev.id }); break;
         case 'boom': {
@@ -1118,10 +1245,12 @@ export class Game {
   // Eski sunucu: oda sıfırlandı, sayfa yenilenip yeniden katılınır. Yeni sunucu (re:1) aynı bağlantıda 'welcome' yollar (main.js oyunu yeniden kurar)
   onNetRestart(m) { if (!m || !m.re) location.reload(); }
 
-  onNetClosed() {
-    if (this.ended) return;
-    this.hud.toast($t('hud.t.disconnected'), '#ff8a7a');
+  // kicked: sunucunun { t:'kicked', k, ms, r } mesajı (moderatör attı / banladı) → genel "bağlantı koptu" yerine nedeni gösterilir
+  onNetClosed(kicked) {
+    if (this.ended && !kicked) return;
     this.ended = true; this.running = false;
+    if (kicked) { this.chat?.close?.(); document.exitPointerLock?.(); this.hud.showEnd(false, $t(kicked.k === 'ban' ? 'ban.banTitle' : 'ban.kickTitle'), banText(kicked), ''); this.hud.$('bAgain').style.display = 'none'; return; }      // tekrar katılma düğmesi yok: yalnız ana menü
+    this.hud.toast($t('hud.t.disconnected'), '#ff8a7a');
     this.hud.showEnd(false, $t('end.lost'), $t('end.lostInfo'), '');
   }
 
@@ -1204,11 +1333,11 @@ export class Game {
     if (this.map.fx) this.map.fx.update(performance.now() / 1000);            // harita efektleri (New York: ateş ışığı titremesi, duman / kıvılcım zamanı)
     this.paint.draw();
     this.pickups.draw();
+    this.nadeView?.draw();
     const now = performance.now(), dt = Math.min(0.1, (now - (this._rT || now)) / 1000); this._rT = now;
     this._vmLightUpdate(dt);
     if (this.playerSoldier.alive && !this.showSelf) this.player.vm.renderPip(r, this.scene, this.camera);      // 12.128: ACOG merceği (PiP) ana çizimden önce, gölgesiz
-    const post = this.post?.on ? this.post : null;
-    if (post) post.begin();
+    const post = this.post?.on && this.post.begin() ? this.post : null;      // begin() false: hedef sürücü sınırını aşıyor → doğrudan ekrana (12.151)
     r.clear();
     r.render(this.scene, this.camera);
     if (this.playerSoldier.alive && !this.showSelf) this.player.vm.render(r, innerWidth, innerHeight);
@@ -1250,7 +1379,7 @@ export class Game {
   }
 
   shootRay(shooter, origin, dir, st, muzzle, camO = null) {
-    const maxT = st.range ? st.range[1] * 2.2 : 300;
+    const maxT = Math.max(SHOT_REACH, st.range ? st.range[1] * 2.2 : 300);
     // sunucu: insanın atışı, istemcinin gördüğü ana geri sarılarak hesaplanır (lag compensation)
     const restore = shooter.rewindTick != null ? this.rewind(shooter, shooter.rewindTick) : null;
     if (camO) {
@@ -1368,16 +1497,47 @@ export class Game {
     this.netEvent({ e: 'rk', id, by: owner.id, w: STAT_ID.get(st), o: v3(pos), d: v3(dir) });
   }
 
-  spawnGrenade(owner, pos, vel, st, net) {
-    if (this.online && !net) return;
-    const col = st.gtype === 'smoke' ? '#9aa0a6' : st.gtype === 'flash' ? '#33373d' : '#4d5b3a';
-    const m = new THREE.Mesh(st.gtype === 'frag' || !st.gtype ? new THREE.IcosahedronGeometry(0.06, 0) : new THREE.CylinderGeometry(0.035, 0.035, 0.12, 8), mat(col));
-    m.position.copy(pos);
-    m.castShadow = true;
-    this.scene.add(m);
-    const id = net ? net.id : ++this.pidN;
-    this.projectiles.push({ id, type: 'grenade', mesh: m, pos: pos.clone(), vel: vel.clone(), owner, st, fuse: st.fuse, bounces: 0 });
-    this.netEvent({ e: 'gr', id, by: owner.id, w: STAT_ID.get(st), o: v3(pos), v: v3(vel) });
+  // Atılan bomba (el bombası / duman / flaş). o: { fuse (pişirilmişse kalan), inHand (elde patladı), pred (çevrimiçi: kendi atışımın tahmini, girdi sırası q) }
+  // Fizik grenade.js'te (sabit adım): sunucu, istemci tahmini ve önizleme aynı yolu çizer.
+  spawnGrenade(owner, pos, vel, st, net, o = {}) {
+    if (this.online && !net && !o.pred) return;
+    const id = net ? net.id : o.pred ? -(++this.pidN) : ++this.pidN;
+    let m;
+    if (this.headless) m = new THREE.Object3D();
+    else {
+      const wid = STAT_ID.get(st);
+      try { m = createWeapon(wid, null, true); m.scale.setScalar(1.25); } catch (e) { m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.07, 0), mat('#4d5b3a')); }
+      m.traverse((c) => { if (c.isMesh) c.castShadow = true; });
+      m.position.copy(pos);
+      this.scene.add(m);
+    }
+    const fuse = Number.isFinite(o.fuse) ? Math.max(0, o.fuse) : st.fuse;
+    // görüntü: bomba ilk 0,18 sn'de elden (göz hattının sağ-altı) gerçek yola süzülür (fizik gözden başlar: duvardan atılamaz)
+    const vis = new THREE.Vector3();
+    if (!this.headless && !o.inHand) { const r = owner.right(new THREE.Vector3()); vis.addScaledVector(r, 0.22).y -= 0.22; }
+    const p = { id, type: 'grenade', mesh: m, pos: pos.clone(), vel: vel.clone(), owner, st, fuse, bounces: 0, acc: 0, age: 0, steps: 0, ground: false, rest: false, vis, inHand: !!o.inHand, pred: !!o.pred, q: o.pred ? o.q : -1, ph: {} };
+    this.projectiles.push(p);
+    this.netEvent({ e: 'gr', id, by: owner.id, w: STAT_ID.get(st), o: v3(pos), v: v3(vel), f: +fuse.toFixed(3), q: Number.isFinite(owner.inSeq) ? owner.inSeq : -1, ih: o.inHand ? 1 : 0 });
+    return p;
+  }
+
+  // Çevrimiçi: sunucunun 'gr' olayı. Kendi atışımsa tahminle zaten havada: kimliğini eşle, sunucunun başlangıcından aynı adım sayısı kadar yeniden koş (yakınsar).
+  netGrenade(ev, by) {
+    const st = WSTATS[ev.w], V = THREE.Vector3;
+    if (!st) return;
+    if (by === this.playerSoldier) {
+      const mine = this.projectiles.filter((p) => p.pred && p.st === st);
+      const p = mine.find((q) => q.q === ev.q) || mine.sort((a, b) => b.age - a.age)[0];
+      if (p) {
+        p.id = ev.id; p.pred = false;
+        const s0 = { pos: new V(...ev.o), vel: new V(...ev.v), ground: false, rest: false };
+        for (let k = 0; k < p.steps; k++) nadeStep(s0, this.world, p.ph);
+        p.pos.copy(s0.pos); p.vel.copy(s0.vel); p.ground = s0.ground; p.rest = s0.rest;
+        p.fuse = (Number.isFinite(ev.f) ? ev.f : st.fuse) - p.steps * NADE.h;
+        return;
+      }
+    }
+    this.spawnGrenade(by, new V(...ev.o), new V(...ev.v), st, { id: ev.id }, { fuse: ev.f, inHand: !!ev.ih });
   }
 
   // M79 tarzı bomba: yaylı yol, çarpınca patlar
@@ -1415,25 +1575,36 @@ export class Game {
           p.trail -= dt;
           if (p.trail <= 0) { p.trail = 0.02; this.effects._part(p.pos, '#8a8a8a', 0.14, null, 0.6, 0.7, -0.5); this.effects._part(p.pos, '#ffb04a', 0.08, null, 0.3, 0.12, 0); }
         }
+      } else if (!p.shell) {
+        // atılan bomba: sabit adım (NADE.h) — kare hızından bağımsız, önizlemeyle birebir
+        p.acc += dt; p.age += dt;
+        while (p.acc >= NADE.h - 1e-9 && !boom) {
+          p.acc -= NADE.h;
+          if (p.fuse <= 1e-9) { boom = p.pos.clone(); break; }
+          const hit = nadeStep(p, this.world, p.ph);
+          p.steps++; p.fuse -= NADE.h;
+          if (hit > 2 && ++p.bounces < 6) this.sfx.impact(p.pos);
+          if (p.fuse <= 1e-9) boom = p.pos.clone();
+        }
+        if (!this.headless) {
+          const k = Math.max(0, 1 - p.age / 0.18);
+          p.mesh.position.copy(p.pos).addScaledVector(p.vis, k);
+          if (!p.rest) { const sp = Math.min(1, p.vel.length() / 6); p.mesh.rotation.x += dt * 9 * sp; p.mesh.rotation.z += dt * 5 * sp; }
+        }
+        if (p.pred && p.age > 1.6 + (this.online?.stats.rtt || 0) / 1000) { this.scene.remove(p.mesh); this.projectiles.splice(i, 1); continue; }   // sunucu onaylamadı (atış reddedildi)
       } else {
         p.fuse -= dt;
-        p.vel.y -= (p.shell ? 8 : 14) * dt;
+        p.vel.y -= 8 * dt;
         const step = p.vel.clone().multiplyScalar(dt), L = step.length();
         if (L > 1e-5) {
           const d = step.clone().normalize();
           const wh = this.world.raycast(p.pos, d, L + 0.05, (this._ph ||= {}));
-          if (wh && p.shell) boom = wh.point.clone().addScaledVector(wh.normal, 0.15);
-          else if (wh) {
-            p.pos.copy(wh.point).addScaledVector(wh.normal, 0.06);
-            const n = wh.normal, vn = p.vel.dot(n);
-            p.vel.addScaledVector(n, -2 * vn).multiplyScalar(0.45);
-            if (Math.abs(n.y) > 0.5) { p.vel.x *= 0.7; p.vel.z *= 0.7; if (Math.abs(p.vel.y) < 1.2) p.vel.y = 0; }
-            if (++p.bounces < 6 && p.vel.length() > 1.5) this.sfx.impact(p.pos);
-          } else p.pos.add(step);
+          if (wh) boom = wh.point.clone().addScaledVector(wh.normal, 0.15);
+          else p.pos.add(step);
         }
         p.mesh.position.copy(p.pos);
-        if (p.shell) p.mesh.lookAt(p.pos.clone().add(p.vel)); else { p.mesh.rotation.x += dt * 8; p.mesh.rotation.z += dt * 6; }
-        if (p.shell && !boom) {
+        p.mesh.lookAt(p.pos.clone().add(p.vel));
+        if (!boom) {
           // doğrudan düşmana isabet
           for (const e of this.soldiers) {
             if (!e.alive || e === p.owner || e.team === p.owner.team) continue;
@@ -1450,12 +1621,13 @@ export class Game {
         this.netEvent({ e: 'boom', id: p.id, k: gt === 'smoke' ? 's' : gt === 'flash' ? 'f' : 'x', p: v3(boom), r: p.st.radius, w: STAT_ID.get(p.st), by: p.owner.id });
         if (gt === 'smoke') spawnSmoke(this, boom, p.st, p.owner);
         else if (gt === 'flash') flashBang(this, boom, p.owner, p.st);
-        else this.explode(boom, p.st.radius, p.st.dmg, p.owner, p.st.name);
+        else this.explode(boom, p.st.radius, p.st.dmg, p.owner, p.st.name, p.inHand ? 9 : undefined);
       }
     }
   }
 
-  explode(pos, radius, dmg, owner, name) {
+  // selfMul: atanın kendi hasar çarpanı (varsayılan TUNE.selfBlast; elde patlayan bomba öldürür). Duvar arkası: patlamadan gövde merkezi YA DA başa açık hat yoksa hasar yok.
+  explode(pos, radius, dmg, owner, name, selfMul) {
     this.effects.explosion(pos, radius);
     this.sfx.explosion(pos);
     this.alertNear(pos, owner.team, 90);
@@ -1469,9 +1641,9 @@ export class Game {
       const c = e.center(new THREE.Vector3());
       const d = c.distanceTo(pos);
       if (d > radius) continue;
-      if (!this.world.clear(o, c)) continue;
+      if (!this.world.clear(o, c) && !this.world.clear(o, e.eye(_xe))) continue;
       let a = dmg * (1 - (d / radius) ** 2);
-      if (e === owner) a *= TUNE.selfBlast;
+      if (e === owner) a *= selfMul ?? TUNE.selfBlast;
       e.takeDamage(a, owner, 'body', pos, name);
       e.vel.x += (c.x - pos.x) / (d + 0.5) * 3; e.vel.z += (c.z - pos.z) / (d + 0.5) * 3;
     }
@@ -1683,10 +1855,11 @@ export class Game {
     document.removeEventListener('pointerlockchange', this._plc);
     removeEventListener('beforeunload', this._bu); this.lockKeys(false); if (document.fullscreenElement && !keepNet) document.exitFullscreen?.().catch(() => {});
     document.removeEventListener('keydown', this._kd);
-    document.removeEventListener('pointerlockerror', this._ple);
+    document.removeEventListener('pointerlockerror', this._ple); document.removeEventListener('keydown', this._esc); clearTimeout(this._lockT);
     clearTimeout(this._lockT);
     removeEventListener('resize', this._rs);
     this.player.dispose();
+    this.nadeView?.dispose();
     this.abfx?.dispose();
     this.chat?.dispose();
     this.killfx.dispose();
@@ -1699,5 +1872,5 @@ export class Game {
   }
 }
 
-const _sv = new THREE.Vector3(), _sq = new THREE.Quaternion();
+const _sv = new THREE.Vector3(), _sq = new THREE.Quaternion(), _xe = new THREE.Vector3();
 function lerpClamp(a, b, t) { return a + (b - a) * clamp(t, 0, 1); }

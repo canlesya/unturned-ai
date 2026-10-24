@@ -23,6 +23,7 @@ export const yawFromDir = (x, z) => Math.atan2(-x, -z);
 
 // Nişan geçişi (görsel, 12.122): adsT doğrusal (oyun mantığı / sunucu aynı); model, FOV ve HUD bu eğriyi kullanır → girişte hızlı başlayıp yumuşak oturur (ease-out), çıkışta yavaş ayrılır (ease-in)
 export const adsEase = (t) => 1 - Math.pow(1 - Math.min(1, Math.max(0, t)), 2.2);
+export const SCOPE_ON = 0.72;   // 12.153: dürbün örtüsünün açıldığı adsT (HUD kararması 0,3 → SCOPE_ON arasında tam siyaha çıkar; eski 0,9'da %70-85'te 3B göz merceği ekranı kaplıyordu)
 export const ADS_HUD = 0.97;      // 12.127: HUD retikülü (#rdot / #holo / #idot) bu eğri değerinden sonra çıkar; 3B ışıyan halka / nokta (telefonda) aynı anda söner → retikülsüz kare yok
 // 12.127: gerçek büyütme: dikey FOV = 2·atan(tan(taban/2) / z) (eski taban / z doğrusal bölmesi ×4'te %10+ sapıyordu, FOV ayarına bağlıydı)
 export const zoomFov = (base, z) => (z > 1 ? (2 * Math.atan(Math.tan((base * Math.PI) / 360) / z) * 180) / Math.PI : base);

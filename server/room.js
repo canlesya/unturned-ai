@@ -170,17 +170,18 @@ export class Room {
     ws.send(JSON.stringify({ t: 'wait', ms: Math.max(0, this.resetAt - Date.now()) }));
   }
 
-  // Boş resmi oda kendiliğinden döner (listede harita / gün saati değişsin): idleMin dakikada bir (0 = kapalı)
+  // Boş resmi oda kendiliğinden döner (listede harita / gün saati değişsin): idleMin dakikada bir (0 = kapalı). Döndüyse true
   idleTick(now) {
     const o = this.official;
-    if (!o || this.clients.size || this.pending.length) return;
+    if (!o || this.clients.size || this.pending.length) return false;
     const ms = EMPTY_ENV || (o.idleMin ?? 10) * 60000;
-    if (!ms || now - this.gameAt < ms) return;
+    if (!ms || now - this.gameAt < ms) return false;
     this.activate();
     this.advance(null);
     this.game.dispose();
     this.newGame();
     console.log(`[${this.code}] boş oda: yeni harita ${this.cfg.map} / ${this.cfg.tod} / ${this.cfg.weather}`);
+    return true;
   }
 
   // Admin panelinden resmi sunucu ayarı değişti: boşsa hemen yeni maç, içinde oyuncu varsa sonraki maçta (değişmeyen sunucuya dokunulmaz: boş oda dönüşü sıfırlanmasın)
@@ -272,12 +273,12 @@ export class Room {
     return c;
   }
 
-  leave(id, ws) {
+  leave(id, ws, quiet = false) {                                       // quiet: atılan / banlanan (moderation.js kendi mesajını yazar)
     if (ws) { const i = this.pending.findIndex((p) => p.ws === ws); if (i >= 0) this.pending.splice(i, 1); this.vote?.votes.delete(ws); }
     if (!this.clients.has(id) || (ws && this.clients.get(id).ws !== ws)) return;
     const nm = this.clients.get(id).name;
     this.clients.delete(id);
-    if (this.clients.size) this.sys(`${nm} odadan ayrıldı`);
+    if (this.clients.size && !quiet) this.sys(`${nm} odadan ayrıldı`);
     this._forceSlow = true;
     this.game.releaseSlot(id);
     if (!this.clients.size) {
@@ -349,15 +350,18 @@ export class Room {
     if (typeof m.spawn === 'string') h.spawnChoice = m.spawn === 'base' || g.mode.objectives.some((o) => o.id === m.spawn) ? m.spawn : 'base';
   }
 
-  // BF_DEBUG=1 ile açılan test komutları: { t:'dbg', tp:[x,z] } ışınla · { hp } can · { bots:false } botları sustur · { pb:1 } herkese paintball silahları · { zb:'brute' } zombi ol · { ask } durum
+  // BF_DEBUG=1 ile açılan test komutları (ask: kuyruk / bütçe / atıcı durumu da döner): { t:'dbg', tp:[x,z] } ışınla · { tpy:[x,y,z] } havada bırak · { hp } can · { bots:false } botları sustur · { pb:1 } herkese paintball silahları · { zb:'brute' } zombi ol · { dmg:[id,hasar,kafa] } başkasını vur · { ask } durum
   debug(id, m) {
     const c = this.clients.get(id), g = this.game;
     if (!c) return;
     const s = c.h.s;
     if (Array.isArray(m.tp)) { s.pos.set(m.tp[0], g.world.heightAt(m.tp[0], m.tp[1]), m.tp[2 - 1]); s.vel.set(0, 0, 0); g.world.settle(s); s.protT = 0; }
+    if (Array.isArray(m.tpy) && m.tpy.length === 3 && m.tpy.every(Number.isFinite)) { s.pos.set(m.tpy[0], m.tpy[1], m.tpy[2]); s.vel.set(0, 0, 0); s.onGround = false; s.fallTop = m.tpy[1]; s.protT = 0; }   // { tpy:[x,y,z] } havada bırak (düşme hasarı testi)
     if (Number.isFinite(m.hp)) s.hp = m.hp;
-    if (Array.isArray(m.item) && WSTATS[m.item[1]]) s.items[m.item[0] | 0] = { id: m.item[1], mag: 3, reserve: 0 };
+    if (Array.isArray(m.item) && WSTATS[m.item[1]]) s.items[m.item[0] | 0] = { id: m.item[1], mag: Number.isFinite(m.item[2]) ? m.item[2] : 3, reserve: Number.isFinite(m.item[3]) ? m.item[3] : 0 };   // { item:[yuva, id, şarjör?, yedek?] }
+    if (Array.isArray(m.am)) { const it = s.items[m.am[0] | 0]; if (it) { it.mag = +m.am[1] || 0; it.reserve = +m.am[2] || 0; } }          // { am:[yuva, şarjör, yedek] } sunucu cephanesini değiştir (12.138 uzlaştırma testi)
     if (m.kill) s.takeDamage(9999, s, 'body', s.pos, 'test'), s.protT = 0;
+    if (Array.isArray(m.dmg)) { const v = g.soldiers[m.dmg[0] | 0]; if (v && v.alive && v !== s) { v.protT = 0; v.takeDamage(+m.dmg[1] || 9999, s, m.dmg[2] ? 'head' : 'body', s.pos, s.item?.name || 'test'); } }   // { dmg:[kurban, hasar, kafa?] } bu oyuncu vurmuş gibi (seri sesi testi)
     if (Array.isArray(m.tk)) { g.tickets.blue = +m.tk[0]; g.tickets.red = +m.tk[1]; }
     if (Array.isArray(m.kl)) for (const [i, n] of m.kl) { const t = g.soldiers[i | 0]; if (t && Number.isFinite(+n)) t.kills = +n; }   // { kl:[[id,öldürme]…] } skor kutusu testi
     if (m.pb) {                                                                                     // paintball silahları (mod gelmeden test): herkese tüfek + tabanca, doğunca da
@@ -373,7 +377,8 @@ export class Room {
     }
     if (m.bots === false) { g.brainsOff = g.brains.splice(0); }
     if (m.bots === true && g.brainsOff) { g.brains.push(...g.brainsOff); g.brainsOff = null; }
-    if (m.ask && c.ws.readyState === 1) c.ws.send(JSON.stringify({ t: 'dbg', optic: s.opticId, item: s.item.id, zb: !!s.def.zombie, ab: [+s.abT.toFixed(2), +s.abActive.toFixed(2)] }));   // test: sunucudaki nişangâh / silah (istemci bilinmeyen t'yi yok sayar)
+    if (m.ask && c.ws.readyState === 1) c.ws.send(JSON.stringify({ t: 'dbg', optic: s.opticId, item: s.item.id, zb: !!s.def.zombie, ab: [+s.abT.toFixed(2), +s.abActive.toFixed(2)],
+      q: c.h.queue.length, bu: c.h.budget, drop: c.h.dropped || 0, ack: c.h.ack, tick: g.tick, lagT: c.h.vtLag != null ? +c.h.vtLag.toFixed(1) : null, sv: { cur: s.cur, fm: s.fireModeNow, st: s.prone ? 'p' : s.crouching ? 'c' : 's', mag: s.item.mag, res: s.item.reserve, cd: +s.cd.toFixed(3), rl: +s.reloadT.toFixed(2), sw: +s.switchT.toFixed(2), use: +s.useT.toFixed(2), swing: !!s.swing, prot: +s.protT.toFixed(2), alive: s.alive } }));   // test: sunucudaki nişangâh / silah (istemci bilinmeyen t'yi yok sayar)
   }
 
   broadcast(msg, except) {
@@ -395,7 +400,7 @@ export class Room {
     const g = this.game;
     g.step(SIM_DT);
     this.tick = g.tick;
-    for (const c of this.clients.values()) if (c.h.tickAck) c.h.ackState = packSoldier(c.h.s);
+    for (const c of this.clients.values()) if (c.h.tickAck) { c.h.ackState = packSoldier(c.h.s); c.h.ackAm = c.h.s.items.map((it) => [it.mag, it.reserve]); }      // ack anındaki cephane: istemci aynı girdideki kendi tahminiyle karşılaştırır (12.138)
     if (g.netEvents.length) { this.broadcast({ t: 'ev', l: g.netEvents }); g.netEvents.length = 0; }
     if (this.tick % SNAP_EVERY === 0 && this.clients.size) this.snapshot();
   }
@@ -414,7 +419,7 @@ export class Room {
     for (const c of this.clients.values()) {
       if (c.ws.readyState !== 1) continue;
       const h = c.h, s = h.s;
-      const me = { ack: h.ack, rs: s.spawnN, st: h.ackState || packSoldier(s), now: packSoldier(s), rt: +s.respawnT.toFixed(2), am: s.items.map((it) => [it.mag, it.reserve]), ab: [+s.abT.toFixed(1), +s.abActive.toFixed(1)] };
+      const me = { ack: h.ack, rs: s.spawnN, st: h.ackState || packSoldier(s), now: packSoldier(s), rt: +s.respawnT.toFixed(2), am: s.items.map((it) => [it.mag, it.reserve]), aa: h.ackAm, ab: [+s.abT.toFixed(1), +s.abActive.toFixed(1)] };
       c.ws.send(head + JSON.stringify(me) + '}');
     }
   }

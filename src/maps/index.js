@@ -63,7 +63,7 @@ MAPS.ormankale = {
 };
 MAPS.maden = {
   id: 'maden', name: 'Maden Ocağı', tag: 'Vagon · saldırı / savunma · ray', thumb: '/img/maden.jpg', only: ['payload'], mobile: true,
-  desc: 'Vagon moduna özel kayalık maden vadisi: patlayıcı yüklü vagon yükleme avlusundan Kırma Tesisi, A · Makas, köy caddesi, B · Kantar ve Lavvar üzerinden C · Maden Ağzı\'na raylarla gider. Her kontrol noktasında iki takımın doğuşu ileri kayar; ahşap evler, su kulesi, kantar sundurması ve yükleme rampası yakın-orta mesafe siper verir.',
+  desc: 'Vagon moduna özel kayalık maden vadisi: patlayıcı yüklü vagon yükleme avlusundan Kırma Tesisi, A · Makas, köy caddesi, B · Kantar ve Lavvar üzerinden C · Maden Ağzı\'na raylarla gider. Her kontrol noktasında iki takımın doğuşu ileri kayar: savunan hep sıradaki noktanın ilerisinde doğar, çatışma ray boyunca döner. Kaya sırtları kestirmeleri kapatır; her bölümde bir ana hat, iki kanat ve savunana ahşap iskele (yüksek zemin) var.',
   build: () => buildMaden(),
 };
 export const DEFAULT_MAP = 'kasaba';

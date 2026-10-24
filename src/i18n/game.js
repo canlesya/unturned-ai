@@ -13,7 +13,7 @@ export function wLabel(name) {
   if (!byName) { byName = {}; for (const [id, s] of Object.entries(WSTATS)) byName[s.name] = id; }
   const id = WSTATS[name] ? name : byName[name];
   if (id) return wName(id) + suf;
-  const sp = { 'İntihar': 'hud.kf.suicide', 'Kuyuya düştü': 'hud.kf.pit', 'Kuyuya düşürdü': 'hud.kf.pushed', 'Düşman üssü': 'hud.kf.base' }[name];
+  const sp = { 'İntihar': 'hud.kf.suicide', 'Kuyuya düştü': 'hud.kf.pit', 'Kuyuya düşürdü': 'hud.kf.pushed', 'Düşman üssü': 'hud.kf.base', 'Düştü': 'hud.kf.fell' }[name];
   return (sp ? t(sp) : name) + suf;
 }
 export const classDesc = (id) => tf(`class.${id}.desc`, CLASS_DEFS[id]?.desc || '');
@@ -62,7 +62,7 @@ addStrings('tr', {
   'hud.flagYours': '{f} · senin', 'hud.flagCapturing': '{f} · ele geçiriliyor',
   'hud.zone.title': 'DÜŞMAN ÜSSÜNE GİRDİN!', 'hud.zone.back': 'GERİ DÖN · {n} sn', 'hud.zone.hurt': 'CAN KAYBEDİYORSUN',
   // öldürme akışı
-  'hud.kf.you': 'Sen', 'hud.kf.died': 'öldü', 'hud.kf.suicide': 'İntihar', 'hud.kf.pit': 'Kuyuya düştü', 'hud.kf.pushed': 'Kuyuya düşürdü', 'hud.kf.base': 'Düşman üssü', 'hud.kf.back': 'arkadan',
+  'hud.kf.you': 'Sen', 'hud.kf.died': 'öldü', 'hud.kf.suicide': 'İntihar', 'hud.kf.pit': 'Kuyuya düştü', 'hud.kf.pushed': 'Kuyuya düşürdü', 'hud.kf.base': 'Düşman üssü', 'hud.kf.fell': 'Düşerek öldü', 'hud.kf.back': 'arkadan',
   'hud.pop.kill': 'ÖLDÜRME', 'hud.pop.hs': 'KAFA ATIŞI', 'hud.pop.revive': 'CANLANDIRMA', 'hud.pop.level': 'SEVİYE',
   // can / cephane / duruş
   'hud.reloading': 'dolduruluyor…', 'hud.using': 'kullanılıyor…', 'hud.prone': 'Yatıyor', 'hud.crouch': 'Çömelmiş', 'hud.leanR': 'Sağa eğik', 'hud.leanL': 'Sola eğik',
@@ -93,6 +93,11 @@ addStrings('tr', {
   'hud.tm.mine': 'SENİN TAKIMIN', 'hud.tm.full': 'DOLU', 'hud.tm.join': 'KATIL', 'hud.tm.sending': 'İstek gönderiliyor…', 'hud.tm.switching': 'Geçiliyor…',
   // maç sonu (yalnız metin)
   'end.win': 'ZAFER!', 'end.lose': 'YENİLGİ', 'end.lost': 'BAĞLANTI KOPTU', 'end.lostInfo': 'Sunucuyla bağlantı kesildi.', 'end.won': '{w} kazandı.',
+  // moderasyon (12.136): atılma / ban ekranı ve giriş reddi
+  'ban.kickTitle': 'ODADAN ATILDIN', 'ban.banTitle': 'BANLANDIN', 'ban.kicked': 'Bir moderatör seni odadan attı.', 'ban.kickedAdmin': 'Yönetici seni odadan çıkardı.',
+  'ban.again': '{d} sonra tekrar girebilirsin.', 'ban.perm': 'Bu sunucudan kalıcı olarak banlandın.', 'ban.timed': 'Bu sunucudan banlandın · kalan süre: {d}.',
+  'ban.kickJoin': 'Yakın zamanda odadan atıldın · {d} sonra tekrar girebilirsin.', 'ban.reason': 'Sebep: {r}',
+  'ban.s': '{n} sn', 'ban.m': '{n} dk', 'ban.h': '{n} sa', 'ban.hm': '{n} sa {m} dk', 'ban.d': '{n} gün', 'ban.dh': '{n} gün {h} sa',
   'end.ggKnife': '{n} son silahla (bıçak) kazandı', 'end.ggTime': 'Süre doldu · {n} seviye {l} ile kazandı', 'end.dmReach': '{n} {k} öldürmeye ulaştı',
   'end.dmTime': 'Süre doldu · {n} {k} öldürmeyle kazandı', 'end.dmTie': ' (eşitlikte puanı yüksek)', 'end.infAll': 'Tüm insanlar enfekte oldu', 'end.infCured': 'Tüm zombiler iyileşti',
   'end.infSurv': '{n} insan hayatta kaldı', 'end.tdmBlue': 'Mavi takım {n} skora ulaştı', 'end.tdmRed': 'Kırmızı takım {n} skora ulaştı', 'end.time': 'Süre doldu',
@@ -109,7 +114,7 @@ addStrings('tr', {
   // duraklat
   'pause.ready': 'Hazır mısın?', 'pause.intro': 'Başlamak için tıkla. Fare ekrana kilitlenir, Esc ile duraklatırsın.',
   'pause.introTouch': "Başlamak için BAŞLA'ya dokun. Kontrolleri duraklat menüsündeki Dokunmatik ayarlar'dan değiştirebilirsin.",
-  'pause.paused': 'Duraklatıldı', 'pause.resumeHint': 'Devam etmek için tıkla.', 'pause.start': 'Başla', 'pause.resume': 'Devam', 'pause.kill': 'Kill (yeniden doğ)',
+  'pause.paused': 'Duraklatıldı', 'pause.clickResume': 'Devam etmek için tıkla', 'pause.escMenu': 'Esc · menü', 'pause.resumeHint': 'Devam etmek için tıkla.', 'pause.start': 'Başla', 'pause.resume': 'Devam', 'pause.kill': 'Kill (yeniden doğ)',
   'pause.killTip': 'Sıkıştıysan kendini öldürüp yeniden doğ', 'pause.settings': 'Ayarlar', 'pause.controls': 'Kontroller', 'pause.menu': 'Ana Menü', 'pause.again': 'Tekrar Oyna', 'pause.touch': 'Dokunmatik ayarlar',
   // skor tablosu
   'sb.player': 'Oyuncu', 'sb.k': 'Öl', 'sb.d': 'Ölüm', 'sb.score': 'Puan', 'sb.level': 'Seviye', 'sb.weapon': 'Silah',
@@ -119,7 +124,7 @@ addStrings('tr', {
   // oyun içi ayarlar
   'set.settings': 'Ayarlar', 'set.controls': 'Kontroller', 'set.back': 'Geri', 'set.lang': 'Dil / Language',
   'set.mouse': 'Fare ve görüş', 'set.sens': 'Hassasiyet', 'set.fov': 'Görüş açısı', 'set.fovH': 'Görüş açısı (yatay)',
-  'set.sound': 'Ses', 'set.vol': 'Ana ses', 'set.sfx': 'Efekt sesleri', 'set.music': 'Müzik', 'set.amb': 'Ortam (yağmur, rüzgâr)', 'set.rain': 'Yağmur sesi',
+  'set.sound': 'Ses', 'set.vol': 'Ana ses', 'set.sfx': 'Efekt sesleri', 'set.music': 'Müzik', 'set.amb': 'Ortam (yağmur, rüzgâr)', 'set.rain': 'Yağmur sesi', 'set.streak': 'Seri sesleri',
   'set.gfx': 'Grafik', 'set.low': 'Düşük', 'set.mid': 'Orta', 'set.high': 'Yüksek', 'set.shadows': 'Gölgeler', 'set.post': 'Son işleme (Yüksek)', 'set.adaptive': 'Otomatik çözünürlük', 'set.fs': 'Tam ekran + Ctrl+W koruması',
   'set.on': 'Açık', 'set.off': 'Kapalı', 'set.gfxHint': 'Düşük kalite ve kapalı gölge, zayıf bilgisayarlarda ve büyük maçlarda akıcılığı artırır. Tam ekran değişikliği oyuna döndüğünde uygulanır.',
   'set.touch': 'Dokunmatik kontroller', 'set.touchBtn': 'Dokunmatik ayarlar ›', 'set.touchHint': 'Buton düzeni, bakış / nişan hassasiyeti, jiroskop ve nişan yardımı.',
@@ -136,7 +141,7 @@ addStrings('en', {
   'hud.bleedLose': 'Enemy holds {n} more flag(s): you lose {n} ticket(s) every {s}s', 'hud.bleedWin': 'You hold more flags: enemy tickets are draining',
   'hud.flagYours': '{f} · secured', 'hud.flagCapturing': '{f} · capturing',
   'hud.zone.title': 'ENEMY BASE!', 'hud.zone.back': 'GO BACK · {n} SEC', 'hud.zone.hurt': 'LOSING HEALTH',
-  'hud.kf.you': 'You', 'hud.kf.died': 'died', 'hud.kf.suicide': 'Suicide', 'hud.kf.pit': 'Fell into the pit', 'hud.kf.pushed': 'Pushed into the pit', 'hud.kf.base': 'Enemy base', 'hud.kf.back': 'backstab',
+  'hud.kf.you': 'You', 'hud.kf.died': 'died', 'hud.kf.suicide': 'Suicide', 'hud.kf.pit': 'Fell into the pit', 'hud.kf.pushed': 'Pushed into the pit', 'hud.kf.base': 'Enemy base', 'hud.kf.fell': 'Fell to death', 'hud.kf.back': 'backstab',
   'hud.pop.kill': 'KILL', 'hud.pop.hs': 'HEADSHOT', 'hud.pop.revive': 'REVIVE', 'hud.pop.level': 'LEVEL',
   'hud.reloading': 'reloading…', 'hud.using': 'using…', 'hud.prone': 'Prone', 'hud.crouch': 'Crouched', 'hud.leanR': 'Leaning right', 'hud.leanL': 'Leaning left',
   'hud.fire.semi': 'Single', 'hud.fire.burst': 'Burst (3-5 rounds)', 'hud.fire.auto': 'Full auto', 'hud.fireS.semi': 'Single', 'hud.fireS.burst': 'Burst', 'hud.fireS.auto': 'Auto',
@@ -163,6 +168,10 @@ addStrings('en', {
   'hud.wheel': 'SIGHT', 'hud.wheelHint': '{w} · pick with the mouse, left click', 'hud.zoom': '{n}x zoom',
   'hud.tm.mine': 'YOUR TEAM', 'hud.tm.full': 'FULL', 'hud.tm.join': 'JOIN', 'hud.tm.sending': 'Sending request…', 'hud.tm.switching': 'Switching…',
   'end.win': 'VICTORY!', 'end.lose': 'DEFEAT', 'end.lost': 'DISCONNECTED', 'end.lostInfo': 'The connection to the server was lost.', 'end.won': '{w} won.',
+  'ban.kickTitle': 'KICKED FROM ROOM', 'ban.banTitle': 'BANNED', 'ban.kicked': 'A moderator kicked you from the room.', 'ban.kickedAdmin': 'An administrator removed you from the room.',
+  'ban.again': 'You can rejoin in {d}.', 'ban.perm': 'You are permanently banned from this server.', 'ban.timed': 'You are banned from this server · time left: {d}.',
+  'ban.kickJoin': 'You were recently kicked from a room · you can rejoin in {d}.', 'ban.reason': 'Reason: {r}',
+  'ban.s': '{n} s', 'ban.m': '{n} min', 'ban.h': '{n} h', 'ban.hm': '{n} h {m} min', 'ban.d': '{n} d', 'ban.dh': '{n} d {h} h',
   'end.ggKnife': '{n} won with the final weapon (knife)', 'end.ggTime': 'Time is up · {n} won at level {l}', 'end.dmReach': '{n} reached {k} kills',
   'end.dmTime': 'Time is up · {n} won with {k} kills', 'end.dmTie': ' (higher score breaks the tie)', 'end.infAll': 'All humans were infected', 'end.infCured': 'All zombies were cured',
   'end.infSurv': '{n} humans survived', 'end.tdmBlue': 'Blue team reached {n} points', 'end.tdmRed': 'Red team reached {n} points', 'end.time': 'Time is up',
@@ -177,14 +186,14 @@ addStrings('en', {
   'death.asZombie': 'You will respawn as a zombie', 'death.zLives': 'Respawning · lives left: {n}',
   'pause.ready': 'Ready?', 'pause.intro': 'Click to start. The mouse locks to the screen; press Esc to pause.',
   'pause.introTouch': 'Tap START to begin. You can change the controls under Touch settings in the pause menu.',
-  'pause.paused': 'Paused', 'pause.resumeHint': 'Click to continue.', 'pause.start': 'Start', 'pause.resume': 'Resume', 'pause.kill': 'Respawn (kill)',
+  'pause.paused': 'Paused', 'pause.clickResume': 'Click to continue', 'pause.escMenu': 'Esc · menu', 'pause.resumeHint': 'Click to continue.', 'pause.start': 'Start', 'pause.resume': 'Resume', 'pause.kill': 'Respawn (kill)',
   'pause.killTip': 'Stuck? Kill yourself and respawn', 'pause.settings': 'Settings', 'pause.controls': 'Controls', 'pause.menu': 'Main Menu', 'pause.again': 'Play Again', 'pause.touch': 'Touch settings',
   'sb.player': 'Player', 'sb.k': 'K', 'sb.d': 'D', 'sb.score': 'Score', 'sb.level': 'Level', 'sb.weapon': 'Weapon',
   'sb.ggTitle': 'Gun Game · {n} weapons', 'sb.pbTitle': 'Paintball · first to {n}', 'sb.dmTitle': 'Deathmatch · first to {n}',
   'chat.all': 'All', 'chat.team': 'Team', 'chat.ph': 'Type a message…', 'chat.hint': 'Enter send · Tab channel · Esc cancel', 'chat.tag': 'TEAM',
   'set.settings': 'Settings', 'set.controls': 'Controls', 'set.back': 'Back', 'set.lang': 'Language / Dil',
   'set.mouse': 'Mouse and view', 'set.sens': 'Sensitivity', 'set.fov': 'Field of view', 'set.fovH': 'Field of view (horizontal)',
-  'set.sound': 'Sound', 'set.vol': 'Master volume', 'set.sfx': 'Effects', 'set.music': 'Music', 'set.amb': 'Ambience (rain, wind)', 'set.rain': 'Rain sound',
+  'set.sound': 'Sound', 'set.vol': 'Master volume', 'set.sfx': 'Effects', 'set.music': 'Music', 'set.amb': 'Ambience (rain, wind)', 'set.rain': 'Rain sound', 'set.streak': 'Streak sounds',
   'set.gfx': 'Graphics', 'set.low': 'Low', 'set.mid': 'Medium', 'set.high': 'High', 'set.shadows': 'Shadows', 'set.post': 'Post-processing (High)', 'set.adaptive': 'Auto resolution', 'set.fs': 'Fullscreen + Ctrl+W guard',
   'set.on': 'On', 'set.off': 'Off', 'set.gfxHint': 'Low quality and no shadows run smoother on weak computers and in big matches. The fullscreen change applies when you return to the game.',
   'set.touch': 'Touch controls', 'set.touchBtn': 'Touch settings ›', 'set.touchHint': 'Button layout, look / aim sensitivity, gyroscope and aim assist.',
@@ -212,3 +221,22 @@ addStrings('en', {
   'class.assault.desc': 'Balanced rifle + 2 frag grenades', 'class.medic.desc': 'SMG, medkit, heals nearby allies', 'class.sniper.desc': 'One shot, long-range scope',
   'class.heavy.desc': '100-round LMG, extra health', 'class.engineer.desc': 'Shotgun + rocket launcher', 'class.zombie.desc': 'Clawed infected',
 });
+
+// Moderasyon (12.136): sunucunun ban nesnesi { k:'kick'|'ban', ms (kalan; 0 = kalıcı / atmada engel yok), r (sebep) } → okunur metin
+export function banDur(ms) {
+  const s = Math.max(1, Math.round(ms / 1000));
+  if (s < 60) return t('ban.s', { n: s });
+  const m = Math.round(s / 60);
+  if (m < 60) return t('ban.m', { n: m });
+  const h = Math.floor(m / 60), mm = m % 60;
+  if (h < 24) return mm ? t('ban.hm', { n: h, m: mm }) : t('ban.h', { n: h });
+  const d = Math.floor(h / 24), hh = h % 24;
+  return hh ? t('ban.dh', { n: d, h: hh }) : t('ban.d', { n: d });
+}
+// join: giriş reddi metni; değilse oyundayken atılma ekranının açıklaması
+export function banText(b, join = false) {
+  const r = b.r ? ' ' + t('ban.reason', { r: b.r }) : '';
+  if (b.k === 'ban') return (b.ms ? t('ban.timed', { d: banDur(b.ms) }) : t('ban.perm')) + r;
+  if (join) return t('ban.kickJoin', { d: banDur(b.ms) }) + r;
+  return t(b.adm ? 'ban.kickedAdmin' : 'ban.kicked') + (b.ms ? ' ' + t('ban.again', { d: banDur(b.ms) }) : '') + r;
+}

@@ -8,12 +8,14 @@ import { TUNE } from './balance.js';
 import { paintColorOf } from './paint.js';
 import { tintPaint } from '../models/paintball.js';
 import { pbItems } from './match.js';
+import { throwState, pinSfx } from './grenade.js';
 
 const _v = new THREE.Vector3();
 const _d = new THREE.Vector3();
 const _o = new THREE.Vector3();
 const UP = new THREE.Vector3(0, 1, 0);
 // Koşarken / havadayken ateş serbest ama isabetsiz: ek saçılma (rad). 0,085 ≈ 4,9° → 20 m'de ~1,7 m, 50 m'de ~4,3 m (koşarak zıplayınca ikisi toplanır ≈ 9°).
+const smooth01 = (x) => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
 const SPRINT_SPREAD = 0.085, AIR_SPREAD = 0.075, sprintSpeed = () => TUNE.walkSpeed * 1.32;      // yürüme hızının 1,32 katı (eskiden 4,4 × 1,32 = 5,8): yürürken koşu cezası uygulanmaz
 
 export const EYE_STAND = 1.62;
@@ -118,7 +120,7 @@ export class Soldier {
   setLevel(n) {
     this.ggLevel = n;
     this.items = ggItems(n);
-    this.cur = 0; this.cd = 0.25; this.reloadT = 0; this.useT = 0; this.swing = null; this.burstLeft = 0; this.switchT = 0.3;
+    this.cur = 0; this.cd = 0.25; this.reloadT = 0; this.useT = 0; this.swing = null; this.burstLeft = 0; this.switchT = 0.3; this.adsT = 0;      // 12.154: yeni silah belden başlar
     this._syncWeaponModel(true);
     this.game.emit('switch', this);
   }
@@ -167,6 +169,7 @@ export class Soldier {
     this.items = this.game.mode.gungame ? ggItems(this.ggLevel) : this.game.mode.paintball ? pbItems() : makeLoadout(this.cls, this.team, this.choice);
     this.cur = 0;
     this.cd = 0; this.reloadT = 0; this.switchT = 0; this.useT = 0; this.swing = null; this.comboT = 0; this.autoSwitchT = 0; this.blindT = 0; this.burstLeft = 0;
+    this.cook = null; this.backT = 0; this.backTo = -1;
     this.protT = protect; this.protNet = false;
     this.crouching = false; this.prone = false; this.proneT = 0; this.crouchT = 0; this.leanDir = 0; this.leanT = 0; this.leanOff.set(0, 0, 0);
     this.height = H_STAND; this.ads = false; this.adsT = 0;
@@ -198,7 +201,10 @@ export class Soldier {
   switchTo(i) {
     if (i === this.cur || !this.items[i] || !this.alive || !this.canEquip(i)) return;
     const eq = Math.min(0.35, WSTATS[this.items[i].id].equip ?? 0.3);
+    this.cook = null; this.backT = 0;                                              // pişirilen bombanın pimi geri takılır (silah değişince atılmaz)
+    this.backTo = WSTATS[this.items[i].id].kind === 'throwable' ? this.cur : -1;   // attıktan sonra dönülecek silah
     this.cur = i; this.switchT = eq; this.reloadT = 0; this.useT = 0; this.swing = null; this.autoSwitchT = 0; this.burstLeft = 0;
+    this.adsT = 0;      // 12.154: nişan eski silahındı; yeni silah belden başlar (eski: adsT ≈ 1 kalıyor, yeni silahın büyütmesi / dürbün örtüsü o karede açılıyordu). Dünya kamerası eski büyütmeyi Player'da kendi eğrisiyle söndürür
     this._syncWeaponModel();
     this.game.emit('switch', this);
   }
@@ -247,6 +253,7 @@ export class Soldier {
   // Tetik: held = basılı, buf = yeni tık tamponu (>0). Dönen true → tampon tüketildi. Player ve sunucu (humanTick) aynı mantığı kullanır.
   triggerUpdate(held, buf) {
     if (!this.alive) { this.burstLeft = 0; return false; }
+    if (this.stat.kind === 'throwable') return this._nadeTrigger(held, buf);
     const mode = this.fireModeNow;
     if (mode === 'auto') { if (held) this.tryFire(); return false; }
     if (mode === 'burst') {
@@ -265,7 +272,9 @@ export class Soldier {
     const hipv = st.hip ?? 0.01, adsv = st.ads ?? 0.002;
     const speed = Math.hypot(this.vel.x, this.vel.z);
     if (st.ball) return this._ballSpread(st, hipv, adsv, speed);
-    let s = lerp(hipv, adsv, this.adsT);
+    // 12.153: dürbünlü keskin nişancı (st.scope): isabet yalnız dürbün oturunca (adsT 0,6 → 1 yumuşak); belde / geçişte ilk atış indirimi yok (no-scope / erken quickscope şansa kalır)
+    const sk = st.scope ? smooth01((this.adsT - 0.6) / 0.4) : this.adsT;
+    let s = lerp(hipv, adsv, sk);
     s += Math.min(speed * 0.0007, 0.0045) * (1 - this.adsT * 0.65);   // hareket cezası
     if (!this.onGround) s += AIR_SPREAD * (1 - this.adsT * 0.5);            // havadayken (zıplarken) atış çok dağılır
     if (this.firedSprinting || speed > sprintSpeed()) s += SPRINT_SPREAD * (1 - this.adsT);   // koşarken (Shift) atış serbest ama isabetsiz
@@ -273,7 +282,7 @@ export class Soldier {
     if (this.crouching) s *= 0.7;
     s += this.bloom;                                                   // seri atışta açılma
     // duran oyuncunun ilk atışı (kısa bir aradan sonra) isabetli olsun
-    if (this.sinceShot > 0.3 && speed < 1.5 && this.onGround) s *= 0.2;
+    if (this.sinceShot > 0.3 && speed < 1.5 && this.onGround) s *= st.scope ? 1 - 0.8 * sk : 0.2;
     return s + this.botExtraSpread;
   }
 
@@ -310,13 +319,26 @@ export class Soldier {
     if (st.kind === 'launcher') return this._rocket(st);
     this._shoot(st);
     this.firedSprinting = false;
-    if (it.mag <= 0 && it.reserve > 0 && !this.isPlayer) this.startReload();
-    return true;
+    return true;                                               // şarjör bittiyse otomatik değiştirme bir sonraki update'te (autoReload) başlar
+  }
+
+  // 12.140: şarjör / hazne boşsa ve yedek varsa şarjörü kendiliğinden değiştir. HER silah türü (gun + launcher: RPG, M79,
+  // pompalı 'shell', sürgülü 'bolt', paintball…) ve her durumda (tetik basılı, nişan, koşu, zıplama, silah çekildikten sonra).
+  // update() içinde çağrılır: istemci (yerel oyuncu) ve sunucu (humanTick → s.update) aynı adımda aynı kuralı uygular.
+  // Eskiden: oyuncuda hiç yoktu (boş tetiğe basınca, cd bitmişse başlıyordu → RPG / sürgülü cd'si yüzünden tık yutuluyordu),
+  // sunucuda insanlar için yalnız 'gun' türünde ateşten hemen sonra başlıyordu (istemci tahmin etmiyordu → uyuşmazlık).
+  autoReload() {
+    if (this.reloadT > 0 || this.switchT > 0 || this.swing || this.useT > 0) return;
+    if (this.game.online && !this.isPlayer) return;                     // çevrimiçi istemci: uzaktakilerin cephanesi tahmin edilmez
+    const it = this.item, k = this.stat?.kind;
+    if (!it || it.mag > 0 || it.reserve <= 0 || !(k === 'gun' || k === 'launcher')) return;
+    this.startReload();
   }
 
   muzzleWorld(out) {
     if ((this.isPlayer && !this.game.showSelf) || this.game.headless) {
       const d = this.aimDir(_d), r = this.right(_v);
+      if (this.isPlayer && this.game.player?.scopeOn) return out.copy(this.eye(_o)).addScaledVector(UP, -0.12).addScaledVector(d, 5);      // 12.153: dürbündeyken iz mermisi 5 m önden, retikülün altından hedefe ince çizgi olarak gider (eski: sağ-alttan çapraz beyaz çizgi)
       return out.copy(this.eye(_o)).addScaledVector(r, this.game.leftHand ? -0.16 : 0.16).addScaledVector(UP, -0.1).addScaledVector(d, 0.8);
     }
     const w = this.model.weapon;
@@ -337,22 +359,25 @@ export class Soldier {
     const right = new THREE.Vector3().crossVectors(base, UP).normalize();
     const up = new THREE.Vector3().crossVectors(right, base).normalize();
     g._firstPellet = true;
-    const rnd = st.ball ? g.paint.rngFor(this) : Math.random;            // paintball: insan atışında tohumlu (istemci tahmini = sunucu topu)
+    // insan atışında sapma tohumlu (girdi sıra no): istemci tahmini (iz / kan) ile sunucunun ışını aynı yöne gider. 12.146: eskiden yalnız paintball;
+    // mermide Math.random iki tarafta ayrı zar atıyordu → uzakta (sapma ≥ gövde) istemcinin gösterdiği kan ile sunucunun isabeti ayrışıyordu
+    const rnd = g.paint.rngFor(this);                                     // bot / çevrimdışı: Math.random
+
     for (let i = 0; i < pellets; i++) {
       const a = rnd() * Math.PI * 2, r = Math.sqrt(rnd()) * spread;
       const d = base.clone().addScaledVector(right, Math.cos(a) * r).addScaledVector(up, Math.sin(a) * r).normalize();
       if (st.ball) g.paint.fire(this, origin, d, st, muzzle, camO); else g.shootRay(this, origin, d, st, muzzle, camO);
     }
     this.protT = 0;                                                              // ateş eden artık dokunulmaz değil (korumayla düşmana ateş edilemez)
-    if (!st.ball && !(this.isPlayer && !g.showSelf && g.player && g.player.thirdT < 0.5)) g.effects.muzzle(muzzle, base);      // paintball: alev yok (gazla atar) · 12.141: birinci şahısta dünya alevi (göz önünde düz sarı kutu) yok, silah modelinin alevi yeter
+    if (!st.ball && !(this.isPlayer && (g.player?.scopeOn || (!g.showSelf && g.player && g.player.thirdT < 0.5)))) g.effects.muzzle(muzzle, base);      // paintball: alev yok (gazla atar) · 12.153: dürbünde kendi alevi görüşü kapatmaz · 12.141: birinci şahısta dünya alevi (göz önünde düz sarı kutu) yok, silah modelinin alevi yeter
     g.sfx.shot(st.sound, this.pos);
     this.flashT = 0.06;
     this.sinceShot = 0;
     this.bloom = st.ball ? Math.min(this.bloom + (st.bloom ?? 0.003), st.bloomMax ?? 0.03) : Math.min(this.bloom + (st.kickV || 0.01) * 0.07, 0.005);
     if (this.isPlayer || this.human) {
-      const k = (st.kickV || 0.01) * (this.adsT > 0.5 ? 0.7 : 1);
-      this.pitch = Math.min(1.45, this.pitch + k * 0.55);   // kalıcı tırmanma: oyuncu aşağı çekerek telafi eder
-      this.recoilP += k * 0.45;
+      const k = (st.kickV || 0.01) * (this.adsT > 0.5 ? 0.7 : 1), perm = st.scope ? 0.1 : 0.55;      // 12.153: keskin nişancı tepmesi çoğunlukla geri döner (dürbün hedefe oturur; eski: %55 kalıcı → her atışta ~45 px yukarı)
+      this.pitch = Math.min(1.45, this.pitch + k * perm);   // kalıcı tırmanma: oyuncu aşağı çekerek telafi eder
+      this.recoilP += k * (1 - perm);
       this.yaw += rand(-1, 1) * (st.kickH || 0.004);
       this.game.emit('fire', this);
     } else if (this.model.weapon) this.game.noiseAlert?.(this);
@@ -377,15 +402,45 @@ export class Soldier {
     return true;
   }
 
-  _throw(st) {
-    const d = this.aimDir(new THREE.Vector3());
-    const p = this.eye(new THREE.Vector3()).addScaledVector(d, 0.5);
-    const v = d.clone().multiplyScalar(st.speed);
-    v.y += 3.2;
-    v.x += this.vel.x * 0.5; v.z += this.vel.z * 0.5;
-    this.game.spawnGrenade(this, p, v, st);
-    this.game.sfx.shot('throw', this.pos);
-    if (this.isPlayer) this.game.emit('throw', this);
+  // Bomba tetiği (12.144; oyuncu ve sunucudaki insan aynı mantık): bas → pim çekilir (el bombasında fünye işlemeye başlar = pişirme),
+  // basılı tutarken yörünge önizlemesi (NadeView), bırakınca atılır. Bırakırken sağ tık (nişan) basılıysa alttan, kısa yuvarlama.
+  // Pişirilen el bombası elde süresi dolarsa elde patlar (atan ölür). Botlar tryFire → _throw ile pişirmeden atar.
+  _nadeTrigger(held, buf) {
+    const it = this.item, st = this.stat;
+    if (!this.cook) {
+      if (buf <= 0 || this.cd > 0 || this.switchT > 0 || this.useT > 0 || it.mag <= 0) return false;
+      this.cook = { t: 0, id: it.id };
+      if (this.isPlayer) pinSfx(this.game.sfx);
+      this.game.emit('pin', this);
+      return true;
+    }
+    if (held) return false;
+    const c = this.cook;
+    this.cook = null;
+    if (c.id !== it.id) return false;
+    this.cd = 60 / st.rpm;
+    it.mag--;
+    this.sprinting = false;
+    return this._throw(st, st.cook ? st.fuse - c.t : st.fuse, !!this.ads);
+  }
+
+  // Her adım: pişirme süresi; el bombası elde dolarsa patlar
+  _cookTick(dt) {
+    const c = this.cook, st = this.stat;
+    if (c.id !== this.item.id || st.kind !== 'throwable') { this.cook = null; return; }
+    c.t += dt;
+    if (st.cook && c.t >= st.fuse) { this.cook = null; this.cd = 60 / st.rpm; this.item.mag--; this._throw(st, 0, false, true); }
+  }
+
+  // fuse: kalan fünye (pişirilmişse kısa) · under: alttan atış · inHand: elde patladı (göğüs hizasında, hızsız)
+  _throw(st, fuse = st.fuse, under = false, inHand = false) {
+    const g = this.game, p = new THREE.Vector3(), v = new THREE.Vector3();
+    if (inHand) { this.eye(p); p.y -= 0.35; } else throwState(this, st, under, p, v, g.world);
+    const o = { fuse, inHand };
+    if (g.online && this.isPlayer) { o.pred = true; o.q = g.online.seq; }           // çevrimiçi: kendi bombam gecikmesiz (tahmin), sunucunun 'gr'si eşlenir
+    g.spawnGrenade(this, p, v, st, null, o);
+    if (!inHand) { g.sfx.shot('throw', this.pos); if (this.isPlayer) g.emit('throw', this); }
+    if (this.isPlayer || this.human) this.backT = 0.42;                           // attıktan sonra önceki silaha dön (BattleBit gibi); bomba kalsa da
     if (this.item.mag <= 0) this.autoSwitchT = 0.35;     // bitti: birincil silaha dön
     return true;
   }
@@ -520,6 +575,7 @@ export class Soldier {
     const list = OPTIC_ORDER.filter((o) => allowed.includes(o));
     if (list.length < 2) return null;
     this.optic = list[(list.indexOf(this.opticId) + 1) % list.length];
+    this.adsT = 0;      // 12.154: nişangâh değişince nişana yeniden girilir (eski: yeni nişangâhın büyütmesi tam nişanda o karede devreye giriyordu)
     this.model.optic = this.optic;
     this._syncWeaponModel(true);
     this.game.emit('switch', this);
@@ -559,6 +615,11 @@ export class Soldier {
 
   die(killer, weaponName, headshot) {
     if (!this.alive) return;
+    if (this.cook) {                                                                // pimi çekili el bombası elden düşer (kalan fünyeyle)
+      const c = this.cook, st = WSTATS[c.id];
+      this.cook = null;
+      if (st?.cook && this.item.id === c.id && this.item.mag > 0) { this.item.mag--; this.game.spawnGrenade(this, new THREE.Vector3(this.pos.x, this.pos.y + 0.9, this.pos.z), new THREE.Vector3(this.vel.x * 0.3, 0.5, this.vel.z * 0.3), st, null, { fuse: st.fuse - c.t }); }
+    }
     this.alive = false; this.hp = 0;
     this.deaths++;
     this.deadT = 0; this.deadDir = Math.random() > 0.5 ? 1 : -1;
@@ -571,7 +632,7 @@ export class Soldier {
 
   // Her kare: zamanlayıcılar
   update(dt) {
-    if (!this.alive) { this.deadT += dt; return; }
+    if (!this.alive) { this.deadT += dt; this.adsT = Math.max(0, this.adsT - dt * 9); return; }      // 12.154: ölünce nişan söner (eski: adsT donuyor, ölüm kamerası ×4 dürbün büyütmesinde kalıp doğuşta tek karede açılıyordu)
     this.cd = Math.max(0, this.cd - dt);
     this.abT = Math.max(0, this.abT - dt); this.abActive = Math.max(0, this.abActive - dt);
     this.switchT = Math.max(0, this.switchT - dt);
@@ -580,6 +641,11 @@ export class Soldier {
     this.blindT = Math.max(0, this.blindT - dt);
     this.comboT = Math.max(0, this.comboT - dt);
     if (this.autoSwitchT > 0 && (this.autoSwitchT -= dt) <= 0 && this.alive && this.cur !== 0 && this.item.mag <= 0 && this.items[0]) this.switchTo(0);
+    if (this.cook) this._cookTick(dt);
+    if (this.backT > 0 && (this.backT -= dt) <= 0 && !this.cook && this.stat.kind === 'throwable') {
+      const b = this.backTo >= 0 && this.backTo !== this.cur && this.canEquip(this.backTo) ? this.backTo : this.cur !== 0 && this.canEquip(0) ? 0 : -1;
+      if (b >= 0) this.switchTo(b);
+    }
     if (this.swing) {
       const sw = this.swing;
       sw.t += dt;
@@ -610,6 +676,7 @@ export class Soldier {
         }
       }
     }
+    this.autoReload();
     if (this.useT > 0) {
       this.useT -= dt;
       if (this.useT <= 0) {
@@ -624,7 +691,7 @@ export class Soldier {
     }
     // hedef nişan geçişi
     const wantAds = this.ads && this.reloadT <= 0 && this.switchT <= 0 && this.zoomNow && !this.sprinting;
-    this.adsT = clamp(this.adsT + (wantAds ? 1 : -1) * dt * (this.opticDef?.overlay === 'scope' ? 6 : 9), 0, 1);      // 12.128: lensHud (telefon ACOG yedeği) benzetimi değiştirmez
+    this.adsT = clamp(this.adsT + (wantAds ? 1 : -1) * dt * (this.stat.adsTime ? 1 / this.stat.adsTime : this.opticDef?.overlay === 'scope' ? 6 : 9), 0, 1);      // 12.153: adsTime (sn) silaha özgü dürbün süresi      // 12.128: lensHud (telefon ACOG yedeği) benzetimi değiştirmez
     if (this.prone) this.crouching = false;
     this.height = this.prone ? H_PRONE : this.crouching ? H_CROUCH : H_STAND;
     this.crouchT = clamp(this.crouchT + (this.crouching ? 1 : -1) * dt * 7, 0, 1);

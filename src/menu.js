@@ -30,7 +30,7 @@ export const DEFAULTS = {
   sens: 0.0022, fov: 75, volume: 0.6, shadows: !TOUCH, quality: 1.5, fovM: 80, qualityM: 2, adaptive: true, fullscreen: true, devMode: false,   // telefonda: gölgesiz; keskinlik için 2× (FPS düşerse otomatik çözünürlük indirir)
   xp: 0, stats: { matches: 0, wins: 0, kills: 0, deaths: 0 },
   server: '', room: '', olTeam: 'auto', third: true,
-  keys: {}, leftHand: false, adsToggle: false, vSfx: 0.9, vMusic: 0.5, vAmb: 0.8, rainSound: true,   // tuş atamaları, silah eli, ses kanalları
+  keys: {}, leftHand: false, adsToggle: false, vSfx: 0.9, vMusic: 0.5, vAmb: 0.8, rainSound: true, streakSound: true,   // tuş atamaları, silah eli, ses kanalları
 };
 
 export function loadPrefs() {
@@ -356,7 +356,7 @@ export function showMenu(onStart, onOnline) {
       const r = await NetClient.connect(url, hello);
       cleanup();
       onOnline?.({ net: r.net, welcome: r.welcome, name, pw });
-    } catch (e) { ol = { ...ol, msg: netErr(e.message), err: true, busy: false }; render(); }
+    } catch (e) { ol = { ...ol, msg: netErr(e.message), err: true, busy: false }; render(); q('.olmsg')?.scrollIntoView({ block: 'nearest' }); }      // hata kaydırma alanının başında: koddan katılınca görünür olsun (ban / şifre / dolu)
   }
 
   // Sınıfın bir yuvasında seçili (ya da varsayılan) silah
@@ -406,7 +406,7 @@ export function showMenu(onStart, onOnline) {
       ${sl('sSfx', t('menu.set.sfx'), 0, 1, 0.05, p.vSfx, pct)}
       ${sl('sMusic', t('menu.set.music'), 0, 1, 0.05, p.vMusic, pct)}
       ${sl('sAmb', t('menu.set.amb'), 0, 1, 0.05, p.vAmb, pct)}
-      <div class="row" style="margin-top:8px">${tog('rain', p.rainSound, t('menu.set.rain'))}</div>
+      <div class="row" style="margin-top:8px">${tog('rain', p.rainSound, t('menu.set.rain'))}${tog('streak', p.streakSound !== false, t('menu.set.streak'))}</div>
       <div class="hint">${t('menu.set.musicHint')}</div></div>
       <div class="pan"><h3>${t('menu.set.gfx')}</h3><div class="lbl">${t('menu.set.quality')}</div><div class="row">${[[1, 'low'], [1.5, 'mid'], [2, 'high']].map(([v, l]) => `<button class="chip ${p[Q_KEY] === v ? 'on' : ''}" data-a="quality" data-v="${v}">${t('menu.set.q.' + l)}</button>`).join('')}</div>
       <div class="row" style="margin-top:10px">${tog('shadows', p.shadows, t('menu.set.shadows'))}${tog('post', p.post ?? !TOUCH, t('menu.set.post'), t('menu.set.postT'))}${tog('adaptive', p.adaptive !== false, t('menu.set.adaptive'), t('menu.set.adaptiveT'))}${tog('fullscreen', p.fullscreen !== false, t('menu.set.fullscreen'), t('menu.set.fullscreenT'))}</div>
@@ -487,7 +487,7 @@ export function showMenu(onStart, onOnline) {
       <div class="hint">${t('menu.ed.hint1')}</div>
       <div class="hint">${t('menu.ed.hint2')}</div></div></div>`;
   }
-  const settingsPayload = () => ({ sens: p.sens, fov: p[FOV_KEY], volume: p.volume, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, shadows: p.shadows, post: p.post ?? !TOUCH, adaptive: p.adaptive !== false, fullscreen: p.fullscreen !== false, pixelRatio: p[Q_KEY] });
+  const settingsPayload = () => ({ sens: p.sens, fov: p[FOV_KEY], volume: p.volume, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, streakSound: p.streakSound !== false, shadows: p.shadows, post: p.post ?? !TOUCH, adaptive: p.adaptive !== false, fullscreen: p.fullscreen !== false, pixelRatio: p[Q_KEY] });
   function launchEditor() {
     const payload = {
       editor: true, devMode: true, map: p.edMap, tod: 'day', weather: 'clear', team: 'blue', cls: p.cls, diff: 'normal', optic: p.optic, playerName: p.name,
@@ -625,6 +625,7 @@ export function showMenu(onStart, onOnline) {
       case 'post': p.post = !(p.post ?? !TOUCH); break;
       case 'fullscreen': p.fullscreen = p.fullscreen === false; break;
       case 'rain': p.rainSound = !p.rainSound; break;
+      case 'streak': p.streakSound = p.streakSound === false; break;
       case 'hand': p.leftHand = v === 'left'; break;
       case 'ads': p.adsToggle = v === 'toggle'; break;
       case 'kbind': ctl = { cap: { id: b.dataset.id, slot: +b.dataset.slot }, msg: '' }; break;

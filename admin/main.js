@@ -573,8 +573,18 @@ function renderHistory(main) {
 // ───────── Oyuncu hesapları ─────────
 const when = (t) => (t ? new Date(t).toLocaleString('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—');
 async function loadPlayers() {
-  try { S.accts = await api('GET', '/api/accounts'); } catch (e) { toast(e.message, true); return; }
+  try { [S.accts, S.bans] = await Promise.all([api('GET', '/api/accounts'), api('GET', '/api/bans')]); } catch (e) { toast(e.message, true); return; }
   if (S.view === 'players') { const m = document.getElementById('main'); if (m) renderPlayers(m); }
+}
+// Banlar: oyunda moderatörün /ban komutuyla eklenir (data/bans.json; moderatörler data/mods.json)
+const left = (ms) => { const m = Math.round(ms / 60000); return m < 60 ? `${Math.max(1, m)} dk` : m < 1440 ? `${Math.floor(m / 60)} sa ${m % 60} dk` : `${Math.floor(m / 1440)} gün`; };
+function bansHTML() {
+  const B = S.bans || [];
+  return `<h2 style="margin-top:28px">Banlar</h2><p class="lead">Oyunda moderatörün <code>/ban</code> komutuyla eklenir. Moderatör hesapları sunucuda <code>data/mods.json</code> dosyasında (yeniden başlatma gerekmez).</p>
+    <div class="card" style="padding:0;overflow:auto"><table class="atbl"><thead><tr><th>Ad</th><th>Tür</th><th>IP</th><th>Kalan</th><th>Sebep</th><th>Banlayan</th><th>Tarih</th><th></th></tr></thead><tbody>
+    ${B.map((b) => `<tr><td><b>${esc(b.name)}</b></td><td>${b.acct ? 'hesap' : 'misafir'}</td><td style="font-family:monospace">${esc(b.ip || '—')}</td><td>${b.until ? left(b.until - Date.now()) : 'kalıcı'}</td><td>${esc(b.reason || '—')}</td><td>${esc(b.by || '')}</td><td>${when(b.at)}</td>
+      <td style="text-align:right"><button class="btn sm" data-unban="${esc(b.name)}">Banı kaldır</button></td></tr>`).join('') || '<tr><td colspan="8"><div class="empty">Aktif ban yok</div></td></tr>'}
+    </tbody></table></div>`;
 }
 function renderPlayers(main) {
   const L = S.accts, f = (S.acctQ || '').toLocaleLowerCase('tr');
@@ -584,7 +594,11 @@ function renderPlayers(main) {
     <div class="card" style="padding:0;overflow:auto"><table class="atbl"><thead><tr><th>Ad</th><th>Kayıt</th><th>Son görülme</th><th>Maç</th><th>XP</th><th>Cihaz</th><th></th></tr></thead><tbody>
     ${rows.map((a) => `<tr><td><b>${esc(a.name)}</b></td><td>${when(a.created)}</td><td>${when(a.seen)}</td><td>${a.matches}</td><td>${a.xp}</td><td>${a.devices}</td>
       <td style="text-align:right;white-space:nowrap"><button class="btn sm" data-reset="${esc(a.name)}">Şifre sıfırla</button> <button class="btn sm dan" data-del="${esc(a.name)}">Sil</button></td></tr>`).join('') || `<tr><td colspan="7"><div class="empty">${L ? 'Hesap yok' : 'Yükleniyor…'}</div></td></tr>`}
-    </tbody></table></div></div>`;
+    </tbody></table></div>${bansHTML()}</div>`;
+  main.querySelectorAll('[data-unban]').forEach((b) => (b.onclick = async () => {
+    if (!confirm(`${b.dataset.unban} banı kaldırılsın mı?`)) return;
+    try { await api('POST', '/api/bans/remove', { name: b.dataset.unban }); toast(`${b.dataset.unban} banı kaldırıldı`); loadPlayers(); } catch (e) { toast(e.message, true); }
+  }));
   const aq = main.querySelector('#aq');
   aq.oninput = () => { S.acctQ = aq.value; renderPlayers(main); const n = main.querySelector('#aq'); n.focus(); n.setSelectionRange(n.value.length, n.value.length); };
   main.querySelectorAll('[data-del]').forEach((b) => (b.onclick = async () => {

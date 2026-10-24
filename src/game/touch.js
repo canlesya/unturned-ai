@@ -353,7 +353,7 @@ export class TouchControls {
   // HUD'daki silah yuvaları (#slots .slot): dokununca o silaha geç
   slotAt(x, y) {
     const list = document.querySelectorAll('#slots .slot');
-    for (let i = 0; i < list.length; i++) { const r = list[i].getBoundingClientRect(); if (x >= r.left - 4 && x <= r.right + 4 && y >= r.top - 6 && y <= r.bottom + 6) return i; }
+    for (let i = 0; i < list.length; i++) { const r = list[i].getBoundingClientRect(); if (x >= r.left - 4 && x <= r.right + 4 && y >= r.top - 6 && y <= r.bottom + 6) return +(list[i].dataset.i ?? i); }      // 12.140: şerit tuş sırasında; data-i = items indeksi
     return -1;
   }
 

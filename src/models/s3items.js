@@ -26,8 +26,7 @@ const build = (k, mat, meta) => k.build(mat, meta);
 export function knife(mat = skinMaterial('knife'), lod = false) {
   const k = new Kit(lod);
   k.prof([[0.062, 0.015], [0.062, -0.013], [0.042, -0.02], [0.03, -0.015], [0.016, -0.02], [0.002, -0.015], [-0.012, -0.02], [-0.026, -0.015], [-0.04, -0.02], [-0.058, -0.017], [-0.058, 0.017], [0.04, 0.019]], 0.028, 'furn', { c: 0.004, pat: lod ? 0 : 1 });   // oluklu sap (parmak yuvaları altta)
-  k.box([0.031, 0.034, 0.014], [0, 0.001, 0.069], 'metal', { c: 0.003, sh: 0.7 });                            // kafa (çekiç ucu)
-  k.box([0.006, 0.008, 0.045], [0, -0.022, 0.092], 'acc', { rot: [0.5, 0, 0], d: 1 });                         // kordon
+  k.box([0.031, 0.034, 0.014], [0, 0.001, 0.069], 'metal', { c: 0.003, sh: 0.7 });                            // kafa (çekiç ucu) · 12.135: sarkan kordon kaldırıldı (birinci şahısta kolun yanından çıkıyordu)
   k.box([0.012, 0.058, 0.012], [0, -0.002, -0.066], 'metal', { c: 0.002, sh: 0.8 });                          // siper (haç)
   // 12.132: gövde + parlak ağız yan yana iki parça (eskiden şerit gövdenin üstüne 0,35 mm kalın bindiriliyordu → ağızda titreyen pikseller); oluk / tırtıl yok (aynı sebep, sade)
   if (lod) k.prof([[-0.072, 0.016], [-0.186, 0.016], [-0.222, 0.01], [-0.262, -0.003], [-0.238, -0.013], [-0.205, -0.018], [-0.072, -0.018]], 0.0065, 'body');

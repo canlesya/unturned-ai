@@ -243,6 +243,7 @@ export function updateGadgets(game, dt, T) {
             if ((ws.kind === 'gun' || ws.kind === 'launcher') && it.reserve < ws.reserve) {
               it.reserve = Math.min(ws.reserve, it.reserve + Math.ceil(ws.reserve * 0.3)); any = true;
             }
+            else if (ws.kind === 'throwable' && it.mag < (ws.count || 1) && (s.nadeRef = (s.nadeRef || 0) + 1) % 4 === 0) { it.mag++; any = true; }   // 12.144: bomba her 4 tikte (6 sn) bir
           }
           if (any && s.isPlayer) { game.hud.toast($t('hud.t.ammo'), '#9be07a'); game.sfx.deploy(s.pos); }
           else if (any && s.human) game.netEvent({ e: 'ammo', v: s.id });

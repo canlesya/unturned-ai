@@ -1,6 +1,6 @@
 // Admin paneli (admin.warbyte.io): yalnızca 127.0.0.1'de dinler, nginx alt alan adından yönlendirir.
 // Giriş: tek admin şifresi (data/admin.json'da scrypt özeti). İlk açılışta rastgele şifre üretilir → data/admin-password.txt
-// API: /api/login · /api/balance · /api/history · /api/revert · /api/rooms · /api/rooms/close · /api/rooms/kick · /api/announce · /api/password · /api/accounts (+ /delete, /reset)
+// API: /api/login · /api/balance · /api/history · /api/revert · /api/rooms · /api/rooms/close · /api/rooms/kick · /api/announce · /api/password · /api/accounts (+ /delete, /reset) · /api/bans (+ /remove)
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { DATA, currentBalance, balanceMeta, balanceHistory, saveBalance } from './balanceStore.js';
 import { defaults, LIMITS } from '../src/game/balance.js';
 import { listAccounts, deleteAccount, resetPassword } from './accounts.js';
+import { listBans, removeBan } from './moderation.js';
 import { officialList, upsertOfficial, removeOfficial, setOfficialEnabled, reorderOfficial, OFFICIAL_MAX } from './officialStore.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -124,7 +125,7 @@ export function startAdmin({ rooms, syncOfficial = () => {}, port = +process.env
       const r = rooms.get(String(b.code || '')), c = r && r.clients.get(b.id);
       if (!c) throw herr(404, 'Oyuncu yok');
       r.activate();
-      try { c.ws.send(JSON.stringify({ t: 'chat', sys: 1, m: 'Yönetici tarafından odadan çıkarıldın' })); c.ws.close(4002, 'kicked'); } catch { /* yok say */ }
+      try { c.ws.send(JSON.stringify({ t: 'chat', sys: 1, m: 'Yönetici tarafından odadan çıkarıldın' })); c.ws.send(JSON.stringify({ t: 'kicked', k: 'kick', ms: 0, r: '', adm: 1, m: 'Yönetici tarafından odadan çıkarıldın' })); c.ws.close(4002, 'kicked'); } catch { /* yok say */ }
       return { ok: true };
     },
     // Resmi sunucular: liste + canlı durum; kaydet / sil / aç-kapat sonrası odalar hemen eşitlenir
@@ -150,6 +151,9 @@ export function startAdmin({ rooms, syncOfficial = () => {}, port = +process.env
     'GET /api/accounts': () => listAccounts(),
     'POST /api/accounts/delete': (b) => { deleteAccount(String(b.name || '')); console.log(`[admin] hesap silindi: ${String(b.name).slice(0, 16)}`); return { ok: true }; },
     'POST /api/accounts/reset': async (b) => { const pw = await resetPassword(String(b.name || '')); console.log(`[admin] hesap şifresi sıfırlandı: ${String(b.name).slice(0, 16)}`); return { ok: true, pw }; },
+    // Banlar (oyun içi /ban komutuyla eklenir, data/bans.json): liste + kaldır
+    'GET /api/bans': () => listBans(),
+    'POST /api/bans/remove': (b) => { const g = removeBan(String(b.name || '')); if (!g.length) throw herr(404, 'Ban bulunamadı'); console.log(`[admin] ban kaldırıldı: ${g.map((x) => x.name).join(', ')}`); return { ok: true }; },
     'POST /api/password': (b) => {
       if (!checkPassword(b.old)) throw herr(403, 'Mevcut şifre yanlış');
       if (typeof b.pw !== 'string' || b.pw.length < 8) throw herr(400, 'Yeni şifre en az 8 karakter olmalı');

@@ -13,7 +13,7 @@ export const TUNE = {
   headMul: 2.1, legMul: 0.8, woodMul: 0.65, backstab: BACKSTAB_DMG, selfBlast: 0.55,
   captureRate: 0.085, bleed: BLEED_S,
   sightDay: 130, sightSunset: 105, sightNight: 62,
-  plSpeed: 1.0, plCrowd: 0.25, plRadius: 3.5, plBackDelay: 20, plBackSpeed: 0.35, plBonus: 120, plOverGrace: 1.5, plSupply: 0.08, plAtkRespawn: 0.75, plDefRespawn: 1.15,   // Vagon modu: taban hız (m/sn), ek iten başına +%, itme yarıçapı, geri kayma bekleme / hız, kontrol noktası süre ödülü, uzatma payı, vagon yanı ikmal
+  plSpeed: 1.0, plCrowd: 0.25, plRadius: 3.5, plBackDelay: 20, plBackSpeed: 0.35, plBonus: 120, plOverGrace: 1.5, plSupply: 0.08, plAtkRespawn: 1.0, plDefRespawn: 0.75,   // Vagon modu: taban hız (m/sn), ek iten başına +%, itme yarıçapı, geri kayma bekleme / hız, kontrol noktası süre ödülü, uzatma payı, vagon yanı ikmal, doğma süresi çarpanı (12.150: botlar vagonu gerçekten oynayınca saldıran 1,0 / savunan 0,75 — savunan doğuşu raydan uzak)
 };
 // Oyun modu sınırları (oda kurulumu + menü)
 export const LIMITS = { maxPerTeam: 32, dmMax: 10, dmKills: 40, infMin: 4, infMax: 24, pbMin: 2, pbMax: 12, pbKills: 30, plTime: 300, time: 900 };
@@ -71,7 +71,7 @@ function itemFields(id) {
   const p = `w.${id}.`;
   switch (id) {
     case 'medkit': return [f(p + 'heal', 'Verdiği can', 1, 200), f(p + 'count', 'Adet', 1, 10), f(p + 'useTime', 'Kullanma süresi', 0.2, 5, 0.1, 'sn')];
-    case 'grenade': return [f(p + 'dmg', 'Hasar', 1, 400), f(p + 'radius', 'Patlama yarıçapı', 1, 15, 0.5, 'm'), f(p + 'fuse', 'Fitil', 0.5, 6, 0.1, 'sn'), f(p + 'count', 'Adet', 1, 6)];
+    case 'grenade': return [f(p + 'dmg', 'Hasar', 1, 400), f(p + 'radius', 'Patlama yarıçapı', 1, 15, 0.5, 'm'), f(p + 'fuse', 'Fitil', 0.5, 6, 0.1, 'sn'), f(p + 'speed', 'Atış hızı', 8, 30, 0.5, 'm/sn'), f(p + 'count', 'Adet', 1, 6)];
     case 'smoke': return [f(p + 'radius', 'Duman yarıçapı', 1, 12, 0.2, 'm'), f(p + 'smokeLife', 'Duman süresi', 2, 30, 1, 'sn'), f(p + 'count', 'Adet', 1, 6)];
     case 'flash': return [f(p + 'radius', 'Etki yarıçapı', 4, 50, 1, 'm'), f(p + 'count', 'Adet', 1, 6)];
     case 'claymore': return [f(p + 'dmg', 'Hasar', 1, 400), f(p + 'radius', 'Patlama yarıçapı', 1, 12, 0.5, 'm'), f(p + 'trigger', 'Tetik mesafesi', 1, 12, 0.5, 'm'), f(p + 'count', 'Adet', 1, 6)];

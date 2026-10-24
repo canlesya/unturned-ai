@@ -66,7 +66,13 @@ export class Post {
   }
 
   // Sahne çizimi bu hedefe yönlendirilir (çağıran: clear + render sahne + silah)
-  begin() { this._size(); this.r.setRenderTarget(this.rt); }
+  // 12.151: çizim tamponu MAX_RENDERBUFFER_SIZE / MAX_TEXTURE_SIZE'ı aşarsa hedef "eksik" kalır ve ekran SİYAH olur (Firefox parmak izi direncinde
+  // sınır 2048: 1600×900 tuval "Yüksek"te 3200×1800) → o durumda son işleme atlanır, sahne doğrudan ekrana çizilir.
+  begin() {
+    if (this.lim === undefined) { const gl = this.r.getContext(); this.lim = Math.min(gl.getParameter(gl.MAX_RENDERBUFFER_SIZE), this.r.capabilities.maxTextureSize); }
+    const v = this.r.getDrawingBufferSize(_v); if (v.x > this.lim || v.y > this.lim) return false;
+    this._size(); this.r.setRenderTarget(this.rt); return true;
+  }
 
   _pass(m, target) { this.quad.material = m; this.r.setRenderTarget(target); this.r.render(this.scene, this.cam); }
   end() {

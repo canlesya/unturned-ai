@@ -149,7 +149,7 @@ function limited(ip) {
   return l.length > RATE_N;
 }
 // İstemci IP'si: başlıklar yalnız yerel vekilden (nginx) gelirse güvenilir; Cloudflare arkasında gerçek IP CF-Connecting-IP'de (nginx'in X-Real-IP'si Cloudflare sunucusu olur)
-const ipOf = (req) => { const r = req.socket.remoteAddress || ''; const local = r === '127.0.0.1' || r === '::1' || r === '::ffff:127.0.0.1'; return String((local && (req.headers['cf-connecting-ip'] || req.headers['x-real-ip'])) || r); };
+export const ipOf = (req) => { const r = req.socket.remoteAddress || ''; const local = r === '127.0.0.1' || r === '::1' || r === '::ffff:127.0.0.1'; return String((local && (req.headers['cf-connecting-ip'] || req.headers['x-real-ip'])) || r); };
 const bearer = (req) => (/^Bearer ([a-f0-9]{64})$/.exec(req.headers.authorization || '') || [])[1];
 const CORS = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'authorization, content-type', 'access-control-allow-methods': 'GET, POST, PUT, OPTIONS', 'access-control-max-age': '600' };   // çerez yok, jeton başlıkta: geliştirmede Vite (:5180) → :8787
 function send(res, code, obj) { res.writeHead(code, { 'content-type': 'application/json', 'cache-control': 'no-store', ...CORS }); res.end(JSON.stringify(obj)); }

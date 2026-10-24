@@ -6,14 +6,14 @@ import { tintPaint } from '../models/paintball.js';
 import { paintColorOf } from './paint.js';
 import { TEAMS } from '../core/palette.js';
 import { WSTATS, OPTICS, OPTIC_ALLOWED, ZT_ORDER } from './stats.js';
-import { reloadAnim, meleePose } from './anim.js';
+import { reloadAnim, meleePose, SWING_HIT_K } from './anim.js';
 import { fpHand, handBasis, zombieColors } from '../models/fpHands.js';
 import { box } from '../core/geo.js';
-import { clamp, lerp, V3, adsEase, ADS_HUD, zoomFov } from './util.js';
+import { clamp, lerp, V3, adsEase, ADS_HUD, zoomFov, SCOPE_ON } from './util.js';
 import { applyInput } from '../sim/input.js';
 import { TUNE } from './balance.js';
 import { TouchControls, isTouch } from './touch.js';
-import { norm, codeLabel } from '../core/keybinds.js';
+import { norm, codeLabel, slotOrder } from '../core/keybinds.js';
 import { t as $t } from '../i18n/index.js';
 import { wName, opticName, fireName } from '../i18n/game.js';
 
@@ -35,12 +35,55 @@ export const MELEE_IDLE = {
   machete: { pos: [0.22, -0.2, -0.55], rx: 0.8, ry: 0.38, rz: -0.5, spr: { pos: [-0.02, -0.03, 0.02], rx: 0.12, ry: 0.15, rz: -0.25 } },      // spr: dik tutulanlar koşarken geriye (yüze) devrilmesin
   tomahawk: { pos: [0.2, -0.19, -0.48], rx: 1.1, ry: 0.3, rz: -0.45, spr: { pos: [-0.02, -0.03, 0.02], rx: 0.05, ry: 0.15, rz: -0.25 } },
 };
+// ── Birinci şahıs savurma anahtarları (12.135) ── kamera uzayı, sağ el (sol el modunda aynalanır). p = yumruk (m), f = ağız ucunun baktığı yön, e = keskin kenarın baktığı yön (f'ye dik yapılır).
+// W = kurma (k 0,22: ekranda kalır), H = vuruş anı (k = SWING_HIT_K 0,44: ağız ekran ortasından, keskin kenar hareket yönünde), S = savurma sonu (k 0,54–0,62 tutulur); bekleme ↔ W / S ↔ bekleme yumuşak geçiş.
+// 3. şahıs (character.js) ve oyun zamanlaması anim.js meleePose / SWING_HIT_K ile aynen kalır. Ölçüm: scripts/meleefp.mjs
+const K_ = (p, f, e) => ({ p, f, e });
+export const SWING_FP = {
+  knife: {
+    rl: { W: K_([0.27, -0.08, -0.42], [0.3, 0.75, -0.6], [-1, 0, -0.2]), H: K_([0.03, -0.14, -0.48], [-0.2, 0.7, -0.68], [-1, -0.1, 0.1]), S: K_([-0.22, -0.2, -0.45], [-0.75, 0.35, -0.55], [-0.4, -0.8, 0.3]) },
+    lr: { W: K_([-0.12, -0.12, -0.42], [-0.45, 0.7, -0.55], [1, 0, -0.2]), H: K_([0.06, -0.12, -0.48], [0.2, 0.7, -0.68], [1, -0.1, 0.1]), S: K_([0.27, -0.08, -0.44], [0.75, 0.35, -0.55], [0.4, -0.8, 0.3]) },
+    stab: { W: K_([0.17, -0.18, -0.34], [-0.3, 0.5, -0.8], [-0.8, -0.6, 0]), H: K_([0.04, -0.1, -0.5], [-0.3, 0.5, -0.8], [-0.8, -0.6, 0]), S: K_([0.02, -0.09, -0.55], [-0.3, 0.5, -0.8], [-0.8, -0.6, 0]) },
+  },
+  machete: {
+    rl: { W: K_([0.3, -0.1, -0.5], [0.3, 0.75, -0.6], [-1, 0, -0.2]), H: K_([0.04, -0.16, -0.56], [-0.2, 0.7, -0.68], [-1, -0.1, 0.1]), S: K_([-0.2, -0.24, -0.5], [-0.75, 0.3, -0.6], [-0.4, -0.8, 0.3]) },
+    lr: { W: K_([-0.1, -0.14, -0.5], [-0.4, 0.7, -0.6], [1, 0, -0.2]), H: K_([0.08, -0.14, -0.56], [0.2, 0.7, -0.68], [1, -0.1, 0.1]), S: K_([0.22, -0.1, -0.5], [0.7, 0.5, -0.5], [0.4, -0.8, 0.3]) },
+    diag: { W: K_([0.26, -0.04, -0.48], [-0.2, 0.75, -0.63], [-0.7, -0.5, -0.5]), H: K_([0.03, -0.14, -0.56], [-0.55, 0.55, -0.63], [-0.6, -0.7, 0]), S: K_([-0.18, -0.24, -0.5], [-0.8, 0.05, -0.6], [-0.2, -0.95, 0.2]) },
+  },
+  tomahawk: {
+    chop: { W: K_([0.22, -0.06, -0.45], [-0.15, 0.95, -0.25], [-0.5, 0.1, -0.85]), H: K_([0.07, -0.2, -0.52], [-0.12, 0.55, -0.83], [-0.6, -0.6, -0.5]), S: K_([0.06, -0.25, -0.52], [-0.12, 0.3, -0.95], [-0.6, -0.75, 0.2]) },
+    rl: { W: K_([0.3, -0.1, -0.48], [0.3, 0.75, -0.6], [-1, 0, -0.2]), H: K_([0.04, -0.16, -0.55], [-0.2, 0.7, -0.68], [-1, -0.1, 0.1]), S: K_([-0.2, -0.22, -0.5], [-0.75, 0.3, -0.6], [-0.4, -0.8, 0.3]) },
+  },
+};
+const FP_T = [0, 0.22, SWING_HIT_K, 0.54, 0.62, 1];
+const FP_EASE = [(u) => 1 - (1 - u) * (1 - u), (u) => u * u, (u) => 1 - (1 - u) * (1 - u), () => 0, (u) => u * u * (3 - 2 * u)];
+const _fx = new THREE.Vector3(), _fy = new THREE.Vector3(), _fz = new THREE.Vector3(), _fm = new THREE.Matrix4();
+const keyQ = (K) => {                                                              // f / e → dönüş (model −z = f, model −y = e)
+  if (K.q) return K.q;
+  _fz.set(...K.f).normalize().negate(); _fy.set(...K.e).normalize();
+  _fy.addScaledVector(_fz, -_fy.dot(_fz)).normalize().negate();
+  _fx.crossVectors(_fy, _fz);
+  return (K.q = new THREE.Quaternion().setFromRotationMatrix(_fm.makeBasis(_fx, _fy, _fz)));
+};
+const idleKey = (MI) => MI.key || (MI.key = { p: MI.pos, q: new THREE.Quaternion().setFromEuler(new THREE.Euler(MI.rx, MI.ry - 0.04, MI.rz)) });
+const _qa = new THREE.Quaternion(), _qb = new THREE.Quaternion();
+// savurma pozu → bekleme pozuna göre fark: dp (kamera uzayı), dq (önden çarpılır)
+function fpSwingDelta(tab, MI, k, dp, dq) {
+  const I = idleKey(MI), keys = [I, tab.W, tab.H, tab.S, tab.S, I];
+  let i = 0; while (i < 4 && k >= FP_T[i + 1]) i++;
+  const u = FP_EASE[i](clamp((k - FP_T[i]) / (FP_T[i + 1] - FP_T[i]), 0, 1)), A = keys[i], B = keys[i + 1];
+  dp.set(A.p[0] + (B.p[0] - A.p[0]) * u - I.p[0], A.p[1] + (B.p[1] - A.p[1]) * u - I.p[1], A.p[2] + (B.p[2] - A.p[2]) * u - I.p[2]);
+  if (i === 1 || i === 2) dp.z -= Math.sin(Math.PI * clamp((k - FP_T[1]) / (FP_T[3] - FP_T[1]), 0, 1)) * 0.035;      // vuruş yayı: ortada hafif öne
+  _qa.copy(A === I ? I.q : keyQ(A)); _qb.copy(B === I ? I.q : keyQ(B));
+  dq.copy(_qa).slerp(_qb, u).multiply(_qa.copy(I.q).invert());
+}
+const ELBOW_FP = new THREE.Vector3(0.25, -0.48, 0.0);                             // yakın dövüş kolu: yumruktan bu "dirsek" noktasına (kamera uzayı, sağ el; ekranın altı) → kol hep sağ-alttan gelir, kameraya girmez
 const CLAWS_IDLE = { pos: [0.0, -0.1, -0.44], rx: 0.12, ry: 0.0, rz: 0.0 };      // zombi elleri: iki el kalkık, pençelemeye hazır
 // zombi eli (grup çerçevesinde): parmaklar yukarı-ileri ve hafif içe, el sırtı dışa-arkaya, ön kol ekranın altına iner
 const ZH_MAP = handBasis(new THREE.Vector3(0.6, 0.12, 0.8), new THREE.Vector3(-0.12, 0.92, -0.35));
 const ZH_ARM = new THREE.Vector3(0.22, -0.85, 0.45).normalize();
 const ELBOW_CLAW = new THREE.Vector3(0.3, -0.75, -0.18);                         // zombi kolu: bilekten bu "dirsek" noktasına (kamera uzayı, sağ el); savurmada kol ekranı kesmez
-const ZAX = new THREE.Vector3(0, 0, 1), _w = new THREE.Vector3(), _e = new THREE.Vector3();
+const ZAX = new THREE.Vector3(0, 0, 1), _w = new THREE.Vector3(), _e = new THREE.Vector3(), _sw = new THREE.Vector3(), _swq = new THREE.Quaternion();
 const GRENADE_UP = new THREE.Vector3(0, -0.035, 0.01);                           // bomba: kutu el biraz aşağı-geri → bomba kutunun üstünde görünür (ilk sürümde el içine gömülüydü)
 const DS = { side: THREE.DoubleSide };                                            // el / kol kutuları çift yüzlü: nişanda yakın düzlem keserse içi dolu görünür (yarım düzlem kalmaz)
 // Kol kutusu yönleri (silah yerelinde, 12.124 → 12.125'te korundu): tetik kolu kabzanın arkasından sağ-aşağı (dipçiğin / kabza ucunun DIŞINDAN), destek kolu kundağın altından sol-aşağı (şarjörün dışından).
@@ -241,17 +284,19 @@ export class ViewModel {
     };
     // yakın dövüş: sapı saran sıkı yumruk (parmaklar üstte, avuç altta, başparmak yanda; sap iki uçtan görünür)
     const fist = (p, side = 1) => {
-      const grp = new THREE.Group();
-      grp.position.copy(p);
-      box(grp, [0.064, 0.016, 0.06], c.gloves, [0, 0.03, 0]);                          // parmaklar (üst)
-      for (let i = 0; i < 4; i++) box(grp, [0.066, 0.006, 0.004], '#101114', [0, 0.0385, -0.022 + i * 0.015]);   // parmak araları
-      box(grp, [0.016, 0.06, 0.06], c.gloves, [0.03, 0.0, 0]);                         // yan
-      box(grp, [0.016, 0.06, 0.06], c.gloves, [-0.03, 0.0, 0]);
-      box(grp, [0.064, 0.022, 0.07], c.gloves, [0, -0.032, 0.005]);                    // avuç (alt)
-      const dir = new THREE.Vector3(0.12 * side, -0.2, 0.42).normalize(), len = 0.5;
-      const sleeve = box(grp, [0.11, 0.11, len], c.shirt, [0, 0, 0]);
+      const grp = new THREE.Group(), fg = new THREE.Group();
+      grp.position.copy(p); fg.scale.setScalar(1.15); grp.add(fg);                    // 12.135: yumruk %15 büyük (kolla orantılı; eskiden kolun yarısı genişliğindeydi)
+      box(fg, [0.064, 0.016, 0.06], c.gloves, [0, 0.03, 0]);                            // parmaklar (üst)
+      for (let i = 0; i < 4; i++) box(fg, [0.066, 0.006, 0.004], '#101114', [0, 0.0385, -0.022 + i * 0.015]);   // parmak araları
+      box(fg, [0.016, 0.06, 0.06], c.gloves, [0.03, 0.0, 0]);                           // yan
+      box(fg, [0.016, 0.06, 0.06], c.gloves, [-0.03, 0.0, 0]);
+      box(fg, [0.064, 0.022, 0.07], c.gloves, [0, -0.032, 0.005]);                      // avuç (alt)
+      box(fg, [0.046, 0.044, 0.056], c.gloves, [0, 0.0, 0]);                            // dolgu: yumruk içi boş görünmesin (sap iki uçtan çıkar)
+      const dir = new THREE.Vector3(0.12 * side, -0.2, 0.42).normalize(), len = 0.5;      // ilk yön; her karede dirsek noktasına döner (update)
+      const sleeve = box(grp, [0.092, 0.092, len], c.shirt, [0, 0, 0]);
       sleeve.position.copy(dir).multiplyScalar(len / 2 + 0.05);
       sleeve.quaternion.setFromUnitVectors(Z, dir);
+      grp.userData.sleeve = sleeve; grp.userData.len = len;
       g.add(grp);
       return grp;
     };
@@ -401,7 +446,7 @@ export class ViewModel {
     // sprint (bıçakta yukarıda tutulur; yüklerken sprint pozu azalır)
     const sp = s.sprinting ? 1 : 0;
     this.sprintT = lerp(this.sprintT || 0, sp, Math.min(1, dt * 9));
-    const sprK = this.sprintT * (1 - (ra ? ra.tilt * 0.8 : 0));
+    const sprK = this.sprK = this.sprintT * (1 - (ra ? ra.tilt * 0.8 : 0)) * (1 - ads);      // 12.145: nişan koşu pozunu bastırır (eski: tam nişanda %27 koşu pozu kalıyor, silah yan dönük)
     if (isMelee) {
       const MI = this.id === 'claws' ? CLAWS_IDLE : MELEE_IDLE[this.id] || MELEE_IDLE.knife;
       pos.x += MI.pos[0] - hip.x; pos.y += MI.pos[1] - hip.y; pos.z += MI.pos[2] - hip.z;
@@ -428,7 +473,7 @@ export class ViewModel {
       insp = sm(clamp(t / 0.12, 0, 1)) * sm(clamp((1 - t) / 0.14, 0, 1));
       const pl = (x) => Math.sin(clamp(x, 0, 1) * Math.PI);
       const a = pl((t - 0.1) / 0.36), b = pl((t - 0.42) / 0.3), c = pl((t - 0.66) / 0.24);
-      pos.x -= 0.19 * insp; pos.y += 0.05 * insp; pos.z += (this.id === 'claws' ? -0.14 : 0.07) * insp;
+      pos.x -= 0.19 * insp; pos.y += 0.05 * insp; pos.z += (this.id === 'claws' ? -0.14 : isMelee ? -0.05 : 0.07) * insp;      // 12.135: yakın dövüşte yumruk kameraya gelmez (ekranın yarısını kaplıyordu)
       ry += 0.95 * a + 0.25 * b; rx += -0.2 * a + 0.5 * c; rz += -0.95 * b + 0.3 * c;
     }
 
@@ -444,7 +489,9 @@ export class ViewModel {
     }
     // sürgülü: ateşten sonra sürgü çekilir (kısa el hareketi)
     let boltK = 0;
-    if (u.bolt && !ra) { const b = 1 - this.boltT; boltK = this.boltT > 0 ? Math.sin(Math.PI * clamp((b - 0.22) / 0.55, 0, 1)) : 0; rz -= boltK * 0.35; pos.x -= boltK * 0.02; }
+    if (u.bolt && !ra) { const b = 1 - this.boltT; boltK = this.boltT > 0 ? Math.sin(Math.PI * clamp((b - 0.3) / 0.55, 0, 1)) : 0; rz -= boltK * 0.35; pos.x -= boltK * 0.02; }      // 12.153: sürgü sesiyle aynı anda (0,3–0,85 sn; ses 0,55 / 0,73)
+    this.boltK = boltK;
+    if (p.scopeOn && boltK > 0) { camRoll += boltK * 0.035 * (this.game.leftHand ? -1 : 1); camPitch -= boltK * 0.012; }      // 12.153: dürbünde kalınır; sürgü çekilirken görüş hafif yatar / iner (HUD'da dürbün halkası kayar), atış zaten bekleme süresinde
     if (u.bolt) { const bb = ra ? ra.bolt : boltK; u.bolt.g.position.set(0, u.bolt.pivot, bb * 0.085); u.bolt.g.rotation.z = bb * 0.9; }
     // şarjör alt grubu
     if (u.mag) {
@@ -498,7 +545,14 @@ export class ViewModel {
     const slL0 = this.handL?.userData.sleeve; if (slL0) slL0.visible = true;
     if (this.handR && !this.zh && !isMelee) this.handR.visible = !(!u.noAds && u.sight && u.hold !== 'pistol' && ads > 0.85 && !st.adsLow);
     // ── yakın dövüş savurması ──
-    if (isMelee && s.swing) {
+    const mir = this.game.leftHand ? -1 : 1;
+    let swQ = null;
+    const swTab = isMelee && s.swing && SWING_FP[this.id]?.[s.swing.kind];
+    if (swTab) {                                                     // 12.135: silah başına anahtar pozlar (f / e yönleri, dördey geçiş)
+      fpSwingDelta(swTab, MELEE_IDLE[this.id], clamp(s.swing.t / s.swing.dur, 0, 1), _sw, _swq);
+      pos.add(_sw); swQ = _swq;
+      camRoll = _sw.x * 0.06 * mir; camPitch = _sw.y * 0.12;
+    } else if (isMelee && s.swing) {                                 // zombi pençesi: eski ortak eğri
       const sw = s.swing;
       const mpz = meleePose(sw.kind, clamp(sw.t / sw.dur, 0, 1));
       pos.x += mpz.x * 1.9; pos.y += mpz.y * 1.7; pos.z += mpz.z * 1.6;
@@ -507,7 +561,11 @@ export class ViewModel {
     }
     // vuruş geri tepmesi ve fırlatma
     pos.z += this.hitKick * 0.06; rx += this.hitKick * 0.18;
-    if (this.throwT > 0) { const t = 1 - this.throwT; pos.z += Math.sin(t * Math.PI) * 0.12; rx += Math.sin(Math.min(1, t * 1.4) * Math.PI) * -0.5; pos.y -= Math.sin(t * Math.PI) * 0.06; }
+    // 12.144: bomba — pim çekilince (pişirme / önizleme) el geri ve yukarı kurulur; bırakınca ileri-aşağı savrulur, atılan bomba elde görünmez (cd boyunca)
+    this.cookK = (this.cookK || 0) + ((s.cook ? 1 : 0) - (this.cookK || 0)) * Math.min(1, dt * 12);
+    if (this.cookK > 0.001) { pos.z += 0.09 * this.cookK; pos.y += 0.06 * this.cookK; pos.x += 0.02 * this.cookK; rx += 0.45 * this.cookK; }
+    if (this.throwT > 0) { const f = Math.sin((1 - this.throwT) * Math.PI); pos.z -= f * 0.2; pos.y -= f * 0.07; rx -= f * 0.7; }
+    if (st.kind === 'throwable' && this.model?.children[0]) this.model.children[0].visible = !(s.cd > 0 && !s.cook);
     // sallanma (mouse)
     this.sx = lerp(this.sx || 0, -p.lookDX * 0.0006, Math.min(1, dt * 12));
     this.sy = lerp(this.sy || 0, p.lookDY * 0.0006, Math.min(1, dt * 12));
@@ -526,10 +584,18 @@ export class ViewModel {
       L.rotation.set(-sw * 0.35, 0.12 + 0.42 * k, 0.1 + 0.34 * k);
     }
     // sol el: bütün model ve konum/dönüşler x ekseninde aynalanır (negatif ölçek üç.js'te yüz yönünü otomatik düzeltir)
-    const mir = this.game.leftHand ? -1 : 1;
     this.root.position.set(pos.x * mir, pos.y, pos.z);
     this.root.rotation.set(rx, ry * mir, rz * mir);
+    if (swQ) { if (mir < 0) swQ.y = -swQ.y, swQ.z = -swQ.z; this.root.quaternion.premultiply(swQ); }      // aynada dördey: (x, −y, −z, w)
     this.root.scale.set(VM_SCALE * mir, VM_SCALE, VM_SCALE);
+    const hs = isMelee && !this.zh && this.handR?.userData.sleeve;
+    if (hs) {                                                        // yakın dövüş kolu: yumruktan dirsek noktasına (12.135; eskiden sapın uzantısıydı → bazı pozlarda kameraya giriyordu)
+      const hr = this.handR, U = hr.userData;
+      this.root.updateMatrix(); this.model.updateMatrix(); hr.updateMatrix();
+      _fm.multiplyMatrices(this.root.matrix, this.model.matrix).multiply(hr.matrix).invert();
+      _w.set(ELBOW_FP.x * mir, ELBOW_FP.y, ELBOW_FP.z).applyMatrix4(_fm).normalize();
+      hs.position.copy(_w).multiplyScalar(U.len / 2 + 0.04); hs.quaternion.setFromUnitVectors(Z, _w);
+    }
     // nişan (12.122): nefes + hafif sallanma + fare gecikmesi + tepme, NİŞAN NOKTASI çevresinde döner → retikül / gez ekran ortasında (= mermi noktası) kalır, gövde oynar
     if (ads > 0.001 && u.sight && !this.noSway) {
       const bt = this.breathT, mv = clamp(speed / 3, 0, 1) * (s.onGround ? 1 : 1.5), ik = u.pivot ? 0.4 : 1;      // demirde %40: arpacık ortada, gez yalnız birkaç piksel oynar
@@ -567,7 +633,7 @@ export class ViewModel {
     this.punch = fe ? this.rk.C * fe.cam * (1 - ads * 0.3) : 0; this.punchR = fe ? this.rk.S * fe.cam * 0.35 : 0;
     // dürbün örtüsü (12.127): adsT > 0,9'da açılır; çıkışta dünya büyütmesi ×2'nin altına inene dek açık kalır (eski: 0,9'da kapanıyor, ×4,6 dünyanın önünde 3B dürbün gövdesi ekranı kaplıyordu) → kapanınca HUD kısa kararma
     const zE = p.zoomEff?.() || 1;
-    p.scopeOn = s.alive && s.overlay === 'scope' && (s.adsT > 0.9 || (!!p.scopeOn && zE > 2 && p.zoomCur() >= 2));
+    p.scopeOn = s.alive && s.overlay === 'scope' && (s.adsT > SCOPE_ON || (!!p.scopeOn && zE > 2 && p.zoomCur() >= 2));      // 12.153: 0,9 → SCOPE_ON (göz merceği ekranı kaplamadan, tam kararmanın arkasında açılır)
     this.root.visible = this.forceShow || !p.scopeOn;      // dürbünlü silahta örtü açıkken model gizli (HUD aynı bayrağı kullanır; forceShow: adsalign testi)
     this.cam.rotation.z = -s.leanT * 0.2;   // yana eğilirken silah da kafayla birlikte yatar
     if (this.arms.length) {                    // zombi kolları: bilek ucundan dirsek noktasına (kamera uzayı; sol el modunda aynalı)
@@ -743,8 +809,8 @@ export class Player {
       if (s.alive && kb.is('crouch', code)) { s.toggleCrouch(); this.game.online?.edge('c'); }
       if (s.alive && kb.is('prone', code)) { s.toggleProne(); this.game.online?.edge('p'); }
       if (s.alive && kb.is('optic', code)) { this.game.online?.edge('o'); const o = s.cycleOptic(); if (o) this.game.hud.toast($t('hud.t.optic', { o: opticName(s.opticId) }), '#cfe6ff'); }
-      const slot = kb.slotOf(code);
-      if (slot >= 0) s.switchTo(slot);
+      const slot = kb.slotOf(code);                                                 // tuş konumu (1 ana, 2 yedek, 3 bıçak, 4 ekipman) → items indeksi
+      if (slot >= 0) { const i = slotOrder(s.items.length)[slot]; if (i !== undefined) s.switchTo(i); }
       if (kb.is('fireMode', code) && s.alive) { s.toggleFireMode(); this.game.online?.edge('fm'); }
       if (kb.is('scoreboard', code)) { e.preventDefault(); this.game.hud.showScoreboard(true); }
       if (kb.is('ability', code) && s.alive && s.def.zombie && !e.repeat) this.zAbility();
@@ -802,7 +868,8 @@ export class Player {
       if (!this.locked || !this.s.alive) return;
       const dir = e.deltaY > 0 ? 1 : -1, s = this.s;
       if (s.fly && this.devTools()) { this.flySpeed = Math.max(3, Math.min(120, (this.flySpeed || 13) * (dir > 0 ? 0.8 : 1.25))); this.game.hud.toast($t('hud.t.flySpeed', { n: this.flySpeed.toFixed(0) }), '#cfe6ff'); return; }       // uçarken tekerlek hız ayarlar
-      for (let k = 1; k <= 4; k++) { const j = (s.cur + dir * k + 8) % 4; if (j !== s.cur && s.canEquip(j)) { s.switchTo(j); break; } }       // boş slotları atla
+      const ord = slotOrder(s.items.length), n = ord.length, at = Math.max(0, ord.indexOf(s.cur));      // tuş / HUD sırasında (ana → yedek → bıçak → ekipman) döner
+      for (let k = 1; k <= n; k++) { const j = ord[(at + dir * k + n * 2) % n]; if (j !== s.cur && s.canEquip(j)) { s.switchTo(j); break; } }       // boş slotları atla
     }, { passive: true });
   }
 
@@ -954,9 +1021,12 @@ export class Player {
     if (s.alive && !g.opts.autoplay) {
       const k = this.keys;
       const kb = this.kb, T = this.touch;
-      if (g.opts.adsToggle && (s.sprinting || s.cur !== this._adsCur)) s.ads = false;           // aç-kapa nişan: koşmak ve silah değiştirmek nişanı kapatır
-      this._adsCur = s.cur;
       const f = (kb.held('forward', k) ? 1 : 0) - (kb.held('back', k) ? 1 : 0) || (T ? T.f : 0);
+      // koşu ↔ nişan (12.145): nişan isteği koşuyu o karede keser (applyInput: s.ads → koşu yok), bırakınca koşu tuşu basılıysa koşuya dönülür.
+      // Aç-kapa nişanda koşu tuşuna ileri giderken YENİDEN basmak nişanı kapatıp koşturur (basılı tutulan Shift nişanı kapatmaz; eski: koşu sürdükçe nişan hiç açılmıyordu). Silah değişimi nişanı kapatır.
+      const sprintReq = kb.held('sprint', k) && f > 0;
+      if (g.opts.adsToggle && ((sprintReq && !this._sprintReq) || s.cur !== this._adsCur)) s.ads = false;
+      this._sprintReq = sprintReq; this._adsCur = s.cur;
       const r = (kb.held('right', k) ? 1 : 0) - (kb.held('left', k) ? 1 : 0) || (T ? T.r : 0);
       const st = s.stat;
       const lean = (kb.held('leanRight', k) ? 1 : 0) - (kb.held('leanLeft', k) ? 1 : 0);                 // 3. şahısta da Q/E yatar (ve omuzu değiştirir)
@@ -969,7 +1039,8 @@ export class Player {
       if (this.locked) {
         if (st.kind === 'melee') { if (this.fireHeld || this.fireBuf > 0) { if (s.tryFire()) this.fireBuf = 0; } }
         else if (s.triggerUpdate(this.fireHeld, this.fireBuf)) this.fireBuf = 0;
-      }
+      } else if (s.cook) { this.fireHeld = false; s.triggerUpdate(false, 0); }                                    // kilit gitti (Esc): pişirilen bomba bırakılır (sunucu da tetiği bırakılmış görür)
+      if (g.online) g.online.markAmmo(s);                                              // bu girdinin sonundaki cephane (sunucunun ack anındakiyle karşılaştırılır, 12.138)
       // adım sesi
       const sp = Math.hypot(s.vel.x, s.vel.z);
       if (s.onGround && sp > 1.5 && !s.crouching && !s.prone) {
@@ -986,7 +1057,13 @@ export class Player {
     const baseFov = this.baseFov();
     // 12.127: nişan büyütmesi DOĞRUDAN modelle aynı eğriden yazılır (eski ikinci üstel gecikme dünyayı silahın ~100 ms arkasında bırakıyordu: dürbün çıkışında ×4,6 dünyada 3B gövde); yalnız güç FOV vuruşu yumuşatılır
     this._fovAdd = (this._fovAdd || 0) + ((g.abfx?.fovAdd || 0) - (this._fovAdd || 0)) * Math.min(1, dt * 18);
-    cam.fov = zoomFov(baseFov, this.camZoom()) + this._fovAdd;
+    // 12.154: silah / nişangâh nişandayken değişince (adsT Soldier'da sıfırlanır) dünya kamerası eski büyütmeyi o silahın çıkış eğrisiyle söndürür → tek karede sıçrama yok
+    const aimKey = s.item.id + '|' + s.opticId;
+    if (aimKey !== this._aimKey) { if (this._aimKey !== undefined && this._aimAds > 0 && this._aimZ > 1) this._zTail = { z: this._aimZ, t: this._aimAds, r: this._aimRate }; this._aimKey = aimKey; }
+    let zc = this.camZoom();
+    if (this._zTail) { const q = this._zTail; q.t = Math.max(0, q.t - dt * q.r); zc = Math.max(zc, lerp(1, q.z, adsEase(q.t))); if (q.t <= 0) this._zTail = null; }
+    this._aimAds = s.adsT; this._aimZ = s.overlay === 'lens' && this.vm.lensDisc ? LENS_OUT : this.vm.model?.userData.noAds ? 1 : this.zoomEff(); this._aimRate = s.stat.adsTime ? 1 / s.stat.adsTime : s.opticDef?.overlay === 'scope' ? 6 : 9;      // Soldier'daki adsT hızıyla aynı (12.153 adsTime)
+    cam.fov = zoomFov(baseFov, zc) + this._fovAdd;
     cam.updateProjectionMatrix();
     const sh = g.effects.shake;
     // 3. şahıs geçişi: dürbünle nişan alırken (scope) otomatik 1. şahsa döner
