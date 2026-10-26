@@ -76,3 +76,23 @@ addStrings('en', {
   'weapon.ww_pistol.name': 'Pistol', 'weapon.ww_pistol.desc': 'Seven-round officer\'s pistol.',
   'weapon.ww_nade.name': 'Stick Grenade', 'weapon.ww_nade.desc': 'Long-handled grenade: throws farther, 3.5 s fuse.',
 });
+
+// 12.174 Cephanelik → Cephe donanımı + dönem nişangâhları (menü, doğuş ekranı)
+addStrings('tr', {
+  'lo.era.modern': 'Modern', 'lo.era.front': 'Cephe · 1940\'lar', 'lo.team.blue': 'MAVİ', 'lo.team.red': 'KIRMIZI',
+  'lo.ww.hint': 'Cephe modunda bu donanımla doğarsın; modern seçimin değişmez. Takım rozetli silahları botlar yalnız o takımda kullanır, sen hepsini seçebilirsin.',
+  'lo.ww.optic': 'Dönem nişangâhı', 'lo.ww.opticSub': 'oyunda B ile değiştir · doğuş ekranında da', 'lo.ww.opticOne': 'bu silahta tek seçenek',
+  'lo.ww.optic.iron': 'Gez-arpacık: silahın kendi açık nişanı.', 'lo.ww.optic.ww_peep': 'Diyoptr (halka delik) gez: göz deliğin ortasını kendiliğinden bulur, görüş açık; biraz daha hızlı nişan.',
+  'lo.ww.optic.ww_scout': 'Öncü dürbün 1,5×: namlu üstünde önde, uzun göz mesafeli; çevresi açık kalır. Direk ucu = mermi noktası.',
+  'lo.ww.optic.ww_sc25': 'Dürbün 2,5×: orta mesafe; nefes tut (Shift). Belden isabetsiz.', 'lo.ww.optic.ww_sc4': 'Dürbün 4×: uzun mesafe; nefes tut (Shift). Belden isabetsiz.',
+  'death.ww.kit': 'Silah', 'death.ww.optic': 'Nişangâh',
+});
+addStrings('en', {
+  'lo.era.modern': 'Modern', 'lo.era.front': 'Front · 1940s', 'lo.team.blue': 'BLUE', 'lo.team.red': 'RED',
+  'lo.ww.hint': 'You spawn with this kit in Front mode; your modern loadout is unchanged. Bots use team-tagged weapons only on that team, you can pick any.',
+  'lo.ww.optic': 'Period sight', 'lo.ww.opticSub': 'switch in game with B · also on the spawn screen', 'lo.ww.opticOne': 'only option for this weapon',
+  'lo.ww.optic.iron': 'Iron sights: the rifle\'s own open sights.', 'lo.ww.optic.ww_peep': 'Peep (aperture) sight: your eye centres the hole by itself, clear view; slightly faster aim.',
+  'lo.ww.optic.ww_scout': '1.5x scout scope: mounted forward on the barrel, long eye relief; the surroundings stay visible. Post tip = point of impact.',
+  'lo.ww.optic.ww_sc25': '2.5x scope: medium range; hold breath (Shift). Inaccurate from the hip.', 'lo.ww.optic.ww_sc4': '4x scope: long range; hold breath (Shift). Inaccurate from the hip.',
+  'death.ww.kit': 'Weapon', 'death.ww.optic': 'Sight',
+});

@@ -1,5 +1,5 @@
 // Bir oda = başsız bir Game + bağlı oyuncular. Sabit adımla (SIM_HZ) çalışır, her SNAP_EVERY adımda snapshot yollar.
-import { Game } from '../src/game/game.js';
+import { Game, applyOpticPrefs, cleanFront } from '../src/game/game.js';
 import { SIM_DT, SIM_HZ, SNAP_EVERY, packSoldier, slowSig, cleanName } from '../src/net/protocol.js';
 import { CLASS_DEFS, WSTATS, ZTYPES, ZT_ORDER, ZOMBIE, cleanSkins } from '../src/game/stats.js';
 import { defaultTickets } from '../src/game/match.js';
@@ -345,9 +345,14 @@ export class Room {
     if (!c) return;
     const h = c.h, g = this.game, str = (v) => (typeof v === 'string' ? v.slice(0, 24) : undefined);
     if (typeof m.optic === 'string' && h.s.alive) h.s.setOptic(m.optic);             // T tekerleği: nişangâh seçimi hemen geçerli
+    if (m.fo && typeof m.fo === 'object' && !m.loadout) applyOpticPrefs(h.s, { fo: m.fo });   // 12.174: doğuş ekranında dönem nişangâhı (yalnız o silaha izinli dönem nişangâhı)
     if (typeof m.cls === 'string' && CLASS_DEFS[m.cls] && m.cls !== 'zombie') h.pendingClass = c.pref.cls = m.cls;
     if (typeof m.zt === 'string' && ZTYPES[m.zt]) h.pendingZ = m.zt;                  // Enfekte: bir sonraki doğuşta zombi türü
-    if (m.loadout && typeof m.loadout === 'object') h.pendingLoadout = c.pref.loadout = { primary: str(m.loadout.primary), secondary: str(m.loadout.secondary), gadget: str(m.loadout.gadget), melee: str(m.loadout.melee) };
+    if (m.loadout && typeof m.loadout === 'object') {
+      h.pendingLoadout = c.pref.loadout = { primary: str(m.loadout.primary), secondary: str(m.loadout.secondary), gadget: str(m.loadout.gadget), melee: str(m.loadout.melee), front: cleanFront(m.loadout.front) };
+      applyOpticPrefs(h.s, m.loadout);                                               // 12.174: nişangâh tercihleri (op / fo; yalnız bilinen / o silaha izinli dönem nişangâhı)
+      c.pref.loadout.op = h.s.optic; c.pref.loadout.fo = { ...h.s.optics };            // sonraki maça otomatik geçişte de
+    }
     if (m.skins !== undefined) h.s.skins = c.pref.skins = cleanSkins(m.skins);           // menüde / oyunda kaplama değişti: yavaş alan imzası değişir → bir kez yayınlanır
     if (typeof m.spawn === 'string') h.spawnChoice = m.spawn === 'base' || g.mode.objectives.some((o) => o.id === m.spawn) ? m.spawn : 'base';
   }
@@ -383,7 +388,7 @@ export class Room {
     if (m.bots === false) { g.brainsOff = g.brains.splice(0); }
     if (m.bots === true && g.brainsOff) { g.brains.push(...g.brainsOff); g.brainsOff = null; }
     if (m.ask && c.ws.readyState === 1) c.ws.send(JSON.stringify({ t: 'dbg', optic: s.opticId, item: s.item.id, zb: !!s.def.zombie, ab: [+s.abT.toFixed(2), +s.abActive.toFixed(2)],
-      q: c.h.queue.length, bu: c.h.budget, drop: c.h.dropped || 0, ack: c.h.ack, tick: g.tick, lagT: c.h.vtLag != null ? +c.h.vtLag.toFixed(1) : null, sv: { cur: s.cur, fm: s.fireModeNow, st: s.prone ? 'p' : s.crouching ? 'c' : 's', mag: s.item.mag, res: s.item.reserve, cd: +s.cd.toFixed(3), rl: +s.reloadT.toFixed(2), sw: +s.switchT.toFixed(2), use: +s.useT.toFixed(2), swing: !!s.swing, prot: +s.protT.toFixed(2), alive: s.alive }, kad: g.soldiers.map((e) => [e.kills, e.assists || 0, e.deaths, e.score]) }));   // test: sunucudaki nişangâh / silah (istemci bilinmeyen t'yi yok sayar)
+      q: c.h.queue.length, bu: c.h.budget, drop: c.h.dropped || 0, ack: c.h.ack, tick: g.tick, lagT: c.h.vtLag != null ? +c.h.vtLag.toFixed(1) : null, sv: { cur: s.cur, fm: s.fireModeNow, st: s.prone ? 'p' : s.crouching ? 'c' : 's', mag: s.item.mag, res: s.item.reserve, cd: +s.cd.toFixed(3), rl: +s.reloadT.toFixed(2), sw: +s.switchT.toFixed(2), use: +s.useT.toFixed(2), swing: !!s.swing, prot: +s.protT.toFixed(2), alive: s.alive, lo: [+s.leanOff.x.toFixed(3), +s.leanOff.y.toFixed(3), +s.leanOff.z.toFixed(3)], pos: [+s.pos.x.toFixed(3), +s.pos.z.toFixed(3)], yw: +s.yaw.toFixed(3) }, kad: g.soldiers.map((e) => [e.kills, e.assists || 0, e.deaths, e.score]) }));   // test: sunucudaki nişangâh / silah (istemci bilinmeyen t'yi yok sayar)
   }
 
   // Olaylar: herkese; `to` alanlı olay (12.165 asist bildirimi 'as') yalnız o savaşçının istemcisine (sıra korunur, tek mesaj)

@@ -23,7 +23,8 @@ export function warmup(game) {
     game.scene.updateMatrixWorld(true);
     both(game.scene, game.camera);
     // birinci şahıs: her yuvadaki eşya; ana silahta izin verilen her nişangâh (ACOG / PSO merceği: saydam disk + geçiş camı, 12.162)
-    const cur = s.cur, optic = s.optic, seen = new Set();
+    const cur = s.cur, optic = s.optic, om = s.optics, seen = new Set();
+    s.optics = {};      // 12.174: silaha özgü nişangâh seçimi ön ısıtmada geçici kapalı (s.optic ile her nişangâh denenir)
     vm.cam.aspect = innerWidth / innerHeight; vm.cam.updateProjectionMatrix();
     for (let i = 0; i < s.items.length; i++) {
       if (!s.items[i]) continue;
@@ -41,7 +42,7 @@ export function warmup(game) {
         vm.setFade(0, 1);
       }
     }
-    s.cur = cur; s.optic = optic;
+    s.cur = cur; s.optic = optic; s.optics = om;
     p.refreshWeapon();
   } catch (e) {
     console.warn('[ön ısıtma]', e);

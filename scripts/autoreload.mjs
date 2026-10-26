@@ -76,7 +76,7 @@ const TRY = async ({ id, mag, reserve, mode }) => {
   s.pitch = 1.1; s.cd = 0; s.switchT = 0;
   if (mode === 'kosu') { p.keys.add('ShiftLeft'); p.keys.add('KeyW'); }
   if (mode === 'zipla') p.keys.add('Space');
-  const t0 = performance.now(); let shotF = -1, relF = -1, full = false, f = 0, adsAtShot = null, sprintAtShot = null;
+  const t0 = performance.now(); let shotF = -1, relF = -1, full = false, f = 0, adsAtShot = null, sprintAtShot = null, starts = 0, wasR = false, after = 0;
   if (mode === 'nisan') { s.ads = true; const ta = performance.now(); while (s.adsT < 0.9 && performance.now() - ta < 8000) await new Promise((r) => setTimeout(r, 30)); }      // makine yükündeyken kare yavaş: nişan tam oturana dek bekle
   await new Promise((r) => setTimeout(r, 50));
   adsAtShot = s.adsT; sprintAtShot = s.sprinting;
@@ -86,16 +86,19 @@ const TRY = async ({ id, mag, reserve, mode }) => {
       f++;
       if (shotF < 0 && s.items[idx].mag === 0) shotF = f;
       if (shotF < 0) p.fireBuf = 0.15;                                   // yavaş karede tampon (0,15 sn) atıştan önce sönmesin
-      else if (mode !== 'basili') p.fireHeld = false;
+      else if (mode !== 'basili') { p.fireHeld = false; if (mode === 'tik' && f - shotF <= 3 && s.items[idx].mag === 0) p.fireBuf = 0.15; }      // 12.166: şarjör biter bitmez boş silaha yeniden tık (kullanıcının çift reload durumu; reload'ın sonuna doğru tık = yeni atış, istenen)
+      if (s.reloadT > 0 && !wasR) starts++;
+      wasR = s.reloadT > 0;
       if (relF < 0 && s.reloadT > 0) relF = f;
-      if (relF >= 0 && s.items[idx].mag > 0) { full = true; return res(); }
+      if (relF >= 0 && s.items[idx].mag > 0 && !full) { full = true; p.fireHeld = false; p.fireBuf = 0; }
+      if (full && ++after > 45) return res();                            // dolduktan sonra ~45 kare: ikinci reload başlıyor mu
       if (performance.now() - t0 > 30000) return res();
       requestAnimationFrame(loop);
     };
     requestAnimationFrame(loop);
   });
   p.fireHeld = false; p.keys.clear(); s.ads = false;
-  return { shotF, relF, full, adsAtShot: +(adsAtShot || 0).toFixed(2), sprintAtShot, mag: s.items[idx].mag, res: s.items[idx].reserve };
+  return { shotF, relF, full, starts, adsAtShot: +(adsAtShot || 0).toFixed(2), sprintAtShot, mag: s.items[idx].mag, res: s.items[idx].reserve };
 };
 
 // ───────── 2) çevrimdışı ─────────
@@ -112,10 +115,10 @@ if (parts.includes('off')) {
   const bad = [];
   for (const id of list) for (const mode of Object.keys(MODES)) {
     const r = await page.evaluate(TRY, { id, mag: 1, reserve: WSTATS[id].reserve || 3, mode });
-    if (!(r.shotF > 0 && r.relF > 0 && r.relF - r.shotF <= 2 && r.full)) bad.push(`${id}/${mode} ${JSON.stringify(r)}`);
+    if (!(r.shotF > 0 && r.relF > 0 && r.relF - r.shotF <= 2 && r.full && r.starts === 1)) bad.push(`${id}/${mode} ${JSON.stringify(r)}`);
     if (mode === 'nisan' && id === 'm4a1' && !(r.adsAtShot > 0.5)) bad.push('m4a1 nişan alınmamıştı');
   }
-  check(!bad.length, `çevrimdışı oyuncu: ${list.join(', ')} × ${Object.keys(MODES).join('/')} → son mermiden hemen sonra otomatik reload${bad.length ? ' · ' + bad.join(' | ') : ''}`);
+  check(!bad.length, `çevrimdışı oyuncu: ${list.join(', ')} × ${Object.keys(MODES).join('/')} → son mermiden hemen sonra otomatik reload, TEK KEZ${bad.length ? ' · ' + bad.join(' | ') : ''}`);
   const dry = await page.evaluate(TRY, { id: 'rpg', mag: 1, reserve: 0, mode: 'tik' });
   check(dry.relF < 0 && dry.mag === 0, 'çevrimdışı: RPG yedeksiz → reload yok');
   // RPG ateşlenip reload sürerken görüntü
@@ -184,13 +187,13 @@ if (parts.includes('net')) {
       if (mode !== 'basili') p.fireHeld = false;
       while (performance.now() - t0 < 9000 && !(s.reloadT <= 0 && s.items[idx].mag > 0 && window.__L.cli.length)) await new Promise((r) => setTimeout(r, 50));
       p.fireHeld = false; p.keys.clear(); s.ads = false;
-      await new Promise((r) => setTimeout(r, 900));                                           // sunucu snapshot'ı gelsin
+      await new Promise((r) => setTimeout(r, 900 + (mode === 'tik' ? 1500 : 0)));          // sunucu snapshot'ı gelsin (12.166: tıkta bitişten sonra da bekle → ikinci / çift reload yakalanır)
       const L = window.__L, am = L.am && L.am[idx];
       return { cli: L.cli.length, srv: L.srv.length, dq: L.cli[0] && L.srv[0] ? L.srv[0].q - L.cli[0].q : null, dtMs: L.cli[0] && L.srv[0] ? Math.round(L.srv[0].t - L.cli[0].t) : null, cliAm: [s.items[idx].mag, s.items[idx].reserve], srvAm: am, rtt: Math.round(g.online.stats.rtt || 0) };
     })(), [id, mode]);
     res.push(`${id}/${mode}: ${JSON.stringify(r)}`);
-    const ok = !r.err && r.cli >= 1 && r.srv >= 1 && r.srvAm && r.cliAm[0] === r.srvAm[0] && r.cliAm[1] === r.srvAm[1] && r.cliAm[0] > 0;
-    check(ok, `çevrimiçi ${id} (${mode}): istemci ve sunucu reload'ı kendiliğinden başlattı, cephane eşit ${JSON.stringify(r)}`);
+    const ok = !r.err && r.cli === 1 && r.srv === 1 && r.srvAm && r.cliAm[0] === r.srvAm[0] && r.cliAm[1] === r.srvAm[1] && r.cliAm[0] > 0;
+    check(ok, `çevrimiçi ${id} (${mode}): istemci ve sunucu reload'ı kendiliğinden TEK KEZ başlattı, cephane eşit ${JSON.stringify(r)}`);
     if (id === 'rpg' && mode === 'tik') await page.screenshot({ path: `${OUT}/cevrimici-rpg.png` });
   }
   check(!errs.length, 'çevrimiçi: sayfa hatası yok' + (errs.length ? ' · ' + errs.slice(0, 3).join(' | ') : ''));

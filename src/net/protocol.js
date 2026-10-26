@@ -17,7 +17,7 @@
 //   { t:'ev', l:[...] }                               olaylar (sh atış, hm isabet, dmg hasar, kill, rld, swg)
 //   { t:'err', msg }
 
-import { ZT_ORDER, SKIN_IDS } from '../game/stats.js';
+import { ZT_ORDER, SKIN_IDS, OPTIC_IDS } from '../game/stats.js';
 
 export const SIM_HZ = 60;               // sunucu ve istemci sabit sim adımı
 export const SIM_DT = 1 / SIM_HZ;
@@ -52,15 +52,19 @@ export function packSoldier(s, slow = true) {
     o.kl = s.kills; o.de = s.deaths; o.sc = s.score; o.rv = s.revivable ? 1 : 0;
     if (s.assists) o.as = s.assists;                                    // 12.165 asist sayısı (0 ise yazılmaz; eski sunucu yollamaz → istemci 0 sayar)
     const sk = skinCode(s); if (sk) o.sk = sk;
+    const op = opticCode(s); if (op) o.op = op;                         // 12.174: eşya başına nişangâh (3. şahıs modeli; eski istemci yok sayar)
   }
   return o;
 }
 // Silah kaplamaları (12.122): eşya sırasıyla kaplama numarası ('3000' = 1. silah altın); hepsi standartsa gönderilmez → yalnız yavaş alanlarda, birkaç bayt
 export function skinCode(s) { if (!s.skins) return ''; const c = s.items.map((it) => Math.max(0, SKIN_IDS.indexOf(s.skins[it.id] || 'std'))).join(''); return /[1-9]/.test(c) ? c : ''; }
 export function skinsFrom(code, ids) { if (!code) return null; const r = {}; ids.forEach((id, i) => { const k = SKIN_IDS[+code[i] || 0]; if (k && k !== 'std') r[id] = k; }); return Object.keys(r).length ? r : null; }
+// Nişangâhlar (12.174): eşya sırasıyla OPTIC_IDS sıra numarası (36 tabanı, tek karakter; nişangâhsız eşya '-'), örn. ww_bolt + tabanca → 'a0'
+export function opticCode(s) { if (!s.opticFor) return ''; const c = s.items.map((it) => { const o = s.opticFor(it.id), i = o ? OPTIC_IDS.indexOf(o) : -1; return i >= 0 ? i.toString(36) : '-'; }).join(''); return /[0-9a-z]/.test(c) ? c : ''; }
+export function opticsFrom(code, ids) { const r = {}; if (!code) return r; ids.forEach((id, i) => { const c = code[i], o = c && c !== '-' ? OPTIC_IDS[parseInt(c, 36)] : null; if (o) r[id] = o; }); return r; }
 // yavaş alanların imzası: değişince o savaşçı tam paketlenir
 export function slowSig(s) {
-  return s.maxHp + '|' + s.ggLevel + '|' + (s.def.zombie ? s.ztype : '') + (s.boss ? 'B' : '') + '|' + s.zLives + '|' + s.items.map((it) => it.id).join() + '|' + s.kills + '|' + s.deaths + '|' + (s.assists || 0) + '|' + s.score + '|' + (s.revivable ? 1 : 0) + '|' + skinCode(s);
+  return s.maxHp + '|' + s.ggLevel + '|' + (s.def.zombie ? s.ztype : '') + (s.boss ? 'B' : '') + '|' + s.zLives + '|' + s.items.map((it) => it.id).join() + '|' + s.kills + '|' + s.deaths + '|' + (s.assists || 0) + '|' + s.score + '|' + (s.revivable ? 1 : 0) + '|' + skinCode(s) + '|' + opticCode(s);
 }
 
 export function applyFlags(s, f) {

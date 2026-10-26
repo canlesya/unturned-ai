@@ -538,7 +538,30 @@ Object.assign(WSTATS, {
     count: 2, dmg: 130, radius: 7.5, fuse: 3.5, cook: true, speed: 21, rpm: 40, mag: 2, reserve: 0, move: 1.0, equip: 0.3, sound: 'throw', era: 'ww2',
   },
 });
-Object.assign(OPTIC_ALLOWED, { ww_mg: ['iron'], ww_bolt: ['iron'], ww_semi: ['iron'], ww_smgb: ['iron'], ww_smgr: ['iron'], ww_lmg: ['iron'], ww_pistol: ['iron'], ww_sniper: ['scope'] });
+// 12.174 Dönem nişangâhları (yalnız 1940'lar silahlarında; modern red dot / holo / ACOG yok). Liste sırası = B ile dönüş sırası, ilk öğe = varsayılan.
+// ww_peep: diyoptr (halka delik) arka gez — gez çentiği yerine delik / ince "hayalet halka", aynı ×1,15, nişana %12 hızlı (adsK) · ww_scout: öne monteli 1,5× uzun göz
+// mesafeli öncü dürbün (ACOG gibi tam ekran ×1,5 + saydam mercek, siyah dikey direk + ince yatay çizgi; örtü / kararma yok) · ww_sc25 / ww_sc4: dönem keskin nişancı
+// dürbünleri (dürbün örtüsü 'scope' → 12.153 kararma, 12.156 nefes tutma, belden artı gizleme / belden isabetsizlik otomatik; üç direkli retikül 'post3')
+Object.assign(OPTICS, {
+  ww_peep: { label: 'Diyoptr Gez', zoom: 1.15, overlay: 'none', adsK: 1.12, era: 'ww2' },
+  ww_scout: { label: '1,5× Öncü Dürbün', zoom: 1.5, touchZoom: 1.85, overlay: 'lens', reticle: 'post', era: 'ww2' },
+  ww_sc25: { label: '2,5× Dürbün', zoom: 2.5, overlay: 'scope', reticle: 'post3', adsTime: 0.22, era: 'ww2' },
+  ww_sc4: { label: '4× Dürbün', zoom: 4, overlay: 'scope', reticle: 'post3', adsTime: 0.26, era: 'ww2' },
+});
+// Makineli tüfeklere (BAR / MG42 tarzı) dürbün verilmedi: 1,5× bile hantal (bipodsuz seri atışta görüş kayar; dönemde de standart değildi) → demir / diyoptr
+Object.assign(OPTIC_ALLOWED, {
+  ww_bolt: ['iron', 'ww_peep', 'ww_scout', 'ww_sc25', 'ww_sc4'], ww_semi: ['iron', 'ww_peep', 'ww_scout', 'ww_sc25'], ww_sniper: ['ww_sc4', 'ww_sc25'],
+  ww_smgb: ['iron', 'ww_peep'], ww_smgr: ['iron', 'ww_peep'], ww_lmg: ['iron', 'ww_peep'], ww_mg: ['iron', 'ww_peep'], ww_pistol: ['iron'],
+});
+// Ağdan / profilden gelen dönem nişangâhı tercihlerini temizle (silah → nişangâh; yalnız 1940'lar silahı + o silaha izinli nişangâh)
+export function cleanEraOptics(o) {
+  if (!o || typeof o !== 'object') return {};
+  const r = {};
+  for (const [w, v] of Object.entries(o)) if (WSTATS[w]?.era && typeof v === 'string' && (OPTIC_ALLOWED[w] || []).includes(v)) r[w] = v;
+  return r;
+}
+// Ağ kodu (12.174): nişangâh kimliği ↔ tek karakter (OPTICS sırası; yeni nişangâhlar hep sona eklenir → eski istemci bilmediğini yok sayar)
+export const OPTIC_IDS = Object.keys(OPTICS);
 // Cephe modunun sınıf donanımı (CLASS_DEFS'in yerine; mod dışında görünmez). d = takım varsayılanı (Mavi Garand / Thompson tarzı, Kırmızı sürgülü / MP40 tarzı)
 export const FRONT_KIT = {
   assault: { primary: ['ww_semi', 'ww_bolt'], d: { blue: 'ww_semi', red: 'ww_semi' }, secondary: ['ww_pistol'], gadget: ['ww_nade', 'smoke'], melee: ['knife'] },
@@ -550,6 +573,7 @@ export const FRONT_KIT = {
 export const FRONT_TEAM = { ww_smgb: 'blue', ww_lmg: 'blue', ww_smgr: 'red', ww_mg: 'red' };
 export function frontLoadout(cls, team, choice = {}, rng = Math.random) {
   const K = FRONT_KIT[cls] || FRONT_KIT.assault;
+  if (!choice.random && choice.front && typeof choice.front === 'object') choice = choice.front;      // 12.174: Cephe donanımı ayrı tercih (menü → Cephanelik → Cephe); modern seçim bozulmaz
   const mine = (id) => !FRONT_TEAM[id] || FRONT_TEAM[id] === team;                       // botların rastgele seçimi takım kimliğini bozmasın (Kırmızı MG42 / katlanır HMK …)
   const opt = (list, want, dflt) => { if (!choice.random) return list.includes(want) ? want : dflt; const L = list.filter(mine); return L[Math.floor(rng() * L.length)] || dflt; };
   const primary = opt(K.primary, choice.primary, K.d[team] || K.d.blue), secondary = opt(K.secondary, choice.secondary, K.secondary[0]);

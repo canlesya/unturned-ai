@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createCharacter } from '../models/character.js';
-import { WSTATS, CLASS_DEFS, OPTICS, OPTIC_ORDER, OPTIC_ALLOWED, resolveOptic, makeLoadout, frontLoadout, TAC_RELOAD, BACKSTAB_DMG, ZOMBIE, ZTYPES, BOSS, ZBOSS, ggItems, cleanSkins, spaceLoadout } from './stats.js';
+import { WSTATS, CLASS_DEFS, OPTICS, OPTIC_ORDER, OPTIC_ALLOWED, resolveOptic, cleanEraOptics, makeLoadout, frontLoadout, TAC_RELOAD, BACKSTAB_DMG, ZOMBIE, ZTYPES, BOSS, ZBOSS, ggItems, cleanSkins, spaceLoadout } from './stats.js';
 import { SWING_HIT_K } from './anim.js';
 import { H_STAND, H_CROUCH, H_PRONE } from './collision.js';
 import { dirFromAngles, clamp, rand, lerp } from './util.js';
@@ -18,6 +18,11 @@ const UP = new THREE.Vector3(0, 1, 0);
 // Koşarken / havadayken ateş serbest ama isabetsiz: ek saçılma (rad). 0,085 ≈ 4,9° → 20 m'de ~1,7 m, 50 m'de ~4,3 m (koşarak zıplayınca ikisi toplanır ≈ 9°).
 const smooth01 = (x) => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
 export const SCOPE_ACC = 0.85;      // 12.156: insan keskin nişancının isabeti bu adsT'den sonra açılır (0,85 → 1 yumuşak); altı = belden
+// 12.166 yana eğilme (Q / E): kafa LEAN_OFF m yana (eski 0,36), LEAN_DROP m aşağı (eski 0,07), kamera LEAN_ROLL rad yatık (eski 0,2 ≈ 11,5°).
+// LEAN_PAD: kamera ile duvar arasında kalan en az pay (yakın düzlem 0,05 m + köşe payı). RL_GAP: reload bittikten sonra otomatik reload'ın bekleme süresi.
+export const LEAN_OFF = 0.44, LEAN_DROP = 0.1, LEAN_ROLL = 0.25;
+const LEAN_TORSO = 0.5, LEAN_SHIFT = 0.21;      // 3. şahıs gövde yatışı (rad, eski 0,32) + kalça kayması (m, eski 0,12): model kafası ≈ LEAN_OFF kadar kayar (eski 0,26 m ↔ vuruş kutusu 0,36)
+const LEAN_PAD = 0.17, LEAN_RAYS = [[1, 0], [Math.cos(0.7), Math.sin(0.7)], [Math.cos(0.7), -Math.sin(0.7)]], RL_GAP = 0.3;
 const SPRINT_SPREAD = 0.085, AIR_SPREAD = 0.075, sprintSpeed = () => TUNE.walkSpeed * 1.32;      // yürüme hızının 1,32 katı (eskiden 4,4 × 1,32 = 5,8): yürürken koşu cezası uygulanmaz
 
 export const EYE_STAND = 1.62;
@@ -42,14 +47,15 @@ export class Soldier {
     this.onGround = true;
     this.crouching = false; this.crouchT = 0;
     this.prone = false; this.proneT = 0;
-    this.leanDir = 0; this.leanT = 0; this.leanOff = new THREE.Vector3();
+    this.leanDir = 0; this.leanT = 0; this.leanK = 0; this.leanOff = new THREE.Vector3(); this._leanRoom = LEAN_OFF;
     this.optic = isPlayer ? (game.opts?.optic || 'reddot') : OPTIC_ORDER[Math.floor(Math.random() * OPTIC_ORDER.length)];
+    this.optics = isPlayer ? cleanEraOptics(game.opts?.frontOptics) : {};      // 12.174: silah başına nişangâh (1940'lar silahları; uzak askerlerde ağdan 'op')
     this.sprinting = false; this.ads = false; this.adsT = 0;
     this.eyeY = EYE_STAND;
     this.alive = false;
     this.kills = 0; this.deaths = 0; this.score = 0; this.assists = 0;         // assists: 12.165 (assist.js)
     this.respawnT = 0; this.protT = 0;
-    this.recoilP = 0; this.bloom = 0; this.sinceShot = 9;
+    this.recoilP = 0; this.bloom = 0; this.sinceShot = 9; this.rlDoneT = 0;
     this.cd = 0; this.reloadT = 0; this.switchT = 0; this.useT = 0;
     this.reloadTotal = 1; this.reloadStyle = 'mag'; this.reloadEmpty = true; this.shellT = 0;
     this.swing = null; this.comboN = -1; this.comboT = 0; this.autoSwitchT = 0;
@@ -128,7 +134,10 @@ export class Soldier {
   }
 
   loadout() { return (this.game.mode?.front && !CLASS_DEFS[this.cls]?.zombie ? frontLoadout : this.game.mode?.space ? spaceLoadout : makeLoadout)(this.cls, this.team, this.choice); }      // 12.157: Uzay enerji silahları · 12.158: Cephe 1940'lar donanımı (FRONT_KIT)      // 12.157: Uzay modunda enerji silahları (stats.js SPACE_CLASS)
-  get opticId() { return resolveOptic(this.item.id, this.optic); }
+  get opticId() { return this.opticFor(this.item.id); }
+  opticFor(id) { return resolveOptic(id, this.optics?.[id] || this.optic); }      // 12.174: silaha özgü seçim (dönem nişangâhları) yoksa genel tercih
+  get scoped() { return !!this.stat.scope || this.opticDef?.overlay === 'scope'; }      // 12.174: dürbünlü silah ya da dürbün takılı tüfek (12.153 / 12.156 kuralları)
+  get adsRate() { const o = this.opticDef, t = o?.adsTime || this.stat.adsTime; return t ? 1 / t : o?.overlay === 'scope' ? 6 : 9 * (o?.adsK || 1); }      // nişana geçiş hızı (1/sn; 12.153 adsTime, 12.174 dönem dürbünü / diyoptr)
   skinOf(id) { return (this.skins && this.skins[id]) || 'std'; }
   get opticDef() { const o = this.opticId; return o ? OPTICS[o] : null; }
   get zoomNow() { const st = this.stat; if (!st.zoom) return 0; return this.opticDef && !st.ball ? this.opticDef.zoom : st.zoom; }      // paintball: nişangâhtan bağımsız hafif yakınlaştırma
@@ -151,7 +160,7 @@ export class Soldier {
     // görünüm: sınıf teçhizatı değişir → modeli yeniden kur
     if (this.model) this.game.scene.remove(this.model.root);
     const pb = this.game.mode?.paintball && !def.zombie;            // paintball modu: herkes paintball oyuncusu kıyafetinde (kişisel boya rengi + forma no)
-    this.model = createCharacter({ team: def.zombie ? 'zomb' : this.team, cls, ztype: this.boss ? 'boss' : this.ztype, skinIndex: this.id, weapon: this.items[0].id, optic: this.optic, outfit: pb ? 'paintball' : this.game.mode?.space && !def.zombie ? 'space' : this.game.mode?.front && !def.zombie ? 'ww2' : null, paint: pb ? paintColorOf(this) : undefined, num: ((this.id * 7 + 11) % 90) + 10 });      // forma no: 10–99, savaşçıya göre sabit · 12.158 Cephe: 1940'lar üniforması
+    this.model = createCharacter({ team: def.zombie ? 'zomb' : this.team, cls, ztype: this.boss ? 'boss' : this.ztype, skinIndex: this.id, weapon: this.items[0].id, optic: this.opticFor(this.items[0].id), outfit: pb ? 'paintball' : this.game.mode?.space && !def.zombie ? 'space' : this.game.mode?.front && !def.zombie ? 'ww2' : null, paint: pb ? paintColorOf(this) : undefined, num: ((this.id * 7 + 11) % 90) + 10 });      // forma no: 10–99, savaşçıya göre sabit · 12.158 Cephe: 1940'lar üniforması
     this.model.root.visible = this.alive;
     this.game.scene.add(this.model.root);
     this._modelWeapon = this.items[0].id;
@@ -174,7 +183,7 @@ export class Soldier {
     this.cd = 0; this.reloadT = 0; this.switchT = 0; this.useT = 0; this.swing = null; this.comboT = 0; this.autoSwitchT = 0; this.blindT = 0; this.burstLeft = 0;
     this.cook = null; this.backT = 0; this.backTo = -1;
     this.protT = protect; this.protNet = false;
-    this.crouching = false; this.prone = false; this.proneT = 0; this.crouchT = 0; this.leanDir = 0; this.leanT = 0; this.leanOff.set(0, 0, 0);
+    this.crouching = false; this.prone = false; this.proneT = 0; this.crouchT = 0; this.leanDir = 0; this.leanT = 0; this.leanK = 0; this.leanOff.set(0, 0, 0); this._leanRoom = LEAN_OFF;
     this.height = H_STAND; this.ads = false; this.adsT = 0;
     this.model.root.visible = !this.isPlayer;
     this.model.root.rotation.x = 0;
@@ -188,7 +197,7 @@ export class Soldier {
     const id = this.stat.kind === 'medkit' ? null : this.item.id;
     if (!force && id === this._modelWeapon) return;
     this._modelWeapon = id;
-    const w = this.model.setWeapon(id, this.optic, id ? this.skinOf(id) : 'std');
+    const w = this.model.setWeapon(id, id ? this.opticFor(id) : this.optic, id ? this.skinOf(id) : 'std');
     if (w && WSTATS[id]?.ball) tintPaint(w, paintColorOf(this));                  // paintball: hazne / tüp savaşçının boya renginde
   }
 
@@ -207,16 +216,18 @@ export class Soldier {
     const eq = Math.min(0.35, WSTATS[this.items[i].id].equip ?? 0.3);
     this.cook = null; this.backT = 0;                                              // pişirilen bombanın pimi geri takılır (silah değişince atılmaz)
     this.backTo = WSTATS[this.items[i].id].kind === 'throwable' ? this.cur : -1;   // attıktan sonra dönülecek silah
-    this.cur = i; this.switchT = eq; this.reloadT = 0; this.useT = 0; this.swing = null; this.autoSwitchT = 0; this.burstLeft = 0;
+    this.cur = i; this.switchT = eq; this.reloadT = 0; this.rlDoneT = 0; this.useT = 0; this.swing = null; this.autoSwitchT = 0; this.burstLeft = 0;
     this.adsT = 0;      // 12.154: nişan eski silahındı; yeni silah belden başlar (eski: adsT ≈ 1 kalıyor, yeni silahın büyütmesi / dürbün örtüsü o karede açılıyordu). Dünya kamerası eski büyütmeyi Player'da kendi eğrisiyle söndürür
     this._syncWeaponModel();
     this.game.emit('switch', this);
   }
 
   // R: hemen başlar (sprint iptal etmez). Şarjörde mermi varsa "taktik reload" daha hızlıdır.
+  // 12.166: reload az önce bittiyse ve o zamandan beri atış yoksa (rlDoneT, RL_GAP sn) yeniden başlamaz: dolu şarjör ancak bayat bir düzeltmeyle
+  // 0 görünebilir → çift reload / animasyon olmasın. Tek yer: otomatik (autoReload), boş tetik (tryFire) ve R aynı kuralı izler; sunucu = istemci = çevrimdışı
   startReload() {
     const it = this.item, st = this.stat;
-    if (this.reloadT > 0 || this.swing || this.useT > 0 || !(st.kind === 'gun' || st.kind === 'launcher') || it.mag >= st.mag || it.reserve <= 0) return false;
+    if (this.reloadT > 0 || this.rlDoneT > 0 || this.swing || this.useT > 0 || !(st.kind === 'gun' || st.kind === 'launcher') || it.mag >= st.mag || it.reserve <= 0) return false;
     const style = st.reloadStyle || 'mag';
     this.reloadStyle = style;
     this.reloadEmpty = it.mag <= 0;
@@ -279,8 +290,9 @@ export class Soldier {
     // 12.153: dürbünlü keskin nişancı (st.scope): isabet yalnız dürbün oturunca (adsT 0,6 → 1 yumuşak); belde / geçişte ilk atış indirimi yok (no-scope / erken quickscope şansa kalır)
     // 12.156: insan (oyuncu / sunucudaki insan) için belden keskin nişancı anlamlı isabetsiz (st.noscope koni; eski hip 0,03 → 10 m'de gövdeye %100) ve dürbün
     // TAM oturmadan (adsT < SCOPE_ACC) atış belden sayılır. Botlar eski eğride (bot nişanı ayrı: tacAim + botExtraSpread)
-    const hum = st.scope && (this.isPlayer || this.human), a0 = hum ? SCOPE_ACC : 0.6;
-    const sk = st.scope ? smooth01((this.adsT - a0) / (1 - a0)) : this.adsT;
+    const sc = st.scope || (st === this.stat && this.opticDef?.overlay === 'scope');      // 12.174: sürgülü / yarı otomatik tüfeğe takılan dönem dürbünü de
+    const hum = sc && (this.isPlayer || this.human), a0 = hum ? SCOPE_ACC : 0.6;
+    const sk = sc ? smooth01((this.adsT - a0) / (1 - a0)) : this.adsT;
     let s = lerp(hum ? st.noscope ?? hipv : hipv, adsv, sk);
     s += Math.min(speed * 0.0007, 0.0045) * (1 - this.adsT * 0.65);   // hareket cezası
     if (!this.onGround) s += AIR_SPREAD * (1 - this.adsT * 0.5);            // havadayken (zıplarken) atış çok dağılır
@@ -289,7 +301,7 @@ export class Soldier {
     if (this.crouching) s *= 0.7;
     s += this.bloom;                                                   // seri atışta açılma
     // duran oyuncunun ilk atışı (kısa bir aradan sonra) isabetli olsun
-    if (this.sinceShot > 0.3 && speed < 1.5 && this.onGround) s *= st.scope ? 1 - 0.8 * sk : 0.2;
+    if (this.sinceShot > 0.3 && speed < 1.5 && this.onGround) s *= sc ? 1 - 0.8 * sk : 0.2;
     return s + this.botExtraSpread;
   }
 
@@ -318,7 +330,7 @@ export class Soldier {
       return false;
     }
     this.cd = 60 / st.rpm;
-    it.mag--;
+    it.mag--; this.rlDoneT = 0;                                // 12.166: gerçek atış → reload bekleme payı kalkar (RPG gibi tek mermilide hemen yeniden doldurur)
     if (st.kind === 'throwable') { this.sprinting = false; return this._throw(st); }
     if (st.kind === 'mine' || st.kind === 'ammobox') { this.sprinting = false; return this._place(st, it); }
     this.firedSprinting = this.sprinting;                      // koşarken ateş: bu atış için dağılma cezası (spreadNow)
@@ -383,7 +395,7 @@ export class Soldier {
     this.sinceShot = 0;
     this.bloom = st.ball ? Math.min(this.bloom + (st.bloom ?? 0.003), st.bloomMax ?? 0.03) : Math.min(this.bloom + (st.kickV || 0.01) * 0.07, 0.005);
     if (this.isPlayer || this.human) {
-      const k = (st.kickV || 0.01) * (this.adsT > 0.5 ? 0.7 : 1), perm = st.scope ? 0.1 : 0.55;      // 12.153: keskin nişancı tepmesi çoğunlukla geri döner (dürbün hedefe oturur; eski: %55 kalıcı → her atışta ~45 px yukarı)
+      const k = (st.kickV || 0.01) * (this.adsT > 0.5 ? 0.7 : 1), perm = this.scoped ? 0.1 : 0.55;      // 12.153: keskin nişancı tepmesi çoğunlukla geri döner (dürbün hedefe oturur; eski: %55 kalıcı → her atışta ~45 px yukarı)
       this.pitch = Math.min(1.45, this.pitch + k * perm);   // kalıcı tırmanma: oyuncu aşağı çekerek telafi eder
       this.recoilP += k * (1 - perm);
       this.yaw += rand(-1, 1) * (st.kickH || 0.004);
@@ -571,7 +583,7 @@ export class Soldier {
   setOptic(id) {
     const allowed = OPTIC_ALLOWED[this.item.id] || [];
     if (!allowed.includes(id) || !OPTICS[id]) return null;
-    this.optic = id;
+    if (this.stat.era) this.optics[this.item.id] = id; else this.optic = id;      // 12.174: dönem silahında silaha özgü (modern genel tercih bozulmaz)
     this.model.optic = id;
     this._syncWeaponModel(true);
     this.game.emit('switch', this);
@@ -581,14 +593,15 @@ export class Soldier {
   // Nişangâh değiştir (B): silaha uygun olanlar arasında döner
   cycleOptic() {
     const allowed = OPTIC_ALLOWED[this.item.id] || [];
-    const list = OPTIC_ORDER.filter((o) => allowed.includes(o));
+    const list = allowed.filter((o) => OPTICS[o]);      // izin listesi sırası (modern listeler OPTIC_ORDER sırasında; 12.174 dönem nişangâhları kendi sırasında)
     if (list.length < 2) return null;
-    this.optic = list[(list.indexOf(this.opticId) + 1) % list.length];
+    const nx = list[(list.indexOf(this.opticId) + 1) % list.length];
+    if (this.stat.era) this.optics[this.item.id] = nx; else this.optic = nx;
     this.adsT = 0;      // 12.154: nişangâh değişince nişana yeniden girilir (eski: yeni nişangâhın büyütmesi tam nişanda o karede devreye giriyordu)
-    this.model.optic = this.optic;
+    this.model.optic = nx;
     this._syncWeaponModel(true);
     this.game.emit('switch', this);
-    return OPTICS[this.optic];
+    return OPTICS[nx];
   }
 
   takeDamage(amount, attacker, zone, fromPos, weaponName) {
@@ -678,17 +691,18 @@ export class Soldier {
           this.game.sfx.shell(this.pos);
         }
         const left = Math.min(st.mag - it.mag, it.reserve);
-        if (left <= 0) { this.reloadT = 0; this.game.emit('reloaded', this); }
+        if (left <= 0) { this.reloadT = 0; this.rlDoneT = RL_GAP; this.game.emit('reloaded', this); }
         else this.reloadT = Math.max(0.001, this.shellT + (left - 1) * st.shell);
       } else {
         this.reloadT -= dt;
         if (this.reloadT <= 0) {
           const need = st.mag - it.mag, take = Math.min(need, it.reserve);
-          it.mag += take; it.reserve -= take;
+          it.mag += take; it.reserve -= take; this.rlDoneT = RL_GAP;
           this.game.emit('reloaded', this);
         }
       }
     }
+    this.rlDoneT = Math.max(0, this.rlDoneT - dt);
     this.autoReload();
     if (this.useT > 0) {
       this.useT -= dt;
@@ -704,25 +718,32 @@ export class Soldier {
     }
     // hedef nişan geçişi
     const wantAds = this.ads && this.reloadT <= 0 && this.switchT <= 0 && this.zoomNow && !this.sprinting;
-    this.adsT = clamp(this.adsT + (wantAds ? 1 : -1) * dt * (this.stat.adsTime ? 1 / this.stat.adsTime : this.opticDef?.overlay === 'scope' ? 6 : 9), 0, 1);      // 12.153: adsTime (sn) silaha özgü dürbün süresi
+    this.adsT = clamp(this.adsT + (wantAds ? 1 : -1) * dt * this.adsRate, 0, 1);      // 12.153: adsTime (sn) silaha özgü dürbün süresi (12.174: dönem dürbününün kendi süresi)
     if (this.prone) this.crouching = false;
     this.height = this.prone ? H_PRONE : this.crouching ? H_CROUCH : H_STAND;
     this.crouchT = clamp(this.crouchT + (this.crouching ? 1 : -1) * dt * 7, 0, 1);
     this.proneT = clamp(this.proneT + (this.prone ? 1 : -1) * dt * 4.5, 0, 1);
     this.eyeY = lerp(lerp(EYE_STAND, EYE_CROUCH, this.crouchT), EYE_PRONE, this.proneT) * (1 + ((this.hbH || 1) - 1) * 0.6);      // iri zombinin gözü biraz yüksekte
-    // yana eğilme (Q/E): kafa yana kayar, duvara girmesin diye ışınla sınırlanır
+    // yana eğilme (Q/E): kafa yana kayar; duvara girmesin diye 3 ışınla (yan + 40° ön / arka çapraz) sınırlanır. leanK = gerçekleşen eğilme
+    // (−1..1; duvar varsa kısalır) → kamera yatıklığı ve 3. şahıs gövde animasyonu da onu izler. Sunucu, çevrimdışı ve istemci aynı kod (vuruş kutusu leanOff'la kayar)
     const canLean = this.onGround && !this.sprinting && this.proneT < 0.3;
     this.leanT = lerp(this.leanT, canLean ? this.leanDir : 0, Math.min(1, dt * 10));
     if (Math.abs(this.leanT) > 0.01) {
-      const sg = Math.sign(this.leanT);
-      const r = this.right(_v);
-      const from = _o.set(this.pos.x, this.pos.y + this.eyeY, this.pos.z);
-      const hit = this.game.world.raycast(from, r.multiplyScalar(sg), 0.55, (this._lr ||= {}));
-      const room = hit ? Math.max(0, hit.t - 0.17) : 0.55;
-      const off = Math.min(Math.abs(this.leanT) * 0.36, room);
-      const rr = this.right(_v);
-      this.leanOff.set(rr.x * sg * off, -Math.abs(this.leanT) * 0.07, rr.z * sg * off);
-    } else this.leanOff.set(0, 0, 0);
+      const sg = Math.sign(this.leanT), ay = Math.abs(this.leanT);
+      const rx = Math.cos(this.yaw), rz = -Math.sin(this.yaw), fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);      // right() / ileri (yatay)
+      const from = _o.set(this.pos.x, this.pos.y + this.eyeY - ay * LEAN_DROP, this.pos.z);
+      let room = LEAN_OFF;
+      for (const [c, sn] of LEAN_RAYS) {
+        _v.set((rx * c + fx * sn) * sg, 0, (rz * c + fz * sn) * sg);
+        const L = (LEAN_OFF + LEAN_PAD) / c, hit = this.game.world.raycast(from, _v, L, (this._lr ||= {}));
+        if (hit) room = Math.min(room, hit.t * c - LEAN_PAD);
+      }
+      room = Math.max(0, room);
+      this._leanRoom = room < this._leanRoom ? room : Math.min(room, this._leanRoom + dt * 2.5);      // duvara yaklaşınca anında kısalır, açılınca yumuşak uzar (köşe geçişinde sıçrama yok)
+      const off = Math.min(ay * LEAN_OFF, this._leanRoom);
+      this.leanK = sg * off / LEAN_OFF;
+      this.leanOff.set(rx * sg * off, -ay * LEAN_DROP, rz * sg * off);
+    } else { this.leanOff.set(0, 0, 0); this.leanK = 0; this._leanRoom = LEAN_OFF; }
   }
 
   // Doğma koruması kalkanı: mavi, nabız gibi atan yarı saydam balon (düşman da görür; "mermi geçiyor" yanılgısını önler)
@@ -850,11 +871,11 @@ export class Soldier {
     const lean = -(0.03 * moveAmt + 0.17 * run * moveAmt) - 0.09 * c - 0.07 * stanceK;
     const aimP = clamp(this.pitch + this.recoilP, -0.9, 0.9) * 0.7;
     p.torso.rotation.x = (aimP + lean) * (1 - pr);
-    p.torso.rotation.z = Math.sin(ph) * 0.035 * moveAmt * (1 + run) * (1 - pr) - this.leanT * 0.32 + Math.sin(T * 0.9 + this.id) * 0.012 * stanceK;
-    p.torso.position.x = this.leanT * 0.12;
+    p.torso.rotation.z = Math.sin(ph) * 0.035 * moveAmt * (1 + run) * (1 - pr) - this.leanK * LEAN_TORSO + Math.sin(T * 0.9 + this.id) * 0.012 * stanceK;
+    p.torso.position.x = this.leanK * LEAN_SHIFT;      // 12.166: gerçekleşen eğilme (leanK) → model kafası vuruş kutusu / göz kaymasıyla aynı yerde
     p.torso.position.y = 1.17 - 0.27 * c + breathe - idleLow;
     p.head.rotation.x = (-lean * 0.7 - aimP * 0.25) * (1 - pr);
-    p.head.rotation.z = this.leanT * 0.18;
+    p.head.rotation.z = this.leanK * 0.2;
     root.position.y -= (0.018 + 0.035 * run) * moveAmt * Math.sin(ph) ** 2;    // adım sırasında hafif çökme
     const twist = Math.sin(ph) * (0.05 + 0.08 * run) * moveAmt;
     const swing = Math.sin(ph + Math.PI) * moveAmt * (0.5 + 0.5 * run);
