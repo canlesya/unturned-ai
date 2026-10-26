@@ -115,7 +115,7 @@ function run(sd) {
       let dy = s.yaw - (w.py ?? s.yaw); while (dy > Math.PI) dy -= 2 * Math.PI; while (dy < -Math.PI) dy += 2 * Math.PI; w.rot += Math.abs(dy); w.py = s.yaw;
       if (w.t >= 2) {
         const disp = Math.hypot(s.pos.x - w.x, s.pos.z - w.z);
-        if (disp < 0.5 && w.mv > w.n * 0.5 && !w.tg) { m.stuck++; if (process.env.STUCKLOG) console.error('takılma', s.pos.x.toFixed(1), s.pos.y.toFixed(1), s.pos.z.toFixed(1)); }
+        if (disp < 0.5 && w.mv > w.n * 0.5 && !w.tg) { m.stuck++; if (process.env.STUCKLOG) { const nb = Math.min(99, ...g.soldiers.filter((o) => o !== s && o.alive).map((o) => Math.hypot(o.pos.x - s.pos.x, o.pos.z - s.pos.z))), wp = b.path?.[0]; console.error('takılma', s.pos.x.toFixed(1), s.pos.y.toFixed(1), s.pos.z.toFixed(1), 'en yakın asker', nb.toFixed(1), 'ara nokta', wp ? wp.x.toFixed(1) + ',' + wp.z.toFixed(1) : '-'); } }
         if (disp < 1 && w.rot > Math.PI * 1.5 && !w.tg) m.spin++;
         win.set(s, { t: 0, x: s.pos.x, z: s.pos.z, rot: 0, mv: 0, n: 0, tg: 0, py: s.yaw });
       }
