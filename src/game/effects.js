@@ -9,6 +9,7 @@ const bm = (color, o = {}) => {
   return (mats[k] ||= new THREE.MeshBasicMaterial({ color, ...o }));
 };
 
+const _UP = new THREE.Vector3(0, 1, 0);
 export class Effects {
   constructor(scene) {
     this.scene = scene;
@@ -78,6 +79,13 @@ export class Effects {
   dust(p, normal) {
     const k = this._far(p), v = 1.6 * Math.sqrt(k);
     for (let i = 0; i < 3; i++) this._part(p, '#b7a98a', rand(0.05, 0.1) * k, normal, v, 0.5, 2);
+  }
+
+  // 12.180 su sıçraması (mermi / suya giriş): beyaz-mavi damlalar yukarı fırlar, yerçekimiyle düşer. big: suya atlayan / düşen asker
+  // tiny: yüzen askerin çevresinde küçük dalgacık damlası
+  splash(p, big = false, tiny = false) {
+    const k = this._far(p), n = big ? 12 : tiny ? 2 : 4, up = _UP;
+    for (let i = 0; i < n; i++) this._part(p, i % 3 ? '#e8f2f4' : '#a9cbd2', (tiny ? rand(0.02, 0.04) : rand(0.04, big ? 0.11 : 0.08)) * k, up, (big ? 3.8 : tiny ? 1.1 : 2.4) * Math.sqrt(k), big ? 0.8 : tiny ? 0.3 : 0.5, 9);
   }
 
   _part(p, color, size, normal, speed, life, grav) {

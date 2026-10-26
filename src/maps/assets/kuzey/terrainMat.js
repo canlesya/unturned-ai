@@ -10,14 +10,18 @@ float tn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f*f*(3.0-2.0*f);
 float tf(vec2 p){ return tn(p) * 0.55 + tn(p * 2.07 + 3.1) * 0.3 + tn(p * 4.3 + 7.7) * 0.15; }
 `;
 
+// 12.180 nehir / göl yatağı: su altında çakıl + kum dalgası + yosun lekesi + derinlikle soğuyan renk + kayan ışık deseni (kostik). Zaman tek ortak uniform (Water.update yazar).
+export const TERRAIN_U = { uTime: { value: 0 } };
+
 export function makeTerrainMaterial(outer = false) {
   const m = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.96, metalness: 0 });
   m.onBeforeCompile = (sh) => {
+    sh.uniforms.uTime = TERRAIN_U.uTime;
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec4 aW;\nattribute vec2 aRoad;\nvarying vec4 vW;\nvarying vec2 vRoad;\nvarying vec3 vTP;\nvarying vec3 vTN;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvTP = (modelMatrix * vec4(transformed, 1.0)).xyz;\nvTN = normalize(mat3(modelMatrix) * objectNormal);\nvW = aW;\nvRoad = aRoad;');
     sh.fragmentShader = sh.fragmentShader
-      .replace('#include <common>', `#include <common>\nvarying vec4 vW;\nvarying vec2 vRoad;\nvarying vec3 vTP;\nvarying vec3 vTN;\n${NOISE}`)
+      .replace('#include <common>', `#include <common>\nuniform float uTime;\nvarying vec4 vW;\nvarying vec2 vRoad;\nvarying vec3 vTP;\nvarying vec3 vTN;\n${NOISE}`)
       .replace('#include <color_fragment>', `#include <color_fragment>
 {
   vec2 p = vTP.xz; vec3 c = diffuseColor.rgb; vec3 n = normalize(vTN);
@@ -80,6 +84,25 @@ export function makeTerrainMaterial(outer = false) {
     vec3 fc = c * (0.82 + 0.3 * smoothstep(0.2, 0.9, row) * aM) * (0.92 + 0.14 * tn(p * 0.6) * aN);
     c = mix(c, fc, fw);
   }
+  // 12.180 su yatağı (nehir 0 m, barajın menbasında göl 20 m): çakıl / kum / yosun, derinlikle mavi-yeşile kayar, sığda kostik ışık
+  float wl = vTP.x > 702.0 ? 20.0 : 0.0, wd = wl - vTP.y;
+  if (wd > 0.05) {
+    float uw = smoothstep(0.05, 0.6, wd);
+    vec2 pc = p * 2.3 + vec2(tn(p * 0.8), tn(p * 0.8 + 4.0)) * 0.9; vec2 pi = floor(pc), pf = fract(pc) - 0.5;
+    float pr = 0.16 + 0.22 * th(pi + 3.3);
+    float peb = smoothstep(pr, pr * 0.55, length((pf + (vec2(th(pi), th(pi + 7.1)) - 0.5) * 0.45) * vec2(1.0, 1.0 + th(pi + 1.9)))) * step(0.35, th(pi + 9.7));   // düzensiz çakıl (boyut / yer / sıklık rastgele)
+    float sand = 0.5 + 0.5 * sin(dot(p, vec2(0.9, 0.35)) * 2.2 + tn(p * 0.3) * 5.0);                            // kum dalgası
+    float moss = smoothstep(0.55, 0.78, tf(p * 0.09 + 21.0));
+    vec3 bed = mix(vec3(0.33, 0.29, 0.22) * (0.85 + 0.2 * sand) * (0.9 + 0.2 * tn(p * 1.7)), vec3(0.34, 0.32, 0.28) * (0.65 + 0.45 * th(pi)), peb * aM * 0.7);
+    bed = mix(bed, vec3(0.16, 0.24, 0.12), moss * 0.7 * smoothstep(0.8, 2.5, wd));
+    vec3 cw = mix(c, bed, uw * 0.8);
+    cw *= mix(vec3(1.0), vec3(0.5, 0.74, 0.74), smoothstep(0.4, 5.0, wd) * uw);                                 // derinlikte kırmızı söner
+    vec2 cp = p * 0.85 + vec2(uTime * 0.16, uTime * 0.06);
+    float r1 = 1.0 - abs(tn(cp) * 2.0 - 1.0), r2 = 1.0 - abs(tn(cp * 1.63 + vec2(5.2, -uTime * 0.21)) * 2.0 - 1.0);
+    float caus = (pow(r1, 9.0) * 0.6 + pow(r2, 11.0) * 0.55) * (1.0 - smoothstep(0.8, 6.0, wd)) * uw * aM;          // ince, birbirine geçen ışık ağı (kostik)
+    cw += vec3(0.42, 0.55, 0.5) * caus * 0.5 * max(n.y, 0.0);
+    c = cw;
+  }
   diffuseColor.rgb = clamp(c, 0.0, 1.0);
 }`);
     // sis (FogExp2): oyun içi standart üstel² + üst sınır; dağlarda yükseklikle incelir. Böylece uzak vadi tabanı önündeki dağdan daha sisli olmaz
@@ -97,6 +120,6 @@ export function makeTerrainMaterial(outer = false) {
   gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, clamp(fogFactor, 0.0, 1.0));
 #endif`);
   };
-  m.customProgramCacheKey = () => 'kuzey-terrain-v1' + (outer ? 'o' : '');
+  m.customProgramCacheKey = () => 'kuzey-terrain-v2' + (outer ? 'o' : '');
   return m;
 }

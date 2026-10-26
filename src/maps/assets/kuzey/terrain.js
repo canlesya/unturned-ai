@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { KZ_BOUNDS, KZ_CELL, KZ_DEEP, RIVER, LAKE, FORDS, ROADS, ROAD_W, PADS, BRIDGES, DAM, FIELDS, FOREST_ZONES } from './layout.js';
+import { KZ_BOUNDS, KZ_CELL, KZ_DEEP, KZ_WATER, KZ_LAKE, RIVER, LAKE, FORDS, ROADS, ROAD_W, PADS, BRIDGES, DAM, FIELDS, FOREST_ZONES } from './layout.js';
 
 // Kuzey Vadisi arazisi (12.172): 2 m düzenli yükseklik ızgarası (801 × 801 köşe), sunucu + istemci aynı.
 // - heightAt: hücrede köşegen a–d (i,j)–(i+1,j+1) ile iki düz üçgen; görsel L0 ağı aynı üçgenleri çizer → yakında görünen = çarpışma.
@@ -48,7 +48,7 @@ function polyDist(P, x, z, out) {
   out.d = Math.sqrt(bd); out.w = bw; out.i = bi; out.t = bt;
   return out;
 }
-const _r = { d: 0, w: 0, i: 0, t: 0 }, _l = { d: 0, w: 0, i: 0, t: 0 };
+const _r = { d: 0, w: 0, i: 0, t: 0 }, _l = { d: 0, w: 0, i: 0, t: 0 }, _w = { d: 0, w: 0, i: 0, t: 0 };
 
 // Taban kot (yollar / alanlar hariç): her yerde tanımlı (harita dışı da)
 export function baseHeight(x, z) {
@@ -259,13 +259,13 @@ export class KuzeyTerrain {
     const dx = (this.heightAt(x + e, z) - this.heightAt(x - e, z)) / (2 * e), dz = (this.heightAt(x, z + e) - this.heightAt(x, z - e)) / (2 * e);
     return Math.hypot(dx, dz);
   }
-  // derin su: havadan (zıplayarak) girilmez; World.move her yatay adımda sorar (yerde yürüyerek giriş zaten engelli)
-  // köprü / baraj tabliyesinin üstü serbest (decks: [x0, x1, z0, z1], kurulumda yazılır)
-  wallAt(x, z, y) {
+  // 12.180 su yüzeyi (m) ya da −Infinity: yüzme (sim/swim.js), su altı görünümü, mermi. Nehir yüzeyi KZ_WATER (0), barajın menbasında göl KZ_LAKE (20).
+  // Yalnız zeminin yüzeyin altında kaldığı yerde su vardır (görsel su ağı da derinlik < 0'da çizilmez → görünen = fizik). Eski "derin suya girilmez"
+  // kuralı (wallAt) kalktı; derin su (deepWater) artık yalnız bot yol bulmasında kapalı (botlar köprü / geçit kullanır).
+  waterY(x, z) {
     const h = this.heightAt(x, z);
-    if (!(h < this.deepWater && y > h + 0.001)) return false;
-    for (const d of this.decks || []) if (x > d[0] && x < d[1] && z > d[2] && z < d[3]) return false;
-    return true;
+    if (x > 702 && h < KZ_LAKE) { polyDist(LAKE, x, z, _w); if (_w.d < _w.w + 30) return KZ_LAKE; }
+    return h < KZ_WATER ? KZ_WATER : -Infinity;
   }
   surfAt(x, z) { return this.surf[Math.max(0, Math.min(this.nz - 1, Math.round((z - this.minZ) / this.cell))) * this.nx + Math.max(0, Math.min(this.nx - 1, Math.round((x - this.minX) / this.cell)))]; }
   roadAt(x, z) { return this.road[Math.max(0, Math.min(this.nz - 1, Math.round((z - this.minZ) / this.cell))) * this.nx + Math.max(0, Math.min(this.nx - 1, Math.round((x - this.minX) / this.cell)))]; }

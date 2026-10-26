@@ -1,9 +1,12 @@
 import * as THREE from 'three';
 import { RIVER, LAKE, KZ_WATER, KZ_LAKE } from './layout.js';
 import { outerHeight } from './terrain.js';
+import { TERRAIN_U } from './terrainMat.js';
 
 // Kuzey Vadisi suyu (12.172, yalnız görsel): nehir şeridi (eksen boyunca 6 m, enine 10 dilim) + baraj gölü. Köşe başına derinlik (su − zemin)
 // → sığda açık / yarı saydam, derinde koyu; kıyıda köpük; akış yönünde kayan dalga normali, Fresnel ile gök rengi, güneş parıltısı. Sis (three) uygulanır.
+// 12.180: iki yüzlü — alttan (dalan oyuncu) yüzeyin alt yüzü görünür: dalgalı açık turkuaz, uzakta koyulaşır (tam iç yansıma hissi; Snell penceresi yok),
+// gün ışığıyla (gök rengi) kararır. Üstten: yakında dalga normali yumuşatıldı (beyaz leke parıltısı yok), akış yönünde uzayan köpük çizgileri.
 function ribbon(P, y, pad, step, T, lateral = 10) {
   // Chaikin + eşit aralık
   let p = P.map((q) => [q[0], q[1], q[2]]);
@@ -48,7 +51,7 @@ export function makeWaterMaterial(env = {}) {
     uDeep: { value: new THREE.Color('#1f3a3c') }, uShal: { value: new THREE.Color('#5b7a62') }, uFlow: { value: 1 },
   }]);
   const m = new THREE.ShaderMaterial({
-    uniforms: U, fog: true, transparent: true, depthWrite: false,
+    uniforms: U, fog: true, transparent: true, depthWrite: false, side: THREE.DoubleSide,
     vertexShader: /* glsl */ `
       attribute float aDepth; attribute vec2 aFlow; varying float vDepth; varying vec2 vFlow; varying vec3 vWP;
       #include <fog_pars_vertex>
@@ -67,8 +70,22 @@ export function makeWaterMaterial(env = {}) {
         vec3 V = normalize(cameraPosition - vWP); float dist = length(cameraPosition - vWP);
         vec2 q = vec2(vFlow.x - uTime * 0.9 * uFlow, vFlow.y) * 0.35;
         float e = 0.06, h0 = wave(q), hx = wave(q + vec2(e, 0.0)), hz = wave(q + vec2(0.0, e));
-        float amp = mix(0.55, 0.12, smoothstep(30.0, 400.0, dist));
+        float amp = mix(0.32, 0.12, smoothstep(30.0, 400.0, dist)) * mix(0.6, 1.0, smoothstep(2.0, 14.0, dist));
         vec3 N = normalize(vec3(-(hx - h0) / e * amp, 1.0, -(hz - h0) / e * amp));
+        { vec2 q2 = q * 3.7 + vec2(-uTime * 0.6 * uFlow, uTime * 0.13); float d0 = wn(q2), dx = wn(q2 + vec2(0.05, 0.0)), dz = wn(q2 + vec2(0.0, 0.05));    // yakında ince dalgacık: güneş parıltısı leke değil pırıltı
+          float a2 = 0.2 * (1.0 - smoothstep(6.0, 60.0, dist)); N = normalize(N + vec3(-(dx - d0) / 0.05 * a2, 0.0, -(dz - d0) / 0.05 * a2)); }
+        if (!gl_FrontFacing) {                                                       // 12.180 alttan bakış: yüzeyin alt yüzü
+          float lum = clamp(dot(uSky, vec3(0.3, 0.55, 0.15)) * 1.6, 0.08, 1.0);
+          float rip = smoothstep(0.25, 0.85, wave(q * 1.9 + vec2(uTime * 0.12, 0.0))) * 0.6 + smoothstep(0.55, 0.95, wave(q * 4.3 - uTime * 0.2)) * 0.4;
+          vec3 cu = mix(vec3(0.16, 0.42, 0.45), vec3(0.62, 0.86, 0.84), rip) * lum;
+          cu = mix(cu, vec3(0.05, 0.16, 0.19) * lum, smoothstep(5.0, 26.0, dist));             // uzakta tam iç yansıma: koyu
+          cu += uSunC * pow(max(dot(-V, normalize(uSun)), 0.0), 10.0) * 0.6 * lum * (0.6 + 0.4 * rip);       // güneş yönünde parlak bölge
+          gl_FragColor = vec4(cu, 0.94);
+          #include <tonemapping_fragment>
+          #include <colorspace_fragment>
+          #include <fog_fragment>
+          return;
+        }
         float fr = 0.03 + 0.97 * pow(1.0 - max(dot(N, V), 0.0), 5.0);
         float dk = smoothstep(0.0, 2.6, vDepth);
         vec3 body = mix(uShal, uDeep, dk);
@@ -76,9 +93,10 @@ export function makeWaterMaterial(env = {}) {
         vec3 col = mix(body, sky, clamp(fr * 1.15, 0.0, 0.92));
         float sp = pow(max(dot(reflect(-uSun, N), V), 0.0), 220.0);
         col += uSunC * sp * 2.2;
-        float foam = (1.0 - smoothstep(0.02, 0.3, vDepth)) * (0.55 + 0.45 * wn(q * 6.0 + uTime * 0.6));
+        float foam = (1.0 - smoothstep(0.02, 0.34, vDepth)) * (0.55 + 0.45 * wn(q * 6.0 + uTime * 0.6));
+        foam += (1.0 - smoothstep(0.1, 0.9, vDepth)) * smoothstep(0.62, 0.9, wn(vec2(q.x * 1.4, q.y * 7.0) + vec2(-uTime * 0.25 * uFlow, 0.0))) * 0.45 * uFlow;   // akış yönünde köpük çizgileri (kıyıya yakın)
         col = mix(col, vec3(0.82, 0.84, 0.8), foam * 0.55);
-        float a = mix(0.45, 0.93, smoothstep(0.0, 1.1, vDepth));
+        float a = mix(0.4, 0.86, smoothstep(0.0, 2.2, vDepth));
         a = max(a, fr * 0.9) * smoothstep(-0.05, 0.08, vDepth);
         gl_FragColor = vec4(col, a);
         #include <tonemapping_fragment>
@@ -102,6 +120,7 @@ export class Water {
     lake.renderOrder = 2; this.group.add(lake);
   }
   update(t, sunDir) {
+    TERRAIN_U.uTime.value = t % 3600;                                                     // su yatağı kostik deseni
     for (const m of [this.mat, this.lakeMat]) { m.userData.U.uTime.value = t; if (sunDir) m.userData.U.uSun.value.copy(sunDir); }
   }
 }

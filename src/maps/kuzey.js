@@ -54,7 +54,6 @@ export function buildKuzey() {
   const pad = (id) => PADS.find((p) => p.id === id);
   const zoneOf = (p) => ({ minX: p.x - p.w / 2, maxX: p.x + p.w / 2, minZ: p.z - p.d / 2, maxZ: p.z + p.d / 2 });
   const flagY = (f) => (f.id === 'C' ? BRIDGES[0].deck : f.id === 'E' ? DAM.crest : T.heightAt(f.x, f.z));
-  T.decks = colliders.filter((c) => c.tag === 'deck').map((c) => [c.min[0] - 0.5, c.max[0] + 0.5, c.min[2] - 0.5, c.max[2] + 0.5]);
   const ctx = cs.ctx, loot = (ctx.loot || []).filter((p) => Math.abs(p.x) < KZ_PLAY.maxX && Math.abs(p.z) < KZ_PLAY.maxZ);
 
   // mini harita: yollar (8 m'de bir dikdörtgen)
@@ -72,7 +71,8 @@ export function buildKuzey() {
   const map = {
     id: 'kuzey', name: 'Kuzey Vadisi', group, colliders, sight, bounds: KZ_BOUNDS, terrain: T,
     view: { far: 7000, near: 0.1 }, navCell: 2, big: true, playArea: KZ_PLAY, dayCycle: KZ_CYCLE,
-    lootSpots: loot, navDoors: ctx.doors || [],                                                   // ileride battle royale: bina içi masa / raf / sandık / zemin noktaları
+    lootSpots: loot, navDoors: ctx.doors || [],
+    swimExits: ctx.swimExits || [],                                                                // 12.180 dik kıyılı suyun çıkış noktaları (baraj gölü merdiveni): içine düşen bot buraya yüzer                                                   // ileride battle royale: bina içi masa / raf / sandık / zemin noktaları
     navPost: (nav) => navPost(nav, ctx),
     callouts: CALLOUTS.map(([name, x, z]) => ({ name, x, z, ...(/Üs$/.test(name) ? { major: true } : {}) })),          // mini haritada yalnız üs adları (bayraklar zaten işaretli)
     mini: null, roads: roadRects, roadColor: '#5b5d61',

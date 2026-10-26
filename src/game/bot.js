@@ -6,6 +6,7 @@ import { ballLead } from './paint.js';
 import { aimNade } from './grenade.js';
 import { tacRole, tacPickGoal, tacHold, tacAim, tacMayFire, tacFired, tacCombatMove, tacStrafeDir, tacHear, tacMateDown, tacOf } from './botTactics.js';
 import { plTick, plPickGoal, plArrive, plAnchored, plTargetBias, plCombatMove, plStuck } from './payloadBots.js';
+import { SWIM, waterYAt } from '../sim/swim.js';
 import { frTick, frPickGoal, frArrive, frAnchored, frTargetBias, frCombatMove, frStuck, frDamaged } from './frontBots.js';     // 12.158 Cephe modu
 
 // silah rolleri (bot davranışı)
@@ -36,7 +37,7 @@ export class BotBrain {
   reset() {
     this.t = rand(0, 1);
     this.senseT = rand(0, 0.2);
-    this.target = null; this.reactT = 0; this.lostT = 0;
+    this.target = null; this.reactT = 0; this.lostT = 0; this.swimming = false; this.shore = null;
     this.lastKnown = null;
     this.goal = null; this.goalT = 0;
     this.path = null; this.repathT = 0;
@@ -402,9 +403,47 @@ export class BotBrain {
     return [(wp.x - s.pos.x) / (wd + 1e-6), (wp.z - s.pos.z) / (wd + 1e-6), 1.35];
   }
 
+  // 12.180 suya düşen bot: savaşmaz, en yakın kıyıya (yol ızgarasında açık, sığ hücre) ya da haritanın çıkış noktasına (baraj gölü merdiveni) yüzer,
+  // kenara tutunup çıkar, sonra normal akışa döner. Botlar suya kendiliğinden girmez (yol ızgarası derin suyu kapalı sayar + adım koruması aşağıda).
+  findShore() {
+    const s = this.s, g = this.game, nav = g.nav, T = g.world.terrain, wy = s.wY > -1e9 ? s.wY : waterYAt(T, s.pos.x, s.pos.z);
+    let best = null, bd = 1e18;
+    for (const e of g.map.swimExits || []) { const d = Math.hypot(e[0] - s.pos.x, e[2] - s.pos.z); if (Math.abs(e[1] - wy) < 2 && d < bd) { bd = d; best = { x: e[0], z: e[2] }; } }
+    const c = nav.cell, cx = Math.floor((s.pos.x - nav.minX) / c), cz = Math.floor((s.pos.z - nav.minZ) / c), R = Math.ceil(70 / c);
+    for (let r = 1; r <= R; r++) {
+      if ((r - 1) * c > bd) break;
+      for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+        const X = cx + dx, Z = cz + dz; if (X < 0 || Z < 0 || X >= nav.w || Z >= nav.h || nav.blocked[Z * nav.w + X]) continue;
+        const x = nav.minX + (X + 0.5) * c, z = nav.minZ + (Z + 0.5) * c, h = T.heightAt(x, z);
+        if (h < wy - 1.0 || h > wy + SWIM.climb + 1.5) continue;                          // köprü / baraj tabliyesi (altı derin su) ya da yüksek kıyı değil
+        const d = Math.hypot(x - s.pos.x, z - s.pos.z); if (d < bd) { bd = d; best = { x, z }; }
+      }
+    }
+    return best;
+  }
+  swimOut(dt) {
+    const s = this.s, g = this.game;
+    this.path = null; this.target = null; s.ads = false; s.sprinting = false; s.crouching = false; s.prone = false;
+    if (!s.swim && (!this.shore || g.nav.isFree(s.pos.x, s.pos.z) || (s.wDepth || 0) < 0.25)) { this.shore = null; this.swimming = false; return false; }
+    this.swimming = true;
+    if (!this.shore || (this.shoreT -= dt) <= 0) { this.shore = this.findShore(); this.shoreT = 3; }
+    let mx = 0, mz = 0;
+    if (this.shore) {
+      const dx = this.shore.x - s.pos.x, dz = this.shore.z - s.pos.z, d = Math.hypot(dx, dz) || 1;
+      mx = dx / d; mz = dz / d;
+      s.yaw += clamp(angleDiff(s.yaw, yawFromDir(mx, mz)), -4 * dt, 4 * dt);
+    }
+    s.pitch += (0 - s.pitch) * Math.min(1, dt * 3);
+    const spd = s.swim ? SWIM.speed * (s.spd || 1) : TUNE.walkSpeed * 0.5, a = Math.min(1, dt * 4);
+    s.vel.x = lerp(s.vel.x, mx * spd, a); s.vel.z = lerp(s.vel.z, mz * spd, a);
+    return true;
+  }
+
   update(dt) {
     const s = this.s, g = this.game;
     if (!s.alive) return;
+    if ((s.swim || this.swimming) && this.swimOut(dt)) return;
     if (s.def.zombie) { this.updateZombie(dt); return; }
     if (this.role === undefined) this.role = tacRole(this);
     if (this.atSpot && this.spot && Math.hypot(this.spot.x - s.pos.x, this.spot.z - s.pos.z) > 2.5) this.atSpot = false;
@@ -602,6 +641,13 @@ export class BotBrain {
     }
 
     const ml = Math.hypot(moveX, moveZ);
+    {                                                                          // 12.180: derin suya adım atma (doğrudan saldırıda da; köprü / baraj tabliyesindeyken serbest)
+      const T = g.world.terrain;
+      if (T?.waterY && ml > 0.05) {
+        const ax = s.pos.x + (moveX / ml) * 0.8, az = s.pos.z + (moveZ / ml) * 0.8, wy = T.waterY(ax, az);
+        if (wy > -1e9 && wy - T.heightAt(ax, az) > 0.9 && s.pos.y < wy + 0.6) { moveX = 0; moveZ = 0; }
+      }
+    }
     if (g.nav.safeAt && ml > 0.05 && s.onGround && !g.nav.safeAt(s.pos.x + (moveX / ml) * 0.55, s.pos.y, s.pos.z + (moveZ / ml) * 0.55)) { moveX = 0; moveZ = 0; }   // katlı harita: önü boşluk / kuyu / kat kenarıysa adım atma (köprüde yana kayarken düşmesin)
     const k = ml > 1 ? 1 / ml : 1;
     if (s.useT > 0) speed = 0;
