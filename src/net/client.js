@@ -1,6 +1,6 @@
 // İstemci ağ katmanı: bağlantı, istemci tarafı tahmin (prediction) + sunucu uzlaştırması (reconciliation),
 // uzaktaki oyuncular için snapshot interpolasyonu.
-import { SIM_HZ, SIM_DT, SNAP_EVERY, applyFlags, F_LEFT, F_PROT, F_GROUND, defaultServerUrl, directServerUrl, skinsFrom } from './protocol.js';
+import { SIM_HZ, SIM_DT, SNAP_EVERY, applyFlags, F_LEFT, F_PROT, F_GROUND, defaultServerUrl, directServerUrl, skinsFrom, opticsFrom } from './protocol.js';
 import { applyInput } from '../sim/input.js';
 import { WSTATS, ZT_ORDER } from '../game/stats.js';
 import { sanitizeBalance, useBalance, TUNE } from '../game/balance.js';
@@ -111,7 +111,16 @@ export class NetClient {
   }
 
   // Son gönderilen girdinin adım sonundaki cephanesi (ateş / şarjör sonrası). Sunucu aynı girdiyi işleyince ack anındaki cephaneyi (me.aa) yollar.
-  markAmmo(s) { const h = this.hist[this.hist.length - 1]; if (h) h.am = s.items.map((it) => [it.mag, it.reserve]); }
+  // 12.166: bu adımda cephane değiştiyse (reload bitişi, mermi girişi) ya da reload sürüyorsa kayıt "cephane uçuşta" sayılır (h.fire) →
+  // reconcile'daki idle eşitlemesi (me.am: sunucunun ack anındaki, henüz bu adımı işlememiş cephanesi) tahmini ezmez. Eski: reload istemcide
+  // bitince (şarjör dolu) bayat snapshot şarjörü 0'a geri yazıyordu → autoReload ikinci kez başlatıyordu (çift reload / animasyon).
+  markAmmo(s) {
+    const h = this.hist[this.hist.length - 1]; if (!h) return;
+    h.am = s.items.map((it) => [it.mag, it.reserve]);
+    const k = h.am.join(';');
+    if (s.reloadT > 0 || k !== this._amKey) h.fire = true;
+    this._amKey = k;
+  }
 
   // 12.138: kendini toparlayan cephane uzlaştırması. Eskiden cephane yalnız "uçuşta ateş yokken" sunucuya eşitleniyordu; sürekli ateşte
   // (ya da gecikme / kuyruk yüzünden onaylanmamış girdi hep varken) istemci ile sunucu ayrışırsa (kaçan / fazladan atış, sunucuda erken
@@ -198,12 +207,14 @@ export class NetClient {
       s.kills = p.kl; s.deaths = p.de; s.score = p.sc; s.assists = p.as || 0; s.revivable = !!p.rv;      // as: 12.165 (yoksa 0)
       const sk = skinsFrom(p.sk, p.it), skChanged = JSON.stringify(sk) !== JSON.stringify(s.skins || null);      // kaplama değişti mi (silah aynı kalsa da model yenilenir)
       if (!local || !s.skins) s.skins = sk;
+      let opChanged = false;                                                                       // 12.174: uzak askerin nişangâhları (3. şahıs modeli); kendi seçimin yerelde
+      if (!local && p.op !== undefined) { const om = opticsFrom(p.op, p.it); opChanged = JSON.stringify(om) !== JSON.stringify(s.optics || {}); s.optics = om; }
       if (s.items.length !== p.it.length || s.items.some((it, i) => it.id !== p.it[i])) {
         s.items = p.it.map(mkItem);
         s._modelWeapon = undefined;
         if (local) this.game.emit('switch', s);
         else { s.cur = p.c; s._syncWeaponModel(true); }
-      } else if (skChanged && !local && s.alive) s._syncWeaponModel(true);
+      } else if ((skChanged || opChanged) && !local && s.alive) s._syncWeaponModel(true);
       const wr = typeof p.wr === 'string' ? p.wr : '';                                              // 12.167 kıyafet kodu (insan); yoksa bot çeşitlemesi / kendi tercihim
       if (!local && wr !== s.wearCode && !s.def.zombie && !this.game.headless) { s.wearCode = wr; s._buildModel(); s._modelWeapon = undefined; s._syncWeaponModel(true); }
       else s.wearCode = local ? '' : wr;

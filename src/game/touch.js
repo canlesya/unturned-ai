@@ -48,7 +48,11 @@ const OPI = {
   scope: '<circle cx="12" cy="12" r="10" stroke="#8a929c" stroke-width="1.5" fill="none"/><path d="M2 12h20M12 2v20" stroke="#e8edf5" stroke-width="1"/>',
 };
 OPI.scope6 = OPI.scope;
-const OPS = { acog: '3×', scope: '4×', scope6: '6×' }, opLabel = (id) => OPS[id] || (id ? t('tc.op.' + id) : '');   // nişangâh butonu etiketi
+// 12.174 dönem nişangâhları: diyoptr halka + arpacık, öncü dürbün (direk + çizgi), üç direkli dürbün
+OPI.ww_peep = '<circle cx="12" cy="12" r="7" stroke="#e8edf5" stroke-width="2" fill="none"/><rect x="11" y="10" width="2" height="7" fill="#e8edf5"/>';
+OPI.ww_scout = '<circle cx="12" cy="12" r="10" stroke="#8a929c" stroke-width="1.5" fill="none"/><path d="M2 12h20" stroke="#e8edf5" stroke-width="1"/><path d="M10.6 22v-8L12 12l1.4 2v8z" fill="#e8edf5"/>';
+OPI.ww_sc25 = OPI.ww_sc4 = '<circle cx="12" cy="12" r="10" stroke="#8a929c" stroke-width="1.5" fill="none"/><path d="M2 11h7.5v2H2zM14.5 11H22v2h-7.5zM10.8 22v-8L12 12l1.2 2v8z" fill="#e8edf5"/>';
+const OPS = { acog: '3×', scope: '4×', scope6: '6×', ww_scout: '1,5×', ww_sc25: '2,5×', ww_sc4: '4×' }, opLabel = (id) => OPS[id] || (id ? t('tc.op.' + id) : '');   // nişangâh butonu etiketi
 const CSS = `
 #tc{position:fixed;inset:0;z-index:6;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;font-family:Bahnschrift,'Rajdhani','Arial Narrow',system-ui,sans-serif}
 #tc.off{display:none}
@@ -309,7 +313,7 @@ export class TouchControls {
     this._snapT = Math.max(0, (this._snapT || 0) - dt);
     const kind = s.stat.kind, st = s.stat;                                           // el bombası / mayın / sağlık çantasında yardım yok
     if (!c.aim || !(c.aimStr > 0) || !s.alive || !p.locked || this.editing || s.fly || (kind !== 'gun' && kind !== 'launcher' && kind !== 'melee')) { this._trk = null; return; }
-    if (st.scope && s.adsT < 0.5) { this._trk = null; return; }                    // 12.156: belden keskin nişancıda (artı yok, no-scope) nişan yardımı yok
+    if (s.scoped && s.adsT < 0.5) { this._trk = null; return; }                    // 12.156: belden keskin nişancıda (artı yok, no-scope) nişan yardımı yok
     const e = s.eye(this._ae || (this._ae = new THREE.Vector3())), tp = this._at || (this._at = new THREE.Vector3());
     const ads = s.adsT > 0.5, z = ads ? Math.max(1, p.zoomEff()) : 1, pit = s.pitch + (s.recoilP || 0);
     let best = null, bw = 0;

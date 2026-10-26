@@ -49,12 +49,15 @@ function start(opts) {
   }, 60));
 }
 
+// 12.174: modern yükleme + Cephe (1940'lar) donanımı ayrı anahtarda (frontLoadouts); oda Cephe ise sunucu `front`u kullanır
+const withFront = (p, cls) => { const lo = { ...((p.loadouts && p.loadouts[cls]) || {}) }, f = p.frontLoadouts?.[cls]; if (f) lo.front = { ...f }; return lo; };
+
 // Çevrimiçi: bağlantı kurulduktan sonra (menüden ya da URL'den) oyunu başlat
 function beginOnline({ net, welcome, name: name0, pw }) {
   const p = loadPrefs();
   const c = welcome.cfg, me = welcome.roster[welcome.id], name = (me && me.name) || name0;      // sunucunun verdiği ad (hesap adı / misafire eklenen sayı / odada aynı ad varsa ek)
   try { if (pw) sessionStorage.setItem('bf_pw_' + welcome.room, pw); } catch (e) { /* yok say */ }       // sayfa yenilenince (maç sonu / takım değişimi) yeniden sorulmasın
-  const cls = me.cls, loadout = (p.loadouts && p.loadouts[cls]) || {};
+  const cls = me.cls, loadout = withFront(p, cls);
   history.replaceState(null, '', `?online=${welcome.room}${q.get('debug') ? '&debug=1' : ''}${q.get('nolock') ? '&nolock=1' : ''}${q.get('touch') ? '&touch=' + q.get('touch') : ''}${q.get('server') ? '&server=' + encodeURIComponent(q.get('server')) : ''}&name=${encodeURIComponent(name)}`);   // sunucu adresi de kalır (yenilenince başka sunucuya gidip "bağlanılamadı" olmasın)
   document.getElementById('menu').style.display = 'none';
   // Maç bitti → sunucu yeni maçı kurup aynı bağlantıda yeni 'welcome' yollar: sayfa yenilenmeden, menüye düşmeden yeni maç kurulur
@@ -64,7 +67,7 @@ function beginOnline({ net, welcome, name: name0, pw }) {
     match: { perTeam: c.perTeam, type: c.type, tickets: c.tickets, time: c.time }, map: c.map, tod: c.tod, weather: c.weather, diff: c.diff,
     optic: q.get('optic') || p.optic || 'reddot', team: me.team, cls, playerName: name,
     keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs,
-    loadout, loadouts: p.loadouts || {}, skins: p.skins, wear: p.wear, onExit: () => { location.href = location.pathname; }, onRestart: () => location.reload(),
+    loadout, loadouts: p.loadouts || {}, frontLoadouts: p.frontLoadouts || {}, frontOptics: p.frontOptics || {}, skins: p.skins, wear: p.wear, onExit: () => { location.href = location.pathname; }, onRestart: () => location.reload(),
     settings: { sens: p.sens, fov: p[FOV_KEY], volume: p.volume ?? 0.6, vSfx: p.vSfx, vMusic: p.vMusic, vAmb: p.vAmb, rainSound: p.rainSound, streakSound: p.streakSound !== false, shadows: q.get('shadows') !== '0' && p.shadows !== false, post: q.has('post') ? q.get('post') === '1' : p.post, adaptive: p.adaptive !== false, fullscreen: p.fullscreen !== false, pixelRatio: +(q.get('pr') || p[Q_KEY] || 1) },
   });
 }
@@ -89,7 +92,7 @@ async function startOnline() {
   const name = acct || q.get('name') || (code.toLowerCase() !== 'new' ? await askNick(getSession()?.name || (p.name === 'Sen' || p.name === 'You' ? '' : p.name) || '') : p.name) || 'Oyuncu';      // hesaplı: sunucu da jetondan hesabın adını kullanır
   showLoading();
   const url = q.get('server') || p.server || defaultServerUrl();
-  const cls = q.get('cls') || p.cls || 'assault', loadout = (p.loadouts && p.loadouts[cls]) || {};
+  const cls = q.get('cls') || p.cls || 'assault', loadout = { ...withFront(p, cls), op: q.get('optic') || p.optic, fo: p.frontOptics || {} };      // 12.174: oda modu bilinmeden: Cephe donanımı + nişangâh tercihleri de gider
   let pw = q.get('pw') || '';
   if (!pw && code.toLowerCase() !== 'new') { try { pw = sessionStorage.getItem('bf_pw_' + code.toUpperCase()) || ''; } catch (e) { /* yok say */ } }
   const hello = code.toLowerCase() === 'new'
@@ -125,6 +128,7 @@ else if (q.get('autostart')) {
     match: { perTeam: (mm ? +mm[1] : 10) * (q.get('type') === 'inf' ? 2 : 1), type: q.get('type') || 'conquest', tickets: +q.get('tickets') || undefined, time: q.has('time') ? +q.get('time') : 900 }, map: q.get('map') || 'kasaba', tod: q.get('tod') || 'day', weather: q.get('weather') || 'clear', optic: q.get('optic') || 'reddot', team: q.get('team') || 'blue', cls: q.get('cls') || 'assault', diff: q.get('diff') || 'normal',
     keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs,
     loadout: { primary: q.get('primary') || undefined, secondary: q.get('secondary') || undefined, gadget: q.get('gadget') || undefined, melee: q.get('melee') || undefined },
+    frontOptics: q.get('fo') ? Object.fromEntries(q.get('fo').split(',').map((x) => x.split(':'))) : p.frontOptics || {},      // 12.174 test: &fo=ww_bolt:ww_scout
     skins: q.get('skin') ? Object.fromEntries(q.get('skin').split(',').map((x) => x.split(':'))) : p.skins,      // test: &skin=ak47:gold,m4a1:wood
     wear: q.get('wear') ? { all: q.get('wear') } : p.wear,                                                           // 12.167 test: &wear=10 haneli kıyafet kodu (tüm sınıflar)
     settings: { sens: p.sens, fov: p[FOV_KEY], volume: 0, shadows: q.get('shadows') !== '0', post: q.has('post') ? q.get('post') === '1' : p.post, pixelRatio: +(q.get('pr') || (FOV_KEY === 'fovM' ? p[Q_KEY] : 1)) },      // dokunmatikte telefon kalitesi

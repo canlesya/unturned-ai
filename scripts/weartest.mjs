@@ -69,6 +69,10 @@ const newPage = async () => { const ctx = await browser.newContext({ viewport: {
   await page.waitForFunction('window.__game && window.__game.running && window.__game.player', null, { timeout: 120000 });
   const sp = await page.evaluate(() => window.__game.soldiers.filter((s) => s.model?.wear).length);
   check(sp === 0, `uzay modu: kıyafet kaplaması geçmez (uzay kıyafeti) (${sp})`);
+  await page.goto(base + '/?autostart=4v4&map=cephe&type=front&debug=1&nolock=1&third=1');
+  await page.waitForFunction('window.__game && window.__game.running && window.__game.player', null, { timeout: 120000 });
+  const fr = await page.evaluate(() => ({ n: window.__game.soldiers.filter((s) => s.model?.wear).length, cuff: !!window.__game.player.vm.look?.ww2 }));
+  check(fr.n === 0 && fr.cuff, `cephe modu: 1940'lar üniforması, kıyafet kaplaması geçmez, birinci şahıs ceket kolu (${JSON.stringify(fr)})`);
   await ctx.close();
 }
 // 3) çevrimiçi: A (ışıklı set, tüm sınıflar) oda kurar, B katılır → B, A'nın kombinini görür; ham ws istemcisinin bozuk kodu atılır
