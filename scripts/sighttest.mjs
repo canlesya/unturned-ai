@@ -3,7 +3,7 @@ import { chromium } from 'playwright';
 const MAP = process.argv[2] || 'vadi';
 const b = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const p = await b.newPage(); const errs = []; p.on('pageerror', (e) => errs.push(e.message));
-await p.goto(`http://127.0.0.1:5180/?autostart=6v6&map=${MAP}&type=tdm&debug=1&nolock=1`); await p.waitForFunction('window.__game && window.__game.running', null, { timeout: 180000 }); await p.waitForTimeout(800);
+await p.goto(`${process.env.BASE || 'http://127.0.0.1:5180'}/?autostart=6v6&map=${MAP}&type=tdm&debug=1&nolock=1`); await p.waitForFunction('window.__game && window.__game.running', null, { timeout: 180000 }); await p.waitForTimeout(800);
 const r = await p.evaluate(() => { const g = window.__game, W = g.world, V = g.camera.position.constructor; g.brains.length = 0; const a = new V(), c = new V();
   let seed = 7; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
   const B = g.map.bounds || { minX: -90, maxX: 90, minZ: -60, maxZ: 60 }; const out = { küre: g.map.sight?.length || 0, çift: 0, açık: 0, yaprakla: 0, mesafe: [0, 0, 0, 0] , yaprakMesafe: [0, 0, 0, 0] };

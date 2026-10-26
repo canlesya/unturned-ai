@@ -4,7 +4,7 @@ const W = JSON.parse(process.env.WALK || '[]');
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const page = await browser.newPage({ viewport: { width: 640, height: 360 } });
 const errs = []; page.on('pageerror', (e) => errs.push(e.message));
-await page.goto('http://127.0.0.1:5180/?autostart=3v3&map=colgecidi&type=tdm&debug=1&nolock=1');
+await page.goto((process.env.BASE || 'http://127.0.0.1:5180') + '/?autostart=3v3&map=colgecidi&type=tdm&debug=1&nolock=1');
 await page.waitForFunction('window.__game && window.__game.running', null, { timeout: 120000 });
 await page.waitForTimeout(1000);
 const [sx, sy, sz] = W[0];

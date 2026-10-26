@@ -186,7 +186,7 @@ export class Game {
     this.terrain = this.map.terrain || null;
     this.world = new World(this.map.colliders, this.map.bounds, this.terrain);
     this.sightMap = this.map.sight && this.map.sight.length ? new SightMap(this.map.sight) : null;                // bot görüşü için yaprak / çalı ızgarası
-    this.nav = this.map.navLayers ? new NavGridML(this.map.colliders, this.map.bounds, this.terrain) : new NavGrid(this.map.colliders, this.map.bounds, this.terrain, !!this.map.layered, this.map.navCell);   // navLayers: üst üste katlar (Boya Kulesi); navCell: büyük harita iri ızgara (12.172)
+    this.nav = this.map.makeNav ? this.map.makeNav() : this.map.navLayers ? new NavGridML(this.map.colliders, this.map.bounds, this.terrain) : new NavGrid(this.map.colliders, this.map.bounds, this.terrain, !!this.map.layered, this.map.navCell);   // navLayers: üst üste katlar (Boya Kulesi); navCell: büyük harita iri ızgara (12.172); makeNav: haritanın kendi ızgarası (12.171 Çöl Geçidi: köprü altı ikinci kat)
 
     this.map.navPost?.(this.nav);                                                   // 12.172: haritanın nav son işlemi (kapı hücreleri, oyun alanı dışı kapalı)
     // opts.match: özel maç ayarları; opts.mode: '3v3' | '10v10' hazır ayarı (test/uyumluluk)

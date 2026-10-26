@@ -4,8 +4,11 @@ from PIL import Image, ImageDraw, ImageFont
 a, b, out = sys.argv[1], sys.argv[2], sys.argv[3]
 items = [x.split(':', 1) for x in sys.argv[4:]]
 W = 620
-try: font = ImageFont.truetype('C:/Windows/Fonts/segoeuib.ttf', 20)
-except Exception: font = ImageFont.load_default()
+font = None
+for fp in ('C:/Windows/Fonts/segoeuib.ttf', '/System/Library/Fonts/Supplemental/Arial Bold.ttf', '/System/Library/Fonts/Supplemental/Arial.ttf', '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'):
+    try: font = ImageFont.truetype(fp, 20); break
+    except Exception: pass
+if font is None: font = ImageFont.load_default()
 def sheet(chunk, name):
     rows = []
     for fn, title in chunk:

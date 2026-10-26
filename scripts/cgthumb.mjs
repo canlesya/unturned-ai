@@ -2,7 +2,7 @@
 import { chromium } from 'playwright';
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
-await page.goto('http://127.0.0.1:5180/?autostart=3v3&map=colgecidi&type=tdm&debug=1&nolock=1&tod=day');
+await page.goto((process.env.BASE || 'http://127.0.0.1:5180') + '/?autostart=3v3&map=colgecidi&type=tdm&debug=1&nolock=1&tod=day');
 await page.waitForFunction('window.__game && window.__game.running', null, { timeout: 120000 });
 await page.waitForTimeout(1500);
 await page.evaluate(() => {
