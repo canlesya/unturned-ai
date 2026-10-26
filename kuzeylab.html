@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kuzey Vadisi Varlıkları</title>
+<style>
+html,body{margin:0;height:100%;overflow:hidden;background:#1d2022;font-family:Bahnschrift,'Arial Narrow',Arial,sans-serif;color:#e8e6df}
+canvas{display:block}
+#labels{position:fixed;inset:0;pointer-events:none}
+.lbl{position:absolute;padding:6px 9px;text-shadow:0 1px 3px #000}
+.lbl b{display:block;font-size:15px;letter-spacing:1.2px;text-transform:uppercase}
+.lbl span{display:block;font-size:11px;opacity:.78;letter-spacing:.4px;margin-top:2px}
+.lbl i{position:absolute;right:8px;top:6px;font-style:normal;font-size:10px;opacity:.55}
+#title{position:fixed;left:18px;top:10px;font-size:21px;letter-spacing:3px;text-transform:uppercase;font-weight:700;z-index:2}
+#title small{display:inline;font-size:12px;letter-spacing:1px;opacity:.65;font-weight:400;margin-left:12px;text-transform:none}
+</style>
+</head>
+<body>
+<div id="title"></div>
+<div id="labels"></div>
+<script type="module" src="/src/kuzeylab/main.js"></script>
+</body>
+</html>

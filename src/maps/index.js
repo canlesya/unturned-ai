@@ -11,6 +11,8 @@ import { buildOrmanKale } from './ormankale.js';
 import { buildMaden } from './maden.js';
 import { buildCephe } from './cephe.js';
 import { buildYorunge } from './yorunge.js';
+import { buildKuzey } from './kuzey.js';
+import '../i18n/kuzey.js';
 
 // Harita kaydı. Her harita build() ile şunu döndürür:
 // { id, name, group, colliders, bounds, spawns:{blue,red}, objectives:[{id,name,x,z,r,core?}], roads?, terrain?, water?, env? }
@@ -77,6 +79,11 @@ MAPS.yorunge = {      // 12.157 Uzay modu
   id: 'yorunge', name: 'Yörünge Üssü', tag: 'Uzay · Ay yüzeyi · üç hat', thumb: '/img/yorunge.jpg', only: ['space'], forceTod: 'day', noWeather: true,
   desc: 'Ay yüzeyinde maden / araştırma üssü: ortada içine girilen cam kubbeli Merkez Modül (asma kat), hava kilidi koridorları, kuzeyde krater tarlası, güneş panelleri ve çatısına çıkılan anten istasyonu, güneyde iniş pisti ve küçük mekik. Düşük yer çekiminde yüksek platformlar ve köprüler; kaya sırtları doğal siper. Gökte Dünya.',
   build: () => buildYorunge(),
+};
+MAPS.kuzey = {      // 12.172 büyük harita (araçlar ileride): yalnız Ele Geçirme + Takım Çatışması
+  id: 'kuzey', name: 'Kuzey Vadisi', tag: 'Dev · 1,6 km · 7 bayrak · 32v32', thumb: '/img/kuzey.jpg', only: ['conquest', 'tdm'],
+  desc: 'Dağlarla çevrili, nehrin ikiye böldüğü büyük vadi: güneyde Mavi, kuzeyde Kırmızı üs. Yedi bayrak: Radar Tepesi, Köy, Taş Köprü, Fabrika, Baraj, Çiftlik, Kereste Kampı. Nehir yalnız köprülerden, baraj tepesinden ve iki sığ geçitten aşılır.',
+  build: () => buildKuzey(),
 };
 export const DEFAULT_MAP = 'kasaba';
 // Bu moda uygun haritalar (only: yalnızca o modlarda listelenir; dev hiçbirinde)

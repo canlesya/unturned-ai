@@ -172,10 +172,11 @@ export class Game {
       this.scene.add(this.map.group);
       env.applyGlow(this.map.group);
     }
+    if (this.map.view) { this.camera.far = this.map.view.far ?? this.camera.far; this.camera.near = this.map.view.near ?? this.camera.near; this.camera.updateProjectionMatrix(); }   // 12.172 büyük harita: uzak manzara (dağlar) + derinlik duyarlılığı
     this.terrain = this.map.terrain || null;
     this.world = new World(this.map.colliders, this.map.bounds, this.terrain);
     this.sightMap = this.map.sight && this.map.sight.length ? new SightMap(this.map.sight) : null;                // bot görüşü için yaprak / çalı ızgarası
-    this.nav = this.map.navLayers ? new NavGridML(this.map.colliders, this.map.bounds, this.terrain) : new NavGrid(this.map.colliders, this.map.bounds, this.terrain, !!this.map.layered);   // navLayers: üst üste katlar (Boya Kulesi)
+    this.nav = this.map.navLayers ? new NavGridML(this.map.colliders, this.map.bounds, this.terrain) : new NavGrid(this.map.colliders, this.map.bounds, this.terrain, !!this.map.layered, this.map.navCell);   // navLayers: üst üste katlar (Boya Kulesi); navCell: büyük harita iri ızgara (12.172)
 
     // opts.match: özel maç ayarları; opts.mode: '3v3' | '10v10' hazır ayarı (test/uyumluluk)
     this.mode = makeMatch(opts.match || PRESETS[opts.mode] || {});
@@ -362,6 +363,7 @@ export class Game {
       });
     } else for (const s of this.soldiers) if (!s.vacant) this.respawn(s, true);
     this.remoteTorch = new RemoteTorches(this);      // 12.159: başkalarının feneri (sabit ışık havuzu; ön ısıtmadan önce kurulur → ışık sayısı hiç değişmez)
+    this.map.fx?.attach?.(this);                       // 12.172: haritanın kurulum sonrası görsel kancası (hava / gün saati uygulanmış sise göre; ön ısıtmadan önce → program değişmez)
     this.warm = warmup(this);                          // 12.151: gölgelendirici ön ısıtma (yükleme ekranı açıkken; Firefox'ta ilk ACOG / nişan / silah çekme donmasını önler)
     this.running = true;
     this.simulate = !!opts.nolock || !!this.online;
@@ -1365,7 +1367,7 @@ export class Game {
     this.sun.target.position.set(tx, ty, tz);
     this.sun.position.set(tx + this.sunOff.x, ty + this.sunOff.y, tz + this.sunOff.z);
     this.remoteTorch?.update(this._rdt ?? 0.016);
-    if (this.map.fx) this.map.fx.update(performance.now() / 1000);            // harita efektleri (New York: ateş ışığı titremesi, duman / kıvılcım zamanı)
+    if (this.map.fx) this.map.fx.update(performance.now() / 1000, this.camera, this);            // harita efektleri (New York: ateş ışığı titremesi, duman / kıvılcım zamanı)
     this.paint.draw();
     this.pickups.draw();
     this.nadeView?.draw();
