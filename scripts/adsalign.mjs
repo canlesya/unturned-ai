@@ -32,6 +32,17 @@ const ANALYZE = async ({ b64, kind, mode }) => {
   const R = Math.round(H * 0.3);
   const cloud = (fn) => { let n = 0, sx = 0, sy = 0, minY = 1e9; const pts = []; for (let y = Math.max(0, Math.round(cy - R)); y < Math.min(H, cy + R); y++) for (let x = Math.max(0, Math.round(cx - R)); x < Math.min(W, cx + R); x++) if (fn(x, y)) { n++; sx += x + 0.5; sy += y + 0.5; pts.push([x, y]); if (y < minY) minY = y; } return { n, x: sx / n, y: sy / n, minY, pts }; };
   const res = {};
+  // 12.174 direkli retikül (öncü dürbün 'post': dikey direk + yatay çizgi · dönem dürbünü 'post3': yan direkler + alt direk): ağırlık merkezi ortada değil →
+  // yatay = tüm piksellerin ortası (simetrik), dikey = yan parçaların (|x − cx| > %1,2 H) ortası; uç = orta sütundaki en üst piksel (bilgi)
+  if (kind === 'post' || kind === 'post3') {
+    const dark = (x, y) => { const [r, g, b] = at(x, y); return r < 60 && g < 60 && b < 60; };
+    const c = cloud(mode === 'probe' ? magenta : dark);
+    if (!c.n) return { err: 'retikül bulunamadı' };
+    const thr = H * 0.012, side = c.pts.filter(([x]) => Math.abs(x + 0.5 - cx) > thr), mid = c.pts.filter(([x]) => Math.abs(x + 0.5 - cx) <= 1.5);
+    res.dx = c.x - cx; res.dy = side.length ? side.reduce((a, [, y]) => a + y + 0.5, 0) / side.length - cy : 99; res.n = c.n;
+    res.tip = mid.length ? Math.min(...mid.map(([, y]) => y)) - cy : null;
+    return res;
+  }
   if (mode === 'probe' || mode === 'hud') {
     const c = cloud(mode === 'probe' ? magenta : kind === 'idot' ? white : red);
     if (!c.n) return { err: 'retikül bulunamadı' };
@@ -73,7 +84,7 @@ for (const dev of (process.env.DEV || 'desk,mob,iph').split(',')) {
   await page.goto(`${base}/?autostart=3v3&map=colgecidi&type=tdm&debug=1&dev=1&nolock=1&third=0${dev !== 'desk' ? '&touch=1' : ''}`);
   await page.waitForFunction('window.__game && window.__game.running && window.__game.player', null, { timeout: 120000 });
   const combos = await page.evaluate(async () => {
-    const { WSTATS, OPTIC_ALLOWED } = await import('/src/game/stats.js'); const { zoomFov } = await import('/src/game/util.js');
+    const { WSTATS, OPTIC_ALLOWED, OPTICS } = await import('/src/game/stats.js'); const { zoomFov } = await import('/src/game/util.js');
     const g = window.__game, p = g.player, s = p.s;
     g.brains.forEach((b) => (b.update = () => {}));
     g.soldiers.filter((o) => o !== s).forEach((o) => { o.pos.y = -90; });
@@ -105,19 +116,21 @@ for (const dev of (process.env.DEV || 'desk,mob,iph').split(',')) {
       return { optic: s.opticId, overlay: s.overlay, ret: s.opticDef?.reticle };
     };
     const list = [];
-    for (const [id, st] of Object.entries(WSTATS)) if (st.kind === 'gun' && !st.ball) for (const o of OPTIC_ALLOWED[id] || []) list.push([id, o]);
+    for (const [id, st] of Object.entries(WSTATS)) if (st.kind === 'gun' && !st.ball) for (const o of OPTIC_ALLOWED[id] || []) list.push([id, o, OPTICS[o]?.overlay, OPTICS[o]?.reticle]);
     return list;
   });
   const dpr = await page.evaluate(() => devicePixelRatio);
-  for (const [id, optic] of combos) {
+  for (const [id, optic, ovl, rtc] of combos) {
     const key = `${id}:${optic}`;
     if (only && !only.test(key)) continue;
     const ret = {};
-    const dot = optic === 'reddot' || optic === 'acog', holo = optic === 'holo', scope = optic === 'scope' || optic === 'scope6';      // 12.162: ACOG red dot gibi (3D nokta + mercek penceresi + HUD #rdot)
+    const dot = optic === 'reddot' || optic === 'acog', holo = optic === 'holo', scope = ovl === 'scope', post = rtc === 'post' || rtc === 'post3';      // 12.162: ACOG red dot gibi (3D nokta + mercek penceresi + HUD #rdot)
+    const open = ovl === 'none';                                                    // demir + 12.174 diyoptr: gez / arpacık ölçümü
     const jobs = [];
-    if (optic === 'iron') jobs.push(['gez', 'iron', 'iron']);
-    else { jobs.push(['3D', 'probe', 'c']); if (!scope) jobs.push(['cam', 'glass', 'c']); }
-    if (dot || holo || scope || dev !== 'desk') jobs.push(['HUD', 'hud', optic === 'iron' ? 'idot' : 'c']);
+    if (open) jobs.push(['gez', 'iron', 'iron']);
+    else { jobs.push(['3D', 'probe', post ? rtc : 'c']); if (!scope) jobs.push(['cam', 'glass', 'c']); }
+    if (rtc === 'post3') jobs.push(['HUD', 'hud', 'post3']);                        // 12.174: dönem dürbünü HUD üç direği (koyu)
+    else if (!(rtc === 'post') && (dot || holo || scope || dev !== 'desk')) jobs.push(['HUD', 'hud', open ? 'idot' : 'c']);      // öncü dürbünün HUD retikülü yok (3B siyah direk)
     for (const [name, mode, kind] of jobs) {
       const info = await page.evaluate((o) => window.__pose(o), { id, optic, mode, sway: process.env.SWAY ? 1.7 + rows.length * 0.37 : 0 });
       await page.waitForTimeout(90);
@@ -131,12 +144,12 @@ for (const dev of (process.env.DEV || 'desk,mob,iph').split(',')) {
     // değerlendirme: en büyük |sapma|
     let worst = 0; const parts = [];
     for (const [n, r] of Object.entries(ret)) {
-      const info = n === 'cam' || (n === 'HUD' && optic === 'iron' && dev === 'desk') || (n === '3D' && !SKINNED.has(id) && /^scope/.test(optic));   // bilgi: cam penceresi, masaüstü demirde HUD yok, eski dürbünlü modelde 3B retikül yok (tam nişanda model gizli)
-      if (r.err) { if (!(n === 'HUD' && optic === 'iron' && dev === 'desk')) parts.push(`${n}: ${r.err}${info ? ' (bilgi)' : ''}`); if (!info) worst = Math.max(worst, 99); continue; }
+      const info = n === 'cam' || (n === 'HUD' && ovl === 'none' && dev === 'desk') || (n === '3D' && !SKINNED.has(id) && /^scope/.test(optic));   // bilgi: cam penceresi, masaüstü demirde HUD yok, eski dürbünlü modelde 3B retikül yok (tam nişanda model gizli)
+      if (r.err) { if (!(n === 'HUD' && ovl === 'none' && dev === 'desk')) parts.push(`${n}: ${r.err}${info ? ' (bilgi)' : ''}`); if (!info) worst = Math.max(worst, 99); continue; }
       const v = n === 'gez' ? [r.postDx, r.postDy, process.env.SWAY ? 0 : r.apDx ?? r.notchDx ?? 0] : [r.dx, r.dy];   // demir: nişan noktası = arpacık tepesi (+ gez yatay ortası; SWAY'de gez tasarım gereği hafif oynar)
       const m = Math.max(...v.map((q) => Math.abs(q || 0)));
       if (!info) worst = Math.max(worst, m);
-      parts.push(n === 'gez' ? `arpacık ${r.postDx.toFixed(1)},${r.postDy.toFixed(1)} (${r.postW}px) ${r.apDx !== undefined ? `delik ${r.apDx.toFixed(1)},${r.apDy.toFixed(1)} r${r.apR.toFixed(0)}` : r.notchDx !== undefined ? `çentik ${r.notchDx.toFixed(1)} (${r.notchW}px)` : 'delik ?'}` : `${n} ${r.dx.toFixed(1)},${r.dy.toFixed(1)}`);
+      parts.push(n === 'gez' ? `arpacık ${r.postDx.toFixed(1)},${r.postDy.toFixed(1)} (${r.postW}px) ${r.apDx !== undefined ? `delik ${r.apDx.toFixed(1)},${r.apDy.toFixed(1)} r${r.apR.toFixed(0)}` : r.notchDx !== undefined ? `çentik ${r.notchDx.toFixed(1)} (${r.notchW}px)` : 'delik ?'}` : `${n} ${r.dx.toFixed(1)},${r.dy.toFixed(1)}${r.tip != null ? ` uç ${r.tip.toFixed(1)}` : ''}`);
     }
     const ok = worst <= LIMIT;
     rows.push({ dev, id, optic, ok, worst: +worst.toFixed(2), ret });

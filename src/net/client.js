@@ -1,6 +1,6 @@
 // İstemci ağ katmanı: bağlantı, istemci tarafı tahmin (prediction) + sunucu uzlaştırması (reconciliation),
 // uzaktaki oyuncular için snapshot interpolasyonu.
-import { SIM_HZ, SIM_DT, SNAP_EVERY, applyFlags, F_LEFT, F_PROT, F_GROUND, defaultServerUrl, directServerUrl, skinsFrom } from './protocol.js';
+import { SIM_HZ, SIM_DT, SNAP_EVERY, applyFlags, F_LEFT, F_PROT, F_GROUND, defaultServerUrl, directServerUrl, skinsFrom, opticsFrom } from './protocol.js';
 import { applyInput } from '../sim/input.js';
 import { WSTATS, ZT_ORDER } from '../game/stats.js';
 import { sanitizeBalance, useBalance, TUNE } from '../game/balance.js';
@@ -198,12 +198,14 @@ export class NetClient {
       s.kills = p.kl; s.deaths = p.de; s.score = p.sc; s.assists = p.as || 0; s.revivable = !!p.rv;      // as: 12.165 (yoksa 0)
       const sk = skinsFrom(p.sk, p.it), skChanged = JSON.stringify(sk) !== JSON.stringify(s.skins || null);      // kaplama değişti mi (silah aynı kalsa da model yenilenir)
       if (!local || !s.skins) s.skins = sk;
+      let opChanged = false;                                                                       // 12.174: uzak askerin nişangâhları (3. şahıs modeli); kendi seçimin yerelde
+      if (!local && p.op !== undefined) { const om = opticsFrom(p.op, p.it); opChanged = JSON.stringify(om) !== JSON.stringify(s.optics || {}); s.optics = om; }
       if (s.items.length !== p.it.length || s.items.some((it, i) => it.id !== p.it[i])) {
         s.items = p.it.map(mkItem);
         s._modelWeapon = undefined;
         if (local) this.game.emit('switch', s);
         else { s.cur = p.c; s._syncWeaponModel(true); }
-      } else if (skChanged && !local && s.alive) s._syncWeaponModel(true);
+      } else if ((skChanged || opChanged) && !local && s.alive) s._syncWeaponModel(true);
     }
     if (!local) {
       if (s.cur !== p.c) { s.cur = p.c; s._syncWeaponModel(); }

@@ -1,5 +1,6 @@
 import { MAPS, DEFAULT_MAP, mapsFor } from './maps/index.js';
-import { CLASS_DEFS, WSTATS, DIFFICULTY, OPTIC_ORDER, SKIN_IDS, SKIN_WEAPONS } from './game/stats.js';
+import { CLASS_DEFS, WSTATS, DIFFICULTY, OPTIC_ORDER, SKIN_IDS, SKIN_WEAPONS, FRONT_KIT, FRONT_TEAM, OPTICS, OPTIC_ALLOWED, resolveOptic } from './game/stats.js';
+import './i18n/front.js';
 import { SKIN_SWATCH } from './models/skins.js';
 import './i18n/skins.js';
 import { MATCH_TYPES, TODS_LIST, defaultTickets, defaultScoreLimit, isTotalType as tot, totalMin as totMin, totalMax as totMax } from './game/match.js';
@@ -38,7 +39,7 @@ export function loadPrefs() {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) || localStorage.getItem('blockfront.v2') || localStorage.getItem('blockfront.v1') || '{}');
     if (raw.fovMv !== 1) { if (raw.fovM === 85) raw.fovM = 80; raw.fovMv = 1; }        // telefon yatay FOV varsayılanı 85 → 80 (uzak düşman ≈ %8 büyük); eski varsayılanda kalanlar bir kez taşınır
-    return { ...DEFAULTS, ...raw, stats: { ...DEFAULTS.stats, ...(raw.stats || {}) }, loadouts: raw.loadouts || {}, skins: raw.skins && typeof raw.skins === 'object' ? raw.skins : {} };      // skins: silah başına kaplama (tarayıcıda; hesaplıda profilde de, 12.123)
+    return { ...DEFAULTS, ...raw, stats: { ...DEFAULTS.stats, ...(raw.stats || {}) }, loadouts: raw.loadouts || {}, frontLoadouts: raw.frontLoadouts && typeof raw.frontLoadouts === 'object' ? raw.frontLoadouts : {}, frontOptics: raw.frontOptics && typeof raw.frontOptics === 'object' ? raw.frontOptics : {}, skins: raw.skins && typeof raw.skins === 'object' ? raw.skins : {} };      // skins: silah başına kaplama (tarayıcıda; hesaplıda profilde de, 12.123)
   } catch (e) { return { ...DEFAULTS }; }
 }
 function savePrefs(p) { try { localStorage.setItem(KEY, JSON.stringify(p)); } catch (e) { /* yok say */ } }
@@ -146,6 +147,17 @@ export function showMenu(onStart, onOnline) {
   const mapName = () => mapNm(p.map);
   const todName = () => (p.tod === 'random' ? t('menu.random') : todLabel(p.tod));
   const loadoutOf = (cls) => p.loadouts[cls] || (p.loadouts[cls] = {});
+  // 12.174 Cephe (1940'lar) donanımı: modern yüklemeden ayrı anahtarlar (frontLoadouts: sınıf → yuva, frontOptics: silah → dönem nişangâhı)
+  const fLoadoutOf = (cls) => p.frontLoadouts[cls] || (p.frontLoadouts[cls] = {});
+  const withFront = (cls) => { const lo = { ...loadoutOf(cls) }, f = p.frontLoadouts[cls]; if (f && Object.keys(f).length) lo.front = { ...f }; return lo; };
+  let loEra = p.type === 'front' ? 'front' : 'modern';                       // Cephanelik görünümü (Özel Oyun modu Cephe ise 1940'lar açılır)
+  const fKit = (cls) => FRONT_KIT[cls] || FRONT_KIT.assault;
+  function fCurOf(k, cls = p.cls) {
+    const K = fKit(cls), opts = K[k] || [], want = fLoadoutOf(cls)[k];
+    if (want && opts.includes(want)) return want;
+    return k === 'primary' ? K.d[p.team === 'red' ? 'red' : 'blue'] || K.d.blue : opts[0];
+  }
+  const fOpticOf = (w) => resolveOptic(w, p.frontOptics[w] || 'iron');
   const esc = (s) => String(s ?? '').replace(/[<>&"']/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c]));
 
   function bg() {
@@ -155,8 +167,11 @@ export function showMenu(onStart, onOnline) {
     if (screen === 'loadout') {
       scene.setMode('showroom');
       const w = previewWeapon();
+      if (loEra === 'front') { const fp = fCurOf('primary'); scene.showCharacter({ team: p.team === 'red' ? 'red' : 'blue', cls: p.cls, weapon: fp, optic: fOpticOf(fp), wskin: 'std' }); scene.showWeapon(null); }      // 12.174: Cephe görünümünde 1940'lar silahı + seçili dönem nişangâhı
+      else {
       scene.showCharacter({ team: p.team === 'red' ? 'red' : 'blue', cls: p.cls, weapon: loadoutOf(p.cls).primary || null, optic: p.optic, wskin: p.skins[curOf('primary')] || 'std' });
       scene.showWeapon(w && SKIN_WEAPONS.includes(w) ? { id: w, optic: p.optic, skin: p.skins[w] || 'std' } : null);      // kaplamalı silahın canlı 3B önizlemesi (kaplama değişince yalnız uniform)
+      }
     } else { scene.setMode('orbit'); scene.setWorld(m, tt); }
     q('.mn-vig').className = 'mn-vig' + (screen === 'loadout' ? ' light' : screen === 'home' ? ' home' : '');
   }
@@ -194,7 +209,7 @@ export function showMenu(onStart, onOnline) {
     return `<div class="home">
       <aside class="home-side">
         <div class="news card"><h3><span>${t('menu.news.title')}</span><em>v2.0</em></h3><ul>${Array.from({ length: NEWS_N }, (_, i) => `<li>${t('menu.news.' + i)}</li>`).join('')}</ul></div>
-        <button class="lcard card" data-a="go" data-v="loadout"><small>${t('menu.home.loadout')}</small><b>${className(p.cls)}</b><span>${weaponName(prim)} · ${opticLabel(p.optic)}</span><i>›</i></button>
+        <button class="lcard card" data-a="go" data-v="loadout"><small>${t('menu.home.loadout')}</small><b>${className(p.cls)}</b><span>${p.type === 'front' ? `${weaponName(fCurOf('primary'))} · ${opticLabel(fOpticOf(fCurOf('primary')))}` : `${weaponName(prim)} · ${opticLabel(p.optic)}`}</span><i>›</i></button>
       </aside>
       <div class="hero">
         <div class="kick">${t('menu.home.ready')}</div>
@@ -343,7 +358,7 @@ export function showMenu(onStart, onOnline) {
     if (ol.busy) return;
     const url = (p.server || defaultServerUrl()).trim();
     const team = p.olTeam === 'blue' || p.olTeam === 'red' ? p.olTeam : undefined;
-    const cls = p.cls, loadout = loadoutOf(cls), name = p.name;
+    const cls = p.cls, loadout = { ...withFront(cls), op: p.optic, fo: { ...p.frontOptics } }, name = p.name;      // 12.174: oda modu bilinmeden Cephe donanımı + nişangâh tercihleri de gider (sunucu doğrular)
     let hello, pw = '';
     if (kind === 'create') {
       const c = oc(); pw = ol.cpw || '';
@@ -371,8 +386,32 @@ export function showMenu(onStart, onOnline) {
     const d = def.defaults?.[k];
     return typeof d === 'object' ? d[team] || d.blue : d;
   }
-  const previewWeapon = () => curOf(slot);
+  const previewWeapon = () => (loEra === 'front' ? fCurOf(slot) : curOf(slot));
+  // 12.174 Cephanelik → Cephe (1940'lar): sınıf başına dönem silahları + silah başına dönem nişangâhı (modern / red dot / holo / ACOG yok)
+  const eraTabs = () => `<div class="tabs era">${['modern', 'front'].map((k) => `<button class="tab ${loEra === k ? 'on' : ''}" data-a="loera" data-v="${k}">${t('lo.era.' + k)}</button>`).join('')}</div>`;
+  function frontLoadoutHTML() {
+    const K = fKit(p.cls), cur = (k) => fCurOf(k);
+    const icon = (id, op) => { if (!id || !scene) return ''; const o = op || (WSTATS[id]?.kind === 'gun' ? fOpticOf(id) : 'iron'), c = scene.iconCache.get(id + '|' + o); return `<img data-icon="${id}" data-op="${o}" ${c ? `src="${c}"` : ''} alt="">`; };
+    const opts = K[slot] || [], sel = cur(slot);
+    const tabs = Object.keys(FRONT_KIT).map((k) => `<button class="tab ${p.cls === k ? 'on' : ''}" data-a="cls" data-v="${k}">${className(k)}</button>`).join('');
+    const slotBtns = SLOTS.map(([k]) => `<button class="slotb ${slot === k ? 'on' : ''}" data-a="slot" data-v="${k}"><small>${t('menu.slot.' + k)}</small><b>${cur(k) ? weaponName(cur(k)) : '—'}</b>${icon(cur(k))}</button>`).join('');
+    const tm = (id) => (FRONT_TEAM[id] ? ` <em class="wtm" style="font-style:normal;font-size:10px;letter-spacing:1px;padding:1px 5px;margin-left:4px;vertical-align:2px;border:1px solid ${FRONT_TEAM[id] === 'red' ? '#ff6a55' : '#5aa8ff'};color:${FRONT_TEAM[id] === 'red' ? '#ff8a78' : '#8cc4ff'}">${t('lo.team.' + FRONT_TEAM[id])}</em>` : '');
+    const grid = opts.map((id) => {
+      const st = WSTATS[id] || {}, b = weaponBars(id);
+      const mini = st.kind === 'gun' || st.kind === 'melee' ? ['dmg', 'range', 'rate'].map((k) => `<span>${statLabel(k)}</span><div class="bar"><i style="width:${Math.max(4, Math.min(100, b[k] || 0))}%"></i></div>`).join('') : '';
+      return `<button class="wc ${sel === id ? 'on' : ''}" data-a="fpick" data-v="${id}">${icon(id)}<b>${weaponName(id)}${tm(id)}</b><div class="mini">${mini}</div></button>`;
+    }).join('');
+    const b = weaponBars(sel), utility = !(b.dmg || b.range);
+    const stats = utility ? '' : ['dmg', 'range', 'rate', 'control', 'mobility'].map((k) => `<div class="stat"><span>${statLabel(k)}</span><div class="bar"><i style="width:${Math.max(3, Math.min(100, b[k] || 0))}%"></i></div><em>${Math.round(b[k] || 0)}</em></div>`).join('');
+    const ol = WSTATS[sel]?.kind === 'gun' ? (OPTIC_ALLOWED[sel] || []).filter((o) => OPTICS[o]) : [], on = fOpticOf(sel);
+    const zl = (o) => (OPTICS[o].zoom > 1.2 ? ` <small>×${String(OPTICS[o].zoom).replace('.', lang() === 'tr' ? ',' : '.')}</small>` : '');
+    const optics = ol.length ? `<div class="pan"><h3>${t('lo.ww.optic')} <em>${t(ol.length > 1 ? 'lo.ww.opticSub' : 'lo.ww.opticOne')}</em></h3><div class="row">${ol.map((o) => `<button class="chip ${on === o ? 'on' : ''}" data-a="fopt" data-v="${o}" data-w="${sel}">${opticLabel(o)}${zl(o)}</button>`).join('')}</div><div class="hint">${t('lo.ww.optic.' + on)}</div></div>` : '';
+    return `${head('loadout')}${eraTabs()}<div class="tabs">${tabs}</div><div class="scroll"><div class="clsdesc">${t('lo.ww.hint')}</div><div class="slots">${slotBtns}</div>
+      <div class="pan"><h3>${t('menu.slot.' + slot)} <em>${className(p.cls)} · ${t('lo.era.front')}</em></h3><div class="wgrid">${grid}</div></div>
+      <div class="pan"><h3>${weaponName(sel)}</h3>${stats}<div class="wdesc">${weaponDesc(sel) || classDesc(p.cls)}</div></div>${optics}</div>`;
+  }
   function loadoutHTML() {
+    if (loEra === 'front') return frontLoadoutHTML();
     const def = CLASS_DEFS[p.cls];
     const cur = curOf;
     const icon = (id) => (scene ? `<img data-icon="${id}" ${scene.iconCache.get(id + '|' + p.optic) ? `src="${scene.iconCache.get(id + '|' + p.optic)}"` : ''} alt="">` : '');
@@ -391,7 +430,7 @@ export function showMenu(onStart, onOnline) {
     const optics = slot === 'primary' && !(WSTATS[sel] && WSTATS[sel].scope) ? `<div class="pan"><h3>${t('menu.lo.optic')} <em>${t('menu.lo.opticSub')}</em></h3><div class="row">${OPTIC_ORDER.map((k) => `<button class="chip ${p.optic === k ? 'on' : ''}" data-a="optic" data-v="${k}">${opticLabel(k)}</button>`).join('')}</div></div>` : '';
     // kaplama çipleri (S3 silahlarında): seçili silah kartının hemen altında; renk örneği + ad, seçili olan turuncu çerçeveli
     const skins = SKIN_WEAPONS.includes(sel) ? `<div class="skins"><h4>${t('skin.title')} <em>${t('skin.sub')}</em></h4><div class="row">${SKIN_IDS.map((k) => `<button class="chip sk ${(p.skins[sel] || 'std') === k ? 'on' : ''}" data-a="skin" data-v="${k}" data-w="${sel}"><i class="sw sw-${k}" style="background:${SKIN_SWATCH[k]}"></i>${t('skin.' + k)}</button>`).join('')}</div></div>` : '';
-    return `${head('loadout')}<div class="tabs">${tabs}</div><div class="scroll"><div class="clsdesc">${classDesc(p.cls)}</div><div class="slots">${slotBtns}</div>
+    return `${head('loadout')}${eraTabs()}<div class="tabs">${tabs}</div><div class="scroll"><div class="clsdesc">${classDesc(p.cls)}</div><div class="slots">${slotBtns}</div>
       <div class="pan"><h3>${t('menu.slot.' + slot)} <em>${className(p.cls)}</em></h3><div class="wgrid">${grid}</div>${skins}</div>
       <div class="pan"><h3>${weaponName(sel)}</h3>${stats}<div class="wdesc">${weaponDesc(sel) || classDesc(p.cls)}</div></div>${optics}</div>`;
   }
@@ -472,8 +511,8 @@ export function showMenu(onStart, onOnline) {
     if (!next) return;
     iconTimer = setTimeout(() => {
       if (!scene) return;
-      const id = next.dataset.icon, url = scene.weaponIcon(id, p.optic) || 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
-      stage.querySelectorAll(`img[data-icon="${id}"]`).forEach((im) => im.setAttribute('src', url));
+      const id = next.dataset.icon, op = next.dataset.op || p.optic, url = scene.weaponIcon(id, op) || 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
+      stage.querySelectorAll(`img[data-icon="${id}"]`).forEach((im) => { if ((im.dataset.op || p.optic) === op) im.setAttribute('src', url); });      // 12.174: Cephe ikonları kendi dönem nişangâhıyla
       fillIcons();
     }, 20);
   }
@@ -515,7 +554,7 @@ export function showMenu(onStart, onOnline) {
       map, tod, weather, team: p.team === 'random' ? rnd(['blue', 'red']) : p.team, cls, diff: p.type === 'inf' ? 'hard' : p.diff, optic: p.optic, playerName: p.name,
       match: { perTeam, type: p.type, tickets: randomize ? undefined : p.tickets || undefined, time: p.time }, third: p.third, devMode: !!p.devMode && !randomize,
       keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs,
-      loadout: loadoutOf(cls), loadouts: p.loadouts, skins: p.skins,    // tüm sınıfların kayıtlı yüklemeleri: oyunda sınıf değişince o sınıfınki gelir · skins: silah kaplamaları
+      loadout: withFront(cls), loadouts: p.loadouts, frontLoadouts: p.frontLoadouts, frontOptics: p.frontOptics, skins: p.skins,    // 12.174: Cephe donanımı / dönem nişangâhları ayrı · tüm sınıfların kayıtlı yüklemeleri: oyunda sınıf değişince o sınıfınki gelir · skins: silah kaplamaları
       settings: settingsPayload(),
     };
     cleanup();
@@ -621,6 +660,9 @@ export function showMenu(onStart, onOnline) {
       case 'slot': slot = v; break;
       case 'pick': loadoutOf(p.cls)[slot] = v; break;
       case 'optic': p.optic = v; scene?.iconCache.clear(); break;
+      case 'loera': loEra = v === 'front' ? 'front' : 'modern'; slot = 'primary'; break;      // 12.174 Cephanelik: Modern | Cephe (1940'lar)
+      case 'fpick': if ((fKit(p.cls)[slot] || []).includes(v)) fLoadoutOf(p.cls)[slot] = v; break;
+      case 'fopt': { const w = b.dataset.w; if ((OPTIC_ALLOWED[w] || []).includes(v) && OPTICS[v]) p.frontOptics[w] = v; break; }
       case 'skin': { const w = b.dataset.w; if (!SKIN_WEAPONS.includes(w) || !SKIN_IDS.includes(v)) break; if (v === 'std') delete p.skins[w]; else p.skins[w] = v; pushSkins(p); break; }      // hesaplıda profile de yazılır (12.123)
       case 'quality': p[Q_KEY] = +v; break;
       case 'shadows': p.shadows = !p.shadows; break;

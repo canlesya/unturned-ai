@@ -22,7 +22,7 @@ import { Soldier } from './soldier.js';
 import { Player } from './player.js';
 import { isTouch } from './touch.js';
 import { BotBrain } from './bot.js';
-import { CLASS_DEFS, WSTATS, BOT_NAMES, makeLoadout, modeLoadout, BLEED_S, ZOMBIE, BOSS, ZTYPES, ZT_ORDER, randomZType, GG_LADDER } from './stats.js';
+import { CLASS_DEFS, WSTATS, OPTICS, OPTIC_ALLOWED, BOT_NAMES, cleanEraOptics, makeLoadout, modeLoadout, BLEED_S, ZOMBIE, BOSS, ZTYPES, ZT_ORDER, randomZType, GG_LADDER } from './stats.js';
 import { makeMatch, PRESETS, ffaRanking, ffaMetric } from './match.js';
 import { TUNE } from './balance.js';
 import { Weather } from './weather.js';
@@ -88,6 +88,16 @@ function thinCollider(c) {
   if (!c || c.tag === 'veh' || c.tag === 'cart') return false;
   return Math.min(c.max[0] - c.min[0], c.max[1] - c.min[1], c.max[2] - c.min[2]) <= TUNE.penThick;
 }
+
+// 12.174: istemciden gelen Cephe donanımı (yalnız dize alanlar; frontLoadout listede olmayanı varsayılana düşürür) ve nişangâh tercihleri
+// (op: modern genel tercih, bilinen nişangâh; fo: dönem silahı → izinli dönem nişangâhı, cleanEraOptics)
+const cleanFront = (f) => { if (!f || typeof f !== 'object') return undefined; const str = (v) => (typeof v === 'string' ? v.slice(0, 24) : undefined); return { primary: str(f.primary), secondary: str(f.secondary), gadget: str(f.gadget), melee: str(f.melee) }; };
+export function applyOpticPrefs(s, m) {
+  if (!m || typeof m !== 'object') return;
+  if (typeof m.op === 'string' && OPTICS[m.op] && !OPTICS[m.op].era) s.optic = m.op;
+  if (m.fo && typeof m.fo === 'object') s.optics = { ...s.optics, ...cleanEraOptics(m.fo) };
+}
+export { cleanFront };
 
 export class Game {
   constructor(container, opts) {
@@ -466,7 +476,8 @@ export class Game {
     if (s.brain) this.brains.splice(this.brains.indexOf(s.brain), 1);
     s.brain = null; s.dmgMul = 1; s.vacant = false;
     s.human = true; s.name = name;
-    s.choice = { primary: choice.primary, secondary: choice.secondary, gadget: choice.gadget, melee: choice.melee };
+    s.choice = { primary: choice.primary, secondary: choice.secondary, gadget: choice.gadget, melee: choice.melee, front: cleanFront(choice.front) };
+    applyOpticPrefs(s, choice);                                                  // 12.174: nişangâh tercihleri (modern genel + dönem silah başına)
     if (!CLASS_DEFS[cls] || cls === 'zombie' || this.mode.fixed) cls = s.cls === 'zombie' ? 'zombie' : 'assault';
     if (s.cls !== cls) s.setClass(cls); else s.items = s.loadout();
     if (this.mode.infection && this.opts.bots === false && s.team === 'blue') {      // botsuz odada hiç zombi yoksa ikinci oyuncu ilk zombi olur
@@ -669,8 +680,24 @@ export class Game {
   respawnReady() { return !this.playerSoldier.alive && !this.ended; }
   requestClass(k) {
     this.pendingClass = k; this.hud.markClass(k); this.online?.send({ t: 'opt', cls: k });
-    const lo = this.opts.loadouts?.[k];                                   // menüde o sınıf için kaydedilen silah/gadget seçimi
-    this.requestLoadout(lo || {});                                        // (kayıt yoksa sınıfın varsayılanı)
+    const lo = this.opts.loadouts?.[k], fl = this.opts.frontLoadouts?.[k];      // menüde o sınıf için kaydedilen silah/gadget seçimi (12.174: Cephe donanımı ayrı)
+    this.requestLoadout({ ...(lo || {}), ...(fl ? { front: { ...fl } } : {}) });      // (kayıt yoksa sınıfın varsayılanı)
+  }
+  // 12.174 Cephe doğuş ekranı: sınıfın 1940'lar ana silahı / silahın dönem nişangâhı (menü → Cephanelik → Cephe ile aynı kayıt: frontLoadouts / frontOptics)
+  frontPick(cls, w) {
+    const fl = (this.opts.frontLoadouts ||= {});
+    fl[cls] = { ...(fl[cls] || {}), primary: w };
+    this.opts.onPref?.({ frontLoadouts: fl });
+    if (cls === (this.pendingClass || this.playerSoldier.cls)) this.requestLoadout({ ...(this.opts.loadouts?.[cls] || {}), front: { ...fl[cls] } });
+  }
+  frontOptic(w, o) {
+    const s = this.playerSoldier;
+    if (!(OPTIC_ALLOWED[w] || []).includes(o) || !OPTICS[o]?.era && o !== 'iron') return;
+    s.optics[w] = o;
+    this.opts.frontOptics = { ...(this.opts.frontOptics || {}), [w]: o };
+    this.opts.onPref?.({ frontOptics: this.opts.frontOptics });
+    this.online?.send({ t: 'opt', fo: { [w]: o } });
+    if (s.alive && s.item.id === w) { s.adsT = 0; s._syncWeaponModel(true); this.emit('switch', s); }
   }
   // Enfekte: bir sonraki doğuşta zombi türü
   requestZType(k) { this.pendingZ = k; this.hud.markZ?.(k); this.online?.send({ t: 'opt', zt: k }); }
@@ -692,7 +719,7 @@ export class Game {
     if (s.pos.distanceTo(cam) < 45) this.sfx.zombie(s.pos, true);
   }
   // Ölüm ekranında yükleme değiştir: { primary, secondary, gadget, melee } → bir sonraki doğuşta geçerli (sınıfa uymazsa varsayılan)
-  requestLoadout(choice) { this.pendingLoadout = { ...choice }; this.online?.send({ t: 'opt', loadout: { ...choice }, skins: this.playerSoldier?.skins || null }); }      // kaplamalar yükleme değişiminde yeniden gider (tek mesaj)
+  requestLoadout(choice) { const me = this.playerSoldier; this.pendingLoadout = { ...choice }; this.online?.send({ t: 'opt', loadout: { ...choice, op: me?.optic, fo: me?.optics }, skins: me?.skins || null }); }      // 12.174: op / fo = nişangâh tercihleri (sunucu doğrular)      // kaplamalar yükleme değişiminde yeniden gider (tek mesaj)
 
   // ───── doğma ─────
   // Oyuncu doğma noktası seçimi: 'base' ya da sahip olunan hedefin id'si

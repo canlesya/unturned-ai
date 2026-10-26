@@ -6,7 +6,8 @@
 import { chromium, devices } from 'playwright';
 import { writeFileSync } from 'fs';
 const base = process.argv[2] || 'http://127.0.0.1:5180', DEV = process.env.DEV || 'desk', only = process.env.ONLY ? new RegExp(process.env.ONLY) : null;
-const COMBOS = [['ak47', 'iron'], ['ak47', 'reddot'], ['m4a1', 'holo'], ['m4a1', 'acog'], ['svd', 'acog'], ['laser', 'acog'], ['mp5', 'reddot'], ['lmg', 'holo'], ['pistol', 'iron'], ['sniper', 'scope'], ['barrett', 'scope6']].filter(([i, o]) => !only || only.test(`${i}:${o}`));
+const COMBOS = [['ak47', 'iron'], ['ak47', 'reddot'], ['m4a1', 'holo'], ['m4a1', 'acog'], ['svd', 'acog'], ['laser', 'acog'], ['mp5', 'reddot'], ['lmg', 'holo'], ['pistol', 'iron'], ['sniper', 'scope'], ['barrett', 'scope6'],
+  ['ww_bolt', 'ww_peep'], ['ww_smgb', 'ww_peep'], ['ww_bolt', 'ww_scout'], ['ww_semi', 'ww_scout'], ['ww_bolt', 'ww_sc25'], ['ww_bolt', 'ww_sc4'], ['ww_sniper', 'ww_sc25'], ['ww_sniper', 'ww_sc4']].filter(([i, o]) => !only || only.test(`${i}:${o}`));
 const browser = await chromium.launch({ headless: false, args: ['--use-angle=metal', '--ignore-gpu-blocklist'] });
 const strip = (d) => { const { defaultBrowserType, ...r } = d; return r; };
 const ctx = DEV === 'desk' ? await browser.newContext({ viewport: { width: 1600, height: 900 } }) : await browser.newContext(strip(devices['Pixel 7 landscape']));
@@ -38,7 +39,7 @@ await page.evaluate(() => {
     s.ads = true; for (let i = 0; i < 40; i++) { g.step(1 / 60); rec('in'); }
     s.ads = false; for (let i = 0; i < 40; i++) { g.step(1 / 60); rec('out'); }
     g.simulate = true;
-    return { overlay: s.overlay, zE, frames };
+    return { overlay: s.overlay, ret: s.opticDef?.reticle, zE, frames };
   };
 });
 const rows = []; let bad = 0;
@@ -49,12 +50,15 @@ for (const [id, optic] of COMBOS) {
   if (r.zE > 1 && dmax > 0.05) err.push(`model − dünya en çok ${dmax.toFixed(3)}`);
   const hudEarly = F.filter((f) => f.hud && f.world < 0.95);
   if (hudEarly.length) err.push(`HUD retikülü dünya ${hudEarly[0].world} iken`);
-  const hudMiss = r.overlay === 'dot' || r.overlay === 'holo' || r.overlay === 'lens' ? F.filter((f) => f.ph === 'in' && f.adsT >= 1 && !f.hud).length : 0;
+  const hudMiss = r.overlay === 'dot' || r.overlay === 'holo' || (r.overlay === 'lens' && r.ret === 'dot') ? F.filter((f) => f.ph === 'in' && f.adsT >= 1 && !f.hud).length : 0;
   if (hudMiss) err.push(`tam nişanda HUD yok (${hudMiss} kare)`);
   const fullMag = Math.max(...F.map((f) => f.mag));
   if (r.zE > 1 && Math.abs(fullMag - r.zE) > 0.01) err.push(`tam nişanda dünya ×${fullMag} (beklenen ×${r.zE})`);
   const acogExp = DEV === 'desk' ? 1.5 : 1.85;      // 12.163: ACOG / PSO-1 taslak C (masaüstü ×1,5, dokunmatik ×1,85)
   if (optic === 'acog' && Math.abs(r.zE - acogExp) > 1e-6) err.push(`ACOG büyütmesi ×${r.zE} (beklenen ×${acogExp})`);      // 12.162: tüm optiklerde tam ekran büyütme = nişangâh büyütmesi
+  const WWZ = { ww_peep: DEV === 'desk' ? 1.15 : 1.3, ww_scout: DEV === 'desk' ? 1.5 : 1.85, ww_sc25: 2.5, ww_sc4: 4 };      // 12.174 dönem nişangâhları (dokunmatik: demir kuralı / öncü dürbünün kendi değeri)
+  if (WWZ[optic] && Math.abs(r.zE - WWZ[optic]) > 1e-6) err.push(`${optic} büyütmesi ×${r.zE} (beklenen ×${WWZ[optic]})`);
+  if (r.ret === 'post' && F.some((f) => f.hud)) err.push('öncü dürbünde HUD kırmızı noktası görünüyor');
   if (r.overlay === 'lens' && F.some((f) => f.ph === 'in' && f.adsT >= 1 && !f.clear)) err.push('ACOG tam nişanda mercek saydam değil');
   const body = F.filter((f) => f.ph === 'out' && r.overlay === 'scope' && f.model3d && f.mag >= 2 && f.blk < 0.9);
   if (body.length) err.push(`dürbün çıkışı: ×${body[0].mag} dünyada 3B gövde (${body.length} kare)`);

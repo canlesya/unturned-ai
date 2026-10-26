@@ -610,7 +610,7 @@ export class ViewModel {
       clamp((ads - 0.55) / 0.4, 0, 1) : 0;
     // 12.162: ACOG merceği adsT > LENS_ON'da saydamlaşır (derinlik maskesi); koyu cam LENS_FADE boyunca söner. Retikül red dot gibi: 3B nokta tam nişanda HUD #rdot'a geçer
     if (this.lensDisc) { const on = s.alive && s.overlay === 'lens' && s.adsT > LENS_ON; this.lensDisc.visible = on; if (on) this._lensTint.opacity = 1 - clamp((s.adsT - LENS_ON) / LENS_FADE, 0, 1); this.lensDisc.children[0].visible = on && this._lensTint.opacity > 0.004; }
-    this.setFade(fk * 0.5, (s.overlay === 'dot' || s.overlay === 'holo' || s.overlay === 'lens') && ads > ADS_HUD && !this.noFade ? 0 : 1);      // noFade: adsalign 3B retikülü ölçer
+    this.setFade(fk * 0.5, (s.overlay === 'dot' || s.overlay === 'holo' || (s.overlay === 'lens' && s.opticDef?.reticle === 'dot')) && ads > ADS_HUD && !this.noFade ? 0 : 1);      // 12.174: öncü dürbünün siyah retikülü 3B kalır (HUD'a geçmez)      // noFade: adsalign 3B retikülü ölçer
   }
 
   // adsalign testi: S3 retikülleri saf eflatun (ekranda merkez ölçümü)
@@ -721,7 +721,7 @@ export class Player {
   refreshWeapon() {
     const s = this.s;
     this.vm.look = this.game.mode.paintball && !s.def?.zombie ? pbLook(paintColorOf(s)) : this.game.mode.space && !s.def?.zombie ? spaceLook(s.team) : this.game.mode.front && !s.def?.zombie ? ww2Look(s.team) : null;      // 12.157: Uzay kıyafeti kolu · 12.158: Cephe ceket kolu + koyu eldiven · paintball: forma rengi
-    this.vm.setItem(s.item.id, s.team, s.stat.kind, s.optic, s.def?.zombie ? s.zt?.skin : null, s.skinOf(s.item.id));
+    this.vm.setItem(s.item.id, s.team, s.stat.kind, s.opticId || s.optic, s.def?.zombie ? s.zt?.skin : null, s.skinOf(s.item.id));
     if (s.stat.ball) { tintPaint(this.vm.model, paintColorOf(s)); this.vm.flash?.removeFromParent(); this.vm.flash = null; }      // paintball: hazne / tüp kendi boya rengimde, namlu alevi yok
   }
 
@@ -760,7 +760,7 @@ export class Player {
       if (kb.is('reload', code)) { s.startReload(); this.game.online?.edge('rl'); }
       if (s.alive && kb.is('crouch', code)) { s.toggleCrouch(); this.game.online?.edge('c'); }
       if (s.alive && kb.is('prone', code)) { s.toggleProne(); this.game.online?.edge('p'); }
-      if (s.alive && kb.is('optic', code)) { this.game.online?.edge('o'); const o = s.cycleOptic(); if (o) this.game.hud.toast($t('hud.t.optic', { o: opticName(s.opticId) }), '#cfe6ff'); }
+      if (s.alive && kb.is('optic', code)) { this.game.online?.edge('o'); const o = s.cycleOptic(); if (o) { this.game.hud.toast($t('hud.t.optic', { o: opticName(s.opticId) }), '#cfe6ff'); this.saveEraOptic(); } }
       const slot = kb.slotOf(code);                                                 // tuş konumu (1 ana, 2 yedek, 3 bıçak, 4 ekipman) → items indeksi
       if (slot >= 0) { const i = slotOrder(s.items.length)[slot]; if (i !== undefined) s.switchTo(i); }
       if (kb.is('fireMode', code) && s.alive) { s.toggleFireMode(); this.game.online?.edge('fm'); }
@@ -931,8 +931,15 @@ export class Player {
   // Nişangâhı seç: yerelde hemen, çevrimiçinde sunucuya da (room.opt → setOptic). Dönen: nişangâh tanımı ya da null
   pickOptic(id) {
     const o = this.s.alive ? this.s.setOptic(id) : null;
-    if (o) { this.game.online?.send({ t: 'opt', optic: id }); this.game.hud.toast($t('hud.t.optic', { o: opticName(id) }), '#cfe6ff'); }
+    if (o) { this.game.online?.send({ t: 'opt', optic: id }); this.game.hud.toast($t('hud.t.optic', { o: opticName(id) }), '#cfe6ff'); this.saveEraOptic(); }
     return o;
+  }
+  // 12.174: dönem silahında seçilen nişangâh kalıcı (silah başına; menü → Cephanelik → Cephe ile aynı kayıt, frontOptics)
+  saveEraOptic() {
+    const s = this.s, g = this.game;
+    if (!s.stat.era) return;
+    g.opts.frontOptics = { ...(g.opts.frontOptics || {}), ...s.optics };
+    g.opts.onPref?.({ frontOptics: g.opts.frontOptics });
   }
 
   closeWheel() {
@@ -1017,7 +1024,7 @@ export class Player {
     if (aimKey !== this._aimKey) { if (this._aimKey !== undefined && this._aimAds > 0 && this._aimZ > 1) this._zTail = { z: this._aimZ, t: this._aimAds, r: this._aimRate }; this._aimKey = aimKey; }
     let zc = this.zoomCur();      // 12.162: tüm optiklerde dünya kamerası tam ekran büyür (ACOG da; eski PiP'te mercek dışı ×1,15)
     if (this._zTail) { const q = this._zTail; q.t = Math.max(0, q.t - dt * q.r); zc = Math.max(zc, lerp(1, q.z, adsEase(q.t))); if (q.t <= 0) this._zTail = null; }
-    this._aimAds = s.adsT; this._aimZ = this.vm.model?.userData.noAds ? 1 : this.zoomEff(); this._aimRate = s.stat.adsTime ? 1 / s.stat.adsTime : s.opticDef?.overlay === 'scope' ? 6 : 9;      // Soldier'daki adsT hızıyla aynı (12.153 adsTime)
+    this._aimAds = s.adsT; this._aimZ = this.vm.model?.userData.noAds ? 1 : this.zoomEff(); this._aimRate = s.adsRate;      // Soldier'daki adsT hızıyla aynı (12.153 adsTime)
     cam.fov = zoomFov(baseFov, zc) + this._fovAdd;
     cam.updateProjectionMatrix();
     const sh = g.effects.shake;

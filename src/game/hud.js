@@ -1,5 +1,5 @@
 import { InGameSettings } from './ingameSettings.js';
-import { WSTATS, CLASS_DEFS, ZTYPES, ZT_ORDER } from './stats.js';
+import { WSTATS, CLASS_DEFS, ZTYPES, ZT_ORDER, FRONT_KIT, OPTICS, OPTIC_ALLOWED } from './stats.js';
 import { clamp, adsEase, ADS_HUD, SCOPE_ON } from './util.js';
 import { codeLabel, slotOrder, SLOT_KEYS } from '../core/keybinds.js';
 import { TUNE } from './balance.js';
@@ -9,7 +9,7 @@ import { paintColorOf, paintIndexOf } from './paint.js';
 import { COL as ABCOL } from './abilityfx.js';
 import { t as tr } from '../i18n/index.js';
 import '../i18n/pb.js';
-import { t, onLang } from '../i18n/index.js';
+import { t, onLang, lang } from '../i18n/index.js';
 import { mapName, modeLabel, className } from '../i18n/data.js';
 import '../i18n/assist.js';                                              // sb.a (12.165 asist sütunu)
 import { wName, wLabel, classDesc, ztName, ztDesc, abilName, opticName, fireName, teamName, popText, mapText, dispName, placeName } from '../i18n/game.js';
@@ -154,6 +154,7 @@ body.mob #pbdead{font-size:48px;-webkit-text-stroke:2px #10131a}
   -webkit-mask-image:radial-gradient(circle at center,transparent 35.6vh,#000 35.9vh);mask-image:radial-gradient(circle at center,transparent 35.6vh,#000 35.9vh)}
 #scope .rg{position:absolute;left:50%;top:50%;width:72.4vh;height:72.4vh;margin:-36.2vh 0 0 -36.2vh;border-radius:50%;border:.9vh solid #0d0e10;box-sizing:border-box;box-shadow:0 0 0 .25vh #2a2d31,inset 0 0 2.2vh #000c}   /* 12.153: ince halka (eski 3,4 vh kalın kasnak) */
 #scope svg{position:absolute;left:50%;top:50%;width:70vh;height:70vh;margin:-35vh 0 0 -35vh}
+#scope .ww,#scope.ww .mil{display:none}#scope.ww .ww{display:block}   /* 12.174: dönem dürbünü (2,5× / 4×) — üç direk (German #1 tarzı genel çizim): yan direkler + sivri uçlu alt direk, uç = nişan noktası; ışıyan nokta / mil yok */
 /* telefon: dürbün halkası ekran yüksekliğinin %94'ü (kısa ekranda küçük kalıyordu), dışı bulanık değil siyah (tam ekran backdrop-filter telefonda pahalı ve çamurlu) */
 body.mob #scope .bl{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(0,0,0,.93);-webkit-mask-image:radial-gradient(circle at center,transparent 46.6vh,#000 47vh);mask-image:radial-gradient(circle at center,transparent 46.6vh,#000 47vh)}
 body.mob #scope .rg{width:94vh;height:94vh;margin:-47vh 0 0 -47vh;border-width:1.2vh}
@@ -230,6 +231,8 @@ body.mob #scope svg>circle{transform:scale(1.9)}   /* yalnız kırmızı merkez 
 #hcnt{color:var(--acc2);opacity:1}
 #rcsub{font-size:12px;letter-spacing:2px;opacity:.75;text-transform:uppercase;max-width:110px;line-height:1.3}
 #respawn .clsrow{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+#frkit{display:none;margin-top:8px;gap:8px 14px;flex-wrap:wrap;align-items:center}#frkit.on{display:flex}#frkit .fl{font-size:11px;letter-spacing:2px;opacity:.6;text-transform:uppercase;margin-right:2px}
+#frkit .fg{display:flex;gap:5px;flex-wrap:wrap;align-items:center}#frkit .cc{padding:5px 9px}#frkit .cc b{font-size:12px;letter-spacing:1px}#frkit .cc.on{border-color:var(--acc);background:rgba(255,138,31,.16)}   /* 12.174: Cephe doğuş ekranı silah + dönem nişangâhı */
 .cc{pointer-events:auto;cursor:pointer;position:relative;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.12);padding:10px 12px;font-size:13px;text-align:left;transition:.12s}
 .cc b{display:block;font-size:15px;letter-spacing:2px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .cc b u{text-decoration:none;display:inline-block;min-width:18px;padding:0 4px;margin-right:6px;font-size:11px;line-height:16px;text-align:center;background:rgba(255,255,255,.12);color:var(--acc2);vertical-align:2px}
@@ -304,7 +307,8 @@ export class Hud {
     el.id = 'hud';
     el.innerHTML = `
       <div id="scope"><div class="bl"></div><div class="vg"></div><div class="rg"></div>
-        <svg viewBox="-100 -100 200 200" class="mil"><g stroke="#000" fill="none"><path d="M-100 0H-1.6M1.6 0H100M0 -100V-1.6M0 1.6V100" stroke-width=".3"/><path d="M-100 0H-58M58 0H100M0 -100V-58M0 58V100" stroke-width="1.5"/><path d="M-5 0V0M5 0V0M-15 -1.4V1.4M15 -1.4V1.4M-25 -1.4V1.4M25 -1.4V1.4M-35 -1.4V1.4M35 -1.4V1.4M-1.4 -15H1.4M-1.4 15H1.4M-1.4 -25H1.4M-1.4 25H1.4M-1.4 -35H1.4M-1.4 35H1.4" stroke-width=".35"/><g fill="#000" stroke="none"><circle cx="-40" r=".75"/><circle cy="-40" r=".75"/><circle cx="-30" r=".75"/><circle cy="-30" r=".75"/><circle cx="-20" r=".75"/><circle cy="-20" r=".75"/><circle cx="-10" r=".75"/><circle cy="-10" r=".75"/><circle cx="10" r=".75"/><circle cy="10" r=".75"/><circle cx="20" r=".75"/><circle cy="20" r=".75"/><circle cx="30" r=".75"/><circle cy="30" r=".75"/><circle cx="40" r=".75"/><circle cy="40" r=".75"/></g></g><circle r=".55" fill="#ff3b2a"/></svg></div>
+        <svg viewBox="-100 -100 200 200" class="mil"><g stroke="#000" fill="none"><path d="M-100 0H-1.6M1.6 0H100M0 -100V-1.6M0 1.6V100" stroke-width=".3"/><path d="M-100 0H-58M58 0H100M0 -100V-58M0 58V100" stroke-width="1.5"/><path d="M-5 0V0M5 0V0M-15 -1.4V1.4M15 -1.4V1.4M-25 -1.4V1.4M25 -1.4V1.4M-35 -1.4V1.4M35 -1.4V1.4M-1.4 -15H1.4M-1.4 15H1.4M-1.4 -25H1.4M-1.4 25H1.4M-1.4 -35H1.4M-1.4 35H1.4" stroke-width=".35"/><g fill="#000" stroke="none"><circle cx="-40" r=".75"/><circle cy="-40" r=".75"/><circle cx="-30" r=".75"/><circle cy="-30" r=".75"/><circle cx="-20" r=".75"/><circle cy="-20" r=".75"/><circle cx="-10" r=".75"/><circle cy="-10" r=".75"/><circle cx="10" r=".75"/><circle cy="10" r=".75"/><circle cx="20" r=".75"/><circle cy="20" r=".75"/><circle cx="30" r=".75"/><circle cy="30" r=".75"/><circle cx="40" r=".75"/><circle cy="40" r=".75"/></g></g><circle r=".55" fill="#ff3b2a"/></svg>
+        <svg viewBox="-100 -100 200 200" class="ww"><g fill="#08090a"><path d="M-101 -1.6H-13L-9.5 -0.45V0.45L-13 1.6H-101Z"/><path d="M101 -1.6H13L9.5 -0.45V0.45L13 1.6H101Z"/><path d="M-1.9 101V6.5L0 0L1.9 6.5V101Z"/></g></svg></div>
       <div id="mmwrap"><canvas id="minimap" width="236" height="168"></canvas><div id="mmname"></div></div>
       <div id="topbar">
         <div id="score"><div class="tk blue"><small id="tnB"></small><span id="tkB">0</span><div class="bar"><i id="tbB"></i></div></div><div id="timer"><span id="tm">0:00</span><small id="lim"></small></div><div class="tk red"><small id="tnR"></small><span id="tkR">0</span><div class="bar"><i id="tbR"></i></div></div></div>
@@ -331,7 +335,7 @@ export class Hud {
           <div class="ccnt"><div class="ring"><svg viewBox="0 0 100 100"><circle class="bg" cx="50" cy="50" r="44"/><circle class="fg" id="rring" cx="50" cy="50" r="44" stroke-dasharray="276.5" stroke-dashoffset="0"/></svg><div id="rcount"></div></div><div><div class="kl2" id="hcnt"></div><div id="rcsub"></div></div></div></div>
         <p id="rinfo"></p>
         <div class="deploy">
-          <div class="card ccls"><h3><span id="hcls" style="opacity:1;letter-spacing:3px;text-transform:uppercase;color:inherit"></span> <span id="hclsk">(1–5)</span></h3><div class="clsrow" id="clsrow"></div></div>
+          <div class="card ccls"><h3><span id="hcls" style="opacity:1;letter-spacing:3px;text-transform:uppercase;color:inherit"></span> <span id="hclsk">(1–5)</span></h3><div class="clsrow" id="clsrow"></div><div id="frkit"></div></div>
           <div class="card cspn"><h3><span id="hspn" style="opacity:1;letter-spacing:3px;text-transform:uppercase;color:inherit"></span> <span id="spkeys"></span></h3><div id="spawnrow"></div></div>
         </div></div></div>
       <div id="scoreboard" class="overlay"><div class="panel"><div class="scroll" id="sbbody"></div></div></div>
@@ -442,7 +446,8 @@ export class Hud {
     row.innerHTML = '';
     Object.entries(CLASS_DEFS).forEach(([k, d], i) => {
       const c = document.createElement('div');
-      const pri = d.primary?.[team] || d.primary?.blue, gd = d.gadget;
+      const fk = this.game.mode.front && !d.zombie ? FRONT_KIT[k] : null;      // 12.174: Cephe'de 1940'lar silahı
+      const pri = fk ? (this.game.opts.frontLoadouts?.[k]?.primary && fk.primary.includes(this.game.opts.frontLoadouts[k].primary) ? this.game.opts.frontLoadouts[k].primary : fk.d[team] || fk.d.blue) : d.primary?.[team] || d.primary?.blue, gd = fk ? null : d.gadget;
       c.className = 'cc'; c.dataset.k = k;
       c.innerHTML = `<b><u>${i + 1}</u>${className(k)}</b><small>${classDesc(k)}</small><em>${EN(pri ? wName(pri) : '')}${gd && gd[1] ? ` · ${wName(gd[0])} ×${gd[1]}` : ''}</em>`;
       c.onclick = () => this.game.requestClass(k);
@@ -516,6 +521,21 @@ export class Hud {
   }
 
   markClass(k) { this.$('clsrow').querySelectorAll('.cc').forEach((c) => c.classList.toggle('on', c.dataset.k === k)); }
+
+  // 12.174 Cephe: ölüm / doğuş ekranında seçili sınıfın 1940'lar ana silahı + o silahın dönem nişangâhı (menü → Cephanelik → Cephe ile aynı kayıt)
+  buildFrontKit(cls) {
+    const g = this.game, el = this.$('frkit'), K = FRONT_KIT[cls], p = g.playerSoldier;
+    if (!g.mode.front || !K || p.def?.zombie) { if (this._frKey) { this._frKey = ''; el.classList.remove('on'); el.innerHTML = ''; } return; }
+    const fl = g.opts.frontLoadouts?.[cls], w = fl?.primary && K.primary.includes(fl.primary) ? fl.primary : K.d[p.team] || K.d.blue;
+    const ol = (OPTIC_ALLOWED[w] || []).filter((o) => OPTICS[o]), cur = p.opticFor(w);
+    const key = cls + '|' + w + '|' + cur + '|' + lang();
+    if (key === this._frKey) return;
+    this._frKey = key; el.classList.add('on');
+    const chip = (a, v, txt, on) => `<div class="cc ${on ? 'on' : ''}" data-fa="${a}" data-v="${v}"><b>${EN(txt)}</b></div>`;
+    el.innerHTML = `<span class="fl">${t('death.ww.kit')}</span><div class="fg">${K.primary.map((id) => chip('w', id, wName(id), id === w)).join('')}</div>`
+      + (ol.length > 1 ? `<span class="fl">${t('death.ww.optic')}</span><div class="fg">${ol.map((o) => chip('o', o, opticName(o), o === cur)).join('')}</div>` : '');
+    el.onclick = (e) => { const c = e.target.closest('[data-fa]'); if (!c) return; if (c.dataset.fa === 'w') g.frontPick(cls, c.dataset.v); else g.frontOptic(w, c.dataset.v); this._frKey = null; };
+  }
 
   buildMinimapBase() {
     const g = this.game, b = g.map.bounds;
@@ -808,18 +828,19 @@ export class Hud {
     const ov = p.overlay, adsL = p.adsT, ads = adsEase(adsL);           // adsL doğrusal (dürbün eşiği silah modeliyle aynı), ads görsel eğri
     const scopeOn = p.alive && ov === 'scope' && (g.player ? !!g.player.scopeOn : adsL > 0.9);      // 12.127: bayrak ViewModel'de (çıkışta dünya ×2'nin altına inene dek açık; model aynı bayrakla gizli)
     const tp = g.showSelf;                                   // 3. şahıs kamera: optik örtüsü yok, artı hep görünür
-    const showCross = p.alive && (ads < 0.6 || tp) && !st.scope;      // 12.156: dürbünlü keskin nişancıda belden artı yok (no-scope tahmine kalır; isabet işareti #hitm ayrı, çalışır)
+    const showCross = p.alive && (ads < 0.6 || tp) && !p.scoped;      // 12.174: dönem dürbünü takılı tüfekte de      // 12.156: dürbünlü keskin nişancıda belden artı yok (no-scope tahmine kalır; isabet işareti #hitm ayrı, çalışır)
     cross.style.display = showCross ? 'block' : 'none';
     cross.classList.toggle('ads', ads > 0.5 && !tp);
     const spread = p.spreadNow(st) * 900;
     cross.style.setProperty('--g', clamp(3 + spread, 3, 60) + 'px');
     this.pbReticle(p, st, ov === 'pbring' && p.alive && !tp && ads > 0.55);
     // HUD retikülü yalnız nişangâh tam oturunca (öncesinde modeldeki ışıyan nokta / halka görünür, ikisi ekran ortasında üst üste biner)
-    $('rdot').style.display = p.alive && !tp && (ov === 'dot' || ov === 'lens') && ads > ADS_HUD ? 'block' : 'none';      // 12.162: ACOG / PSO-1 de (saydam mercek + sade kırmızı nokta)
+    $('rdot').style.display = p.alive && !tp && (ov === 'dot' || (ov === 'lens' && p.opticDef?.reticle === 'dot')) && ads > ADS_HUD ? 'block' : 'none';      // 12.174: öncü dürbün (reticle 'post') kendi 3B siyah retikülüyle      // 12.162: ACOG / PSO-1 de (saydam mercek + sade kırmızı nokta)
     $('holo').style.display = p.alive && !tp && ov === 'holo' && ads > ADS_HUD ? 'block' : 'none';
     $('idot').classList.toggle('on', p.alive && !tp && ov === 'none' && !!p.opticDef && ads > ADS_HUD);      // yalnız telefonda görünür (CSS body.mob)
     const sc = $('scope');
     sc.style.display = scopeOn ? 'block' : 'none';
+    if (scopeOn) { const ww = p.opticDef?.reticle === 'post3'; if (ww !== this._scWW) { this._scWW = ww; sc.classList.toggle('ww', ww); } }      // 12.174: dönem dürbünü üç direkli retikül
     // dürbün kararması (12.153): göz merceğe yaklaşırken kararır (adsL 0,3 → SCOPE_ON, eski 0,55 → 0,9: arada 3B göz merceği ekranı kaplıyordu), örtü açılınca ~0,12 sn'de açılır
     // ve halka %94'ten oturur; çıkışta kısa kararma. Sürgü çekilirken (ViewModel.boltK) halka sağ-alta kayar / yatar: dürbünde kalınır, gözün mercekten kayması
     if (scopeOn !== !!this._scWas) { this._scWas = scopeOn; this._scBlk = 1; }
@@ -854,7 +875,7 @@ export class Hud {
         note = cure ? `<b style="color:#7ec8ff">${p.boss ? t('death.bossDown') : ''}${t('death.asHuman')}</b> ${t('death.livesOut')}` : !p.def.zombie ? `<b style="color:#b6ff6a">${t('death.asZombie')}</b>` : t('death.zLives', { n: `<b style="color:#b6ff6a">${p.zLives}</b>` });
         if (cure) this.markClass(g.pendingClass || p.humanCls || ''); else if (!p.boss) this.markZ(g.pendingZ || '');
       }
-      else if (!g.mode.fixed) { this.buildSpawnRow(); this.markClass(g.pendingClass || p.cls); }
+      else if (!g.mode.fixed) { this.buildSpawnRow(); this.markClass(g.pendingClass || p.cls); this.buildFrontKit(g.pendingClass || p.cls); }
       if (note !== this._note) { this._note = note; $('rinfo').innerHTML = note; }
     } else { if (rs.style.display !== 'none') { rs.style.display = 'none'; this.death = null; } this._spKey = null; }
     // mesaj
