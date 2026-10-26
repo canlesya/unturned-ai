@@ -122,7 +122,7 @@ if (ONLY.includes('1')) {
 // Kenarlar scripts/fallmaps.mjs ile ölçüldü (ulaşılabilen en yüksek inişler)
 const EDGES = {
   colgecidi: [['Suicide (T Spawn → Mid)', [-2.75, 7.4, 52.25], [-2.75, 51.25]], ['Short Stairs / Boost', [22.75, 5.55, -43.25], [24.25, -43.25]], ['Titanic duvarı', [-45.75, 7.96, 36.75], [-45.75, 35.75]], ['Pit', [57.75, 4.6, 9.25], [57.75, 9.25]]],
-  kasaba: [['Su kulesi', [-26.25, 8, -42.25], [-26.25, -41.75]], ['Kilise', [-39.25, 7.9, 11.25], [-39.75, 11.25]]],
+  kasaba: [['Çan kulesi batı kemeri', [-38.35, 9.15, 11.0], [-39.0, 11.0]], ['Çan kulesi doğu kemeri', [-33.65, 9.15, 11.0], [-33.0, 11.0]]],     // 12.168: yeni Kasaba (su kulesi platformu korkuluklu: yürüyerek inilmez)
   us: [['Komuta Binası çatısı', [-8.25, 10.7, 6.75], [-8.25, 7.25]], ['Kontrol kulesi (Hangar yanı)', [19.75, 11, -46.75], [19.75, -46.25]]],
 };
 if (ONLY.includes('2')) {

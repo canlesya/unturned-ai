@@ -721,6 +721,7 @@ export class Game {
   _free(x, z, s) {
     if (!this.nav.isFree(x, z)) return false;
     if (this.nav.floor && this.nav.floorAt(x, z) > 0.3) return false;            // ileri doğuş platform / çatı hücresine düşmesin (doğuş y = 0: kutunun içinde kalırdı)
+    if (this.world._hits(this.world.query(x - 1, z - 1, x + 1, z + 1, (this._fq ||= [])), x, this.world.heightAt(x, z) + 0.2, z, 1.6)) return false;   // 12.168: gövde duvara / eşyaya girmesin (boş hücrenin kenarı duvara 0,1 m yakın olabilir)
     return !this.soldiers.some((e) => e !== s && e.alive && Math.hypot(e.pos.x - x, e.pos.z - z) < 1.1);
   }
 
