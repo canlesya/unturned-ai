@@ -609,8 +609,9 @@ export class Soldier {
       this.game.sfx.hurt();
     } else if (this.brain) this.brain.onDamaged(attacker, fromPos);
     else if (this.human && fromPos) this.game.netEvent({ e: 'dmg', v: this.id, x: +fromPos.x.toFixed(1), z: +fromPos.z.toFixed(1) });
-    if (attacker && attacker !== this && attacker.isPlayer) this.game.emit('hitmark', { victim: this, zone, dead: this.hp <= 0, dmg: amount });
-    else if (attacker && attacker !== this && attacker.human) this.game.netEvent({ e: 'hm', by: attacker.id, dead: this.hp <= 0 ? 1 : 0, hd: zone === 'head' ? 1 : 0 });
+    const pn = this.game._pen && this.game._pen.by === attacker ? this.game._pen.idx : 0;       // 12.164: delip geçen merminin kaçıncı hedefi (0 = ilk)
+    if (attacker && attacker !== this && attacker.isPlayer) this.game.emit('hitmark', { victim: this, zone, dead: this.hp <= 0, dmg: amount, pn });
+    else if (attacker && attacker !== this && attacker.human) { const hm = { e: 'hm', by: attacker.id, dead: this.hp <= 0 ? 1 : 0, hd: zone === 'head' ? 1 : 0 }; if (pn) hm.pn = pn; this.game.netEvent(hm); }
     if (this.hp <= 0) this.die(attacker, weaponName, zone === 'head');
   }
 

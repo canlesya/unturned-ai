@@ -18,6 +18,7 @@ const EN = (s) => String(s).replace(/Paintball/g, '<span lang="en">Paintball</sp
 const setH = (el, h) => { if (el._h !== h) { el._h = h; el.innerHTML = h; } };     // yalnız değişince yaz (her kare)
 const NADE_SVG = '<svg class="hsi nd" viewBox="0 0 16 16"><ellipse cx="7.5" cy="10" rx="4.6" ry="5.2" fill="currentColor"/><rect x="5.6" y="2.6" width="4" height="2.6" fill="currentColor"/><path d="M9.6 3.6h3.2v3.4" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="12.8" cy="8.4" r="1.3" fill="none" stroke="currentColor" stroke-width="1.1"/></svg>';     // 12.144: el bombası öldürmesi
 const HS_SVG = '<svg class="hsi" viewBox="0 0 16 16"><circle cx="8" cy="7" r="4.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 0v4M8 10v6M0 7h4M12 7h4" stroke="currentColor" stroke-width="1.6"/></svg>';
+const PEN_SVG = '<svg class="hsi pni" viewBox="0 0 16 16"><path d="M1 8h11.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M10.2 4.6 13.8 8l-3.6 3.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><rect x="4.4" y="3" width="1.8" height="10" rx=".6" fill="currentColor" opacity=".55"/><rect x="7.6" y="3" width="1.8" height="10" rx=".6" fill="currentColor" opacity=".55"/></svg>';     // 12.164: delip geçme öldürmesi (ok iki gövdeden geçer)
 const FALL_SVG = '<svg class="fli" viewBox="0 0 16 16"><path d="M8 1v9M4.2 6.6 8 10.4l3.8-3.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 14.2h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';   // düşme (12.143): aşağı ok + zemin
 const CSS = `
 #hud{position:fixed;inset:0;pointer-events:none;font-family:Bahnschrift,'Rajdhani','Arial Narrow','Segoe UI',system-ui,sans-serif;color:#fff;user-select:none;z-index:5;letter-spacing:.5px;
@@ -59,7 +60,7 @@ const CSS = `
 .kf .b{color:#8cc4ff}.kf .r{color:#ff9a88}
 .kf .w{font-size:11px;margin:0 9px;color:#ffe2bd;letter-spacing:1px;padding:1px 7px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);text-transform:uppercase;display:inline-flex;align-items:center;gap:5px}
 .kf .w .hsi{width:12px;height:12px;color:#ff6a4a}.kf .w .nd{color:#c9d68a}
-.kf .w .fli{width:12px;height:12px;color:#ffb36a}
+.kf .w .fli{width:12px;height:12px;color:#ffb36a}.kf .w .pni{color:#9fe2ff}
 @keyframes kf{0%{opacity:0;transform:translateX(24px)}5%{opacity:1;transform:none}85%{opacity:1}100%{opacity:0}}
 /* nişan */
 #cross{position:absolute;left:50%;top:50%;width:0;height:0}
@@ -563,7 +564,7 @@ export class Hud {
     this.mmBase = c;
   }
 
-  killFeed(killer, victim, weapon, hs) {
+  killFeed(killer, victim, weapon, hs, pn = 0) {
     const g = this.game, f = this.$('killfeed');
     if (victim && victim === g.playerSoldier) {                            // ölüm ekranı için: kim, neyle, kaç metreden, kafadan mı
       const k = killer && killer !== victim ? killer : null;
@@ -575,7 +576,7 @@ export class Hud {
     const nm = dispName;
     const wl = wLabel(weapon);
     d.innerHTML = killer && killer !== victim
-      ? `<span class="${cls(killer)}">${nm(killer)}</span><span class="w">${weapon === 'El Bombası' ? NADE_SVG : ''}${EN(wl)}${hs ? HS_SVG : ''}</span><span class="${cls(victim)}">${nm(victim)}</span>`
+      ? `<span class="${cls(killer)}">${nm(killer)}</span><span class="w">${weapon === 'El Bombası' ? NADE_SVG : ''}${EN(wl)}${pn ? PEN_SVG : ''}${hs ? HS_SVG : ''}</span><span class="${cls(victim)}">${nm(victim)}</span>`
       : `<span class="${cls(victim)}">${nm(victim)}</span><span class="w">${weapon === 'Düştü' ? FALL_SVG : ''}${wl && !/^(İntihar)$/.test(weapon) ? wl : t('hud.kf.died')}</span>`;
     f.appendChild(d);
     while (f.children.length > 6) f.firstChild.remove();

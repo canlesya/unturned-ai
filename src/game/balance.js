@@ -10,7 +10,8 @@ export const TUNE = {
   spawnProtect: 2, firstProtect: 1, respawn: 5, respawnGG: 3, respawnPB: 3, botRespawnMin: 3.5, botRespawnMax: 6,
   pbAmmoRespawn: 20, pbHealthRespawn: 20, pbHeal: 40,                // paintball toplanabilir kutular (game/pickups.js): yeniden belirme (sn), can kutusunun verdiği can
   medicHeal: 2.5, medicRadius: 6, resupply: 0.12, reviveHp: 0.55,
-  headMul: 2.1, legMul: 0.8, woodMul: 0.65, backstab: BACKSTAB_DMG, selfBlast: 0.55,
+  // 12.164 penWalls (0 / 1, varsayılan KAPALI): delen silah (stats.js PEN) en çok 1 ince levhadan (en ince boyutu ≤ penThick m; çit, tahta, sac) geçer, arkasında hasar × penWallMul
+  headMul: 2.1, legMul: 0.8, woodMul: 0.65, penWalls: 0, penThick: 0.12, penWallMul: 0.6, backstab: BACKSTAB_DMG, selfBlast: 0.55,
   captureRate: 0.085, bleed: BLEED_S,
   sightDay: 130, sightSunset: 105, sightNight: 62,
   plSpeed: 1.0, plCrowd: 0.25, plRadius: 3.5, plBackDelay: 20, plBackSpeed: 0.35, plBonus: 120, plOverGrace: 1.5, plSupply: 0.08, plAtkRespawn: 1.0, plDefRespawn: 0.75,   // Vagon modu: taban hız (m/sn), ek iten başına +%, itme yarıçapı, geri kayma bekleme / hız, kontrol noktası süre ödülü, uzatma payı, vagon yanı ikmal, doğma süresi çarpanı (12.150: botlar vagonu gerçekten oynayınca saldıran 1,0 / savunan 0,75 — savunan doğuşu raydan uzak)
@@ -68,6 +69,7 @@ function weaponFields(id) {
     ...(s.ball ? [] : [f(p + 'range.0', 'Tam hasar menzili', 1, 300, 1, 'm'), f(p + 'range.1', 'En düşük hasar menzili', 2, 500, 1, 'm'), f(p + 'minMul', 'Uzakta hasar', 0.1, 1, 0.01, '×')]),
     f(p + 'move', 'Hareket hızı', 0.5, 1.5, 0.01, '×'),
   );
+  if (s.pen) for (let k = 1; k < s.pen.length; k++) out.push(f(p + 'pen.' + k, `Delip geçme: ${k + 1}. hedef hasarı`, 0, 1, 0.05, '×'));     // 12.164 (0 = bu hedefe geçmez)
   return out;
 }
 
@@ -115,6 +117,7 @@ export function balanceSections() {
     { id: 'damage', label: 'Hasar kuralları', icon: 'target', items: [
       { id: 'zones', name: 'Vuruş bölgeleri', preview: { kind: 'char', cls: 'heavy' }, fields: [
         f('tune.headMul', 'Kafa çarpanı', 1, 5, 0.05, '×'), f('tune.legMul', 'Bacak çarpanı', 0.1, 1.5, 0.05, '×'), f('tune.woodMul', 'Tahtadan geçen hasar', 0, 1, 0.05, '×'),
+        f('tune.penWalls', 'Delen silah ince duvardan geçer (0 kapalı, 1 açık)', 0, 1, 1), f('tune.penThick', 'İnce duvar en çok kalınlığı', 0.05, 0.5, 0.01, 'm'), f('tune.penWallMul', 'İnce duvardan geçen hasar', 0, 1, 0.05, '×'),
         f('tune.backstab', 'Arkadan bıçak hasarı', 1, 999), f('tune.selfBlast', 'Kendi patlamandan hasar', 0, 1, 0.05, '×')] },
     ] },
     { id: 'classes', label: 'Sınıflar', icon: 'users', items: CLASS_IDS.map((c) => ({ id: c, name: CLASS_DEFS[c].label, preview: { kind: 'char', cls: c }, fields: classFields(c) })) },

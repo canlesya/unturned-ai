@@ -70,6 +70,24 @@ function rayBox(o, d, min, max, maxT) {
   }
   return t0;
 }
+// 12.164: ışının kutudan çıktığı t (yoksa -1) · ince levha: en ince boyutu ≤ TUNE.penThick, araç / vagon değil (TUNE.penWalls açıkken)
+function rayBoxExit(o, d, min, max) {
+  let t0 = 0, t1 = Infinity;
+  const oo = [o.x, o.y, o.z], dd = [d.x, d.y, d.z];
+  for (let a = 0; a < 3; a++) {
+    const inv = 1 / (dd[a] || 1e-9);
+    let ta = (min[a] - oo[a]) * inv, tb = (max[a] - oo[a]) * inv;
+    if (ta > tb) { const t = ta; ta = tb; tb = t; }
+    if (ta > t0) t0 = ta;
+    if (tb < t1) t1 = tb;
+    if (t0 > t1) return -1;
+  }
+  return t1;
+}
+function thinCollider(c) {
+  if (!c || c.tag === 'veh' || c.tag === 'cart') return false;
+  return Math.min(c.max[0] - c.min[0], c.max[1] - c.min[1], c.max[2] - c.min[2]) <= TUNE.penThick;
+}
 
 export class Game {
   constructor(container, opts) {
@@ -1151,17 +1169,19 @@ export class Game {
           this.effects.tracer(o, p, st.tracer);
           if (ev.k === 'f') this.effects.blood(p, 7, dir.clone().negate());
           else if (ev.k === 'w') { const n = new V(...ev.n); this.effects.spark(p, 4, n); this.effects.dust(p, n); this.effects.decal(p, n); }
+          if (ev.b) for (let i = 0; i + 2 < ev.b.length; i += 3) this.effects.blood(new V(ev.b[i], ev.b[i + 1], ev.b[i + 2]), 7, dir.clone().negate());     // 12.164: delip geçilen askerler
+          if (ev.tw) { const tp = new V(ev.tw[0], ev.tw[1], ev.tw[2]), tn = new V(ev.tw[3], ev.tw[4], ev.tw[5]); this.effects.spark(tp, 3, tn); this.effects.decal(tp, tn); }     // 12.164: ince levha geçişi
           if (ev.m) { this.effects.muzzle(o, dir); this.sfx.shot(st.sound, by.pos); by.flashT = 0.06; if (st.charge) by.railT = 0; }      // 12.160 railT: ray tüfeği şarjı 3. şahısta (yeni ağ alanı yok)
           break;
         }
-        case 'hm': if (ev.by === me.id) this.emit('hitmark', { zone: ev.hd ? 'head' : 'body', dead: !!ev.dead }); break;
+        case 'hm': if (ev.by === me.id) this.emit('hitmark', { zone: ev.hd ? 'head' : 'body', dead: !!ev.dead, pn: ev.pn || 0 }); break;
         case 'dmg': if (ev.v === me.id) { this.hud.damageFrom(new V(ev.x, 0, ev.z), me); this.sfx.hurt(); } break;
         case 'fall': if (ev.v === me.id && !(this.time - (this._fallFxAt ?? -9) < 1)) this.fallFx(ev.d); break;     // düşme hasarı: tahmin etmediysek (yanlış tahmin) sunucudan geri bildirim
         case 'kill': {
           const victim = this.soldiers[ev.v], killer = this.soldiers[ev.k] || victim;
           if (!victim) break;
-          this.hud.killFeed(killer, victim, ev.w, !!ev.hs);
-          if (killer === me && victim !== me) this.killfx.kill(victim, ev.w, !!ev.hs);
+          this.hud.killFeed(killer, victim, ev.w, !!ev.hs, ev.pn || 0);
+          if (killer === me && victim !== me) this.killfx.kill(victim, ev.w, !!ev.hs, undefined, { pn: ev.pn || 0, pc: ev.pc || 0 });
           if (victim === me) this.killfx.died();
           if (victim === me) me.lastHit = killer;
           break;
@@ -1411,48 +1431,85 @@ export class Game {
       if (nd.dot(dir) > 0.9) dir = nd;                                    // ~25°'den fazla sapma (çok yakın hedef) → gözden düz (kamera hilesi için tavan)
     }
     // ahşap kapılar ('wood') mermiyi durdurmaz: arkasındaki ilk sert engel / asker aranır, kapıdan geçen mermi %35 zayıflar
-    const wh = this.world.raycast(origin, dir, maxT, (this._wh ||= {}), 'wood');
+    const pen = st.pen && st.pen.length > 1 ? st.pen : null;                // 12.164: delen silah (stats.js PEN) — askerin içinden geçer
+    let wh = this.world.raycast(origin, dir, maxT, (this._wh ||= {}), 'wood');
+    // 12.164 seçenek (TUNE.penWalls, varsayılan KAPALI): delen silah en çok 1 ince levhadan (en ince boyutu ≤ penThick) geçer, arkasında hasar × penWallMul
+    let thinT = Infinity, thinP = null, thinN = null;
+    if (pen && TUNE.penWalls && wh && thinCollider(wh.collider)) {
+      const c = wh.collider, ex = rayBoxExit(origin, dir, c.min, c.max);
+      if (ex > wh.t) {
+        thinT = wh.t; thinP = wh.point.clone(); thinN = wh.normal.clone();
+        const o2 = (this._po ||= new THREE.Vector3()).copy(origin).addScaledVector(dir, ex + 0.01);
+        wh = this.world.raycast(o2, dir, maxT - ex - 0.01, (this._wh2 ||= {}), 'wood');
+        if (wh) wh.t += ex + 0.01;
+      }
+    }
     const tw = wh ? wh.t : Infinity;
-    const wd = this.world.raycast(origin, dir, Math.min(tw, maxT), (this._wd ||= {}));
+    const wd = this.world.raycast(origin, dir, Math.min(tw, thinT, maxT), (this._wd ||= {}));
     const woodT = wd && wd.collider && wd.collider.tag === 'wood' ? wd.t : Infinity;
-    let bestE = null, bestT = Infinity, bestZ = null;
+    // vurulan askerler (ışın boyunca sıralı): delmeyen silahta yalnız ilki, delende en çok pen.length. Takım arkadaşı ışını kesmez (hasar almaz, hak harcamaz).
+    const hits = [];
+    let bestT = Infinity;
     for (const e of this.soldiers) {
       if (e === shooter || !e.alive || e.team === shooter.team) continue;
-      const h = this.hitSoldier(e, origin, dir, Math.min(tw, bestT, maxT));
-      if (h && h.t < bestT && h.t < tw) { bestE = e; bestT = h.t; bestZ = h.zone; }
+      const h = this.hitSoldier(e, origin, dir, Math.min(tw, pen ? Infinity : bestT, maxT));
+      if (!h || h.t >= tw) continue;
+      if (pen) hits.push({ e, t: h.t, zone: h.zone });
+      else if (h.t < bestT) { bestT = h.t; hits[0] = { e, t: h.t, zone: h.zone }; }
+    }
+    let cap = 1;                                                          // bu mermi en çok kaç askere girer (admin bir hedefi 0 yaparsa orada durur)
+    if (pen) {
+      cap = pen.length; for (let k = 1; k < pen.length; k++) if (!(pen[k] > 0)) { cap = k; break; }
+      hits.sort((x, y) => x.t - y.t);
+      if (hits.length > cap) hits.length = cap;
     }
     restore?.();
     shooter.spottedT = this.time;
     const first = this._firstPellet; this._firstPellet = false;
     const q2 = (v) => Math.round(v * 100) / 100;
     const ev = this.headless ? { e: 'sh', by: shooter.id, m: first ? 1 : 0, o: [q2(muzzle.x), q2(muzzle.y), q2(muzzle.z)] } : null;
-    if (bestE) {
-      const pt = origin.clone().addScaledVector(dir, bestT);
+    if (thinP) { this.effects.spark(thinP, 3, thinN); this.effects.decal(thinP, thinN); if (ev) ev.tw = [q2(thinP.x), q2(thinP.y), q2(thinP.z), q2(thinN.x), q2(thinN.y), q2(thinN.z)]; }
+    const woodFx = () => { const wp = wd.point.clone(); this.effects.spark(wp, 3, wd.normal); this.effects.decal(wp, wd.normal); };
+    let woodShown = false;
+    // mermi son askerde mi durdu (delmeyen silah ya da hak bitti), yoksa ışın boyunca sürüp duvara / boşluğa mı gitti
+    const stopped = hits.length > 0 && hits.length >= cap;
+    const pts = [];
+    if (hits.length) {
       const r0 = st.range[0], r1 = st.range[1];
-      const f = bestT <= r0 ? 1 : lerpClamp(1, st.minMul, (bestT - r0) / (r1 - r0));
-      const zm = bestZ === 'head' ? TUNE.headMul : bestZ === 'legs' ? TUNE.legMul : 1;
-      this.effects.blood(pt, 7, dir.clone().negate());
+      const pr = pen && hits.length > 1 ? (this._pen = { by: shooter, idx: 0, kills: 0 }) : null;
+      try { for (let k = 0; k < hits.length; k++) {
+        const { e, t: ht, zone } = hits[k];
+        const pt = origin.clone().addScaledVector(dir, ht); pts.push(pt);
+        const f = ht <= r0 ? 1 : lerpClamp(1, st.minMul, (ht - r0) / (r1 - r0));
+        const zm = zone === 'head' ? TUNE.headMul : zone === 'legs' ? TUNE.legMul : 1;
+        this.effects.blood(pt, 7, dir.clone().negate());
+        const wm = ht > woodT ? TUNE.woodMul : 1, tm = ht > thinT ? TUNE.penWallMul : 1;
+        if (wm < 1 && !woodShown) { woodShown = true; woodFx(); }
+        // çevrimiçi istemcide hasar yok: sunucu hesaplar, sonucu olay olarak yollar (aynı ışın, aynı geri sarılmış konumlar → aynı hedefler)
+        if (pr) pr.idx = k;
+        if (!this.online) e.takeDamage(st.dmg * f * zm * wm * tm * (pen ? pen[k] : 1) * (shooter.dmgMul || 1), shooter, zone, shooter.pos, st.name);
+      } } finally { if (pr) this._pen = null; }
+    }
+    if (woodT < Infinity && !woodShown && woodT < (stopped ? hits[hits.length - 1].t : tw)) woodFx();
+    if (stopped) {
+      const pt = pts[pts.length - 1];
       if (Math.random() < 0.6 || (st.pellets || 1) === 1) this.effects.tracer(muzzle, pt, st.tracer);
-      // çevrimiçi istemcide hasar yok: sunucu hesaplar, sonucu olay olarak yollar
-      const wm = bestT > woodT ? TUNE.woodMul : 1;
-      if (wm < 1) { const wp = wd.point.clone(); this.effects.spark(wp, 3, wd.normal); this.effects.decal(wp, wd.normal); }
-      if (!this.online) bestE.takeDamage(st.dmg * f * zm * wm * (shooter.dmgMul || 1), shooter, bestZ, shooter.pos, st.name);
       if (ev) { ev.k = 'f'; ev.p = [q2(pt.x), q2(pt.y), q2(pt.z)]; }
     } else if (wh) {
-      if (woodT < tw) { const wp = wd.point.clone(); this.effects.spark(wp, 3, wd.normal); this.effects.decal(wp, wd.normal); }
       const pt = wh.point.clone();
-      if (Math.random() < 0.7) this.effects.tracer(muzzle, pt, st.tracer);
+      if (Math.random() < 0.7 || hits.length) this.effects.tracer(muzzle, pt, st.tracer);
       this.effects.spark(pt, 4, wh.normal);
       if (wh.collider || wh.normal.y > 0.5) this.effects.dust(pt, wh.normal);
       this.effects.decal(pt, wh.normal);
       if (shooter.isPlayer || pt.distanceTo(this.camera.position) < 25) this.sfx.impact(pt);
       if (ev) { ev.k = 'w'; ev.p = [q2(pt.x), q2(pt.y), q2(pt.z)]; ev.n = [q2(wh.normal.x), q2(wh.normal.y), q2(wh.normal.z)]; }
     } else {
-      if (woodT < Infinity) { const wp = wd.point.clone(); this.effects.spark(wp, 3, wd.normal); this.effects.decal(wp, wd.normal); }
       const end = origin.clone().addScaledVector(dir, 120);
       this.effects.tracer(muzzle, end, st.tracer);
       if (ev) { ev.k = 'a'; ev.p = [q2(end.x), q2(end.y), q2(end.z)]; }
     }
+    // 12.164: delip geçilen askerlerin kan noktaları (başkalarının ekranı için; son durak 'f' ise p zaten son asker)
+    if (ev && pts.length > (stopped ? 1 : 0)) ev.b = pts.slice(0, stopped ? -1 : undefined).flatMap((v) => [q2(v.x), q2(v.y), q2(v.z)]);
     if (ev) this.netEvents.push(ev);
   }
 
@@ -1779,10 +1836,14 @@ export class Game {
     }
     if (this.mode.scoreBased) { if (killer && killer.team !== victim.team) this.tickets[killer.team] += 1; }      // TDM: öldürmek takıma 1 skor
     else if (!this.ffa) this.tickets[victim.team] -= 1;                                                  // Cephe dahil (12.161: iki tarafa simetrik bilet)
-    this.netEvent({ e: 'kill', k: killer ? killer.id : -1, v: victim.id, w: weapon || '', hs: hs ? 1 : 0 });
+    const P = this._pen && this._pen.by === killer ? this._pen : null;                              // 12.164: tek mermiyle birden çok öldürme (delip geçme)
+    const pn = P ? P.idx : 0, pc = P ? ++P.kills : 0;
+    const kev = { e: 'kill', k: killer ? killer.id : -1, v: victim.id, w: weapon || '', hs: hs ? 1 : 0 };
+    if (pn) kev.pn = pn; if (pc > 1) kev.pc = pc;
+    this.netEvent(kev);
     if (!this.mode.infection) for (const b of this.brains) b.onMateDown?.(victim, killer);          // 12.152: yakındaki takım arkadaşları düştüğü yere bakar / araştırır
-    this.hud.killFeed(killer, victim, weapon, hs);
-    if (killer && killer.isPlayer && killer !== victim) this.killfx.kill(victim, weapon, hs);
+    this.hud.killFeed(killer, victim, weapon, hs, pn);
+    if (killer && killer.isPlayer && killer !== victim) this.killfx.kill(victim, weapon, hs, undefined, { pn, pc });
     if (victim.isPlayer) this.killfx.died();
     if (this.mode.infection) {
       if (!victim.def.zombie) victim.infectNext = true;                                            // her insan ölümü enfekte eder
