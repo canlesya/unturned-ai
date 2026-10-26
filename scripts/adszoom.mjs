@@ -52,7 +52,9 @@ for (const [id, optic] of COMBOS) {
   const hudMiss = r.overlay === 'dot' || r.overlay === 'holo' || r.overlay === 'lens' ? F.filter((f) => f.ph === 'in' && f.adsT >= 1 && !f.hud).length : 0;
   if (hudMiss) err.push(`tam nişanda HUD yok (${hudMiss} kare)`);
   const fullMag = Math.max(...F.map((f) => f.mag));
-  if (r.zE > 1 && Math.abs(fullMag - r.zE) > 0.01) err.push(`tam nişanda dünya ×${fullMag} (beklenen ×${r.zE})`);      // 12.162: tüm optiklerde tam ekran büyütme = nişangâh büyütmesi
+  if (r.zE > 1 && Math.abs(fullMag - r.zE) > 0.01) err.push(`tam nişanda dünya ×${fullMag} (beklenen ×${r.zE})`);
+  const acogExp = DEV === 'desk' ? 1.5 : 1.85;      // 12.163: ACOG / PSO-1 taslak C (masaüstü ×1,5, dokunmatik ×1,85)
+  if (optic === 'acog' && Math.abs(r.zE - acogExp) > 1e-6) err.push(`ACOG büyütmesi ×${r.zE} (beklenen ×${acogExp})`);      // 12.162: tüm optiklerde tam ekran büyütme = nişangâh büyütmesi
   if (r.overlay === 'lens' && F.some((f) => f.ph === 'in' && f.adsT >= 1 && !f.clear)) err.push('ACOG tam nişanda mercek saydam değil');
   const body = F.filter((f) => f.ph === 'out' && r.overlay === 'scope' && f.model3d && f.mag >= 2 && f.blk < 0.9);
   if (body.length) err.push(`dürbün çıkışı: ×${body[0].mag} dünyada 3B gövde (${body.length} kare)`);
