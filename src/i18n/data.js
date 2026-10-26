@@ -92,7 +92,7 @@ addStrings('en', {
   'weapon.pbrifle.name': 'Paintball Rifle', 'weapon.pbrifle.desc': 'Full-auto marker: 10 paint balls per second, arcing shots.', 'weapon.pbpistol.name': 'Paintball Pistol', 'weapon.pbpistol.desc': 'Semi-auto: 4 hits take you out, balls drop faster.',
 
   'diff.easy': 'Easy', 'diff.normal': 'Normal', 'diff.hard': 'Hard',
-  'optic.iron': 'Iron Sights', 'optic.reddot': 'Red Dot', 'optic.holo': 'Holographic', 'optic.acog': 'ACOG', 'optic.scope': '4x Scope', 'optic.scope6': '6x Scope',
+  'optic.iron': 'Iron Sights', 'optic.reddot': 'Red Dot', 'optic.holo': 'Holographic', 'optic.acog': 'ACOG', 'optic.scope': '4x Scope', 'optic.scope6': '6x Scope', 'optic.ww_peep': 'Peep Sight', 'optic.ww_scout': '1.5x Scout Scope', 'optic.ww_sc25': '2.5x Scope', 'optic.ww_sc4': '4x Scope',
   'tod.day': 'Day', 'tod.sunset': 'Sunset', 'tod.night': 'Night', 'weather.clear': 'Clear', 'weather.rain': 'Rain', 'weather.fog': 'Fog',
   'stat.dmg': 'Damage', 'stat.range': 'Range', 'stat.rate': 'Fire rate', 'stat.control': 'Control', 'stat.mobility': 'Mobility',
   'zombie.walker.label': 'Walker', 'zombie.walker.desc': 'Balanced. Rage: briefly fast and deadly.', 'zombie.runner.label': 'Runner', 'zombie.runner.desc': 'Very fast, fragile. Burst: incredible speed for a moment.',

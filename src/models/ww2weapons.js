@@ -6,6 +6,8 @@ import { S3PARTS, ADS_DIST } from './s3weapons.js';
 // 1940'lar silahları (Cephe modu, 12.158): S3 kitiyle aynı düşük poligon dil (yan profil çekme + pah, tek ağ + cam). Ahşap kundak (furn) + mavi çelik (body / metal),
 // pirinç fişek / klips (acc). Gerçek marka / logo / damga yok; genel adlar (Sürgülü Tüfek, Yarı Otomatik Tüfek, …). Konvansiyon: köken = kabza (sağ el), namlu −Z, yukarı +Y.
 // Nişan: demir gez–arpacık (gez çentiği / delik ortası = nişan noktası = arpacık tepesi, adsalign ölçer) — modern optik yok; keskin nişancıda eski tip uzun dürbün.
+// 12.174 dönem nişangâhları (stats.js OPTIC_ALLOWED): ww_peep diyoptr / hayalet halka gez, ww_scout öne monteli 1,5× öncü dürbün (saydam mercek + siyah direk retikül),
+// ww_sc25 / ww_sc4 kelepçeli halkalarda uzun dürbün (dürbün örtüsü). Takılınca açık gez (çentik / yaprak) çizilmez; arpacık öncü dürbünde tüpün gölgesinde kalır.
 const { done, newKit, circ, guard } = S3PARTS;
 
 const WOOD = '#4f3220', WOOD_D = '#432a1a', BLUE = '#2b2d30', BLUE_M = '#36383b', BRASS = '#a0803f';
@@ -30,6 +32,59 @@ function rearNotch(k, z, yb, line, w = 0.011, n = 0.0028, slot = 'metal') {
 function rearPeep(k, z, yb, line, R = 0.0055, slot = 'metal') {
   k.xsec([[-0.011, yb], [0.011, yb], [0.011, line + 0.009], [0.006, line + 0.013], [-0.006, line + 0.013], [-0.011, line + 0.009]], z + 0.003, z - 0.003, slot, { holes: [circ(0, line, R, 16)], c: 0.0006 });
 }
+// 12.174 Diyoptr "hayalet halka": büyük delikli ince halka (R iç yarıçap, t kenar) + alt dikme (yb → halka dibi) + isteğe bağlı iki koruma kulağı; halka ortası = line
+function rearGhost(k, z, yb, line, R = 0.0062, t = 0.0013, ears = true, slot = 'metal') {
+  k.xsec(circ(0, line, R + t, 20), z + 0.002, z - 0.002, slot, { holes: [circ(0, line, R, 20)], c: 0.0004 });
+  k.box([0.006, line - R - yb + 0.0004, 0.004], [0, (yb + line - R + 0.0004) / 2, z], slot, { c: 0.0008 });       // dikme: halkanın içine girmez (tepesi halkanın dış kenarında)
+  k.box([0.02, 0.004, 0.012], [0, yb + 0.002, z], slot, { c: 0.001 });                                              // alçak taban
+  if (ears) for (const sx of [-1, 1]) k.xsec([[sx * (R + t + 0.0025), yb], [sx * (R + t + 0.006), yb], [sx * (R + t + 0.006), line + 0.002], [sx * (R + t + 0.0035), line + R * 0.7]], z + 0.003, z - 0.003, slot, { c: 0.0005 });   // koruma kulakları (halkanın dışında)
+}
+// 12.174 Öncü dürbün (1,5×, uzun göz mesafeli; namlu üstünde önde): tek parça taban + iki ince kelepçe, ince tüp, göz / objektif çanı, ince göz halkası, siyah dikey direk + ince yatay çizgi
+// (ışıyan yuvada çok koyu: ışıklandırılmaz, adsalign eflatun ölçer). cy = tüp ekseni, ze = göz merceği yüzü, zb0..zb1 taban, yb = taban altı. Saydam mercek: lens (12.162 derinlik maskesi)
+export const SCOUT = { r: 0.0165, rim: 0.0016, dist: 0.36 };      // göz merceği iç yarıçapı / halka kenarı · uzun göz mesafesi 36 cm (göz gövdenin arkasında: mekanizma ekranı kaplamaz) → mercek ekranın ≈ %12,6'sı (ACOG %18), çevresinde dünya
+function scoutScope(k, cy, ze, yb, zb0, zb1, slot = 'body') {
+  const R = SCOUT.r, Ro = R + SCOUT.rim, rt = 0.0105, zo = ze - 0.19;            // zo: objektif ön yüzü (tüp 19 cm)
+  k.box([0.022, cy - rt - yb + 0.0006, zb0 - zb1], [0, (yb + cy - rt + 0.0006) / 2, (zb0 + zb1) / 2], slot, { c: 0.002 });      // tek parça taban (namlu / el siperi üstünde)
+  for (const z of [zb0 - 0.012, zb1 + 0.012]) k.ring(rt + 0.0016, 0.0016, [0, cy, z], slot, { ax: 'z', seg: 14, rs: 4, d: 1 });     // kelepçe halkaları (tüpü sarar)
+  k.cyl(rt, rt, ze - 0.036 - (zo + 0.03), [0, cy, (ze - 0.036 + zo + 0.03) / 2], slot, { seg: 14 });                    // tüp
+  k.cyl(rt, Ro, 0.02, [0, cy, ze - 0.026], slot, { seg: 16 });                                                        // göz çanı (konik)
+  k.cyl(Ro, Ro, 0.01, [0, cy, ze - 0.011], slot, { seg: 16, sh: 0.9, d: 1 });                                               // (göz halkasının arkasında biter: yüzeyler üst üste binmez)
+  k.cyl(0.0128, rt, 0.018, [0, cy, zo + 0.021], slot, { seg: 14 });                                                  // objektif konisi + çanı
+  k.cyl(0.0128, 0.0128, 0.012, [0, cy, zo + 0.006], slot, { seg: 14, sh: 0.9, d: 1 });
+  k.cyl(0.0118, 0.0118, 0.002, [0, cy, zo - 0.0005], 'lens', { seg: 14, d: 1 });                                     // ön mercek
+  k.cyl(R, R, 0.002, [0, cy, ze - 0.0012], 'lens', { seg: 16, d: 1 });                                                // göz merceği
+  k.xsec(circ(0, cy, Ro, 28), ze + 0.0002, ze - 0.006, slot, { holes: [circ(0, cy, R + 0.0001, 28)], c: 0.0004, cap: 1, sh: 0.8, d: 1 });      // ince göz halkası (ön yüzü mercek düzleminde, 12.129)
+  if (!k.lod) {
+    const zr = ze + 0.0006, w = 0.0006, tip = 0.0017, lh = 0.00028;      // 36 cm'de direk ≈ 4 px, çizgi ≈ 2 px (900 px ekran)
+    k.xsec([[-w, cy - R - 0.0004], [w, cy - R - 0.0004], [w, cy - tip], [0, cy], [-w, cy - tip]], zr + 0.0003, zr, 'glow', { sh: 0.012 });   // dikey direk (sivri ucu = mermi noktası)
+    k.xsec([[-R - 0.0004, cy - lh], [R + 0.0004, cy - lh], [R + 0.0004, cy + lh], [-R - 0.0004, cy + lh]], zr + 0.0003, zr, 'glow', { sh: 0.012 });   // ince yatay çizgi
+  }
+  return { sight: [0, cy, ze], dist: SCOUT.dist, overlay: 'lens', lens: [R, 0, cy, ze + 0.0003] };
+}
+// 12.174 Dönem keskin nişancı dürbünü (2,5× kısa / 4× uzun tüp): iki kelepçeli halka + bloklar (yb'den), göz / objektif çanı, kuleler, göz merceğinde üç direkli koyu retikül
+// (dürbün örtüsü tam nişanda devralır; geçişte görünen 3B retikül HUD'daki .ww ile aynı oranda). zr: halka z'leri
+function wwScope(k, mag, cy, ze, yb, zr, slot = 'acc') {
+  const L = mag >= 4 ? 0.25 : 0.17, Rb = mag >= 4 ? 0.02 : 0.0165, zt = ze - 0.08;      // tüp boyu, objektif çanı yarıçapı, tüp arka ucu
+  for (const z of zr) { k.box([0.022, cy - 0.016 - yb, 0.018], [0, (yb + cy - 0.016) / 2, z], slot === 'acc' ? 'body' : slot, { c: 0.002 }); k.ring(0.0158, 0.0035, [0, cy, z], slot === 'acc' ? 'body' : slot, { ax: 'z', seg: 12, d: 1 }); }
+  k.cyl(0.0125, 0.0125, L, [0, cy, zt - L / 2], slot, { seg: 14 });
+  k.cyl(0.0125, 0.017, 0.03, [0, cy, zt + 0.015], slot, { seg: 14 });
+  k.cyl(0.017, 0.017, 0.05, [0, cy, ze - 0.025], slot, { seg: 14, sh: 0.9 });
+  k.cyl(Rb, 0.0125, 0.06, [0, cy, zt - L - 0.03], slot, { seg: 14 });
+  k.cyl(Rb, Rb, 0.04, [0, cy, zt - L - 0.08], slot, { seg: 14, sh: 0.9 });
+  const zk = zt - L * 0.55;                                                                                              // kuleler (tüp ortası)
+  k.cyl(0.0095, 0.0095, 0.018, [0, cy + 0.021, zk], slot, { ax: 'y', seg: 10 });
+  k.cyl(0.0095, 0.0095, 0.018, [0.021, cy, zk], slot, { ax: 'x', seg: 10, d: 1 });
+  k.cyl(Rb - 0.002, Rb - 0.002, 0.002, [0, cy, zt - L - 0.1], 'lens', { seg: 14 });
+  k.cyl(0.0155, 0.0155, 0.002, [0, cy, ze - 0.001], 'lens', { seg: 14, d: 1 });
+  if (!k.lod) {                                                                                                          // üç direk (yan direkler + sivri alt direk, uç = nişan noktası; HUD #scope .ww ile aynı oran: 1 birim = r/100)
+    const r = 0.0155, u = r / 100, z0 = ze + 0.0004, z1 = ze + 0.0001;
+    for (const sx of [-1, 1]) k.xsec([[sx * 100 * u, cy - 1.6 * u], [sx * 13 * u, cy - 1.6 * u], [sx * 9.5 * u, cy - 0.45 * u], [sx * 9.5 * u, cy + 0.45 * u], [sx * 13 * u, cy + 1.6 * u], [sx * 100 * u, cy + 1.6 * u]].map(([x, y]) => [x, y]), z0, z1, 'glow', { sh: 0.012 });
+    k.xsec([[-1.9 * u, cy - 100 * u], [1.9 * u, cy - 100 * u], [1.9 * u, cy - 6.5 * u], [0, cy], [-1.9 * u, cy - 6.5 * u]], z0, z1, 'glow', { sh: 0.012 });
+  }
+  return { sight: [0, cy, ze], dist: ADS_DIST.scope, overlay: 'scope' };
+}
+const MAG = { ww_sc25: 2.5, ww_sc4: 4 };
+
 // Arpacık (tepe = line) + kaide; hood: kalkan halkası, ears: iki kulak
 function frontPost(k, z, yb, line, o = {}) {
   k.box([0.016, 0.008, 0.022], [0, yb + 0.004, z], 'metal', { c: 0.0015 });
@@ -49,7 +104,7 @@ function round(k, x, y, z, g, len = 0.06) { k.cyl(0.0048, 0.0048, len, [x, y, z]
 
 // ───────────────────────── Sürgülü Tüfek (Kar98k / Mosin tarzı) ─────────────────────────
 // Klips doldurma: sürgü açılır, beşli şerit klips gövdenin üstünden bastırılır (mag grubu = şerit klips, yalnız doldururken görünür), sürgü kapanır
-function boltRifle(k, scoped) {
+function boltRifle(k, mode = 'iron') {      // 12.174 mode: iron | peep (gövde arkasında diyoptr) | scout (öne monteli 1,5×) | scope (halkalı dürbün)
   const lod = k.lod, line = 0.071, bx = 0.036;                                                     // nişan çizgisi, mekanizma ekseni yüksekliği
   // kundak: dipçik + yarı tabanca kabzası + uzun ön kundak (tek profil)
   k.prof([[0.405, 0.03], [0.3, 0.022], [0.17, 0.008], [0.088, -0.004], [0.04, 0.006], [-0.01, 0.016], [-0.27, 0.016], [-0.6, 0.016], [-0.614, 0.008], [-0.614, -0.01], [-0.42, -0.02], [-0.2, -0.026], [-0.07, -0.028],
@@ -70,11 +125,11 @@ function boltRifle(k, scoped) {
   k.cyl(0.012, 0.012, 0.12, [0, bx + 0.002, -0.31], 'metal', { seg: 10 });
   k.cyl(0.0085, 0.0085, 0.39, [0, bx + 0.002, -0.565], 'metal', { seg: 10 });
   k.cyl(0.0095, 0.0095, 0.012, [0, bx + 0.002, -0.755], 'metal', { seg: 10, sh: 0.8 });
-  if (!scoped) {
-    k.box([0.026, 0.012, 0.06], [0, bx + 0.016, -0.285], 'metal', { c: 0.002 });
-    rearNotch(k, -0.277, bx + 0.022, line);
-    frontPost(k, -0.728, bx + 0.0105, line, { hood: true });
-  } else k.box([0.016, 0.008, 0.022], [0, bx + 0.014, -0.728], 'metal', { c: 0.0015 });                                         // dürbünlüde ön kaide (arpacık yok)
+  if (mode === 'iron' || mode === 'peep') k.box([0.026, 0.012, 0.06], [0, bx + 0.016, -0.285], 'metal', { c: 0.002 });         // gez kaidesi (diyoptrde yaprak yatık / yok)
+  if (mode === 'iron') rearNotch(k, -0.277, bx + 0.022, line);
+  if (mode === 'peep') rearGhost(k, -0.004, 0.049, line, 0.0058, 0.0012, false);                                             // gövde arka köprüsünde diyoptr (sürgü yolunun önünde)
+  if (mode !== 'scope') frontPost(k, -0.728, bx + 0.0105, line, { hood: true });
+  else k.box([0.016, 0.008, 0.022], [0, bx + 0.014, -0.728], 'metal', { c: 0.0015 });                                           // dürbünlüde ön kaide (arpacık yok)
   k.ring(0.011, 0.0025, [0, -0.11, 0.3], 'metal', { d: 1 }); k.ring(0.011, 0.0025, [0, -0.012, -0.55], 'metal', { d: 1 });       // askı halkaları
   // sürgü (grup, pivot = mekanizma ekseni): gövde + topuz kuyruğu + aşağı bükük kol + top
   k.cyl(0.0125, 0.0125, 0.05, [0, bx, 0.045], 'metal', { g: 'bolt', seg: 10 });
@@ -86,37 +141,28 @@ function boltRifle(k, scoped) {
   k.box([0.012, 0.052, 0.004], [0, bx + 0.049, -0.044], 'metal', { g: 'mag' });
   return { line, bx };
 }
-export function ww_bolt(mat = skinMaterial('ww_bolt'), lod = false) {
-  const k = newKit(lod), { line } = boltRifle(k, false);
-  return done(k, mat, { name: 'Sürgülü Tüfek', hold: 'rifle', gripR: [0, -0.035, 0.052], gripL: [0, -0.026, -0.4], muzzle: [0, 0.038, -0.762], length: 1.17, boltPivot: 0.036, magAxis: [0, 1, 0], magHidden: true, chargePos: [0.045, 0.02, 0.05] },
-    { sight: [0, line, -0.277], pivot: [0, line, -0.728], dist: 0.56, overlay: 'none' });      // göz dipçik sırtında: sürgü topuzu ekranın altında küçük kalır
+const BOLT_META = (name) => ({ name, hold: 'rifle', gripR: [0, -0.035, 0.052], gripL: [0, -0.026, -0.4], muzzle: [0, 0.038, -0.762], length: 1.17, boltPivot: 0.036, magAxis: [0, 1, 0], magHidden: true, chargePos: [0.045, 0.02, 0.05] });
+export function ww_bolt(mat = skinMaterial('ww_bolt'), lod = false, o = 'iron') {
+  const k = newKit(lod);
+  if (MAG[o]) { boltRifle(k, 'scope'); return done(k, mat, BOLT_META('Sürgülü Tüfek'), wwScope(k, MAG[o], 0.104, 0.115, 0.048, MAG[o] >= 4 ? [-0.02, -0.17] : [-0.02, -0.12], 'body')); }      // 12.174: dürbünlü tüfeğin halkalı dürbünü (mavi çelik)
+  if (o === 'ww_scout') { boltRifle(k, 'scout'); return done(k, mat, BOLT_META('Sürgülü Tüfek'), scoutScope(k, 0.075, -0.205, 0.05, -0.245, -0.345)); }     // 12.174: gez kaidesinin yerinde, namlu / el siperi üstünde
+  const { line } = boltRifle(k, o === 'ww_peep' ? 'peep' : 'iron');
+  if (o === 'ww_peep') return done(k, mat, BOLT_META('Sürgülü Tüfek'), { sight: [0, line, -0.004], pivot: [0, line, -0.728], dist: ADS_DIST.iron, overlay: 'none' });
+  return done(k, mat, BOLT_META('Sürgülü Tüfek'), { sight: [0, line, -0.277], pivot: [0, line, -0.728], dist: 0.56, overlay: 'none' });      // göz dipçik sırtında: sürgü topuzu ekranın altında küçük kalır
 }
 
 // ───────────────────────── Dürbünlü Tüfek (eski tip uzun dürbün, 4×) ─────────────────────────
-export function ww_sniper(mat = skinMaterial('ww_sniper'), lod = false) {
-  const k = newKit(lod);
-  boltRifle(k, true);
-  const cy = 0.104;
-  // halkalı kaide (iki blok + halka), uzun ince tüp, göz / objektif çanı, kuleler, mercekler, göz merceğinde ince artı (HUD dürbünü devralır)
-  for (const z of [-0.02, -0.17]) { k.box([0.022, cy - 0.06, 0.018], [0, (0.052 + cy - 0.016) / 2, z], 'body', { c: 0.002 }); k.ring(0.0158, 0.0035, [0, cy, z], 'body', { ax: 'z', seg: 12, d: 1 }); }
-  k.cyl(0.0125, 0.0125, 0.25, [0, cy, -0.09], 'acc', { seg: 14 });
-  k.cyl(0.0125, 0.017, 0.03, [0, cy, 0.05], 'acc', { seg: 14 });
-  k.cyl(0.017, 0.017, 0.05, [0, cy, 0.09], 'acc', { seg: 14, sh: 0.9 });
-  k.cyl(0.02, 0.0125, 0.06, [0, cy, -0.245], 'acc', { seg: 14 });
-  k.cyl(0.02, 0.02, 0.04, [0, cy, -0.295], 'acc', { seg: 14, sh: 0.9 });
-  k.cyl(0.0095, 0.0095, 0.018, [0, cy + 0.021, -0.1], 'acc', { ax: 'y', seg: 10 });
-  k.cyl(0.0095, 0.0095, 0.018, [0.021, cy, -0.1], 'acc', { ax: 'x', seg: 10, d: 1 });
-  k.cyl(0.018, 0.018, 0.002, [0, cy, -0.315], 'lens', { seg: 14 });
-  k.cyl(0.0155, 0.0155, 0.002, [0, cy, 0.114], 'lens', { seg: 14, d: 1 });
-  for (const [w, hh] of [[0.012, 0.0004], [0.0004, 0.012]]) k.box([w, hh, 0.0005], [0, cy, 0.1154], 'glow', { d: 1 });
-  return done(k, mat, { name: 'Dürbünlü Tüfek', hold: 'rifle', gripR: [0, -0.035, 0.052], gripL: [0, -0.026, -0.4], muzzle: [0, 0.038, -0.762], length: 1.17, boltPivot: 0.036, magAxis: [0, 1, 0], magHidden: true, chargePos: [0.045, 0.02, 0.05] },
-    { sight: [0, cy, 0.115], dist: ADS_DIST.scope, overlay: 'scope' });
+// halkalı kaide (iki blok + halka), uzun ince tüp, göz / objektif çanı, kuleler, mercekler, göz merceğinde üç direkli koyu retikül (HUD dürbünü devralır). 12.174: 2,5× kısa tüp seçeneği
+export function ww_sniper(mat = skinMaterial('ww_sniper'), lod = false, o = 'ww_sc4') {
+  const k = newKit(lod), m = MAG[o] || 4;
+  boltRifle(k, 'scope');
+  return done(k, mat, BOLT_META('Dürbünlü Tüfek'), wwScope(k, m, 0.104, 0.115, 0.048, m >= 4 ? [-0.02, -0.17] : [-0.02, -0.12], 'acc'));
 }
 
 // ───────────────────────── Yarı Otomatik Tüfek (M1 Garand tarzı) ─────────────────────────
 // Sekiz fişeklik klips (mag grubu, gövdenin içinde, üstü görünür). Son mermide klips "ping" diye yukarı fırlar; doldururken kurma kolu geride, klips bastırılır, kol kapanır.
-export function ww_semi(mat = skinMaterial('ww_semi'), lod = false) {
-  const k = newKit(lod), line = 0.082, bx = 0.036;
+export function ww_semi(mat = skinMaterial('ww_semi'), lod = false, o = 'iron') {
+  const k = newKit(lod), line = 0.082, bx = 0.036, open = o === 'iron' || o === 'ww_peep';      // 12.174: dürbünde arka gez (kulaklar + delik) yok
   k.prof([[0.41, 0.028], [0.3, 0.02], [0.16, 0.004], [0.09, -0.006], [0.045, 0.008], [0.0, 0.016], [-0.18, 0.016], [-0.57, 0.016], [-0.585, 0.006], [-0.585, -0.012], [-0.4, -0.02], [-0.18, -0.026], [-0.09, -0.03],
     [-0.04, -0.038], [0.012, -0.078], [0.052, -0.092], [0.09, -0.078], [0.25, -0.104], [0.41, -0.132]], 0.044, 'furn', { c: 0.006 });
   k.prof([[0.41, 0.03], [0.42, 0.03], [0.42, -0.135], [0.41, -0.135]], 0.046, 'metal', { c: 0.002 });
@@ -126,8 +172,10 @@ export function ww_semi(mat = skinMaterial('ww_semi'), lod = false) {
   k.xsec([[-0.019, 0.0], [0.019, 0.0], [0.019, 0.05], [0.014, 0.058], [-0.014, 0.058], [-0.019, 0.05]], 0.07, -0.17, 'body', { c: 0.003 });
   k.box([0.0045, 0.03, 0.09], [0.0175, 0.044, -0.08], 'body', { sh: 0.4, d: 1 });                                         // klips yuvası kenarları (koyu)
   k.box([0.0045, 0.03, 0.09], [-0.0175, 0.044, -0.08], 'body', { sh: 0.4, d: 1 });
-  for (const sx of [-1, 1]) k.box([0.004, 0.026, 0.02], [sx * 0.014, 0.068, 0.062], 'metal', { c: 0.001 });
-  rearPeep(k, 0.062, 0.056, line, 0.0052);
+  if (open) for (const sx of [-1, 1]) k.box([0.004, 0.026, 0.02], [sx * 0.014, 0.068, 0.062], 'metal', { c: 0.001 });
+  if (o === 'iron') rearPeep(k, 0.062, 0.056, line, 0.0052);
+  else if (o === 'ww_peep') rearGhost(k, 0.062, 0.058, line, 0.0064, 0.0012, false);                                          // 12.174: hayalet halka (aynı kulakların arasında, büyük delik)
+  else k.box([0.016, 0.006, 0.02], [0, 0.061, 0.062], 'metal', { c: 0.001 });                                                    // dürbünde: alçak gez kaidesi
   trig(k, 0.0, -0.03);
   // gaz silindiri + namlu + arpacık (kulaklı), süngü tırnağı
   k.cyl(0.0095, 0.0095, 0.42, [0, bx, -0.38], 'metal', { seg: 10 });
@@ -143,12 +191,14 @@ export function ww_semi(mat = skinMaterial('ww_semi'), lod = false) {
   // klips (mag grubu): sekiz fişek şaşırtmalı iki sıra + klips kenarları; yukarıdan bastırılır (magAxis +Y)
   if (!lod) for (let i = 0; i < 8; i++) round(k, (i % 2 ? 0.0045 : -0.0045), 0.034 + Math.floor(i / 2) * 0.0035 + 0.012, -0.072 - (i % 2) * 0.002, 'mag', 0.062);
   for (const sx of [-1, 1]) k.box([0.0015, 0.03, 0.066], [sx * 0.0115, 0.042, -0.075], 'metal', { g: 'mag' });
-  return done(k, mat, { name: 'Yarı Otomatik Tüfek', hold: 'rifle', gripR: [0, -0.036, 0.05], gripL: [0, -0.026, -0.44], muzzle: [0, bx, -0.8], length: 1.1, boltPivot: bx, boltSlide: true, magAxis: [0, 1, 0], chargePos: [0.035, 0.03, -0.05], pingEmpty: true },
-    { sight: [0, line, 0.062], pivot: [0, line, -0.705], dist: ADS_DIST.iron, overlay: 'none' });
+  const meta = { name: 'Yarı Otomatik Tüfek', hold: 'rifle', gripR: [0, -0.036, 0.05], gripL: [0, -0.026, -0.44], muzzle: [0, bx, -0.8], length: 1.1, boltPivot: bx, boltSlide: true, magAxis: [0, 1, 0], chargePos: [0.035, 0.03, -0.05], pingEmpty: true };
+  if (MAG[o]) return done(k, mat, meta, wwScope(k, MAG[o], 0.106, 0.128, 0.058, [0.025, -0.1], 'body'));                         // 12.174: gövde üstünde yüksek halkalar (klips yukarıdan yine girer)
+  if (o === 'ww_scout') return done(k, mat, meta, scoutScope(k, 0.0745, -0.172, 0.0535, -0.2, -0.3));                          // 12.174: arka el siperi üstünde, gövdenin önünde
+  return done(k, mat, meta, { sight: [0, line, 0.062], pivot: [0, line, -0.705], dist: ADS_DIST.iron, overlay: 'none' });
 }
 
 // ───────────────────────── Kundaklı HMK (Thompson tarzı; Mavi) ─────────────────────────
-export function ww_smgb(mat = skinMaterial('ww_smgb'), lod = false) {
+export function ww_smgb(mat = skinMaterial('ww_smgb'), lod = false, o = 'iron') {
   const k = newKit(lod), line = 0.084, bx = 0.036;
   // gövde (kutu, yuvarlak sırt), kurma topuzu yarığı, atım penceresi
   k.xsec([[-0.02, -0.002], [0.02, -0.002], [0.02, 0.05], [0.015, 0.06], [-0.015, 0.06], [-0.02, 0.05]], 0.07, -0.205, 'body', { c: 0.003 });
@@ -169,7 +219,7 @@ export function ww_smgb(mat = skinMaterial('ww_smgb'), lod = false) {
   if (!lod) for (const sx of [-1, 1]) k.box([0.003, 0.004, 0.03], [sx * 0.004, bx + 0.016, -0.48], 'metal', { sh: 0.3 });     // kompansatör yarıkları
   frontPost(k, -0.49, bx + 0.015, line);
   k.box([0.022, 0.01, 0.03], [0, 0.064, 0.045], 'metal', { c: 0.002 });
-  rearPeep(k, 0.042, 0.068, line, 0.0048);
+  if (o === 'ww_peep') rearGhost(k, 0.042, 0.069, line, 0.006, 0.0012, true); else rearPeep(k, 0.042, 0.068, line, 0.0048);      // 12.174: hayalet halka
   // şarjör (grup): düz 30'luk, tetiğin önünde
   k.prof([[-0.075, 0.0], [-0.108, 0.0], [-0.108, -0.2], [-0.075, -0.2]], 0.024, 'body', { c: 0.002, g: 'mag', sh: 0.95 });
   k.box([0.026, 0.008, 0.036], [0, -0.203, -0.0915], 'metal', { g: 'mag', c: 0.0015 });
@@ -178,7 +228,7 @@ export function ww_smgb(mat = skinMaterial('ww_smgb'), lod = false) {
 }
 
 // ───────────────────────── Katlanır HMK (MP40 tarzı; Kırmızı) ─────────────────────────
-export function ww_smgr(mat = skinMaterial('ww_smgr'), lod = false) {
+export function ww_smgr(mat = skinMaterial('ww_smgr'), lod = false, o = 'iron') {
   const k = newKit(lod), line = 0.083, bx = 0.042;
   // gövde borusu + alt gövde (bakalit kabuk), kurma kolu (sol), atım penceresi
   k.cyl(0.0175, 0.0175, 0.27, [0, bx, -0.085], 'body', { seg: 12 });
@@ -196,7 +246,7 @@ export function ww_smgr(mat = skinMaterial('ww_smgr'), lod = false) {
   frontPost(k, -0.405, bx + 0.0095, line, { hood: true });
   // arka gez (yatık / dik yaprak) + katlanır metal dipçik (açık): iki çubuk + omuz plakası
   k.box([0.022, 0.008, 0.026], [0, bx + 0.02, 0.005], 'metal', { c: 0.002 });
-  rearNotch(k, 0.006, bx + 0.024, line, 0.01, 0.0026);
+  if (o === 'ww_peep') rearGhost(k, 0.006, bx + 0.024, line, 0.0058, 0.0012, true); else rearNotch(k, 0.006, bx + 0.024, line, 0.01, 0.0026);      // 12.174: çentik yerine diyoptr
   for (const sx of [-1, 1]) bar(k, [0.05, 0.03], [0.31, -0.03], 0.007, 0.009, 'metal', { x: sx * 0.013 });
   bar(k, [0.05, -0.006], [0.31, -0.07], 0.007, 0.009, 'metal');
   k.box([0.03, 0.1, 0.012], [0, -0.035, 0.315], 'metal', { c: 0.003 });
@@ -209,7 +259,7 @@ export function ww_smgr(mat = skinMaterial('ww_smgr'), lod = false) {
 }
 
 // ───────────────────────── Hafif Makineli Tüfek (BAR tarzı; ağır destek) ─────────────────────────
-export function ww_lmg(mat = skinMaterial('ww_lmg'), lod = false) {
+export function ww_lmg(mat = skinMaterial('ww_lmg'), lod = false, o = 'iron') {
   const k = newKit(lod), line = 0.098, bx = 0.038;
   // uzun gövde, kurma kolu (sol), atım penceresi
   k.xsec([[-0.019, 0.0], [0.019, 0.0], [0.019, 0.048], [0.014, 0.056], [-0.014, 0.056], [-0.019, 0.048]], 0.07, -0.29, 'body', { c: 0.003 });
@@ -233,7 +283,7 @@ export function ww_lmg(mat = skinMaterial('ww_lmg'), lod = false) {
   for (const sx of [-1, 1]) { bar(k, [-0.83, bx - 0.02], [-0.56, -0.03], 0.007, 0.008, 'metal', { x: sx * 0.022 }); k.box([0.014, 0.006, 0.026], [sx * 0.022, -0.034, -0.55], 'metal', { d: 1 }); }
   // arka dioptri (yüksek yaprak) + taşıma kolu
   k.box([0.026, 0.022, 0.04], [0, 0.066, 0.045], 'metal', { c: 0.002 });
-  rearPeep(k, 0.05, 0.077, line, 0.0052);
+  if (o === 'ww_peep') rearGhost(k, 0.05, 0.077, line, 0.0064, 0.0012, true); else rearPeep(k, 0.05, 0.077, line, 0.0052);      // 12.174: hayalet halka
   // şarjör (grup): düz 20'lik
   k.prof([[-0.08, -0.006], [-0.17, -0.006], [-0.17, -0.12], [-0.08, -0.12]], 0.034, 'body', { c: 0.002, g: 'mag', sh: 0.95 });
   k.box([0.036, 0.008, 0.094], [0, -0.123, -0.125], 'metal', { g: 'mag', c: 0.0015 });
@@ -243,7 +293,7 @@ export function ww_lmg(mat = skinMaterial('ww_lmg'), lod = false) {
 
 // ───────────────────────── Ağır Makineli (MG42 tarzı; Kırmızı ağır destek) ─────────────────────────
 // Delikli namlu kılıfı (yan yarıklar), sac gövde, besleme kapağı + solda 50'lik şerit tamburu (mag grubu), çatal ayak (ön, katlı), koyu kundak
-export function ww_mg(mat = skinMaterial('ww_mg'), lod = false) {
+export function ww_mg(mat = skinMaterial('ww_mg'), lod = false, o = 'iron') {
   const k = newKit(lod), line = 0.094, bx = 0.042;
   k.xsec([[-0.02, -0.004], [0.02, -0.004], [0.02, 0.06], [0.015, 0.066], [-0.015, 0.066], [-0.02, 0.06]], 0.07, -0.2, 'body', { c: 0.003 });
   k.xsec([[-0.024, 0.04], [0.024, 0.04], [0.024, 0.07], [0.018, 0.078], [-0.018, 0.078], [-0.024, 0.07]], -0.02, -0.17, 'body', { c: 0.003, sh: 1.06 });   // besleme kapağı
@@ -258,7 +308,7 @@ export function ww_mg(mat = skinMaterial('ww_mg'), lod = false) {
   frontPost(k, -0.56, 0.068, line, { ears: true });
   // arka gez (tanjant yaprak, besleme kapağının önünde) + kundak (koyu) + kabza + tetik
   k.box([0.024, 0.01, 0.05], [0, 0.083, -0.19], 'metal', { c: 0.002 });
-  rearNotch(k, -0.18, 0.088, line, 0.01, 0.0026);
+  if (o === 'ww_peep') rearGhost(k, -0.008, 0.066, line, 0.006, 0.0012, true); else rearNotch(k, -0.18, 0.088, line, 0.01, 0.0026);      // 12.174: diyoptr gövde arkasında (yaprak gez yatık)
   k.prof([[0.07, 0.05], [0.12, 0.046], [0.36, 0.022], [0.36, -0.09], [0.3, -0.08], [0.15, -0.034], [0.07, -0.02]], 0.04, 'furn', { c: 0.006 });
   k.prof([[0.36, 0.024], [0.372, 0.024], [0.372, -0.094], [0.36, -0.094]], 0.042, 'metal', { c: 0.002 });
   k.prof([[0.012, -0.004], [0.05, -0.004], [0.056, -0.018], [0.086, -0.114], [0.08, -0.126], [0.048, -0.126], [0.042, -0.114], [0.022, -0.04], [0.012, -0.024]], 0.032, 'furn', { c: 0.005, pat: lod ? 0 : 1 });
@@ -270,7 +320,7 @@ export function ww_mg(mat = skinMaterial('ww_mg'), lod = false) {
   k.cyl(0.045, 0.045, 0.05, [-0.05, 0.0, -0.1], 'body', { ax: 'x', seg: lod ? 8 : 14, g: 'mag' });
   if (!lod) for (let i = 0; i < 4; i++) k.box([0.008, 0.012, 0.006], [-0.034, 0.05, -0.085 - i * 0.012], 'acc', { g: 'mag' });
   return done(k, mat, { name: 'Ağır Makineli', hold: 'rifle', gripR: [0, -0.034, 0.04], gripL: [0, 0.004, -0.31], muzzle: [0, bx, -0.69], length: 1.12, magAxis: [-1, -0.3, 0] },
-    { sight: [0, line, -0.18], pivot: [0, line, -0.56], dist: 0.42, overlay: 'none' });
+    o === 'ww_peep' ? { sight: [0, line, -0.008], pivot: [0, line, -0.56], dist: 0.248, overlay: 'none' } : { sight: [0, line, -0.18], pivot: [0, line, -0.56], dist: 0.42, overlay: 'none' });      // diyoptrde göz aynı yerde (z 0,24)
 }
 
 // ───────────────────────── Tabanca (subay tabancası; açık horoz, ahşap kabza) ─────────────────────────

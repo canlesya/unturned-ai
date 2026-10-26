@@ -4,7 +4,7 @@ import { addStrings } from './index.js';
 addStrings('tr', {
   'tc.n.joy': 'Joystick', 'tc.n.fire': 'Ateş', 'tc.n.fire2': 'Sol ateş', 'tc.n.ads': 'Nişan', 'tc.n.jump': 'Zıpla', 'tc.n.crouch': 'Çömel', 'tc.n.reload': 'Şarjör',
   'tc.n.swap': 'Silah değiştir', 'tc.n.nade': 'Ekipman', 'tc.n.third': '3. şahıs', 'tc.n.optic': 'Nişangâh seç', 'tc.n.abil': 'Zombi gücü', 'tc.n.breath': 'Nefes tut', 'tc.n.pause': 'Duraklat', 'tc.n.score': 'Skor',
-  'tc.op.iron': 'DEMİR', 'tc.op.reddot': 'RED', 'tc.op.holo': 'HOLO',
+  'tc.op.iron': 'DEMİR', 'tc.op.reddot': 'RED', 'tc.op.holo': 'HOLO', 'tc.op.ww_peep': 'DİYOPTR',
   'tc.opTitle': 'NİŞANGÂH', 'tc.opZoom': '{n}× yakınlaştırma', 'tc.opHint': 'Seçmek için dokun · kapatmak için boşluğa dokun',
   'tc.ready': 'HAZIR',
   'tc.runLock': 'KOŞU KİLİTLİ', 'tc.rot': 'Telefonu yan çevir', 'tc.rotSub': 'Oyun yatay ekranda oynanır',
@@ -22,7 +22,7 @@ addStrings('tr', {
 addStrings('en', {
   'tc.n.joy': 'Joystick', 'tc.n.fire': 'Fire', 'tc.n.fire2': 'Left fire', 'tc.n.ads': 'Aim', 'tc.n.jump': 'Jump', 'tc.n.crouch': 'Crouch', 'tc.n.reload': 'Reload',
   'tc.n.swap': 'Swap weapon', 'tc.n.nade': 'Equipment', 'tc.n.third': '3rd person', 'tc.n.optic': 'Pick sight', 'tc.n.abil': 'Zombie ability', 'tc.n.breath': 'Hold breath', 'tc.n.pause': 'Pause', 'tc.n.score': 'Score',
-  'tc.op.iron': 'IRON', 'tc.op.reddot': 'RED', 'tc.op.holo': 'HOLO',
+  'tc.op.iron': 'IRON', 'tc.op.reddot': 'RED', 'tc.op.holo': 'HOLO', 'tc.op.ww_peep': 'PEEP',
   'tc.opTitle': 'SIGHT', 'tc.opZoom': '{n}× zoom', 'tc.opHint': 'Tap to pick · tap empty space to close',
   'tc.ready': 'READY',
   'tc.runLock': 'SPRINT LOCKED', 'tc.rot': 'Turn your phone sideways', 'tc.rotSub': 'The game is played in landscape',

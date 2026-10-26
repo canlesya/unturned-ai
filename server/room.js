@@ -1,5 +1,5 @@
 // Bir oda = başsız bir Game + bağlı oyuncular. Sabit adımla (SIM_HZ) çalışır, her SNAP_EVERY adımda snapshot yollar.
-import { Game } from '../src/game/game.js';
+import { Game, applyOpticPrefs, cleanFront } from '../src/game/game.js';
 import { SIM_DT, SIM_HZ, SNAP_EVERY, packSoldier, slowSig, cleanName } from '../src/net/protocol.js';
 import { CLASS_DEFS, WSTATS, ZTYPES, ZT_ORDER, ZOMBIE, cleanSkins } from '../src/game/stats.js';
 import { defaultTickets } from '../src/game/match.js';
@@ -345,9 +345,14 @@ export class Room {
     if (!c) return;
     const h = c.h, g = this.game, str = (v) => (typeof v === 'string' ? v.slice(0, 24) : undefined);
     if (typeof m.optic === 'string' && h.s.alive) h.s.setOptic(m.optic);             // T tekerleği: nişangâh seçimi hemen geçerli
+    if (m.fo && typeof m.fo === 'object' && !m.loadout) applyOpticPrefs(h.s, { fo: m.fo });   // 12.174: doğuş ekranında dönem nişangâhı (yalnız o silaha izinli dönem nişangâhı)
     if (typeof m.cls === 'string' && CLASS_DEFS[m.cls] && m.cls !== 'zombie') h.pendingClass = c.pref.cls = m.cls;
     if (typeof m.zt === 'string' && ZTYPES[m.zt]) h.pendingZ = m.zt;                  // Enfekte: bir sonraki doğuşta zombi türü
-    if (m.loadout && typeof m.loadout === 'object') h.pendingLoadout = c.pref.loadout = { primary: str(m.loadout.primary), secondary: str(m.loadout.secondary), gadget: str(m.loadout.gadget), melee: str(m.loadout.melee) };
+    if (m.loadout && typeof m.loadout === 'object') {
+      h.pendingLoadout = c.pref.loadout = { primary: str(m.loadout.primary), secondary: str(m.loadout.secondary), gadget: str(m.loadout.gadget), melee: str(m.loadout.melee), front: cleanFront(m.loadout.front) };
+      applyOpticPrefs(h.s, m.loadout);                                               // 12.174: nişangâh tercihleri (op / fo; yalnız bilinen / o silaha izinli dönem nişangâhı)
+      c.pref.loadout.op = h.s.optic; c.pref.loadout.fo = { ...h.s.optics };            // sonraki maça otomatik geçişte de
+    }
     if (m.skins !== undefined) h.s.skins = c.pref.skins = cleanSkins(m.skins);           // menüde / oyunda kaplama değişti: yavaş alan imzası değişir → bir kez yayınlanır
     if (typeof m.spawn === 'string') h.spawnChoice = m.spawn === 'base' || g.mode.objectives.some((o) => o.id === m.spawn) ? m.spawn : 'base';
   }

@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createCharacter } from '../models/character.js';
-import { WSTATS, CLASS_DEFS, OPTICS, OPTIC_ORDER, OPTIC_ALLOWED, resolveOptic, makeLoadout, frontLoadout, TAC_RELOAD, BACKSTAB_DMG, ZOMBIE, ZTYPES, BOSS, ZBOSS, ggItems, cleanSkins, spaceLoadout } from './stats.js';
+import { WSTATS, CLASS_DEFS, OPTICS, OPTIC_ORDER, OPTIC_ALLOWED, resolveOptic, cleanEraOptics, makeLoadout, frontLoadout, TAC_RELOAD, BACKSTAB_DMG, ZOMBIE, ZTYPES, BOSS, ZBOSS, ggItems, cleanSkins, spaceLoadout } from './stats.js';
 import { SWING_HIT_K } from './anim.js';
 import { H_STAND, H_CROUCH, H_PRONE } from './collision.js';
 import { dirFromAngles, clamp, rand, lerp } from './util.js';
@@ -44,6 +44,7 @@ export class Soldier {
     this.prone = false; this.proneT = 0;
     this.leanDir = 0; this.leanT = 0; this.leanOff = new THREE.Vector3();
     this.optic = isPlayer ? (game.opts?.optic || 'reddot') : OPTIC_ORDER[Math.floor(Math.random() * OPTIC_ORDER.length)];
+    this.optics = isPlayer ? cleanEraOptics(game.opts?.frontOptics) : {};      // 12.174: silah başına nişangâh (1940'lar silahları; uzak askerlerde ağdan 'op')
     this.sprinting = false; this.ads = false; this.adsT = 0;
     this.eyeY = EYE_STAND;
     this.alive = false;
@@ -128,7 +129,10 @@ export class Soldier {
   }
 
   loadout() { return (this.game.mode?.front && !CLASS_DEFS[this.cls]?.zombie ? frontLoadout : this.game.mode?.space ? spaceLoadout : makeLoadout)(this.cls, this.team, this.choice); }      // 12.157: Uzay enerji silahları · 12.158: Cephe 1940'lar donanımı (FRONT_KIT)      // 12.157: Uzay modunda enerji silahları (stats.js SPACE_CLASS)
-  get opticId() { return resolveOptic(this.item.id, this.optic); }
+  get opticId() { return this.opticFor(this.item.id); }
+  opticFor(id) { return resolveOptic(id, this.optics?.[id] || this.optic); }      // 12.174: silaha özgü seçim (dönem nişangâhları) yoksa genel tercih
+  get scoped() { return !!this.stat.scope || this.opticDef?.overlay === 'scope'; }      // 12.174: dürbünlü silah ya da dürbün takılı tüfek (12.153 / 12.156 kuralları)
+  get adsRate() { const o = this.opticDef, t = o?.adsTime || this.stat.adsTime; return t ? 1 / t : o?.overlay === 'scope' ? 6 : 9 * (o?.adsK || 1); }      // nişana geçiş hızı (1/sn; 12.153 adsTime, 12.174 dönem dürbünü / diyoptr)
   skinOf(id) { return (this.skins && this.skins[id]) || 'std'; }
   get opticDef() { const o = this.opticId; return o ? OPTICS[o] : null; }
   get zoomNow() { const st = this.stat; if (!st.zoom) return 0; return this.opticDef && !st.ball ? this.opticDef.zoom : st.zoom; }      // paintball: nişangâhtan bağımsız hafif yakınlaştırma
@@ -151,7 +155,7 @@ export class Soldier {
     // görünüm: sınıf teçhizatı değişir → modeli yeniden kur
     if (this.model) this.game.scene.remove(this.model.root);
     const pb = this.game.mode?.paintball && !def.zombie;            // paintball modu: herkes paintball oyuncusu kıyafetinde (kişisel boya rengi + forma no)
-    this.model = createCharacter({ team: def.zombie ? 'zomb' : this.team, cls, ztype: this.boss ? 'boss' : this.ztype, skinIndex: this.id, weapon: this.items[0].id, optic: this.optic, outfit: pb ? 'paintball' : this.game.mode?.space && !def.zombie ? 'space' : this.game.mode?.front && !def.zombie ? 'ww2' : null, paint: pb ? paintColorOf(this) : undefined, num: ((this.id * 7 + 11) % 90) + 10 });      // forma no: 10–99, savaşçıya göre sabit · 12.158 Cephe: 1940'lar üniforması
+    this.model = createCharacter({ team: def.zombie ? 'zomb' : this.team, cls, ztype: this.boss ? 'boss' : this.ztype, skinIndex: this.id, weapon: this.items[0].id, optic: this.opticFor(this.items[0].id), outfit: pb ? 'paintball' : this.game.mode?.space && !def.zombie ? 'space' : this.game.mode?.front && !def.zombie ? 'ww2' : null, paint: pb ? paintColorOf(this) : undefined, num: ((this.id * 7 + 11) % 90) + 10 });      // forma no: 10–99, savaşçıya göre sabit · 12.158 Cephe: 1940'lar üniforması
     this.model.root.visible = this.alive;
     this.game.scene.add(this.model.root);
     this._modelWeapon = this.items[0].id;
@@ -188,7 +192,7 @@ export class Soldier {
     const id = this.stat.kind === 'medkit' ? null : this.item.id;
     if (!force && id === this._modelWeapon) return;
     this._modelWeapon = id;
-    const w = this.model.setWeapon(id, this.optic, id ? this.skinOf(id) : 'std');
+    const w = this.model.setWeapon(id, id ? this.opticFor(id) : this.optic, id ? this.skinOf(id) : 'std');
     if (w && WSTATS[id]?.ball) tintPaint(w, paintColorOf(this));                  // paintball: hazne / tüp savaşçının boya renginde
   }
 
@@ -279,8 +283,9 @@ export class Soldier {
     // 12.153: dürbünlü keskin nişancı (st.scope): isabet yalnız dürbün oturunca (adsT 0,6 → 1 yumuşak); belde / geçişte ilk atış indirimi yok (no-scope / erken quickscope şansa kalır)
     // 12.156: insan (oyuncu / sunucudaki insan) için belden keskin nişancı anlamlı isabetsiz (st.noscope koni; eski hip 0,03 → 10 m'de gövdeye %100) ve dürbün
     // TAM oturmadan (adsT < SCOPE_ACC) atış belden sayılır. Botlar eski eğride (bot nişanı ayrı: tacAim + botExtraSpread)
-    const hum = st.scope && (this.isPlayer || this.human), a0 = hum ? SCOPE_ACC : 0.6;
-    const sk = st.scope ? smooth01((this.adsT - a0) / (1 - a0)) : this.adsT;
+    const sc = st.scope || (st === this.stat && this.opticDef?.overlay === 'scope');      // 12.174: sürgülü / yarı otomatik tüfeğe takılan dönem dürbünü de
+    const hum = sc && (this.isPlayer || this.human), a0 = hum ? SCOPE_ACC : 0.6;
+    const sk = sc ? smooth01((this.adsT - a0) / (1 - a0)) : this.adsT;
     let s = lerp(hum ? st.noscope ?? hipv : hipv, adsv, sk);
     s += Math.min(speed * 0.0007, 0.0045) * (1 - this.adsT * 0.65);   // hareket cezası
     if (!this.onGround) s += AIR_SPREAD * (1 - this.adsT * 0.5);            // havadayken (zıplarken) atış çok dağılır
@@ -289,7 +294,7 @@ export class Soldier {
     if (this.crouching) s *= 0.7;
     s += this.bloom;                                                   // seri atışta açılma
     // duran oyuncunun ilk atışı (kısa bir aradan sonra) isabetli olsun
-    if (this.sinceShot > 0.3 && speed < 1.5 && this.onGround) s *= st.scope ? 1 - 0.8 * sk : 0.2;
+    if (this.sinceShot > 0.3 && speed < 1.5 && this.onGround) s *= sc ? 1 - 0.8 * sk : 0.2;
     return s + this.botExtraSpread;
   }
 
@@ -383,7 +388,7 @@ export class Soldier {
     this.sinceShot = 0;
     this.bloom = st.ball ? Math.min(this.bloom + (st.bloom ?? 0.003), st.bloomMax ?? 0.03) : Math.min(this.bloom + (st.kickV || 0.01) * 0.07, 0.005);
     if (this.isPlayer || this.human) {
-      const k = (st.kickV || 0.01) * (this.adsT > 0.5 ? 0.7 : 1), perm = st.scope ? 0.1 : 0.55;      // 12.153: keskin nişancı tepmesi çoğunlukla geri döner (dürbün hedefe oturur; eski: %55 kalıcı → her atışta ~45 px yukarı)
+      const k = (st.kickV || 0.01) * (this.adsT > 0.5 ? 0.7 : 1), perm = this.scoped ? 0.1 : 0.55;      // 12.153: keskin nişancı tepmesi çoğunlukla geri döner (dürbün hedefe oturur; eski: %55 kalıcı → her atışta ~45 px yukarı)
       this.pitch = Math.min(1.45, this.pitch + k * perm);   // kalıcı tırmanma: oyuncu aşağı çekerek telafi eder
       this.recoilP += k * (1 - perm);
       this.yaw += rand(-1, 1) * (st.kickH || 0.004);
@@ -571,7 +576,7 @@ export class Soldier {
   setOptic(id) {
     const allowed = OPTIC_ALLOWED[this.item.id] || [];
     if (!allowed.includes(id) || !OPTICS[id]) return null;
-    this.optic = id;
+    if (this.stat.era) this.optics[this.item.id] = id; else this.optic = id;      // 12.174: dönem silahında silaha özgü (modern genel tercih bozulmaz)
     this.model.optic = id;
     this._syncWeaponModel(true);
     this.game.emit('switch', this);
@@ -581,14 +586,15 @@ export class Soldier {
   // Nişangâh değiştir (B): silaha uygun olanlar arasında döner
   cycleOptic() {
     const allowed = OPTIC_ALLOWED[this.item.id] || [];
-    const list = OPTIC_ORDER.filter((o) => allowed.includes(o));
+    const list = allowed.filter((o) => OPTICS[o]);      // izin listesi sırası (modern listeler OPTIC_ORDER sırasında; 12.174 dönem nişangâhları kendi sırasında)
     if (list.length < 2) return null;
-    this.optic = list[(list.indexOf(this.opticId) + 1) % list.length];
+    const nx = list[(list.indexOf(this.opticId) + 1) % list.length];
+    if (this.stat.era) this.optics[this.item.id] = nx; else this.optic = nx;
     this.adsT = 0;      // 12.154: nişangâh değişince nişana yeniden girilir (eski: yeni nişangâhın büyütmesi tam nişanda o karede devreye giriyordu)
-    this.model.optic = this.optic;
+    this.model.optic = nx;
     this._syncWeaponModel(true);
     this.game.emit('switch', this);
-    return OPTICS[this.optic];
+    return OPTICS[nx];
   }
 
   takeDamage(amount, attacker, zone, fromPos, weaponName) {
@@ -704,7 +710,7 @@ export class Soldier {
     }
     // hedef nişan geçişi
     const wantAds = this.ads && this.reloadT <= 0 && this.switchT <= 0 && this.zoomNow && !this.sprinting;
-    this.adsT = clamp(this.adsT + (wantAds ? 1 : -1) * dt * (this.stat.adsTime ? 1 / this.stat.adsTime : this.opticDef?.overlay === 'scope' ? 6 : 9), 0, 1);      // 12.153: adsTime (sn) silaha özgü dürbün süresi
+    this.adsT = clamp(this.adsT + (wantAds ? 1 : -1) * dt * this.adsRate, 0, 1);      // 12.153: adsTime (sn) silaha özgü dürbün süresi (12.174: dönem dürbününün kendi süresi)
     if (this.prone) this.crouching = false;
     this.height = this.prone ? H_PRONE : this.crouching ? H_CROUCH : H_STAND;
     this.crouchT = clamp(this.crouchT + (this.crouching ? 1 : -1) * dt * 7, 0, 1);
