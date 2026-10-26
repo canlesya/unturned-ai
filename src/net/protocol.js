@@ -18,6 +18,7 @@
 //   { t:'err', msg }
 
 import { ZT_ORDER, SKIN_IDS } from '../game/stats.js';
+import { CLASS_WEAR, wearCodeOf, wearEncode } from '../game/wearIds.js';
 
 export const SIM_HZ = 60;               // sunucu ve istemci sabit sim adımı
 export const SIM_DT = 1 / SIM_HZ;
@@ -52,15 +53,18 @@ export function packSoldier(s, slow = true) {
     o.kl = s.kills; o.de = s.deaths; o.sc = s.score; o.rv = s.revivable ? 1 : 0;
     if (s.assists) o.as = s.assists;                                    // 12.165 asist sayısı (0 ise yazılmaz; eski sunucu yollamaz → istemci 0 sayar)
     const sk = skinCode(s); if (sk) o.sk = sk;
+    const wr = wearNet(s); if (wr) o.wr = wr;                           // 12.167 kıyafet kodu (yalnız insan; bot → istemci kimlikten üretir; eski istemci yok sayar)
   }
   return o;
 }
 // Silah kaplamaları (12.122): eşya sırasıyla kaplama numarası ('3000' = 1. silah altın); hepsi standartsa gönderilmez → yalnız yavaş alanlarda, birkaç bayt
 export function skinCode(s) { if (!s.skins) return ''; const c = s.items.map((it) => Math.max(0, SKIN_IDS.indexOf(s.skins[it.id] || 'std'))).join(''); return /[1-9]/.test(c) ? c : ''; }
 export function skinsFrom(code, ids) { if (!code) return null; const r = {}; ids.forEach((id, i) => { const k = SKIN_IDS[+code[i] || 0]; if (k && k !== 'std') r[id] = k; }); return Object.keys(r).length ? r : null; }
+// 12.167: insan oyuncunun şu anki sınıfının kıyafet kodu (seçmediyse sınıf varsayılanı → istemci bot çeşitlemesi yerine varsayılanı çizer); zombi / bot: yok
+export function wearNet(s) { if (!s.human || s.def?.zombie || !CLASS_WEAR[s.cls]) return ''; return wearCodeOf(s.wear, s.cls) || wearEncode(CLASS_WEAR[s.cls]); }
 // yavaş alanların imzası: değişince o savaşçı tam paketlenir
 export function slowSig(s) {
-  return s.maxHp + '|' + s.ggLevel + '|' + (s.def.zombie ? s.ztype : '') + (s.boss ? 'B' : '') + '|' + s.zLives + '|' + s.items.map((it) => it.id).join() + '|' + s.kills + '|' + s.deaths + '|' + (s.assists || 0) + '|' + s.score + '|' + (s.revivable ? 1 : 0) + '|' + skinCode(s);
+  return s.maxHp + '|' + s.ggLevel + '|' + (s.def.zombie ? s.ztype : '') + (s.boss ? 'B' : '') + '|' + s.zLives + '|' + s.items.map((it) => it.id).join() + '|' + s.kills + '|' + s.deaths + '|' + (s.assists || 0) + '|' + s.score + '|' + (s.revivable ? 1 : 0) + '|' + skinCode(s) + '|' + wearNet(s);
 }
 
 export function applyFlags(s, f) {

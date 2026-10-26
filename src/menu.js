@@ -2,6 +2,9 @@ import { MAPS, DEFAULT_MAP, mapsFor } from './maps/index.js';
 import { CLASS_DEFS, WSTATS, DIFFICULTY, OPTIC_ORDER, SKIN_IDS, SKIN_WEAPONS } from './game/stats.js';
 import { SKIN_SWATCH } from './models/skins.js';
 import './i18n/skins.js';
+import './i18n/wear.js';
+import { WEAR_SLOTS, WEAR_ITEMS, WEAR_PALS, GLOW_ITEMS, CLASS_WEAR, cleanWear, wearDecode, wearEncode } from './game/wearIds.js';      // 12.167 kıyafet kaplamaları
+import { PALETTES as WEAR_PAL } from './models/wear.js';
 import { MATCH_TYPES, TODS_LIST, defaultTickets, defaultScoreLimit, isTotalType as tot, totalMin as totMin, totalMax as totMax } from './game/match.js';
 import { LIMITS, TUNE } from './game/balance.js';
 import { frontTickets } from './game/match.js';                          // Cephe (12.158): saldıranın otomatik bileti
@@ -38,7 +41,7 @@ export function loadPrefs() {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) || localStorage.getItem('blockfront.v2') || localStorage.getItem('blockfront.v1') || '{}');
     if (raw.fovMv !== 1) { if (raw.fovM === 85) raw.fovM = 80; raw.fovMv = 1; }        // telefon yatay FOV varsayılanı 85 → 80 (uzak düşman ≈ %8 büyük); eski varsayılanda kalanlar bir kez taşınır
-    return { ...DEFAULTS, ...raw, stats: { ...DEFAULTS.stats, ...(raw.stats || {}) }, loadouts: raw.loadouts || {}, skins: raw.skins && typeof raw.skins === 'object' ? raw.skins : {} };      // skins: silah başına kaplama (tarayıcıda; hesaplıda profilde de, 12.123)
+    return { ...DEFAULTS, ...raw, stats: { ...DEFAULTS.stats, ...(raw.stats || {}) }, loadouts: raw.loadouts || {}, skins: raw.skins && typeof raw.skins === 'object' ? raw.skins : {}, wear: cleanWear(raw.wear) || {} };      // wear: 12.167 kıyafet { c: { sınıf: kod }, all }      // skins: silah başına kaplama (tarayıcıda; hesaplıda profilde de, 12.123)
   } catch (e) { return { ...DEFAULTS }; }
 }
 function savePrefs(p) { try { localStorage.setItem(KEY, JSON.stringify(p)); } catch (e) { /* yok say */ } }
@@ -65,6 +68,12 @@ function pushSkins(p) {
   const s = getSession();
   if (s?.kind !== 'acct' || p.acctName !== s.name) return;
   api(apiBase(p.server), 'PUT', '/api/profile', { skins: p.skins || {} }, s.tok).catch(() => {});
+}
+// 12.167 kıyafet: hesaplıda profile (outfit) de yazılır; misafir yalnız yerel
+function pushWear(p) {
+  const s = getSession();
+  if (s?.kind !== 'acct' || p.acctName !== s.name) return;
+  api(apiBase(p.server), 'PUT', '/api/profile', { outfit: p.wear || {} }, s.tok).catch(() => {});
 }
 const levelOf = (xp) => Math.floor(Math.sqrt(xp / 120)) + 1;
 
@@ -155,8 +164,8 @@ export function showMenu(onStart, onOnline) {
     if (screen === 'loadout') {
       scene.setMode('showroom');
       const w = previewWeapon();
-      scene.showCharacter({ team: p.team === 'red' ? 'red' : 'blue', cls: p.cls, weapon: loadoutOf(p.cls).primary || null, optic: p.optic, wskin: p.skins[curOf('primary')] || 'std' });
-      scene.showWeapon(w && SKIN_WEAPONS.includes(w) ? { id: w, optic: p.optic, skin: p.skins[w] || 'std' } : null);      // kaplamalı silahın canlı 3B önizlemesi (kaplama değişince yalnız uniform)
+      scene.showCharacter({ team: p.team === 'red' ? 'red' : 'blue', cls: p.cls, weapon: loadoutOf(p.cls).primary || null, optic: p.optic, wskin: p.skins[curOf('primary')] || 'std', wear: wearCodeNow(), spin: slot === 'look' });
+      scene.showWeapon(slot !== 'look' && w && SKIN_WEAPONS.includes(w) ? { id: w, optic: p.optic, skin: p.skins[w] || 'std' } : null);      // kaplamalı silahın canlı 3B önizlemesi (kaplama değişince yalnız uniform)
     } else { scene.setMode('orbit'); scene.setWorld(m, tt); }
     q('.mn-vig').className = 'mn-vig' + (screen === 'loadout' ? ' light' : screen === 'home' ? ' home' : '');
   }
@@ -347,12 +356,12 @@ export function showMenu(onStart, onOnline) {
     let hello, pw = '';
     if (kind === 'create') {
       const c = oc(); pw = ol.cpw || '';
-      hello = { t: 'create', name, tok: acctTok(), cls, loadout, skins: p.skins, team, cfg: { name: c.name.trim(), pw, listed: c.listed, map: c.map, tod: c.tod, weather: c.weather, type: c.type, perTeam: c.perTeam, bots: c.bots, diff: c.diff, third: c.third, tickets: c.tickets || undefined, time: c.time } };
+      hello = { t: 'create', name, tok: acctTok(), cls, loadout, skins: p.skins, wear: p.wear, team, cfg: { name: c.name.trim(), pw, listed: c.listed, map: c.map, tod: c.tod, weather: c.weather, type: c.type, perTeam: c.perTeam, bots: c.bots, diff: c.diff, third: c.third, tickets: c.tickets || undefined, time: c.time } };
     } else {
       const code = String(o.code || p.room || '').toUpperCase();
       if (code.length !== 4) { ol = { ...ol, msg: t('menu.ol.needCode'), err: true, busy: false }; render(); return; }
       pw = o.pw ?? ol.pw ?? '';
-      hello = { t: 'join', room: code, name, tok: acctTok(), cls, loadout, skins: p.skins, team, pw };
+      hello = { t: 'join', room: code, name, tok: acctTok(), cls, loadout, skins: p.skins, wear: p.wear, team, pw };
     }
     ol = { ...ol, msg: t('menu.ol.connecting'), err: false, busy: true, pwFor: null }; render();
     try {
@@ -364,6 +373,7 @@ export function showMenu(onStart, onOnline) {
 
   // Sınıfın bir yuvasında seçili (ya da varsayılan) silah
   function curOf(k) {
+    if (k === 'look') return null;                                                  // 12.167 Görünüm sekmesi (silah yuvası değil)
     const def = CLASS_DEFS[p.cls] || CLASS_DEFS.assault, lw = loadoutOf(p.cls), team = p.team === 'red' ? 'red' : 'blue';
     const opts = def[SLOTS.find((s) => s[0] === k)[1]] || [];
     const want = lw[k];
@@ -372,14 +382,31 @@ export function showMenu(onStart, onOnline) {
     return typeof d === 'object' ? d[team] || d.blue : d;
   }
   const previewWeapon = () => curOf(slot);
+  // 12.167 kıyafet: sınıfın kodu (tüm sınıflar seçiliyse ortak kod); yoksa sınıf varsayılanı
+  const wearCodeNow = () => p.wear?.all || p.wear?.c?.[p.cls] || wearEncode(CLASS_WEAR[p.cls] || CLASS_WEAR.assault);
+  function setWear(fn) {
+    const w = wearDecode(wearCodeNow(), p.cls); fn(w);
+    const code = wearEncode(w), o = { c: { ...(p.wear?.c || {}) }, all: p.wear?.all || '' };
+    if (o.all) o.all = code; else o.c[p.cls] = code;
+    p.wear = cleanWear(o) || {}; pushWear(p);
+  }
+  function wearHTML() {
+    const W = wearDecode(wearCodeNow(), p.cls), all = !!p.wear?.all, modeNote = p.type === 'space' || p.type === 'front' || p.type === 'pb' ? `<div class="hint">${t('wear.mode')}</div>` : '';
+    const rows = WEAR_SLOTS.map((k) => `<div class="wrow"><h4>${t('wear.slot.' + k)}</h4><div class="row">${WEAR_ITEMS[k].map((id) => `<button class="chip ${W[k] === id ? 'on' : ''} ${GLOW_ITEMS.includes(id) ? 'glow' : ''}" data-a="wit" data-s="${k}" data-v="${id}">${t('wear.it.' + id)}</button>`).join('')}</div>
+      ${k === 'back' && W.back === 'none' ? '' : `<div class="row pals">${WEAR_PALS.map((pl) => `<button class="chip sk ${W.pal[k] === pl ? 'on' : ''}" data-a="wpal" data-s="${k}" data-v="${pl}" title="${t('wear.pal.' + pl)}"><i class="sw" style="background:${WEAR_PAL[pl].sw}"></i>${t('wear.pal.' + pl)}</button>`).join('')}</div>`}</div>`).join('');
+    return `<div class="pan wear"><h3>${t('wear.title')} <em>${className(p.cls)} · ${t('wear.sub')}</em></h3>${modeNote}
+      <div class="row"><button class="chip tog ${all ? 'on' : ''}" data-a="wall" data-v="1">${t('wear.all')}<small>${t(all ? 'menu.on' : 'menu.off')}</small></button><button class="chip" data-a="wreset" data-v="1">${t('wear.reset')}</button></div>${rows}</div>`;
+  }
   function loadoutHTML() {
     const def = CLASS_DEFS[p.cls];
     const cur = curOf;
     const icon = (id) => (scene ? `<img data-icon="${id}" ${scene.iconCache.get(id + '|' + p.optic) ? `src="${scene.iconCache.get(id + '|' + p.optic)}"` : ''} alt="">` : '');
-    const opts = def[SLOTS.find((s) => s[0] === slot)[1]] || [];
+    const look = slot === 'look';
+    const opts = look ? [] : def[SLOTS.find((s) => s[0] === slot)[1]] || [];
     const sel = cur(slot);
     const tabs = Object.keys(CLASS_DEFS).map((k) => `<button class="tab ${p.cls === k ? 'on' : ''}" data-a="cls" data-v="${k}">${className(k)}</button>`).join('');
-    const slotBtns = SLOTS.map(([k]) => `<button class="slotb ${slot === k ? 'on' : ''}" data-a="slot" data-v="${k}"><small>${t('menu.slot.' + k)}</small><b>${cur(k) ? weaponName(cur(k)) : '—'}</b>${icon(cur(k))}</button>`).join('');
+    const slotBtns = SLOTS.map(([k]) => `<button class="slotb ${slot === k ? 'on' : ''}" data-a="slot" data-v="${k}"><small>${t('menu.slot.' + k)}</small><b>${cur(k) ? weaponName(cur(k)) : '—'}</b>${icon(cur(k))}</button>`).join('')
+      + `<button class="slotb look ${look ? 'on' : ''}" data-a="slot" data-v="look"><small>${t('wear.tab')}</small><b>${t('wear.tabSub')}</b></button>`;      // 12.167 Görünüm (kıyafet)
     const grid = opts.map((id) => {
       const st = WSTATS[id] || {}, b = weaponBars(id);
       const mini = st.kind === 'gun' || st.kind === 'launcher' || st.kind === 'melee' ? ['dmg', 'range', 'rate'].map((k) => `<span>${statLabel(k)}</span><div class="bar"><i style="width:${Math.max(4, Math.min(100, b[k] || 0))}%"></i></div>`).join('') : '';
@@ -391,6 +418,7 @@ export function showMenu(onStart, onOnline) {
     const optics = slot === 'primary' && !(WSTATS[sel] && WSTATS[sel].scope) ? `<div class="pan"><h3>${t('menu.lo.optic')} <em>${t('menu.lo.opticSub')}</em></h3><div class="row">${OPTIC_ORDER.map((k) => `<button class="chip ${p.optic === k ? 'on' : ''}" data-a="optic" data-v="${k}">${opticLabel(k)}</button>`).join('')}</div></div>` : '';
     // kaplama çipleri (S3 silahlarında): seçili silah kartının hemen altında; renk örneği + ad, seçili olan turuncu çerçeveli
     const skins = SKIN_WEAPONS.includes(sel) ? `<div class="skins"><h4>${t('skin.title')} <em>${t('skin.sub')}</em></h4><div class="row">${SKIN_IDS.map((k) => `<button class="chip sk ${(p.skins[sel] || 'std') === k ? 'on' : ''}" data-a="skin" data-v="${k}" data-w="${sel}"><i class="sw sw-${k}" style="background:${SKIN_SWATCH[k]}"></i>${t('skin.' + k)}</button>`).join('')}</div></div>` : '';
+    if (look) return `${head('loadout')}<div class="tabs">${tabs}</div><div class="scroll"><div class="clsdesc">${classDesc(p.cls)}</div><div class="slots">${slotBtns}</div>${wearHTML()}</div>`;
     return `${head('loadout')}<div class="tabs">${tabs}</div><div class="scroll"><div class="clsdesc">${classDesc(p.cls)}</div><div class="slots">${slotBtns}</div>
       <div class="pan"><h3>${t('menu.slot.' + slot)} <em>${className(p.cls)}</em></h3><div class="wgrid">${grid}</div>${skins}</div>
       <div class="pan"><h3>${weaponName(sel)}</h3>${stats}<div class="wdesc">${weaponDesc(sel) || classDesc(p.cls)}</div></div>${optics}</div>`;
@@ -495,7 +523,7 @@ export function showMenu(onStart, onOnline) {
     const payload = {
       editor: true, devMode: true, map: p.edMap, tod: 'day', weather: 'clear', team: 'blue', cls: p.cls, diff: 'normal', optic: p.optic, playerName: p.name,
       match: { perTeam: 1, type: 'dm', time: 900 }, third: false,
-      keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs, loadout: loadoutOf(p.cls), loadouts: p.loadouts, skins: p.skins,
+      keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs, loadout: loadoutOf(p.cls), loadouts: p.loadouts, skins: p.skins, wear: p.wear,
       settings: settingsPayload(),
     };
     cleanup();
@@ -515,7 +543,7 @@ export function showMenu(onStart, onOnline) {
       map, tod, weather, team: p.team === 'random' ? rnd(['blue', 'red']) : p.team, cls, diff: p.type === 'inf' ? 'hard' : p.diff, optic: p.optic, playerName: p.name,
       match: { perTeam, type: p.type, tickets: randomize ? undefined : p.tickets || undefined, time: p.time }, third: p.third, devMode: !!p.devMode && !randomize,
       keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs,
-      loadout: loadoutOf(cls), loadouts: p.loadouts, skins: p.skins,    // tüm sınıfların kayıtlı yüklemeleri: oyunda sınıf değişince o sınıfınki gelir · skins: silah kaplamaları
+      loadout: loadoutOf(cls), loadouts: p.loadouts, skins: p.skins, wear: p.wear,    // tüm sınıfların kayıtlı yüklemeleri: oyunda sınıf değişince o sınıfınki gelir · skins: silah kaplamaları
       settings: settingsPayload(),
     };
     cleanup();
@@ -617,7 +645,11 @@ export function showMenu(onStart, onOnline) {
       case 'rpwcancel': ol = { ...ol, pwFor: null }; break;
       case 'olcreate': goOnline('create'); return;
       case 'oljoin': goOnline('join'); return;
-      case 'cls': p.cls = v; slot = 'primary'; break;
+      case 'cls': p.cls = v; if (slot !== 'look') slot = 'primary'; break;
+      case 'wit': { const k = b.dataset.s; if (WEAR_ITEMS[k]?.includes(v)) setWear((w) => { w[k] = v; }); break; }      // 12.167 kıyafet parçası
+      case 'wpal': { const k = b.dataset.s; if (WEAR_ITEMS[k] && WEAR_PALS.includes(v)) setWear((w) => { w.pal[k] = v; }); break; }
+      case 'wall': { const code = wearCodeNow(), o = { c: { ...(p.wear?.c || {}) }, all: '' }; if (p.wear?.all) o.c[p.cls] = code; else o.all = code; p.wear = cleanWear(o) || {}; pushWear(p); break; }   // tüm sınıflar aç / kapa (kombin korunur)
+      case 'wreset': { const o = { c: { ...(p.wear?.c || {}) }, all: p.wear?.all ? wearEncode(CLASS_WEAR[p.cls] || CLASS_WEAR.assault) : '' }; delete o.c[p.cls]; p.wear = cleanWear(o) || {}; pushWear(p); break; }
       case 'slot': slot = v; break;
       case 'pick': loadoutOf(p.cls)[slot] = v; break;
       case 'optic': p.optic = v; scene?.iconCache.clear(); break;
@@ -688,12 +720,14 @@ export function showMenu(onStart, onOnline) {
     auth = { ...auth, busy: kind, msg: '' }; renderAuth();
     try {
       const body = { name, pass };
-      if (kind === 'register' && !p.acctName) { body.profile = profileOf(p); body.skins = p.skins || {}; }          // misafirken kazandığın seviye + kaplamalar yeni hesaba taşınır
+      if (kind === 'register' && !p.acctName) { body.profile = profileOf(p); body.skins = p.skins || {}; body.outfit = p.wear || {}; }          // misafirken kazandığın seviye + kaplamalar yeni hesaba taşınır
       const r = await api(apiBase(p.server), 'POST', kind === 'register' ? '/api/register' : '/api/login', body);
-      if (!p.acctName) p.guestSave = { name: p.name, ...profileOf(p), skins: { ...(p.skins || {}) } };            // çıkışta misafir profili (+ kaplamaları) geri gelir
+      if (!p.acctName) p.guestSave = { name: p.name, ...profileOf(p), skins: { ...(p.skins || {}) }, wear: p.wear || {} };            // çıkışta misafir profili (+ kaplamaları) geri gelir
       Object.assign(p, { xp: r.profile.xp, stats: { ...DEFAULTS.stats, ...r.profile.stats }, acctName: r.name, name: r.name });
       if (r.skins && typeof r.skins === 'object') p.skins = { ...r.skins };                                    // kaplama: hesapta kayıtlıysa sunucu kazanır, değilse yereldekiler yüklenir
       else if (Object.keys(p.skins || {}).length) api(apiBase(p.server), 'PUT', '/api/profile', { skins: p.skins }, r.tok).catch(() => {});
+      if (r.outfit && typeof r.outfit === 'object') p.wear = cleanWear(r.outfit) || {};                       // kıyafet: kaplamayla aynı kural (sunucuda varsa sunucu kazanır)
+      else if (Object.keys(p.wear || {}).length) api(apiBase(p.server), 'PUT', '/api/profile', { outfit: p.wear }, r.tok).catch(() => {});
       setSession({ kind: 'acct', name: r.name, tok: r.tok }); save(); closeAuth(); render();
     } catch (e) { if (auth) authSay(e.message); }
   }
@@ -704,6 +738,7 @@ export function showMenu(onStart, onOnline) {
     const g = p.guestSave || { name: DEFAULTS.name, xp: 0, stats: { ...DEFAULTS.stats } };
     Object.assign(p, { name: g.name || DEFAULTS.name, xp: g.xp || 0, stats: { ...DEFAULTS.stats, ...g.stats } });
     if (g.skins) p.skins = { ...g.skins };                                                  // misafirken seçtiğin kaplamalar
+    if (g.wear) p.wear = { ...g.wear };
     delete p.acctName; delete p.guestSave; save(); render();
     openAuth('guest');
   }
@@ -719,9 +754,11 @@ export function showMenu(onStart, onOnline) {
     const m = p.acctName === s.name ? maxProfile(profileOf(p), sv) : sv;          // başka hesabın / misafirin yerel profili karışmasın
     const mine = p.acctName === s.name, up = !sv.skins && mine && Object.keys(p.skins || {}).length;      // kaplama: sunucuda varsa sunucu kazanır, yoksa (bu hesabın) yerel seçimi yüklenir
     if (sv.skins && typeof sv.skins === 'object') p.skins = { ...sv.skins };
+    const upW = !sv.outfit && mine && Object.keys(p.wear || {}).length;
+    if (sv.outfit && typeof sv.outfit === 'object') p.wear = cleanWear(sv.outfit) || {};
     Object.assign(p, { xp: m.xp, stats: { ...DEFAULTS.stats, ...m.stats }, acctName: s.name }); save(); renderUser();
-    if (sv.skins && screen === 'loadout') render();
-    if (!sameProfile(m, sv) || up) api(apiBase(p.server), 'PUT', '/api/profile', up ? { ...m, skins: p.skins } : m, s.tok).catch(() => {});
+    if ((sv.skins || sv.outfit) && screen === 'loadout') render();
+    if (!sameProfile(m, sv) || up || upW) api(apiBase(p.server), 'PUT', '/api/profile', { ...m, ...(up ? { skins: p.skins } : {}), ...(upW ? { outfit: p.wear } : {}) }, s.tok).catch(() => {});
   }
   authEl.addEventListener('click', (e) => {
     const b = e.target.closest('[data-u]'); if (!b || !auth) return;

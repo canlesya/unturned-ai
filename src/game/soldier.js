@@ -8,6 +8,8 @@ import { TUNE } from './balance.js';
 import { paintColorOf } from './paint.js';
 import { tintPaint } from '../models/paintball.js';
 import { pbItems } from './match.js';
+import { cleanWear, wearCodeOf, botWear } from './wearIds.js';
+import { releaseCapeSway } from '../models/wear.js';
 import { throwState, pinSfx } from './grenade.js';
 import { spaceTp } from './space.js';
 
@@ -55,6 +57,8 @@ export class Soldier {
     this.swing = null; this.comboN = -1; this.comboT = 0; this.autoSwitchT = 0;
     this.blindT = 0; this.blindMax = 1;
     this.choice = isPlayer ? (game.opts?.loadout || {}) : { random: true };
+    this.wear = isPlayer ? cleanWear(game.opts?.wear) : null;            // 12.167 kıyafet tercihi { c: { sınıf: kod }, all } (çevrimiçinde başkalarınınki yavaş alan wr → wearCode)
+    this.wearCode = '';
     this.skins = isPlayer ? cleanSkins(game.opts?.skins) : null;          // silah kaplamaları { silah: kaplama } (12.122; botlar standart, çevrimiçinde sunucu / anlık görüntü)
     this.lastHit = null; this.lastDmgT = -99;
     this.walkPhase = 0; this.deadT = 0; this.deadDir = 1; this.flashT = 0;
@@ -130,6 +134,12 @@ export class Soldier {
   loadout() { return (this.game.mode?.front && !CLASS_DEFS[this.cls]?.zombie ? frontLoadout : this.game.mode?.space ? spaceLoadout : makeLoadout)(this.cls, this.team, this.choice); }      // 12.157: Uzay enerji silahları · 12.158: Cephe 1940'lar donanımı (FRONT_KIT)      // 12.157: Uzay modunda enerji silahları (stats.js SPACE_CLASS)
   get opticId() { return resolveOptic(this.item.id, this.optic); }
   skinOf(id) { return (this.skins && this.skins[id]) || 'std'; }
+  // 12.167 kıyafet: ağdan gelen kod > kendi tercihim (insan) > bot çeşitlemesi (kimliğe bağlı, istemcide aynı)
+  wearSpec() {
+    if (this.wearCode) return this.wearCode;
+    if (this.isPlayer || this.human) return wearCodeOf(this.wear, this.cls);
+    return botWear(this.cls, this.id);
+  }
   get opticDef() { const o = this.opticId; return o ? OPTICS[o] : null; }
   get zoomNow() { const st = this.stat; if (!st.zoom) return 0; return this.opticDef && !st.ball ? this.opticDef.zoom : st.zoom; }      // paintball: nişangâhtan bağımsız hafif yakınlaştırma
   get overlay() { return this.stat.ball ? 'pbring' : this.opticDef ? this.opticDef.overlay : 'none'; }          // paintball: HUD'da halka nişangâh (#pbret)
@@ -148,10 +158,16 @@ export class Soldier {
       this._modelWeapon = this.items[0].id;
       return;
     }
+    this._buildModel();
+  }
+
+  // 3B model (sınıf / kıyafet değişince yeniden kurulur)
+  _buildModel() {
+    const def = this.def, cls = this.cls;
     // görünüm: sınıf teçhizatı değişir → modeli yeniden kur
-    if (this.model) this.game.scene.remove(this.model.root);
+    if (this.model) { this.game.scene.remove(this.model.root); if (this.model.root) releaseCapeSway(this.model.root); }
     const pb = this.game.mode?.paintball && !def.zombie;            // paintball modu: herkes paintball oyuncusu kıyafetinde (kişisel boya rengi + forma no)
-    this.model = createCharacter({ team: def.zombie ? 'zomb' : this.team, cls, ztype: this.boss ? 'boss' : this.ztype, skinIndex: this.id, weapon: this.items[0].id, optic: this.optic, outfit: pb ? 'paintball' : this.game.mode?.space && !def.zombie ? 'space' : this.game.mode?.front && !def.zombie ? 'ww2' : null, paint: pb ? paintColorOf(this) : undefined, num: ((this.id * 7 + 11) % 90) + 10 });      // forma no: 10–99, savaşçıya göre sabit · 12.158 Cephe: 1940'lar üniforması
+    this.model = createCharacter({ team: def.zombie ? 'zomb' : this.team, cls, ztype: this.boss ? 'boss' : this.ztype, skinIndex: this.id, weapon: this.items[0].id, optic: this.optic, outfit: pb ? 'paintball' : this.game.mode?.space && !def.zombie ? 'space' : this.game.mode?.front && !def.zombie ? 'ww2' : null, paint: pb ? paintColorOf(this) : undefined, num: ((this.id * 7 + 11) % 90) + 10, wear: def.zombie ? null : this.wearSpec() });      // 12.167 kıyafet · forma no: 10–99, savaşçıya göre sabit · 12.158 Cephe: 1940'lar üniforması
     this.model.root.visible = this.alive;
     this.game.scene.add(this.model.root);
     this._modelWeapon = this.items[0].id;

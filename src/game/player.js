@@ -4,6 +4,7 @@ import { setSkinAlpha, setSkinProbe } from '../models/skins.js';
 import { pbLook, spaceLook } from '../models/character.js';
 import { spaceFire, spaceVm } from './space.js';
 import { ww2Look } from '../models/ww2gear.js';
+import { fpWearLook } from '../models/wear.js';                  // 12.167 kıyafet: birinci şahıs bilek manşeti
 import { tintPaint } from '../models/paintball.js';
 import { paintColorOf } from './paint.js';
 import { TEAMS } from '../core/palette.js';
@@ -720,7 +721,7 @@ export class Player {
 
   refreshWeapon() {
     const s = this.s;
-    this.vm.look = this.game.mode.paintball && !s.def?.zombie ? pbLook(paintColorOf(s)) : this.game.mode.space && !s.def?.zombie ? spaceLook(s.team) : this.game.mode.front && !s.def?.zombie ? ww2Look(s.team) : null;      // 12.157: Uzay kıyafeti kolu · 12.158: Cephe ceket kolu + koyu eldiven · paintball: forma rengi
+    this.vm.look = this.game.mode.paintball && !s.def?.zombie ? pbLook(paintColorOf(s)) : this.game.mode.space && !s.def?.zombie ? spaceLook(s.team) : this.game.mode.front && !s.def?.zombie ? ww2Look(s.team) : !s.def?.zombie && !this.game.mode.paintball ? fpWearLook(s.team, s.model?.wear) : null;      // 12.167 kıyafet manşeti · 12.157: Uzay kıyafeti kolu · 12.158: Cephe ceket kolu + koyu eldiven · paintball: forma rengi
     this.vm.setItem(s.item.id, s.team, s.stat.kind, s.optic, s.def?.zombie ? s.zt?.skin : null, s.skinOf(s.item.id));
     if (s.stat.ball) { tintPaint(this.vm.model, paintColorOf(s)); this.vm.flash?.removeFromParent(); this.vm.flash = null; }      // paintball: hazne / tüp kendi boya rengimde, namlu alevi yok
   }
