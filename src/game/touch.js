@@ -26,6 +26,7 @@ const LAYOUT = {
   ads: { x: 0.93, y: 0.36, s: 0.16 }, jump: { x: 0.93, y: 0.61, s: 0.18 }, crouch: { x: 0.93, y: 0.86, s: 0.16 },
   reload: { x: 0.655, y: 0.86, s: 0.15 }, swap: { x: 0.79, y: 0.89, s: 0.15 }, nade: { x: 0.655, y: 0.58, s: 0.15 }, abil: { x: 0.655, y: 0.6, s: 0.19 },
   third: { x: 0.655, y: 0.34, s: 0.12 }, optic: { x: 0.81, y: 0.36, s: 0.12 }, breath: { x: 0.72, y: 0.4, s: 0.12 }, pause: { x: 0.22, y: 0.075, s: 0.11 }, score: { x: 0.285, y: 0.075, s: 0.11 },
+  veh: { x: 0.53, y: 0.62, s: 0.14 }, vcam: { x: 0.53, y: 0.4, s: 0.11 }, seat: { x: 0.53, y: 0.84, s: 0.11 },      // 12.177 araç: bin / in (yalnız yakında / içindeyken), kamera (sürücü), koltuk değiştir
 };
 const NAME = (id) => t('tc.n.' + id);                                            // düzenleyicideki buton adları (src/i18n/touch.js)
 const I = {
@@ -38,6 +39,9 @@ const I = {
   abil: '<path d="M13 2L5 13h6l-1 9 8-12h-6z"/>',
   breath: '<path d="M3 9h11a3 3 0 10-3-3M3 15h14a3 3 0 11-3 3M3 12h8"/>',      // 12.156: nefes tut (dürbünde basılı tut)
   pause: '<path d="M8 5v14M16 5v14"/>', score: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+  veh: '<path d="M4 15l2-6h12l2 6v4H4z"/><circle cx="8" cy="18" r="2"/><circle cx="16" cy="18" r="2"/><path d="M7 9l1.5-3h7L17 9"/>',
+  vcam: '<rect x="3" y="7" width="13" height="10" rx="2"/><path d="M16 11l5-3v8l-5-3"/>',
+  seat: '<path d="M7 4v9h9l2 7M7 13l-2 7M10 4h-3"/><path d="M14 4l3 3-3 3"/>',
 };
 // seçici kartlarında küçük nişangâh önizlemesi ve buton etiketi
 const OPI = {
@@ -56,6 +60,7 @@ const OPS = { acog: '3×', scope: '4×', scope6: '6×', ww_scout: '1,5×', ww_sc
 const CSS = `
 #tc{position:fixed;inset:0;z-index:6;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;font-family:Bahnschrift,'Rajdhani','Arial Narrow',system-ui,sans-serif}
 #tc.off{display:none}
+#tc .b.vh{display:none}
 #tc .jb{position:absolute;border-radius:50%;border:2px solid rgba(255,255,255,.3);background:rgba(10,14,20,.28);pointer-events:none}
 #tc .jb.float{display:none}
 #tc .jk{position:absolute;left:50%;top:50%;width:42%;height:42%;transform:translate(-50%,-50%);border-radius:50%;background:rgba(255,255,255,.55);box-shadow:0 0 0 2px rgba(0,0,0,.25)}
@@ -381,6 +386,10 @@ export class TouchControls {
     if (!down) { if (id === 'jump') this.jump = false; return; }
     if (id === 'pause') { g.togglePause(); return; }
     if (!s.alive) return;
+    if (id === 'veh') { const V = g.vehicles; if (V && (s.veh || V.near(s))) { if (g.online) g.online.edge('ve'); else V.toggle(s); } return; }      // 12.177
+    if (id === 'vcam') { if (s.veh) { p.vehCam = p.vehCam === 'first' ? 'third' : 'first'; } return; }
+    if (id === 'seat') { const v = s.veh; if (v) { for (let k = 1; k <= v.seats.length; k++) { const n = (s.seat + k) % v.seats.length; if (!v.seats[n]) { if (g.online) g.online.edges.vs = n + 1; else g.vehicles.seatTo(s, n); break; } } } return; }
+    if (s.veh && (id === 'crouch' || id === 'swap' && s.seat === 0 || id === 'nade' || id === 'third')) return;      // araçta çömelme / ekipman yok
     if (id === 'jump') { if (s.prone || s.crouching) { s.standUp(); g.online?.edge('u'); } else this.jump = true; }
     else if (id === 'crouch') { s.toggleCrouch(); g.online?.edge('c'); }
     else if (id === 'reload') { s.startReload(); g.online?.edge('rl'); }
@@ -539,6 +548,17 @@ export class TouchControls {
     this.b.crouch.classList.toggle('on', !!(s.crouching || s.prone));
     this.b.nade.classList.toggle('on', s.cur === 2);
     this.b.third.classList.toggle('on', !!p.third);
+    {                                                                                      // 12.177 araç butonları: bin / in yalnız araç yanında ya da içindeyken; kamera sürücüde; koltuk araçta
+      const V = g.vehicles, inV = !!s.veh, near = !inV && V ? !!V.near(s) : false, drv = inV && s.seat === 0;
+      const key = (inV ? 1 : 0) | (near ? 2 : 0) | (drv ? 4 : 0);
+      if (key !== this._vk) {
+        this._vk = key;
+        this.b.veh.classList.toggle('hid', !inV && !near); this.b.veh.classList.toggle('on', inV);
+        this.b.vcam.classList.toggle('hid', !drv); this.b.seat.classList.toggle('hid', !inV);
+        for (const k of ['crouch', 'nade', 'third']) this.b[k].classList.toggle('vh', inV);
+        for (const k of ['ads', 'reload', 'swap', 'optic']) this.b[k].classList.toggle('vh', drv);
+      }
+    }
     // zombi: güç butonu (halka = bekleme / etkin süre), silah butonları yok
     const zb = !!s.def.zombie, ab = zb ? s.ability : null;
     if (zb !== this._zb) { this._zb = zb; for (const k of ['ads', 'optic', 'reload', 'swap', 'nade']) this.b[k].classList.toggle('zh', zb); this.b.abil.classList.toggle('zh', !zb); }

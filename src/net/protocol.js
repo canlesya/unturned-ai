@@ -9,6 +9,7 @@
 //        yw/pt: bakış (rad) · c/p/u: çömel/yat/kalk tuşuna basıldı (kenar olayı)
 //        sd: 1 = 3. şahıs sol omuz duruşu (yalnızca görsel; diğer oyuncular aynalı duruşu görsün)
 //        co: [x,y,z] 3. şahıs kamerada kameranın gözden ofseti (nişan noktası; mermi yine gözden çıkar; odada izinliyse)
+//        ve: 1 = araca bin / in (E) · vs: koltuk 1–4 · vl: far aç / kapa (12.177; sürücüde f / r = gaz / direksiyon, j = fren, fh = korna)
 //        ab: 1 = zombi özel gücü (F / sağ tık) tuşuna basıldı · w: seçili silah · fh: ateş basılı · fp: ateşe yeni basıldı · rl: şarjör · fm: atış modu · o: nişangâh · vt: görülen sunucu adımı (lag compensation)
 // Sunucu → istemci
 //   { t:'welcome', id, room, cfg, roster, st }        id = senin savaşçı numaran
@@ -47,6 +48,7 @@ export function packSoldier(s, slow = true) {
     a: s.alive ? 1 : 0, hp: Math.round(s.hp),
     f: packFlags(s), l: s.leanDir, c: s.cur,
   };
+  if (s.veh) o.v = s.veh.idx * 4 + s.seat + 1;                         // 12.177: araçta (araç sırası · 4 + koltuk + 1); yoksa alan yazılmaz → diğer haritalarda paket aynı
   if (slow) {
     o.mh = s.maxHp; o.gl = s.ggLevel; o.zt = s.def.zombie ? ZT_ORDER.indexOf(s.ztype) + 1 : 0; o.bs = s.boss ? 1 : 0; o.zl = s.zLives;
     o.it = s.items.map((it) => it.id);

@@ -99,7 +99,7 @@ addStrings('en', {
   'zombie.brute.label': 'Brute', 'zombie.brute.desc': 'Very tough, hits hard. Armor: greatly reduces damage.', 'zombie.ghost.label': 'Ghost', 'zombie.ghost.desc': 'Invisibility: nobody sees you until you attack.',
   'zombie.blinker.label': 'Blinker', 'zombie.blinker.desc': 'Blink: teleports 14 m in the direction you look.',
 
-  'agroup.0': 'Movement', 'agroup.1': 'Stance', 'agroup.2': 'Weapon', 'agroup.3': 'Camera & interface',
+  'agroup.0': 'Movement', 'agroup.1': 'Stance', 'agroup.2': 'Weapon', 'agroup.3': 'Camera & interface', 'agroup.4': 'Vehicle', 'action.vehicle': 'Enter / exit vehicle', 'action.vehCam': 'Vehicle camera (inside / chase)',
   'action.forward': 'Forward', 'action.back': 'Back', 'action.left': 'Left', 'action.right': 'Right', 'action.sprint': 'Sprint', 'action.jump': 'Jump / stand up',
   'action.crouch': 'Crouch', 'action.prone': 'Prone', 'action.leanLeft': 'Lean left', 'action.leanRight': 'Lean right',
   'action.reload': 'Reload', 'action.slot1': 'Primary weapon', 'action.slot2': 'Secondary weapon', 'action.slot3': 'Gadget', 'action.slot4': 'Knife',

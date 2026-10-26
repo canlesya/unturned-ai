@@ -950,8 +950,17 @@ export class Hud {
       x.fillStyle = '#fff'; x.font = 'bold 10px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
       x.fillText(o.label || o.name[0], this.mmX(o.x), this.mmY(o.z) + 0.5);
     }
+    if (g.vehicles) for (const v of g.vehicles.list) {                    // 12.177 araçlar: dost / boş araç hep, düşman araç içindeki görüldüyse
+      if (!v.alive || !v.st) continue;
+      const occ = v.seats.filter(Boolean), tm = occ.length ? occ[0].team : v.paint;
+      if (tm && tm !== p.team && !occ.some((o) => g.time - (o.spottedT ?? -99) < 2.5)) continue;
+      x.save(); x.translate(this.mmX(v.st.x), this.mmY(v.st.z)); x.rotate(-v.st.yaw);
+      x.fillStyle = tm === 'blue' ? '#4aa3ff' : tm === 'red' ? '#ff5a43' : '#d8d4c4'; x.strokeStyle = occ.length ? '#fff' : '#0008'; x.lineWidth = 1.2;
+      x.fillRect(-2.6, -4.2, 5.2, 8.4); x.strokeRect(-2.6, -4.2, 5.2, 8.4); x.restore();
+    }
     for (const s of g.soldiers) {
       if (!s.alive) continue;
+      if (s.veh) continue;                                                  // araçtaki asker araç işaretinde
       const friendly = s.team === p.team;
       if (!friendly && !(g.time - (s.spottedT ?? -99) < 2.5)) continue;
       x.beginPath();

@@ -188,6 +188,7 @@ export class Soldier {
   center(out = new THREE.Vector3()) { return out.set(this.pos.x, this.pos.y + this.height * 0.6, this.pos.z); }
 
   spawn(point, protect = 2) {
+    if (this.veh) this.game.vehicles?.release(this);                              // 12.177: koltuk kaydı kalmasın
     this.pos.set(point.x, 0, point.z);
     this.vel.set(0, 0, 0);
     this.yaw = point.ry; this.pitch = 0; this.recoilP = 0;
@@ -284,6 +285,7 @@ export class Soldier {
   // Tetik: held = basılı, buf = yeni tık tamponu (>0). Dönen true → tampon tüketildi. Player ve sunucu (humanTick) aynı mantığı kullanır.
   triggerUpdate(held, buf) {
     if (!this.alive) { this.burstLeft = 0; return false; }
+    if (this.veh && this.seat === 0) { this.burstLeft = 0; return false; }          // 12.177: sürücü ateş etmez (sol tık korna)
     if (this.stat.kind === 'throwable') return this._nadeTrigger(held, buf);
     const mode = this.fireModeNow;
     if (mode === 'auto') { if (held) this.tryFire(); return false; }
@@ -336,6 +338,7 @@ export class Soldier {
 
   tryFire() {
     if (!this.alive || this.cd > 0 || this.switchT > 0 || this.useT > 0) return false;
+    if (this.veh && (this.seat === 0 || this.stat.kind === 'mine' || this.stat.kind === 'ammobox' || this.stat.kind === 'medkit')) return false;     // 12.177: sürücü ateş etmez; araçtan mayın / kutu kurulmaz
     if (this.def.zombie && this.game.graceLeft > 0) return false;                     // Enfekte hazırlık süresi
     if (this.reloadT > 0 && !this.cancelShellReload()) return false;
     const it = this.item, st = this.stat;
@@ -660,6 +663,7 @@ export class Soldier {
       this.cook = null;
       if (st?.cook && this.item.id === c.id && this.item.mag > 0) { this.item.mag--; this.game.spawnGrenade(this, new THREE.Vector3(this.pos.x, this.pos.y + 0.9, this.pos.z), new THREE.Vector3(this.vel.x * 0.3, 0.5, this.vel.z * 0.3), st, null, { fuse: st.fuse - c.t }); }
     }
+    if (this.veh) this.game.vehicles?.exit(this);                                  // 12.177: araçta ölen kapıdan düşer (koltuk boşalır, araç sürer)
     this.alive = false; this.hp = 0;
     this.deaths++;
     this.deadT = 0; this.deadDir = Math.random() > 0.5 ? 1 : -1;
@@ -805,6 +809,23 @@ export class Soldier {
   }
 
   // Üçüncü şahıs model senkronu (oyuncu hariç): hıza bağlı adım döngüsü, gövde eğimi, kol sallanması
+  // 12.177 araçta oturuş (yalnız görsel): kalça / bacaklar aracın yönünde (eğim + yatış dahil), gövde bakışa döner (±1,3 rad), kollar silahta ya da direksiyonda
+  _seatPose(m, p, root, vh) {
+    const angDiff = (a, b) => ((a - b + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+    root.rotation.order = 'YXZ';
+    root.rotation.set(vh.pitch, vh.yaw, vh.roll);
+    root.position.y = this.pos.y + (m.groundOffset ?? 0) - 0.28;
+    this.bodyYaw = vh.yaw;
+    this._seatTwist = this.seat === 0 ? clamp(angDiff(this.yaw, vh.yaw), -0.5, 0.5) * 0.4 : clamp(angDiff(this.yaw, vh.yaw), -1.3, 1.3);
+    for (const lg of [p.legs.L, p.legs.R]) {
+      lg.hip.rotation.x = 1.42; lg.knee.rotation.x = -1.32; lg.hip.rotation.z = (lg === p.legs.R ? 1 : -1) * 0.06;
+      if (lg.foot) lg.foot.rotation.x = -0.1;
+      lg.hip.position.y = 0.88; lg.hip.position.x = (lg === p.legs.R ? 1 : -1) * 0.12;
+    }
+    p.torso.rotation.x = clamp(this.pitch + this.recoilP, -0.9, 0.9) * 0.5 - 0.05; p.torso.rotation.z = 0; p.torso.position.x = 0; p.torso.position.y = 1.17;
+    p.head.rotation.x = -clamp(this.pitch, -0.9, 0.9) * 0.3; p.head.rotation.z = 0;
+  }
+
   syncModel(dt) {
     if (this.game.headless) return;                                                     // görsel animasyon: sunucuda gerekmez
     const m = this.model, root = m.root, p = m.parts;
@@ -902,6 +923,9 @@ export class Soldier {
       reload = { style: this.reloadStyle, k: clamp(el / this.reloadTotal, 0, 1), empty: this.reloadEmpty, ph: shell ? ((el / st.shell) % 1 + 1) % 1 : 0 };
     }
     if (this.swing) melee = { kind: this.swing.kind, k: clamp(this.swing.t / this.swing.dur, 0, 1) };
+    const vh = this.veh && this.veh.st;
+    if (vh) { this._seatPose(m, p, root, vh); m.refreshHold({ twist: this._seatTwist, side: 1, aimP: clamp(this.pitch + this.recoilP, -0.8, 0.8), reload, melee, drive: this.seat === 0, wheelA: -vh.steer * 2.2 }); return; }
+    if (root.rotation.order !== 'XYZ') root.rotation.order = 'XYZ';
     m.refreshHold({ sprint: this.sprintT * (1 - pr), kick: clamp(this.flashT / 0.06, 0, 1), twist: (twist + twistY) * (1 - pr), swing, side: this.stanceT, prone: pr, aimP: clamp(this.pitch + this.recoilP, -0.8, 0.8), reload, melee });
     if (m.zshape && pr < 0.5) this._zombiePose(m, p, root, T, ph, moveAmt, run);
   }

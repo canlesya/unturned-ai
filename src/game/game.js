@@ -42,6 +42,9 @@ import { t as $t } from '../i18n/index.js';
 import { placeName, banText } from '../i18n/game.js';                                                         // oyun içi sözlük (hud. / death. / end. …)
 import { Payload } from './payload.js';
 import { Front } from './front.js';                                  // Cephe modu (12.158)
+import { Vehicles } from './vehicles.js';                            // 12.177 araçlar (Kuzey Vadisi: jip)
+import { VehicleView } from './vehicleView.js';
+import { VehicleHud } from './vehicleHud.js';
 import { spaceSetup } from './space.js';
 import { NADE, nadeStep, simulateNade, NadeView } from './grenade.js';
 import { createWeapon } from '../models/weapons.js';
@@ -209,6 +212,7 @@ export class Game {
     this.timeLeft = this.mode.time || Infinity;
     this.payload = this.mode.payload && this.map.payload ? new Payload(this) : null;   // Vagon modu: ray + vagon + aşamalı doğuşlar (payload.js)
     this.front = this.mode.front && this.map.front ? new Front(this) : null;           // Cephe modu: sektörler + aşamalı doğuşlar (front.js)
+    this.vehicles = Vehicles.wanted(this) ? new Vehicles(this) : null;              // 12.177: araç doğuşu olan haritada (Ele Geçirme) araçlar; diğer haritalarda null → davranış aynı
     this.spawnChoice = 'base';
 
     this.visMul = 1;
@@ -323,6 +327,13 @@ export class Game {
     });
     document.addEventListener('keydown', this._kd = (e) => {
       if (!this.binds.is('flashlight', e.code) || e.repeat || !this.running || this.ended || !this.playerSoldier.alive || this.playerSoldier.def.zombie) return;      // zombi: aynı tuş özel güç
+      const pv = this.playerSoldier.veh;
+      if (pv) {                                                                    // 12.177: araçta F = far (sürücü); yolcu feneri kapalı
+        if (this.playerSoldier.seat !== 0) return;
+        pv.lights = !pv.lights; this.online?.edge('vl');
+        this.hud.toast($t(pv.lights ? 'veh.t.lightsOn' : 'veh.t.lightsOff'), '#ffe6a8');
+        return;
+      }
       this.torchOn = !this.torchOn;
       this.torch.intensity = this.torchOn ? (this.night ? 140 : this.tod === 'sunset' ? 45 : 0) : 0;
       this.playerSoldier.flashOn = this.torchOn && this.torch.intensity > 0;
@@ -374,6 +385,7 @@ export class Game {
       });
     } else for (const s of this.soldiers) if (!s.vacant) this.respawn(s, true);
     this.remoteTorch = new RemoteTorches(this);      // 12.159: başkalarının feneri (sabit ışık havuzu; ön ısıtmadan önce kurulur → ışık sayısı hiç değişmez)
+    if (this.vehicles) { this.vehView = new VehicleView(this); this.vehHud = new VehicleHud(this); }      // 12.177 araç modelleri / far havuzu / ses + HUD (ön ısıtmadan önce: far ışıkları sabit)
     this.map.fx?.attach?.(this);                       // 12.172: haritanın kurulum sonrası görsel kancası (hava / gün saati uygulanmış sise göre; ön ısıtmadan önce → program değişmez)
     this.warm = warmup(this);                          // 12.151: gölgelendirici ön ısıtma (yükleme ekranı açıkken; Firefox'ta ilk ACOG / nişan / silah çekme donmasını önler)
     this.running = true;
@@ -517,13 +529,17 @@ export class Game {
   // (güncelle + hareket, sonra girdi). Girdi yoksa oyuncu o adımda ilerlemez; böylece ağ gecikmesi/dalgalanması
   // istemci tahminiyle sunucuyu birbirinden koparmaz ve hız hilesi mümkün olmaz.
   humanTick(h, inp, dt) {
-    const s = h.s;
+    const s = h.s, V = this.vehicles;
     s.ads = !!inp.a;                                                  // 12.145: nişan isteği adsT güncellemesinden ÖNCE (istemcide fare olayı karenin s.update'inden önce gelir; eski sıra sunucu adsT'sini bir adım geride bırakıp nişandan koşuya dönüşte ~5 cm tahmin düzeltmesi yaptırıyordu)
     s.update(dt);
-    if (s.alive) { this.world.move(s, dt); this.fallCheck(s); }
+    if (s.veh) V.place(s);
+    else if (s.alive) { this.world.move(s, dt); V?.pushSoldier(s); this.fallCheck(s); }
     if (!s.alive) return;
     s.yaw = inp.yw; s.pitch = Math.max(-1.5, Math.min(1.5, inp.pt));
+    if (V && inp.ve) V.toggle(s);                                     // 12.177: E (bin / in) · 1–4 koltuk
+    else if (V && inp.vs && s.veh) V.seatTo(s, inp.vs - 1);
     if (inp.w !== s.cur) s.switchTo(inp.w);
+    if (s.veh) { this.vehTick(h, inp, dt); return; }
     if (inp.u) s.standUp();
     if (inp.c) s.toggleCrouch();
     if (inp.p) s.toggleProne();
@@ -550,6 +566,45 @@ export class Game {
     if (st.kind === 'melee') { if (inp.fh || h.fireBuf > 0) { if (s.tryFire()) h.fireBuf = 0; } }
     else if (s.triggerUpdate(!!inp.fh, h.fireBuf)) h.fireBuf = 0;
     s.rewindTick = null; s.inSeq = null;
+  }
+
+  // 12.177: araçtaki insanın girdi adımı (sunucu). Sürücü: girdi = gaz / direksiyon / fren (j) / korna (fh) / far (vl) → aracın bir fizik adımı.
+  // Yolcu: silah işleri aynı (ateş, şarjör, mod, nişangâh); atış KENDİ koltuğunun istemcinin gördüğü andaki yerinden çıkar (araç uzaktakiler
+  // gibi interpolasyonla ~100 ms geride görünür; geri sarma yalnız hedeflere değil atıcının koltuğuna da uygulanır → hareketli araçtan isabet tutar).
+  vehTick(h, inp, dt) {
+    const s = h.s, V = this.vehicles, v = s.veh;
+    if (inp.rl) s.startReload();
+    if (inp.fm) s.toggleFireMode();
+    if (inp.o) s.cycleOptic();
+    s.flashOn = false; s.stanceLeft = false; s.shotOff = null;
+    if (s.seat === 0) {
+      if (inp.vl) v.lights = !v.lights;
+      v.horn = !!inp.fh;
+      V.drive(v, { f: inp.f, r: inp.r, b: !!inp.j }, dt);
+      for (const o of v.seats) if (o) V.place(o);
+      h.fireBuf = 0;
+      return;
+    }
+    V.place(s);
+    if (inp.fp) h.fireBuf = 0.15;
+    h.fireBuf = Math.max(0, h.fireBuf - dt);
+    s.rewindTick = Number.isFinite(inp.vt) ? inp.vt : null;
+    s.inSeq = inp.q;
+    const back = s.rewindTick != null ? this.pastPos(s, s.rewindTick) : null, keep = back ? s.pos.clone() : null;
+    if (back) s.pos.copy(back);
+    const st = s.stat;
+    if (st.kind === 'melee') { if (inp.fh || h.fireBuf > 0) { if (s.tryFire()) h.fireBuf = 0; } }
+    else if (s.triggerUpdate(!!inp.fh, h.fireBuf)) h.fireBuf = 0;
+    if (keep) s.pos.copy(keep);
+    s.rewindTick = null; s.inSeq = null;
+  }
+
+  // Geçmiş adımdaki konum (lag compensation tamponu; kesirli adım ara değerlenir). Yoksa null
+  pastPos(s, vt) {
+    if (!this.histBuf) return null;
+    const N = this.soldiers.length, T = this.tick, t = Math.max(T - (this.HN - 3), Math.min(T, vt)), i0 = Math.floor(t), f = t - i0, i1 = Math.min(T, i0 + 1);
+    const b = this.histBuf, k = s.id, o0 = (i0 % this.HN) * N * 9 + k * 9, o1 = (i1 % this.HN) * N * 9 + k * 9;
+    return new THREE.Vector3(b[o0] + (b[o1] - b[o0]) * f, b[o0 + 1] + (b[o1 + 1] - b[o0 + 1]) * f, b[o0 + 2] + (b[o1 + 2] - b[o0 + 2]) * f);
   }
 
   updateHumans(dt) {
@@ -589,7 +644,7 @@ export class Game {
     if ((h.qWin = (h.qWin || 0) + 1) >= 30) { h.backlog = Math.max(0, h.qMin - 2); h.qMin = 99; h.qWin = 0; }
     if (!(h.backlog > 0) || q.length <= 2) return;
     const inp = q[0];
-    if (inp.c || inp.p || inp.u || inp.fp || inp.rl || inp.fm || inp.o || inp.ab || inp.w !== h.s.cur) return;
+    if (inp.c || inp.p || inp.u || inp.fp || inp.rl || inp.fm || inp.o || inp.ab || inp.ve || inp.vs || inp.vl || inp.w !== h.s.cur) return;
     const idle = !inp.f && !inp.r && !inp.j;
     if (!idle && this.tick % 3) return;
     q.shift(); h.backlog--; h.dropped = (h.dropped || 0) + 1;
@@ -1163,7 +1218,7 @@ export class Game {
     if (this._badge && (this._badgeT -= dt) <= 0) { this._badgeT = 0.5; const rtt = Math.round(this.online.stats.rtt || 0); this._badge.innerHTML = `ODA <b style="color:#ffb347">${this._badgeCode}</b> · ${rtt ? rtt + ' ms' : '…'} · ${Math.round(this._perf?.fps || 0)} FPS`; }
     const me = this.playerSoldier;
     for (const s of this.soldiers) s.update(dt);
-    if (me.alive) { this.world.move(me, dt); this.fallPredict(me); } else if (me.respawnT > 0) me.respawnT -= dt;
+    if (me.alive) { if (me.veh) this.vehicles.place(me); else { this.world.move(me, dt); this.vehicles?.pushSoldier(me); this.fallPredict(me); } } else if (me.respawnT > 0) me.respawnT -= dt;
     this.updatePlayArea(dt);
     this.player.update(dt);
     { const m = this.playerSoldier.pos; if (!this._p0) { this._p0 = m.clone(); this._p1 = m.clone(); } else { const t = this._p0; this._p0 = this._p1; this._p1 = t; t.copy(m); } }       // yerel karakter konumu: son iki adım
@@ -1186,13 +1241,16 @@ export class Game {
   step(dt) {
     this.time += dt;
     this.pathBudget = 1;
+    const V = this.vehicles;
     for (const s of this.soldiers) {
       if (s.human && s.alive) continue;            // canlı insanlar girdi güdümlü (updateHumans)
       s.update(dt);
-      if (s.alive) { this.world.move(s, dt); this.fallCheck(s); }
+      if (s.veh) V.place(s);                       // 12.177: koltuktaki asker yürümez, aracın koltuğunda durur
+      else if (s.alive) { this.world.move(s, dt); V?.pushSoldier(s); this.fallCheck(s); }
     }
     if (this.player) this.player.update(dt); else this.updateHumans(dt);
     for (const b of this.brains) b.update(dt);
+    V?.update(dt);                                 // 12.177: sürücüsüz araç fiziği, hasar / yanma / batma, yeniden doğuş, yayaya çarpma, koltuk yerleşimi
     this.updateProjectiles(dt);
     this.paint.update(dt);
     this.pickups.update(dt);
@@ -1232,13 +1290,15 @@ export class Game {
           const dir = p.clone().sub(o).normalize();
           this.effects.tracer(o, p, st.tracer);
           if (ev.k === 'f') this.effects.blood(p, 7, dir.clone().negate());
-          else if (ev.k === 'w') { const n = new V(...ev.n); this.effects.spark(p, 4, n); this.effects.dust(p, n); this.effects.decal(p, n); }
+          else if (ev.k === 'w') { const n = new V(...ev.n); if (ev.vh) this.effects.spark(p, 6, n, '#ffe7b0'); else { this.effects.spark(p, 4, n); this.effects.dust(p, n); this.effects.decal(p, n); } }      // vh: araç gövdesi (12.177)
           if (ev.b) for (let i = 0; i + 2 < ev.b.length; i += 3) this.effects.blood(new V(ev.b[i], ev.b[i + 1], ev.b[i + 2]), 7, dir.clone().negate());     // 12.164: delip geçilen askerler
           if (ev.tw) { const tp = new V(ev.tw[0], ev.tw[1], ev.tw[2]), tn = new V(ev.tw[3], ev.tw[4], ev.tw[5]); this.effects.spark(tp, 3, tn); this.effects.decal(tp, tn); }     // 12.164: ince levha geçişi
           if (ev.m) { this.effects.muzzle(o, dir); this.sfx.shot(st.sound, by.pos); by.flashT = 0.06; if (st.charge) by.railT = 0; }      // 12.160 railT: ray tüfeği şarjı 3. şahısta (yeni ağ alanı yok)
           break;
         }
         case 'hm': if (ev.by === me.id) this.emit('hitmark', { zone: ev.hd ? 'head' : 'body', dead: !!ev.dead, pn: ev.pn || 0 }); break;
+        case 'vhm': if (ev.by === me.id) this.emit('vehhit', { v: this.vehicles?.get(ev.i), dmg: ev.d }); break;                 // 12.177: araca isabet (yalnız atıcıya)
+        case 'vx': this.vehicles?.netBoom(ev); break;                                                                          // 12.177: araç patladı / battı
         case 'dmg': if (ev.v === me.id) { this.hud.damageFrom(new V(ev.x, 0, ev.z), me); this.sfx.hurt(); } break;
         case 'fall': if (ev.v === me.id && !(this.time - (this._fallFxAt ?? -9) < 1)) this.fallFx(ev.d); break;     // düşme hasarı: tahmin etmediysek (yanlış tahmin) sunucudan geri bildirim
         case 'kill': {
@@ -1429,6 +1489,7 @@ export class Game {
     this.sun.target.position.set(tx, ty, tz);
     this.sun.position.set(tx + this.sunOff.x, ty + this.sunOff.y, tz + this.sunOff.z);
     this.remoteTorch?.update(this._rdt ?? 0.016);
+    if (this.vehView) { this.vehView.frame(this._rdt ?? 0.016); this.vehHud.update(); }
     if (this.map.fx) this.map.fx.update(performance.now() / 1000, this.camera, this);            // harita efektleri (New York: ateş ışığı titremesi, duman / kıvılcım zamanı)
     this.paint.draw();
     this.pickups.draw();
@@ -1438,7 +1499,7 @@ export class Game {
     const post = this.post?.on && this.post.begin() ? this.post : null;      // begin() false: hedef sürücü sınırını aşıyor → doğrudan ekrana (12.151)
     r.clear();
     r.render(this.scene, this.camera);
-    if (this.playerSoldier.alive && !this.showSelf) this.player.vm.render(r, innerWidth, innerHeight);
+    if (this.playerSoldier.alive && !this.showSelf && !(this.playerSoldier.veh && this.playerSoldier.seat === 0)) this.player.vm.render(r, innerWidth, innerHeight);      // 12.177: sürücünün elinde silah yok
     if (post) post.end();
   }
 
@@ -1508,6 +1569,9 @@ export class Game {
         if (wh) wh.t += ex + 0.01;
       }
     }
+    // 12.177: araç gövdesi mermiyi durdurur (yönlü kutu; üstü açık jipte yolcunun gövdesi kutunun üstünde kalır → vurulur)
+    const vhit = this.vehicles?.raycast(origin, dir, Math.min(maxT, wh ? wh.t : maxT));
+    if (vhit) wh = { t: vhit.t, veh: vhit.v, collider: null, point: new THREE.Vector3(vhit.point.x, vhit.point.y, vhit.point.z), normal: new THREE.Vector3(vhit.normal.x, vhit.normal.y, vhit.normal.z) };
     const tw = wh ? wh.t : Infinity;
     const wd = this.world.raycast(origin, dir, Math.min(tw, thinT, maxT), (this._wd ||= {}));
     const woodT = wd && wd.collider && wd.collider.tag === 'wood' ? wd.t : Infinity;
@@ -1562,11 +1626,12 @@ export class Game {
     } else if (wh) {
       const pt = wh.point.clone();
       if (Math.random() < 0.7 || hits.length) this.effects.tracer(muzzle, pt, st.tracer);
-      this.effects.spark(pt, 4, wh.normal);
-      if (wh.collider || wh.normal.y > 0.5) this.effects.dust(pt, wh.normal);
-      this.effects.decal(pt, wh.normal);
+      this.effects.spark(pt, wh.veh ? 6 : 4, wh.normal, wh.veh ? '#ffe7b0' : undefined);
+      if (!wh.veh && (wh.collider || wh.normal.y > 0.5)) this.effects.dust(pt, wh.normal);
+      if (!wh.veh) this.effects.decal(pt, wh.normal);                           // araçta iz bırakmaz (gövde hareket eder)
       if (shooter.isPlayer || pt.distanceTo(this.camera.position) < 25) this.sfx.impact(pt);
-      if (ev) { ev.k = 'w'; ev.p = [q2(pt.x), q2(pt.y), q2(pt.z)]; ev.n = [q2(wh.normal.x), q2(wh.normal.y), q2(wh.normal.z)]; }
+      if (wh.veh && !this.online) { const f = wh.t <= st.range[0] ? 1 : lerpClamp(1, st.minMul, (wh.t - st.range[0]) / (st.range[1] - st.range[0])); this.vehicles.damage(wh.veh, st.dmg * f * (st.pellets ? 0.6 : 1) * (shooter.dmgMul || 1), shooter, 'bullet', st.name); }
+      if (ev) { ev.k = 'w'; ev.p = [q2(pt.x), q2(pt.y), q2(pt.z)]; ev.n = [q2(wh.normal.x), q2(wh.normal.y), q2(wh.normal.z)]; if (wh.veh) ev.vh = 1; }
     } else {
       const end = origin.clone().addScaledVector(dir, 120);
       this.effects.tracer(muzzle, end, st.tracer);
@@ -1697,6 +1762,8 @@ export class Game {
         const d = step.clone().normalize();
         const wh = this.world.raycast(p.pos, d, L + 0.1, (this._ph ||= {}));
         let hitT = wh ? wh.t : Infinity;
+        const vr = this.vehicles?.raycast(p.pos, d, Math.min(L + 0.1, hitT));            // 12.177: roket araca çarpar
+        if (vr && vr.v !== p.owner.veh) hitT = vr.t;
         for (const e of this.soldiers) {
           if (!e.alive || e === p.owner || e.team === p.owner.team) continue;
           const h = this.hitSoldier(e, p.pos, d, Math.min(L, hitT));
@@ -1734,7 +1801,9 @@ export class Game {
         if (L > 1e-5) {
           const d = step.clone().normalize();
           const wh = this.world.raycast(p.pos, d, L + 0.05, (this._ph ||= {}));
-          if (wh) boom = wh.point.clone().addScaledVector(wh.normal, 0.15);
+          const vr = this.vehicles?.raycast(p.pos, d, wh ? wh.t : L + 0.05);            // 12.177: bomba araca çarpar
+          if (vr && vr.v !== p.owner.veh) boom = new THREE.Vector3(vr.point.x, vr.point.y, vr.point.z).addScaledVector(d, -0.15);
+          else if (wh) boom = wh.point.clone().addScaledVector(wh.normal, 0.15);
           else p.pos.add(step);
         }
         p.mesh.position.copy(p.pos);
@@ -1769,6 +1838,7 @@ export class Game {
     const dc = pos.distanceTo(this.camera.position);
     this.effects.shake = Math.max(this.effects.shake, clamp(1 - dc / 35, 0, 1) * 1.1);
     if (this.online) return;                // hasar sunucuda
+    this.vehicles?.blast(pos, radius, dmg, owner, name);                           // 12.177: araç hasarı (gövdeye en yakın noktadan)
     const o = pos.clone(); o.y += 0.3;
     for (const e of this.soldiers) {
       if (!e.alive) continue;
@@ -1994,6 +2064,7 @@ export class Game {
     this.mapEditor?.dispose();
     this.payload?.dispose();
     this.front?.dispose();
+    this.vehView?.dispose(); this.vehHud?.dispose();
     this._badge?.remove(); this._tm?.remove();
     if (this._km) document.removeEventListener('keydown', this._km);
     cancelAnimationFrame(this.raf);

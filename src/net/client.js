@@ -6,6 +6,7 @@ import { WSTATS, ZT_ORDER } from '../game/stats.js';
 import { sanitizeBalance, useBalance, TUNE } from '../game/balance.js';
 import { banText } from '../i18n/game.js';
 import { fallHeight } from '../sim/fall.js';
+import { packVehState, applyVehState, stepVehicle } from '../sim/vehicle.js';
 
 // Diğer oyuncuların gösterim gecikmesi (interpolasyon tamponu) ağın titremesine göre uyarlanır (12.137):
 // en az 6 adım = 100 ms (20 Hz snapshot'ta iki örnek arası), titreşimli bağlantıda en çok 15 adım = 250 ms (lag compensation HN=40 içinde).
@@ -103,12 +104,16 @@ export class NetClient {
       yw: +s.yaw.toFixed(4), pt: +s.pitch.toFixed(4), c: e.c | 0, p: e.p | 0, u: e.u | 0,
       fh: fireHeld ? 1 : 0, fp: e.fp | 0, rl: e.rl | 0, fm: e.fm | 0, o: e.o | 0, ab: e.ab | 0, vt: +this.rt.toFixed(2),
       sd: s.stanceLeft ? 1 : 0, tl: s.flashOn ? 1 : undefined,                      // 12.159: fener açık (yalnız açıkken yollanır; yoksa sunucu kapalı sayar)
+      ve: e.ve ? 1 : undefined, vs: e.vs || undefined, vl: e.vl ? 1 : undefined,    // 12.177 araç kenar olayları (yalnız basılınca)
       co: s.shotOff ? [+s.shotOff.x.toFixed(2), +s.shotOff.y.toFixed(2), +s.shotOff.z.toFixed(2)] : undefined,
     });
     const fire = !!(fireHeld || e.fp || e.rl);
     this.hist.push({ q, fire, inp: { f: inp.f, r: inp.r, lean: inp.lean, sprint: !!inp.sprint, jump: !!inp.jump }, ads: !!s.ads, adsT: s.adsT, yaw: s.yaw, pitch: s.pitch, e, st: { x: s.pos.x, y: s.pos.y, z: s.pos.z } });
     if (this.hist.length > 240) this.hist.shift();
   }
+
+  // 12.177: sürücü — son gönderilen girdinin adım sonundaki araç durumu (sunucu aynı girdiden sonra me.vs yollar → karşılaştırılır)
+  markVeh(v) { const h = this.hist[this.hist.length - 1]; if (h && v.st) h.vst = packVehState(v.st); }
 
   // Son gönderilen girdinin adım sonundaki cephanesi (ateş / şarjör sonrası). Sunucu aynı girdiyi işleyince ack anındaki cephaneyi (me.aa) yollar.
   // 12.166: bu adımda cephane değiştiyse (reload bitişi, mermi girişi) ya da reload sürüyorsa kayıt "cephane uçuşta" sayılır (h.fire) →
@@ -176,6 +181,7 @@ export class NetClient {
     g.timeLeft = m.tl < 0 ? Infinity : m.tl;
     if (m.pl && g.payload) g.payload.applyNet(m.pl);                           // Vagon: konum + durum (gösterim netFrame'de yumuşar)
     if (m.fr && g.front) g.front.applyNet(m.fr);                               // Cephe: etkin sektör (doğuş aşaması + şerit)
+    if (m.vh && g.vehicles) g.vehicles.netSnap(m.k, m.vh);                     // 12.177: değişen araçlar (araç başına tampon; gösterim interpolate'te)
     m.o.forEach((o, i) => { const ob = g.mode.objectives[i]; if (!ob) return; const prev = ob.owner; ob.owner = o[0] === 1 ? 'blue' : o[0] === 2 ? 'red' : null; ob.p = o[1]; if (ob.owner !== prev) g.onFlag?.(ob, prev); });
     this.reconcile(m.me);
   }
@@ -220,6 +226,8 @@ export class NetClient {
       else s.wearCode = local ? '' : wr;
     }
     if (!local) {
+      const V = this.game.vehicles, vv = p.v && V ? V.get((p.v - 1) >> 2) : null;  // 12.177: araçtaki uzak asker (koltuğa placeAll oturtur)
+      if (vv) { s.veh = vv; s.seat = (p.v - 1) & 3; } else if (s.veh) { s.veh = null; s.seat = -1; }
       if (s.cur !== p.c) { s.cur = p.c; s._syncWeaponModel(); }
       applyFlags(s, p.f);
       s.stanceLeft = !!(p.f & F_LEFT);
@@ -251,8 +259,9 @@ export class NetClient {
     const st = me.st;
     s.kills = me.now.kl; s.deaths = me.now.de; s.score = me.now.sc; s.assists = me.now.as || 0;
     // ölüm/yaşam durumu SUNUCUNUN ŞU ANKİ durumundan (me.now) alınır: ack anındaki durum (me.st) ölünce güncellenmez (girdi işlenmez)
-    if (!me.now.a) { if (s.alive) this.applyState(s, me.now, true); this.hist.length = 0; s.respawnT = me.rt; return; }
+    if (!me.now.a) { if (s.veh) this.game.vehicles?.release(s); if (s.alive) this.applyState(s, me.now, true); this.hist.length = 0; s.respawnT = me.rt; return; }
     if (!s.alive) { this.applyState(s, me.now, true); }
+    if (this.vehSync(s, me)) return;                                 // 12.177: araca bindi / indi / koltuk değişti → sunucu durumuna geç
     this.fixItems(s, me);
     const fp = this.fallPred;                                        // tahmin edilen düşme hasarı (game.fallPredict): sunucu o girdiyi işleyene dek sunucu canından düşülür, sonra sunucunun canı geçerli (çift düşülmez)
     if (fp && me.ack >= fp.q) this.fallPred = null;
@@ -265,6 +274,7 @@ export class NetClient {
     if (idle) { this.applyAmmo(s, me); for (const h of this.hist) h.am = null; }     // uçuşta ateş/şarjör yoksa cephaneyi sunucuya eşitle (uçuştaki kayıtlar artık temel değil)
     if (!rec || rec.q !== me.ack) return;
     if (!idle) this.fixAmmo(s, rec, me.aa);
+    if (s.veh) { if (s.seat === 0) this.vehReconcile(s, rec, me); return; }      // 12.177: koltuktaki askerin konumu araçtan (yolcu: interpolasyon, sürücü: araç tahmini)
     const err = Math.hypot(rec.st.x - st.x, rec.st.y - st.y, rec.st.z - st.z);
     this.stats.lastErr = err;
     if (err > POS_EPS) { this.stats.errSum = (this.stats.errSum || 0) + err; this.stats.errMax = Math.max(this.stats.errMax || 0, err); }
@@ -292,6 +302,51 @@ export class NetClient {
     // Büyük farklar (ışınlanma, sunucu itmesi) anında uygulanır.
     const ox = bx - s.pos.x, oy = by - s.pos.y, oz = bz - s.pos.z;
     if (ox * ox + oy * oy + oz * oz < 0.64) { this.viewOff.x += ox; this.viewOff.y += oy; this.viewOff.z += oz; } else this.viewOff.set(0, 0, 0);
+  }
+
+  // 12.177: yerel oyuncunun araç / koltuk durumu sunucudakinden farklıysa (bindi, indi, koltuk değişti, araç patladı) sunucunun şu anki durumuna geç
+  // (doğuştaki gibi: onaylanmamış girdiler atılır). Sürücü olunca araç tahmine geçer (durumu me.vs ya da son anlık görüntüden).
+  vehSync(s, me) {
+    const V = this.game.vehicles;
+    if (!V) return false;
+    const nv = me.now.v ? V.get((me.now.v - 1) >> 2) : null, ns = me.now.v ? (me.now.v - 1) & 3 : -1;
+    if (nv === (s.veh || null) && ns === (s.veh ? s.seat : -1)) return false;
+    for (const v of V.list) if (v.pred) { v.pred = false; v.p0 = null; }
+    this.hist.length = 0; this.viewOff.set(0, 0, 0);
+    const p = me.now;
+    if (nv) {
+      s.veh = nv; s.seat = ns;
+      if (ns === 0) { nv.pred = true; if (me.vs && nv.st) applyVehState(nv.st, me.vs); }
+      V.place(s);
+    } else {
+      if (s.veh) V.release(s);
+      s.pos.set(p.x, p.y, p.z); s.vel.set(p.vx, p.vy, p.vz); applyFlags(s, p.f);
+    }
+    s.yaw = p.yw; s.pitch = p.pt;
+    this.game.emit('vehseatnet', { s, v: nv, seat: ns });
+    return true;
+  }
+
+  // 12.177 sürücü tahmini: sunucunun ack anındaki araç durumu (me.vs) ile aynı girdideki tahmin (rec.vst) karşılaştırılır; fark varsa sunucu
+  // durumuna dönülüp onaylanmamış girdiler araç fiziğiyle yeniden oynatılır. Küçük fark kamerada / modelde yumuşar (viewOff), büyük fark anında.
+  vehReconcile(s, rec, me) {
+    const v = s.veh, g = this.game;
+    if (!me.vs || !rec.vst || !v.st) return;
+    const a = rec.vst, b = me.vs;
+    const err = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) + Math.abs(((a[3] - b[3] + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * 2;
+    this.stats.vehErr = err;
+    if (err <= POS_EPS) return;
+    this.stats.vehFix = (this.stats.vehFix || 0) + 1; this.stats.vehErrSum = (this.stats.vehErrSum || 0) + err; this.stats.vehErrMax = Math.max(this.stats.vehErrMax || 0, err);
+    const bx = v.st.x, by = v.st.y, bz = v.st.z;
+    applyVehState(v.st, b);
+    for (const h of this.hist) {
+      stepVehicle(v.st, { f: h.inp.f, r: h.inp.r, b: h.inp.jump }, SIM_DT, g.world);
+      h.vst = packVehState(v.st);
+    }
+    g.vehicles.place(s);
+    const ox = bx - v.st.x, oy = by - v.st.y, oz = bz - v.st.z;
+    if (ox * ox + oy * oy + oz * oz < 4) { this.viewOff.x += ox; this.viewOff.y += oy; this.viewOff.z += oz; } else this.viewOff.set(0, 0, 0);
+    if (v.p0) { v.p0.x -= ox; v.p0.y -= oy; v.p0.z -= oz; }
   }
 
   // Uzaktaki oyuncuları interpolasyonla yerleştir (her sim adımında)
@@ -326,5 +381,6 @@ export class NetClient {
       s.yaw = lerpAngle(pa.yw, pb.yw, t);
       s.pitch = lerp(pa.pt, pb.pt, t);
     }
+    if (g.vehicles) { g.vehicles.netInterp(rt, EXTRAP_MAX / SIM_HZ); g.vehicles.placeAll(); }      // 12.177: araçlar (kendi sürdüğüm hariç) + koltuktakiler
   }
 }
