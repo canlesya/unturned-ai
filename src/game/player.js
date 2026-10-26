@@ -13,6 +13,7 @@ import { fpHand, handBasis, zombieColors } from '../models/fpHands.js';
 import { box } from '../core/geo.js';
 import { clamp, lerp, V3, adsEase, ADS_HUD, zoomFov, SCOPE_ON } from './util.js';
 import { applyInput } from '../sim/input.js';
+import { LEAN_ROLL } from './soldier.js';
 import { TUNE } from './balance.js';
 import { TouchControls, isTouch } from './touch.js';
 import { ScopeBreath } from './breath.js';
@@ -585,7 +586,7 @@ export class ViewModel {
     const zE = p.zoomEff?.() || 1;
     p.scopeOn = s.alive && s.overlay === 'scope' && (s.adsT > SCOPE_ON || (!!p.scopeOn && zE > 2 && p.zoomCur() >= 2));      // 12.153: 0,9 → SCOPE_ON (göz merceği ekranı kaplamadan, tam kararmanın arkasında açılır)
     this.root.visible = this.forceShow || !p.scopeOn;      // dürbünlü silahta örtü açıkken model gizli (HUD aynı bayrağı kullanır; forceShow: adsalign testi)
-    this.cam.rotation.z = -s.leanT * 0.2;   // yana eğilirken silah da kafayla birlikte yatar
+    this.cam.rotation.z = -(s.leanK || 0) * LEAN_ROLL;   // yana eğilirken silah da kafayla birlikte yatar (12.166: gerçekleşen eğilme; dünya kamerasıyla aynı açı → nişangâh merkezde)
     if (this.arms.length) {                    // zombi kolları: bilek ucundan dirsek noktasına (kamera uzayı; sol el modunda aynalı)
       this.cam.updateMatrixWorld(true);
       for (const a of this.arms) {
@@ -1033,7 +1034,7 @@ export class Player {
       cam.rotation.set(
         s.pitch + s.recoilP + (Math.random() - 0.5) * sh * 0.06 + this.vm.camPitch + this.vm.punch * (1 - this.thirdT),      // 12.141: tabanca görüş tepmesi (görsel)
         s.yaw + (Math.random() - 0.5) * sh * 0.06,
-        -s.leanT * 0.2 * (1 - 0.6 * this.thirdT) + this.vm.camRoll + this.vm.punchR * (1 - this.thirdT) + (Math.random() - 0.5) * sh * 0.03,
+        -s.leanK * LEAN_ROLL * (1 - 0.6 * this.thirdT) + this.vm.camRoll + this.vm.punchR * (1 - this.thirdT) + (Math.random() - 0.5) * sh * 0.03,
       );
       if (this.thirdT > 0.002) this.thirdCamera(dt, this.thirdT); else { this._cs = null; s.shotOff = null; this.bodyVisible = false; }
       const vo = g.online && g.online.viewOff;                      // çevrimiçi: tahmin düzeltmesi kamerada yumuşatılır (bkz. NetClient.reconcile)
