@@ -2,9 +2,10 @@
 // Her bina KANONİK yönde tanımlanır (ön kapı güney = +z yüzünde, merkez (0,0)); place() ile (cx, cz) konumuna, ry (90° katları) yönüne konur.
 // Ölçüler 0,5 m ızgarasında; açıklık kenarları 0,25 m ızgarasında (nav hücre merkezleri 0,25 / 0,75'te: 1,5 m kapı → iki boş hücre).
 import * as THREE from 'three';
+import { makeRng } from '../../builder.js';
 import { Bld, level, T, TO, FH, BASE } from '../common/kasaba-building.js';
 import { boxR, post, hull, extrude, shade, roundCollide, NC } from '../common/kasaba-shapes.js';
-import { furnishRoom } from '../common/kasaba-furniture.js';
+import { furnishRoom, ROOMS } from '../common/kasaba-furniture.js';
 import * as P from '../common/kasaba-props.js';
 import { PAL, KS, bstyle } from './style.js';
 
@@ -34,7 +35,10 @@ export function bays(a, b, step, w, forbid = []) {
 }
 
 // oda eşyası: odanın içi (iç yüzler) + kaçınılacak alanlar
+// list: eşya listesi ya da oda türü adı (ROOMS tarifi, 12.176)
 function furnish(h, rng, k, x0, x1, z0, z1, list, extraAvoid = []) {
+  const type = typeof list === 'string' ? list : '?';
+  if (typeof list === 'string') list = ROOMS[list]((x1 - x0) * (z1 - z0));
   const S = h.S, avoid = [...extraAvoid];
   // kapı önleri (dış kapı + bölme kapıları), merdiven + sahanlıklar
   for (const f of ['n', 's', 'e', 'w']) for (const op of h.ops[f]) {
@@ -69,7 +73,9 @@ function furnish(h, rng, k, x0, x1, z0, z1, list, extraAvoid = []) {
     boxR(h.b, lx - 0.22, lx + 0.22, top - 0.6, top - 0.42, lz - 0.22, lz + 0.22, '#e8e0c8', KS.plain, NC);
     boxR(h.b, lx - 0.16, lx + 0.16, top - 0.64, top - 0.6, lz - 0.16, lz + 0.16, '#ffe2a0', KS.plain, { collide: false, o: { glow: true } });
   });
-  return furnishRoom(h.b, S, rng, { x0, x1, z0, z1, y: level(k), avoid, wins: rw, solid }, list);
+  // eşya kendi tohumlu rastgele akışıyla (bina kimliği + kat + oda): eşya tarifi değişince haritanın geri kalanı (araç, ağaç yerleşimi) kaymaz
+  let seed = 7; for (const ch of h.id + ':' + k + ':' + x0.toFixed(2) + ':' + z0.toFixed(2)) seed = (Math.imul(seed, 31) + ch.charCodeAt(0)) >>> 0;
+  return furnishRoom(h.b, S, makeRng(seed), { x0, x1, z0, z1, y: level(k), k, type, avoid, wins: rw, solid }, list);
 }
 
 // ═════════ KONUT (beşik çatı, 2–3 kat) ═════════
@@ -108,11 +114,11 @@ export function house(b, rng, id, { w = 9, d = 9, floors = 2, style, doorU = 1.2
   }
   const info = h.build();
   // eşya: zemin kat ön oda oturma, arka oda mutfak; üst katlar yatak odası
-  furnish(h, rng, 0, ix0, ix1, zp + 0.07, iz1, ['sofa', 'shelf', 'cabinet', { center: 'table', chairs: 4 }]);
-  furnish(h, rng, 0, ix0, ix1, iz0, zp - 0.07, ['counter', 'stove', 'fridge']);
+  furnish(h, rng, 0, ix0, ix1, zp + 0.07, iz1, 'salon');
+  furnish(h, rng, 0, ix0, ix1, iz0, zp - 0.07, 'mutfak');
   for (let k = 1; k < floors; k++) {
-    furnish(h, rng, k, ix0, ix1, zp + 0.07, iz1, ['bed', 'wardrobe', 'cabinet', { center: 'rug' }]);
-    furnish(h, rng, k, ix0, ix1, iz0, zp - 0.07, k === floors - 1 ? ['bed', 'cabinet'] : ['desk', 'shelf']);
+    furnish(h, rng, k, ix0, ix1, zp + 0.07, iz1, 'yatak');
+    furnish(h, rng, k, ix0, ix1, iz0, zp - 0.07, k === floors - 1 ? 'cocuk' : 'calisma');
   }
   return info;
 }
@@ -134,12 +140,14 @@ export function civic(b, rng, id, { w = 11, d = 9, floors = 2, style, theme = 'o
   h.roof.accessDoor = 'e';
   // bölmeler: zemin kat açık salon; üst katlarda koridor bölmesi (x boyunca, merdivenin güneyinde) + oda bölmeleri
   const zc = zS + 1.5;                                                      // koridor bölmesi (üst katlar)
+  let xr = null, corridor = false;
   if (floors > 1 && zc < iz1 - 3) {
+    corridor = true;
     const fl = [...Array(floors).keys()].slice(1);
     const doorsX = bays(ix0 + 0.5, ix1 - 0.5, 3.6, 1.5, []).map((u) => ({ at: u + 0.75, w: 1.5 }));
     h.part('x', zc, ix0, ix1, fl, doorsX);
-    const xr = Math.round(((ix0 + ix1) / 2 + 1.5) * 2) / 2;
-    if (xr + 0.07 < ix1 - 2) h.part('z', xr, zc + 0.07, iz1, fl, []);
+    xr = Math.round(((ix0 + ix1) / 2 + 1.5) * 2) / 2;
+    if (xr + 0.07 < ix1 - 2) h.part('z', xr, zc + 0.07, iz1, fl, []); else xr = null;
   }
   // ön cephe
   const du = doorU ?? Math.round((w / 2 - 0.75) * 4) / 4;
@@ -154,11 +162,14 @@ export function civic(b, rng, id, { w = 11, d = 9, floors = 2, style, theme = 'o
   for (const f of ['e', 'w']) for (let k = 0; k < floors; k++) for (const u of bays(0.6, d - 0.6, 2.8, 1.0, extraDoors.filter(([g]) => g === f).map(([, u]) => [u - 0.6, u + 2.1]))) h.open(f, u, 'win', [k]);
   const info = h.build();
   // eşya
-  const G = { school: ['board', 'schooldesk', 'schooldesk', 'schooldesk', 'shelf', 'cabinet'], police: ['locker', 'desk', 'desk', 'cabinet', 'locker'], townhall: ['desk', 'shelf', 'shelf', 'cabinet', { center: 'rug' }],
-    bank: ['counter', 'safe', 'desk', 'cabinet'], market: ['counter', 'shelf', 'shelf', 'cabinet', 'fridge'], office: ['desk', 'desk', 'shelf', 'cabinet'] }[theme];
-  furnish(h, rng, 0, ix0, ix1, iz0, iz1, G);
+  // eşya (12.176: oda türü tarifleri; üst katta koridor + bölmenin iki yanındaki odalar ayrı ayrı)
+  furnish(h, rng, 0, ix0, ix1, iz0, iz1, { school: 'sinif', police: 'karakol', townhall: 'lobi', bank: 'banka', market: 'dukkan', office: 'ofis' }[theme]);
+  const up = theme === 'school' ? 'sinif' : 'ofis';
   for (let k = 1; k < floors; k++) {
-    furnish(h, rng, k, ix0, ix1, zc + 0.07, iz1, theme === 'school' ? ['board', 'schooldesk', 'schooldesk', 'schooldesk'] : ['desk', 'shelf', 'cabinet', 'desk']);
+    if (!corridor) { furnish(h, rng, k, ix0, ix1, iz0, iz1, up); continue; }
+    furnish(h, rng, k, ix0, ix1, iz0, zc - 0.07, 'koridor');
+    if (xr == null) furnish(h, rng, k, ix0, ix1, zc + 0.07, iz1, up);
+    else { furnish(h, rng, k, ix0, xr - 0.07, zc + 0.07, iz1, up); furnish(h, rng, k, xr + 0.07, ix1, zc + 0.07, iz1, up); }
   }
   return info;
 }
@@ -172,7 +183,7 @@ export function garage(b, rng, id, { w = 11, d = 9, style, access = false } = {}
   h.open('e', 2.0, 'win', [0]); h.open('w', 2.0, 'win', [0]); h.open('e', d - 3.0, 'win', [0]); h.open('w', d - 3.0, 'win', [0]);
   if (access) h.stair(0, 0.5, iz0 + 2.2 + 3.6, '-z', { wall: null, rails: [] });
   const info = h.build();
-  furnish(h, rng, 0, ix0, ix1, iz0, iz1, ['workbench', 'rack', 'locker', 'workbench', 'barrels']);
+  furnish(h, rng, 0, ix0, ix1, iz0, iz1, 'garaj');
   return info;
 }
 
@@ -245,7 +256,7 @@ export function gasStation(b, rng, id, { style } = {}) {
   h.door('s', 5.25, { main: true }); h.open('s', 1.0, 'shop', [0], { w: 3.0 });
   h.open('w', 2.0, 'win', [0]); h.open('e', 2.5, 'win', [0]); h.door('n', 2.25);
   const info = h.build();
-  furnish(h, rng, 0, -5.5 + T, 2.5 - T, -11.5 + T, -5.5 - T, ['counter', 'shelf', 'fridge', 'shelf']);
+  furnish(h, rng, 0, -5.5 + T, 2.5 - T, -11.5 + T, -5.5 - T, 'market');
   return { ...info, box: { x0: -5.6, x1: 5.6, z0: -11.6, z1: 4.6, H: 4.9 } };
 }
 
@@ -277,8 +288,8 @@ export function warehouse(b, rng, id, { w = 14, d = 12, style } = {}) {
   h.stair(0, lx + 0.6, z0 + T + 1.2, '+z', { wall: 'l', rails: [] });
   h.rail(lx - 0.06, lx, z0 + T, z0 + T + 3.6, 1); h.rail(lx - 0.06, lx, z0 + T + 4.8, d / 2 - T, 1);
   const info = h.build();
-  furnish(h, rng, 0, lx + 1.4, w / 2 - T, z0 + T, d / 2 - T, ['rack', 'rack', 'workbench']);
-  furnish(h, rng, 1, x0 + T, lx - 0.06, z0 + T, d / 2 - T, ['rack', 'cabinet']);
+  furnish(h, rng, 0, lx + 1.4, w / 2 - T, z0 + T, d / 2 - T, 'depo');
+  furnish(h, rng, 1, x0 + T, lx - 0.06, z0 + T, d / 2 - T, 'depoAsma');
   return info;
 }
 
@@ -289,7 +300,7 @@ export function hut(b, rng, id, { w = 7, d = 6, style } = {}) {
   h.door('s', Math.round((w / 2 - 0.75) * 4) / 4, { canopy: true, main: true });
   h.open('n', w / 2 - 0.5, 'win', [0]); h.open('e', d / 2 - 0.5, 'win', [0]); h.open('w', d / 2 - 0.5, 'win', [0]);
   const info = h.build();
-  furnish(h, rng, 0, x0 + T, w / 2 - T, z0 + T, d / 2 - T, ['bed', 'cabinet', 'shelf', { center: 'table', chairs: 2 }]);
+  furnish(h, rng, 0, x0 + T, w / 2 - T, z0 + T, d / 2 - T, 'kulube');
   return info;
 }
 
