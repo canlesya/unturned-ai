@@ -1,5 +1,5 @@
 import { KK } from './surface.js';
-import { Q, footY, worldRect, roundCollide, shade } from '../common/kuzeyKit.js';
+import { Q, footY, worldRect, roundCollide, shade, lw, ctxAdd, addLoot, addDoor } from '../common/kuzeyKit.js';
 
 // Kuzey Vadisi askerî parçalar (12.172): helikopter pisti (beton plak + H + kenar lambaları), hangar (açık önlü, sac çatı), koğuş, HESCO istihkâm hattı,
 // gözetleme kulesi (merdivenli, platformu katı), radar kulesi (beton gövde, kubbe, anten), araç park çizgileri. Takım rengi yalnız küçük işaretlerde.
@@ -30,6 +30,8 @@ export function hangar(b, T, o) {
     for (const sg of [1, -1]) b.box(sg * ((w / 2 + 0.6) / 2 + Math.sin(a) * 0.07), h + (w / 2 - 0.6) * Math.tan(a) / 2 + Math.cos(a) * 0.07 - 0.07, 0, L, 0.14, d + 0.8, '#5d6459', { collide: false, rz: -sg * a, kind: KK.SHEET });
     b.box(0, h - 1.6, d / 2 + 0.15, w - 2.6, 0.3, 0.3, '#3b3f36', { collide: false, kind: KK.METAL });
   }));
+  addLoot(b, x, z, ry, y0, [[-w / 2 + 1.2, -d / 2 + 1.2, 'raf'], [w / 2 - 1.2, -d / 2 + 1.2, 'sandık'], [0, -d / 2 + 1.5, 'tezgâh']]);
+  { const [px, pz] = lw(x, z, ry, 0, d / 2 + 6); ctxAdd(b, 'lamps', [+px.toFixed(1), 0, +pz.toFixed(1), 11]); }
 }
 
 export function barracks(b, T, o) {
@@ -44,6 +46,8 @@ export function barracks(b, T, o) {
     b.withKind(KK.PLANK, () => b.prism(0, 3.1, 0, d, rh, w, wall, { ry: Q }));
     for (const sg of [1, -1]) b.box(0, 3.1 + (d / 2 - 0.4) * Math.tan(a) / 2 + Math.cos(a) * 0.06 - 0.06, sg * ((d / 2 + 0.4) / 2 + Math.sin(a) * 0.06), w + 0.6, 0.12, L, '#4f5649', { collide: false, rx: sg * a, kind: KK.SHEET });
   }));
+  addLoot(b, x, z, ry, y0, [[-w / 2 + 1.0, -d / 2 + 0.9, 'sandık'], [w / 2 - 1.0, -d / 2 + 0.9, 'sandık'], [0, -d / 2 + 0.9, 'masa']]);
+  { const nw = Math.round(w / 3.4), at = -w / 2 + (Math.floor(nw / 2) + 0.5) * w / nw; addDoor(b, x, z, ry, y0, at, d / 2, 0, 1); }
 }
 
 // HESCO hattı (eksen hizalı): 1,1 m küp sepetler, 2,2 m yükseklik (iki sıra) ya da 1,1 m
@@ -92,6 +96,8 @@ export function radarTower(b, T, o) {
     b.box(2.175, 6.8, -0.65, 0.75, 0.2, 3.6, '#77726a', { kind: KK.CONC });
     b.stairs(1.8, 0.6, 7.0, '-x', 0.9, 14, 0.5, 0.3, '#77726a', { deco: false, base: 7.0 });
   }));
+  addLoot(b, x, z, 0, y0, [[1.6, 1.8, 'raf'], [-1.6, 1.6, 'zemin'], [-1.6, -1.5, 'zemin', 14.4]]);
+  addDoor(b, x, z, 0, y0, 0, 2.85, 0, 1);
 }
 
 // araç park yeri işaretleri (zemin çizgileri, görsel)

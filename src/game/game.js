@@ -188,6 +188,7 @@ export class Game {
     this.sightMap = this.map.sight && this.map.sight.length ? new SightMap(this.map.sight) : null;                // bot görüşü için yaprak / çalı ızgarası
     this.nav = this.map.navLayers ? new NavGridML(this.map.colliders, this.map.bounds, this.terrain) : new NavGrid(this.map.colliders, this.map.bounds, this.terrain, !!this.map.layered, this.map.navCell);   // navLayers: üst üste katlar (Boya Kulesi); navCell: büyük harita iri ızgara (12.172)
 
+    this.map.navPost?.(this.nav);                                                   // 12.172: haritanın nav son işlemi (kapı hücreleri, oyun alanı dışı kapalı)
     // opts.match: özel maç ayarları; opts.mode: '3v3' | '10v10' hazır ayarı (test/uyumluluk)
     this.mode = makeMatch(opts.match || PRESETS[opts.mode] || {});
     if (this.mode.space) { this.world.grav = TUNE.spaceGrav; opts.weather = 'clear'; }      // 12.157 Uzay: düşük yer çekimi (sunucu, çevrimdışı oyun ve istemci tahmini aynı World.grav), hava yok
@@ -728,6 +729,7 @@ export class Game {
   spawnOptions(team = this.playerSoldier.team) {
     const out = [{ id: 'base', name: 'Üs', ok: true }];
     if (this.front) return out;                                                     // Cephe: ileri doğuş yok (doğuş hattı sektörle kayar)
+    if (this.map.big) out.push({ id: 'front', name: 'Ön hat', ok: this.mode.objectives.some((o) => this.canForwardSpawn(o, team)), label: '▲' });   // 12.172 büyük harita: düşmana en yakın sahip olunan bayrak
     for (const o of this.mode.objectives) out.push({ id: o.id, name: o.name, ok: this.canForwardSpawn(o, team), label: o.label || o.name[0] });
     return out;
   }
@@ -741,6 +743,15 @@ export class Game {
   }
   requestSpawn(id) { this.spawnChoice = id; this.hud.markSpawn?.(id); this.online?.send({ t: 'opt', spawn: id }); }
 
+  // 12.172 ön hat: sahip olunan (doğulabilir) bayraklardan, sahibi olmadığı en yakın bayrağa en yakın olanı (ilk ikisinden rastgele)
+  frontFlag(team, own = null) {
+    own ||= this.mode.objectives.filter((o) => o.owner === team && this.canForwardSpawn(o, team));
+    if (!own.length) return null;
+    const other = this.mode.objectives.filter((o) => o.owner !== team);
+    if (!other.length) return pick(own);
+    const sc = own.map((o) => [o, Math.min(...other.map((q) => Math.hypot(q.x - o.x, q.z - o.z)))]).sort((a, b) => a[1] - b[1]);
+    return sc[Math.random() < 0.7 || sc.length < 2 ? 0 : 1][0];
+  }
   canForwardSpawn(o, team) {
     if (o.owner !== team) return false;
     for (const e of this.soldiers) if (e.alive && e.team !== team && Math.hypot(e.pos.x - o.x, e.pos.z - o.z) < o.r + 6) return false;
@@ -827,10 +838,11 @@ export class Game {
     // ileri doğma: seçilen / bot için ara sıra sahip olunan hedefin çevresi
     let target = null;
     const ctl = s ? this.ctlOf(s) : null;
-    if (ctl && ctl.spawnChoice !== 'base') target = this.front ? null : this.mode.objectives.find((o) => o.id === ctl.spawnChoice);
-    else if (s && !ctl && !this.front && Math.random() < 0.35) {
+    if (ctl && ctl.spawnChoice === 'front') target = this.front ? null : this.frontFlag(team);
+    else if (ctl && ctl.spawnChoice !== 'base') target = this.front ? null : this.mode.objectives.find((o) => o.id === ctl.spawnChoice);
+    else if (s && !ctl && !this.front && Math.random() < (this.map.big ? 0.8 : 0.35)) {                 // 12.172 büyük harita: botlar çoğunlukla ön hattan doğar
       const own = this.mode.objectives.filter((o) => o.owner === team && this.canForwardSpawn(o, team));
-      if (own.length) target = pick(own);
+      if (own.length) target = this.map.big ? this.frontFlag(team, own) : pick(own);
     }
     if (target && this.canForwardSpawn(target, team)) {
       for (let k = 0; k < 14; k++) {
@@ -933,6 +945,21 @@ export class Game {
   }
 
   // Düşman üssüne giren: uyarı + hasar (spawn baskınını engeller)
+  // 12.172 savaş alanı sınırı (büyük harita; sert sınırın yerine): map.playArea dışında geri sayım (playArea.t, varsayılan 10 sn), bitince ölüm.
+  // Yetkili taraf (çevrimdışı / sunucu) öldürür; çevrim içi istemci yalnız kendi göstergesini hesaplar. Yükseklik sınırı yok (ileride hava araçları da aynı kural).
+  updatePlayArea(dt) {
+    const A = this.map.playArea;
+    if (!A) return;
+    const T = A.t ?? 10;
+    for (const s of this.soldiers) {
+      if (this.online && s !== this.playerSoldier) continue;
+      const out = s.alive && (s.pos.x < A.minX || s.pos.x > A.maxX || s.pos.z < A.minZ || s.pos.z > A.maxZ);
+      if (!out) { s.oobT = 0; continue; }
+      s.oobT = (s.oobT || 0) + dt;
+      if (s.isPlayer) this.hud.oobWarn?.(Math.max(0, T - s.oobT));
+      if (!this.online && s.oobT >= T && !(s.isPlayer && this.devGod)) { s.lastHit = s; s.hp = 0; s.die(s, 'Savaş alanı', false); s.oobT = 0; }
+    }
+  }
   updateBaseZones(dt) {
     const Z = this.map.baseZones;
     if (!Z) return;
@@ -1000,11 +1027,16 @@ export class Game {
         return o.owner ? 1.25 : 1.0;
       };
       const order = [...Array(nSq).keys()].sort(() => Math.random() - 0.5);
+      const big = this.map.big;
       for (const sq of order) {
         let best = null, bs = -1;
+        // 12.172 büyük harita: uzaklık mangalın bugünkü konumundan (üsten değil) ve daha geniş ölçekte; eski hedefe bağlılık (yolun yarısında hedef değişmesin)
+        let from = home;
+        if (big) { const m = this.soldiers.filter((e) => e.alive && e.team === team && e.squad === sq); if (m.length) from = { x: m.reduce((a, e) => a + e.pos.x, 0) / m.length, z: m.reduce((a, e) => a + e.pos.z, 0) / m.length }; }
+        const prev = this.squadGoals[team][sq];
         for (const o of objs) {
-          const d = Math.hypot(o.x - home.x, o.z - home.z);
-          const sc = need(o) / (1 + load.get(o.id) * 1.7) / (1 + d / 260) + Math.random() * 0.2;
+          const d = Math.hypot(o.x - from.x, o.z - from.z);
+          const sc = need(o) / (1 + load.get(o.id) * 1.7) / (1 + d / (big ? 420 : 260)) + Math.random() * 0.2 + (big && prev === o && o.owner !== team ? 0.35 : 0);
           if (sc > bs) { bs = sc; best = o; }
         }
         this.squadGoals[team][sq] = best;
@@ -1131,6 +1163,7 @@ export class Game {
     const me = this.playerSoldier;
     for (const s of this.soldiers) s.update(dt);
     if (me.alive) { this.world.move(me, dt); this.fallPredict(me); } else if (me.respawnT > 0) me.respawnT -= dt;
+    this.updatePlayArea(dt);
     this.player.update(dt);
     { const m = this.playerSoldier.pos; if (!this._p0) { this._p0 = m.clone(); this._p1 = m.clone(); } else { const t = this._p0; this._p0 = this._p1; this._p1 = t; t.copy(m); } }       // yerel karakter konumu: son iki adım
     {                                                                                             // kamera ara değerleme için son iki adım (nesne yeniden kullanılır)
@@ -1164,10 +1197,11 @@ export class Game {
     this.pickups.update(dt);
     updateGadgets(this, dt, this.time);
     this.squadT -= dt;
-    if (this.squadT <= 0) { this.squadT = 18; this.assignSquads(); }
+    if (this.squadT <= 0) { this.squadT = this.map.big ? 40 : 18; this.assignSquads(); }
     this.weather.update(dt);
     this.updateMode(dt);
     this.updateBaseZones(dt);
+    this.updatePlayArea(dt);
     if (this.map.voidY != null) this.updateVoid();
     for (const s of this.soldiers) {
       if (!s.alive && !this.ended && !s.vacant) {

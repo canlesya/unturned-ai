@@ -9,6 +9,7 @@ export class ChunkSet {
   constructor({ size = 200, surface = null, farMin = 2.6 } = {}) {
     this.size = size; this.surface = surface; this.farMin = farMin;
     this.map = new Map(); this.list = [];
+    this.ctx = {};                                 // varlıkların bıraktığı veri: loot, doors, lights, chimneys, lamps (kuzey.js okur)
   }
   key(x, z) { return Math.floor(x / this.size) + ',' + Math.floor(z / this.size); }
   at(x, z) {
@@ -16,7 +17,7 @@ export class ChunkSet {
     let c = this.map.get(k);
     if (!c) {
       const b = new ChunkBuilder(this.farMin), [ci, cj] = k.split(',').map(Number);
-      b.surface = this.surface; b.far.surface = this.surface;
+      b.surface = this.surface; b.far.surface = this.surface; b.ctx = this.ctx;
       c = { k, ci, cj, b, x0: ci * this.size, z0: cj * this.size, group: null, near: null, farG: null, lod: -1 };
       this.map.set(k, c); this.list.push(c);
     }

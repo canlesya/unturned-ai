@@ -55,25 +55,25 @@ function merge(list) {
 export const FLORA = {
   pine: {
     h: [15, 24], trunkR: 0.022, trunkH: 0.55, crown: [0.68, 0.17],
-    L0: () => merge([trunk(0.024, 0.008, 1.0, C('#5a4636')),
+    L0: () => merge([trunk(0.03, 0.007, 1.0, C('#5b3d2c'), 8), trunk(0.04, 0.028, 0.05, C('#4a3326'), 8),
       cone(0.2, 0.32, 0.36, 7, C('#3e5530'), 0.1, 1), cone(0.165, 0.28, 0.52, 7, C('#43592f'), 0.1, 2), cone(0.13, 0.24, 0.66, 7, C('#48602f'), 0.1, 3), cone(0.085, 0.2, 0.8, 6, C('#4f6733'), 0.1, 4)]),
     L1: () => merge([trunk(0.022, 0.01, 0.5, C('#4d3d30'), 4), cone(0.19, 0.42, 0.34, 5, C('#3f5530'), 0.05, 1), cone(0.12, 0.3, 0.66, 5, C('#465d30'), 0.05, 2)]),
   },
   spruce: {
     h: [12, 21], trunkR: 0.024, trunkH: 0.3, crown: [0.45, 0.2],
-    L0: () => merge([trunk(0.026, 0.01, 0.4, C('#4a3b2f')),
+    L0: () => merge([trunk(0.03, 0.01, 0.42, C('#4a3529'), 8),
       cone(0.24, 0.36, 0.08, 8, C('#2f4628'), 0.1, 5), cone(0.2, 0.32, 0.3, 8, C('#324a29'), 0.1, 6), cone(0.15, 0.28, 0.5, 7, C('#36502b'), 0.1, 7), cone(0.1, 0.24, 0.68, 7, C('#3b552d'), 0.1, 8), cone(0.05, 0.16, 0.86, 5, C('#41592f'), 0.1, 9)]),
     L1: () => merge([cone(0.24, 0.62, 0.06, 5, C('#30472a'), 0.05, 5), cone(0.12, 0.4, 0.6, 5, C('#38512c'), 0.05, 6)]),
   },
   birch: {
     h: [10, 16], trunkR: 0.02, trunkH: 0.5, crown: [0.68, 0.2],
-    L0: () => merge([trunk(0.022, 0.01, 0.92, C('#d8d4c8'), 6),
+    L0: () => merge([trunk(0.022, 0.01, 0.92, C('#ddd8cc'), 8), trunk(0.0235, 0.022, 0.18, C('#3a3530'), 8),
       blob(0.16, 0.03, 0.62, 0.02, C('#7f9a45'), 1, 1, 1.2), blob(0.13, -0.08, 0.76, -0.04, C('#8aa34b'), 0, 2, 1.25), blob(0.12, 0.07, 0.82, 0.07, C('#94ad50'), 0, 3, 1.2), blob(0.1, -0.02, 0.5, 0.09, C('#7a9442'), 0, 4)]),
     L1: () => merge([trunk(0.02, 0.012, 0.6, C('#cfcabd'), 4), blob(0.2, 0, 0.68, 0, C('#86a049'), 0, 1, 1.3)]),
   },
   oak: {
     h: [11, 17], trunkR: 0.035, trunkH: 0.38, crown: [0.62, 0.3],
-    L0: () => merge([trunk(0.04, 0.022, 0.55, C('#54442f'), 7),
+    L0: () => merge([trunk(0.045, 0.022, 0.55, C('#4e3d2b'), 9),
       blob(0.24, 0, 0.6, 0, C('#5d7536'), 1, 1, 0.85), blob(0.18, 0.17, 0.66, 0.06, C('#66803a'), 0, 2, 0.9), blob(0.17, -0.15, 0.68, -0.08, C('#56702f'), 0, 3, 0.9), blob(0.15, 0.03, 0.84, -0.04, C('#6d8740'), 0, 4, 0.9)]),
     L1: () => merge([trunk(0.04, 0.025, 0.45, C('#4c3e2c'), 4), blob(0.32, 0, 0.66, 0, C('#5f7736'), 0, 1, 0.8)]),
   },
@@ -117,14 +117,15 @@ export class Forest {
     this.D = quality === 'low' ? [95, 560] : [165, 1150];
     this.mat = makeFloraMaterial(true); this.rockMat = makeFloraMaterial(false);
     const geo = {}; for (const k in FLORA) geo[k] = [FLORA[k].L0(), FLORA[k].L1()];
-    const by = new Map();
-    for (const t of trees) { const key = Math.floor(t.x / chunk) + ',' + Math.floor(t.z / chunk); let a = by.get(key); if (!a) by.set(key, (a = [])); a.push(t); }
     this.cells = [];
     const M = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), sc = new THREE.Vector3(), p = new THREE.Vector3();
+    for (const [l, size] of [[0, chunk], [1, chunk]]) {                  // her kademe kendi hücresi (aynı boy: sınırda boşluk / çift çizim yok)
+    const by = new Map();
+    for (const t of trees) { const key = Math.floor(t.x / size) + ',' + Math.floor(t.z / size); let a = by.get(key); if (!a) by.set(key, (a = [])); a.push(t); }
     for (const [key, list] of by) {
-      const [ci, cj] = key.split(',').map(Number), cell = { x0: ci * chunk, z0: cj * chunk, size: chunk, lod: -1, L: [[], []] };
+      const [ci, cj] = key.split(',').map(Number), cell = { x0: ci * size, z0: cj * size, size, lod: -1, l, L: [[], []] };
       const kinds = {}; for (const t of list) (kinds[t.k] ||= []).push(t);
-      for (const k in kinds) for (let l = 0; l < 2; l++) {
+      for (const k in kinds) {
         const arr = kinds[k];
         const im = new THREE.InstancedMesh(geo[k][l], k === 'rock' ? this.rockMat : this.mat, arr.length);
         arr.forEach((t, i) => {
@@ -138,17 +139,17 @@ export class Forest {
       }
       this.cells.push(cell);
     }
+    }
     this.count = trees.length;
   }
   update(cam, t = 0) {
     this.mat.userData.U.uTime.value = t;
     for (const c of this.cells) {
       const dx = Math.max(c.x0 - cam.x, 0, cam.x - c.x0 - c.size), dz = Math.max(c.z0 - cam.z, 0, cam.z - c.z0 - c.size), d = Math.hypot(dx, dz);
-      const l = d < this.D[0] ? 0 : d < this.D[1] ? 1 : 2;
-      if (l === c.lod) continue;
-      c.lod = l;
-      for (const m of c.L[0]) m.visible = l === 0;
-      for (const m of c.L[1]) m.visible = l === 1;
+      const on = c.l === 0 ? d < this.D[0] : d >= this.D[0] && d < this.D[1];
+      if (on === c.lod) continue;
+      c.lod = on;
+      for (const m of c.L[c.l]) m.visible = on;
     }
   }
 }

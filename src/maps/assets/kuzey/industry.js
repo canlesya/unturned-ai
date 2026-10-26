@@ -1,5 +1,5 @@
 import { KK } from './surface.js';
-import { Q, footY, worldRect, roundCollide, shade } from '../common/kuzeyKit.js';
+import { Q, footY, worldRect, roundCollide, shade, lw, ctxAdd, addLoot, addDoor } from '../common/kuzeyKit.js';
 
 // Kuzey Vadisi sanayi parçaları (12.172): çelik çerçeveli hal (oluklu sac, büyük kapılar, üst pencere bandı, içinde kolon + asma kat iskelesi),
 // silo (yuvarlak, konik tepe, merdiven), tuğla baca, yakıt tankı, idare binası. Taban beton plak; ayak izinde arazi farkı beton kaide ile kapanır.
@@ -40,7 +40,11 @@ export function hall(b, Tr, o) {
     for (const sg of [1, -1]) b.box(0, h + (d / 2 - 0.5) * Math.tan(a) / 2 + Math.cos(a) * 0.07 - 0.07, sg * ((d / 2 + 0.5) / 2 + Math.sin(a) * 0.07), w + 0.6, 0.14, L, roof, { collide: false, rx: sg * a, kind: KK.SHEET });
     b.box(0, h + rh - 0.1, 0, w * 0.7, 1.0, 2.2, shade(roof, 0.9), { collide: false, kind: KK.SHEET });
     b.box(0, h + rh - 0.05, 1.12, w * 0.7, 0.75, 0.05, '#2a3238', { collide: false, kind: KK.WIN });
+    // kapı üstü projektörler (gece yanar: parlak malzeme + zemin ışık havuzu)
+    for (const [f, side] of doors) b.box(f * w, 6.0, side * (d / 2 + 0.35), 0.7, 0.3, 0.4, '#ffe8b0', { collide: false, o: { glow: true, emissive: '#ffdca0', emissiveIntensity: 1 } });
   }));
+  addLoot(b, x, z, ry, S.y0, [[-w / 2 + 1.2, -d / 2 + 1.2, 'raf'], [w / 2 - 1.2, -d / 2 + 1.2, 'raf'], [w / 2 - 1.2, d / 2 - 1.2, 'zemin'], [-w / 4, d / 2 - 1.2, 'sandık'], [0, 0, 'zemin'], [w / 4, -d / 2 + 1.2, 'tezgâh'], [-w / 2 + w * 0.2, -d / 2 + 1.8, 'zemin', 4.2]]);
+  for (const [f, side] of doors) { addDoor(b, x, z, ry, S.y0, f * w, side * d / 2, 0, side); const [px, pz] = lw(x, z, ry, f * w, side * (d / 2 + 7)); ctxAdd(b, 'lamps', [+px.toFixed(1), 0, +pz.toFixed(1), 9]); }
   return { y0: S.y0, rect: S.rect };
 }
 
@@ -102,5 +106,8 @@ export function office(b, Tr, o) {
     b.box(0, H, 0, w + 0.2, 0.5, d + 0.2, shade(wall, 0.85), { kind: KK.CONC });                               // korkuluk duvarı / çatı kenarı
     b.box(0, 2.4, d / 2 + 0.9, 3.4, 0.18, 1.8, '#5b636a', { collide: false, kind: KK.METAL });                  // kapı saçağı
   }));
+  addLoot(b, x, z, ry, S.y0, [[-w / 2 + 1.0, -d / 2 + 1.0, 'masa'], [w / 2 - 1.0, -d / 2 + 1.0, 'raf'], [w / 4, d / 2 - 1.2, 'zemin']]);
+  addDoor(b, x, z, ry, S.y0, 0, d / 2, 0, 1);
+  for (let i = 0; i < Math.round(w / 2.6); i++) { const at = -w / 2 + (i + 0.5) * w / Math.round(w / 2.6); if ((i * 7 + Math.round(x)) % 3 === 0) continue; for (const [sz, yy] of [[1, 1.6], [-1, 1.6], [1, 4.9], [-1, 4.9]]) { const [wx, wz] = lw(x, z, ry, at, sz * (d / 2 + 0.02)), [qx, qz] = lw(0, 0, ry, 0, sz); ctxAdd(b, 'lights', [+wx.toFixed(2), +(S.y0 + yy).toFixed(2), +wz.toFixed(2), +qx.toFixed(3), +qz.toFixed(3), 1.6, 1.3]); } }
   return { y0: S.y0, rect: S.rect };
 }

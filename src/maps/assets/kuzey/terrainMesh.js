@@ -127,7 +127,7 @@ export class TerrainMesh {
 
   // harita dışı: 1600 m karolar (merkez yok), yakın halka 20 m / uzak 80 m, kendi sisi; karo başına ağ (kamera dışı kalanlar çizilmez)
   _outer() {
-    const T = this.T, S = 1600, R = 3, c = new THREE.Color(), cR = new THREE.Color('#6f6a62'), cS = new THREE.Color('#eef2f6'), cF = new THREE.Color('#3f4a2c'), cG = new THREE.Color('#687a3d');
+    const T = this.T, S = 1600, R = 3, c = new THREE.Color(), cR = new THREE.Color('#6e675d'), cS = new THREE.Color('#eef2f6'), cF = new THREE.Color('#2f3d24'), cG = new THREE.Color('#5f7238'), cA = new THREE.Color('#7f8448');
     this.outer = [];
     for (let tj = -R; tj <= R; tj++) for (let ti = -R; ti <= R; ti++) {
       if (!ti && !tj) continue;
@@ -144,11 +144,15 @@ export class TerrainMesh {
         pos[q * 3] = x; pos[q * 3 + 1] = y - drop; pos[q * 3 + 2] = z;
         const dx = H(i + 1, j) - H(i - 1, j), dz = H(i, j + 1) - H(i, j - 1), L = Math.hypot(dx, 2 * st, dz), ny = 2 * st / L;
         nor[q * 3] = -dx / L; nor[q * 3 + 1] = ny; nor[q * 3 + 2] = -dz / L;
-        const n1 = fbm(x / 400, z / 400, 131, 3), fo = fbm(x / 260, z / 260, 137, 3);
-        c.copy(cG).lerp(cF, Math.min(1, Math.max(0, (fo - 0.35) * 2.2)) * (y < 900 ? 1 : 0.3));
-        c.lerp(cR, Math.min(1, Math.max(0, (0.9 - ny) * 3.0 + (y - 700) / 600)));
-        const snowLine = 980 + (n1 - 0.5) * 360;
-        if (y > snowLine) c.lerp(cS, Math.min(1, (y - snowLine) / 140) * Math.min(1, Math.max(0.25, (ny - 0.45) * 2.5)));
+        // 12.172 dağ katmanları: orman (ağaç sınırı ~650 m, gürültülü) → alpin çayır → kaya (dik / yüksek; çizgili dere yatakları) → kar (yalnız yatık yüzeyde)
+        const n1 = fbm(x / 400, z / 400, 131, 3), fo = fbm(x / 260, z / 260, 137, 3), st2 = fbm(x / 90 + z / 300, z / 90, 141, 3);
+        const tl = 620 + (n1 - 0.5) * 300, forestK = Math.min(1, Math.max(0, (fo - 0.3) * 2.6)) * (1 - Math.min(1, Math.max(0, (y - tl) / 90)));
+        c.copy(cG).lerp(cA, Math.min(1, Math.max(0, (y - tl + 60) / 260)));
+        c.lerp(cF, forestK);
+        const rockK = Math.min(1, Math.max(0, (0.86 - ny) * 3.2 + (y - 1000) / 420));
+        c.lerp(cR, rockK); if (rockK > 0.2) c.multiplyScalar(0.72 + 0.4 * st2);
+        const snowLine = 1150 + (n1 - 0.5) * 420;
+        if (y > snowLine) c.lerp(cS, Math.min(1, (y - snowLine) / 120) * Math.min(1, Math.max(0, (ny - 0.6) * 3.2)) * (0.6 + 0.6 * st2));
         if (y < 0.5) c.set('#4e4a3c');
         c.offsetHSL(0, 0, (n1 - 0.5) * 0.06);
         col[q * 3] = c.r; col[q * 3 + 1] = c.g; col[q * 3 + 2] = c.b;

@@ -31,3 +31,15 @@ export function shade(hex, k) {
 
 // tohumlu seçim
 export const pickOf = (rng, a) => a[Math.floor(rng() * a.length) % a.length];
+
+// yerel (ry döndürülmüş) noktayı dünyaya: three.js y ekseni dönüşü (x' = x cos + z sin, z' = −x sin + z cos)
+export const lw = (x, z, ry, lx, lz) => [x + Math.cos(ry) * lx + Math.sin(ry) * lz, z - Math.sin(ry) * lx + Math.cos(ry) * lz];
+// kurulum bağlamı (ChunkSet.ctx; varlık sayfasında yok): loot noktaları, kapılar (nav), gece pencere ışıkları, bacalar, lamba havuzları
+export function ctxAdd(b, key, item) { const c = b.ctx; if (c) (c[key] ||= []).push(item); }
+// bir binanın iç loot noktaları (yerel → dünya); k: 'masa' | 'raf' | 'sandık' | 'zemin' | 'tezgâh'
+export function addLoot(b, x, z, ry, y, list) { for (const [lx, lz, k, dy = 0] of list) { const [wx, wz] = lw(x, z, ry, lx, lz); ctxAdd(b, 'loot', { x: +wx.toFixed(2), y: +(y + dy).toFixed(2), z: +wz.toFixed(2), k }); } }
+// kapı: dışarı / içeri birkaç nokta (nav ızgarasında bu hücreler açılır → botlar kapıdan girer)
+export function addDoor(b, x, z, ry, y, lx, lz, nlx, nlz) {
+  const pts = [-1.2, -0.4, 0, 0.6, 1.4].map((t) => lw(x, z, ry, lx + nlx * t, lz + nlz * t));
+  ctxAdd(b, 'doors', { y, pts: pts.map(([a, c]) => [+a.toFixed(2), +c.toFixed(2)]) });
+}

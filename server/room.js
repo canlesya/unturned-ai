@@ -11,7 +11,7 @@ import { nextOptions, tallyVotes } from '../src/game/nextMatch.js';
 const RESTART_ENV = +process.env.BF_RESTART_MS || 0, RESTART_MS = RESTART_ENV || 15000;      // maç sonu ekranı (resmi odada oylama) süresi; ortam değişkeni resmi sunucunun voteSec'ini de ezer (test)
 const EMPTY_ENV = +process.env.BF_EMPTY_ROTATE_MS || 0;                                    // boş resmi oda harita değişimi (test); yoksa sunucunun idleMin alanı
 export const SPACE_MAPS = ['yorunge'];                              // 12.157 Uzay modu haritaları (başka mod bunlarda oynanmaz)
-export const MAPS_FOR = (type) => (type === 'space' ? SPACE_MAPS : type === 'inf' ? ['newyork'] : type === 'pb' ? PB_MAPS : type === 'payload' ? ['maden'] : type === 'front' ? FRONT_MAPS : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman']);
+export const MAPS_FOR = (type) => (type === 'space' ? SPACE_MAPS : type === 'inf' ? ['newyork'] : type === 'pb' ? PB_MAPS : type === 'payload' ? ['maden'] : type === 'front' ? FRONT_MAPS : type === 'conquest' || type === 'tdm' ? ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman', 'kuzey'] : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman']);      // 12.172 Kuzey Vadisi yalnız Ele Geçirme / TDM
 
 const num = (v, lo, hi, d = 0) => (Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d);
 
@@ -354,7 +354,7 @@ export class Room {
       c.pref.loadout.op = h.s.optic; c.pref.loadout.fo = { ...h.s.optics };            // sonraki maça otomatik geçişte de
     }
     if (m.skins !== undefined) h.s.skins = c.pref.skins = cleanSkins(m.skins);           // menüde / oyunda kaplama değişti: yavaş alan imzası değişir → bir kez yayınlanır
-    if (typeof m.spawn === 'string') h.spawnChoice = m.spawn === 'base' || g.mode.objectives.some((o) => o.id === m.spawn) ? m.spawn : 'base';
+    if (typeof m.spawn === 'string') h.spawnChoice = m.spawn === 'base' || (m.spawn === 'front' && g.map.big) || g.mode.objectives.some((o) => o.id === m.spawn) ? m.spawn : 'base';
   }
 
   // BF_DEBUG=1 ile açılan test komutları (ask: kuyruk / bütçe / atıcı durumu da döner): { t:'dbg', tp:[x,z] } ışınla · { tpy:[x,y,z] } havada bırak · { hp } can · { bots:false } botları sustur · { pb:1 } herkese paintball silahları · { zb:'brute' } zombi ol · { dmg:[id,hasar,kafa] } başkasını vur · { tps:[id,x,z,yaw,can] } başkasını ışınla · { ask } durum

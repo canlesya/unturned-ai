@@ -72,6 +72,7 @@ export function trussBridge(b, T, def) {
       }
     }
     for (let i = 1; i < panels; i++) b.box(0, deck + TH - 0.4, z0 + i * pl, w - 0.4, 0.3, 0.3, STEEL, { kind: KK.METAL });   // üst enine kiriş
+    for (const sd of [-1, 1]) { b.box(sd * (w / 2 - 0.45), deck + 0.5, (z0 + z1) / 2, 0.08, 0.7, L, '#6b757d', { kind: KK.METAL }); b.box(sd * (w / 2 - 0.45), deck + 1.15, (z0 + z1) / 2, 0.12, 0.08, L, '#6b757d', { collide: false, kind: KK.METAL }); }   // korkuluk (1,2 m: üstünden atlanmaz)
     // beton ayaklar (su içinde ~ her 22 m)
     const np = Math.max(1, Math.round(L / 22));
     for (let i = 1; i < np; i++) {

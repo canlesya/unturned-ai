@@ -32,7 +32,6 @@ export function makeTerrainMaterial(outer = false) {
     vec3 gc = c * g;
     gc = mix(gc, gc * vec3(1.22, 1.12, 0.72), smoothstep(0.62, 0.8, tf(p * 0.045 + 3.0)) * 0.55);              // kuru / sararmış çayır lekesi
     gc = mix(gc, gc * vec3(0.7, 0.8, 0.62), smoothstep(0.55, 0.75, tf(p * 0.2 + 9.0)) * 0.35 * aM);            // koyu nemli tutam
-    gc = mix(gc, vec3(0.62, 0.6, 0.35), step(0.985, th(floor(p * 5.0 + 0.5))) * 0.35 * aN);                    // kır çiçeği / kuru sap
     c = mix(c, gc, gw);
   }
   // kaya: katman çizgileri + çatlak, yüzeye dik (yamaç) bakan yerde
@@ -58,14 +57,19 @@ export function makeTerrainMaterial(outer = false) {
     float de = vRoad.x * 3.97, aw = max(fwidth(de), 0.02);
     float m = 1.0 - smoothstep(-aw, aw, de);
     vec3 asph = vec3(0.064, 0.066, 0.07) * (0.86 + 0.2 * tn(p * 3.3) * aN + 0.12 * tf(p * 0.18)), dirt = vec3(0.21, 0.16, 0.1) * (0.85 + 0.25 * tf(p * 0.7));
-    float isD = smoothstep(1.5, 1.9, rty) * (1.0 - smoothstep(2.4, 2.6, rty));
+    float isD = smoothstep(1.5, 1.9, rty) * (1.0 - smoothstep(2.4, 2.6, rty)), isL = smoothstep(3.5, 3.8, rty);
     vec3 rc = mix(asph, dirt, isD);
-    float axis = de + (isD > 0.5 ? 2.25 : rty > 2.5 ? 4.5 : 3.25);                                    // eksene uzaklık (yarı genişlik + kenar uzaklığı)
+    // kaldırım taşı (köy sokağı): 0,32 m'lik düzensiz taşlar, aralar koyu
+    vec2 cq = p / 0.34; cq.x += 0.5 * mod(floor(cq.y), 2.0); vec2 cf = fract(cq), ci = floor(cq);
+    float cl = min(min(cf.x, 1.0 - cf.x), min(cf.y, 1.0 - cf.y));
+    vec3 cob = vec3(0.2, 0.19, 0.17) * (0.75 + 0.45 * th(ci)) * (1.0 - 0.45 * (1.0 - smoothstep(0.03, 0.09, cl)) * aM);
+    rc = mix(rc, cob, isL); isD = max(isD, isL * 0.0);
+    float axis = de + (isL > 0.5 ? 1.5 : isD > 0.5 ? 2.25 : rty > 2.5 ? 4.5 : 3.25);                    // eksene uzaklık (yarı genişlik + kenar uzaklığı)
     rc *= 1.0 - isD * 0.22 * (1.0 - smoothstep(0.25, 0.6, abs(axis - 1.0)));                         // toprak yolda tekerlek izi
     rc *= 1.0 - (1.0 - isD) * 0.1 * smoothstep(0.6, 0.8, tf(p * 0.05 + 3.0));                       // asfalt yaması
-    float edge = (1.0 - smoothstep(0.0, aw, abs(de + 0.42) - 0.07)) * step(2.5, rty) * aM;           // ana yol: beyaz kenar çizgisi
+    float edge = (1.0 - smoothstep(0.0, aw, abs(de + 0.42) - 0.07)) * step(2.5, rty) * (1.0 - isL) * aM;           // ana yol: beyaz kenar çizgisi
     rc = mix(rc, vec3(0.62, 0.62, 0.58), edge);
-    float sh = (1.0 - smoothstep(0.55, 1.0, de)) * (1.0 - m) * (1.0 - isD);                            // banket çakılı
+    float sh = (1.0 - smoothstep(0.55, 1.0, de)) * (1.0 - m) * (1.0 - isD) * (1.0 - isL);                            // banket çakılı
     c = mix(c, c * 0.55 + vec3(0.12, 0.11, 0.09), sh * 0.7);
     c = mix(c, rc, m);
   }

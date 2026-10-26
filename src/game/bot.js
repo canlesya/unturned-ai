@@ -103,7 +103,7 @@ export class BotBrain {
       let bs = -1;
       for (const o of objs) {
         const d = Math.hypot(o.x - s.pos.x, o.z - s.pos.z);
-        const sc = (o.owner === s.team ? 0.25 : 1) / (1 + d / 70) + Math.random() * 0.5;
+        const sc = (o.owner === s.team ? 0.25 : 1) / (1 + d / (g.map.big ? 300 : 70)) + Math.random() * 0.5;
         if (sc > bs) { bs = sc; obj = o; }
       }
     }
@@ -128,7 +128,7 @@ export class BotBrain {
     }
     const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * obj.r * 0.8;
     const gx = obj.x + Math.cos(a) * r, gz = obj.z + Math.sin(a) * r;
-    this.setGoal(gx, gz, rand(14, 28));
+    this.setGoal(gx, gz, g.map.big ? Math.max(rand(14, 28), Math.hypot(gx - s.pos.x, gz - s.pos.z) / 4.2 + 12) : rand(14, 28));   // 12.172 büyük harita: hedefe varacak kadar süre (yolun ortasında yeni hedef seçip gidip gelmesin)
     // yan kol: bazen ara nokta üzerinden dolan (kanat manevrası)
     if (Math.hypot(gx - s.pos.x, gz - s.pos.z) > 40 && Math.random() < (this.role === 'rusher' ? 0.7 : 0.45)) {
       const mx = (gx + s.pos.x) / 2, mz = (gz + s.pos.z) / 2;

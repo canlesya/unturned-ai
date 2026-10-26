@@ -466,7 +466,16 @@ export class Hud {
   zoneWarn(left) {
     this.zoneT = 0.25;
     const z = this.$('zonew'); z.style.display = 'block';
+    if (this._oob) { this._oob = false; this.$('zonett').textContent = t('hud.zone.title'); }
     this.$('zonet').textContent = left > 0 ? t('hud.zone.back', { n: Math.ceil(left) }) : t('hud.zone.hurt');
+  }
+
+  // 12.172 savaş alanı sınırı (büyük harita): aynı uyarı kutusu, başka başlık
+  oobWarn(left) {
+    this.zoneT = 0.25;
+    this.$('zonew').style.display = 'block';
+    if (!this._oob) { this._oob = true; this.$('zonett').textContent = t('hud.oob.title'); }
+    this.$('zonet').textContent = t('hud.oob.back', { n: Math.ceil(left) });
   }
 
   onPlayerSpawn() { this._spKey = null; }

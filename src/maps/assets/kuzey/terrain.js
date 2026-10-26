@@ -61,6 +61,8 @@ export function baseHeight(x, z) {
   h += (fbm(x / 430 + 3.1, z / 430 - 7.7, 11, 4) - 0.46) * 62 * away;
   h += (fbm(x / 140, z / 140, 23, 3) - 0.5) * 11 * sst(30, 140, dR);
   h += (fbm(x / 38, z / 38, 37, 2) - 0.5) * 1.6 * sst(25, 60, dR);
+  // 12.172 arazi kıvrımları: 40–70 m'lik 2–4 m'lik tümsek / çukurlar + sırt çizgileri → açık çayırda uzun görüş hatları kırılır (çömelen saklanır)
+  h += ((fbm(x / 52 + 11, z / 52 - 5, 41, 3) - 0.5) * 5.2 + (ridged(x / 130 - 3, z / 130 + 8, 43, 2) - 0.35) * 3.2) * sst(35, 140, dR);
   // yumuşak taban: tepe gürültüsü vadi tabanının altına inip nehirden kopuk çukur göl / kuru havuz yapmasın (nehir yatağı sonra ayrıca oyulur)
   { const lo = 2.0 + 0.004 * Math.max(0, dR - 40), k = 1.4; if (h - lo < 12) h = lo + Math.log1p(Math.exp(k * (h - lo))) / k; }
   // Radar Tepesi: geniş tümsek (tepe düzlüğü PADS'ta)
@@ -144,7 +146,7 @@ export class KuzeyTerrain {
 
   // Yol: Chaikin yumuşatma → 2 m örnek → yatak kotu (ortalama + eğim sınırı; köprü ucunda tabliye kotu, geçitte nehir tabanı) → ızgaraya bas
   _road(r) {
-    const W = ROAD_W[r.t], hw = W / 2, fall = r.t === 'hw' ? 7 : r.t === 'rd' ? 5 : 3.5, grade = r.t === 'dirt' ? 0.15 : 0.1;
+    const W = ROAD_W[r.t], hw = W / 2, fall = r.t === 'hw' ? 11 : r.t === 'rd' ? 8.5 : r.t === 'lane' ? 3 : 5.5, grade = r.t === 'dirt' || r.t === 'lane' ? 0.18 : 0.12;     // geniş şev: yol yamacı uçurum gibi yarmasın
     let p = r.pts.map((q) => [q[0], q[1]]);
     for (let it = 0; it < 3 && p.length > 2; it++) {
       const o = [p[0]];
@@ -165,10 +167,13 @@ export class KuzeyTerrain {
       if (by != null && (Math.hypot(x - DAM.x, z - DAM.z) < 92)) return by;       // baraj ucu: tepe kotunda
       return this.heightAt(x, z);
     });
-    const fixed = s.map(([x, z], i) => inRiver[i] || Math.hypot(x - DAM.x, z - DAM.z) < 92);
+    // köprü ucu düzlüğü: nehir bölgesinin 9 m dışına kadar tabliye kotunda (rampa bundan sonra; tabliye – yol arasında basamak kalmaz)
+    const nearBr = s.map(([x, z]) => { polyDist(RIVER, x, z, _r); const bb = BRIDGES.find((b) => Math.hypot(x - b.x, z - b.z) < 90); return bb && _r.d < _r.w + 25 ? bb.deck : null; });
+    for (let i = 0; i < y.length; i++) if (nearBr[i] != null) y[i] = nearBr[i];
+    const fixed = s.map(([x, z], i) => inRiver[i] || nearBr[i] != null || Math.hypot(x - DAM.x, z - DAM.z) < 92);
     for (let pass = 0; pass < 3; pass++) {
       const o = y.slice();
-      for (let i = 1; i < y.length - 1; i++) { if (fixed[i]) continue; let a = 0, n = 0; for (let k = -6; k <= 6; k++) { const j = i + k; if (j < 0 || j >= y.length) continue; a += y[j]; n++; } o[i] = a / n; }
+      for (let i = 1; i < y.length - 1; i++) { if (fixed[i]) continue; let a = 0, n = 0; for (let k = -9; k <= 9; k++) { const j = i + k; if (j < 0 || j >= y.length) continue; a += y[j]; n++; } o[i] = a / n; }
       y = o;
     }
     const mg = grade * 2;
@@ -180,7 +185,8 @@ export class KuzeyTerrain {
     const c = this.cell, R = hw + fall, dist = (this._rdist ||= new Float32Array(this.nx * this.nz).fill(1e9));
     const out = { id: r.id, t: r.t, w: W, pts: s.map((q, i) => [+q[0].toFixed(2), +q[1].toFixed(2), +y[i].toFixed(2)]) };
     for (let i = 0; i < s.length - 1; i++) {
-      if ((inRiver[i] || inRiver[i + 1]) && !r.ford) continue;                     // köprü açıklığı: nehir kalır
+      const cut = (inRiver[i] || inRiver[i + 1]) && !r.ford;                       // köprü açıklığı: nehir kalır; yalnız tabliyeden yüksek doğal kıyı tabliye kotuna yarılır
+      if (cut && bridgeY(s[i][0], s[i][1]) == null) continue;
       const a = s[i], b = s[i + 1];
       const i0 = Math.max(0, Math.floor((Math.min(a[0], b[0]) - R - this.minX) / c)), i1 = Math.min(this.nx - 1, Math.ceil((Math.max(a[0], b[0]) + R - this.minX) / c));
       const j0 = Math.max(0, Math.floor((Math.min(a[1], b[1]) - R - this.minZ) / c)), j1 = Math.min(this.nz - 1, Math.ceil((Math.max(a[1], b[1]) + R - this.minZ) / c));
@@ -194,9 +200,10 @@ export class KuzeyTerrain {
         const by = y[i] + (y[i + 1] - y[i]) * t;
         if (!this._h0) this._h0 = this.h.slice();                                     // yol öncesi kot (yan yamaç karışımı için)
         const w = 1 - sst(hw + 0.6, R, d);
+        if (cut) { this.h[k] = this._h0[k] > by ? mix(this._h0[k], by, w) : this._h0[k]; continue; }
         this.h[k] = mix(this._h0[k], by, w);
-        this.road[k] = d <= hw ? (r.t === 'dirt' ? 2 : 1) : d <= hw + 1.1 ? 3 : this.road[k];
-        if (this.redge) { this.redge[k] = Math.max(-127, Math.min(127, Math.round((d - hw) * 32))); this.rtype[k] = r.t === 'dirt' ? 2 : r.t === 'hw' ? 3 : 1; }
+        this.road[k] = d <= hw ? (r.t === 'dirt' || r.t === 'lane' ? 2 : 1) : d <= hw + 1.1 && r.t !== 'lane' ? 3 : this.road[k];
+        if (this.redge) { this.redge[k] = Math.max(-127, Math.min(127, Math.round((d - hw) * 32))); this.rtype[k] = r.t === 'dirt' ? 2 : r.t === 'hw' ? 3 : r.t === 'lane' ? 4 : 1; }
       }
     }
     return out;
@@ -251,6 +258,14 @@ export class KuzeyTerrain {
   slopeAt(x, z, e = 0.5) {
     const dx = (this.heightAt(x + e, z) - this.heightAt(x - e, z)) / (2 * e), dz = (this.heightAt(x, z + e) - this.heightAt(x, z - e)) / (2 * e);
     return Math.hypot(dx, dz);
+  }
+  // derin su: havadan (zıplayarak) girilmez; World.move her yatay adımda sorar (yerde yürüyerek giriş zaten engelli)
+  // köprü / baraj tabliyesinin üstü serbest (decks: [x0, x1, z0, z1], kurulumda yazılır)
+  wallAt(x, z, y) {
+    const h = this.heightAt(x, z);
+    if (!(h < this.deepWater && y > h + 0.001)) return false;
+    for (const d of this.decks || []) if (x > d[0] && x < d[1] && z > d[2] && z < d[3]) return false;
+    return true;
   }
   surfAt(x, z) { return this.surf[Math.max(0, Math.min(this.nz - 1, Math.round((z - this.minZ) / this.cell))) * this.nx + Math.max(0, Math.min(this.nx - 1, Math.round((x - this.minX) / this.cell)))]; }
   roadAt(x, z) { return this.road[Math.max(0, Math.min(this.nz - 1, Math.round((z - this.minZ) / this.cell))) * this.nx + Math.max(0, Math.min(this.nx - 1, Math.round((x - this.minX) / this.cell)))]; }

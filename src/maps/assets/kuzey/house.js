@@ -1,5 +1,5 @@
 import { KK } from './surface.js';
-import { Q, footY, worldRect, shade, roundCollide } from '../common/kuzeyKit.js';
+import { Q, footY, worldRect, shade, roundCollide, lw, ctxAdd, addLoot, addDoor } from '../common/kuzeyKit.js';
 
 // Kuzey Vadisi köy yapıları (12.172): ev (1–2 kat, içine girilir, merdivenli), ahır, kilise. Hepsi yerel çerçevede kurulur:
 // (x, z) merkez, ry = 90°'nin katı; kapı yerel +z yüzünde. Taban = ayak izindeki en yüksek arazi + 0,2; altı taş kaide (eğimli zeminde boşluk yok).
@@ -77,7 +77,33 @@ export function house(b, Tr, o) {
     const rh = gableRoof(b, w, d, H, roof, roofKind, wall);
     b.box(w * 0.26, H, -d * 0.12, 0.62, rh + 0.9, 0.62, shade(wall, 0.85), { collide: false, kind: KK.PLASTER });
     b.box(w * 0.26, H + rh + 0.9, -d * 0.12, 0.76, 0.12, 0.76, '#5e5a55', { collide: false, kind: KK.CONC });
+    // iç eşya (BR / ganimet için): masa (üst tabla + ayaklar ayrı çarpışma; altı boş) + dolap (dolu kutu, duvara yaslı)
+    const tx = iw * 0.12, tz = id2 * 0.16;
+    b.box(tx, 0.72, tz, 1.3, 0.06, 0.8, '#7a5a3c', { kind: KK.PLANK });
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.box(tx + sx * 0.58, 0, tz + sz * 0.33, 0.07, 0.72, 0.07, '#5b4130', { kind: KK.PLANK });
+    b.box(iw / 2 - 0.23, 0, 0.6, 0.42, 1.85, 1.1, '#6d5440', { kind: KK.PLANK });
+    if (floors > 1) b.box(-iw / 2 + 0.75, FH, id2 / 2 - 0.5, 1.4, 0.5, 0.9, '#8a7a64', { kind: KK.PLANK });                         // üst kat: sandık / yatak
   }));
+  // bağlam: ganimet noktaları, kapı (nav), gece pencere ışıkları (evlerin ~%60'ı), baca dumanı
+  const iw = w - 2 * T, id2 = d - 2 * T;
+  addLoot(b, x, z, ry, y0, [[iw * 0.12, id2 * 0.16, 'masa', 0.78], [iw / 2 - 0.85, 0.6, 'raf'], [-iw / 2 + 0.6, id2 / 2 - 0.6, 'zemin'], [iw / 2 - 0.6, -id2 / 2 + 0.6, 'zemin']]);
+  if (floors > 1) addLoot(b, x, z, ry, y0 + FH, [[-iw / 2 + 0.75, id2 / 2 - 0.5, 'sandık', 0.5], [iw / 2 - 0.7, id2 / 2 - 0.7, 'zemin']]);
+  const door = (seed % 3 - 1) * w * 0.18;
+  addDoor(b, x, z, ry, y0, door, d / 2, 0, 1);
+  const H2 = floors * FH + 0.25;
+  if ((Math.round(x * 7 + z * 3) & 7) < 5) {
+    for (let k = 0; k < floors; k++) for (const side of ['s', 'n', 'e', 'w']) {
+      const len = side === 's' || side === 'n' ? w : d, n = Math.max(1, Math.round(len / (side === 's' || side === 'n' ? 2.6 : 2.8)));
+      for (const op of winRow(len, n, 0.95, 2.2, 1.1, side === 's' && !k ? { at: door, w: 1.2 } : null)) {
+        if (Math.abs(Math.round(op.at * 13 + k * 5 + x)) % 3 === 0) continue;                                         // her pencere yanmaz
+        const [lx, lz, nx, nz] = side === 's' ? [op.at, d / 2 + 0.02, 0, 1] : side === 'n' ? [op.at, -d / 2 - 0.02, 0, -1] : side === 'e' ? [w / 2 + 0.02, op.at, 1, 0] : [-w / 2 - 0.02, op.at, -1, 0];
+        const [wx, wz] = lw(x, z, ry, lx, lz), [qx, qz] = lw(0, 0, ry, nx, nz);
+        ctxAdd(b, 'lights', [+wx.toFixed(2), +(y0 + k * FH + 1.575).toFixed(2), +wz.toFixed(2), +qx.toFixed(3), +qz.toFixed(3), op.w, 1.25]);
+      }
+    }
+  }
+  const [cx, cz] = lw(x, z, ry, w * 0.26, -d * 0.12);
+  ctxAdd(b, 'chimneys', [+cx.toFixed(2), +(y0 + H2 + (d / 2) * 0.72 + 1.05).toFixed(2), +cz.toFixed(2)]);
   return { y0, rect: [x0, x1, z0, z1] };
 }
 
@@ -97,6 +123,8 @@ export function barn(b, Tr, o) {
     gableRoof(b, w, d, h, roof, KK.SHEET, wall, 0.6);
     for (const [hx, hz] of [[-w / 2 + 1.4, -d / 2 + 1.4], [-w / 2 + 2.8, -d / 2 + 1.4], [-w / 2 + 1.4, -d / 2 + 2.8]]) { b.cyl(hx, 0.6, hz, 0.6, 0.6, 1.2, '#cdb066', { rx: Q, center: true, seg: 10, collide: false }); b.collide(hx, 0, hz, 1.0, 1.15, 1.15); }
   }));
+  addLoot(b, x, z, ry, y0, [[w / 2 - 1.2, -d / 2 + 1.2, 'zemin'], [0, -d / 2 + 1.0, 'sandık'], [w / 2 - 1.2, d / 2 - 1.4, 'zemin']]);
+  addDoor(b, x, z, ry, y0, 0, d / 2, 0, 1);
   return { y0, rect: [x0, x1, z0, z1] };
 }
 
@@ -129,5 +157,7 @@ export function church(b, Tr, o) {
     b.cyl(tx, th + 8.85, tz, 0.06, 0.06, 1.6, '#3a3632', { collide: false, seg: 4 });
     b.box(tx, th + 9.75, tz, 0.9, 0.08, 0.08, '#3a3632', { collide: false });
   }));
+  addLoot(b, x, z, ry, y0, [[0, -d / 2 + 1.4, 'tezgâh'], [w / 2 - 1.0, 0, 'zemin'], [-w / 2 + 1.0, -d / 4, 'zemin']]);
+  addDoor(b, x, z, ry, y0, 0, d / 2, 0, 1);
   return { y0, rect: [x0, x1, z0, z1] };
 }

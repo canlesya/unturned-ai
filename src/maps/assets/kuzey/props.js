@@ -1,5 +1,5 @@
 import { KK } from './surface.js';
-import { Q, roundCollide, shade } from '../common/kuzeyKit.js';
+import { Q, roundCollide, shade, lw, ctxAdd } from '../common/kuzeyKit.js';
 import { car, truck } from '../../vehicles.js';
 
 // Kuzey Vadisi küçük parçalar (12.172): ahşap çit, taş duvar, kütük yığını, sandık / palet, varil, saman balyası, sokak lambası, yol bariyeri, araç enkazı.
@@ -73,6 +73,7 @@ export function streetLamp(b, T, x, z, ry = 0) {
     b.box(1.0, 4.95, 0, 0.42, 0.16, 0.26, '#2c3035', { collide: false, kind: KK.METAL });
     b.box(1.0, 4.9, 0, 0.36, 0.05, 0.2, '#ffdca0', { collide: false, o: { glow: true, emissive: '#ffcf86', emissiveIntensity: 1 } });
   }));
+  const [px, pz] = lw(x, z, ry, 1.0, 0); ctxAdd(b, 'lamps', [+px.toFixed(1), 0, +pz.toFixed(1), 6.5]);
 }
 // yol bariyeri (beton New Jersey tipi), eksen hizalı
 export function jersey(b, T, x, z, ax = 'x', n = 3) {

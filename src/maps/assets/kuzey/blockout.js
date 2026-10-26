@@ -1,5 +1,5 @@
 import { KK } from './surface.js';
-import { Q, footY, worldRect, pickOf } from '../common/kuzeyKit.js';
+import { Q, footY, worldRect, pickOf, lw, ctxAdd } from '../common/kuzeyKit.js';
 import { house, barn, church } from './house.js';
 import { hall, silo, chimney, tank, office } from './industry.js';
 import { stoneBridge, trussBridge, dam, pylon, pole } from './infra.js';
@@ -12,7 +12,7 @@ import { tank as tankM, apc as apcM, jeep as jeepM, truck as truckM } from '../.
 // occ: yapı ayak izleri (ağaç / çakışma süzgeci). Yerleşim deterministik (tohumlu rng): sunucu = istemci.
 export function placeAll(cs, T, rng) {
   const occ = [], wires = [];
-  const at = (x, z) => cs.at(x, z);
+  const at = (x, z) => cs.at(x, z), b0 = cs.at(0, 0);
   const free = (r, pad = 1.5) => {
     for (const o of occ) if (r[0] - pad < o[1] && r[1] + pad > o[0] && r[2] - pad < o[3] && r[3] + pad > o[2]) return false;
     for (let x = r[0]; x <= r[1]; x += 2) for (let z = r[2]; z <= r[3]; z += 2) if (T.roadAt(x, z) || T.heightAt(x, z) < 1.2) return false;
@@ -24,17 +24,33 @@ export function placeAll(cs, T, rng) {
   // ── B · Köy ──
   const VC = { x: -230, z: 250 }, WALLS = ['#d8cfbd', '#cdbb98', '#e0d6c2', '#b9a886', '#c9c1b0', '#d2b48e', '#bfc2b4'], ROOFS = ['#8a4a32', '#7a3f2c', '#6e4434', '#93553a'];
   put(church, { x: VC.x - 4, z: VC.z - 30, ry: 0, id: 'kilise' }, 16, 26);
-  for (let gx = -5; gx <= 5; gx++) for (let gz = -4; gz <= 4; gz++) {
-    if (Math.abs(gx) <= 1 && Math.abs(gz) <= 1) continue;                                  // meydan
-    const x = VC.x + gx * 21 + (rng() - 0.5) * 5, z = VC.z + gz * 19 + (rng() - 0.5) * 4;
-    if (Math.hypot((x - VC.x) / 1.15, z - VC.z) > 112) continue;
-    const floors = rng() < 0.62 ? 2 : 1, w = 7.5 + rng() * 3.5, d = 6.2 + rng() * 2, ry = faceTo(x, z, VC.x, VC.z);
-    const fy = footY(T, ...worldRect(x, z, w, d, ry)); if (fy.max - fy.min > 2.4) continue;
-    const r = put(house, { x, z, w, d, ry, floors, wall: pickOf(rng, WALLS), roof: pickOf(rng, ROOFS), roofKind: rng() < 0.85 ? KK.TILE : KK.SHEET, seed: Math.floor(rng() * 9), pad: 3.2 }, w + 0.3, d + 0.3);
-    if (r && rng() < 0.55) {                                                               // bahçe duvarı / çiti (aralarda 1,6 m geçit kalır: araç giremez)
-      const [x0, x1, z0, z1] = r.rect, side = rng() < 0.5 ? 1 : -1, gx0 = x0 - 2.2, gx1 = x1 + 2.2;
-      const zz = side > 0 ? z1 + 3.2 : z0 - 3.2;
-      if (free([gx0, gx1, Math.min(zz, zz) - 0.4, zz + 0.4], 0.3)) { (rng() < 0.5 ? stoneWall : fence)(at(x, zz), T, gx0, zz, gx1 - 1.8, zz); occ.push([gx0, gx1, zz - 0.4, zz + 0.4]); }
+  // 12.172 organik köy: evler sokakların (yollar + dar kaldırım taşı sokaklar) iki yanına, düzensiz aralıkla, cephesi sokağa dönük dizilir.
+  // Arkada bahçe duvarı / çit (1,6 m geçit: piyade geçer, araç geçmez), kulübe, odun yığını, çamaşır ipi. Dönüş 90°'nin katı (çarpışma eksen hizalı).
+  const streets = T.roads.map((r) => ({ r, pts: r.pts.filter((q) => Math.hypot(q[0] - VC.x, q[1] - VC.z) < 132) })).filter((q) => q.pts.length > 3);
+  const facing = (nx, nz) => { let best = 0, bd = -2; for (let k = 0; k < 4; k++) { const ry = k * Q, dd = Math.sin(ry) * nx + Math.cos(ry) * nz; if (dd > bd) { bd = dd; best = ry; } } return best; };
+  for (const { r, pts } of streets) for (const side of [-1, 1]) {
+    let next = rng() * 8;
+    for (let i = 1; i < pts.length - 1; i++) {
+      const p = pts[i], dl = Math.hypot(p[0] - pts[i - 1][0], p[1] - pts[i - 1][1]); next -= dl;
+      if (next > 0) continue;
+      const tx = pts[i + 1][0] - pts[i - 1][0], tz = pts[i + 1][1] - pts[i - 1][1], L = Math.hypot(tx, tz) || 1, nx = -tz / L * side, nz = tx / L * side;
+      const floors = rng() < 0.6 ? 2 : 1, w = 7 + rng() * 3.5, d = 6 + rng() * 2, setback = r.w / 2 + 2.2 + rng() * 2.8;
+      const ry = facing(-nx, -nz), x = p[0] + nx * (setback + d / 2), z = p[1] + nz * (setback + d / 2);
+      next = w + 3.5 + rng() * 7;
+      if (Math.hypot(x - VC.x, z - VC.z) < 26 || Math.hypot(x - VC.x, z - VC.z) > 125) continue;          // meydan boş
+      const fy = footY(T, ...worldRect(x, z, w, d, ry)); if (fy.max - fy.min > 2.6) continue;
+      const res = put(house, { x, z, w, d, ry, floors, wall: pickOf(rng, WALLS), roof: pickOf(rng, ROOFS), roofKind: rng() < 0.85 ? KK.TILE : KK.SHEET, seed: Math.floor(rng() * 9), pad: 1.6 }, w + 0.3, d + 0.3);
+      if (!res) continue;
+      // arka bahçe: duvar / çit (bir uçta 1,6 m geçit), kulübe, odun, çamaşır ipi
+      const back = (k) => lw(x, z, ry, 0, -(d / 2 + k));
+      if (rng() < 0.7) {
+        const [ax, az] = lw(x, z, ry, -w / 2 - 1.2, -(d / 2 + 4.2)), [bx, bz] = lw(x, z, ry, w / 2 - 0.4, -(d / 2 + 4.2));
+        const rr = [Math.min(ax, bx) - 0.4, Math.max(ax, bx) + 0.4, Math.min(az, bz) - 0.4, Math.max(az, bz) + 0.4];
+        if (free(rr, 0.2)) { (rng() < 0.45 ? stoneWall : fence)(at(ax, az), T, ax, az, bx, bz); occ.push(rr); }
+      }
+      if (rng() < 0.35) { const [sx, sz] = back(2.2); put(barn, { x: sx + (rng() - 0.5) * 3, z: sz, w: 4.4, d: 3.4, h: 2.6, ry, wall: '#7d5a3d', roof: '#5d6459', pad: 0.6 }, 4.7, 3.7); }
+      else if (rng() < 0.5) { const [sx, sz] = back(1.8); if (free([sx - 1.6, sx + 1.6, sz - 1.6, sz + 1.6], 0.3)) { logStack(at(sx, sz), T, sx, sz, (Math.round(ry / Q) & 1) ? 'z' : 'x', 2.4, 2, 0.16); occ.push([sx - 1.4, sx + 1.4, sz - 1.4, sz + 1.4]); } }
+      if (rng() < 0.3) { const [ax, az] = lw(x, z, ry, -w / 2 + 0.5, -(d / 2 + 2.6)), [bx, bz] = lw(x, z, ry, w / 2 - 0.5, -(d / 2 + 2.6)); ctxAdd(b0, 'laundry', [ax, T.heightAt(ax, az), az, bx, T.heightAt(bx, bz), bz]); }
     }
   }
   // meydan çeşmesi + lambalar
@@ -51,6 +67,7 @@ export function placeAll(cs, T, rng) {
   put(office, { x: FC.x - 40, z: FC.z + 38, w: 18, d: 10, id: 'idare' }, 18.6, 10.6);
   for (let i = 0; i < 3; i++) put(silo, { x: FC.x + 8 + i * 8, z: FC.z - 72, r: 3.3, h: 18, id: 'silo:' + i, pad: 0.6 }, 7.6, 7.6);
   put(chimney, { x: FC.x + 12, z: FC.z - 92, h: 40, id: 'baca' }, 5, 5);
+  ctxAdd(b0, 'bigSmoke', [FC.x + 12, T.heightAt(FC.x + 12, FC.z - 92) + 42.5, FC.z - 92]);
   put(tank, { x: FC.x - 96, z: FC.z + 10, r: 6, h: 8, id: 'tank:1' }, 13.2, 13.2);
   put(tank, { x: FC.x - 96, z: FC.z + 30, r: 5, h: 7, id: 'tank:2' }, 11.2, 11.2);
   for (let i = 0; i < 10; i++) { const x = FC.x - 8 + (rng() - 0.5) * 30, z = FC.z + 18 + (rng() - 0.5) * 16; if (free([x - 0.6, x + 0.6, z - 0.6, z + 0.6], 0.2)) { crate(at(x, z), T, x, z, 1.1 + rng() * 0.3); occ.push([x - 0.6, x + 0.6, z - 0.6, z + 0.6]); } }
