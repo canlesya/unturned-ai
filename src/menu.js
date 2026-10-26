@@ -29,7 +29,7 @@ export const DEFAULTS = {
   map: DEFAULT_MAP, tod: 'day', weather: 'clear', type: 'conquest', perTeam: 10, tickets: 0, time: 900,
   team: 'blue', cls: 'assault', diff: 'normal', optic: 'reddot', loadouts: {}, skins: {}, name: lang() === 'tr' ? 'Sen' : 'You',      // varsayılan takma ad ilk açılıştaki dilde
   sens: 0.0022, fov: 75, volume: 0.6, shadows: !TOUCH, quality: 1.5, fovM: 80, qualityM: 2, adaptive: true, fullscreen: true, devMode: false,   // telefonda: gölgesiz; keskinlik için 2× (FPS düşerse otomatik çözünürlük indirir)
-  xp: 0, stats: { matches: 0, wins: 0, kills: 0, deaths: 0 },
+  xp: 0, stats: { matches: 0, wins: 0, kills: 0, deaths: 0, assists: 0 },          // assists: 12.165 (eski kayıtta yok → 0)
   server: '', room: '', olTeam: 'auto', third: true,
   keys: {}, leftHand: false, adsToggle: false, vSfx: 0.9, vMusic: 0.5, vAmb: 0.8, rainSound: true, streakSound: true,   // tuş atamaları, silah eli, ses kanalları
 };
@@ -46,10 +46,10 @@ function savePrefs(p) { try { localStorage.setItem(KEY, JSON.stringify(p)); } ca
 export function patchPrefs(o) { const p = loadPrefs(); Object.assign(p, o); savePrefs(p); }
 
 // Maç sonu: XP ve istatistikleri kaydet
-export function recordMatch({ score = 0, kills = 0, deaths = 0, win = false }) {
+export function recordMatch({ score = 0, kills = 0, assists = 0, deaths = 0, win = false }) {
   const p = loadPrefs();
   p.xp += Math.round(score + (win ? 300 : 80));
-  p.stats.matches++; if (win) p.stats.wins++; p.stats.kills += kills; p.stats.deaths += deaths;
+  p.stats.matches++; if (win) p.stats.wins++; p.stats.kills += kills; p.stats.deaths += deaths; p.stats.assists = (p.stats.assists || 0) + assists;
   savePrefs(p);
   pushProfile(p);
   return p;
@@ -169,7 +169,7 @@ export function showMenu(onStart, onOnline) {
     const s = p.stats, ss = getSession(), acct = ss?.kind === 'acct';
     q('#mnUser').innerHTML = `<div class="mn-lv"><small>${t('menu.user.lv')}</small>${lv}</div><div class="mn-ub"><div class="nmrow"><div class="nm" data-raw>${acct ? `<span class="nmv" id="mnAcctName">${esc(ss.name)}</span>` : `<input id="mnName" maxlength="16" value="${esc(p.name)}" spellcheck="false" aria-label="${t('menu.user.name')}" title="${t('menu.user.name')}">`}</div>${acctBtns(ss)}</div>
       <div class="xp"><i style="width:${Math.round(((p.xp - l0) / (l1 - l0)) * 100)}%"></i></div>
-      <small>${t('menu.user.stats', { m: s.matches, w: s.wins, kd: s.deaths ? (s.kills / s.deaths).toFixed(2) : s.kills })}</small></div>`;
+      <small>${t('menu.user.stats', { m: s.matches, w: s.wins, a: s.assists || 0, kd: s.deaths ? (s.kills / s.deaths).toFixed(2) : s.kills })}</small></div>`;
     q('#mnName')?.addEventListener('input', (e) => { p.name = e.target.value.trim() || DEFAULTS.name; save(); });
     q('#mnName')?.addEventListener('keydown', (e) => e.stopPropagation());
     const pa = nav.querySelector('.mn-acct');                                 // telefon: üst kart gizli, hesap satırı sol menünün en üstünde

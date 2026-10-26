@@ -50,6 +50,7 @@ export function packSoldier(s, slow = true) {
     o.mh = s.maxHp; o.gl = s.ggLevel; o.zt = s.def.zombie ? ZT_ORDER.indexOf(s.ztype) + 1 : 0; o.bs = s.boss ? 1 : 0; o.zl = s.zLives;
     o.it = s.items.map((it) => it.id);
     o.kl = s.kills; o.de = s.deaths; o.sc = s.score; o.rv = s.revivable ? 1 : 0;
+    if (s.assists) o.as = s.assists;                                    // 12.165 asist sayısı (0 ise yazılmaz; eski sunucu yollamaz → istemci 0 sayar)
     const sk = skinCode(s); if (sk) o.sk = sk;
   }
   return o;
@@ -59,7 +60,7 @@ export function skinCode(s) { if (!s.skins) return ''; const c = s.items.map((it
 export function skinsFrom(code, ids) { if (!code) return null; const r = {}; ids.forEach((id, i) => { const k = SKIN_IDS[+code[i] || 0]; if (k && k !== 'std') r[id] = k; }); return Object.keys(r).length ? r : null; }
 // yavaş alanların imzası: değişince o savaşçı tam paketlenir
 export function slowSig(s) {
-  return s.maxHp + '|' + s.ggLevel + '|' + (s.def.zombie ? s.ztype : '') + (s.boss ? 'B' : '') + '|' + s.zLives + '|' + s.items.map((it) => it.id).join() + '|' + s.kills + '|' + s.deaths + '|' + s.score + '|' + (s.revivable ? 1 : 0) + '|' + skinCode(s);
+  return s.maxHp + '|' + s.ggLevel + '|' + (s.def.zombie ? s.ztype : '') + (s.boss ? 'B' : '') + '|' + s.zLives + '|' + s.items.map((it) => it.id).join() + '|' + s.kills + '|' + s.deaths + '|' + (s.assists || 0) + '|' + s.score + '|' + (s.revivable ? 1 : 0) + '|' + skinCode(s);
 }
 
 export function applyFlags(s, f) {

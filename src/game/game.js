@@ -10,6 +10,7 @@ import { World } from './collision.js';
 import { Binds } from '../core/keybinds.js';
 import { music } from './music.js';
 import { KillFx } from './killfx.js';
+import { Assists, assistPop } from './assist.js';
 import { AbilityFx } from './abilityfx.js';
 import { NavGrid } from './nav.js';
 import { NavGridML } from './navml.js';
@@ -83,6 +84,7 @@ export class Game {
     this.time = 0; this.running = false; this.ended = false; this.simulate = true;
     this.soldiers = []; this.brains = []; this.projectiles = [];
     this.tick = 0; this.netEvents = []; this.pidN = 0;
+    this.assists = new Assists(this);                    // 12.165: asist kaydı (yetkili tarafta sayar; çevrim içi istemcide kapalı)
     this.humans = new Map();      // sunucu: savaşçı id → { s, queue, last, stale, ack, tickAck }
     this.classDefs = CLASS_DEFS;
     this.pendingClass = null;
@@ -1197,6 +1199,7 @@ export class Game {
         case 'pb': case 'pbh': this.paint.onNet(ev); break;          // paintball: top doğdu / oyuncuya isabet
         case 'pk': this.pickups.onNet(ev); break;                    // paintball: kutu alındı / yeniden belirdi
         case 'swg': if (by && by !== me) { by.swing = { t: 0, dur: ev.d, kind: ev.k, idx: 0, done: true }; by.comboT = ev.d + 0.38; } break;
+        case 'as': if (ev.to === me.id) { assistPop(this, this.soldiers[ev.v], ev.p); this.emit('assist', { by: me, victim: this.soldiers[ev.v], pts: ev.p }); } break;     // 12.165: kişisel asist bildirimi (sunucu yalnız ilgiliye yollar)
       }
     }
   }
@@ -1845,8 +1848,8 @@ export class Game {
     const gg = this.mode.gungame, best = list[0] ? t('match.teamBest', { name: list[0].name, score: list[0].score }) : '';
     const tb = Math.max(0, Math.round(this.tickets.blue)), tr = Math.max(0, Math.round(this.tickets.red));
     const sub = this.front ? t('front.endSub', { b: this.front.owned('blue'), r: this.front.owned('red'), n: this.front.n, sh: this.front.shifts, tb, tr, best: list[0].name, score: list[0].score }) : this.payload ? t('payload.endSub', { pct: Math.round(this.payload.progress * 100), cp: this.payload.reached, best: list[0].name, score: list[0].score }) : this.ffa ? `${t('match.rank')}: ${ffaRanking(this.soldiers, gg).slice(0, 3).map((s, i) => `${i + 1}. ${s.name} (${gg ? t('match.lvl') : ''}${ffaMetric(s, gg)})`).join(' · ')}` : `${t(inf ? 'match.humZom' : 'match.blueRed', { b: tb, r: tr })} · ${best}`;
-    const rows = `<div class="mvp"><div class="st"><b>${me.kills}</b><small>${t('match.kills')}</small></div><div class="st"><b>${me.deaths}</b><small>${t('match.deaths')}</small></div><div class="st"><b>${me.score}</b><small>${t('match.score')}</small></div><div class="st"><b>+${xp}</b><small>${t('match.xp')}</small></div></div><small style="opacity:.75">${sub}</small>`;
-    this.opts.onMatchEnd?.({ score: me.score, kills: me.kills, deaths: me.deaths, win });
+    const rows = `<div class="mvp"><div class="st"><b>${me.kills}</b><small>${t('match.kills')}</small></div><div class="st"><b>${me.assists || 0}</b><small>${t('match.assists')}</small></div><div class="st"><b>${me.deaths}</b><small>${t('match.deaths')}</small></div><div class="st"><b>${me.score}</b><small>${t('match.score')}</small></div><div class="st"><b>+${xp}</b><small>${t('match.xp')}</small></div></div><small style="opacity:.75">${sub}</small>`;
+    this.opts.onMatchEnd?.({ score: me.score, kills: me.kills, assists: me.assists || 0, deaths: me.deaths, win });
     this.hud.showEnd(win, win ? t('match.victory') : t('match.defeat'), this.ffa ? t('match.wonFfa', { why }) : t('match.won', { why, team: wname }), rows);
     if (!this.opts.editor) { this.endFlow?.dispose(); this.endFlow = new EndFlow(this, net); }
   }
