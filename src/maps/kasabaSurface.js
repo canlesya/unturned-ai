@@ -181,7 +181,7 @@ ${NOISE}`)
     }
   } else if (kind == 13.0) {                                   // ── İÇ DUVAR: düz boya, süpürgelik ──
     c *= 0.97 + 0.05 * kf(wq * 0.6 + seed);
-    if (side > 0.5) { float fy = mod(vWP.y + 0.001, 3.1); c *= 1.0 - 0.3 * (1.0 - step(0.1, fy)); c *= 1.0 - 0.06 * (1.0 - smoothstep(0.1, 0.9, fy)); }
+    if (side > 0.5) { float fy = mod(vWP.y - 0.15 + 0.001, 3.0); c *= 1.0 - 0.3 * (1.0 - step(0.1, fy)); c *= 1.0 - 0.06 * (1.0 - smoothstep(0.1, 0.9, fy)); }
   } else if (kind == 14.0) {                                   // ── YOL BOYASI: aşınmış ──
     float wear = smoothstep(0.5, 0.85, kf(p * 1.4 + 5.0) + 0.25 * kn(p * 11.0));
     c = mix(c, vec3(0.2, 0.21, 0.22), wear * 0.55);
@@ -214,7 +214,7 @@ if (uNight > 0.001) {                                          // sahte lamba ı
   totalEmissiveRadiance += diffuseColor.rgb * acc * uNight;
 }`);
   };
-  material.customProgramCacheKey = () => 'kasaba-surface-v1';
+  material.customProgramCacheKey = () => 'kasaba-surface-v2';
   return material;
 }
 

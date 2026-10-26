@@ -19,7 +19,7 @@ const badBox = m.colliders.filter((c) => !(c.max[0] > c.min[0] && c.max[1] > c.m
 ok(badBox.length === 0, `çarpışma kutusu ${m.colliders.length} (bozuk ${badBox.length})`);
 const hitAt = (x, y, z, h = 1.78) => world._hits(world.query(x - 1, z - 1, x + 1, z + 1, []), x, y, z, h);
 for (const t of ['blue', 'red']) {
-  const S = m.spawns[t], bad = S.filter((p) => hitAt(p.x, 0.01, p.z) || !nav.isFree(p.x, p.z));
+  const S = m.spawns[t], bad = S.filter((p) => hitAt(p.x, 0.17, p.z, 1.6) || !nav.isFree(p.x, p.z));     // zemin kaplaması (toprak / asfalt / kaldırım ≤ 0,15) üstünde
   ok(S.length >= 16 && bad.length === 0, `${t} doğuş ${S.length} nokta, zeminde ve geometri dışında (sorunlu ${bad.length})`);
 }
 let seen = 0;
