@@ -5,7 +5,7 @@ const OUT = process.env.OUT || 'screenshots/doku'; fs.mkdirSync(OUT, { recursive
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const page = await browser.newPage({ viewport: { width: +process.env.W || 1000, height: +process.env.H || 560 } });
 const errs = []; page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (m.type() === 'error' && !/404/.test(m.text())) errs.push(m.text().slice(0, 200)); });
-await page.goto(`http://127.0.0.1:5180/?editor=colgecidi&debug=1&nolock=1&tod=${process.env.TOD || 'day'}`);
+await page.goto(`${process.env.BASE || 'http://127.0.0.1:5180'}/?editor=colgecidi&debug=1&nolock=1&tod=${process.env.TOD || 'day'}`);
 await page.waitForFunction('window.__game && window.__game.running', null, { timeout: 120000 }); await page.waitForTimeout(1500);
 await page.evaluate(() => { const g = window.__game; g.mapEditor.toggle(false); g.hud.root.style.display = 'none'; g.playerSoldier.fly = true; });
 // bakış: ["ad", x, y, z, yaw, pitch]  ya da  ["ad", "@Bölge", dx, dz, yaw, pitch, dy=1.7] (zemin + dy; dx, dz bölge merkezinden kayma)

@@ -175,7 +175,7 @@ export class Game {
     this.terrain = this.map.terrain || null;
     this.world = new World(this.map.colliders, this.map.bounds, this.terrain);
     this.sightMap = this.map.sight && this.map.sight.length ? new SightMap(this.map.sight) : null;                // bot görüşü için yaprak / çalı ızgarası
-    this.nav = this.map.navLayers ? new NavGridML(this.map.colliders, this.map.bounds, this.terrain) : new NavGrid(this.map.colliders, this.map.bounds, this.terrain, !!this.map.layered);   // navLayers: üst üste katlar (Boya Kulesi)
+    this.nav = this.map.makeNav ? this.map.makeNav() : this.map.navLayers ? new NavGridML(this.map.colliders, this.map.bounds, this.terrain) : new NavGrid(this.map.colliders, this.map.bounds, this.terrain, !!this.map.layered);   // navLayers: üst üste katlar (Boya Kulesi); makeNav: haritanın kendi ızgarası (12.171 Çöl Geçidi: köprü altı ikinci kat)
 
     // opts.match: özel maç ayarları; opts.mode: '3v3' | '10v10' hazır ayarı (test/uyumluluk)
     this.mode = makeMatch(opts.match || PRESETS[opts.mode] || {});

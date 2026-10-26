@@ -1,3 +1,4 @@
+# 12.171: EMEKLİ — Çöl Geçidi artık sabit plandan kurulur (src/maps/assets/colgecidi/plan.js, tools/cg_plan.py). Bu betik ve colgecidiData.js tarihsel.
 # Dust 2 radar görselinden (tools_ref/dust2_radar_ref.png) "Çöl Geçidi" için yapı verisini çıkarır → src/maps/colgecidiData.js
 # Çıktı: duvar dikdörtgenleri, kutu/araç nesneleri, 1 m'lik yükseklik ızgarası, bölge dikdörtgenleri (doğuş / hedef).
 # Yön: radar döndürülmez (standart): T güney (+z), CT kuzey (−z), A sahası doğu (+x), B sahası batı (−x).

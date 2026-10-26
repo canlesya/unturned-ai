@@ -3,7 +3,7 @@ import { chromium } from 'playwright';
 const OUT = process.env.OUT || 'screenshots/doku-once';
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const page = await browser.newPage({ viewport: { width: 1000, height: 560 } });
-await page.goto(`http://127.0.0.1:5180/?autostart=3v3&map=colgecidi&type=tdm&debug=1&nolock=1&tod=${process.env.TOD || 'day'}`);
+await page.goto(`${process.env.BASE || 'http://127.0.0.1:5180'}/?autostart=3v3&map=colgecidi&type=tdm&debug=1&nolock=1&tod=${process.env.TOD || 'day'}`);
 await page.waitForFunction('window.__game && window.__game.running', null, { timeout: 120000 }); await page.waitForTimeout(1500);
 await page.evaluate(() => { const g = window.__game; g.brains.length = 0; g.hud.root.style.display = 'none'; });
 const names = (process.env.AREAS || 'Mid,B Site,A Site,Long,T Spawn,CT Spawn,Pit,Upper Tunnels,Lower Tunnels,Short,Xbox,Window,Suicide,Titanic').split(',');

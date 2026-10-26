@@ -4,7 +4,7 @@ const b = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-un
 const p = await b.newPage({ viewport: { width: 1280, height: 720 } });
 const errs = []; p.on('pageerror', (e) => errs.push(e.message));
 let fail = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'HATA ') + m); if (!c) fail++; };
-const URL = 'http://127.0.0.1:5180/?editor=colgecidi&debug=1&nolock=1';
+const URL = (process.env.BASE || 'http://127.0.0.1:5180') + '/?editor=colgecidi&debug=1&nolock=1';
 const ready = async () => { await p.waitForFunction('window.__game && window.__game.running && window.__game.mapEditor', null, { timeout: 120000 }); await p.waitForTimeout(800); };
 // palmiye kimliği + taban-merkezi (gerçek haritadan)
 await p.goto(URL); await ready();

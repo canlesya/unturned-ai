@@ -4,7 +4,7 @@ MapBuilder.noVisual = true;
 import { buildColGecidi, CALLOUTS } from '../src/maps/colgecidi.js';
 import { NavGrid } from '../src/game/nav.js';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-const m = buildColGecidi(), nav = new NavGrid(m.colliders, m.bounds, m.terrain, !!m.layered);
+const m = buildColGecidi(), nav = (m.makeNav ? m.makeNav() : new NavGrid(m.colliders, m.bounds, m.terrain, !!m.layered));
 const C = Object.fromEntries(CALLOUTS.map((c) => [c.name, c]));
 const PAIRS = [['Lower Tunnels', 'Upper Tunnels'], ['Upper Tunnels', 'Outside Tunnels'], ['Outside Tunnels', 'T Spawn'], ['Outside Tunnels', 'Titanic'], ['T Spawn', 'Outside Long'], ['T Spawn', 'Top Mid'], ['Top Mid', 'Outside Long'],
   ['Outside Long', 'Long Doors'], ['Long Doors', 'Long Corner'], ['Long Corner', 'Pit'], ['Long Corner', 'Long'], ['Long', 'Ramp'], ['Ramp', 'A Site'], ['A Site', 'Goose'], ['Top Mid', 'Mid'], ['Mid', 'Xbox'],

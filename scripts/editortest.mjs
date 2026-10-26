@@ -2,10 +2,10 @@
 import { chromium } from 'playwright';
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 } });
-await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: 'http://127.0.0.1:5180' });
+await ctx.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: (process.env.BASE || 'http://127.0.0.1:5180') + '' });
 const page = await ctx.newPage();
 const errs = []; page.on('pageerror', (e) => errs.push(e.message));
-const URL = 'http://127.0.0.1:5180/?editor=colgecidi&debug=1&nolock=1';
+const URL = (process.env.BASE || 'http://127.0.0.1:5180') + '/?editor=colgecidi&debug=1&nolock=1';
 let fail = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'HATA ') + m); if (!c) fail++; };
 const boot = async () => { await page.goto(URL); await page.waitForFunction('window.__game && window.__game.running', null, { timeout: 120000 }); await page.waitForTimeout(1200);
   await page.evaluate(() => { const g = window.__game; const s = g.playerSoldier; s.fly = true; s.pos.set(-6.5, 1.3, -13.35); s.vel.set(0, 0, 0); s.yaw = -Math.PI / 2; s.pitch = -0.12; }); await page.waitForTimeout(500); };
