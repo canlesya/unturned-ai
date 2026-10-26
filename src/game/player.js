@@ -14,6 +14,7 @@ import { fpHand, handBasis, zombieColors } from '../models/fpHands.js';
 import { box } from '../core/geo.js';
 import { clamp, lerp, V3, adsEase, ADS_HUD, zoomFov, SCOPE_ON } from './util.js';
 import { applyInput } from '../sim/input.js';
+import { swimCanFire } from '../sim/swim.js';
 import { LEAN_ROLL } from './soldier.js';
 import { TUNE } from './balance.js';
 import { TouchControls, isTouch } from './touch.js';
@@ -412,6 +413,13 @@ export class ViewModel {
     } else {
       pos.x -= sprK * 0.1; pos.y -= sprK * 0.1; pos.z += sprK * 0.05;
       rx -= sprK * 0.55; ry += sprK * 0.7;
+    }
+    // 12.180 yüzerken: ateş edilemeyen silah aşağıda (görüşü kapatmaz), tabanca yüzeyde hazır ama dalgada sallanır
+    const swTo = s.swim ? (swimCanFire(s, st) ? 0.12 : 1) : 0;
+    this.swimK = lerp(this.swimK || 0, swTo, Math.min(1, dt * 7));
+    if (this.swimK > 0.002) {
+      const sk = this.swimK, wv = Math.sin(this.game.time * 1.9);
+      pos.y -= sk * 0.34 - wv * 0.01 * (s.swim ? 1 : 0); pos.z += sk * 0.06; rx -= sk * 0.7; rz += wv * 0.04 * (s.swim ? 1 : 0);
     }
 
     // ── silah inceleme: öne/ortaya al, yandan göster, ters çevir, üstten bak, geri indir ──
@@ -1004,6 +1012,17 @@ export class Player {
 
   dispose() { this.closeWheel(); for (const [t, ev, fn, opt] of this._bound) t.removeEventListener(ev, fn, opt); this._bound = []; this.fx?.remove(); this.fxSmoke?.remove(); this.touch?.dispose(); }
 
+  // 12.180 suya giriş / çıkış: giriş anında elde ateş edilemeyen silah varsa yan silaha geçilir (çıkınca eskisine döner); nişan kapanır; yüzeye çıkış nefesi
+  swimEdge(s) {
+    this._swimWas = s.swim;
+    if (s.swim) {
+      s.ads = false;
+      const sec = s.items.findIndex((it) => WSTATS[it.id]?.slot === 'secondary' && WSTATS[it.id]?.kind === 'gun');
+      if (s.stat.slot !== 'secondary' && sec >= 0 && s.canEquip(sec)) { this._preSwim = s.cur; s.switchTo(sec); }
+      this.game.hud.swimHint?.();
+    } else if (this._preSwim != null) { if (s.alive && s.canEquip(this._preSwim)) s.switchTo(this._preSwim); this._preSwim = null; }
+  }
+
   update(dt) {
     const s = this.s, g = this.game;
     this.fireBuf = Math.max(0, this.fireBuf - dt);
@@ -1033,7 +1052,8 @@ export class Player {
       const r = (kb.held('right', k) ? 1 : 0) - (kb.held('left', k) ? 1 : 0) || (T ? T.r : 0);
       const st = s.stat;
       const lean = (kb.held('leanRight', k) && !this.vehLatch ? 1 : 0) - (kb.held('leanLeft', k) ? 1 : 0);                 // 3. şahısta da Q/E yatar (ve omuzu değiştirir) · 12.177: araca binme / inme E'si basılıyken eğilmez
-      const inp = { f, r, lean, sprint: kb.held('sprint', k) || !!(T && T.sprint), jump: (kb.held('jump', k) && !this.spaceLatch) || !!(T && T.jump) };
+      const inp = { f, r, lean, sprint: kb.held('sprint', k) || !!(T && T.sprint), jump: (kb.held('jump', k) && !this.spaceLatch) || !!(T && T.jump), dive: kb.held('crouch', k) || !!(T && T.dive) };      // 12.180 dive: çömel BASILI (yüzerken dal)
+      if (s.swim !== !!this._swimWas) this.swimEdge(s);
       if (s.fly) this.flyMove(f, r, k, dt); else applyInput(s, inp, dt);
       if (g.online) g.online.pushInput(inp, s, this.fireHeld);
       if (!kb.held('jump', k)) this.spaceLatch = false;
@@ -1044,6 +1064,8 @@ export class Player {
         else if (s.triggerUpdate(this.fireHeld, this.fireBuf)) this.fireBuf = 0;
       } else if (s.cook) { this.fireHeld = false; s.triggerUpdate(false, 0); }                                    // kilit gitti (Esc): pişirilen bomba bırakılır (sunucu da tetiği bırakılmış görür)
       if (g.online) g.online.markAmmo(s);                                              // bu girdinin sonundaki cephane (sunucunun ack anındakiyle karşılaştırılır, 12.138)
+      // 12.180 yüzme kulacı sesi
+      if (s.swim) { const hv = Math.hypot(s.vel.x, s.vel.z, s.vel.y); if (hv > 0.6 && (this._strokeT = (this._strokeT || 0) - dt) <= 0) { this._strokeT = 0.85; g.sfx.stroke?.(null); } }
       // adım sesi
       const sp = Math.hypot(s.vel.x, s.vel.z);
       if (s.onGround && sp > 1.5 && !s.crouching && !s.prone) {
@@ -1087,6 +1109,11 @@ export class Player {
       if (this.thirdT > 0.002) this.thirdCamera(dt, this.thirdT); else { this._cs = null; s.shotOff = null; this.bodyVisible = false; }
       const vo = g.online && g.online.viewOff;                      // çevrimiçi: tahmin düzeltmesi kamerada yumuşatılır (bkz. NetClient.reconcile)
       if (vo) { const k = Math.exp(-dt * 11); vo.x *= k; vo.y *= k; vo.z *= k; cam.position.x += vo.x; cam.position.y += vo.y; cam.position.z += vo.z; }
+      // 12.180: kenara tutunup çıkışta göz yumuşak yükselir (tek karede 1,5 m sıçrama yok) + yüzeyde yüzerken hafif dalga salınımı
+      if (s.climbUp > 0) { this._climbOff = Math.max(-2.6, (this._climbOff || 0) - s.climbUp); s.climbUp = 0; }
+      if (this._climbOff) { this._climbOff *= Math.exp(-dt * 7); if (this._climbOff > -0.005) this._climbOff = 0; cam.position.y += this._climbOff; }
+      this._bobK = lerp(this._bobK || 0, s.swim && !s.under ? 1 : 0, Math.min(1, dt * 4));
+      if (this._bobK > 0.01) cam.position.y += Math.sin(g.time * 1.7) * 0.03 * this._bobK;
       this.camPos.copy(cam.position);
     } else {
       s.shotOff = null; this._cs = null; this.bodyVisible = false;

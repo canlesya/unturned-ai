@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { createJeep, JEEP_MATS } from '../models/jeep.js';
 import { toWorld } from '../sim/vehicle.js';
 import { SIM_DT } from '../net/protocol.js';
+import { waterYAt } from '../sim/swim.js';
 
 // ───── Araç görünümü (12.177; yalnız tarayıcı) ─────
 // Model (takım rengine göre şablon kopyası), görsel süspansiyon (dikey ivme + eğim / yatış gecikmesi: yaylı gövde), teker dönüşü + ön teker
@@ -204,8 +205,8 @@ export class VehicleView {
         it.duT = 0.05 + 0.25 / sp;
         for (const sx of [-0.81, 0.81]) {
           toWorld(st, -1.2, sx, 0.1, _p);
-          const gy = T ? T.heightAt(_p.x, _p.z) : 0, wet = T?.deepWater != null && gy < -0.05;
-          if (wet) { for (let k = 0; k < 2; k++) S.emit(_p.x, 0.05, _p.z, (rnd() - 0.5) * 2 + st.vx * 0.2, 1.6 + rnd() * 1.6, (rnd() - 0.5) * 2 + st.vz * 0.2, 0.7, 0.25, 0.8, 0.82, 0.88, 0.92, 0.55, 7, 0.2); continue; }
+          const wy = waterYAt(T, _p.x, _p.z), gy = T ? T.heightAt(_p.x, _p.z) : 0, wet = wy > -1e9 && wy - gy > 0.08;
+          if (wet) { for (let k = 0; k < 2; k++) S.emit(_p.x, wy + 0.05, _p.z, (rnd() - 0.5) * 2 + st.vx * 0.2, 1.6 + rnd() * 1.6, (rnd() - 0.5) * 2 + st.vz * 0.2, 0.7, 0.25, 0.8, 0.82, 0.88, 0.92, 0.55, 7, 0.2); continue; }
           const road = T?.roadAt ? T.roadAt(_p.x, _p.z) : 0;
           const a = road ? 0.12 : 0.32 * Math.min(1, sp / 12);
           S.emit(_p.x, _p.y + 0.15, _p.z, -st.vx * 0.15 + (rnd() - 0.5), 0.5 + rnd() * 0.5, -st.vz * 0.15 + (rnd() - 0.5), 1.8, 0.4, 2.2, 0.55, 0.49, 0.38, a, -0.1, 0.9);
@@ -219,7 +220,7 @@ export class VehicleView {
       if ((it.smT -= dt) <= 0) { it.smT = 0.07; toWorld(st, (rnd() - 0.5) * 2.5, (rnd() - 0.5) * 1.2, 1.0, _p); S.emit(_p.x, _p.y, _p.z, (rnd() - 0.5) * 0.4, 1.6, (rnd() - 0.5) * 0.4, 3.2, 0.5, 2.8, 0.1, 0.1, 0.1, 0.55, -0.25, 0.3); }
       if (v.deadT < 4 && (it.fiT -= dt) <= 0) { it.fiT = 0.04; toWorld(st, (rnd() - 0.5) * 2.6, (rnd() - 0.5) * 1.2, 0.8, _p); this.glow.emit(_p.x, _p.y, _p.z, 0, 2 + rnd(), 0, 0.5, 0.6, 0.1, 1, 0.4 + rnd() * 0.3, 0.1, 0.85, -1); }
     }
-    if (it.sinkT && it.sinkT < 3 && (it.spT -= dt) <= 0) { it.spT = 0.05; S.emit(st.x + (rnd() - 0.5) * 3, 0.05, st.z + (rnd() - 0.5) * 3, 0, 1.2 + rnd(), 0, 0.8, 0.3, 1, 0.85, 0.9, 0.95, 0.6, 5); }
+    if (it.sinkT && it.sinkT < 3 && (it.spT -= dt) <= 0) { it.spT = 0.05; S.emit(st.x + (rnd() - 0.5) * 3, Math.max(st.y, waterYAt(T, st.x, st.z)) + 0.05, st.z + (rnd() - 0.5) * 3, 0, 1.2 + rnd(), 0, 0.8, 0.3, 1, 0.85, 0.9, 0.95, 0.6, 5); }
   }
 
   // ── ses: motor (en yakın 3 dolu / hareketli araç) + korna ──

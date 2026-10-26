@@ -77,6 +77,7 @@ export class Vehicles {
     s.onGround = true; s.onCollider = false; s.fallTop = s.pos.y; s.landH = 0; s.fallSafe = true;
     s.crouching = false; s.prone = false; s.sprinting = false; s.leanDir = 0; s.leanOff.set(0, 0, 0); s.leanK = 0; s.leanT = 0;
     s.crouchT = 0; s.proneT = 0; s.height = SEAT_H; s.eyeY = SEAT_EYE;
+    s.swim = false; s.under = false;                                    // 12.180: koltukta yüzme / nefes yok (araç batarsa yönetici indirir → yüzme konumdan başlar)
     if (s.seat === 0) s.ads = false;
   }
 

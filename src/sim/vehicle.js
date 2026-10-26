@@ -13,6 +13,8 @@
 // Durum (v): x, y, z (gövde tabanı / zemin ortası), yaw, pitch (burun yukarı +), roll (sağ yukarı +), vx, vy, vz, steer (rad), air (havada mı),
 // thr (son gaz −1..1, ses / görsel), sunk, hit (bu adımın en büyük çarpma hızı), land (bu adımın iniş hızı).
 
+import { submerged } from './swim.js';
+
 export const VT = {
   jip: {
     name: 'Jip', hp: 400, seats: 4,
@@ -144,8 +146,8 @@ export function stepVehicle(v, inp, dt, world) {
     v.vx *= k; v.vz *= k;
   }
   // su: sürüklenme (derinlikle), derin suda boğulma
-  const wy = T.terrain?.waterY ?? 0, dep = T.terrain?.deepWater != null ? wy - v.y : 0;
-  if (T.terrain?.deepWater != null && dep > 0.05) { const k = Math.exp(-dep * 1.3 * dt); v.vx *= k; v.vz *= k; if (dep > 1.1) v.sunk = true; }
+  const dep = submerged(T.terrain, v.x, v.y, v.z);                                 // 12.180 su yüzeyi (sim/swim.js); suyu olmayan haritada −1e9
+  if (dep > 0.05) { const k = Math.exp(-dep * 1.3 * dt); v.vx *= k; v.vz *= k; if (dep > 1.1) v.sunk = true; }      // gövde ortası 1,1 m su altında = motor (hava girişi) boğulur
   // yatay hareket + dik arazi duvarı
   const ox = v.x, oz = v.z;
   v.x += v.vx * dt; v.z += v.vz * dt;

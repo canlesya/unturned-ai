@@ -303,7 +303,7 @@ export class Room {
     h.queue.push({
       q: m.q,
       f: Math.round(num(m.f, -1, 1) * 100) / 100, r: Math.round(num(m.r, -1, 1) * 100) / 100, l: Math.round(num(m.l, -1, 1)),     // f / r analog (dokunmatik joystick)
-      s: m.s ? 1 : 0, j: m.j ? 1 : 0, a: m.a ? 1 : 0,
+      s: m.s ? 1 : 0, j: m.j ? 1 : 0, a: m.a ? 1 : 0, dn: m.dn ? 1 : 0,        // dn: 12.180 dalma (çömel basılı)
       yw: num(m.yw, -1e4, 1e4), pt: num(m.pt, -1.5, 1.5),
       w: Math.round(num(m.w, 0, 3)),
       c: m.c ? 1 : 0, p: m.p ? 1 : 0, u: m.u ? 1 : 0,

@@ -335,7 +335,9 @@ export class Bld {
       // iç alan: merdiven izi + varış ucunda sahanlık; kapı varış ucunun yan duvarında
       const lo = g.sg > 0 ? g.lo : g.lo - land, hi = g.sg > 0 ? g.hi + land : g.hi;
       const R = g.hz ? [lo, hi, g.w0, g.w1] : [g.w0, g.w1, lo, hi];         // [x0,x1,z0,z1] iç
-      const [ix0, ix1, iz0, iz1] = R, pc = S.wall, pk = K.wall;
+      // kulübe duvarı cephenin üst bandıyla aynı malzeme (tuğla bina → tuğla kulübe; 12.176: düz sıva kulübe tuğla çatıda yama gibiydi)
+      const topBand = (S.wallBands || []).find(([ya, yb]) => this.H >= ya && this.H < yb);
+      const [ix0, ix1, iz0, iz1] = R, pc = topBand ? topBand[2] : S.wall, pk = topBand ? topBand[3] : K.wall;
       const dside = this.roof.accessDoor || (g.hz ? (iz0 - this.z0 > this.z1 - iz1 ? 'n' : 's') : (ix0 - this.x0 > this.x1 - ix1 ? 'w' : 'e'));
       // kapı: varış ucuna yakın 1,0 m (hz: x boyunca duvarda)
       const dAt = g.sg > 0 ? hi - land / 2 : lo + land / 2, dw = 1.0;

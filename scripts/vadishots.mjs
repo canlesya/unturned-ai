@@ -27,6 +27,11 @@ const VIEWS = [
   ['13-gizli-kamp', -51.5, -35.5, -0.9, -0.12],
   ['14-kuzey-mezra', -30, -11, 0.9, 0.0],
 ];
+// SET=yeni: 12.169 yeniden yapımının bakış noktaları (eski konumlardan bazıları yeni düzende şeve bakıyor)
+if (process.env.SET === 'yeni') VIEWS.splice(0, VIEWS.length,
+  ['21-kopru-nehir', -7.5, -9.5, -0.55, 0.0], ['22-kopru-ustu', -9.4, 0.6, -P2, -0.02], ['23-mezra-sokak', -27, 0.5, -P2 + 0.25, 0.0], ['24-ambar-kapi', -24, 12.5, PI, -0.05],
+  ['25-degirmen-avlu', 26, -18, 0.35, 0.08], ['26-tepe-kule', -14, -33.5, 0.75, 0.05], ['27-orman-kampi', 16, 34.5, 2.35, -0.02], ['28-asma-kopru', -13, -47.2, -P2 - 0.05, -0.12],
+  ['29-mavi-ciftlik', -66, 2, P2 + 0.15, 0.02], ['30-sig-gecit', -9.5, -27.5, -P2 - 0.15, -0.1], ['31-kuzey-mezra', -36, -9, 2.6, 0.0], ['32-ledge-yuva', -46, -52.3, -2.2, -0.06]);
 const want = process.env.VIEWS ? process.env.VIEWS.split(',') : null;
 const browser = await chromium.launch({ args: process.env.GPU ? ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu'] : ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const report = {};
@@ -64,7 +69,7 @@ for (const pn of ONLY) {
     await page.screenshot({ path: `${OUT}/${pn}-${TOD}-${v[0]}.png` });
     rep.views[v[0]] = { info: await page.evaluate(() => window.__info) };
   }
-  if (pn === 'desktop' && !want) {
+  if (pn === 'desktop' && !want && process.env.SET !== 'yeni') {
     for (const [n, pos, tgt, fov] of [['00-kusbakisi', [-70, 75, 70], [-5, 0, 0], 50], ['00-tepeden', [0, 190, 0.01], [0, 0, 0], 50], ['00-kusbakisi-bati', [-110, 45, -25], [-40, 0, 0], 50]]) {
       await page.evaluate((cam) => { window.__game._cam = cam; }, [pos, tgt, fov]);
       await page.waitForTimeout(1200);
@@ -73,7 +78,7 @@ for (const pn of ONLY) {
     await page.evaluate(() => { window.__game._cam = null; });
   }
   for (const vn of ['01-mavi-canak', '03-kopru-bati']) {             // kare süresi
-    const v = VIEWS.find((q) => q[0] === vn); await place(v); await page.waitForTimeout(800);
+    const v = VIEWS.find((q) => q[0] === vn); if (!v) continue; await place(v); await page.waitForTimeout(800);
     await page.evaluate(() => { window.__ft.length = 0; window.__rt.length = 0; }); await page.waitForTimeout(3000);
     rep['ft-' + vn] = await page.evaluate(() => { const a = window.__ft.slice(5).sort((p, q) => p - q); if (!a.length) a.push(0); return { avg: +(a.reduce((s, x) => s + x, 0) / a.length).toFixed(1), p95: +a[Math.floor(a.length * 0.95)].toFixed(1), px: window.__game.renderer.getPixelRatio(), info: window.__info, cpu: +(window.__rt.reduce((s, x) => s + x, 0) / Math.max(1, window.__rt.length)).toFixed(2) }; });
   }

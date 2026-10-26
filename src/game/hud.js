@@ -1,4 +1,5 @@
 import { InGameSettings } from './ingameSettings.js';
+import { SwimHud } from './swimHud.js';
 import { WSTATS, CLASS_DEFS, ZTYPES, ZT_ORDER, FRONT_KIT, OPTICS, OPTIC_ALLOWED } from './stats.js';
 import { clamp, adsEase, ADS_HUD, SCOPE_ON } from './util.js';
 import { codeLabel, slotOrder, SLOT_KEYS } from '../core/keybinds.js';
@@ -20,6 +21,7 @@ const NADE_SVG = '<svg class="hsi nd" viewBox="0 0 16 16"><ellipse cx="7.5" cy="
 const HS_SVG = '<svg class="hsi" viewBox="0 0 16 16"><circle cx="8" cy="7" r="4.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 0v4M8 10v6M0 7h4M12 7h4" stroke="currentColor" stroke-width="1.6"/></svg>';
 const PEN_SVG = '<svg class="hsi pni" viewBox="0 0 16 16"><path d="M1 8h11.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M10.2 4.6 13.8 8l-3.6 3.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><rect x="4.4" y="3" width="1.8" height="10" rx=".6" fill="currentColor" opacity=".55"/><rect x="7.6" y="3" width="1.8" height="10" rx=".6" fill="currentColor" opacity=".55"/></svg>';     // 12.164: delip geçme öldürmesi (ok iki gövdeden geçer)
 const FALL_SVG = '<svg class="fli" viewBox="0 0 16 16"><path d="M8 1v9M4.2 6.6 8 10.4l3.8-3.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 14.2h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';   // düşme (12.143): aşağı ok + zemin
+const DROWN_SVG = '<svg class="fli" viewBox="0 0 16 16"><path d="M8 1.6C6 4.6 4 7 4 9.6a4 4 0 0 0 8 0C12 7 10 4.6 8 1.6z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>';   // 12.180 boğuldu: su damlası
 const CSS = `
 #hud{position:fixed;inset:0;pointer-events:none;font-family:Bahnschrift,'Rajdhani','Arial Narrow','Segoe UI',system-ui,sans-serif;color:#fff;user-select:none;z-index:5;letter-spacing:.5px;
   --acc:#ff8a1f;--acc2:#ffb347;--pan:rgba(9,13,19,.74);--pan2:rgba(14,19,27,.9);--ln:rgba(255,255,255,.12);--dim:rgba(255,255,255,.62)}
@@ -479,6 +481,7 @@ export class Hud {
   }
 
   onPlayerSpawn() { this._spKey = null; }
+  swimHint() { (this.swim ||= new SwimHud(this)).hint(); }
 
   markSpawn(id) { this.$('spawnrow').querySelectorAll('.cc').forEach((c) => c.classList.toggle('on', c.dataset.k === id)); }
 
@@ -606,7 +609,7 @@ export class Hud {
     const wl = wLabel(weapon);
     d.innerHTML = killer && killer !== victim
       ? `<span class="${cls(killer)}">${nm(killer)}</span><span class="w">${weapon === 'El Bombası' ? NADE_SVG : ''}${EN(wl)}${pn ? PEN_SVG : ''}${hs ? HS_SVG : ''}</span><span class="${cls(victim)}">${nm(victim)}</span>`
-      : `<span class="${cls(victim)}">${nm(victim)}</span><span class="w">${weapon === 'Düştü' ? FALL_SVG : ''}${wl && !/^(İntihar)$/.test(weapon) ? wl : t('hud.kf.died')}</span>`;
+      : `<span class="${cls(victim)}">${nm(victim)}</span><span class="w">${weapon === 'Düştü' ? FALL_SVG : weapon === 'Boğuldu' ? DROWN_SVG : ''}${wl && !/^(İntihar)$/.test(weapon) ? wl : t('hud.kf.died')}</span>`;
     f.appendChild(d);
     while (f.children.length > 6) f.firstChild.remove();
     setTimeout(() => d.remove(), 6000);
@@ -770,6 +773,7 @@ export class Hud {
 
   update(dt) {
     const g = this.game, p = g.playerSoldier, $ = this.$;
+    if (g.world?.terrain?.waterY) (this.swim ||= new SwimHud(this)).update(dt, p);      // 12.180 nefes çubuğu
     if (g.mode.infection) this.drawBosses();
     let kb = g.tickets.blue, kr = g.tickets.red;
     if (g.ffa) [kb, kr] = this.ffaScore(p);                           // herkes-tek: sol = sen, sağ = lider (sen öndeysen ikinci)

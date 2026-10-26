@@ -1,13 +1,17 @@
 // Girdi → hareket (saf mantık; DOM/THREE/ses yok). Offline Player, sunucu ve istemci tahmini aynı fonksiyonu kullanır.
 //
-// input: { f: −1..1 (ileri/geri), r: −1..1 (sağ/sol; klavye tam sayı, dokunmatik joystick analog — hız itme miktarıyla orantılı), lean: -1|0|1 (Q/E), sprint: bool (Shift basılı), jump: bool }
+// input: { f: −1..1 (ileri/geri), r: −1..1 (sağ/sol; klavye tam sayı, dokunmatik joystick analog — hız itme miktarıyla orantılı), lean: -1|0|1 (Q/E), sprint: bool (Shift basılı), jump: bool,
+//         dive: bool (12.180: çömel tuşu BASILI — yüzerken dalma) }
 // Etkiler: s.leanDir, s.sprinting, s.crouching/prone (koşarken kalkar), s.vel.x/z (yatay), s.vel.y + s.onGround (zıplama)
+// 12.180: yüzerken (s.swim, World.move konumdan hesaplar) hareket sim/swim.js swimInput'a geçer; sığ suda yürüme yavaşlar (wadeMul).
 import { TUNE } from '../game/balance.js';
+import { swimInput, wadeMul } from './swim.js';
 
 export const JUMP_SPEED = 5.4;      // varsayılanlar (testler); oyun TUNE'u okur (admin panelinden değişebilir)
 export const WALK_SPEED = 5.6;          // m/sn yürüme (koşu ×1,5, çömelme ×0,52). Oyuncu, botlar, sunucu ve istemci tahmini aynı sabiti kullanır; eskiden 4,4 idi ('çok yavaş' geri bildirimi)
 
 export function applyInput(s, input, dt) {
+  if (s.swim) { swimInput(s, input, dt); return; }
   const { f, r, lean } = input;
   const st = s.stat;
   s.leanDir = lean;
@@ -20,6 +24,7 @@ export function applyInput(s, input, dt) {
   if (s.crouching) spd *= TUNE.crouchMul;
   if (s.prone) spd *= TUNE.proneMul;
   if (s.adsT > 0.1) spd *= 1 - 0.4 * s.adsT;
+  if (s.wDepth > 0) spd *= wadeMul(s);                                       // 12.180 sığ su: bel derinliğine doğru yavaşlar
   const fx = -Math.sin(s.yaw), fz = -Math.cos(s.yaw), rx = Math.cos(s.yaw), rz = -Math.sin(s.yaw);
   let wx = fx * f + rx * r, wz = fz * f + rz * r;
   const wl = Math.hypot(wx, wz);
