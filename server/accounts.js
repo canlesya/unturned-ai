@@ -8,6 +8,7 @@ import crypto from 'node:crypto';
 import { DATA } from './balanceStore.js';
 import { ACCT_NAME_RE as NAME_RE } from '../src/net/protocol.js';
 import { cleanSkins } from '../src/game/stats.js';
+import { cleanWear } from '../src/game/wearIds.js';      // 12.167 kıyafet (a.outfit; skins ile aynı kural)
 
 const FILE = path.join(DATA, 'accounts.json');
 export const SESSION_MS = 90 * 24 * 3600 * 1000;
@@ -53,9 +54,9 @@ function newSession(a, now) {
   a.seen = now;
   return tok;
 }
-const pub = (a) => ({ name: a.name, created: a.created, profile: a.profile, skins: a.skins });
+const pub = (a) => ({ name: a.name, created: a.created, profile: a.profile, skins: a.skins, outfit: a.outfit });
 
-export async function register(name, pw, now = Date.now(), profile = null, skins = undefined) {
+export async function register(name, pw, now = Date.now(), profile = null, skins = undefined, outfit = undefined) {
   load();
   if (!validName(name)) throw err(400, 'name', 'Ad 3–16 karakter olmalı (harf, rakam, _)');
   if (typeof pw !== 'string' || pw.length < 4 || pw.length > 128) throw err(400, 'pass', 'Şifre en az 4 karakter olmalı');
@@ -65,6 +66,7 @@ export async function register(name, pw, now = Date.now(), profile = null, skins
   if (db[key]) throw err(409, 'taken', 'Bu ad alınmış');                     // scrypt beklerken aynı ad kaydolduysa
   const a = db[key] = { key, name, ...h, created: now, seen: now, profile: mergeProfile(null, profile), sess: [] };
   if (skins && typeof skins === 'object') a.skins = cleanSkins(skins) || {};       // misafirken seçilen kaplamalar hesaba geçer
+  if (outfit && typeof outfit === 'object') a.outfit = cleanWear(outfit) || {};    // 12.167 misafirken seçilen kıyafet
   const tok = newSession(a, now);
   persist();
   return { tok, ...pub(a) };
@@ -117,9 +119,9 @@ function mergeProfile(cur, p) {
   return o;
 }
 export const profileOut = (pr) => ({ xp: pr.xp, stats: { matches: pr.matches, wins: pr.wins, kills: pr.kills, deaths: pr.deaths, assists: pr.assists || 0 } });
-export function saveProfile(a, p) { a.profile = mergeProfile(a.profile, p); if (p && p.skins && typeof p.skins === 'object') a.skins = cleanSkins(p.skins) || {}; persist(); return a.profile; }
+export function saveProfile(a, p) { a.profile = mergeProfile(a.profile, p); if (p && p.skins && typeof p.skins === 'object') a.skins = cleanSkins(p.skins) || {}; if (p && p.outfit && typeof p.outfit === 'object') a.outfit = cleanWear(p.outfit) || {}; persist(); return a.profile; }
 // İstemciye giden profil: kaplama hiç yazılmadıysa skins = null (istemci yereldekini yükler)
-export const profileFull = (a) => ({ ...profileOut(a.profile), skins: a.skins === undefined ? null : a.skins });
+export const profileFull = (a) => ({ ...profileOut(a.profile), skins: a.skins === undefined ? null : a.skins, outfit: a.outfit === undefined ? null : a.outfit });      // outfit: 12.167 (aynı kural)
 
 // ───── admin ─────
 export const listAccounts = () => Object.values(load()).map((a) => ({ name: a.name, created: a.created, seen: a.seen, matches: a.profile?.matches || 0, xp: a.profile?.xp || 0, kills: a.profile?.kills || 0, assists: a.profile?.assists || 0, deaths: a.profile?.deaths || 0, devices: (a.sess || []).filter((s) => s.exp > Date.now()).length })).sort((x, y) => (y.seen || 0) - (x.seen || 0));
@@ -174,9 +176,9 @@ export async function handleApi(req, res) {
     if (body === null) { res.setHeader('connection', 'close'); return send(res, 400, { error: 'Geçersiz veri', key: 'bad' }), true; }
     if (route === 'POST /api/register' || route === 'POST /api/login') {
       if (limited(ipOf(req))) return send(res, 429, { error: 'Çok fazla deneme, bir dakika sonra tekrar dene', key: 'rate' }), true;
-      const r = route === 'POST /api/register' ? await register(body.name, body.pass, Date.now(), body.profile, body.skins) : await login(body.name, body.pass);
+      const r = route === 'POST /api/register' ? await register(body.name, body.pass, Date.now(), body.profile, body.skins, body.outfit) : await login(body.name, body.pass);
       console.log(`[hesap] ${route === 'POST /api/register' ? 'kayıt' : 'giriş'}: ${r.name}`);
-      return send(res, 200, { ok: true, tok: r.tok, name: r.name, profile: profileOut(r.profile), skins: r.skins === undefined ? null : r.skins }), true;
+      return send(res, 200, { ok: true, tok: r.tok, name: r.name, profile: profileOut(r.profile), skins: r.skins === undefined ? null : r.skins, outfit: r.outfit === undefined ? null : r.outfit }), true;
     }
     const tok = bearer(req), a = tok && byToken(tok);
     if (route === 'POST /api/logout') { if (tok) logout(tok); return send(res, 200, { ok: true }), true; }

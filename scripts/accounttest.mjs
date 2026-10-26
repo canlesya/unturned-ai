@@ -91,6 +91,11 @@ check(J(k2.j.skins) === J({ m4a1: 'desert' }) && J(k3.j.skins) === J({ m4a1: 'de
 const k4 = await call('PUT', '/api/profile', { skins: {} }, { tok: reg.j.tok });
 const kl = await call('POST', '/api/login', { name: N, pass: 'gizli1' }, { ip: newIp() });
 check(J(k4.j.skins) === '{}' && kl.s === 200 && J(kl.j.skins) === '{}', `hepsi standart = boş nesne (yazılmış sayılır, null değil); girişte skins döner: ${J(kl.j.skins)}`);
+// 12.167 kıyafet (outfit): skins ile aynı kural — yazılmadıysa null, PUT { outfit } temizlenir (bilinmeyen sınıf / bozuk kod atılır), girişte döner
+check(k4.j.outfit === null, `kıyafet yazılmamış hesap: outfit null (${J(k4.j.outfit)})`);
+const o1 = await call('PUT', '/api/profile', { outfit: { c: { assault: '1100200000', zombie: '1100200000', medic: 'xx' }, all: '99' } }, { tok: reg.j.tok });
+const ol = await call('POST', '/api/login', { name: N, pass: 'gizli1' }, { ip: newIp() });
+check(J(o1.j.outfit) === J({ c: { assault: '1100200000' } }) && J(ol.j.outfit) === J(o1.j.outfit) && J(o1.j.skins) === '{}', `kıyafet yazılır + temizlenir, girişte döner, kaplamaya dokunmaz: ${J(o1.j.outfit)}`);
 const kb = await call('PUT', '/api/profile', { skins: { ak47: 'gold' } }, {});
 check(kb.s === 401, 'jetonsuz kaplama yazılamaz (401)');
 const NK = 'Skn' + rid().slice(0, 5);

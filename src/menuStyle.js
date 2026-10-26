@@ -193,6 +193,9 @@ export const MENU_CSS = `
 #menu .slotb small{display:block;font-size:11px;letter-spacing:2px;color:var(--dim);text-transform:uppercase}
 #menu .slotb b{display:block;font-size:15px;letter-spacing:1px;text-transform:uppercase;margin-top:2px;position:relative;z-index:1}
 #menu .slotb img{position:absolute;right:2px;bottom:2px;width:58%;opacity:.95;pointer-events:none}
+#menu .slotb.look{grid-column:1/-1;min-height:46px}
+#menu .wear .wrow{margin-top:10px}#menu .wear .wrow h4{margin:0 0 6px;font-size:12px;letter-spacing:3px;text-transform:uppercase;color:var(--acc2);font-weight:700}
+#menu .wear .pals{margin-top:6px}#menu .wear .pals .chip{font-size:11px;padding:4px 8px}#menu .wear .chip.glow{box-shadow:inset 0 0 0 1px rgba(80,190,255,.45)}
 #menu .slotb:hover{background:var(--pan2);border-color:var(--line2)}
 #menu .slotb.on{border-color:var(--acc);background:linear-gradient(180deg,rgba(255,138,31,.2),rgba(255,138,31,.06));box-shadow:inset 0 -2px 0 var(--acc)}
 #menu .slotb.on small{color:var(--acc2)}

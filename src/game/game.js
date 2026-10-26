@@ -494,7 +494,7 @@ export class Game {
     if (!h) return;
     this.humans.delete(id);
     const s = h.s;
-    s.human = false; s.skins = null;                      // ayrılanın kaplamaları bota geçmez
+    s.human = false; s.skins = null; s.wear = null;       // ayrılanın kaplamaları / kıyafeti bota geçmez
     if (this.opts.bots === false) {                      // botsuz oda: slot boşalır
       s.vacant = true; s.name = 'Boş'; s.alive = false; s.hp = 0; s.deadT = 99; s.vel.set(0, 0, 0);
       return;
@@ -719,7 +719,7 @@ export class Game {
     if (s.pos.distanceTo(cam) < 45) this.sfx.zombie(s.pos, true);
   }
   // Ölüm ekranında yükleme değiştir: { primary, secondary, gadget, melee } → bir sonraki doğuşta geçerli (sınıfa uymazsa varsayılan)
-  requestLoadout(choice) { const me = this.playerSoldier; this.pendingLoadout = { ...choice }; this.online?.send({ t: 'opt', loadout: { ...choice, op: me?.optic, fo: me?.optics }, skins: me?.skins || null }); }      // 12.174: op / fo = nişangâh tercihleri (sunucu doğrular)      // kaplamalar yükleme değişiminde yeniden gider (tek mesaj)
+  requestLoadout(choice) { const me = this.playerSoldier; this.pendingLoadout = { ...choice }; this.online?.send({ t: 'opt', loadout: { ...choice, op: me?.optic, fo: me?.optics }, skins: me?.skins || null, wear: me?.wear || null }); }      // 12.174: op / fo = nişangâh tercihleri (sunucu doğrular)      // kaplamalar yükleme değişiminde yeniden gider (tek mesaj)
 
   // ───── doğma ─────
   // Oyuncu doğma noktası seçimi: 'base' ya da sahip olunan hedefin id'si

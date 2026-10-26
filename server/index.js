@@ -10,6 +10,7 @@ import { DEFAULT_PORT, makeRoomCode, cleanName } from '../src/net/protocol.js';
 import { MapBuilder } from '../src/maps/builder.js';
 import { useBalance } from '../src/game/balance.js';
 import { cleanSkins } from '../src/game/stats.js';
+import { cleanWear } from '../src/game/wearIds.js';
 import { loadBalance, currentBalance } from './balanceStore.js';
 import { startAdmin } from './admin.js';
 import { handleApi, byToken, guestName, ipOf, nameKey } from './accounts.js';
@@ -156,8 +157,9 @@ function enter(ws, room, m) {
   room.activate();
   const name = playerName(m);
   const skins = cleanSkins(m.skins);                                                     // silah kaplamaları (bilinen silah / kaplama dışı atılır)
-  if (room.game.ended) { room.hold(ws, { name, team: m.team, cls: m.cls, loadout: m.loadout, skins }); console.log(`[${room.code}] ${name} sonraki maçı bekliyor`); return; }     // maç sonu ekranı: yeni maçta otomatik katılır
-  const c = room.join(ws, name, m.team, m.cls, m.loadout, false, skins);
+  const wear = cleanWear(m.wear);                                                        // 12.167 kıyafet tercihi (sınıf başına kod / tüm sınıflar); eski istemci yollamaz → varsayılan
+  if (room.game.ended) { room.hold(ws, { name, team: m.team, cls: m.cls, loadout: m.loadout, skins, wear }); console.log(`[${room.code}] ${name} sonraki maçı bekliyor`); return; }     // maç sonu ekranı: yeni maçta otomatik katılır
+  const c = room.join(ws, name, m.team, m.cls, m.loadout, false, skins, wear);
   if (!c) return err(ws, 'Oda dolu');
   ws.ctx = { room, id: c.id };
   console.log(`[${room.code}] ${c.name} katıldı (${room.humanCount} oyuncu)`);

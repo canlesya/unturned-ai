@@ -6,6 +6,8 @@ import { reloadAnim, meleePose } from '../game/anim.js';
 import { ZTYPES, ZBOSS, BOSS } from '../game/stats.js';
 import { buildZombie, ZMAT } from './zombieBody.js';
 import { ww2Gear, ww2Look } from './ww2gear.js';                       // 12.158: Cephe modu 1940'lar üniformaları
+import { buildWear, WEAR_MAT, attachCapeSway } from './wear.js';         // 12.167: karakter v2 + kıyafet kaplamaları
+import { wearDecode } from '../game/wearIds.js';
 
 // Unturned/BattleBit tarzı kutu karakter. ~1.79 m boyunda, ileri = -Z.
 // Hiyerarşi: root > torso(> head, kollar, silah bağlantısı) + bacaklar. Kollar iki kemikli IK ile silaha kilitlenir.
@@ -387,7 +389,7 @@ function addGear(cls, team, c, parts, skin, ztype, look) {
 
 // ── Karakter oluşturucu ──
 // outfit 'paintball' + paint (renk) + num (forma numarası): paintball oyuncusu görünümü (sınıf teçhizatı yerine)
-export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0, weapon = null, blade = 0.38, optic = 'reddot', ztype = 'walker', outfit = null, paint = '#ff2b3a', num = 7, wskin = 'std' } = {}) {
+export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0, weapon = null, blade = 0.38, optic = 'reddot', ztype = 'walker', outfit = null, paint = '#ff2b3a', num = 7, wskin = 'std', wear = null, body = 'A' } = {}) {
   const look = outfit === 'paintball' && cls !== 'zombie' ? { num } : outfit === 'space' && cls !== 'zombie' ? { space: true } : outfit === 'ww2' && cls !== 'zombie' ? { ww2: true } : null;      // 12.157: Uzay kıyafeti · 12.158: 1940'lar üniforması
   const c = look?.space ? { ...TEAMS[team], ...spaceLook(team) } : look?.ww2 ? { ...TEAMS[team], ...ww2Look(team) } : look ? { ...TEAMS[team], ...pbLook(paint) } : TEAMS[team];
   const skin = SKINS[skinIndex % SKINS.length];
@@ -395,58 +397,65 @@ export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0,
   root.rotation.order = 'YXZ';   // önce yön (yaw), sonra gövde eğimi/yatma: baktığı yöne göre devrilir
 
   if (cls === 'zombie') return createZombie({ root, team, skinIndex, weapon, ztype });
-  // gövde
-  const torso = new THREE.Group();
-  torso.position.set(0, TORSO_Y, 0);
-  root.add(torso);
-  box(torso, [0.46, 0.58, 0.26], c.shirt);
-  taperBox(torso, [0.4, 0.1, 0.24], c.pants, [0, -0.33, 0], null, [1, 1], [1, 1]); // leğen
+  // 12.167: v2 gövde + kıyafet kaplaması (wear: kombin nesnesi ya da 10 haneli kod; yoksa sınıf varsayılanı). Uzay / Cephe / paintball kendi kostümünü kullanır;
+  // body 'old' = 12.166 öncesi kutu model (yalnız karşılaştırma sayfası)
+  const wearOn = !look && body !== 'old';
+  let torso, head, legs, armR, armL, wearOut = null, cape = false;
+  if (wearOn) ({ torso, head, legs, armR, armL, wear: wearOut, cape } = buildWear(root, { team, cls, c, skin, wear: typeof wear === 'string' || !wear ? wearDecode(wear, cls) : wear, style: body }));
+  else {
+    // gövde
+    torso = new THREE.Group();
+    torso.position.set(0, TORSO_Y, 0);
+    root.add(torso);
+    box(torso, [0.46, 0.58, 0.26], c.shirt);
+    taperBox(torso, [0.4, 0.1, 0.24], c.pants, [0, -0.33, 0], null, [1, 1], [1, 1]); // leğen
 
-  const head = new THREE.Group();
-  head.position.set(0, 0.29 + 0.03 + 0.15, 0);
-  torso.add(head);
-  box(torso, [0.13, 0.07, 0.13], skin, [0, 0.31, 0]);                              // boyun
+    head = new THREE.Group();
+    head.position.set(0, 0.29 + 0.03 + 0.15, 0);
+    torso.add(head);
+    box(torso, [0.13, 0.07, 0.13], skin, [0, 0.31, 0]);                              // boyun
 
-  // bacaklar
-  const legs = {};
-  for (const s of ['L', 'R']) {
-    const sign = s === 'R' ? 1 : -1;
-    const hip = new THREE.Group();
-    hip.position.set(sign * 0.105, 0.88, 0);
-    const knee = new THREE.Group();
-    knee.position.set(0, -0.45, 0);
-    taperBox(hip, [0.18, 0.46, 0.21], c.pants, [0, -0.225, 0], null, [1, 1], [0.9, 0.9]);
-    taperBox(knee, [0.16, 0.43, 0.19], c.pants, [0, -0.205, 0], null, [1, 1], [0.92, 0.92]);
-    const foot = new THREE.Group();                                                  // ayak: diz çerçevesinde bilek noktası; animasyon yere paralel tutar
-    foot.position.set(0, -0.37, 0);
-    knee.add(foot);
-    box(foot, [0.17, 0.12, 0.2], c.boots, [0, 0, 0]);                                 // bot gövdesi
-    box(foot, [0.17, 0.07, 0.3], c.boots, [0, -0.025, -0.045]);                      // bot burnu
-    hip.add(knee);
-    root.add(hip);
-    legs[s] = { hip, knee, foot, thigh: hip };
+    // bacaklar
+    legs = {};
+    for (const s of ['L', 'R']) {
+      const sign = s === 'R' ? 1 : -1;
+      const hip = new THREE.Group();
+      hip.position.set(sign * 0.105, 0.88, 0);
+      const knee = new THREE.Group();
+      knee.position.set(0, -0.45, 0);
+      taperBox(hip, [0.18, 0.46, 0.21], c.pants, [0, -0.225, 0], null, [1, 1], [0.9, 0.9]);
+      taperBox(knee, [0.16, 0.43, 0.19], c.pants, [0, -0.205, 0], null, [1, 1], [0.92, 0.92]);
+      const foot = new THREE.Group();                                                  // ayak: diz çerçevesinde bilek noktası; animasyon yere paralel tutar
+      foot.position.set(0, -0.37, 0);
+      knee.add(foot);
+      box(foot, [0.17, 0.12, 0.2], c.boots, [0, 0, 0]);                                 // bot gövdesi
+      box(foot, [0.17, 0.07, 0.3], c.boots, [0, -0.025, -0.045]);                      // bot burnu
+      hip.add(knee);
+      root.add(hip);
+      legs[s] = { hip, knee, foot, thigh: hip };
+    }
+    // duruş (sol bacak ileride)
+    legs.L.hip.rotation.x = 0.22;
+    legs.L.knee.rotation.x = -0.18;
+    legs.R.hip.rotation.x = -0.2;
+    legs.R.knee.rotation.x = 0.22;
+
+    const parts = { torso, head, legs };
+    addGear(cls, team, c, parts, skin, ztype, look);
+    armR = makeArm(torso, 'R', c);
+    armL = makeArm(torso, 'L', c);
   }
-  // duruş (sol bacak ileride)
-  legs.L.hip.rotation.x = 0.22;
-  legs.L.knee.rotation.x = -0.18;
-  legs.R.hip.rotation.x = -0.2;
-  legs.R.knee.rotation.x = 0.22;
-
-  const parts = { torso, head, legs };
-  addGear(cls, team, c, parts, skin, ztype, look);
-
-  // kollar + silah
-  const armR = makeArm(torso, 'R', c);
-  const armL = makeArm(torso, 'L', c);
+  // silah bağlantıları
   const mount = new THREE.Group();
   torso.add(mount);
   const mountL = new THREE.Group();                         // zombi: sol elde de pençe (iki elde pençe)
   torso.add(mountL);
 
-  mergeVC(root);                                       // renk başına değil köşe rengiyle birleştir: karakter başına ~70 yerine ~15 çizim çağrısı
+  mergeVC(root, false, wearOn ? WEAR_MAT : null);      // 12.167: v2'de tüm düz / kamuflaj / ışıma / metal parçalar tek paylaşılan malzemede · renk başına değil köşe rengiyle birleştir: karakter başına ~70 yerine ~15 çizim çağrısı
 
+  if (cape) attachCapeSway(root, torso);                   // pelerin: köşe gölgelendiricisinde hıza bağlı salınım (ek çizim çağrısı yok)
   const api = {
-    root,
+    root, wear: wearOut,
     parts: { torso, head, legs, armR, armL, mount, mountL },
     weaponL: null,
     team,
