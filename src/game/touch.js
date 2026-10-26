@@ -378,6 +378,7 @@ export class TouchControls {
     }
     if (id === 'breath') { this.breath = down; return; }                         // 12.156: basılı tutulduğu sürece nefes tut (Player → ScopeBreath)
     if (id === 'score') { g.hud.showScoreboard(down); return; }
+    if (id === 'crouch') this.dive = down;                                     // 12.180: yüzerken çömel düğmesi basılıyken dalınır
     if (!down) { if (id === 'jump') this.jump = false; return; }
     if (id === 'pause') { g.togglePause(); return; }
     if (!s.alive) return;
@@ -524,7 +525,7 @@ export class TouchControls {
     this.el.classList.toggle('off', !show);
     if (!show) {
       this.closeOptics();
-      this.f = this.r = 0; this.sprint = this.jump = this.breath = false; this.runLock = false; this.joy = null; this.looks.clear();
+      this.f = this.r = 0; this.sprint = this.jump = this.breath = this.dive = false; this.runLock = false; this.joy = null; this.looks.clear();
       this.jb.classList.remove('drag', 'run', 'locked', 'lockon');
       if (this.cfg.joy === 'float') this.jb.classList.add('float');
       if (p.fireHeld && this.anyFire()) p.fireHeld = false;

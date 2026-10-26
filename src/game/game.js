@@ -32,6 +32,9 @@ import { TEAMS } from '../core/palette.js';
 import { nullSink } from '../sim/nullSink.js';
 import { applyInput } from '../sim/input.js';
 import { fallDamage, fallApplies, FALL } from '../sim/fall.js';
+import { breathTick, waterYAt } from '../sim/swim.js';
+import { Underwater } from './underwater.js';
+const WATER_STOP = 1.5;                  // 12.180: mermi su yüzeyinden sonra en çok bu kadar (m) ilerler
 import { SIM_DT } from '../net/protocol.js';
 import { mat } from '../core/geo.js';
 import { t } from '../i18n/index.js';
@@ -520,7 +523,7 @@ export class Game {
     const s = h.s;
     s.ads = !!inp.a;                                                  // 12.145: nişan isteği adsT güncellemesinden ÖNCE (istemcide fare olayı karenin s.update'inden önce gelir; eski sıra sunucu adsT'sini bir adım geride bırakıp nişandan koşuya dönüşte ~5 cm tahmin düzeltmesi yaptırıyordu)
     s.update(dt);
-    if (s.alive) { this.world.move(s, dt); this.fallCheck(s); }
+    if (s.alive) { this.world.move(s, dt); this.fallCheck(s); this.swimCheck(s, dt); }
     if (!s.alive) return;
     s.yaw = inp.yw; s.pitch = Math.max(-1.5, Math.min(1.5, inp.pt));
     if (inp.w !== s.cur) s.switchTo(inp.w);
@@ -531,7 +534,7 @@ export class Game {
     if (inp.fm) s.toggleFireMode();
     if (inp.ab) s.useAbility();
     if (inp.o) s.cycleOptic();
-    applyInput(s, { f: inp.f, r: inp.r, lean: inp.l, sprint: !!inp.s, jump: !!inp.j }, dt);
+    applyInput(s, { f: inp.f, r: inp.r, lean: inp.l, sprint: !!inp.s, jump: !!inp.j, dive: !!inp.dn }, dt);
     // ateş: Player.update ile aynı mantık
     if (inp.fp) h.fireBuf = 0.15;
     h.fireBuf = Math.max(0, h.fireBuf - dt);
@@ -925,6 +928,31 @@ export class Game {
     if (!(this.time - (this._fallFxAt ?? -9) < 1)) this.fallFx(dmg);
   }
 
+  // ───── 12.180 nefes / boğulma (kural: sim/swim.js breathTick) ─────
+  // YETKİLİ taraf (çevrimdışı oyun / sunucu) uygular: başı su altındaki savaşçının nefesi (18 sn) biterse her saniye 10 can. Saldıran yok (düşme gibi);
+  // doğuş koruması / geliştirici ölümsüzlüğü korur. Ölürse "Boğuldu" (kendi kendine; son 5 sn'de vuran düşman varsa öldürme ona, 12.165).
+  swimCheck(s, dt) {
+    const d = breathTick(s, dt);
+    if (d <= 0 || !s.alive || s.protT > 0 || (s.isPlayer && this.devGod)) return;
+    s.hp -= d; s.lastDmgT = this.time;
+    if (s.isPlayer) this.drownFx(d);
+    else if (s.human) this.netEvent({ e: 'drown', v: s.id, d });
+    this.emit('drown', { s, dmg: d });
+    if (s.hp <= 0) { s.lastHit = s; s.die(s, 'Boğuldu', false); }
+  }
+  // Çevrimiçi istemci: nefes göstergesi + boğulma geri bildirimi aynı kuraldan tahmin edilir; can sunucudan gelir (tahminle düşülmez)
+  swimPredict(me, dt) {
+    const d = breathTick(me, dt);
+    if (d > 0 && !me.protected && !this.devGod) this.drownFx(d);
+  }
+  drownFx(dmg) {
+    if (this.headless) return;
+    this._drownFxAt = this.time;
+    this.effects.shake = Math.max(this.effects.shake, 0.25);
+    this.hud.damageFrom(null, this.playerSoldier);
+    this.sfx.drown?.();
+  }
+
   // İniş darbesi: kısa kamera sarsıntısı + hasar sesi + genel (yönsüz) kırmızı kenar
   fallFx(dmg) {
     if (this.headless) return;
@@ -1163,7 +1191,7 @@ export class Game {
     if (this._badge && (this._badgeT -= dt) <= 0) { this._badgeT = 0.5; const rtt = Math.round(this.online.stats.rtt || 0); this._badge.innerHTML = `ODA <b style="color:#ffb347">${this._badgeCode}</b> · ${rtt ? rtt + ' ms' : '…'} · ${Math.round(this._perf?.fps || 0)} FPS`; }
     const me = this.playerSoldier;
     for (const s of this.soldiers) s.update(dt);
-    if (me.alive) { this.world.move(me, dt); this.fallPredict(me); } else if (me.respawnT > 0) me.respawnT -= dt;
+    if (me.alive) { this.world.move(me, dt); this.fallPredict(me); this.swimPredict(me, dt); } else if (me.respawnT > 0) me.respawnT -= dt;
     this.updatePlayArea(dt);
     this.player.update(dt);
     { const m = this.playerSoldier.pos; if (!this._p0) { this._p0 = m.clone(); this._p1 = m.clone(); } else { const t = this._p0; this._p0 = this._p1; this._p1 = t; t.copy(m); } }       // yerel karakter konumu: son iki adım
@@ -1189,7 +1217,7 @@ export class Game {
     for (const s of this.soldiers) {
       if (s.human && s.alive) continue;            // canlı insanlar girdi güdümlü (updateHumans)
       s.update(dt);
-      if (s.alive) { this.world.move(s, dt); this.fallCheck(s); }
+      if (s.alive) { this.world.move(s, dt); this.fallCheck(s); this.swimCheck(s, dt); }
     }
     if (this.player) this.player.update(dt); else this.updateHumans(dt);
     for (const b of this.brains) b.update(dt);
@@ -1232,6 +1260,7 @@ export class Game {
           const dir = p.clone().sub(o).normalize();
           this.effects.tracer(o, p, st.tracer);
           if (ev.k === 'f') this.effects.blood(p, 7, dir.clone().negate());
+          else if (ev.k === 'w' && ev.ws) this.effects.splash(p);                                                       // 12.180 suya isabet
           else if (ev.k === 'w') { const n = new V(...ev.n); this.effects.spark(p, 4, n); this.effects.dust(p, n); this.effects.decal(p, n); }
           if (ev.b) for (let i = 0; i + 2 < ev.b.length; i += 3) this.effects.blood(new V(ev.b[i], ev.b[i + 1], ev.b[i + 2]), 7, dir.clone().negate());     // 12.164: delip geçilen askerler
           if (ev.tw) { const tp = new V(ev.tw[0], ev.tw[1], ev.tw[2]), tn = new V(ev.tw[3], ev.tw[4], ev.tw[5]); this.effects.spark(tp, 3, tn); this.effects.decal(tp, tn); }     // 12.164: ince levha geçişi
@@ -1240,7 +1269,8 @@ export class Game {
         }
         case 'hm': if (ev.by === me.id) this.emit('hitmark', { zone: ev.hd ? 'head' : 'body', dead: !!ev.dead, pn: ev.pn || 0 }); break;
         case 'dmg': if (ev.v === me.id) { this.hud.damageFrom(new V(ev.x, 0, ev.z), me); this.sfx.hurt(); } break;
-        case 'fall': if (ev.v === me.id && !(this.time - (this._fallFxAt ?? -9) < 1)) this.fallFx(ev.d); break;     // düşme hasarı: tahmin etmediysek (yanlış tahmin) sunucudan geri bildirim
+        case 'fall': if (ev.v === me.id && !(this.time - (this._fallFxAt ?? -9) < 1)) this.fallFx(ev.d); break;
+        case 'drown': if (ev.v === me.id && !(this.time - (this._drownFxAt ?? -9) < 0.8)) this.drownFx(ev.d); break;     // 12.180 boğulma: tahmin kaçtıysa sunucudan     // düşme hasarı: tahmin etmediysek (yanlış tahmin) sunucudan geri bildirim
         case 'kill': {
           const victim = this.soldiers[ev.v], killer = this.soldiers[ev.k] || victim;
           if (!victim) break;
@@ -1436,9 +1466,13 @@ export class Game {
     const now = performance.now(), dt = Math.min(0.1, (now - (this._rT || now)) / 1000); this._rT = now;
     this._vmLightUpdate(dt);
     const post = this.post?.on && this.post.begin() ? this.post : null;      // begin() false: hedef sürücü sınırını aşıyor → doğrudan ekrana (12.151)
+    const uw = this.world.terrain?.waterY ? (this.underwater ||= new Underwater(this)) : null;      // 12.180 su altı görünümü (sis + ton + boğuk ses; su vermeyen haritada yok)
+    uw?.begin(dt);
     r.clear();
     r.render(this.scene, this.camera);
+    uw?.overlay(r);
     if (this.playerSoldier.alive && !this.showSelf) this.player.vm.render(r, innerWidth, innerHeight);
+    uw?.end();
     if (post) post.end();
   }
 
@@ -1509,6 +1543,7 @@ export class Game {
       }
     }
     const tw = wh ? wh.t : Infinity;
+    const wE = this.waterEntry(origin, dir, Math.min(tw, maxT)), wStop = wE == null ? Infinity : wE + WATER_STOP;      // 12.180: su mermiyi 1,5 m'de durdurur (dalan korunur)
     const wd = this.world.raycast(origin, dir, Math.min(tw, thinT, maxT), (this._wd ||= {}));
     const woodT = wd && wd.collider && wd.collider.tag === 'wood' ? wd.t : Infinity;
     // vurulan askerler (ışın boyunca sıralı): delmeyen silahta yalnız ilki, delende en çok pen.length. Takım arkadaşı ışını kesmez (hasar almaz, hak harcamaz).
@@ -1517,7 +1552,7 @@ export class Game {
     for (const e of this.soldiers) {
       if (e === shooter || !e.alive || e.team === shooter.team) continue;
       const h = this.hitSoldier(e, origin, dir, Math.min(tw, pen ? Infinity : bestT, maxT));
-      if (!h || h.t >= tw) continue;
+      if (!h || h.t >= tw || h.t > wStop) continue;
       if (pen) hits.push({ e, t: h.t, zone: h.zone });
       else if (h.t < bestT) { bestT = h.t; hits[0] = { e, t: h.t, zone: h.zone }; }
     }
@@ -1559,6 +1594,11 @@ export class Game {
       const pt = pts[pts.length - 1];
       if (Math.random() < 0.6 || (st.pellets || 1) === 1) this.effects.tracer(muzzle, pt, st.tracer);
       if (ev) { ev.k = 'f'; ev.p = [q2(pt.x), q2(pt.y), q2(pt.z)]; }
+    } else if (wh && wE != null && wE > 0.05 && wh.t > wE) {                     // 12.180 su yüzeyine çarptı: sıçrama (dipte kıvılcım / iz yok)
+      const pt = origin.clone().addScaledVector(dir, wE);
+      if (Math.random() < 0.7 || hits.length) this.effects.tracer(muzzle, pt, st.tracer);
+      this.effects.splash(pt);
+      if (ev) { ev.k = 'w'; ev.ws = 1; ev.p = [q2(pt.x), q2(pt.y), q2(pt.z)]; ev.n = [0, 1, 0]; }
     } else if (wh) {
       const pt = wh.point.clone();
       if (Math.random() < 0.7 || hits.length) this.effects.tracer(muzzle, pt, st.tracer);
@@ -1575,6 +1615,21 @@ export class Game {
     // 12.164: delip geçilen askerlerin kan noktaları (başkalarının ekranı için; son durak 'f' ise p zaten son asker)
     if (ev && pts.length > (stopped ? 1 : 0)) ev.b = pts.slice(0, stopped ? -1 : undefined).flatMap((v) => [q2(v.x), q2(v.y), q2(v.z)]);
     if (ev) this.netEvents.push(ev);
+  }
+
+  // 12.180 ışının suya girdiği t (m): başlangıç su altındaysa 0, su yoksa / yukarı bakıyorsa null. Aday su kotları: başlangıç ve uç noktanın suyu.
+  waterEntry(o, d, maxT) {
+    const T = this.world.terrain; if (!T?.waterY) return null;
+    if (waterYAt(T, o.x, o.z) > o.y) return 0;
+    if (!(d.y < -1e-4)) return null;
+    const L = Math.min(maxT, 400), ex = o.x + d.x * L, ez = o.z + d.z * L;
+    let best = null;
+    for (const lv of [waterYAt(T, ex, ez), waterYAt(T, o.x, o.z)]) {
+      if (!(lv > -1e9) || lv >= o.y) continue;
+      const t = (lv - o.y) / d.y;
+      if (t > 0 && t < L && Math.abs(waterYAt(T, o.x + d.x * t, o.z + d.z * t) - lv) < 0.01 && (best == null || t < best)) best = t;
+    }
+    return best;
   }
 
   // Yakın dövüş vuruşu: önündeki koni (±34°) içinde, duvar engeli olmayan en yakın düşman. Yoksa duvar vuruşu döner.
@@ -1604,7 +1659,13 @@ export class Game {
   // Duman: iki nokta arası görüş çizgisi (dünya + duman). Botların algısı bunu kullanır.
   losClear(a, b) { return this.world.clear(a, b) && !smokeBlocks(this, a, b); }
   // botların görüşü: LOS + duman + yaprak / çalı (mermi geçer ama bot görmez)
-  botSees(a, b) { return this.losClear(a, b) && !(this.sightMap && this.sightMap.blocked(a, b)); }
+  // 12.180: suyun 0,7 m'den derinindeki nokta su üstünden (ya da tersi) görünmez (dalan oyuncu botlardan saklanır)
+  botSees(a, b) { return this.losClear(a, b) && !(this.sightMap && this.sightMap.blocked(a, b)) && !this.waterHides(a, b); }
+  waterHides(a, b) {
+    const T = this.world.terrain; if (!T?.waterY) return false;
+    const da = waterYAt(T, a.x, a.z) - a.y, db = waterYAt(T, b.x, b.z) - b.y;
+    return (da > 0.7 || db > 0.7) && !(da > 0 && db > 0 && Math.hypot(a.x - b.x, a.z - b.z) < 14);      // ikisi de sudaysa yakında (≤ 14 m) görür
+  }
   smokeDensity(p) { return smokeDensity(this, p); }
   placeDeployable(s, st) { return placeDeployable(this, s, st); }
 

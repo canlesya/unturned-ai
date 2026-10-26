@@ -1,5 +1,6 @@
 import { KK } from './surface.js';
-import { footY, shade } from '../common/kuzeyKit.js';
+import { footY, shade, ctxAdd } from '../common/kuzeyKit.js';
+import { KZ_LAKE } from './layout.js';
 
 // Kuzey Vadisi altyapı parçaları (12.172): taş kemer köprü, çelik kafes köprü, baraj gövdesi, enerji nakil direği (+ tel verisi), ahşap elektrik direği.
 // Köprü / baraj boyu araziden ölçülür (tabliye altında arazi kalan kısım + 1 m gömme). Tabliye ve altındaki gövde 'deck' etiketli (yol bulma suyun üstünden
@@ -94,7 +95,17 @@ export function dam(b, T, D) {
     }
     b.box(up - D.thick / 2, D.crest - 1.2, 0, D.thick, 1.0, L, '#a29f96', { kind: KK.CONC, tag: 'deck' });
     b.box(up - D.thick / 2 + 0.25, D.crest - 0.2, 0, D.w, 0.2, L, ASPH, { kind: KK.ASPH, tag: 'deck' });
-    b.box(up - 0.4, D.crest - 0.2, 0, 0.8, 1.6, L, '#a9a69d', { kind: KK.CONC });                           // menba korkuluk duvarı (göle atlanmaz)
+    // menba korkuluk duvarı + 12.180 göl merdiveni: korkulukta 1,4 m açıklık, menba yüzüne yaslı beton basamaklı payanda (göl tabanından yükselen
+    // dolu kütle; 15 basamak × 0,247 m, 0,4 m basamak) → alt sahanlık su yüzeyinin 0,3 m üstünde: yüzen oyuncu kenara tutunup çıkar, buradan göle girilir
+    const zg = Math.round(L * 0.2), gw = 0.7, SW = 1.4, NS = 15, RISE = (D.crest - (KZ_LAKE + 0.3)) / NS, RUN = 0.4;
+    b.box(up - 0.4, D.crest - 0.2, (-L / 2 + zg - gw) / 2, 0.8, 1.6, zg - gw + L / 2, '#a9a69d', { kind: KK.CONC });
+    b.box(up - 0.4, D.crest - 0.2, (L / 2 + zg + gw) / 2, 0.8, 1.6, L / 2 - zg - gw, '#a9a69d', { kind: KK.CONC });
+    b.box(up + SW / 2, bed, zg, SW, D.crest - bed, 2 * gw, '#9a978e', { kind: KK.CONC });                 // üst sahanlık (tepe kotunda)
+    for (let i = 1; i <= NS; i++) {
+      const len = i === NS ? 1.6 : RUN, zc = zg - gw - (i - 1) * RUN - len / 2, top = D.crest - i * RISE;
+      b.box(up + SW / 2, bed, zc, SW, top - bed, len, '#9a978e', { kind: KK.CONC });
+    }
+    ctxAdd(b, 'swimExits', [up + SW / 2, +(KZ_LAKE + 0.3).toFixed(2), +((z0 + z1) / 2 + zg - gw - (NS - 1) * RUN - 0.8).toFixed(2)]);
     b.box(up - D.thick + 0.375, D.crest - 0.2, 0, 0.75, 1.1, L, '#a9a69d', { kind: KK.CONC });             // mansap korkuluğu
     // dolusavak kapakları (görsel ayaklar) + tepe lambaları
     for (let i = -2; i <= 2; i++) b.box(up - D.thick - 0.6, 6, i * 6, 1.2, D.crest - 7.2, 1.0, '#8d8a82', { kind: KK.CONC });

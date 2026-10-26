@@ -1,4 +1,5 @@
 // Kuzey Vadisi (12.172) denetimi (başsız, tarayıcısız): node --expose-gc scripts/kuzeytest.mjs
+// 12 su (12.180): botlar suya girmez, suya düşen bot kıyıya çıkar
 // 1 kurulum süresi / bellek (sunucu yolu) · 2 sunucu = istemci (çarpışma / görüş / doğuş / ganimet karması) · 3 doğuşlar · 4 bayraklara yol · 5 köprü + baraj tepesi
 // yürüyüşü · 6 savaş alanı sınırı (10 sn → ölüm, içeride ölmez, botlar dışarı gitmez) · 7 sızıntı (rastgele yürüyüş: harita dışı / arazi altı / kutu içi / derin su)
 // · 8 ganimet noktaları (bina içi, boş) · 9 kapıdan bina içine yol · 10 bot görüşü: buğday / çalı çiti / ağaç tepesi keser, açıkta görür · 11 hayvan / ses yalnız istemci
@@ -76,12 +77,14 @@ ok(D.z < -130 && D.minY > 20, '5c baraj tepesi yürünür (24 m)', `son z ${D.z.
       const p = s.pos;
       if (!Number.isFinite(p.x + p.y + p.z)) { nan++; break; }
       if (p.x < S.bounds.minX - 0.01 || p.x > S.bounds.maxX + 0.01 || p.z < S.bounds.minZ - 0.01 || p.z > S.bounds.maxZ + 0.01) { leak++; break; }
-      if (p.y < T.heightAt(p.x, p.z) - 0.3) { under++; break; }
-      if (s.onGround && !s.onCollider && T.heightAt(p.x, p.z) < T.deepWater - 0.05) { deep++; if (process.env.DBG) console.log('derin', p.x.toFixed(1), p.y.toFixed(2), p.z.toFixed(1), 'başlangıç', x.toFixed(0), z.toFixed(0), 'adım', i); break; }
+      if (p.y < T.heightAt(p.x, p.z) - 0.3) { under++; if (process.env.DBG) console.log('altta', p.x.toFixed(1), p.y.toFixed(2), p.z.toFixed(1), 'zemin', T.heightAt(p.x, p.z).toFixed(2), 'adım', i, 'yüzme', s.swim); break; }
+      // 12.180: derin suya girilir (yüzülür); derin suyun dibinde durmak (batmak) yasak
+      s.bedT = s.onGround && !s.onCollider && T.waterY(p.x, p.z) - p.y > 1.7 ? (s.bedT || 0) + 1 / 30 : 0;      // kıyıya yaklaşırken dibe değmek olağan; 2 sn dipte kalmak = batma
+      if (s.bedT > 2) { deep++; if (process.env.DBG) console.log('derin', p.x.toFixed(1), p.y.toFixed(2), p.z.toFixed(1), 'başlangıç', x.toFixed(0), z.toFixed(0), 'adım', i); break; }
     }
     if (inBox(s.pos.x, s.pos.y + 0.02, s.pos.z, 1.5)) inside++;
   }
-  ok(!leak && !under && !inside && !deep && !nan, '7 sızıntı yok (harita dışı / arazi altı / kutu içi / derin su)', `dışarı ${leak} · altta ${under} · kutu içi ${inside} · derin su ${deep} · NaN ${nan}`);
+  ok(!leak && !under && !inside && !deep && !nan, '7 sızıntı yok (harita dışı / arazi altı / kutu içi / derin su dibinde batma)', `dışarı ${leak} · altta ${under} · kutu içi ${inside} · derin su ${deep} · NaN ${nan}`);
 }
 
 // 8 ganimet noktaları
@@ -117,6 +120,19 @@ ok(D.z < -130 && D.minY > 20, '5c baraj tepesi yürünür (24 m)', `son z ${D.z.
     const cl = LOS.clear(a, b); if (cl) open0++; if (cl && !sm.blocked(a, b)) open++;
   }
   console.log(`     açık görüş hattı (150–500 m, ayakta göz → göğüs): arazi + yapı %${(open0 / tot * 100).toFixed(1)} → + bitki örtüsü %${(open / tot * 100).toFixed(1)}`);
+}
+// 12 (12.180) su: botlar suya kendiliğinden girmez; derin suya düşen bot kıyıya yüzüp çıkar
+{
+  MapBuilder.noVisual = true;
+  const { Game } = await import('../src/game/game.js');
+  const g = new Game(null, { headless: true, map: 'kuzey', tod: 'day', weather: 'clear', diff: 'normal', match: { perTeam: 8, type: 'conquest', time: 900 } });
+  let swimS = 0;
+  for (let i = 0; i < 120 * 30; i++) { g.step(1 / 30); for (const s of g.soldiers) if (s.alive && s.swim) swimS += 1 / 30; }
+  ok(swimS === 0, '12a botlar suya girmez (16 bot, 120 sn)', `yüzme ${swimS.toFixed(1)} bot·sn`);
+  const b = g.soldiers.find((s) => s.alive); b.protT = 1e9; b.pos.set(-150, -1.4, 40); b.vel.set(0, 0, 0); b.brain.goal = null;
+  let tOut = null;
+  for (let i = 0; i < 45 * 30 && tOut == null; i++) { g.step(1 / 30); if (!b.swim && !b.brain.swimming && b.onGround && i > 5) tOut = i / 30; }
+  ok(tOut != null && b.alive, '12b derin suya düşen bot kıyıya yüzüp çıkar', `${tOut?.toFixed(1)} sn, (${b.pos.x.toFixed(0)}, ${b.pos.y.toFixed(1)}, ${b.pos.z.toFixed(0)})`);
 }
 // 11 istemci görselleri sunucuda kurulmaz
 ok(!S.fx && !!V.fx && !S.veg, '11 hayvan / ot / ses / gece ışığı yalnız istemcide (sunucuda fx yok)');

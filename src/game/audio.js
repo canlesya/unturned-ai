@@ -60,7 +60,8 @@ export class Sfx {
     const sh = (this.clip = c.createWaveShaper()), K = 1024, cv = new Float32Array(K);              // yumuşak tavan: 0,6'ya kadar doğrusal, üstü tanh ile 0,98'e bükülür (sınırlayıcı geç kalsa da kırpma yok)
     for (let i = 0; i < K; i++) { const x = (i / (K - 1)) * 2 - 1, a = Math.abs(x); cv[i] = Math.sign(x) * (a < 0.6 ? a : 0.6 + 0.38 * Math.tanh((a - 0.6) / 0.38)); }
     sh.curve = cv;
-    this.master.connect(lim); lim.connect(sh); sh.connect(c.destination);
+    const lp = (this.uwLP = c.createBiquadFilter()); lp.type = 'lowpass'; lp.frequency.value = 22000; lp.Q.value = 0.6;     // 12.180 su altı: ana çıkış boğuklaşır (tek alçak geçirgen)
+    this.master.connect(lp); lp.connect(lim); lim.connect(sh); sh.connect(c.destination);
     this.sfxBus = c.createGain(); this.sfxBus.connect(this.master);          // efektler
     this.ambBus = c.createGain(); this.ambBus.connect(this.master);          // ortam: yağmur, rüzgâr
     this.verbIn = c.createGain(); this.verbIn.gain.value = 1;                 // yankı: tek ortak evrişim (telefonda kısa dürtü)
@@ -78,7 +79,9 @@ export class Sfx {
   }
 
   dispose() {
-    for (const n of [this.master, this.limiter, this.clip, this.sfxBus, this.ambBus, this.verbIn, this.verb, this.verbOut]) try { n?.disconnect(); } catch (e) { /* yok say */ }
+    for (const n of [this.master, this.uwLP, this._uwN, this._uwG, this.limiter, this.clip, this.sfxBus, this.ambBus, this.verbIn, this.verb, this.verbOut]) try { n?.disconnect(); } catch (e) { /* yok say */ }
+    try { this._uwN?.stop(); } catch (e) { /* yok say */ }
+    this._uwN = this._uwG = null; this._uwOn = false;
     this.ctx = null;
   }
 
@@ -261,6 +264,52 @@ export class Sfx {
     this._tone({ v, gain: big ? 0.5 : 0.32, dur: big ? 0.9 : 0.6, f0: f * 1.5, f1: f * 0.7, type: 'sawtooth' });
     this._tone({ v, gain: 0.18, dur: big ? 0.9 : 0.6, f0: f * 3.1, f1: f * 1.4, type: 'square', delay: 0.03 });
     this._noise({ v, type: 'bandpass', gain: 0.22, dur: big ? 0.8 : 0.5, f0: 500, f1: 220 });
+  }
+  // ── 12.180 su ──
+  // su altı: k (0..1) → ana çıkış alçak geçirgen (22 kHz → 380 Hz) + alçak su uğultusu (döngü gürültü, yalnız su altındayken çalar)
+  setUnderwater(k) {
+    const c = this.ctx; if (!c || !this.uwLP) return;
+    const on = k > 0.5;
+    if (on === this._uwOn) return;
+    this._uwOn = on;
+    const t = c.currentTime;
+    this.uwLP.frequency.setTargetAtTime(on ? 380 : 22000, t, on ? 0.05 : 0.08);
+    if (on && !this._uwN) {
+      const n = (this._uwN = c.createBufferSource()); n.buffer = noiseBuf(c); n.loop = true;
+      const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 260;
+      const g = (this._uwG = c.createGain()); g.gain.value = 0;
+      n.connect(f); f.connect(g); g.connect(this.ambBus); n.start();
+    }
+    if (this._uwG) this._uwG.gain.setTargetAtTime(on ? 0.22 : 0, t, 0.12);
+  }
+  // suya giriş / mermi sıçraması: ıslak "şlap" + köpük hışırtısı (big: asker)
+  splash(pos, big = false) {
+    if (!this.ctx) return;
+    const v = this._voice(pos, 1, { ref: big ? 14 : 8, rv: 0.1 });
+    if (v.gain < 0.003) { for (const x of v.nodes) x.disconnect(); return; }
+    this._noise({ v, gain: big ? 0.5 : 0.2, dur: big ? 0.18 : 0.07, f0: big ? 1400 : 2600, f1: 260, q: 0.8, att: 0.003 });
+    this._noise({ v, gain: big ? 0.22 : 0.08, dur: big ? 0.7 : 0.25, f0: 4200, f1: 1800, type: 'bandpass', q: 0.7, delay: 0.04, att: 0.03 });
+    if (big) this._tone({ v, gain: 0.18, dur: 0.14, f0: 160, f1: 60, type: 'sine', delay: 0.01 });
+  }
+  // yüzme kulacı (yumuşak su hışırtısı)
+  stroke(pos) {
+    if (!this.ctx) return;
+    const v = this._voice(pos, 1, { ref: 6 }), r = Math.random();
+    if (v.gain < 0.003) { for (const x of v.nodes) x.disconnect(); return; }
+    this._noise({ v, gain: 0.07 + r * 0.03, dur: 0.32, f0: 1500 + r * 500, f1: 500, type: 'bandpass', q: 0.6, att: 0.08 });
+  }
+  // boğulma: gurultu (baloncuk) + boğuk darbe
+  drown() {
+    if (!this.ctx) return;
+    const v = this._voice(null, 1);
+    for (let i = 0; i < 4; i++) this._tone({ v, gain: 0.12, dur: 0.07, f0: 380 + Math.random() * 300, f1: 900, type: 'sine', delay: i * 0.06 });
+    this._noise({ v, gain: 0.2, dur: 0.14, f0: 500, f1: 120, att: 0.004 });
+  }
+  // yüzeye çıkıp derin nefes (nefes azaldıysa)
+  gasp() {
+    if (!this.ctx) return;
+    const v = this._voice(null, 1);
+    this._noise({ v, gain: 0.16, dur: 0.38, f0: 1800, f1: 3200, type: 'bandpass', q: 0.9, att: 0.05 });
   }
   hurt() {
     if (!this.ctx) return;

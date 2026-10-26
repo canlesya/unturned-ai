@@ -10,6 +10,7 @@ const STEP = 0.5;
 const WALL_CLIMB = 0.55;       // arazi duvarı (Cephe siperi): ayağın bu kadar üstündeki komşu hücre yüzeyi duvardır (cepheTerrain.wallAt ile aynı eşik)
 import { TUNE } from './balance.js';
 import { fallHeight } from '../sim/fall.js';
+import { swimState, swimPhysics, climbReach, waterYAt } from '../sim/swim.js';
 const GRAV = 15;                 // varsayılan; TUNE.gravity kullanılır
 
 export class World {
@@ -79,12 +80,17 @@ export class World {
   move(s, dt) {
     const p = s.pos, v = s.vel, h = s.height, T = this.terrain;
     s.landH = 0;                                                               // bu adımda inildiyse eşdeğer düşüş yüksekliği (m; düşme hasarı: sim/fall.js, game.fallCheck)
-    if (s.fly) { p.x += v.x * dt; p.y += v.y * dt; p.z += v.z * dt; s.onGround = false; s.fallSafe = true; s.fallTop = p.y; return; }   // geliştirici haritası: serbest uçuş (çarpışmasız); uçuştan sonraki ilk iniş hasarsız
+    if (s.fly) { p.x += v.x * dt; p.y += v.y * dt; p.z += v.z * dt; s.onGround = false; s.fallSafe = true; s.fallTop = p.y; s.swim = s.under = false; s.wDepth = 0; return; }   // geliştirici haritası: serbest uçuş (çarpışmasız); uçuştan sonraki ilk iniş hasarsız
     const wasOnGround = s.onGround;
     if (s.launchT > 0) s.launchT = wasOnGround ? 0 : s.launchT - dt;          // zıplama minderi uçuşu: havada yön değişimi azdır (sim/input.js)
     const list = this.query(p.x - 2, p.z - 2, p.x + 2, p.z + 2, (this._tmp ||= []));
-    v.y -= TUNE.gravity * this.grav * dt;
-    if (v.y < -40) v.y = -40;
+    // 12.180 yüzme: arazi su veriyorsa (terrain.waterY) durum konumdan (sim/swim.js); yüzerken yerçekimi yerine kaldırma kuvveti + sönüm.
+    // Su vermeyen harita eski kuralda: derin suya yürünmez (deepWater).
+    const swimmable = !!(T && T.waterY);
+    const sw = swimmable ? swimState(s, T) : ((s.swim = s.under = false), (s.wDepth = 0), false);
+    if (sw) swimPhysics(s, dt);
+    else { v.y -= TUNE.gravity * this.grav * dt; if (v.y < -40) v.y = -40; }
+    const reach = sw ? climbReach(s) : 0;                                      // kenar tutunma: yüzeyde yüzen, suyun ≤ 1,15 m üstündeki kenara (kıyı / iskele / basamak) çıkar
     let stepped = false;
 
     for (const axis of ['x', 'z']) {
@@ -93,9 +99,16 @@ export class World {
       const g0 = T ? T.heightAt(p.x, p.z) : 0;
       p[axis] += d;
       if (T) {
-        // çok dik yamaç ya da derin suya yürüme engellenir
+        // çok dik yamaç ya da (su vermeyen haritada) derin suya yürüme engellenir
         const g1 = T.heightAt(p.x, p.z);
-        if (p.y <= g0 + 0.08 && (g1 > g0 + 1.2 * Math.abs(d) || (g1 < (T.deepWater ?? DEEP_WATER) && g0 >= (T.deepWater ?? DEEP_WATER)))) { p[axis] -= d; v[axis] = 0; continue; }
+        if (sw) {
+          // yüzen: önündeki kıyı ayağının üstünde dik yükseliyorsa duvardır; suyun ≤ 1,15 m üstündeyse ve yamacı yürünürse kenara tutunup çıkar
+          if (g1 > p.y + 0.05 + 1.2 * Math.abs(d)) {
+            const up = g1 - p.y;
+            if (up <= reach && T.slopeAt(p.x, p.z) < 1.25 && !this._hits(list, p.x, g1 + 0.002, p.z, h)) { p.y = g1 + 0.002; if (v.y < 0) v.y = 0; stepped = true; s.climbUp = (s.climbUp || 0) + up; }
+            else { p[axis] -= d; v[axis] = 0; continue; }
+          }
+        } else if (p.y <= g0 + 0.08 && (g1 > g0 + 1.2 * Math.abs(d) || (!swimmable && g1 < (T.deepWater ?? DEEP_WATER) && g0 >= (T.deepWater ?? DEEP_WATER)))) { p[axis] -= d; v[axis] = 0; continue; }
         if (T.wallAt && T.wallAt(p.x, p.z, p.y)) { p[axis] -= d; v[axis] = 0; continue; }       // kuyu duvarı (Boya Kulesi): düşen kenara geri çıkamaz
         if (T.pushOut && T.pushOut(p, R, WALL_CLIMB, axis)) v[axis] = 0;                          // 12.161 Cephe siper duvarı: gövde yarıçapıyla katı (merkez değil)
       }
@@ -107,8 +120,10 @@ export class World {
         for (const o of list) {
           if (o !== c && o.max[1] > top && p.x + R > o.min[0] && p.x - R < o.max[0] && p.z + R > o.min[2] && p.z - R < o.max[2] && p.y + h > o.min[1] + 1e-4 && p.y < o.max[1] - 1e-4) top = o.max[1];
         }
-        if (top - p.y <= STEP && v.y <= 0.5 && !this._hits(list, p.x, top + 0.002, p.z, h)) {
+        const up = top - p.y, big = up > STEP;                                 // big: yüzerken kenar tutunma (iskele / basamak / köprü ayağı çıkıntısı)
+        if ((big ? up <= reach && v.y <= 2.5 : v.y <= 0.5) && !this._hits(list, p.x, top + 0.002, p.z, h)) {
           p.y = top + 0.002;
+          if (big) { if (v.y < 0) v.y = 0; s.climbUp = (s.climbUp || 0) + up; }
           stepped = true;       // arazi üstündeki ilk basamağa çıkıldı: aşağıdaki "yere yapış" bunu geri almasın
           continue;
         }
@@ -135,14 +150,15 @@ export class World {
     if (T && T.pushOut) T.pushOut(p, R, WALL_CLIMB, null);                                         // 12.161: zıplayıp kenara yetişemeyen / düşen gövde duvara taşmışsa (ayak duvar tepesinin 0,55 m altına indi) en kısa yoldan dışarı (sıkışma yok)
     // iniş: havadan yere / kutu üstüne değdi → düşüş yüksekliği = havadaki en yüksek nokta (zirve, zıplama dahil) − iniş noktası.
     // Kare süresinden bağımsız olsun diye zirve izlenir; ışınlanma / düzeltme zirveyi bozarsa iniş hızı sınırlar (v² / 2g + 0,6 m).
-    // Derin suya (Vadi nehri) ya da minder / uçuş sonrası iniş hasarsız.
+    // Derin suya (Vadi nehri / 12.180 yüzülen su: zirve suya girişte sıfırlanır) ya da minder / uçuş sonrası iniş hasarsız.
     if (s.onGround) {
       if (!wasOnGround) {
-        if (!s.fallSafe && !(T && !s.onCollider && gh < (T.deepWater ?? DEEP_WATER))) s.landH = Math.max(0, Math.min((s.fallTop ?? p.y) - p.y, fallHeight(-vIn, TUNE.gravity * this.grav) + 0.6));
+        const wet = T && !s.onCollider && (gh < (T.deepWater ?? DEEP_WATER) || (swimmable && waterYAt(T, p.x, p.z) - gh > 1.0));
+        if (!s.fallSafe && !sw && !wet) s.landH = Math.max(0, Math.min((s.fallTop ?? p.y) - p.y, fallHeight(-vIn, TUNE.gravity * this.grav) + 0.6));
         s.fallSafe = false;
       }
       s.fallTop = p.y;
-    } else s.fallTop = Math.max(s.fallTop ?? p.y, p.y);
+    } else s.fallTop = sw ? p.y : Math.max(s.fallTop ?? p.y, p.y);
 
     const b = this.bounds;
     p.x = Math.max(b.minX, Math.min(b.maxX, p.x));

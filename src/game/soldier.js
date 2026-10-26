@@ -12,6 +12,7 @@ import { cleanWear, wearCodeOf, botWear } from './wearIds.js';
 import { releaseCapeSway } from '../models/wear.js';
 import { throwState, pinSfx } from './grenade.js';
 import { spaceTp } from './space.js';
+import { SWIM, swimCanFire, waterYAt } from '../sim/swim.js';
 
 const _v = new THREE.Vector3();
 const _d = new THREE.Vector3();
@@ -107,7 +108,7 @@ export class Soldier {
 
   // Özel güç (F / sağ tık). Sunucu da istemci de (çevrimdışı) aynı kodu çalıştırır. Döner: kullanıldı mı
   useAbility() {
-    if (!this.alive || !this.def.zombie || this.abT > 0 || this.game.ended || this.game.graceLeft > 0) return false;
+    if (!this.alive || this.swim || !this.def.zombie || this.abT > 0 || this.game.ended || this.game.graceLeft > 0) return false;
     const ab = this.zt.ability, from = this.pos.clone();
     if ((ab.id === 'blink' || ab.id === 'shadow') && !this._blink(ab.range)) { this.abT = 0.8; return false; }
     this.abT = ab.cd; this.abActive = ab.dur;
@@ -201,6 +202,7 @@ export class Soldier {
     this.protT = protect; this.protNet = false;
     this.crouching = false; this.prone = false; this.proneT = 0; this.crouchT = 0; this.leanDir = 0; this.leanT = 0; this.leanK = 0; this.leanOff.set(0, 0, 0); this._leanRoom = LEAN_OFF;
     this.height = H_STAND; this.ads = false; this.adsT = 0;
+    this.air = SWIM.breath; this.drownAcc = 0; this.swim = false; this.under = false; this.wDepth = 0;      // 12.180 nefes / yüzme
     this.model.root.visible = !this.isPlayer;
     this.model.root.rotation.x = 0;
     this._syncWeaponModel(true);
@@ -284,6 +286,7 @@ export class Soldier {
   // Tetik: held = basılı, buf = yeni tık tamponu (>0). Dönen true → tampon tüketildi. Player ve sunucu (humanTick) aynı mantığı kullanır.
   triggerUpdate(held, buf) {
     if (!this.alive) { this.burstLeft = 0; return false; }
+    if (this.swim && !this.cook && !swimCanFire(this, this.stat)) { this.burstLeft = 0; return false; }     // 12.180 yüzerken: yüzeyde yalnız tabanca, su altında hiçbiri
     if (this.stat.kind === 'throwable') return this._nadeTrigger(held, buf);
     const mode = this.fireModeNow;
     if (mode === 'auto') { if (held) this.tryFire(); return false; }
@@ -315,6 +318,7 @@ export class Soldier {
     if (this.firedSprinting || speed > sprintSpeed()) s += SPRINT_SPREAD * (1 - this.adsT);   // koşarken (Shift) atış serbest ama isabetsiz
     if (this.blindT > 0.5) s += 0.04;
     if (this.crouching) s *= 0.7;
+    if (this.swim) s += 0.03;                                          // 12.180 yüzerken (yüzeyde tabanca): dalgada sallanır
     s += this.bloom;                                                   // seri atışta açılma
     // duran oyuncunun ilk atışı (kısa bir aradan sonra) isabetli olsun
     if (this.sinceShot > 0.3 && speed < 1.5 && this.onGround) s *= sc ? 1 - 0.8 * sk : 0.2;
@@ -336,6 +340,7 @@ export class Soldier {
 
   tryFire() {
     if (!this.alive || this.cd > 0 || this.switchT > 0 || this.useT > 0) return false;
+    if (this.swim && !swimCanFire(this, this.stat)) return false;
     if (this.def.zombie && this.game.graceLeft > 0) return false;                     // Enfekte hazırlık süresi
     if (this.reloadT > 0 && !this.cancelShellReload()) return false;
     const it = this.item, st = this.stat;
@@ -574,12 +579,14 @@ export class Soldier {
 
   // ── duruş değiştirme (ayakta ↔ çömel ↔ yat); yer yoksa reddedilir ──
   toggleCrouch() {
+    if (this.swim) return;                                             // 12.180 yüzerken çömel tuşu = dal (basılı); duruş değişmez
     const w = this.game.world;
     if (this.prone) { if (w.canStand(this, H_CROUCH)) { this.prone = false; this.crouching = true; } }
     else if (this.crouching) { if (w.canStand(this, H_STAND)) this.crouching = false; }
     else this.crouching = true;
   }
   toggleProne() {
+    if (this.swim) return;
     const w = this.game.world;
     if (!this.prone) { this.prone = true; this.crouching = false; this.sprinting = false; }
     else if (w.canStand(this, H_STAND)) this.prone = false;
@@ -733,8 +740,9 @@ export class Soldier {
       }
     }
     // hedef nişan geçişi
-    const wantAds = this.ads && this.reloadT <= 0 && this.switchT <= 0 && this.zoomNow && !this.sprinting;
+    const wantAds = this.ads && this.reloadT <= 0 && this.switchT <= 0 && this.zoomNow && !this.sprinting && !this.swim;      // 12.180 yüzerken nişan yok
     this.adsT = clamp(this.adsT + (wantAds ? 1 : -1) * dt * this.adsRate, 0, 1);      // 12.153: adsTime (sn) silaha özgü dürbün süresi (12.174: dönem dürbününün kendi süresi)
+    if (this.swim) { this.crouching = false; this.prone = false; }
     if (this.prone) this.crouching = false;
     this.height = this.prone ? H_PRONE : this.crouching ? H_CROUCH : H_STAND;
     this.crouchT = clamp(this.crouchT + (this.crouching ? 1 : -1) * dt * 7, 0, 1);
@@ -805,8 +813,22 @@ export class Soldier {
   }
 
   // Üçüncü şahıs model senkronu (oyuncu hariç): hıza bağlı adım döngüsü, gövde eğimi, kol sallanması
+  // 12.180 su görsel / ses: suya düşüş / atlayış sıçraması, yüzerken yüzey dalgacıkları (başkaları), yüzeye çıkış nefesi (oyuncu)
+  _waterFx(dt) {
+    const g = this.game, wy = waterYAt(g.world?.terrain, this.pos.x, this.pos.z);
+    if (!(wy > -1e9) || !this.alive) { this._inW = false; return; }
+    const d = wy - this.pos.y, inW = d > 0.35, hv = Math.hypot(this.vel.x, this.vel.z);
+    if (inW && !this._inW && (this.vel.y < -2.5 || hv > 2.5)) { const p = _v.set(this.pos.x, wy + 0.02, this.pos.z); g.effects.splash(p, true); g.sfx.splash?.(p.clone(), true); }
+    this._inW = inW;
+    if (inW && d < SWIM.float + 0.6 && hv > 0.7 && !(this.isPlayer && !g.showSelf) && (this._ripT = (this._ripT || 0) - dt) <= 0) {
+      this._ripT = 0.4; g.effects.splash(_v.set(this.pos.x - Math.sin(this.yaw) * 0.5, wy + 0.02, this.pos.z - Math.cos(this.yaw) * 0.5), false, true);
+    }
+    if (this.isPlayer) { if (this._uw && !this.under && (this.air ?? SWIM.breath) < SWIM.breath * 0.55) g.sfx.gasp?.(); this._uw = !!this.under; }
+  }
+
   syncModel(dt) {
     if (this.game.headless) return;                                                     // görsel animasyon: sunucuda gerekmez
+    this._waterFx(dt);
     const m = this.model, root = m.root, p = m.parts;
     if (this.isPlayer && !this.game.showSelf) { root.visible = false; return; }      // 1. şahıs: kendi gövdeni görmezsin
     if (this.isPlayer) this._syncWeaponModel();                                         // 3. şahıs: elindeki silah modeli güncel olsun
@@ -835,6 +857,19 @@ export class Soldier {
     if (pr > 0.001) {
       const fx0 = -Math.sin(this.yaw), fz0 = -Math.cos(this.yaw);
       root.position.x -= fx0 * 0.82 * pr; root.position.z -= fz0 * 0.82 * pr; root.position.y += 0.17 * pr;
+    }
+    // 12.180 yüzme pozu: konumdan (uzak oyuncu da: ek ağ alanı yok). Gövde göğüs çevresinde öne yatar (yüzerken ~70°, suda dururken ~17°), baş suyun üstünde,
+    // bacaklar çırpar, silah aşağıda (koşu tutuşu). Su altında bakış yönüne göre başaşağı / yukarı eğilir.
+    const wy = waterYAt(this.game.world?.terrain, this.pos.x, this.pos.z), swimNow = wy - this.pos.y > SWIM.enter - 0.05 && !this.fly;
+    this.swimT = lerp(this.swimT || 0, swimNow ? 1 : 0, Math.min(1, dt * 6));
+    const swK = this.swimT;
+    if (swK > 0.01) {
+      const hv = Math.hypot(this.vel.x, this.vel.z), mv = clamp(hv / 1.6, 0, 1), deep = clamp((wy - this.pos.y - SWIM.float - 0.3) / 0.8, 0, 1);
+      const a = (lerp(0.3, 1.05, mv) + clamp(-this.pitch, -0.6, 0.9) * 0.55 * deep * mv) * swK, piv = 1.25;
+      const fx0 = -Math.sin(this.bodyYaw), fz0 = -Math.cos(this.bodyYaw);
+      root.rotation.x -= a;
+      root.position.y += piv * (1 - Math.cos(a)) + (0.16 * mv + Math.sin(this.game.time * 2.1 + this.id) * 0.03) * swK * (1 - deep);      // yüzeyde baş / omuz suyun üstünde
+      root.position.x -= fx0 * piv * Math.sin(a); root.position.z -= fz0 * piv * Math.sin(a);
     }
     const T = this.game.time;
     const vx = this.vel.x, vz = this.vel.z, spd = Math.hypot(vx, vz);
@@ -891,6 +926,16 @@ export class Soldier {
     p.torso.position.x = this.leanK * LEAN_SHIFT;      // 12.166: gerçekleşen eğilme (leanK) → model kafası vuruş kutusu / göz kaymasıyla aynı yerde
     p.torso.position.y = 1.17 - 0.27 * c + breathe - idleLow;
     p.head.rotation.x = (-lean * 0.7 - aimP * 0.25) * (1 - pr);
+    if (swK > 0.01) {                                                                  // yüzme: bacak çırpma + gövde düz, baş kalkık (yüzü öne)
+      for (const [lg, ph0] of [[p.legs.L, 0], [p.legs.R, Math.PI]]) {
+        const k = Math.sin(T * 8.5 + ph0 + this.id) ;
+        lg.hip.rotation.x = lerp(lg.hip.rotation.x, 0.08 + k * 0.32, swK);
+        lg.knee.rotation.x = lerp(lg.knee.rotation.x, -0.25 - Math.max(0, k) * 0.35, swK);
+        if (lg.foot) lg.foot.rotation.x = lerp(lg.foot.rotation.x, 0.6, swK);
+      }
+      p.torso.rotation.x = lerp(p.torso.rotation.x, 0, swK);
+      p.head.rotation.x = lerp(p.head.rotation.x, -0.55 * clamp(Math.hypot(this.vel.x, this.vel.z) / 1.6, 0, 1), swK);
+    }
     p.head.rotation.z = this.leanK * 0.2;
     root.position.y -= (0.018 + 0.035 * run) * moveAmt * Math.sin(ph) ** 2;    // adım sırasında hafif çökme
     const twist = Math.sin(ph) * (0.05 + 0.08 * run) * moveAmt;
@@ -902,7 +947,7 @@ export class Soldier {
       reload = { style: this.reloadStyle, k: clamp(el / this.reloadTotal, 0, 1), empty: this.reloadEmpty, ph: shell ? ((el / st.shell) % 1 + 1) % 1 : 0 };
     }
     if (this.swing) melee = { kind: this.swing.kind, k: clamp(this.swing.t / this.swing.dur, 0, 1) };
-    m.refreshHold({ sprint: this.sprintT * (1 - pr), kick: clamp(this.flashT / 0.06, 0, 1), twist: (twist + twistY) * (1 - pr), swing, side: this.stanceT, prone: pr, aimP: clamp(this.pitch + this.recoilP, -0.8, 0.8), reload, melee });
+    m.refreshHold({ sprint: Math.max(this.sprintT, swK) * (1 - pr), kick: clamp(this.flashT / 0.06, 0, 1), twist: (twist + twistY) * (1 - pr), swing, side: this.stanceT, prone: pr, aimP: clamp(this.pitch + this.recoilP, -0.8, 0.8), reload, melee });
     if (m.zshape && pr < 0.5) this._zombiePose(m, p, root, T, ph, moveAmt, run);
   }
 }

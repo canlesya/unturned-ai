@@ -99,14 +99,14 @@ export class NetClient {
     const e = this.edges; this.edges = {};
     const q = ++this.seq;
     this.send({
-      t: 'in', q, f: inp.f, r: inp.r, l: inp.lean, s: inp.sprint ? 1 : 0, j: inp.jump ? 1 : 0, a: s.ads ? 1 : 0, w: s.cur,
+      t: 'in', q, f: inp.f, r: inp.r, l: inp.lean, s: inp.sprint ? 1 : 0, j: inp.jump ? 1 : 0, dn: inp.dive ? 1 : undefined, a: s.ads ? 1 : 0, w: s.cur,
       yw: +s.yaw.toFixed(4), pt: +s.pitch.toFixed(4), c: e.c | 0, p: e.p | 0, u: e.u | 0,
       fh: fireHeld ? 1 : 0, fp: e.fp | 0, rl: e.rl | 0, fm: e.fm | 0, o: e.o | 0, ab: e.ab | 0, vt: +this.rt.toFixed(2),
       sd: s.stanceLeft ? 1 : 0, tl: s.flashOn ? 1 : undefined,                      // 12.159: fener açık (yalnız açıkken yollanır; yoksa sunucu kapalı sayar)
       co: s.shotOff ? [+s.shotOff.x.toFixed(2), +s.shotOff.y.toFixed(2), +s.shotOff.z.toFixed(2)] : undefined,
     });
     const fire = !!(fireHeld || e.fp || e.rl);
-    this.hist.push({ q, fire, inp: { f: inp.f, r: inp.r, lean: inp.lean, sprint: !!inp.sprint, jump: !!inp.jump }, ads: !!s.ads, adsT: s.adsT, yaw: s.yaw, pitch: s.pitch, e, st: { x: s.pos.x, y: s.pos.y, z: s.pos.z } });
+    this.hist.push({ q, fire, inp: { f: inp.f, r: inp.r, lean: inp.lean, sprint: !!inp.sprint, jump: !!inp.jump, dive: !!inp.dive }, ads: !!s.ads, adsT: s.adsT, yaw: s.yaw, pitch: s.pitch, e, st: { x: s.pos.x, y: s.pos.y, z: s.pos.z } });
     if (this.hist.length > 240) this.hist.shift();
   }
 
@@ -271,7 +271,7 @@ export class NetClient {
     if (err <= POS_EPS) return;
     this.stats.corrections++;
     // düzelt: sunucu durumuna dön, onaylanmamış girdileri yeniden oynat
-    const keepYaw = s.yaw, keepPitch = s.pitch, keepAds = s.ads, keepAdsT = s.adsT, bx = s.pos.x, by = s.pos.y, bz = s.pos.z;
+    const keepYaw = s.yaw, keepPitch = s.pitch, keepAds = s.ads, keepAdsT = s.adsT, bx = s.pos.x, by = s.pos.y, bz = s.pos.z, keepClimb = s.climbUp || 0;
     s.pos.set(st.x, st.y, st.z); s.vel.set(st.vx, st.vy, st.vz);
     applyFlags(s, st.f);
     s.fallTop = s.onGround ? st.y : st.y + fallHeight(Math.abs(st.vy), TUNE.gravity * g.world.grav);     // havadaysa zirve sunucu durumundan (balistik uçuş: y + v² / 2g); düşme tahmini sunucuyla aynı yükseklikten
@@ -286,7 +286,7 @@ export class NetClient {
       applyInput(s, h.inp, SIM_DT);
       h.st = { x: s.pos.x, y: s.pos.y, z: s.pos.z };
     }
-    s.yaw = keepYaw; s.pitch = keepPitch; s.ads = keepAds; s.adsT = keepAdsT;
+    s.yaw = keepYaw; s.pitch = keepPitch; s.ads = keepAds; s.adsT = keepAdsT; s.climbUp = keepClimb;      // 12.180: yeniden oynatmadaki kenar tutunması kamerayı ikinci kez kaydırmasın
     if (this.fallPred) s.hp = Math.max(1, st.hp - this.fallPred.dmg);
     // Küçük düzeltmeler (≤ 0.8 m) kamerada yumuşatılır: oyuncu gerçek konumda ama görüntü eski yerden hızla (~0.1 sn) yeni yere kayar → "takılma/sıçrama" hissi yok.
     // Büyük farklar (ışınlanma, sunucu itmesi) anında uygulanır.

@@ -5,7 +5,7 @@
 //   { t:'create', name, cfg:{map,tod,weather,perTeam,type,tickets,time,diff}, team? }   yeni oda
 //   { t:'opt', cls?, loadout?, spawn?, zt? }                 sonraki doğuş için sınıf/yükleme/doğma noktası
 //   { t:'in', q, f, r, l, s, j, a, yw, pt, c, p, u }  girdi (her sim adımında bir tane)
-//        q: sıra no · f/r: ileri/sağ (-1..1) · l: yana eğilme · s: koşma · j: zıpla · a: nişan
+//        q: sıra no · f/r: ileri/sağ (-1..1) · l: yana eğilme · s: koşma · j: zıpla · dn: dal (12.180, yüzerken çömel basılı) · a: nişan
 //        yw/pt: bakış (rad) · c/p/u: çömel/yat/kalk tuşuna basıldı (kenar olayı)
 //        sd: 1 = 3. şahıs sol omuz duruşu (yalnızca görsel; diğer oyuncular aynalı duruşu görsün)
 //        co: [x,y,z] 3. şahıs kamerada kameranın gözden ofseti (nişan noktası; mermi yine gözden çıkar; odada izinliyse)
