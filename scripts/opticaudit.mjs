@@ -34,7 +34,7 @@ const combos = await page.evaluate(async (SKIN) => {
     const h = document.getElementById('hud'); if (h) { h.style.visibility = o.green ? 'hidden' : 'visible'; for (const c of h.querySelectorAll(':scope > *')) c.style.visibility = /^(rdot|holo|scope|idot|cross|scopeblk|advig|pbret)$/.test(c.id) ? 'visible' : 'hidden'; }
     const SL = WSTATS[o.id].slot === 'secondary' ? 1 : 0;
     s.cur = SL; s.items[SL] = { id: o.id, mag: 30, reserve: 90 }; s.optic = o.optic; if (s.model) s.model.optic = o.optic;
-    p.refreshWeapon(); p.pipForce = true;
+    p.refreshWeapon();
     const vm = p.vm; vm.noSway = true; vm.raise = 0; vm.kick = 0; vm.kickR = 0; vm.hitKick = 0; vm.inspectT = 0; vm.bobT = 0; vm.sprintT = 0; vm.breathT = 0; vm.sx = 0; vm.sy = 0;
     s.swing = null; s.reloadT = 0; s.cd = 0; s.vel.set(0, 0, 0); s.sprinting = false; s.useT = 0; s.recoilP = 0; s.leanT = 0; s.ads = o.t > 0.5;
     for (let i = 0; i < 60; i++) { s.adsT = o.t; p.update(1 / 60); }

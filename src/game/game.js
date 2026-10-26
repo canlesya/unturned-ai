@@ -1348,7 +1348,6 @@ export class Game {
     this.nadeView?.draw();
     const now = performance.now(), dt = Math.min(0.1, (now - (this._rT || now)) / 1000); this._rT = now;
     this._vmLightUpdate(dt);
-    if (this.playerSoldier.alive && !this.showSelf) this.player.vm.renderPip(r, this.scene, this.camera);      // 12.128: ACOG merceği (PiP) ana çizimden önce, gölgesiz
     const post = this.post?.on && this.post.begin() ? this.post : null;      // begin() false: hedef sürücü sınırını aşıyor → doğrudan ekrana (12.151)
     r.clear();
     r.render(this.scene, this.camera);

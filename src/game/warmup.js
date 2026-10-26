@@ -22,7 +22,7 @@ export function warmup(game) {
   try {
     game.scene.updateMatrixWorld(true);
     both(game.scene, game.camera);
-    // birinci şahıs: her yuvadaki eşya; ana silahta izin verilen her nişangâh (ACOG / PSO merceği PiP malzemesini de kurar)
+    // birinci şahıs: her yuvadaki eşya; ana silahta izin verilen her nişangâh (ACOG / PSO merceği: saydam disk + geçiş camı, 12.162)
     const cur = s.cur, optic = s.optic, seen = new Set();
     vm.cam.aspect = innerWidth / innerHeight; vm.cam.updateProjectionMatrix();
     for (let i = 0; i < s.items.length; i++) {

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Kit, bez, rail } from './s3kit.js';
 import { skinMaterial } from './skins.js';
+import { ACOG } from '../game/stats.js';
 
 // S3 "BattleBit" silahları (silah laboratuvarı c9c5506'dan oyuna, 12.122): AK-47, M4A1, Glock 17, M24, Pompalı (yeni). Yan profil çekme + pah, yarıklı ray, benekli kabza, kaburgalı şarjör.
 // Sözleşme eski modellerle aynı (finish: gripR / gripL / muzzle / hold / length / mag / bolt; ±1 cm). Nişangâh (demir / red dot / holo / ACOG) aynı Kit'e kurulur → silah + nişangâh TEK ağ,
@@ -11,8 +12,8 @@ const guard = (k, outer, hole, w, slot = 'metal') => k.prof(outer, w, slot, { ho
 const circ = (cx, cy, r, n = 14) => Array.from({ length: n }, (_, i) => [cx + Math.cos((i / n) * Math.PI * 2) * r, cy + Math.sin((i / n) * Math.PI * 2) * r]);
 
 // Nişan alırken gözden nişan noktasına uzaklık (kamera uzayı, m): nişangâh türü başına SABİT → her silahta aynı ekran boyu (eski OPT_K / ADS_K karşılığı)
-export const ADS_DIST = { iron: 0.286, reddot: 0.36, rmr: 0.33, holo: 0.39, acog: 0.125, scope: 0.042 };      // 12.128: ACOG göz 12,5 cm geride → göz merceği (r 16,8 mm, ADS_FOV 40) ekran yüksekliğinin ≈ %34'ü; içinde 3× resim-içinde-resim (PiP) + kırmızı nokta
-export const ACOG_DOT = 0.00065;      // 12.155: ACOG / PSO-1 ışıyan nokta (m): tam nişanda ≈ red dot HUD noktası (0,62 vh); PiP noktası geçişte bu boydan başlar
+export const ADS_DIST = { iron: 0.286, reddot: 0.36, rmr: 0.33, holo: 0.39, acog: ACOG.dist, scope: 0.042 };      // 12.162: ACOG göz 19 cm geride (taslak A; 12.128'de 12,5 cm → mercek ekranın %34'ü + kalın halka) → göz merceği (r 16,8 mm, ADS_FOV 40) ekranın ≈ %22'si, çevresinde dünya görünür
+export const ACOG_DOT = 0.0049 * ADS_DIST.acog;      // 12.155 / 12.162: ACOG / PSO-1 ışıyan nokta (m): tam nişanda ekranda ≈ red dot HUD noktası (0,62 vh), geçişte zıplamaz
 // 12.126: ADS_NEAR (nişanda 25–33 cm yakın düzlem) kalktı → silah kesilmez; cam neredeyse görünmez (BattleBit: yalnız ince çerçeve + ışıyan retikül)
 const GLASS_MAT = new THREE.MeshStandardMaterial({ color: '#9fd4ff', transparent: true, opacity: 0.045, roughness: 0.05, metalness: 0.3, depthWrite: false });
 GLASS_MAT.userData.glass = true;
@@ -68,12 +69,12 @@ function acog(k, yb, z) {
   k.cyl(0.0155, 0.018, 0.03, [0, cy, z + 0.05], 'acc', { seg: 18 });                                    // göz çanı
   k.box([0.009, 0.006, 0.06], [0, cy + 0.0185, z - 0.012], 'acc', { c: 0.0015 });                         // fiber kanalı (12.139 alçak: %70 nişanda göz çanı halkasının üstünden tümsek gibi taşıyordu)
   k.box([0.011, 0.008, 0.012], [0, cy + 0.019, z - 0.002], 'acc', { c: 0.0015, d: 1 });               // yükseklik kapağı
-  k.box([0.008, 0.011, 0.012], [0.0195, cy, z - 0.002], 'acc', { c: 0.0015, d: 1 });                  // yan kapak
+  k.box([0.006, 0.01, 0.012], [0.0185, cy, z - 0.002], 'acc', { c: 0.0015, d: 1 });                   // yan kapak (12.162: dış uç 23,5 → 21,5 mm; nişanda ince göz halkasının yanından tümsek gibi taşıyordu)
   k.cyl(0.0185, 0.0185, 0.002, [0, cy, z - 0.0855], 'lens', { seg: 18 });                                 // ön mercek
   k.cyl(0.0168, 0.0168, 0.002, [0, cy, ze - 0.001], 'lens', { seg: 18 });                               // göz merceği
-  k.xsec(circ(0, cy, 0.0192, 28), ze + 0.0002, ze - 0.009, 'acc', { holes: [circ(0, cy, 0.0169, 28)], c: 0.0006, cap: 1, sh: 0.8 });      // 12.129: ince göz çanı halkası, ön yüzü PiP diskiyle aynı düzlemde (12.128'de 6,7 mm öne taşıyordu → mercek içinde gri tüp çeperi bandı; dış 21,5 → 19,2 mm: ince kenar)
-  k.box([ACOG_DOT, ACOG_DOT, 0.0006], [0, cy, ze + 0.0004], 'glow');                                     // 12.155: ışıyan nokta (eski şevron) = nişan noktası; PiP açıkken söner (mercekte gölgelendirici noktası, geçişte bu boydan başlar)
-  return { sight: [0, cy, ze], dist: ADS_DIST.acog, overlay: 'scope', lens: [0.0168, 0, cy, ze + 0.0003, ACOG_DOT] };      // lens: PiP diski (yarıçap, merkez; göz merceğinin hemen önünde)
+  k.xsec(circ(0, cy, 0.018, 28), ze + 0.0002, ze - 0.009, 'acc', { holes: [circ(0, cy, 0.0169, 28)], c: 0.0005, cap: 1, sh: 0.8 });      // 12.162: ince göz çanı halkası (dış 19,2 → 18 mm, 1,1 mm kenar; arkadaki çan / objektif halkanın gölgesinde kalır → mercek çevresinde dünya), ön yüzü mercek diskiyle aynı düzlemde (12.129)
+  k.box([ACOG_DOT, ACOG_DOT, 0.0006], [0, cy, ze + 0.0004], 'glow');                                     // 12.155: ışıyan nokta (eski şevron) = nişan noktası; tam nişanda HUD #rdot'a geçer (red dot gibi, ADS_HUD)
+  return { sight: [0, cy, ze], dist: ADS_DIST.acog, overlay: 'scope', lens: [0.0168, 0, cy, ze + 0.0003, ACOG_DOT] };      // lens: saydam mercek diski (yarıçap, merkez; göz merceğinin hemen önünde, 12.162: derinlik maskesi → arkasındaki tüp çizilmez, dünya görünür)
 }
 // Seçilen nişangâhı kur (iron → null: silah kendi demir nişanını kurar)
 function optic(k, o, yb, z, pistol = false) {

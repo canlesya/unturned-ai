@@ -346,12 +346,17 @@ export const DIFFICULTY = {
 export const BOT_NAMES = ['Kaan', 'Efe', 'Deniz', 'Mert', 'Ada', 'Ege', 'Can', 'Selin', 'Arda', 'Yağız', 'Barış', 'Ceren', 'Emre', 'Zeynep', 'Onur',
   'Tuna', 'Berk', 'Defne', 'Kerem', 'Ilgaz', 'Sarp', 'Mehmet', 'Alp', 'Ozan', 'Mina', 'Rüzgar', 'Çınar', 'Toprak', 'Bora', 'Aylin'];
 
-// Nişangâhlar: zoom çarpanı, ADS arayüz örtüsü (none | dot | holo | scope)
+// 12.162 ACOG (sınıf FPS'ler gibi): nişanda TÜM görüntü (dünya kamerası) yumuşakça yakınlaşır, mercek saydam cam + sade kırmızı nokta (PiP yok).
+// Taslak tek sabit: A = ×2 tam ekran, orta boy mercek (göz 19 cm geride → çap ekranın ≈ %22'si) · B = ×2,5, biraz büyük mercek (15,5 cm → ≈ %27). Oyunda ?acog=B ile denenir.
+export const ACOG_DRAFTS = { A: { zoom: 2, dist: 0.19 }, B: { zoom: 2.5, dist: 0.155 } };
+export const ACOG_DRAFT = typeof location !== 'undefined' && /[?&]acog=B\b/.test(location.search || '') ? 'B' : 'A';
+export const ACOG = ACOG_DRAFTS[ACOG_DRAFT];
+// Nişangâhlar: zoom çarpanı (= nişanda tam ekran büyütme), ADS arayüz örtüsü (none | dot | holo | lens | scope)
 export const OPTICS = {
   iron: { label: 'Demir Nişan', zoom: 1.15, overlay: 'none' },
   reddot: { label: 'Red Dot', zoom: 1.3, overlay: 'dot' },
   holo: { label: 'Holografik', zoom: 1.3, overlay: 'holo' },
-  acog: { label: 'ACOG 3x', zoom: 3, overlay: 'lens', reticle: 'dot' },      // taslak: tam ekran dürbün örtüsü / kararma yok, 3B mercek
+  acog: { label: 'ACOG', zoom: ACOG.zoom, overlay: 'lens', reticle: 'dot' },      // 12.162: tam ekran ×2 (taslak A); örtü / kararma yok, saydam 3B mercek + HUD kırmızı nokta (red dot gibi)
   scope: { label: '4x Dürbün', zoom: 4, overlay: 'scope', reticle: 'mil' },
   scope6: { label: '6x Dürbün', zoom: 6, overlay: 'scope', reticle: 'mil' },
 };

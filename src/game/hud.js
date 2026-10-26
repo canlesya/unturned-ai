@@ -152,8 +152,6 @@ body.mob #pbdead{font-size:48px;-webkit-text-stroke:2px #10131a}
   -webkit-mask-image:radial-gradient(circle at center,transparent 35.6vh,#000 35.9vh);mask-image:radial-gradient(circle at center,transparent 35.6vh,#000 35.9vh)}
 #scope .rg{position:absolute;left:50%;top:50%;width:72.4vh;height:72.4vh;margin:-36.2vh 0 0 -36.2vh;border-radius:50%;border:.9vh solid #0d0e10;box-sizing:border-box;box-shadow:0 0 0 .25vh #2a2d31,inset 0 0 2.2vh #000c}   /* 12.153: ince halka (eski 3,4 vh kalın kasnak) */
 #scope svg{position:absolute;left:50%;top:50%;width:70vh;height:70vh;margin:-35vh 0 0 -35vh}
-#scope.dot .mil,#scope.mil .adot{display:none}
-#scope .adot{position:absolute;left:50%;top:50%;width:.62vh;height:.62vh;margin:-.31vh 0 0 -.31vh;border-radius:50%;background:#ff3a26;box-shadow:0 0 1.5px .5px #ff2a1ae6,0 0 5px 1px #ff2a1a40}   /* 12.155: ACOG (telefon yedeği) = red dot noktası (#rdot), şevron yok */
 /* telefon: dürbün halkası ekran yüksekliğinin %94'ü (kısa ekranda küçük kalıyordu), dışı bulanık değil siyah (tam ekran backdrop-filter telefonda pahalı ve çamurlu) */
 body.mob #scope .bl{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(0,0,0,.93);-webkit-mask-image:radial-gradient(circle at center,transparent 46.6vh,#000 47vh);mask-image:radial-gradient(circle at center,transparent 46.6vh,#000 47vh)}
 body.mob #scope .rg{width:94vh;height:94vh;margin:-47vh 0 0 -47vh;border-width:1.2vh}
@@ -170,7 +168,6 @@ body.mob #holo::before{width:4.5px;height:4.5px;margin:-2.25px 0 0 -2.25px;box-s
 /* 12.127: telefon #holo eskiden sabit 78 px (3B çerçevenin ≈ 2,5 katı, iki halka üst üste): artık 3B çerçeveyle aynı 9,2vh (ADS_FOV 40) × nişangâh boyutu ayarı (--rs); red dot en az 9 px */
 /* telefon dürbünü: çizgiler ≈ 2 kat kalın, merkez noktası büyük (halka 94vh, 1 birim ≈ 2 px) */
 body.mob #scope .mil g path:first-child{stroke-width:.6}body.mob #scope .mil g path:nth-child(3){stroke-width:.7}
-body.mob #scope .adot{width:max(5px,.5vh);height:max(5px,.5vh);margin:min(-2.5px,-.25vh) 0 0 min(-2.5px,-.25vh);background:#ff2a18;box-shadow:0 0 0 1px rgba(0,0,0,.45),0 0 3px 1px #ff2a1a66;transform:scale(var(--rs,1))}   /* = body.mob #rdot */
 body.mob #scope svg>circle{transform:scale(1.9)}   /* yalnız kırmızı merkez (mil noktaları ölçeklenirse dışa kayar) */
 /* katmanlar: duraklat, ölüm, skor, maç sonu */
 .overlay{position:absolute;inset:0;display:none;align-items:center;justify-content:center;flex-direction:column;background:radial-gradient(ellipse at center,rgba(5,8,12,.5),rgba(5,8,12,.82));pointer-events:auto}
@@ -305,8 +302,7 @@ export class Hud {
     el.id = 'hud';
     el.innerHTML = `
       <div id="scope"><div class="bl"></div><div class="vg"></div><div class="rg"></div>
-        <svg viewBox="-100 -100 200 200" class="mil"><g stroke="#000" fill="none"><path d="M-100 0H-1.6M1.6 0H100M0 -100V-1.6M0 1.6V100" stroke-width=".3"/><path d="M-100 0H-58M58 0H100M0 -100V-58M0 58V100" stroke-width="1.5"/><path d="M-5 0V0M5 0V0M-15 -1.4V1.4M15 -1.4V1.4M-25 -1.4V1.4M25 -1.4V1.4M-35 -1.4V1.4M35 -1.4V1.4M-1.4 -15H1.4M-1.4 15H1.4M-1.4 -25H1.4M-1.4 25H1.4M-1.4 -35H1.4M-1.4 35H1.4" stroke-width=".35"/><g fill="#000" stroke="none"><circle cx="-40" r=".75"/><circle cy="-40" r=".75"/><circle cx="-30" r=".75"/><circle cy="-30" r=".75"/><circle cx="-20" r=".75"/><circle cy="-20" r=".75"/><circle cx="-10" r=".75"/><circle cy="-10" r=".75"/><circle cx="10" r=".75"/><circle cy="10" r=".75"/><circle cx="20" r=".75"/><circle cy="20" r=".75"/><circle cx="30" r=".75"/><circle cy="30" r=".75"/><circle cx="40" r=".75"/><circle cy="40" r=".75"/></g></g><circle r=".55" fill="#ff3b2a"/></svg>
-        <i class="adot"></i></div>
+        <svg viewBox="-100 -100 200 200" class="mil"><g stroke="#000" fill="none"><path d="M-100 0H-1.6M1.6 0H100M0 -100V-1.6M0 1.6V100" stroke-width=".3"/><path d="M-100 0H-58M58 0H100M0 -100V-58M0 58V100" stroke-width="1.5"/><path d="M-5 0V0M5 0V0M-15 -1.4V1.4M15 -1.4V1.4M-25 -1.4V1.4M25 -1.4V1.4M-35 -1.4V1.4M35 -1.4V1.4M-1.4 -15H1.4M-1.4 15H1.4M-1.4 -25H1.4M-1.4 25H1.4M-1.4 -35H1.4M-1.4 35H1.4" stroke-width=".35"/><g fill="#000" stroke="none"><circle cx="-40" r=".75"/><circle cy="-40" r=".75"/><circle cx="-30" r=".75"/><circle cy="-30" r=".75"/><circle cx="-20" r=".75"/><circle cy="-20" r=".75"/><circle cx="-10" r=".75"/><circle cy="-10" r=".75"/><circle cx="10" r=".75"/><circle cy="10" r=".75"/><circle cx="20" r=".75"/><circle cy="20" r=".75"/><circle cx="30" r=".75"/><circle cy="30" r=".75"/><circle cx="40" r=".75"/><circle cy="40" r=".75"/></g></g><circle r=".55" fill="#ff3b2a"/></svg></div>
       <div id="mmwrap"><canvas id="minimap" width="236" height="168"></canvas><div id="mmname"></div></div>
       <div id="topbar">
         <div id="score"><div class="tk blue"><small id="tnB"></small><span id="tkB">0</span><div class="bar"><i id="tbB"></i></div></div><div id="timer"><span id="tm">0:00</span><small id="lim"></small></div><div class="tk red"><small id="tnR"></small><span id="tkR">0</span><div class="bar"><i id="tbR"></i></div></div></div>
@@ -817,12 +813,11 @@ export class Hud {
     cross.style.setProperty('--g', clamp(3 + spread, 3, 60) + 'px');
     this.pbReticle(p, st, ov === 'pbring' && p.alive && !tp && ads > 0.55);
     // HUD retikülü yalnız nişangâh tam oturunca (öncesinde modeldeki ışıyan nokta / halka görünür, ikisi ekran ortasında üst üste biner)
-    $('rdot').style.display = p.alive && !tp && ov === 'dot' && ads > ADS_HUD ? 'block' : 'none';
+    $('rdot').style.display = p.alive && !tp && (ov === 'dot' || ov === 'lens') && ads > ADS_HUD ? 'block' : 'none';      // 12.162: ACOG / PSO-1 de (saydam mercek + sade kırmızı nokta)
     $('holo').style.display = p.alive && !tp && ov === 'holo' && ads > ADS_HUD ? 'block' : 'none';
     $('idot').classList.toggle('on', p.alive && !tp && ov === 'none' && !!p.opticDef && ads > ADS_HUD);      // yalnız telefonda görünür (CSS body.mob)
     const sc = $('scope');
     sc.style.display = scopeOn ? 'block' : 'none';
-    if (scopeOn) sc.className = (p.opticDef.reticle === 'dot') ? 'dot' : 'mil';
     // dürbün kararması (12.153): göz merceğe yaklaşırken kararır (adsL 0,3 → SCOPE_ON, eski 0,55 → 0,9: arada 3B göz merceği ekranı kaplıyordu), örtü açılınca ~0,12 sn'de açılır
     // ve halka %94'ten oturur; çıkışta kısa kararma. Sürgü çekilirken (ViewModel.boltK) halka sağ-alta kayar / yatar: dürbünde kalınır, gözün mercekten kayması
     if (scopeOn !== !!this._scWas) { this._scWas = scopeOn; this._scBlk = 1; }

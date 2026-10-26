@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createWeapon } from '../models/weapons.js';
-import { setSkinAlpha, setSkinProbe, SKIN_PROBE } from '../models/skins.js';
+import { setSkinAlpha, setSkinProbe } from '../models/skins.js';
 import { pbLook, spaceLook } from '../models/character.js';
 import { spaceFire, spaceVm } from './space.js';
 import { ww2Look } from '../models/ww2gear.js';
@@ -21,7 +21,6 @@ import { t as $t } from '../i18n/index.js';
 import { wName, opticName, fireName } from '../i18n/game.js';
 
 const VM_SCALE = 0.92;
-const _pv = new THREE.Vector2();
 const _q = new THREE.Quaternion(), _eu = new THREE.Euler(), _sp = new THREE.Vector3(), _sp2 = new THREE.Vector3();
 export const FIRE_LABEL = { semi: 'Tek atış', burst: 'Seri (3-5 mermi)', auto: 'Otomatik' };
 const ADS_FOV_PB = 68;   // 12.129: paintball (adsLow) nişanında silah kamerası 12.127 öncesi gibi genişler → marker sağ-altta görünür kalır, hazne görüşü kapatmaz
@@ -148,29 +147,12 @@ const easeOutBack = (t, k = 1.7) => { t = clamp(t, 0, 1) - 1; return 1 + t * t *
 const fpGrip = (id, hold) => { const d = FP_GRIP[hold === 'pistol' ? 'pistol' : hold === 'launcher' ? 'launcher' : hold === 'rifle' ? 'rifle' : 'item'], o = FP_GRIP[id] || {}; return { ...d, ...o }; };
 const MELEE_SPRINT = { pos: [-0.04, 0.06, -0.06], rx: 0.65, ry: 0.3, rz: -0.1 };
 
-// ── ACOG resim-içinde-resim (12.128, BattleBit) ── dünya, namlu ekseninde ikinci kamerayla (büyütme = zoomCur, 3×) küçük hedefe çizilir; göz merceğindeki disk bu dokuyu gösterir.
-// Mercek dışı dünya ≈ bel / 1,15 (LENS_OUT). 12.155: retikül sade kırmızı nokta (red dot diliyle: keskin çekirdek + çok hafif parıltı), mercek merkezinde = mermi noktası.
-// Nokta çapı uDot (ekran pikseli): 3× büyütmeyle büyümez; tam nişanda red dot HUD noktası boyu, geçişte 3B ışıyan noktanın ekran boyundan oraya kayar (renderPip).
-export const LENS_OUT = 1.15, PIP_ON = 0.3;
-const PIP_VS = /* glsl */ `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`;
-const PIP_FS = /* glsl */ `
-uniform sampler2D tPip; uniform float uMir, uOn, uProbe, uDot; varying vec2 vUv;
-void main(){
-  vec2 p = vUv * 2.0 - 1.0; if (uMir > 0.5) p.x = -p.x;                                     // sol el modunda model aynalı: doku düz kalsın
-  float r = length(p); vec3 c = texture2D(tPip, p * 0.5 + 0.5).rgb;
-  c *= 1.0 - 0.4 * smoothstep(0.82, 1.0, r);                                                // kenar vinyeti (12.129: 0,62 / 0,7'den hafif: koyu kenar gövde gibi görünüyordu)
-  c = mix(vec3(0.012, 0.02, 0.02), c, uOn);                                                 // geçişte koyu camdan resme
-  float px = max(fwidth(p.x), 1e-5), d = r / px, R = 0.5 * uDot, e = max(d - R, 0.0);      // d: merkeze uzaklık (ekran pikseli)
-  float core = 1.0 - smoothstep(R - 0.5, R + 0.5, d);                                       // keskin çekirdek (kenar 1 px yumuşatma)
-  float gs = clamp(uDot / 5.6, 0.3, 2.5), ge = e / gs;                                      // parıltı nokta boyuyla ölçeklenir (geçişte küçük noktada hale baskın olmasın; telefonda cihaz pikseli büyük)
-  float glow = min(gs, 1.0) * (0.55 * exp(-ge * 1.5) + 0.16 * exp(-ge * ge / 9.0));        // çok hafif parıltı (HUD #rdot gölgesi gibi: ~1 px yoğun + ~4 px soluk)
-  vec3 red = vec3(0.86, 0.035, 0.02);                                                         // doğrusal ≤ 1: ton eşlemede pembeleşmez, parıltı eşiğinin (1,4) altında (3B ışıyan retikülle aynı kırmızı)
-  c = mix(c, red, max(core, glow * (1.0 - core)));                                          // uOn'suz: geçişte koyu camda da tam parlak (3B noktadan PiP'e geçişte sönüp yanmaz)
-  if (uProbe > 0.5 && d <= R) c = vec3(1.0, 0.0, 1.0);
-  gl_FragColor = vec4(c, 1.0);
-  #include <tonemapping_fragment>
-  #include <colorspace_fragment>
-}`;
+// ── ACOG / PSO-1 merceği (12.162; 12.128–12.155'teki resim-içinde-resim kaldırıldı) ── nişanda dünya kamerası TAM EKRAN yakınlaşır (OPTICS.acog.zoom, taslak A ×2),
+// göz merceğindeki disk saydam camdır: önce (renderOrder −1) yalnız derinliğe yazılır → arkasındaki tüp / mercek çizilmez, dünya görünür (mercek içi = dışı, doğal).
+// Geçişte disk koyu camdan saydama açılır (LENS_ON → +LENS_FADE); retikül 3B ışıyan nokta, tam nişanda HUD #rdot (red dot ile aynı, ADS_HUD).
+export const LENS_ON = 0.3, LENS_FADE = 0.2;
+const LENS_MASK = new THREE.MeshBasicMaterial({ colorWrite: false });
+const LENS_TINT = new THREE.MeshBasicMaterial({ color: '#030606', transparent: true, opacity: 1, depthWrite: false });
 
 export class ViewModel {
   constructor(game) {
@@ -330,60 +312,14 @@ export class ViewModel {
     this.model = g;
     this.root.add(g);
     if (this.lensDisc) { this.root.remove(this.lensDisc); this.lensDisc.geometry.dispose(); this.lensDisc = null; }
-    const L = g.userData.lens;                                                                // ACOG / PSO-1: göz merceğinde PiP diski (modelin dışında: setFade / atma döngüsü dokunmaz)
+    const L = g.userData.lens;                                                                // ACOG / PSO-1: göz merceğinde saydam disk (modelin dışında: setFade / atma döngüsü dokunmaz)
     if (L) {
-      const d = new THREE.Mesh(new THREE.CircleGeometry(L[0], 40), this.pipMat());
-      d.position.set(L[1], L[2], L[3]); d.rotation.y = 0; d.visible = false; d.frustumCulled = false;
+      const geo = new THREE.CircleGeometry(L[0], 40);
+      const d = new THREE.Mesh(geo, LENS_MASK); d.renderOrder = -1;                           // derinlik maskesi: silah ağından önce çizilir
+      const t = new THREE.Mesh(geo, (this._lensTint ||= LENS_TINT.clone())); t.position.z = 0.0001; t.renderOrder = 3;      // geçişte koyu cam (saydamlaşır)
+      d.add(t); d.position.set(L[1], L[2], L[3]); d.visible = false; d.frustumCulled = t.frustumCulled = false;
       this.lensDisc = d; this.root.add(d);
     }
-  }
-
-  // PiP malzemesi + hedef (ilk ACOG'da bir kez): en çok masaüstü 512² 4× MSAA, telefon 256²; HalfFloat (parıltı / ton eşleme ana sahneyle aynı)
-  pipMat() {
-    if (this._pipMat) return this._pipMat;
-    const r = this.game.renderer, mob = isTouch(), ex = r.extensions, hf = ex.has('EXT_color_buffer_half_float') || ex.has('EXT_color_buffer_float');
-    const S = mob ? 256 : 512;
-    this.pipRT = new THREE.WebGLRenderTarget(S, S, { type: hf ? THREE.HalfFloatType : THREE.UnsignedByteType, samples: mob ? 0 : 4 }); this.pipCap = S;
-    this.pipCam = new THREE.PerspectiveCamera(20, 1, 0.05, 1000);
-    this._pipMat = new THREE.ShaderMaterial({ vertexShader: PIP_VS, fragmentShader: PIP_FS, uniforms: { tPip: { value: this.pipRT.texture }, uMir: { value: 0 }, uOn: { value: 0 }, uProbe: SKIN_PROBE, uDot: { value: 5 } } });
-    this._pipMat.toneMapped = true;
-    return this._pipMat;
-  }
-
-  // Ana sahne çiziminden ÖNCE (game.render): mercek görünürse dünya PiP kamerasıyla hedefe çizilir. Gölge haritası yeniden çizilmez (son karedeki kullanılır)
-  renderPip(r, scene, cam) {
-    const d = this.lensDisc, p = this.game.player;
-    if (!d || !this.pipWant || !p) { if (d) d.visible = false; return; }
-    // mercek ekran yarıçapı (dikey NDC): disk merkezi silah kamerası uzayında; ölçek VM_SCALE
-    this.root.updateMatrix(); _sp.copy(d.position).applyMatrix4(this.root.matrix);
-    const rN = (d.geometry.parameters.radius * VM_SCALE) / Math.max(0.02, -_sp.z) / Math.tan((this.cam.fov * Math.PI) / 360);
-    const base = p.baseFov(), M = Math.max(1, p.zoomCur());                                   // mercek büyütmesi = nişan büyütmesi (hassasiyetle aynı, tam nişanda 3×)
-    const pc = this.pipCam;
-    pc.fov = (2 * Math.atan((Math.tan((base * Math.PI) / 360) * rN) / M) * 180) / Math.PI;
-    pc.near = cam.near; pc.far = cam.far; pc.position.copy(cam.position); pc.quaternion.copy(cam.quaternion); pc.layers.mask = cam.layers.mask;
-    pc.updateProjectionMatrix(); pc.updateMatrixWorld(true);
-    this.pipMag = M; this.pipR = rN;
-    // hedef boyu = tam nişandaki mercek çapı (cihaz pikseli, 64'e yuvarlı, ≤ 512 / 256): 1600×900'de 320² (dokular 1:1, 512²'ye göre ~%60 ucuz); geçişte yeniden ayrılmaz
-    const u = this.model?.userData, H = r.getDrawingBufferSize(_pv).y, rF = u?.dist ? (d.geometry.parameters.radius * VM_SCALE) / u.dist / Math.tan((ADS_FOV * Math.PI) / 360) : rN;
-    const S = Math.min(this.pipCap, Math.max(128, Math.ceil((rF * H) / 64) * 64));
-    if (S !== this.pipRT.width) this.pipRT.setSize(S, S);
-    const sm = r.shadowMap, au = sm.autoUpdate, prev = r.getRenderTarget();
-    sm.autoUpdate = false;
-    r.setRenderTarget(this.pipRT); r.clear(); r.render(scene, pc);
-    r.setRenderTarget(prev); sm.autoUpdate = au;
-    const U = this._pipMat.uniforms; U.uMir.value = this.game.leftHand ? 1 : 0;
-    // 12.155 nokta çapı (cihaz pikseli): geçiş başında (PIP_ON) 3B ışıyan noktanın ekran boyu (zıplamaz), tam nişanda red dot HUD noktası boyu; 3× büyütmeden bağımsız
-    const R0 = d.geometry.parameters.radius, sD = u?.lens?.[4] || 0.00065, p3 = (rr) => (sD / R0) * rr * H / 2;
-    const e0 = adsEase(PIP_ON), t = clamp((adsEase(p.s.adsT) - e0) / (1 - e0), 0, 1);
-    U.uDot.value = p3(rN) * lerp(1, this.dotPx(H) / p3(rF), t);
-    d.visible = true;
-  }
-
-  // ACOG noktasının tam nişandaki çapı (cihaz pikseli) = HUD #rdot: masaüstü 0,62 vh, telefon max(5 px, 0,5 vh) × nişangâh boyutu ayarı (--rs)
-  dotPx(H) {
-    if (!document.body.classList.contains('mob')) return 0.0062 * H;                                  // HUD #rdot ile aynı ölçüt (body.mob)
-    const ch = this.game.renderer.domElement.clientHeight || innerHeight, rs = parseFloat(document.body.style.getPropertyValue('--rs')) || 1;
-    return Math.max(5, 0.005 * ch) * rs * (H / ch);
   }
 
   // Silah inceleme (Y): ~3,4 sn; ateş/nişan/yükleme/sprint/silah değişimi/savurma iptal eder
@@ -672,9 +608,9 @@ export class ViewModel {
     // 12.128: masaüstünde de 3B ışıma HUD retikülüyle aynı karede söner (ışıma ×3 ton eşlemede pembeleşip nefes / sallanmayla HUD noktasının arkasında kayıyordu); ACOG PiP açıkken 3B nokta söner (mercekte gölgelendirici noktası)
     const fk = p.touch && s.overlay !== 'scope' && s.overlay !== 'lens' && !st.adsLow && !this.noFade ?      // 12.129: paintball marker sağ-altta, merkezi kapatmaz → telefonda soluklaşmaz
       clamp((ads - 0.55) / 0.4, 0, 1) : 0;
-    this.pipWant = !!this.lensDisc && s.alive && s.overlay === 'lens' && s.adsT > PIP_ON && this.root.visible && !this.game.showSelf;
-    if (this._pipMat) this._pipMat.uniforms.uOn.value = clamp((s.adsT - PIP_ON) / 0.15, 0, 1);
-    this.setFade(fk * 0.5, ((s.overlay === 'dot' || s.overlay === 'holo') && ads > ADS_HUD && !this.noFade) || this.pipWant ? 0 : 1);      // noFade: adsalign 3B retikülü ölçer
+    // 12.162: ACOG merceği adsT > LENS_ON'da saydamlaşır (derinlik maskesi); koyu cam LENS_FADE boyunca söner. Retikül red dot gibi: 3B nokta tam nişanda HUD #rdot'a geçer
+    if (this.lensDisc) { const on = s.alive && s.overlay === 'lens' && s.adsT > LENS_ON; this.lensDisc.visible = on; if (on) this._lensTint.opacity = 1 - clamp((s.adsT - LENS_ON) / LENS_FADE, 0, 1); this.lensDisc.children[0].visible = on && this._lensTint.opacity > 0.004; }
+    this.setFade(fk * 0.5, (s.overlay === 'dot' || s.overlay === 'holo' || s.overlay === 'lens') && ads > ADS_HUD && !this.noFade ? 0 : 1);      // noFade: adsalign 3B retikülü ölçer
   }
 
   // adsalign testi: S3 retikülleri saf eflatun (ekranda merkez ölçümü)
@@ -1010,8 +946,6 @@ export class Player {
   zoomEff() { return this.zoomOf(this.s.zoomNow || 0); }
   // o anki görüş büyütmesi (model ile aynı eğri, 1 = yok): FOV, fare / ok tuşu / dokunmatik hassasiyeti bunu kullanır
   zoomCur() { const s = this.s, z = this.zoomEff(); return z > 1 && !this.vm.model?.userData.noAds ? lerp(1, z, adsEase(s.adsT)) : 1; }
-  // dünya kamerasının büyütmesi (12.128): ACOG PiP'te mercek dışı yalnız ≈ ×1,15 (3× merceğin içinde), diğerlerinde zoomCur
-  camZoom() { const s = this.s; return s.overlay === 'lens' && this.vm.lensDisc ? lerp(1, LENS_OUT, adsEase(s.adsT)) : this.zoomCur(); }
   // Dikey FOV (derece): masaüstünde ayar doğrudan dikey FOV; dokunmatikte ayar YATAY FOV'dur (2,2:1 telefonda dikey 75° → yatay 118°, düşman küçücük kalıyordu)
   baseFov() { const f = this.set.fov; if (!this.touch) return f; const a = this.game.camera.aspect || 16 / 9; return (2 * Math.atan(Math.tan((f * Math.PI) / 360) / a) * 180) / Math.PI; }
 
@@ -1073,17 +1007,15 @@ export class Player {
     // ── kamera ──
     const cam = g.camera;
     g.abfx?.update(dt);                                                                // zombi gücü ekran efektleri (FOV vuruşu / adım temposu buradan)
-    // telefon ACOG yedeği (12.128): Düşük kalite ya da < 40 FPS (47'de geri) → eski tam ekran HUD dürbünü (s.lensHud: overlay 'scope'); yalnız nişan dışındayken değişir. pipForce: test
-    if (s.adsT === 0) { const pf = g._perf?.fps || 60; this._lowFps = this._lowFps ? pf < 47 : pf < 40; s.lensHud = this.pipForce !== undefined ? !this.pipForce : !!this.touch && (g.gfxLevel() === 0 || this._lowFps); }
     const baseFov = this.baseFov();
     // 12.127: nişan büyütmesi DOĞRUDAN modelle aynı eğriden yazılır (eski ikinci üstel gecikme dünyayı silahın ~100 ms arkasında bırakıyordu: dürbün çıkışında ×4,6 dünyada 3B gövde); yalnız güç FOV vuruşu yumuşatılır
     this._fovAdd = (this._fovAdd || 0) + ((g.abfx?.fovAdd || 0) - (this._fovAdd || 0)) * Math.min(1, dt * 18);
     // 12.154: silah / nişangâh nişandayken değişince (adsT Soldier'da sıfırlanır) dünya kamerası eski büyütmeyi o silahın çıkış eğrisiyle söndürür → tek karede sıçrama yok
     const aimKey = s.item.id + '|' + s.opticId;
     if (aimKey !== this._aimKey) { if (this._aimKey !== undefined && this._aimAds > 0 && this._aimZ > 1) this._zTail = { z: this._aimZ, t: this._aimAds, r: this._aimRate }; this._aimKey = aimKey; }
-    let zc = this.camZoom();
+    let zc = this.zoomCur();      // 12.162: tüm optiklerde dünya kamerası tam ekran büyür (ACOG da; eski PiP'te mercek dışı ×1,15)
     if (this._zTail) { const q = this._zTail; q.t = Math.max(0, q.t - dt * q.r); zc = Math.max(zc, lerp(1, q.z, adsEase(q.t))); if (q.t <= 0) this._zTail = null; }
-    this._aimAds = s.adsT; this._aimZ = s.overlay === 'lens' && this.vm.lensDisc ? LENS_OUT : this.vm.model?.userData.noAds ? 1 : this.zoomEff(); this._aimRate = s.stat.adsTime ? 1 / s.stat.adsTime : s.opticDef?.overlay === 'scope' ? 6 : 9;      // Soldier'daki adsT hızıyla aynı (12.153 adsTime)
+    this._aimAds = s.adsT; this._aimZ = this.vm.model?.userData.noAds ? 1 : this.zoomEff(); this._aimRate = s.stat.adsTime ? 1 / s.stat.adsTime : s.opticDef?.overlay === 'scope' ? 6 : 9;      // Soldier'daki adsT hızıyla aynı (12.153 adsTime)
     cam.fov = zoomFov(baseFov, zc) + this._fovAdd;
     cam.updateProjectionMatrix();
     const sh = g.effects.shake;
