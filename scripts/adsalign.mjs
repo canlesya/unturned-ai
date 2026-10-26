@@ -6,7 +6,7 @@
 //   gez — demir nişan: arpacık tepesi (orta sütunda) + gez deliği / çentiği merkezi (yeşil boşluk dolgusu)
 //   cam — nişangâh penceresi (yeşil boşluk) merkezi (eski / yeni karşılaştırma için; eski modellerde retikül yok)
 //   HUD — HUD retikülü (#rdot / #holo / dürbün çizgileri / telefonda #idot), silah gizli: kırmızı / beyaz piksellerin merkezi
-//   HUDy — telefonda ACOG yedeği (lensHud: PiP yok, tam ekran HUD dürbünü .adot noktası)
+//   (12.162: ACOG / PSO-1 = saydam mercek; 3D ışıyan nokta + HUD #rdot, red dot ile aynı ölçüm; eski PiP / telefon yedeği HUDy kalktı)
 import { chromium, devices } from 'playwright';
 import { mkdirSync, writeFileSync } from 'fs';
 import { SKIN_WEAPONS } from '../src/game/stats.js';
@@ -62,7 +62,7 @@ const ANALYZE = async ({ b64, kind, mode }) => {
     }
     return res;
   }
-  if (mode === 'glass') { let sx = ix, sy = iy; if (!green(sx, sy)) { let best = 1e9; for (let dy = -16; dy <= 16; dy++) for (let dx = -16; dx <= 16; dx++) if (green(ix + dx, iy + dy) && dx * dx + dy * dy < best) { best = dx * dx + dy * dy; sx = ix + dx; sy = iy + dy; } if (best === 1e9) return { err: 'merkez kapalı' }; } const f = fill(sx, sy, Math.round(H * 0.1)); if (f.open || !f.n) return { err: 'pencere açık / yok' }; return { dx: f.x - cx, dy: f.y - cy, r: (f.x1 - f.x0 + 1) / 2 }; }
+  if (mode === 'glass') { let sx = ix, sy = iy; if (!green(sx, sy)) { let best = 1e9; for (let dy = -16; dy <= 16; dy++) for (let dx = -16; dx <= 16; dx++) if (green(ix + dx, iy + dy) && dx * dx + dy * dy < best) { best = dx * dx + dy * dy; sx = ix + dx; sy = iy + dy; } if (best === 1e9) return { err: 'merkez kapalı' }; } const f = fill(sx, sy, Math.round(H * 0.16)); if (f.open || !f.n) return { err: 'pencere açık / yok' }; return { dx: f.x - cx, dy: f.y - cy, r: (f.x1 - f.x0 + 1) / 2 }; }
   return { err: 'bilinmeyen' };
 };
 
@@ -93,13 +93,12 @@ for (const dev of (process.env.DEV || 'desk,mob,iph').split(',')) {
       const SL = WSTATS[o.id].slot === 'secondary' ? 1 : 0;
       s.cur = SL; s.items[SL] = { id: o.id, mag: 30, reserve: 90 }; s.optic = o.optic; if (s.model) s.model.optic = o.optic;
       p.refreshWeapon();
-      p.pipForce = !o.lensHud; s.lensHud = !!o.lensHud;                               // 12.128: ACOG PiP (telefonda düşük FPS yedeğine düşmesin); HUDy: yedek zorla
       const vm = p.vm; vm.noSway = true; vm.noFade = true; vm.forceShow = o.mode !== 'hud'; vm.probe?.(o.mode === 'probe');
       vm.raise = 0; vm.kick = 0; vm.kickR = 0; vm.hitKick = 0; vm.inspectT = 0; vm.bobT = 0; vm.sprintT = 0; vm.breathT = 0; vm.sx = 0; vm.sy = 0;
       s.swing = null; s.reloadT = 0; s.cd = 0; s.vel.set(0, 0, 0); s.sprinting = false; s.useT = 0; s.recoilP = 0; s.leanT = 0; s.ads = true;
       if (o.sway) { vm.noSway = false; vm.breathT = o.sway; }                            // SWAY=1: nefes / sallanma + tepme açıkken de retikül ortada mı
       for (let i = 0; i < 30; i++) { s.adsT = 1; if (o.sway) vm.kickR = 0.35; p.update(1 / 60); }
-      g.camera.fov = zoomFov(p.baseFov(), p.camZoom()); g.camera.updateProjectionMatrix();      // 12.128: oyundaki gerçek dünya FOV'u (ACOG PiP'te mercek dışı ×1,15)
+      g.camera.fov = zoomFov(p.baseFov(), p.zoomCur()); g.camera.updateProjectionMatrix();      // oyundaki gerçek dünya FOV'u (12.162: ACOG da tam ekran)
       vm.root.visible = o.mode !== 'hud';
       g.hud.update(1 / 60);
       window.__show(o.mode);
@@ -114,14 +113,13 @@ for (const dev of (process.env.DEV || 'desk,mob,iph').split(',')) {
     const key = `${id}:${optic}`;
     if (only && !only.test(key)) continue;
     const ret = {};
-    const dot = optic === 'reddot', holo = optic === 'holo', scope = optic === 'acog' || optic === 'scope' || optic === 'scope6';
+    const dot = optic === 'reddot' || optic === 'acog', holo = optic === 'holo', scope = optic === 'scope' || optic === 'scope6';      // 12.162: ACOG red dot gibi (3D nokta + mercek penceresi + HUD #rdot)
     const jobs = [];
     if (optic === 'iron') jobs.push(['gez', 'iron', 'iron']);
     else { jobs.push(['3D', 'probe', 'c']); if (!scope) jobs.push(['cam', 'glass', 'c']); }
-    if (dot || holo || (optic !== 'acog' && (scope || dev !== 'desk'))) jobs.push(['HUD', 'hud', optic === 'iron' ? 'idot' : 'c']);      // ACOG ('lens', 12.127): HUD retikülü yok (masaüstü + telefon), mercekte PiP noktası
-    if (optic === 'acog' && dev !== 'desk') jobs.push(['HUDy', 'hud', 'c']);                                 // 12.155: telefon yedeği (lensHud) HUD noktası
+    if (dot || holo || scope || dev !== 'desk') jobs.push(['HUD', 'hud', optic === 'iron' ? 'idot' : 'c']);
     for (const [name, mode, kind] of jobs) {
-      const info = await page.evaluate((o) => window.__pose(o), { id, optic, mode, lensHud: name === 'HUDy', sway: process.env.SWAY ? 1.7 + rows.length * 0.37 : 0 });
+      const info = await page.evaluate((o) => window.__pose(o), { id, optic, mode, sway: process.env.SWAY ? 1.7 + rows.length * 0.37 : 0 });
       await page.waitForTimeout(90);
       const buf = await page.screenshot({ scale: 'device' });                  // cihaz pikseli (küçük retikül kaybolmasın) → CSS pikseline bölünür
       if (OUT) writeFileSync(`${OUT}/${dev}-${id}-${optic}-${name}.png`, buf);

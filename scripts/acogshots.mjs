@@ -1,5 +1,5 @@
 // ACOG / paintball (/ RD=1 red dot) nişan görüntüleri + ACOG mercek ölçümü (gerçek GPU, headless:false, 12.129).
-//   node scripts/acogshots.mjs <çıktı klasörü> [taban url]    DEV=desk|mob  ONLY=regex (ad)  JSON=dosya  TS=1,0.7,0.25 (ACOG adsT listesi)  LENSHUD=1 (telefon yedeği: PiP yok, HUD dürbünü; ad sonu -hud)
+//   node scripts/acogshots.mjs <çıktı klasörü> [taban url]    DEV=desk|mob  ONLY=regex (ad)  JSON=dosya  TS=1,0.7,0.25 (ACOG adsT listesi)  (12.162: PiP / telefon yedeği kalktı; mercek saydam, dünya tam ekran ×2)
 // ACOG: her ACOG'lu silahta adsT 1 ve 0,7 — dünya görünür kare (<dev>-<silah>-acog-<yüzde>.png) + yeşil zeminli ölçüm karesi:
 //   merkez = mercek diskinin ekran merkezi − ekran ortası (px), çap = ekran yüksekliğine oran, örtü = mercek dairesinde yeşil olmayan (silah / gövde) oranı,
 //   dış = mercek dışında silahın kapladığı ekran oranı. Paintball: pbrifle / pbpistol bel / %50 / tam nişan (HUD halka açık), silahın ekranda kalan oranı.
@@ -29,12 +29,11 @@ await page.evaluate(async () => {
     else { for (const [o, v] of vis0) o.visible = v; vis0.clear(); g.scene.background = bg0; g.scene.fog = fog0; if (g.post && g._post0 !== undefined) g.post.on = g._post0; }
   };
   window.__pose = (o) => {
-    const lh = !!o.lensHud;
     for (const e of hudEls) e.style.visibility = 'hidden';
     const h = document.getElementById('hud'); if (h) { h.style.visibility = o.green ? 'hidden' : 'visible'; for (const c of h.querySelectorAll(':scope > *')) c.style.visibility = /^(rdot|holo|scope|idot|cross|scopeblk|advig|pbret)$/.test(c.id) ? 'visible' : 'hidden'; }
     const SL = WSTATS[o.id].slot === 'secondary' ? 1 : 0;
     s.cur = SL; s.items[SL] = { id: o.id, mag: 30, reserve: 90 }; s.optic = o.optic; if (s.model) s.model.optic = o.optic;
-    p.refreshWeapon(); p.pipForce = !lh; s.lensHud = lh;
+    p.refreshWeapon();
     const vm = p.vm; vm.noSway = true; vm.raise = 0; vm.kick = 0; vm.kickR = 0; vm.hitKick = 0; vm.inspectT = 0; vm.bobT = 0; vm.sprintT = 0; vm.breathT = 0; vm.sx = 0; vm.sy = 0;
     s.swing = null; s.reloadT = 0; s.cd = 0; s.vel.set(0, 0, 0); s.sprinting = false; s.useT = 0; s.recoilP = 0; s.leanT = 0; s.ads = o.t > 0.5;
     for (let i = 0; i < 60; i++) { s.adsT = o.t; p.update(1 / 60); }
@@ -68,13 +67,13 @@ const ANALYZE = async ({ b64, lens, dpr }) => {
 };
 const ACOG = ['m4a1', 'ak47', 'scarh', 'aug', 'g36', 'mp5', 'lmg', 'svd'];
 const JOBS = [];
-const TS = (process.env.TS || '1,0.7').split(',').map(Number), LH = !!process.env.LENSHUD;
-for (const id of ACOG) for (const t of TS) JOBS.push({ id, optic: 'acog', t, lensHud: LH });
+const TS = (process.env.TS || '1,0.7').split(',').map(Number);
+for (const id of ACOG) for (const t of TS) JOBS.push({ id, optic: 'acog', t });
 if (process.env.RD) for (const id of ['m4a1', 'ak47', 'mp5', 'pistol']) JOBS.push({ id, optic: 'reddot', t: 1 });      // RD=1: red dot tam nişan (12.130 nokta boyu)
 for (const id of ['pbrifle', 'pbpistol']) for (const t of [0, 0.5, 1]) JOBS.push({ id, optic: id === 'pbrifle' ? 'reddot' : 'iron', t });
 const dpr = await page.evaluate(() => devicePixelRatio), rows = [];
 for (const o of JOBS) {
-  const name = `${dev}-${o.id}-${o.optic}-${Math.round(o.t * 100)}${o.lensHud ? '-hud' : ''}`;
+  const name = `${dev}-${o.id}-${o.optic}-${Math.round(o.t * 100)}`;
   if (only && !only.test(name)) continue;
   const info = await page.evaluate((q) => window.__pose(q), o);
   await page.waitForTimeout(90);

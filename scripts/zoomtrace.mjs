@@ -2,7 +2,7 @@
 // nişangâh değiştirme / ölüm / yeniden doğuş / hızlı tekrar basma) kare kare kaydedilir (gerçek oyun döngüsü g.step(1/60)).
 //   node scripts/zoomtrace.mjs [taban url]   DEV=desk|mob  FOV=70,90,110  ONLY=regex (senaryo:silah:nişangâh)  PLOT=1 (hatalı izler → /tmp/wb-zoom/*.png)
 //                                            PLOTALL=regex (bu izlerin grafiği hatasız da çizilir)  STRIP=regex (kare şeridi, /tmp/wb-zoom/strip-*.png)  V=1  JSON=dosya
-// Her karede: dünya kamerası FOV'u, silah kamerası FOV'u, PiP (ACOG merceği) FOV'u, adsT, dünya büyütmesi (tan(taban/2) / tan(fov/2)), mercek içi büyütme,
+// Her karede: dünya kamerası FOV'u, silah kamerası FOV'u, adsT (12.162: ACOG PiP kalktı, mercek içi = dünya), dünya büyütmesi (tan(taban/2) / tan(fov/2)), mercek içi büyütme,
 // nişangâhın ekrandaki boyu (silah modelinde nişan noktasındaki 2 cm'lik parçanın piksel boyu), dürbün örtüsü / HUD retikülü.
 // Denetimler: sıçrama (bir karede |Δbüyütme| > 0,34·(z−1) + 0,02: adsT'nin bir karedeki en büyük adımının eğrideki karşılığı), yön (giriş / çıkış
 // fazında büyütme geri dönmez), dünya ↔ silah kamerası senkronu (ilerleme farkı ≤ 0,05), takılı kalma (beklenen dinlenmede büyütme 1, silah FOV'u 54),
@@ -20,7 +20,7 @@ const page = await ctx.newPage(), errs = [];
 page.on('pageerror', (e) => errs.push(e.message));
 await page.goto(`${base}/?autostart=3v3&map=colgecidi&type=tdm&debug=1&dev=1&nolock=1&third=0${DEV !== 'desk' ? '&touch=1' : ''}`);
 await page.waitForFunction('window.__game && window.__game.running && window.__game.player', null, { timeout: 120000 });
-await page.evaluate(async () => { const st = await import('/src/game/stats.js'); window.__ST = { OA: st.OPTIC_ALLOWED, W: st.WSTATS, O: st.OPTICS }; window.__LO = (await import('/src/game/player.js')).LENS_OUT; });
+await page.evaluate(async () => { const st = await import('/src/game/stats.js'); window.__ST = { OA: st.OPTIC_ALLOWED, W: st.WSTATS, O: st.OPTICS }; });
 await page.evaluate(() => {
   const g = window.__game, p = g.player, s = p.s, T = (d) => Math.tan((d * Math.PI) / 360);
   g.brains.forEach((b) => (b.update = () => {}));
@@ -37,13 +37,12 @@ await page.evaluate(() => {
     optic: () => { s.cycleOptic(); },
     die: () => { s.die(null, 'test'); },
     respawn: () => { g.respawn(s); s.protT = 1e9; },
-    lenshud: (v) => { p.pipForce = !v; },
   };
   const z = { };
   window.__zt = z;
   // spec: { fov, items: [[id, optic], [id, optic]?], cur, steps: [{ act: [[ad, arg]...], n, dir: '+' | '-' | '' | 'rest', tag }] }
   z.start = (spec) => {
-    p.set.fov = spec.fov; p.pipForce = spec.lensHud ? false : true;
+    p.set.fov = spec.fov;
     if (!s.alive) g.respawn(s);
     s.protT = 1e9; s.lastHit = null;
     s.items[0] = { id: spec.items[0][0], mag: 30, reserve: 90 };
@@ -65,8 +64,7 @@ await page.evaluate(() => {
   };
   z.rec = (st) => {
     const vm = p.vm, base = p.baseFov(), fov = g.camera.fov, mag = T(base) / T(fov);
-    let lens = null, pipFov = null;
-    if (vm.pipWant && s.alive) { vm.renderPip(g.renderer, g.scene, g.camera); pipFov = vm.pipCam.fov; lens = (T(base) * vm.pipR) / T(pipFov); }
+    const lens = null, pipFov = null;      // 12.162: ACOG PiP kalktı (mercek içi = dünya kamerası)
     const hudOn = ['rdot', 'holo'].some((i) => document.getElementById(i).style.display === 'block');
     return {
       i: z.fi, t: +(z.fi / 60).toFixed(4), tag: st.tag || '', dir: st.dir || '', ev: z.ev || '', id: s.item.id, optic: s.opticId, ov: s.overlay, alive: s.alive,
@@ -88,7 +86,7 @@ await page.evaluate(() => {
   z.end = () => { g.simulate = true; p.keys.clear(); p.fireHeld = false; s.ads = false; };
 });
 
-const info = await page.evaluate(() => ({ OA: window.__ST.OA, ball: Object.keys(window.__ST.W).filter((k) => window.__ST.W[k].ball && window.__ST.W[k].zoom), LO: window.__LO, mob: !!window.__game.player.touch, zoom: Object.fromEntries(Object.entries(window.__ST.W).filter(([, v]) => v.zoom).map(([k, v]) => [k, v.zoom])) }));
+const info = await page.evaluate(() => ({ OA: window.__ST.OA, ball: Object.keys(window.__ST.W).filter((k) => window.__ST.W[k].ball && window.__ST.W[k].zoom), mob: !!window.__game.player.touch, zoom: Object.fromEntries(Object.entries(window.__ST.W).filter(([, v]) => v.zoom).map(([k, v]) => [k, v.zoom])) }));
 
 // ── senaryolar ──
 const S = [];
@@ -110,7 +108,6 @@ for (const [id, o] of SPECIAL) {
   S.push({ name: `swinrel:${id}:${o}`, items: it, cur: 1, steps: [ADS_IN(30), { act: [['ads', false], ['sw', 0]], n: 40, dir: '-', tag: 'nişanı bırak + ana silaha geç' }, { n: 4, dir: 'rest' }] });
   if ((info.OA[id] || []).length > 1) S.push({ name: `optic:${id}:${o}`, items: it, steps: [ADS_IN(30), { act: [['optic']], n: 40, dir: '', tag: 'nişangâh değiştir (nişanda)' }, { act: [['optic']], n: 40, dir: '', tag: 'yine değiştir' }, ADS_OUT(40), { n: 4, dir: 'rest' }] });
   S.push({ name: `death:${id}:${o}`, items: it, steps: [ADS_IN(30), { act: [['die']], n: 60, dir: '-', tag: 'ölüm (nişanda)' }, { n: 4, dir: 'rest' }, { act: [['respawn']], n: 20, dir: 'rest', tag: 'yeniden doğuş' }] });
-  if (info.mob && o === 'acog') S.push({ name: `lenshud:${id}:${o}`, items: it, steps: [ADS_IN(30), { act: [['lenshud', true]], n: 20, dir: '', tag: 'yedek açılır (nişanda: değişmemeli)' }, ADS_OUT(30), ADS_IN(30), ADS_OUT(30), { n: 4, dir: 'rest' }] });
 }
 for (const id of info.ball) {
   const it = [[id, null], ['ak47', 'reddot']];
@@ -120,10 +117,9 @@ for (const id of info.ball) {
 const LIST = S.filter((x) => !only || only.test(x.name));
 
 // ── denetim ──
-const LO = info.LO;
 function check(F) {
   const err = [];
-  const zt = (f) => (f.ov === 'lens' ? LO : Math.max(1, f.zE));               // dünya kamerasının hedef büyütmesi
+  const zt = (f) => Math.max(1, f.zE);               // dünya kamerasının hedef büyütmesi (12.162: ACOG da tam ekran)
   for (let i = 1; i < F.length; i++) {
     const a = F[i - 1], b = F[i], zr = Math.max(zt(a), zt(b), a.tz || 1, b.tz || 1, 1.0001);      // tz: eski silahın sönen büyütmesi (12.154)
     const lim = 0.34 * (zr - 1) + 0.02, d = b.mag - a.mag;
@@ -140,7 +136,7 @@ function check(F) {
   for (const f of F) {
     if (f.dir === 'rest' && f.alive && (Math.abs(f.mag - 1) > 0.002 || Math.abs(f.wfov - 54) > 0.05)) err.push({ k: 'takılı', i: f.i, msg: `dinlenmede dünya ×${f.mag}, silah ${f.wfov}°` });
     if (!f.alive && f.dir === 'rest' && Math.abs(f.mag - 1) > 0.002) err.push({ k: 'takılı', i: f.i, msg: `ölüyken dünya ×${f.mag} (adsT ${f.adsT})` });
-    if (f.alive && f.zE > 1 && f.ov !== 'lens' && f.ov !== 'pbring') {
+    if (f.alive && f.zE > 1 && f.ov !== 'pbring') {
       const wp = (54 - f.wfov) / (54 - 40), zp = (f.mag - 1) / (f.zE - 1);
       if (Math.abs(wp - zp) > 0.05 && f.mag > 1.0005 && !f.tz) err.push({ k: 'senkron', i: f.i, msg: `silah kamerası ilerlemesi ${wp.toFixed(2)} ↔ dünya ${zp.toFixed(2)}` });
     }
@@ -174,7 +170,7 @@ function svgChart(title, F, errs) {
   let o = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${top2 + PH + 60}" style="background:${C.surf};font-family:Helvetica,Arial,sans-serif">`;
   o += `<text x="${ML}" y="24" font-size="16" font-weight="600" fill="${C.ink}">${title}</text>`;
   o += panel(MT, maxMag, 'Büyütme (×) — tan(taban/2) / tan(fov/2)', [['dünya kamerası', C.blue, (f) => f.mag], ['mercek içi (PiP)', C.orange, (f) => f.lens]], magTicks);
-  o += panel(top2, 1, 'İlerleme (0 = bel, 1 = tam nişan)', [['adsT (doğrusal)', C.ink2, (f) => f.adsT, true], ['silah kam. (54−fov)/14', C.aqua, (f) => (54 - f.wfov) / 14], ['dünya (büyütme−1)/(z−1)', C.blue, (f) => (f.zE > 1 && f.ov !== 'lens' ? (f.mag - 1) / (f.zE - 1) : null)]], [0, 0.25, 0.5, 0.75, 1]);
+  o += panel(top2, 1, 'İlerleme (0 = bel, 1 = tam nişan)', [['adsT (doğrusal)', C.ink2, (f) => f.adsT, true], ['silah kam. (54−fov)/14', C.aqua, (f) => (54 - f.wfov) / 14], ['dünya (büyütme−1)/(z−1)', C.blue, (f) => (f.zE > 1 ? (f.mag - 1) / (f.zE - 1) : null)]], [0, 0.25, 0.5, 0.75, 1]);
   // olaylar ve hatalar
   const yb = top2 + PH;
   F.forEach((f, i) => { if (f.ev && i > 0) o += `<line x1="${X(i)}" x2="${X(i)}" y1="${MT - 4}" y2="${yb}" stroke="${C.ink2}" stroke-dasharray="2 3"/><text x="${X(i) + 3}" y="${MT + 10 + (i % 3) * 12}" font-size="11" fill="${C.ink2}">${f.ev}</text>`; });
@@ -194,7 +190,7 @@ async function plot(file, title, F, errs) {
 // ── çalıştır ──
 const out = []; let bad = 0;
 for (const fov of FOVS) for (const sc of LIST) {
-  const spec = { ...sc, fov, lensHud: false };
+  const spec = { ...sc, fov };
   const F = await page.evaluate((sp) => window.__zt.run(sp), spec);
   const err = check(F), kinds = [...new Set(err.map((e) => e.k))];
   out.push({ name: sc.name, fov, err, frames: process.env.JSON ? F : undefined });

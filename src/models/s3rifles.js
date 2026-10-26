@@ -258,15 +258,15 @@ function pso(k, yb, z) {
   k.cyl(0.0155, 0.0155, 0.12, [0, cy, z - 0.005], 'acc', { seg: 16 });                                   // gövde borusu
   k.cyl(0.021, 0.0155, 0.03, [0, cy, z - 0.08], 'acc', { seg: 18 });                                     // objektif konisi
   k.cyl(0.021, 0.021, 0.07, [0, cy, z - 0.13], 'acc', { seg: 18, sh: 0.92 });                            // güneşlik
-  k.cyl(0.0185, 0.0165, 0.022, [0, cy, z + 0.054], 'acc', { seg: 18 });                                  // göz merceği çanı
-  k.xsec(circ(0, cy, 0.019, 24), ze + 0.0002, ze - 0.012, 'acc', { holes: [circ(0, cy, 0.0166, 24)], c: 0.0006, cap: 1, sh: 0.7 });      // 12.129: kapak ön yüzü PiP diskiyle aynı düzlemde (12.128'de 16 mm öndeydi → mercek içinde kalın gri halka), ince kenar      // lastik göz kapağı: kalın halka (12.128; eski açık tüpün içi görünmüyordu, PiP merceği çerçevesiz kalıyordu)
+  k.cyl(0.0175, 0.0165, 0.022, [0, cy, z + 0.054], 'acc', { seg: 18 });                                  // göz merceği çanı (12.162: 18,5 → 17,5 mm, ince göz kapağının arkasında kalır)
+  k.xsec(circ(0, cy, 0.0178, 24), ze + 0.0002, ze - 0.012, 'acc', { holes: [circ(0, cy, 0.0166, 24)], c: 0.0005, cap: 1, sh: 0.7 });      // 12.162: dış 19 → 17,8 mm (ince kenar)      // 12.129: kapak ön yüzü PiP diskiyle aynı düzlemde (12.128'de 16 mm öndeydi → mercek içinde kalın gri halka), ince kenar      // lastik göz kapağı: kalın halka (12.128; eski açık tüpün içi görünmüyordu, PiP merceği çerçevesiz kalıyordu)
   k.cyl(0.0095, 0.0095, 0.007, [0, cy + 0.0175, z - 0.01], 'acc', { ax: 'y', seg: 12, pat: 2 });         // yükseklik tamburu (12.139: tepe cy+27,5 → 21 mm; %70 nişanda göz kapağı halkasının üstünden taşıyordu)
   k.cyl(0.009, 0.009, 0.007, [0.0185, cy, z - 0.01], 'acc', { ax: 'x', seg: 12, pat: 2 });               // yan tambur (dış uç 26,5 → 22 mm)
   k.cyl(0.0055, 0.0055, 0.007, [-0.0185, cy, z - 0.05], 'acc', { ax: 'x', seg: 8, d: 1 });               // aydınlatma pil kapağı (12.139: yanda, alçak; eskiden sol üstte çıkıntı)
   k.cyl(0.0195, 0.0195, 0.002, [0, cy, z - 0.164], 'lens', { seg: 18 });
   k.cyl(0.0165, 0.0165, 0.002, [0, cy, ze - 0.001], 'lens', { seg: 18 });
-  k.box([ACOG_DOT, ACOG_DOT, 0.0006], [0, cy, ze + 0.0004], 'glow');                                     // 12.155: ışıyan nokta (eski şevron) = nişan noktası; PiP açıkken söner (mercekte gölgelendirici noktası, geçişte bu boydan başlar)
-  return { sight: [0, cy, ze], dist: ADS_DIST.acog, overlay: 'scope', lens: [0.0165, 0, cy, ze + 0.0003, ACOG_DOT] };      // 12.128: ACOG ile aynı PiP mercek
+  k.box([ACOG_DOT, ACOG_DOT, 0.0006], [0, cy, ze + 0.0004], 'glow');                                     // 12.155: ışıyan nokta = nişan noktası; tam nişanda HUD #rdot'a geçer (12.162)
+  return { sight: [0, cy, ze], dist: ADS_DIST.acog, overlay: 'scope', lens: [0.0165, 0, cy, ze + 0.0003, ACOG_DOT] };      // 12.162: ACOG ile aynı saydam mercek (derinlik maskesi)
 }
 
 // ───────────────────────── SVD Dragunov ─────────────────────────

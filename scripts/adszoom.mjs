@@ -1,12 +1,12 @@
 // Nişan geçişi zaman denetimi (gerçek oyun döngüsü g.step(1/60), 12.127): her kare silah modeli ilerlemesi ile dünya büyütmesi ilerlemesi, HUD retikülü / dürbün örtüsü / model görünürlüğü.
 //   node scripts/adszoom.mjs [taban url]    DEV=desk|mob  ONLY=regex (silah:nişangâh)  JSON=dosya  V=1 (kare kare döküm)
 // Ölçüler: model = kök konumu (bel → nişan, z), dünya = (gerçek büyütme − 1) / (hedef − 1), büyütme = tan(taban/2) / tan(fov/2).
-// ACOG (12.128 PiP): dünya = mercek içi büyütme (PiP kamerası + mercek ekran boyu), ayrıca mercek dışı ≤ ×1,2.
+// ACOG (12.162): PiP yok — dünya kamerası tam ekran büyür (OPTICS.acog.zoom, taslak A ×2 / B ×2,5), mercek saydam; HUD kırmızı noktası (#rdot) yalnız dünya ≥ 0,95'te, tam nişanda var.
 // Eşikler: |model − dünya| ≤ 0,05 her karede · HUD retikülü (#rdot / #holo) yalnız dünya ≥ 0,95'te · dürbün çıkışında dünya ≥ ×2 iken 3B model görünmez (örtü ya da kararma ≥ 0,9 açık).
 import { chromium, devices } from 'playwright';
 import { writeFileSync } from 'fs';
 const base = process.argv[2] || 'http://127.0.0.1:5180', DEV = process.env.DEV || 'desk', only = process.env.ONLY ? new RegExp(process.env.ONLY) : null;
-const COMBOS = [['ak47', 'iron'], ['ak47', 'reddot'], ['m4a1', 'holo'], ['m4a1', 'acog'], ['mp5', 'reddot'], ['lmg', 'holo'], ['pistol', 'iron'], ['sniper', 'scope'], ['barrett', 'scope6']].filter(([i, o]) => !only || only.test(`${i}:${o}`));
+const COMBOS = [['ak47', 'iron'], ['ak47', 'reddot'], ['m4a1', 'holo'], ['m4a1', 'acog'], ['svd', 'acog'], ['laser', 'acog'], ['mp5', 'reddot'], ['lmg', 'holo'], ['pistol', 'iron'], ['sniper', 'scope'], ['barrett', 'scope6']].filter(([i, o]) => !only || only.test(`${i}:${o}`));
 const browser = await chromium.launch({ headless: false, args: ['--use-angle=metal', '--ignore-gpu-blocklist'] });
 const strip = (d) => { const { defaultBrowserType, ...r } = d; return r; };
 const ctx = DEV === 'desk' ? await browser.newContext({ viewport: { width: 1600, height: 900 } }) : await browser.newContext(strip(devices['Pixel 7 landscape']));
@@ -14,14 +14,12 @@ const page = await ctx.newPage(), errs = [];
 page.on('pageerror', (e) => errs.push(e.message));
 await page.goto(`${base}/?autostart=3v3&map=colgecidi&type=tdm&debug=1&dev=1&nolock=1&third=0${DEV !== 'desk' ? '&touch=1' : ''}`);
 await page.waitForFunction('window.__game && window.__game.running && window.__game.player', null, { timeout: 120000 });
-await page.evaluate(async () => { window.__LO = (await import('/src/game/player.js')).LENS_OUT; });
 await page.evaluate(() => {
   const g = window.__game, p = g.player, s = p.s;
   g.brains.forEach((b) => (b.update = () => {}));
   g.soldiers.filter((o) => o !== s).forEach((o) => { o.pos.y = -90; });
   s.protT = 1e9;
   window.__run = ({ id, optic }) => {
-    p.pipForce = true; const LO = window.__LO;
     g.simulate = false;                                                         // canlı döngü yalnız çizer; adımları test atar (her biri gerçek g.step)
     s.cur = 0; s.items[0] = { id, mag: 30, reserve: 90 }; s.optic = optic; if (s.model) s.model.optic = optic;
     p.refreshWeapon(); s.ads = false; s.adsT = 0; s.reloadT = 0; s.switchT = 0; s.sprinting = false; s.vel.set(0, 0, 0);
@@ -29,16 +27,12 @@ await page.evaluate(() => {
     for (let i = 0; i < 60; i++) g.step(1 / 60);
     vm.raise = 0; vm.kick = 0; vm.kickR = 0;
     const u = vm.model.userData, hip = vm.pos.z, tgt = vm.adsTarget(u).z + (s.stat.adsLow ? s.stat.adsLow[2] : 0), zE = p.zoomEff();
-    const frames = [], hudEl = { dot: document.getElementById('rdot'), holo: document.getElementById('holo') }[s.overlay];
+    const frames = [], hudEl = { dot: document.getElementById('rdot'), lens: document.getElementById('rdot'), holo: document.getElementById('holo') }[s.overlay];
     const sc = document.getElementById('scope'), blk = document.getElementById('scopeblk');
     const lens = s.overlay === 'lens' && !!vm.lensDisc, T = (d) => Math.tan((d * Math.PI) / 360);
     const rec = (ph) => {
-      const base = p.baseFov(), fov = g.camera.fov; let mag = T(base) / T(fov), world = zE > 1 ? (mag - 1) / (zE - 1) : 0, out = mag;
-      if (lens) {                                                               // 12.128 ACOG PiP: mercek büyütmesi = tan(taban/2)·mercek NDC yarıçapı / tan(PiP FOV/2) (gerçek çizimle); mercek kapalıyken dünya = mercek dışı ×1,15 ilerlemesi
-        vm.renderPip(g.renderer, g.scene, g.camera);
-        if (vm.lensDisc.visible) { mag = (T(base) * vm.pipR) / T(vm.pipCam.fov); world = (mag - 1) / (zE - 1); } else world = (out - 1) / (LO - 1);
-      }
-      frames.push({ ph, adsT: +s.adsT.toFixed(3), model: +((vm.root.position.z - hip) / (tgt - hip)).toFixed(3), world: +world.toFixed(3), mag: +mag.toFixed(3), out: +out.toFixed(3), pip: lens ? vm.lensDisc.visible : null,
+      const base = p.baseFov(), fov = g.camera.fov, mag = T(base) / T(fov), world = zE > 1 ? (mag - 1) / (zE - 1) : 0;
+      frames.push({ ph, adsT: +s.adsT.toFixed(3), model: +((vm.root.position.z - hip) / (tgt - hip)).toFixed(3), world: +world.toFixed(3), mag: +mag.toFixed(3), clear: lens ? vm.lensDisc.visible : null,
         hud: hudEl ? hudEl.style.display === 'block' : null, scope: sc.style.display === 'block', blk: +(+blk.style.opacity || 0).toFixed(2), model3d: vm.root.visible });
     };
     s.ads = true; for (let i = 0; i < 40; i++) { g.step(1 / 60); rec('in'); }
@@ -55,12 +49,11 @@ for (const [id, optic] of COMBOS) {
   if (r.zE > 1 && dmax > 0.05) err.push(`model − dünya en çok ${dmax.toFixed(3)}`);
   const hudEarly = F.filter((f) => f.hud && f.world < 0.95);
   if (hudEarly.length) err.push(`HUD retikülü dünya ${hudEarly[0].world} iken`);
-  const hudMiss = r.overlay === 'dot' || r.overlay === 'holo' ? F.filter((f) => f.ph === 'in' && f.adsT >= 1 && !f.hud).length : 0;
+  const hudMiss = r.overlay === 'dot' || r.overlay === 'holo' || r.overlay === 'lens' ? F.filter((f) => f.ph === 'in' && f.adsT >= 1 && !f.hud).length : 0;
   if (hudMiss) err.push(`tam nişanda HUD yok (${hudMiss} kare)`);
-  const outMax = r.overlay === 'lens' ? Math.max(...F.map((f) => f.out)) : 0;
-  if (outMax > 1.2) err.push(`ACOG mercek dışı dünya ×${outMax}`);      // 12.128: mercek dışı ≈ ×1,15 (3× yalnız merceğin içinde)
-  const pipOn = r.overlay === 'lens' ? F.filter((f) => f.pip).length : 1;
-  if (!pipOn) err.push('ACOG PiP hiç çizilmedi');
+  const fullMag = Math.max(...F.map((f) => f.mag));
+  if (r.zE > 1 && Math.abs(fullMag - r.zE) > 0.01) err.push(`tam nişanda dünya ×${fullMag} (beklenen ×${r.zE})`);      // 12.162: tüm optiklerde tam ekran büyütme = nişangâh büyütmesi
+  if (r.overlay === 'lens' && F.some((f) => f.ph === 'in' && f.adsT >= 1 && !f.clear)) err.push('ACOG tam nişanda mercek saydam değil');
   const body = F.filter((f) => f.ph === 'out' && r.overlay === 'scope' && f.model3d && f.mag >= 2 && f.blk < 0.9);
   if (body.length) err.push(`dürbün çıkışı: ×${body[0].mag} dünyada 3B gövde (${body.length} kare)`);
   const reachM = F.findIndex((f) => f.model >= 0.95), reachW = F.findIndex((f) => f.world >= 0.95), hudAt = F.findIndex((f) => f.hud), scAt = F.findIndex((f) => f.scope);
