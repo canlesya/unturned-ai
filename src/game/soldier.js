@@ -47,7 +47,7 @@ export class Soldier {
     this.sprinting = false; this.ads = false; this.adsT = 0;
     this.eyeY = EYE_STAND;
     this.alive = false;
-    this.kills = 0; this.deaths = 0; this.score = 0;
+    this.kills = 0; this.deaths = 0; this.score = 0; this.assists = 0;         // assists: 12.165 (assist.js)
     this.respawnT = 0; this.protT = 0;
     this.recoilP = 0; this.bloom = 0; this.sinceShot = 9;
     this.cd = 0; this.reloadT = 0; this.switchT = 0; this.useT = 0;
@@ -179,6 +179,7 @@ export class Soldier {
     this.model.root.visible = !this.isPlayer;
     this.model.root.rotation.x = 0;
     this._syncWeaponModel(true);
+    if (this.dmgLog) this.dmgLog.length = 0;                                         // 12.165: yeniden doğuş / canlandırma asist kaydını sıfırlar
     this.game.emit('spawn', this);
   }
 
@@ -598,6 +599,7 @@ export class Soldier {
       if (this.boss) amount *= BOSS.armor;                                                              // boss hasarın %30'unu yok sayar
       if (this.abActive > 0) { const a = this.zt.ability.id; if (a === 'shield') amount *= 0.3; else if (a === 'cloak' || a === 'shadow') this.abActive = 0; }
     }   // zırh: hasarın %70'i yok · hayalet vurulunca belirir
+    this.game.assists?.hit(this, attacker, amount);                                // 12.165 asist kaydı: kim, kime, ne kadar (kalan canla sınırlı), ne zaman
     this.hp -= amount;
     this.lastHit = attacker;
     this.lastDmgT = this.game.time;
@@ -619,7 +621,7 @@ export class Soldier {
     if (this.brain) this.brain.onFlashed?.(t);
   }
 
-  heal(n) { this.hp = Math.min(this.maxHp, this.hp + n); }
+  heal(n) { this.hp = Math.min(this.maxHp, this.hp + n); this.game.assists?.healed(this); }      // tam iyileşme asist kaydını sıfırlar (12.165)
 
   die(killer, weaponName, headshot) {
     if (!this.alive) return;
@@ -634,8 +636,10 @@ export class Soldier {
     this.ads = false; this.reloadT = 0; this.useT = 0; this.swing = null; this.autoSwitchT = 0;
     this.vel.set(0, 0, 0);
     this.revivable = !/RPG|Bomba|Claymore|M79|üssü/i.test(weaponName || '');
+    if (!killer || killer === this) killer = this.game.assists?.creditFor(this) || killer;      // 12.165: düştü / intihar / kendi bombası: son 5 sn'de vuran düşmana öldürme yazılır
     if (killer && killer !== this) { killer.kills++; killer.score += headshot ? 150 : 100; }
     this.game.onKill(killer, this, weaponName, headshot);
+    this.game.assists?.onDeath(this, killer);                                       // öldüren dışında katkı verenler asist alır
   }
 
   // Her kare: zamanlayıcılar

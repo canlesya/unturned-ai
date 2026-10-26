@@ -382,7 +382,18 @@ export class Room {
     if (m.bots === false) { g.brainsOff = g.brains.splice(0); }
     if (m.bots === true && g.brainsOff) { g.brains.push(...g.brainsOff); g.brainsOff = null; }
     if (m.ask && c.ws.readyState === 1) c.ws.send(JSON.stringify({ t: 'dbg', optic: s.opticId, item: s.item.id, zb: !!s.def.zombie, ab: [+s.abT.toFixed(2), +s.abActive.toFixed(2)],
-      q: c.h.queue.length, bu: c.h.budget, drop: c.h.dropped || 0, ack: c.h.ack, tick: g.tick, lagT: c.h.vtLag != null ? +c.h.vtLag.toFixed(1) : null, sv: { cur: s.cur, fm: s.fireModeNow, st: s.prone ? 'p' : s.crouching ? 'c' : 's', mag: s.item.mag, res: s.item.reserve, cd: +s.cd.toFixed(3), rl: +s.reloadT.toFixed(2), sw: +s.switchT.toFixed(2), use: +s.useT.toFixed(2), swing: !!s.swing, prot: +s.protT.toFixed(2), alive: s.alive } }));   // test: sunucudaki nişangâh / silah (istemci bilinmeyen t'yi yok sayar)
+      q: c.h.queue.length, bu: c.h.budget, drop: c.h.dropped || 0, ack: c.h.ack, tick: g.tick, lagT: c.h.vtLag != null ? +c.h.vtLag.toFixed(1) : null, sv: { cur: s.cur, fm: s.fireModeNow, st: s.prone ? 'p' : s.crouching ? 'c' : 's', mag: s.item.mag, res: s.item.reserve, cd: +s.cd.toFixed(3), rl: +s.reloadT.toFixed(2), sw: +s.switchT.toFixed(2), use: +s.useT.toFixed(2), swing: !!s.swing, prot: +s.protT.toFixed(2), alive: s.alive }, kad: g.soldiers.map((e) => [e.kills, e.assists || 0, e.deaths, e.score]) }));   // test: sunucudaki nişangâh / silah (istemci bilinmeyen t'yi yok sayar)
+  }
+
+  // Olaylar: herkese; `to` alanlı olay (12.165 asist bildirimi 'as') yalnız o savaşçının istemcisine (sıra korunur, tek mesaj)
+  sendEvents(list) {
+    if (!list.some((e) => e.to !== undefined)) { this.broadcast({ t: 'ev', l: list }); return; }
+    const pub = list.filter((e) => e.to === undefined), str = pub.length ? JSON.stringify({ t: 'ev', l: pub }) : null;
+    for (const c of this.clients.values()) {
+      if (c.ws.readyState !== 1) continue;
+      if (list.some((e) => e.to === c.id)) c.ws.send(JSON.stringify({ t: 'ev', l: list.filter((e) => e.to === undefined || e.to === c.id) }));
+      else if (str) c.ws.send(str);
+    }
   }
 
   broadcast(msg, except) {
@@ -405,7 +416,7 @@ export class Room {
     g.step(SIM_DT);
     this.tick = g.tick;
     for (const c of this.clients.values()) if (c.h.tickAck) { c.h.ackState = packSoldier(c.h.s); c.h.ackAm = c.h.s.items.map((it) => [it.mag, it.reserve]); }      // ack anındaki cephane: istemci aynı girdideki kendi tahminiyle karşılaştırır (12.138)
-    if (g.netEvents.length) { this.broadcast({ t: 'ev', l: g.netEvents }); g.netEvents.length = 0; }
+    if (g.netEvents.length) { this.sendEvents(g.netEvents); g.netEvents.length = 0; }
     if (this.tick % SNAP_EVERY === 0 && this.clients.size) this.snapshot();
   }
 

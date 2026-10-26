@@ -342,7 +342,7 @@ function renderRooms(main) {
         · <span class="tag ${r.balVer !== v ? 'old' : ''}" title="Bu odanın maçı hangi denge sürümüyle oynanıyor">${r.balVer !== v ? `eski ayar v${r.balVer}` : `v${r.balVer}`}</span></div>
       <div style="display:flex;font-size:12px;color:var(--tx2)"><span style="flex:1">${r.humans} / ${r.cap} oyuncu</span>${r.bots ? 'botlar açık' : 'botsuz'}</div>
       <div class="bar"><s style="width:${Math.min(100, (r.humans / r.cap) * 100)}%"></s></div>
-      ${r.players.length ? r.players.map((p) => `<div class="pl"><i class="tm" style="background:${p.team === 'blue' ? 'var(--blue)' : 'var(--red)'}"></i><span class="n">${esc(p.name)} <span style="color:var(--tx3);font-size:12px">${esc(CLS(p.cls))}</span></span><span class="k">${p.kills}/${p.deaths}</span><button class="btn sm dan" data-kick="${esc(r.code)}:${p.id}" data-nm="${esc(p.name)}">At</button></div>`).join('') : '<div class="empty">Oyuncu yok</div>'}
+      ${r.players.length ? r.players.map((p) => `<div class="pl"><i class="tm" style="background:${p.team === 'blue' ? 'var(--blue)' : 'var(--red)'}"></i><span class="n">${esc(p.name)} <span style="color:var(--tx3);font-size:12px">${esc(CLS(p.cls))}</span></span><span class="k" title="Öldürme / Asist / Ölüm">${p.kills}/${p.assists ?? 0}/${p.deaths}</span><button class="btn sm dan" data-kick="${esc(r.code)}:${p.id}" data-nm="${esc(p.name)}">At</button></div>`).join('') : '<div class="empty">Oyuncu yok</div>'}
       ${r.official ? '' : `<div style="margin-top:10px;text-align:right"><button class="btn sm dan" data-close="${esc(r.code)}">Odayı kapat</button></div>`}
     </div>`).join('') || '<div class="empty">Açık oda yok</div>'}</div></div>`;
   main.querySelectorAll('[data-kick]').forEach((b) => (b.onclick = async () => {
@@ -593,9 +593,9 @@ function renderPlayers(main) {
   const rows = (L || []).filter((a) => !f || a.name.toLocaleLowerCase('tr').includes(f));
   main.innerHTML = `<div class="page"><h2>Hesaplar</h2><p class="lead">Oyunda ad + şifreyle kayıt olan oyuncular (misafirler burada görünmez). Şifre sıfırlanınca yeni şifre yalnız bir kez gösterilir ve oyuncunun tüm cihazlarındaki oturum kapanır.</p>
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px"><input class="inp" id="aq" placeholder="Ad ara" value="${esc(S.acctQ || '')}" style="max-width:260px"><span style="color:var(--tx2)">${L ? `${rows.length} / ${L.length} hesap` : 'Yükleniyor…'}</span></div>
-    <div class="card" style="padding:0;overflow:auto"><table class="atbl"><thead><tr><th>Ad</th><th>Kayıt</th><th>Son görülme</th><th>Maç</th><th>XP</th><th>Cihaz</th><th></th></tr></thead><tbody>
-    ${rows.map((a) => `<tr><td><b>${esc(a.name)}</b></td><td>${when(a.created)}</td><td>${when(a.seen)}</td><td>${a.matches}</td><td>${a.xp}</td><td>${a.devices}</td>
-      <td style="text-align:right;white-space:nowrap"><button class="btn sm" data-reset="${esc(a.name)}">Şifre sıfırla</button> <button class="btn sm dan" data-del="${esc(a.name)}">Sil</button></td></tr>`).join('') || `<tr><td colspan="7"><div class="empty">${L ? 'Hesap yok' : 'Yükleniyor…'}</div></td></tr>`}
+    <div class="card" style="padding:0;overflow:auto"><table class="atbl"><thead><tr><th>Ad</th><th>Kayıt</th><th>Son görülme</th><th>Maç</th><th>XP</th><th title="Öldürme / Asist / Ölüm">K / A / D</th><th>Cihaz</th><th></th></tr></thead><tbody>
+    ${rows.map((a) => `<tr><td><b>${esc(a.name)}</b></td><td>${when(a.created)}</td><td>${when(a.seen)}</td><td>${a.matches}</td><td>${a.xp}</td><td style="white-space:nowrap">${a.kills ?? 0} / ${a.assists ?? 0} / ${a.deaths ?? 0}</td><td>${a.devices}</td>
+      <td style="text-align:right;white-space:nowrap"><button class="btn sm" data-reset="${esc(a.name)}">Şifre sıfırla</button> <button class="btn sm dan" data-del="${esc(a.name)}">Sil</button></td></tr>`).join('') || `<tr><td colspan="8"><div class="empty">${L ? 'Hesap yok' : 'Yükleniyor…'}</div></td></tr>`}
     </tbody></table></div>${bansHTML()}</div>`;
   main.querySelectorAll('[data-unban]').forEach((b) => (b.onclick = async () => {
     if (!confirm(`${b.dataset.unban} banı kaldırılsın mı?`)) return;

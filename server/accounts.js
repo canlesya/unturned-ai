@@ -13,7 +13,7 @@ const FILE = path.join(DATA, 'accounts.json');
 export const SESSION_MS = 90 * 24 * 3600 * 1000;
 const MAX_SESS = 10, BODY_MAX = 4096;
 const RATE_N = +process.env.BF_ACC_RATE || 10, RATE_MS = 60000;               // giriş / kayıt: IP başına dakikada 10 deneme
-const PROFILE_MAX = { xp: 1e8, matches: 1e6, wins: 1e6, kills: 1e8, deaths: 1e8 };
+const PROFILE_MAX = { xp: 1e8, matches: 1e6, wins: 1e6, kills: 1e8, deaths: 1e8, assists: 1e8 };     // assists: 12.165 (eski hesapta yok → 0)
 
 // Ad anahtarı: büyük / küçük harf ve noktalı / noktasız i farkı yok sayılır (ALİ = Ali = ALI = alı)
 export const nameKey = (n) => String(n || '').toLocaleLowerCase('tr').replace(/ı/g, 'i');
@@ -116,13 +116,13 @@ function mergeProfile(cur, p) {
   for (const k of Object.keys(PROFILE_MAX)) o[k] = Math.max(a[k] || 0, b[k]);
   return o;
 }
-export const profileOut = (pr) => ({ xp: pr.xp, stats: { matches: pr.matches, wins: pr.wins, kills: pr.kills, deaths: pr.deaths } });
+export const profileOut = (pr) => ({ xp: pr.xp, stats: { matches: pr.matches, wins: pr.wins, kills: pr.kills, deaths: pr.deaths, assists: pr.assists || 0 } });
 export function saveProfile(a, p) { a.profile = mergeProfile(a.profile, p); if (p && p.skins && typeof p.skins === 'object') a.skins = cleanSkins(p.skins) || {}; persist(); return a.profile; }
 // İstemciye giden profil: kaplama hiç yazılmadıysa skins = null (istemci yereldekini yükler)
 export const profileFull = (a) => ({ ...profileOut(a.profile), skins: a.skins === undefined ? null : a.skins });
 
 // ───── admin ─────
-export const listAccounts = () => Object.values(load()).map((a) => ({ name: a.name, created: a.created, seen: a.seen, matches: a.profile?.matches || 0, xp: a.profile?.xp || 0, devices: (a.sess || []).filter((s) => s.exp > Date.now()).length })).sort((x, y) => (y.seen || 0) - (x.seen || 0));
+export const listAccounts = () => Object.values(load()).map((a) => ({ name: a.name, created: a.created, seen: a.seen, matches: a.profile?.matches || 0, xp: a.profile?.xp || 0, kills: a.profile?.kills || 0, assists: a.profile?.assists || 0, deaths: a.profile?.deaths || 0, devices: (a.sess || []).filter((s) => s.exp > Date.now()).length })).sort((x, y) => (y.seen || 0) - (x.seen || 0));
 export function deleteAccount(name) {
   const k = nameKey(name), a = load()[k];
   if (!a) throw err(404, 'none', 'Hesap bulunamadı');

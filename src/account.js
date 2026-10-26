@@ -34,7 +34,7 @@ export async function api(base, method, path, body, tok) {
 export const acctErr = (key, fallback) => (key && t('acct.err.' + key) !== 'acct.err.' + key ? t('acct.err.' + key) : fallback || t('acct.err.server'));
 
 // Profil (seviye / istatistik): yerel ile sunucudakinin alan alan büyüğü; sunucu da aynı kuralla birleştirir (hiç azalmaz)
-const STAT_KEYS = ['matches', 'wins', 'kills', 'deaths'];
+const STAT_KEYS = ['matches', 'wins', 'kills', 'deaths', 'assists'];      // assists: 12.165 (eski profilde yok → 0)
 export const profileOf = (p) => ({ xp: p.xp || 0, stats: Object.fromEntries(STAT_KEYS.map((k) => [k, (p.stats && p.stats[k]) || 0])) });
 export function maxProfile(a, b) {
   return { xp: Math.max(a.xp || 0, b.xp || 0), stats: Object.fromEntries(STAT_KEYS.map((k) => [k, Math.max(a.stats?.[k] || 0, b.stats?.[k] || 0)])) };

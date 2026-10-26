@@ -239,6 +239,13 @@ export class Sfx {
     if (n >= 2) this._tone({ v, gain: 0.11, dur: 0.3, f0: 2093 * up, f1: 2090 * up, type: 'triangle', delay: 0.17, att: 0.002 });
     if (hs) this.headshot();
   }
+  // Asist onayı (12.165): öldürme onayından kısa ve kısık, tek parlak "tık-tın" (hasar verdiğin düşmanı başkası öldürdü)
+  assist() {
+    if (!this.ctx) return;
+    const v = this._voice(null, 1);
+    this._tone({ v, gain: 0.09, dur: 0.06, f0: 1320, f1: 1310, type: 'triangle', att: 0.002 });
+    this._tone({ v, gain: 0.08, dur: 0.16, f0: 1760, f1: 1755, type: 'triangle', delay: 0.06, att: 0.002 });
+  }
   // Zombi hırıltısı / inlemesi: alçak, titrek testere + boğuk gürültü
   zombie(pos, big = false) {
     if (!this.ctx) return;

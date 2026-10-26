@@ -11,6 +11,7 @@ import { t as tr } from '../i18n/index.js';
 import '../i18n/pb.js';
 import { t, onLang } from '../i18n/index.js';
 import { mapName, modeLabel, className } from '../i18n/data.js';
+import '../i18n/assist.js';                                              // sb.a (12.165 asist sütunu)
 import { wName, wLabel, classDesc, ztName, ztDesc, abilName, opticName, fireName, teamName, popText, mapText, dispName, placeName } from '../i18n/game.js';
 
 const EN = (s) => String(s).replace(/Paintball/g, '<span lang="en">Paintball</span>');   // tr büyük harfte 'PAİNTBALL' olmasın (marka adı)
@@ -613,11 +614,11 @@ export class Hud {
   renderScoreboard() {
     const g = this.game, inf = g.mode.infection;
     const head = `<div class="sbh"><b>${EN(modeLabel(g.mode.type || (g.mode.gungame ? 'gg' : g.mode.paintball ? 'pb' : inf ? 'inf' : g.ffa ? 'dm' : g.mode.scoreBased ? 'tdm' : 'conquest')))}</b><span>${mapName(g.mapDef?.id || g.opts.map)} · ${this.$('tm').textContent}</span></div>`;
-    const th = (cols) => `<tr><th>${t('sb.player')}</th>${cols}<th>${t('sb.k')}</th><th>${t('sb.d')}</th><th>${t('sb.score')}</th></tr>`;
+    const th = (cols) => `<tr><th>${t('sb.player')}</th>${cols}<th>${t('sb.k')}</th><th>${t('sb.a')}</th><th>${t('sb.d')}</th><th>${t('sb.score')}</th></tr>`;
     const col = (team) => {
       const list = g.soldiers.filter((s) => s.team === team && !s.vacant).sort((a, b) => b.score - a.score);
       return `<div class="team ${team}"><h3 style="color:var(--c)"><span>${inf ? (team === 'blue' ? t('hud.humans') : t('hud.zombies')) : teamName(team)}</span><em>${Math.max(0, g.tickets[team])}</em></h3><table>${th('')}${
-        list.map((s) => `<tr class="${s.isPlayer ? 'me' : ''} ${s.alive ? '' : 'dead'}"><td>${dispName(s)}</td><td>${s.kills}</td><td>${s.deaths}</td><td>${s.score}</td></tr>`).join('')}</table></div>`;
+        list.map((s) => `<tr class="${s.isPlayer ? 'me' : ''} ${s.alive ? '' : 'dead'}"><td>${dispName(s)}</td><td>${s.kills}</td><td>${s.assists || 0}</td><td>${s.deaths}</td><td>${s.score}</td></tr>`).join('')}</table></div>`;
     };
     if (g.ffa) {                                                         // tek tablo, öldürmeye göre
       const gg = g.mode.gungame;
@@ -625,7 +626,7 @@ export class Hud {
       const pc = (s) => (g.mode.paintball && g.paintColor ? `<i style="display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:${g.paintColor(s)}"></i>` : '');   // Paintball: oyuncunun boya rengi (game.paintColor = paint.js paintColorOf)
       const ttl = gg ? t('sb.ggTitle', { n: g.mode.killLimit }) : g.mode.paintball ? t('sb.pbTitle', { n: g.mode.killLimit }) : t('sb.dmTitle', { n: g.mode.killLimit });
       this.$('sbbody').innerHTML = `${head}<div class="cols"><div class="team" style="--c:#ff8a1f;max-width:none"><h3 style="color:var(--c)"><span>${EN(ttl)}</span></h3><table>${th(gg ? `<th>${t('sb.level')}</th><th>${t('sb.weapon')}</th>` : '')}${
-        list.map((s) => `<tr class="${s.isPlayer ? 'me' : ''} ${s.alive ? '' : 'dead'}"><td>${pc(s)}${dispName(s)}</td>${gg ? `<td>${s.ggLevel + 1}</td><td>${wName(s.items[0].id)}</td>` : ''}<td>${s.kills}</td><td>${s.deaths}</td><td>${s.score}</td></tr>`).join('')}</table></div></div>`;
+        list.map((s) => `<tr class="${s.isPlayer ? 'me' : ''} ${s.alive ? '' : 'dead'}"><td>${pc(s)}${dispName(s)}</td>${gg ? `<td>${s.ggLevel + 1}</td><td>${wName(s.items[0].id)}</td>` : ''}<td>${s.kills}</td><td>${s.assists || 0}</td><td>${s.deaths}</td><td>${s.score}</td></tr>`).join('')}</table></div></div>`;
       return;
     }
     this.$('sbbody').innerHTML = `${head}<div class="cols">${col('blue')}${col('red')}</div>`;

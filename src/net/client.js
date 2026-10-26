@@ -162,7 +162,7 @@ export class NetClient {
     this.stats.snaps++;
     const g = this.game;
     // skor alanları hemen: interpolate düşük FPS'te yavaş alanlı snapshot'ı atlayabiliyor → rakip öldürme/seviye 0'da kalıyor, LİDER kutusu yanlış
-    for (const p of m.s) { if (p.kl === undefined) continue; const s = g.soldiers[p.i]; if (!s || s === g.playerSoldier) continue; s.kills = p.kl; s.deaths = p.de; s.score = p.sc; if (p.gl !== undefined) s.ggLevel = p.gl; }
+    for (const p of m.s) { if (p.kl === undefined) continue; const s = g.soldiers[p.i]; if (!s || s === g.playerSoldier) continue; s.kills = p.kl; s.deaths = p.de; s.score = p.sc; s.assists = p.as || 0; if (p.gl !== undefined) s.ggLevel = p.gl; }
     g.tickets.blue = m.tk[0]; g.tickets.red = m.tk[1];
     g.timeLeft = m.tl < 0 ? Infinity : m.tl;
     if (m.pl && g.payload) g.payload.applyNet(m.pl);                           // Vagon: konum + durum (gösterim netFrame'de yumuşar)
@@ -195,7 +195,7 @@ export class NetClient {
         else { s.ztype = t; s.boss = bs; }
       }
       s.zLives = p.zl ?? 0;
-      s.kills = p.kl; s.deaths = p.de; s.score = p.sc; s.revivable = !!p.rv;
+      s.kills = p.kl; s.deaths = p.de; s.score = p.sc; s.assists = p.as || 0; s.revivable = !!p.rv;      // as: 12.165 (yoksa 0)
       const sk = skinsFrom(p.sk, p.it), skChanged = JSON.stringify(sk) !== JSON.stringify(s.skins || null);      // kaplama değişti mi (silah aynı kalsa da model yenilenir)
       if (!local || !s.skins) s.skins = sk;
       if (s.items.length !== p.it.length || s.items.some((it, i) => it.id !== p.it[i])) {
@@ -235,7 +235,7 @@ export class NetClient {
       return;
     }
     const st = me.st;
-    s.kills = me.now.kl; s.deaths = me.now.de; s.score = me.now.sc;
+    s.kills = me.now.kl; s.deaths = me.now.de; s.score = me.now.sc; s.assists = me.now.as || 0;
     // ölüm/yaşam durumu SUNUCUNUN ŞU ANKİ durumundan (me.now) alınır: ack anındaki durum (me.st) ölünce güncellenmez (girdi işlenmez)
     if (!me.now.a) { if (s.alive) this.applyState(s, me.now, true); this.hist.length = 0; s.respawnT = me.rt; return; }
     if (!s.alive) { this.applyState(s, me.now, true); }

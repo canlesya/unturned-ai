@@ -129,7 +129,7 @@ body.mob #ammo{zoom:.55;right:20px;top:14px;bottom:auto}
 body.mob #toasts{zoom:.7;top:90px}
 body.mob #abil,body.mob #msg,body.mob #zonew,body.mob #bosses{zoom:.65}
 body.mob #abil #abk{display:none}      /* telefonda güç göstergesinde tuş etiketi (F / sağ tık) yok: güç butonu var */
-body.mob #pops{zoom:.75}
+body.mob #pops{zoom:.75;top:auto;bottom:calc((50vh + 34px) / .75);justify-content:flex-end}      /* 12.165: + puan / +ASİST yığını telefonda nişangâhın üstünde, yukarı büyür (öldürme kartı nişangâhın altında; eskiden üst üste biniyordu) */
 body.mob #msg{left:calc(42vw / .65);top:calc(60vh / .65);width:max-content;max-width:calc(32vw / .65);white-space:normal;text-align:center;line-height:1.35}      /* durum mesajı joystick ile butonlar arasında, kayarak satıra bölünür */
 /* sohbet (çevrimiçi): joystick ile şarjör butonu arasında, alt ortada; mesajlar yine 9 sn sonra solar */
 body.mob #chat{zoom:.62;left:calc((15vw + 20vh) / .62);bottom:calc(3vh / .62);width:calc(32vw / .62)}
