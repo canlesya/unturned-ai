@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { DEEP_WATER } from '../maps/terrain.js';
 
-// Zemin kat yürüme ızgarası + A* (botlar için). Hücre 0.5 m.
-const CELL = 0.5;
+// Zemin kat yürüme ızgarası + A* (botlar için). Hücre 0.5 m (12.172: harita isterse daha iri — Kuzey Vadisi 2 m, 1,6 km'de 801² hücre).
+const CELL0 = 0.5;
 const INFL = 0.35;
 
 export class Heap {
@@ -32,7 +32,8 @@ export class Heap {
 export class NavGrid {
   // layered: harita 'plat' etiketli yürünebilir platform/basamak/rampa içerir → hücre başına zemin yüksekliği (floor) tutulur;
   // yol bulma yalnızca |Δzemin| ≤ maxStep olan komşulara geçer (insan 0.7 = basamak, zombi 1.15 = sıçrayarak çıkabilir)
-  constructor(colliders, bounds, terrain = null, layered = false) {
+  constructor(colliders, bounds, terrain = null, layered = false, cell = CELL0) {
+    const CELL = (this.cell = cell);
     this.minX = bounds.minX - 1; this.minZ = bounds.minZ - 1;
     this.w = Math.ceil((bounds.maxX - bounds.minX + 2) / CELL);
     this.h = Math.ceil((bounds.maxZ - bounds.minZ + 2) / CELL);
@@ -91,9 +92,9 @@ export class NavGrid {
   }
 
   floorAt(x, z) { return this.floor ? this.floor[this.idx(x, z)] : 0; }
-  idx(x, z) { return Math.floor((z - this.minZ) / CELL) * this.w + Math.floor((x - this.minX) / CELL); }
-  cx(i) { return this.minX + ((i % this.w) + 0.5) * CELL; }
-  cz(i) { return this.minZ + (Math.floor(i / this.w) + 0.5) * CELL; }
+  idx(x, z) { return Math.floor((z - this.minZ) / this.cell) * this.w + Math.floor((x - this.minX) / this.cell); }
+  cx(i) { return this.minX + ((i % this.w) + 0.5) * this.cell; }
+  cz(i) { return this.minZ + (Math.floor(i / this.w) + 0.5) * this.cell; }
   // (sx,sz)'den yürünerek ulaşılabilen hücreler (kapalı oda/ada dışarıda kalır)
   reachable(sx, sz) {
     const seen = new Uint8Array(this.w * this.h), q = new Int32Array(this.w * this.h);
@@ -132,14 +133,14 @@ export class NavGrid {
   }
 
   isFree(x, z) {
-    const cx = Math.floor((x - this.minX) / CELL), cz = Math.floor((z - this.minZ) / CELL);
+    const cx = Math.floor((x - this.minX) / this.cell), cz = Math.floor((z - this.minZ) / this.cell);
     return cx >= 0 && cz >= 0 && cx < this.w && cz < this.h && !this.blocked[cz * this.w + cx];
   }
 
   nearestFree(x, z, maxR = 12) {
     if (this.isFree(x, z)) return this.idx(x, z);
-    const cx = Math.floor((x - this.minX) / CELL), cz = Math.floor((z - this.minZ) / CELL);
-    for (let r = 1; r <= maxR / CELL; r++) {
+    const cx = Math.floor((x - this.minX) / this.cell), cz = Math.floor((z - this.minZ) / this.cell);
+    for (let r = 1; r <= maxR / this.cell; r++) {
       for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
         if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
         const X = cx + dx, Z = cz + dz;

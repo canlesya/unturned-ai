@@ -324,7 +324,7 @@ function openSave() {
 
 // ───────── Odalar ─────────
 const MODE = { conquest: 'Ele Geçirme', tdm: 'Takım Çatışması', dm: 'Ölüm Maçı', gg: 'Silah Yarışı', inf: 'Enfekte' };
-const MAP = { kasaba: 'Kasaba', vadi: 'Vadi', us: 'Askeri Üs', colgecidi: 'Çöl Geçidi', depo: 'Depo', liman: 'Liman', newyork: 'New York', dev: 'Geliştirme' };
+const MAP = { kasaba: 'Kasaba', vadi: 'Vadi', us: 'Askeri Üs', colgecidi: 'Çöl Geçidi', depo: 'Depo', liman: 'Liman', newyork: 'New York', dev: 'Geliştirme', kuzey: 'Kuzey Vadisi' };
 const CLS = (c) => CLASS_DEFS[c]?.label || (c === 'zombie' ? 'Zombi' : c);
 let roomTimer = 0;
 async function loadRooms() {
@@ -357,11 +357,11 @@ function renderRooms(main) {
 }
 
 // ───────── Resmi sunucular ─────────
-const MAPN = { kasaba: 'Kasaba', vadi: 'Vadi', us: 'Askeri Üs', colgecidi: 'Çöl Geçidi', depo: 'Depo', liman: 'Liman', newyork: 'New York', boyakulesi: 'Boya Kulesi', ormankale: 'Orman Kalesi', maden: 'Maden Ocağı', yorunge: 'Yörünge Üssü' };
+const MAPN = { kasaba: 'Kasaba', vadi: 'Vadi', us: 'Askeri Üs', colgecidi: 'Çöl Geçidi', depo: 'Depo', liman: 'Liman', newyork: 'New York', boyakulesi: 'Boya Kulesi', ormankale: 'Orman Kalesi', maden: 'Maden Ocağı', yorunge: 'Yörünge Üssü', kuzey: 'Kuzey Vadisi' };
 const MAPIMG = {
   kasaba: new URL('../public/img/kasaba.jpg', import.meta.url).href, vadi: new URL('../public/img/vadi.jpg', import.meta.url).href,
   us: new URL('../public/img/us.jpg', import.meta.url).href, colgecidi: new URL('../public/img/colgecidi.jpg', import.meta.url).href, liman: new URL('../public/img/liman.jpg', import.meta.url).href,
-  newyork: new URL('../public/img/newyork.jpg', import.meta.url).href,
+  newyork: new URL('../public/img/newyork.jpg', import.meta.url).href, kuzey: new URL('../public/img/kuzey.jpg', import.meta.url).href,
   depo: new URL('../public/img/depo.jpg', import.meta.url).href, boyakulesi: new URL('../public/img/boyakulesi.jpg', import.meta.url).href,
   ormankale: new URL('../public/img/ormankale.jpg', import.meta.url).href,
   maden: new URL('../public/img/maden.jpg', import.meta.url).href,
@@ -374,7 +374,7 @@ const WEATHERS = [['clear', 'Açık'], ['rain', 'Yağmur'], ['fog', 'Sis']];
 const DIFFS = [['easy', 'Kolay'], ['normal', 'Normal'], ['hard', 'Zor']];
 const lbl = (L, v) => (L.find((x) => x[0] === v) || [, v])[1];
 const isTotal = (t) => t === 'dm' || t === 'gg' || t === 'inf' || t === 'pb';
-const mapsFor = (t) => (t === 'space' ? ['yorunge'] : t === 'inf' ? ['newyork'] : t === 'pb' ? ['boyakulesi', 'ormankale'] : t === 'payload' ? ['maden'] : t === 'front' ? ['cephe'] : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman']);
+const mapsFor = (t) => (t === 'space' ? ['yorunge'] : t === 'inf' ? ['newyork'] : t === 'pb' ? ['boyakulesi', 'ormankale'] : t === 'payload' ? ['maden'] : t === 'front' ? ['cephe'] : t === 'conquest' || t === 'tdm' ? ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman', 'kuzey'] : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman']);
 function sizeRange(t, L) {
   if (t === 'inf') return [L.infMin, L.infMax, 2];
   if (t === 'pb') return [L.pbMin ?? 2, L.pbMax ?? 12, 1];
