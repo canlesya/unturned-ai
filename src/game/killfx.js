@@ -3,6 +3,7 @@
 //   • Merkez öldürme bildirimi: kurukafa simgesi + "ELENDİ" / "KAFADAN" rozeti + kurbanın adı + silah + puan; yenisi gelince eskisinin yerini alır
 //   • Çoklu öldürme (4,5 sn içinde): ÇİFT / ÜÇLÜ / DÖRTLÜ / KATLİAM; ölmeden seri: 3 / 5 / 7 / 10'da çağrı · öldürme sesi katmanları (notalar yükselir)
 //   • Seri sesi (streakSfx.js, 12.148): seri ≥ 2'de her öldürmede yükselen kısa "başarı" sesi (Ayarlar → Ses → Seri sesleri); takım arkadaşı / kendi ölümü sayılmaz
+//   • 12.164 delip geçme: 2. / 3. hedefe isabette artının altında "DELİP GEÇTİ" etiketi + ayrı (boğuk, çift) isabet sesi; tek mermiyle 2+ öldürmede çağrı "ÇİFTE · TEK MERMİ" (çoklu öldürme çağrısının yerine), kartta DELİP GEÇTİ rozeti
 //   • Hafif ekran sarsıntısı + kenar parlaması, öldürme akışında kendi öldürmelerin altın vurgulu; telefonda (body.mob) küçük ve ortadan biraz yukarıda
 import { t } from '../i18n/index.js';
 import '../i18n/fx.js';
@@ -33,6 +34,9 @@ const CSS = `
 #killfeed .kf.mk{border-right-color:#ffd35a;background:linear-gradient(90deg,rgba(80,52,6,.55),rgba(110,70,8,.86));box-shadow:0 0 10px rgba(255,190,60,.25)}
 #killfeed .kf.mk::before{content:'\\2620';margin-right:7px;color:#ffd35a}
 #killfeed .kf.md{border-right-color:#ff3b2f;background:rgba(90,14,10,.8)}
+#kfx .pnt{position:absolute;left:50%;top:calc(50% + 30px);transform:translateX(-50%);opacity:0;font-size:11px;font-weight:800;letter-spacing:2.5px;color:#9fe2ff;text-shadow:0 0 6px rgba(80,180,255,.55),0 1px 2px #000;white-space:nowrap}
+#kfx .lb .pb{padding:2px 6px;background:#3a9ad8;color:#fff;letter-spacing:2px;border-radius:2px}
+body.mob #kfx .pnt{zoom:1.1}
 body.mob #kfx .nt{top:calc(50% + 50px);zoom:.62}
 body.mob #kfx .hm{zoom:1.15}
 `;
@@ -46,20 +50,21 @@ export class KillFx {
     this.st = document.createElement('style'); this.st.textContent = CSS; document.head.appendChild(this.st);
     const el = (this.root = document.createElement('div'));
     el.id = 'kfx';
-    el.innerHTML = '<div class="fl"></div><div class="nt"></div><div class="hm"><i></i><i></i><i></i><i></i></div>';
+    el.innerHTML = '<div class="fl"></div><div class="nt"></div><div class="hm"><i></i><i></i><i></i><i></i></div><div class="pnt"></div>';
     (game.hud.root || document.body).appendChild(el);
-    this.hm = el.querySelector('.hm'); this.fl = el.querySelector('.fl'); this.nt = el.querySelector('.nt');
+    this.hm = el.querySelector('.hm'); this.pnt = el.querySelector('.pnt'); this.fl = el.querySelector('.fl'); this.nt = el.querySelector('.nt');
     this.multi = 0; this.lastKill = -99; this.streak = 0; this.killT = 0;
     this.streakSfxN = 0; this.lastStreakSfx = null;                       // test: çalınan seri sesi sayısı / son çağrı
   }
   dispose() { this.root.remove(); this.st.remove(); }
   now() { return performance.now() / 1000; }
 
-  // isabet: e = { zone, dead, dmg? } (çevrimiçide dmg gelmez → orta boy)
+  // isabet: e = { zone, dead, dmg?, pn? } (çevrimiçide dmg gelmez → orta boy) · pn: delip geçen merminin kaçıncı hedefi (12.164; 0 = ilk)
   hit(e) {
     const head = e.zone === 'head', dead = !!e.dead, dmg = e.dmg ?? 34;
     const s = dead ? 1.55 : 0.8 + Math.min(1, dmg / 100) * 0.55 + (head ? 0.15 : 0);
-    if (!dead && this.now() - this.killT < 0.3) return;                    // öldürme X'i ekrandayken sıradan isabet onu ezmesin
+    if (e.pn) this.pierced();
+    if (!dead && this.now() - this.killT < 0.3) { if (e.pn) this.g.sfx.hitPen?.(); return; }     // öldürme X'i ekrandayken sıradan isabet onu ezmesin (delip geçen 2. isabet sesini yine çalar)
     this.hm.style.color = dead ? '#ff3b2f' : head ? '#ffcf3a' : '#ffffff';
     this.hm.getAnimations?.().forEach((a) => a.cancel());
     this.hm.animate(dead
@@ -67,11 +72,18 @@ export class KillFx {
       : [{ opacity: 1, transform: `scale(${s * 1.25})` }, { opacity: 1, transform: `scale(${s})`, offset: 0.25 }, { opacity: 0, transform: `scale(${s * 0.92})` }],
     { duration: dead ? 520 : head ? 260 : 190, easing: 'ease-out' });
     if (dead) this.killT = this.now();
-    else if (head) this.g.sfx.headshot(); else this.g.sfx.hit(dmg);
+    else if (head) this.g.sfx.headshot(); else if (e.pn) this.g.sfx.hitPen?.(); else this.g.sfx.hit(dmg);
+  }
+  // 12.164: artının altında kısa "DELİP GEÇTİ" etiketi
+  pierced() {
+    this.pierceN = (this.pierceN || 0) + 1;
+    this.pnt.textContent = t('fx.pierce');
+    this.pnt.getAnimations?.().forEach((a) => a.cancel());
+    this.pnt.animate([{ opacity: 0, transform: 'translateX(-50%) scale(1.25)' }, { opacity: 1, transform: 'translateX(-50%) scale(1)', offset: 0.12 }, { opacity: 1, offset: 0.7 }, { opacity: 0, transform: 'translateX(-50%) translateY(-4px)' }], { duration: 900, easing: 'ease-out', fill: 'forwards' });
   }
 
   // oyuncu birini öldürdü: bildirim + çağrı + ses + sarsıntı
-  kill(victim, weapon, hs, pts) {
+  kill(victim, weapon, hs, pts, pen = {}) {
     const now = this.now(), g = this.g, me = g.playerSoldier;
     const mate = !g.ffa && !!victim && !!me && victim !== me && victim.team === me.team;    // takım arkadaşı: seriye / çoklu öldürmeye sayılmaz
     if (!mate) { this.multi = now - this.lastKill < MULTI_WIN ? this.multi + 1 : 1; this.lastKill = now; this.streak++; }
@@ -84,12 +96,14 @@ export class KillFx {
     this.fl.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 420, easing: 'ease-out' });
     // çağrı: çoklu öldürme önce, yoksa seri dönüm noktası (3 / 5 / 7 / 10 / 15 …), yoksa küçük "SERİ ×n" (seri ≥ 2)
     let call = null, hot = false, sm = false;
+    const pc = pen.pc || 0;                                                                    // 12.164: bu mermiyle kaçıncı öldürme
     if (mate) { /* çağrı yok */ }
+    else if (pc >= 2) { call = t('fx.pierce' + Math.min(3, pc)); hot = true; this.pierceKills = (this.pierceKills || 0) + 1; }
     else if (this.multi >= 2) { call = t('fx.multi' + Math.min(5, this.multi)); hot = this.multi >= 3; }
     else if ([3, 5, 7, 10].includes(this.streak) || (this.streak > 10 && this.streak % 5 === 0)) { call = t('fx.spree' + (this.streak > 10 ? 10 : this.streak)); hot = this.streak >= 5; }
     else if (this.streak >= 2) { call = t('fx.spree'); sm = true; }
     const cls = g.ffa ? 'r' : victim?.team === 'blue' ? 'b' : 'r';
-    const lbl = hs ? `<span class="hb">${t('fx.head')}</span>` : melee ? t('fx.melee') : t('fx.elim');
+    const lbl = (pen.pn ? `<span class="pb">${t('fx.pierce')}</span>` : '') + (hs ? `<span class="hb">${t('fx.head')}</span>` : melee ? t('fx.melee') : pen.pn ? '' : t('fx.elim'));
     this.nt.innerHTML = (call ? `<div class="sk${hot ? ' hot' : ''}${sm ? ' sm' : ''}"></div>` : '') +
       `<div class="cd${hs ? ' hs' : ''}">${hs ? HEAD : SKULL}<div class="tx"><div class="lb">${lbl}</div><div class="nm ${cls}"></div><div class="wp"></div></div><div class="pt"></div></div>`;
     this.nt.querySelector('.nm').textContent = victim?.name || '';
@@ -99,7 +113,7 @@ export class KillFx {
     if (sk) {
       sk.textContent = call;
       if (this.streak >= 2 && this.multi < 2) { const b = document.createElement('b'); b.textContent = '×' + this.streak; sk.appendChild(b); }
-      else if (this.multi >= 2) { const b = document.createElement('b'); b.textContent = '×' + this.multi; sk.appendChild(b); }
+      else if (pc >= 2 || this.multi >= 2) { const b = document.createElement('b'); b.textContent = '×' + (pc >= 2 ? pc : this.multi); sk.appendChild(b); }
       sk.animate([{ opacity: 0, transform: 'scale(1.9)', filter: 'blur(3px)' }, { opacity: 1, transform: 'scale(.94)', filter: 'blur(0)', offset: 0.14 }, { transform: 'scale(1)', offset: 0.22 }, { opacity: 1, offset: 0.8 }, { opacity: 0, transform: 'translateY(-10px)' }], { duration: 2400, easing: 'ease-out', fill: 'forwards' });
     }
     const cd = this.nt.querySelector('.cd');

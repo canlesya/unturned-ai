@@ -220,6 +220,14 @@ export class Sfx {
     this._tone({ v, gain: 0.2 * k, dur: 0.045, f0: 2300, f1: 1800, type: 'triangle', att: 0.001 });
     this._noise({ v, gain: 0.12 * k, dur: 0.022, f0: 5200, f1: 3000, type: 'bandpass', q: 1.5, att: 0.001 });
   }
+  // 12.164: delip geçen merminin 2. / 3. hedefe isabeti — normal tıktan daha boğuk, peş peşe iki kısa vuruş (abartısız)
+  hitPen() {
+    if (!this.ctx) return;
+    const v = this._voice(null, 1);
+    this._tone({ v, gain: 0.16, dur: 0.05, f0: 1500, f1: 1100, type: 'triangle', att: 0.001 });
+    this._tone({ v, gain: 0.13, dur: 0.06, f0: 1250, f1: 900, type: 'triangle', delay: 0.055, att: 0.001 });
+    this._noise({ v, gain: 0.1, dur: 0.03, f0: 2600, f1: 1200, type: 'bandpass', q: 1.2, att: 0.001, delay: 0.05 });
+  }
   headshot() {
     if (!this.ctx) return;
     const v = this._voice(null, 1);

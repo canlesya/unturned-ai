@@ -558,3 +558,17 @@ export function frontLoadout(cls, team, choice = {}, rng = Math.random) {
 }
 // moda göre donanım (Cephe: FRONT_KIT, diğerleri CLASS_DEFS)
 export const modeLoadout = (mode, cls, team, choice, rng) => (mode && mode.front && !CLASS_DEFS[cls]?.zombie ? frontLoadout(cls, team, choice, rng) : makeLoadout(cls, team, choice, rng));
+
+// ───────── 12.164 Delip geçme (mermi askerin içinden geçer) ─────────
+// pen[k] = (k+1). hedefe verilen hasar çarpanı (ilk hedef hep 1); dizinin boyu = bir merminin en çok vurabileceği asker sayısı.
+// Her hedefte bölge (kafa / gövde / bacak) ve mesafe düşüşü ayrı hesaplanır; takım arkadaşı mermiyi kesmez, hasar almaz, hak harcamaz.
+// Listede olmayan silahlar (tüfek, SMG, tabanca, pompalı, makineli, paintball) delmez: mermi ilk askerde durur.
+export const PEN = {
+  sniper: [1, 0.65, 0.4],          // M24: 105 → 68 → 42 (gövde)
+  barrett: [1, 0.75, 0.5],         // Barrett .50 (anti-materyel, en güçlü): 135 → 101 → 68
+  railgun: [1, 0.7, 0.45],         // Uzay Ray Tüfeği: 110 → 77 → 50
+  ww_sniper: [1, 0.65, 0.4],       // Cephe Dürbünlü Tüfek: 104 → 68 → 42
+  svd: [1, 0.5],                   // DMR: yalnız 1 kez deler, yarı hasar (62 → 31)
+  ww_bolt: [1, 0.5],               // Cephe Sürgülü Tüfek (tam boy tüfek mermisi, DMR gibi): 74 → 37
+};
+for (const [id, p] of Object.entries(PEN)) if (WSTATS[id]) WSTATS[id].pen = p.slice();
