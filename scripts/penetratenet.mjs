@@ -39,7 +39,7 @@ console.log('oda', room, JSON.stringify(info));
 check(info.myTeam === 'blue' && info.b[1] === 'red' && info.c[1] === 'red' && info.bot != null, 'takımlar: A mavi, B / C / bot kırmızı');
 
 // şerit: A'nın gözünden D, D+2, D+4 m'deki üç hedefin ayak / göğüs / başı görünür, yürünebilir, hedeflerin zemini düz (±0,25 m)
-const lanes = await page.evaluate((DISTS) => {
+let lanes = process.env.LANE ? null : await page.evaluate((DISTS) => {
   const g = window.__game, V = g.playerSoldier.pos.constructor, b = g.map.bounds, eye = new V(), tp = new V(), out = {};
   const dirs = Array.from({ length: 16 }, (_, a) => [Math.sin(a * Math.PI / 8), Math.cos(a * Math.PI / 8)]);
   for (const D of DISTS) {
@@ -66,6 +66,8 @@ const lanes = await page.evaluate((DISTS) => {
   }
   return out;
 }, DISTS);
+// 12.181: LANE='{"a":[x,z],"dx":0,"dz":1,"D":6}' sabit şerit (ör. kapı kanadının içinden: B kanadın arkasında); DISTS = [D], çifte öldürme bölümü atlanır
+if (process.env.LANE) { const L = JSON.parse(process.env.LANE); lanes = { [L.D]: L }; DISTS.length = 0; DISTS.push(L.D); }
 
 await page.evaluate(({ bid }) => {
   const g = window.__game, me = g.playerSoldier, p = g.player, V = me.pos.constructor;
@@ -153,7 +155,7 @@ for (const r of rows) {
 check(B.sh.some((e) => e.by === info.me && Array.isArray(e.b) && e.b.length >= 3), 'başkalarının ekranı: sh olayında delinen askerlerin kanı (b) geliyor');
 
 // çifte öldürme anı: B, C 100 canla (bot 99999), kafa hizası, M24 — çizim açık, ekran görüntüleri
-const L = lanes[DISTS[0]];
+const L = process.env.LANE ? null : lanes[DISTS[0]];
 if (L) {
   await page.setViewportSize({ width: 1280, height: 720 });                      // ölçüm küçük pencerede (yazılım GPU'sunda kare hızı), görüntü 720p
   await page.evaluate(() => { const g = window.__game; window.__s.kills = []; window.__s.aimY = 0.92; });

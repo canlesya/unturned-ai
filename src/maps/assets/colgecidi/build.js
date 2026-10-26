@@ -33,10 +33,11 @@ export const GROUND_ZONES = [
 ];
 // büyük ahşap kapılar (eski yerlerinde; duvar düzlemi hücre kenarında, kalınlık 1 m)
 export const GATES = [
-  { name: 'Mid Doors', axis: 'x', at: -22, c: -7.75, W: 4.5, open: 'R', swing: 1 },
+//   aL / aR: kanat açısı (derece, 0 = kapalı; 12.181: eski haritadaki açılar — Mid 22 / 68, Long iç 24 / 70, Long 24 / 68); yoksa open: 0° / 90°
+  { name: 'Mid Doors', axis: 'x', at: -22, c: -7.75, W: 4.5, aL: 22, aR: 68, swing: 1 },
   { name: 'B Doors', axis: 'z', at: -37, c: -38.75, W: 4.5, open: 'R', swing: 1 },
-  { name: 'Long Doors (iç)', axis: 'x', at: 7, c: 27.25, W: 4.5, open: 'both', swing: -1, roofed: true },
-  { name: 'Long Doors', axis: 'x', at: 22, c: 27.5, W: 4.5, open: 'L', swing: -1, roofed: true },
+  { name: 'Long Doors (iç)', axis: 'x', at: 7, c: 27.25, W: 4.5, aL: 24, aR: 70, swing: -1, roofed: true },
+  { name: 'Long Doors', axis: 'x', at: 22, c: 27.5, W: 4.5, aL: 24, aR: 68, swing: -1, roofed: true },
 ];
 // çatılı geçitler [kimlik, bölge, çatı alt kotu]
 export const ROOFS = [
@@ -65,8 +66,11 @@ export function buildCgMap(b, T, L, CALLOUTS) {
   b.obj('çatı:birleşim', () => b.box(-28.75, 4.55, -10.75, 6.5, 7.9 - 4.55, 0.5, '#8a7551', { kind: CK.ROOF, tag: 'roof' }));
   // Long Doors odası: iki kapı arası çatılı (kapı lentosu üstünden)
   { const g1 = gates[2], g2 = gates[3], y = g1.top; roofs.push(...roofOver(b, L, T, 'çatı:long-odası', [g1.a0, g1.w0, g1.a1, g2.w1], y, { dirX: false }).map((r) => [...r, y])); }
-  // Lower Tunnels'ın Mid tarafındaki ağzı: üstü kapalı (tünel çatısı kotundan bina tepesine, iki bina arasında lento)
-  { const [z0, z1] = freeSpanZ(L, -10, -14.25); b.obj('tünel-ağzı', () => b.box(-10, 4.05, (z0 + z1) / 2, 1, 7.5 - 4.05, z1 - z0, wallColorOf(37), { kind: CK.PLASTER, tag: 'wall' })); }
+  // Lower Tunnels'ın Mid tarafındaki ağzı: tünel çatısının son şeridi üstünde, iki bina arasında lento (eski haritadaki gibi). 12.181: eskiden x = −10'da
+  // freeSpanZ ile boy alıyordu; o sütunda güneyde bina olmadığı için Mid boyunca z −17 … 26 (43 m) uzanan, 4,05–7,5 m'de asılı bir duvar oluyordu.
+  { const [z0, z1] = freeSpanZ(L, -10.75, -14.25), y0 = 4.55, top = 6.5;                // çatı:alt-tünel (x … −10,5, üstü 4,55) üstü; kuzey bina:39 (tepe 6,5) ↔ güney bina:41
+    b.obj('tünel-ağzı', () => b.box(-10.75, y0, (z0 + z1) / 2, 0.5, top - y0, z1 - z0, wallColorOf(39), { kind: CK.PLASTER, tag: 'wall' }));
+    cover(-11, z0, -10.5, z1, y0, top); }
   // korkuluk / parapet / bölme duvarları (üst tarafın kenar hücrelerinde; istinat yüzünü örter)
   const PARA = [
     ['korkuluk:a-avlu', [23, -48, 38, -47.5], 4.6 + 0.95],                // A platosu güney kenarı (kemer avlusuna bakar)
@@ -225,6 +229,7 @@ export function buildCgMap(b, T, L, CALLOUTS) {
     sunPos: [50, 80, 25],
   };
   stats.props = propBoxes.length; stats.covers = covers.length; stats.roofs = roofs.length;
+  stats.leaves = gates.flatMap((g) => g.leaves.map((l) => ({ door: g.name, ...l })));                     // açılı kapı kanatları (12.181)
   return { spawns, objectives, env, stats, propBoxes, covers };
 }
 

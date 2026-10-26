@@ -30,6 +30,14 @@ export class CgNav extends NavGrid {
       const [a0, a1] = cellRange(c.min[0] - INFL, c.max[0] + INFL, this.minX, W), [b0, b1] = cellRange(c.min[2] - INFL, c.max[2] + INFL, this.minZ, H);
       for (let z = b0; z <= b1; z++) for (let x = a0; x <= a1; x++) { const u = this.uIx[z * W + x]; if (u < 0) continue; const f = this.uFloor[u]; if (c.min[1] - f > 1.6 || c.max[1] - f < 0.45) continue; this.uBlk[u] = 1; }
     }
+    // 12.181 açılı kapı kanatları (çapraz kutu zinciri): kanadın 0,75 m yakınındaki hücrelerde yol KISALTILMAZ (doğru çizgi kanadın ucunu / sırtını
+    // kesip botu kanada dayatıyordu: Mid Doors'ta takılma). Yol yine aynı hücrelerden geçer; yalnız ara noktalar tek tek izlenir (kanat çevresinden dolaşır).
+    const DM = 0.75; this.doorMask = new Uint8Array(N);
+    for (const c of colliders) {
+      if (c.tag !== 'wood' || !String(c.oid).startsWith('kapı:')) continue;
+      const [a0, a1] = cellRange(c.min[0] - DM, c.max[0] + DM, this.minX, W), [b0, b1] = cellRange(c.min[2] - DM, c.max[2] + DM, this.minZ, H);
+      for (let z = b0; z <= b1; z++) for (let x = a0; x <= a1; x++) this.doorMask[z * W + x] = 1;
+    }
     const M = N + cells.length;
     this.gA = new Float32Array(M); this.fromA = new Int32Array(M); this.markA = new Uint32Array(M); this.closedA = new Uint32Array(M); this.stampA = 0;
   }
@@ -76,8 +84,23 @@ export class CgNav extends NavGrid {
     for (let n = 0; n < M; n++) if (cm[n] === id) seen[this.cellOfNode(n)] = 1;
     return seen;
   }
+  // kapı kanadı yakınından geçen doğru (Bresenham, uçlar dahil)
+  doorLine(c0, c1) {
+    const W = this.w, x1 = c1 % W, z1 = (c1 / W) | 0;
+    let x0 = c0 % W, z0 = (c0 / W) | 0; const dx = Math.abs(x1 - x0), dz = Math.abs(z1 - z0), sx = x0 < x1 ? 1 : -1, sz = z0 < z1 ? 1 : -1;
+    let err = dx - dz;
+    for (;;) {
+      if (this.doorMask[z0 * W + x0]) return true;
+      if (x0 === x1 && z0 === z1) return false;
+      const e2 = 2 * err;
+      if (e2 > -dz) { err -= dz; x0 += sx; }
+      if (e2 < dx) { err += dx; z0 += sz; }
+    }
+  }
+  los(i0, i1) { return !this.doorLine(i0, i1) && super.los(i0, i1); }        // bot ara nokta atlaması (bot.js followGoal) da kanat yakınında kısaltmaz
   losA(n0, n1, ms) {
     const W = this.w, c0 = this.cellOfNode(n0), c1 = this.cellOfNode(n1);
+    if (this.doorLine(c0, c1)) return false;
     let x0 = c0 % W, z0 = (c0 / W) | 0; const x1 = c1 % W, z1 = (c1 / W) | 0, dx = Math.abs(x1 - x0), dz = Math.abs(z1 - z0), sx = x0 < x1 ? 1 : -1, sz = z0 < z1 ? 1 : -1;
     let err = dx - dz, cur = n0;
     for (;;) {

@@ -121,7 +121,7 @@ if (ONLY.includes('1')) {
 // ── 2) haritalarda gerçek kenarlar: kenar üstüne koy, kenara doğru yürü (W) / koşup zıpla (Shift+W+Space) ──
 // Kenarlar scripts/fallmaps.mjs ile ölçüldü (ulaşılabilen en yüksek inişler)
 const EDGES = {
-  colgecidi: [['Suicide (T Spawn → Mid)', [-2.75, 7.4, 52.25], [-2.75, 51.25]], ['Short Stairs / Boost', [22.75, 5.55, -43.25], [24.25, -43.25]], ['Titanic duvarı', [-45.75, 7.96, 36.75], [-45.75, 35.75]], ['Pit', [57.75, 4.6, 9.25], [57.75, 9.25]]],
+  colgecidi: [['Suicide (T Spawn → Mid)', [-2.75, 7.4, 52.25], [-2.75, 51.25]], ['Short Stairs / Boost', [22.75, 5.65, -43.25], [24.25, -43.25]], ['Titanic duvarı', [-45.75, 8.3, 36.75], [-45.75, 35.75]], ['Pit', [57.75, 4.6, 9.25], [57.75, 9.25]]],     // 12.181: v2 planı (12.171) — köprü doğu korkuluğu başlığı 5,65, Titanic duvarı başlığı 8,3
   kasaba: [['Çan kulesi batı kemeri', [-38.35, 9.15, 11.0], [-39.0, 11.0]], ['Çan kulesi doğu kemeri', [-33.65, 9.15, 11.0], [-33.0, 11.0]]],     // 12.168: yeni Kasaba (su kulesi platformu korkuluklu: yürüyerek inilmez)
   us: [['Komuta Binası çatısı', [-8.25, 10.85, 6.85], [-8.25, 7.6]], ['Radar çatısı', [-3.5, 7.65, 48.85], [-3.5, 49.6]]],      // 12.170 v3: kontrol kulesi çatısı artık kapalı
 };
