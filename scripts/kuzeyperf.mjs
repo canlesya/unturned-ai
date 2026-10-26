@@ -26,7 +26,15 @@ for (const [n, P] of VIEWS) {
   await page.evaluate(() => { window.__ft.length = 0; });
   await page.waitForTimeout(3000);
   await page.screenshot({ path: `${OUT}/${prof}-${n}.png` });
-  rep[n] = await page.evaluate(() => { const f = window.__ft.slice(5).sort((a, b) => a - b); return { ...window.__info, msMed: +(f[f.length >> 1] || 0).toFixed(1), ms95: +(f[Math.floor(f.length * 0.95)] || 0).toFixed(1), n: f.length }; });
+  rep[n] = await page.evaluate(() => {
+    const f = window.__ft.slice(5).sort((a, b) => a - b), g = window.__game, by = {};
+    // görünür üçgen (kamera kırpması hariç kaba üst sınır) katman başına: arazi / orman / yapı / ot / su / diğer
+    g.map.group.traverse((o) => { if (!o.isMesh || !o.visible) return; let v = o, vis = true; while (v) { if (!v.visible) { vis = false; break; } v = v.parent; } if (!vis) return;
+      let top = o; while (top.parent && top.parent !== g.map.group) top = top.parent; const k = top.name || 'yapı';
+      const t = (o.geometry.index ? o.geometry.index.count : o.geometry.attributes.position.count) / 3 * (o.isInstancedMesh ? o.count : o.geometry.isInstancedBufferGeometry ? o.geometry.instanceCount : 1);
+      by[k] = (by[k] || 0) + Math.round(t); });
+    return { ...window.__info, msMed: +(f[f.length >> 1] || 0).toFixed(1), ms95: +(f[Math.floor(f.length * 0.95)] || 0).toFixed(1), n: f.length, by };
+  });
 }
 rep.mem = await page.evaluate(() => { const i = window.__game.renderer.info; return { geometries: i.memory.geometries, textures: i.memory.textures, programs: i.programs?.length, heapMB: performance.memory ? +(performance.memory.usedJSHeapSize / 1e6).toFixed(0) : null }; });
 rep.errs = errs;

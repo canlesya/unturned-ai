@@ -8,6 +8,8 @@ import { stoneBridge, trussBridge, pylon, pole } from '../maps/assets/kuzey/infr
 import { helipad, hangar, barracks, hesco, watchtower, radarTower } from '../maps/assets/kuzey/military.js';
 import { fence, stoneWall, logStack, crate, barrel, hayBale, streetLamp, jersey, wreck } from '../maps/assets/kuzey/props.js';
 import { FLORA, makeFloraMaterial } from '../maps/assets/common/kuzeyFlora.js';
+import { FAUNA_GEOMS, makeMat as faunaMat } from '../maps/assets/kuzey/fauna.js';
+import { fallenLogs } from '../maps/assets/kuzey/vegetation.js';
 
 // Kuzey Vadisi varlık sayfası (12.172, yalnız taslak görseli; oyun kodu değişmez): her parça kendi karosunda, kendi kamerasıyla (¾ üstten),
 // harita malzemesi + yüzey gölgelendiricisiyle. Etiket: ad · ölçü · üçgen · çarpışma kutusu.  /kuzeylab.html
@@ -46,9 +48,11 @@ const TILES = [
   ['Çit · duvar · kütük', 'saman · varil · sandık', (b, T) => { fence(b, T, -8, -4, 8, -4); stoneWall(b, T, -8, 4, 4, 4); logStack(b, T, 2, 0, 'x', 6, 3); for (let i = 0; i < 3; i++) hayBale(b, T, -6 + i * 1.4, 0); barrel(b, T, 6, 1); barrel(b, T, 6.8, 1.6, '#a3392e'); crate(b, T, -2, 1.6); crate(b, T, -0.8, 1.9, 0.9); }],
   ['Ağaçlar · L0', 'çam · ladin · huş · meşe · çalı · kaya', 'flora0'],
   ['Ağaçlar · L1 (uzak)', 'aynı türlerin kaba silüeti', 'flora1'],
+  ['Devrik ağaç', 'eksen hizalı kütük · kırık dal', (b, T) => fallenLogs([{ x: 0, z: 0, y: 0, ax: true, len: 9, r: 0.36 }, { x: 2, z: 4, y: 0, ax: false, len: 6, r: 0.26 }], { at: () => b })],
+  ['Hayvanlar (yalnız istemci)', 'inek · koyun · geyik · karga · ördek', 'fauna'],
 ];
 
-const cols = 5, rows = Math.ceil(TILES.length / cols), top = 44, W = innerWidth, H = innerHeight - top, tw = W / cols, th = H / rows;
+const cols = 6, rows = Math.ceil(TILES.length / cols), top = 44, W = innerWidth, H = innerHeight - top, tw = W / cols, th = H / rows;
 const labels = document.getElementById('labels');
 const tiles = TILES.map(([name, sub, fn, T0], i) => {
   const T = T0 || flatT, scene = new THREE.Scene();
@@ -61,6 +65,9 @@ const tiles = TILES.map(([name, sub, fn, T0], i) => {
   if (typeof fn === 'function') {
     const b = new MapBuilder(); b.surface = surface(T);
     fn(b, T); obj = b.build(); cols0 = b.colliders.length;
+  } else if (fn === 'fauna') {
+    obj = new THREE.Group(); const fm = faunaMat(false);
+    [['cow', -5, 0, 1.6], ['sheep', -1.5, 0, 1.6], ['deer', 2, 0, 1.6], ['crow', 5, 0.4, 3], ['duck', 7, 0, 3]].forEach(([k, x, y, sc]) => { const m = new THREE.Mesh(FAUNA_GEOMS[k](), fm); m.position.set(x, y, 0); m.scale.setScalar(sc); m.rotation.y = 0.6; obj.add(m); });
   } else {
     obj = new THREE.Group(); const L = fn === 'flora0' ? 'L0' : 'L1', fm = makeFloraMaterial(false), rm = makeFloraMaterial(false);
     ['pine', 'spruce', 'birch', 'oak', 'bush', 'rock'].forEach((k, j) => {

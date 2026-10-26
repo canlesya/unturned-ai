@@ -82,7 +82,7 @@ MAPS.yorunge = {      // 12.157 Uzay modu
 };
 MAPS.kuzey = {      // 12.172 büyük harita (araçlar ileride): yalnız Ele Geçirme + Takım Çatışması
   id: 'kuzey', name: 'Kuzey Vadisi', tag: 'Dev · 1,6 km · 7 bayrak · 32v32', thumb: '/img/kuzey.jpg', only: ['conquest', 'tdm'],
-  desc: 'Dağlarla çevrili, nehrin ikiye böldüğü büyük vadi: güneyde Mavi, kuzeyde Kırmızı üs. Yedi bayrak: Radar Tepesi, Köy, Taş Köprü, Fabrika, Baraj, Çiftlik, Kereste Kampı. Nehir yalnız köprülerden, baraj tepesinden ve iki sığ geçitten aşılır.',
+  desc: '1,6 km\'lik DEV harita (Vadi\'den ayrı): Alplere benzer dağlarla çevrili, nehrin ikiye böldüğü vadi; güneyde Mavi, kuzeyde Kırmızı üs. Yedi bayrak: Radar Tepesi, Köy, Taş Köprü, Fabrika, Baraj, Çiftlik, Kereste Kampı. Ele geçirilen bayraktan / ön hattan doğulur. Orman, çalı çitleri ve buğday tarlalarında saklan; nehir yalnız köprülerden, baraj tepesinden ve iki sığ geçitten aşılır.',
   build: () => buildKuzey(),
 };
 export const DEFAULT_MAP = 'kasaba';

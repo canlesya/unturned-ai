@@ -40,7 +40,8 @@ const geoms = {
   fish() { const o = { pos: [], col: [], wing: [] }; boxP(o, 0.34, 0.1, 0.05, 0, 0, 0, C('#9aa3a2')); boxP(o, 0.1, 0.12, 0.02, -0.2, 0, 0, C('#7d8786')); return done(o); },
 };
 
-function makeMat(flap) {
+export const FAUNA_GEOMS = geoms;
+export function makeMat(flap) {
   const m = new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.9 });
   const U = { uTime: { value: 0 } };
   m.onBeforeCompile = (sh) => {

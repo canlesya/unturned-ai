@@ -47,14 +47,36 @@ export class Life {
     if (ctx.bigSmoke) ch.push(...ctx.bigSmoke.map(([x, y, z]) => [x, y, z, 1]));
     this.smoke = smoke(quality === 'low' ? ch.filter((_, i) => i % 2 === 0) : ch); this.group.add(this.smoke);
     // pencere ışıkları
-    const L = ctx.lights || [], pos = [];
-    for (const [x, y, z, nx, nz, w, h] of L) {
+    // pencere başına uv + ton: kayıt (çapraz çerçeve) koyu, alt sıcak / üst soluk, perde gölgesi; bazı pencereler mavimsi (TV / soğuk lamba)
+    const L = ctx.lights || [], pos = [], uv = [], tone = [];
+    L.forEach(([x, y, z, nx, nz, w, h], i) => {
       const tx = -nz, tz = nx, hw = w / 2, hh = h / 2, px = x + nx * 0.03, pz = z + nz * 0.03;
       const a = [px - tx * hw, y - hh, pz - tz * hw], b = [px + tx * hw, y - hh, pz + tz * hw], c = [px + tx * hw, y + hh, pz + tz * hw], d = [px - tx * hw, y + hh, pz - tz * hw];
-      pos.push(...a, ...b, ...c, ...a, ...c, ...d);
-    }
-    const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    this.winMat = new THREE.MeshBasicMaterial({ color: '#ffc874', side: THREE.DoubleSide, transparent: true, opacity: 0, depthWrite: false, fog: true, toneMapped: false });
+      pos.push(...a, ...b, ...c, ...a, ...c, ...d); uv.push(0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1);
+      const k = ((i * 2654435761) >>> 0) / 4294967296; for (let v = 0; v < 6; v++) tone.push(k);
+    });
+    const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); wg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); wg.setAttribute('aT', new THREE.Float32BufferAttribute(tone, 1));
+    this.winMat = new THREE.ShaderMaterial({
+      uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { opacity: { value: 0 } }]), transparent: true, depthWrite: false, fog: true, side: THREE.DoubleSide,
+      vertexShader: `attribute float aT; varying vec2 vUv; varying float vT;
+        #include <fog_pars_vertex>
+        void main(){ vUv = uv; vT = aT; vec4 mvPosition = modelViewMatrix * vec4(position, 1.0); gl_Position = projectionMatrix * mvPosition;
+        #include <fog_vertex>
+        }`,
+      fragmentShader: `uniform float opacity; varying vec2 vUv; varying float vT;
+        #include <fog_pars_fragment>
+        void main(){
+          vec3 warm = mix(vec3(1.0, 0.62, 0.26), vec3(1.0, 0.78, 0.45), vT);
+          vec3 c = vT > 0.86 ? vec3(0.45, 0.6, 0.95) : warm;
+          c *= mix(1.15, 0.55, vUv.y) * (0.75 + 0.35 * vT);
+          float bar = max(1.0 - smoothstep(0.0, 0.035, abs(vUv.x - 0.5)), 1.0 - smoothstep(0.0, 0.05, abs(vUv.y - 0.55)));
+          float frame = 1.0 - smoothstep(0.0, 0.06, min(min(vUv.x, 1.0 - vUv.x), min(vUv.y, 1.0 - vUv.y)));
+          float curtain = smoothstep(0.62, 0.7, abs(vUv.x - 0.5) * 2.0) * step(0.4, vT) * 0.55;
+          c *= (1.0 - 0.85 * max(bar, frame)) * (1.0 - curtain);
+          gl_FragColor = vec4(c * 1.6, opacity);
+          #include <fog_fragment>
+        }`,
+    });
     this.windows = new THREE.Mesh(wg, this.winMat); this.windows.renderOrder = 3; this.group.add(this.windows);
     // lamba / projektör havuzları (zemin pulları)
     const lp = [], la = [];
@@ -89,7 +111,7 @@ export class Life {
   setLight(k) {
     if (Math.abs(k - this.light) < 0.01) return;
     this.light = k;
-    this.winMat.opacity = 0.92 * k; this.windows.visible = k > 0.02;
+    this.winMat.uniforms.opacity.value = 0.95 * k; this.windows.visible = k > 0.02;
     this.poolMat.uniforms.uA.value = k; this.pools.visible = k > 0.02;
   }
   update(t, h) {

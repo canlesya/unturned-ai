@@ -53,12 +53,15 @@ for f in D['fields']:
 for b in D['big']:
     d.rectangle([W(b[0]), Z(b[1]), W(b[2]), Z(b[3])], fill=(52, 50, 48, 235))
 # yollar
-RC = {'hw': ((235, 220, 170, 255), 9), 'rd': ((242, 236, 220, 255), 6.5), 'dirt': ((176, 132, 84, 255), 4.5)}
+RC = {'hw': ((235, 220, 170, 255), 9), 'rd': ((242, 236, 220, 255), 6.5), 'dirt': ((176, 132, 84, 255), 4.5), 'lane': ((205, 190, 160, 255), 3.0)}
 for r in D['roads']:
     c, w = RC[r['t']]
     pts = [(W(p[0]), Z(p[1])) for p in r['pts']]
     d.line(pts, fill=(30, 30, 30, 200), width=max(3, int(w * PX) + 3))
     d.line(pts, fill=c, width=max(2, int(w * PX)))
+# çalı çitleri
+for (x0, z0, x1, z1) in D.get('hedges', []):
+    d.line([(W(x0), Z(z0)), (W(x1), Z(z1))], fill=(40, 70, 30, 255), width=4)
 # enerji hattı
 for (x0, z0, x1, z1) in D['wires'][::2]:
     d.line([(W(x0), Z(z0)), (W(x1), Z(z1))], fill=(20, 20, 20, 160), width=1)
@@ -132,7 +135,7 @@ d.text((30, MW - 62), '0          100        200 m', font=fs, fill=(255, 255, 25
 d.rectangle([MW, 0, MW + LW, MW], fill=(24, 26, 28, 255))
 x0 = MW + 26; y = 22
 d.text((x0, y), 'KUZEY VADİSİ', font=font(34, True), fill=(255, 255, 255)); y += 44
-d.text((x0, y), 'Aşama 1 taslak · 1600 × 1600 m oynanır · 5 km manzara', font=font(15), fill=(200, 200, 200)); y += 32
+d.text((x0, y), 'Aşama 2 · 1600 × 1600 m oynanır · 5 km manzara', font=font(15), fill=(200, 200, 200)); y += 32
 st = D['stats']
 lines = [
     ('Mod', 'Ele Geçirme 7 bayrak (3 çekirdek) · TDM: köy alt alanı'),

@@ -9,15 +9,23 @@ fs.mkdirSync(OUT, { recursive: true });
 export const CAMS = [
   ['k-tepeden', [0, 2300, 1], [0, 0, 0], 42, null],
   ['a1-sabah-pus', [-520, 80, 150], [40, 0, -10], 62, 6.9],
-  ['a2-ogle-kopru', [-60, 14, 110], [0, 5, 0], 62, 12.5],
+  ['a2-ogle-kopru', [-75, 16, 128], [0, 5, 0], 62, 12.5],
   ['a3-altin-saat', [130, 60, 640], [-60, 10, 0], 60, 18.8],
   ['a4-ikindi-baraj', [560, 44, 60], [700, 20, -60], 62, 16.5],
   ['a5-heli', [380, 190, 520], [-150, 0, -250], 58, 9.5],
-  ['a6-gece-koy', [-150, 30, 330], [-230, 5, 240], 62, 'night'],
-  ['g-koy-sokak', [-212, 1.7, 285], [-232, 2.5, 248], 70, 10.5],
+  ['g-koy-sokak', [-212, 1.7, 268], [-238, 5, 226], 70, 10.5],
   ['g-fabrika', [330, 1.7, -220], [240, 6, -320], 70, 10.5],
   ['g-orman', [-330, 1.7, -400], [-380, 6, -460], 70, 10.5],
   ['g-radar', [-600, 60, 180], [-555, 62, 112], 66, 10.5],
+  ['h-inek', [262, 3.5, 585], [300, 1, 545], 60, 11],
+  ['h-koyun', [-80, 3.5, 405], [-120, 1, 370], 60, 11],
+  ['h-geyik', [-282, 2.5, -335], [-300, 1.2, -360], 60, 8.5],
+  ['h-karga', [290, 6, 395], [330, 3, 360], 62, 15],
+  ['g-bugday', [300, 1.0, 372], [345, 1.2, 352], 70, 16.5],
+  ['g-cit', [330, 1.6, 300], [330, 1.2, 345], 70, 12],
+  ['a6-gece-koy', [-150, 30, 330], [-230, 5, 240], 62, 'night'],
+  ['a7-gece-sokak', [-212, 1.7, 296], [-232, 2.5, 262], 70, 'night'],
+  ['a8-gece-fabrika', [330, 12, -200], [250, 4, -310], 62, 'night'],
 ];
 const want = process.argv[2] ? process.argv[2].split(',') : null;
 const mobile = !!process.env.MOBILE;
@@ -50,7 +58,7 @@ for (const [n, pos, tgt, fov, hour] of CAMS) {
     const g = window.__game, f = g.scene.fog, H = (p) => (top ? p : [p[0], p[1] + g.world.heightAt(p[0], p[2]), p[2]]);
     g.playerSoldier.pos.set(pos[0], g.world.heightAt(pos[0], pos[2]), pos[2]); g.playerSoldier.fly = true; g._cam = [H(pos), H(tgt), fov];
     if (typeof hour === 'number' && g.map.fx?.setHour) g.map.fx.setHour(hour, g);
-    if (f) { f._far ??= f.far; f._near ??= f.near; if (top) { f.far = 1e5; f.near = 9e4; } }
+    if (f) { f._far ??= f.far; f._near ??= f.near; f._den ??= f.density; if (top) { f.far = 1e5; f.near = 9e4; if (f.isFogExp2) f.density = 0.00004; } }
   }, [pos, tgt, fov, n.startsWith('k-'), hour]);
   await page.waitForTimeout(+(process.env.WAIT || 1400));
   await page.screenshot({ path: `${OUT}/${n}${mobile ? '-pixel7' : ''}${process.env.WEATHER ? '-' + process.env.WEATHER : ''}.png` });

@@ -6,7 +6,7 @@ import { SURF } from './terrain.js';
 // Tutam: 7 ince yaprak (7 üçgen). Uzaklıkla küçülüp söner (yarıçap masaüstü 50 m / telefon 30 m). Rüzgârda salınır. Gölge almaz / atmaz (ucuz).
 // Bot görüşü buradan etkilenmez (yalnız buğday tarlası küreleri — vegetation.js fieldCover); oyuncu gözünde çömelen asker otta / buğdayda seçilmez.
 export function makeGrass(T, occ, { quality = 'high' } = {}) {
-  const R = quality === 'low' ? 30 : 48, SP = quality === 'low' ? 0.8 : 0.62, side = Math.ceil((2 * R) / SP), N = side * side;
+  const R = quality === 'low' ? 28 : 42, SP = quality === 'low' ? 0.82 : 0.62, side = Math.ceil((2 * R) / SP), N = side * side;
   // dokular
   const nx = T.nx, nz = T.nz, hd = new Uint16Array(nx * nz), md = new Uint8Array(nx * nz * 4);
   for (let i = 0; i < nx * nz; i++) hd[i] = THREE.DataUtils.toHalfFloat(T.h[i]);

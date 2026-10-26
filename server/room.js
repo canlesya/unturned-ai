@@ -23,7 +23,7 @@ export function sanitizeCfg(c = {}) {
   const type0 = pick(c.type, ['conquest', 'tdm', 'dm', 'gg', 'inf', 'pb', 'payload', 'space', 'front'], 'conquest');
   const pbMap = c.map === 'random' ? PB_MAPS[Math.floor(Math.random() * PB_MAPS.length)] : pick(c.map, PB_MAPS, PB_MAPS[0]);
   return {
-    map: type0 === 'space' ? pick(c.map, SPACE_MAPS, SPACE_MAPS[0]) : type0 === 'inf' ? 'newyork' : type0 === 'pb' ? pbMap : type0 === 'payload' ? 'maden' : type0 === 'front' ? pick(c.map, FRONT_MAPS, FRONT_MAPS[0]) : pick(c.map, ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman'], 'kasaba'),                  // Enfekte yalnızca New York'ta, Paintball yalnızca paintball haritalarında
+    map: type0 === 'space' ? pick(c.map, SPACE_MAPS, SPACE_MAPS[0]) : type0 === 'inf' ? 'newyork' : type0 === 'pb' ? pbMap : type0 === 'payload' ? 'maden' : type0 === 'front' ? pick(c.map, FRONT_MAPS, FRONT_MAPS[0]) : pick(c.map, (type0 === 'conquest' || type0 === 'tdm') ? ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman', 'kuzey'] : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman'], 'kasaba'),                  // Enfekte yalnızca New York'ta, Paintball yalnızca paintball haritalarında
     tod: pick(c.tod, ['day', 'sunset', 'night'], 'day'),
     weather: type0 === 'space' ? 'clear' : pick(c.weather, ['clear', 'rain', 'fog'], 'clear'),
     type: type0,

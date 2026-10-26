@@ -28,6 +28,7 @@ export class TerrainMesh {
     this.nc = Math.round((T.maxX - T.minX) / CHUNK);
     this.cpc = CHUNK / T.cell;                                     // yığın başına hücre (100)
     this.lodD = quality === 'low' ? [110, 260, 520] : [190, 430, 820];
+    this.quality = quality;
     this._ao = this._bakeAO();
     this.idx = STRIDES.map((s) => this._index(this.cpc / s));
     this.chunks = [];
@@ -131,7 +132,7 @@ export class TerrainMesh {
     this.outer = [];
     for (let tj = -R; tj <= R; tj++) for (let ti = -R; ti <= R; ti++) {
       if (!ti && !tj) continue;
-      const near = Math.max(Math.abs(ti), Math.abs(tj)) === 1, st = near ? 20 : 80, n = S / st, x0 = ti * S - S / 2, z0 = tj * S - S / 2;
+      const near = Math.max(Math.abs(ti), Math.abs(tj)) === 1, st = near ? (this.quality === 'low' ? 40 : 20) : (this.quality === 'low' ? 160 : 80), n = S / st, x0 = ti * S - S / 2, z0 = tj * S - S / 2;
       const N = (n + 1) * (n + 1), NS = N + 4 * (n + 1), pos = new Float32Array(NS * 3), col = new Float32Array(NS * 3), w = new Uint8Array(NS * 4), hh = new Float32Array((n + 3) * (n + 3));
       const H = (i, j) => hh[(j + 1) * (n + 3) + (i + 1)];
       for (let j = -1; j <= n + 1; j++) for (let i = -1; i <= n + 1; i++) {
