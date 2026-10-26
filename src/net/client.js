@@ -111,7 +111,16 @@ export class NetClient {
   }
 
   // Son gönderilen girdinin adım sonundaki cephanesi (ateş / şarjör sonrası). Sunucu aynı girdiyi işleyince ack anındaki cephaneyi (me.aa) yollar.
-  markAmmo(s) { const h = this.hist[this.hist.length - 1]; if (h) h.am = s.items.map((it) => [it.mag, it.reserve]); }
+  // 12.166: bu adımda cephane değiştiyse (reload bitişi, mermi girişi) ya da reload sürüyorsa kayıt "cephane uçuşta" sayılır (h.fire) →
+  // reconcile'daki idle eşitlemesi (me.am: sunucunun ack anındaki, henüz bu adımı işlememiş cephanesi) tahmini ezmez. Eski: reload istemcide
+  // bitince (şarjör dolu) bayat snapshot şarjörü 0'a geri yazıyordu → autoReload ikinci kez başlatıyordu (çift reload / animasyon).
+  markAmmo(s) {
+    const h = this.hist[this.hist.length - 1]; if (!h) return;
+    h.am = s.items.map((it) => [it.mag, it.reserve]);
+    const k = h.am.join(';');
+    if (s.reloadT > 0 || k !== this._amKey) h.fire = true;
+    this._amKey = k;
+  }
 
   // 12.138: kendini toparlayan cephane uzlaştırması. Eskiden cephane yalnız "uçuşta ateş yokken" sunucuya eşitleniyordu; sürekli ateşte
   // (ya da gecikme / kuyruk yüzünden onaylanmamış girdi hep varken) istemci ile sunucu ayrışırsa (kaçan / fazladan atış, sunucuda erken

@@ -18,6 +18,11 @@ const UP = new THREE.Vector3(0, 1, 0);
 // Koşarken / havadayken ateş serbest ama isabetsiz: ek saçılma (rad). 0,085 ≈ 4,9° → 20 m'de ~1,7 m, 50 m'de ~4,3 m (koşarak zıplayınca ikisi toplanır ≈ 9°).
 const smooth01 = (x) => { x = clamp(x, 0, 1); return x * x * (3 - 2 * x); };
 export const SCOPE_ACC = 0.85;      // 12.156: insan keskin nişancının isabeti bu adsT'den sonra açılır (0,85 → 1 yumuşak); altı = belden
+// 12.166 yana eğilme (Q / E): kafa LEAN_OFF m yana (eski 0,36), LEAN_DROP m aşağı (eski 0,07), kamera LEAN_ROLL rad yatık (eski 0,2 ≈ 11,5°).
+// LEAN_PAD: kamera ile duvar arasında kalan en az pay (yakın düzlem 0,05 m + köşe payı). RL_GAP: reload bittikten sonra otomatik reload'ın bekleme süresi.
+export const LEAN_OFF = 0.44, LEAN_DROP = 0.1, LEAN_ROLL = 0.25;
+const LEAN_TORSO = 0.5, LEAN_SHIFT = 0.21;      // 3. şahıs gövde yatışı (rad, eski 0,32) + kalça kayması (m, eski 0,12): model kafası ≈ LEAN_OFF kadar kayar (eski 0,26 m ↔ vuruş kutusu 0,36)
+const LEAN_PAD = 0.17, LEAN_RAYS = [[1, 0], [Math.cos(0.7), Math.sin(0.7)], [Math.cos(0.7), -Math.sin(0.7)]], RL_GAP = 0.3;
 const SPRINT_SPREAD = 0.085, AIR_SPREAD = 0.075, sprintSpeed = () => TUNE.walkSpeed * 1.32;      // yürüme hızının 1,32 katı (eskiden 4,4 × 1,32 = 5,8): yürürken koşu cezası uygulanmaz
 
 export const EYE_STAND = 1.62;
@@ -42,7 +47,7 @@ export class Soldier {
     this.onGround = true;
     this.crouching = false; this.crouchT = 0;
     this.prone = false; this.proneT = 0;
-    this.leanDir = 0; this.leanT = 0; this.leanOff = new THREE.Vector3();
+    this.leanDir = 0; this.leanT = 0; this.leanK = 0; this.leanOff = new THREE.Vector3(); this._leanRoom = LEAN_OFF;
     this.optic = isPlayer ? (game.opts?.optic || 'reddot') : OPTIC_ORDER[Math.floor(Math.random() * OPTIC_ORDER.length)];
     this.optics = isPlayer ? cleanEraOptics(game.opts?.frontOptics) : {};      // 12.174: silah başına nişangâh (1940'lar silahları; uzak askerlerde ağdan 'op')
     this.sprinting = false; this.ads = false; this.adsT = 0;
@@ -50,7 +55,7 @@ export class Soldier {
     this.alive = false;
     this.kills = 0; this.deaths = 0; this.score = 0; this.assists = 0;         // assists: 12.165 (assist.js)
     this.respawnT = 0; this.protT = 0;
-    this.recoilP = 0; this.bloom = 0; this.sinceShot = 9;
+    this.recoilP = 0; this.bloom = 0; this.sinceShot = 9; this.rlDoneT = 0;
     this.cd = 0; this.reloadT = 0; this.switchT = 0; this.useT = 0;
     this.reloadTotal = 1; this.reloadStyle = 'mag'; this.reloadEmpty = true; this.shellT = 0;
     this.swing = null; this.comboN = -1; this.comboT = 0; this.autoSwitchT = 0;
@@ -178,7 +183,7 @@ export class Soldier {
     this.cd = 0; this.reloadT = 0; this.switchT = 0; this.useT = 0; this.swing = null; this.comboT = 0; this.autoSwitchT = 0; this.blindT = 0; this.burstLeft = 0;
     this.cook = null; this.backT = 0; this.backTo = -1;
     this.protT = protect; this.protNet = false;
-    this.crouching = false; this.prone = false; this.proneT = 0; this.crouchT = 0; this.leanDir = 0; this.leanT = 0; this.leanOff.set(0, 0, 0);
+    this.crouching = false; this.prone = false; this.proneT = 0; this.crouchT = 0; this.leanDir = 0; this.leanT = 0; this.leanK = 0; this.leanOff.set(0, 0, 0); this._leanRoom = LEAN_OFF;
     this.height = H_STAND; this.ads = false; this.adsT = 0;
     this.model.root.visible = !this.isPlayer;
     this.model.root.rotation.x = 0;
@@ -211,16 +216,18 @@ export class Soldier {
     const eq = Math.min(0.35, WSTATS[this.items[i].id].equip ?? 0.3);
     this.cook = null; this.backT = 0;                                              // pişirilen bombanın pimi geri takılır (silah değişince atılmaz)
     this.backTo = WSTATS[this.items[i].id].kind === 'throwable' ? this.cur : -1;   // attıktan sonra dönülecek silah
-    this.cur = i; this.switchT = eq; this.reloadT = 0; this.useT = 0; this.swing = null; this.autoSwitchT = 0; this.burstLeft = 0;
+    this.cur = i; this.switchT = eq; this.reloadT = 0; this.rlDoneT = 0; this.useT = 0; this.swing = null; this.autoSwitchT = 0; this.burstLeft = 0;
     this.adsT = 0;      // 12.154: nişan eski silahındı; yeni silah belden başlar (eski: adsT ≈ 1 kalıyor, yeni silahın büyütmesi / dürbün örtüsü o karede açılıyordu). Dünya kamerası eski büyütmeyi Player'da kendi eğrisiyle söndürür
     this._syncWeaponModel();
     this.game.emit('switch', this);
   }
 
   // R: hemen başlar (sprint iptal etmez). Şarjörde mermi varsa "taktik reload" daha hızlıdır.
+  // 12.166: reload az önce bittiyse ve o zamandan beri atış yoksa (rlDoneT, RL_GAP sn) yeniden başlamaz: dolu şarjör ancak bayat bir düzeltmeyle
+  // 0 görünebilir → çift reload / animasyon olmasın. Tek yer: otomatik (autoReload), boş tetik (tryFire) ve R aynı kuralı izler; sunucu = istemci = çevrimdışı
   startReload() {
     const it = this.item, st = this.stat;
-    if (this.reloadT > 0 || this.swing || this.useT > 0 || !(st.kind === 'gun' || st.kind === 'launcher') || it.mag >= st.mag || it.reserve <= 0) return false;
+    if (this.reloadT > 0 || this.rlDoneT > 0 || this.swing || this.useT > 0 || !(st.kind === 'gun' || st.kind === 'launcher') || it.mag >= st.mag || it.reserve <= 0) return false;
     const style = st.reloadStyle || 'mag';
     this.reloadStyle = style;
     this.reloadEmpty = it.mag <= 0;
@@ -323,7 +330,7 @@ export class Soldier {
       return false;
     }
     this.cd = 60 / st.rpm;
-    it.mag--;
+    it.mag--; this.rlDoneT = 0;                                // 12.166: gerçek atış → reload bekleme payı kalkar (RPG gibi tek mermilide hemen yeniden doldurur)
     if (st.kind === 'throwable') { this.sprinting = false; return this._throw(st); }
     if (st.kind === 'mine' || st.kind === 'ammobox') { this.sprinting = false; return this._place(st, it); }
     this.firedSprinting = this.sprinting;                      // koşarken ateş: bu atış için dağılma cezası (spreadNow)
@@ -684,17 +691,18 @@ export class Soldier {
           this.game.sfx.shell(this.pos);
         }
         const left = Math.min(st.mag - it.mag, it.reserve);
-        if (left <= 0) { this.reloadT = 0; this.game.emit('reloaded', this); }
+        if (left <= 0) { this.reloadT = 0; this.rlDoneT = RL_GAP; this.game.emit('reloaded', this); }
         else this.reloadT = Math.max(0.001, this.shellT + (left - 1) * st.shell);
       } else {
         this.reloadT -= dt;
         if (this.reloadT <= 0) {
           const need = st.mag - it.mag, take = Math.min(need, it.reserve);
-          it.mag += take; it.reserve -= take;
+          it.mag += take; it.reserve -= take; this.rlDoneT = RL_GAP;
           this.game.emit('reloaded', this);
         }
       }
     }
+    this.rlDoneT = Math.max(0, this.rlDoneT - dt);
     this.autoReload();
     if (this.useT > 0) {
       this.useT -= dt;
@@ -716,19 +724,26 @@ export class Soldier {
     this.crouchT = clamp(this.crouchT + (this.crouching ? 1 : -1) * dt * 7, 0, 1);
     this.proneT = clamp(this.proneT + (this.prone ? 1 : -1) * dt * 4.5, 0, 1);
     this.eyeY = lerp(lerp(EYE_STAND, EYE_CROUCH, this.crouchT), EYE_PRONE, this.proneT) * (1 + ((this.hbH || 1) - 1) * 0.6);      // iri zombinin gözü biraz yüksekte
-    // yana eğilme (Q/E): kafa yana kayar, duvara girmesin diye ışınla sınırlanır
+    // yana eğilme (Q/E): kafa yana kayar; duvara girmesin diye 3 ışınla (yan + 40° ön / arka çapraz) sınırlanır. leanK = gerçekleşen eğilme
+    // (−1..1; duvar varsa kısalır) → kamera yatıklığı ve 3. şahıs gövde animasyonu da onu izler. Sunucu, çevrimdışı ve istemci aynı kod (vuruş kutusu leanOff'la kayar)
     const canLean = this.onGround && !this.sprinting && this.proneT < 0.3;
     this.leanT = lerp(this.leanT, canLean ? this.leanDir : 0, Math.min(1, dt * 10));
     if (Math.abs(this.leanT) > 0.01) {
-      const sg = Math.sign(this.leanT);
-      const r = this.right(_v);
-      const from = _o.set(this.pos.x, this.pos.y + this.eyeY, this.pos.z);
-      const hit = this.game.world.raycast(from, r.multiplyScalar(sg), 0.55, (this._lr ||= {}));
-      const room = hit ? Math.max(0, hit.t - 0.17) : 0.55;
-      const off = Math.min(Math.abs(this.leanT) * 0.36, room);
-      const rr = this.right(_v);
-      this.leanOff.set(rr.x * sg * off, -Math.abs(this.leanT) * 0.07, rr.z * sg * off);
-    } else this.leanOff.set(0, 0, 0);
+      const sg = Math.sign(this.leanT), ay = Math.abs(this.leanT);
+      const rx = Math.cos(this.yaw), rz = -Math.sin(this.yaw), fx = -Math.sin(this.yaw), fz = -Math.cos(this.yaw);      // right() / ileri (yatay)
+      const from = _o.set(this.pos.x, this.pos.y + this.eyeY - ay * LEAN_DROP, this.pos.z);
+      let room = LEAN_OFF;
+      for (const [c, sn] of LEAN_RAYS) {
+        _v.set((rx * c + fx * sn) * sg, 0, (rz * c + fz * sn) * sg);
+        const L = (LEAN_OFF + LEAN_PAD) / c, hit = this.game.world.raycast(from, _v, L, (this._lr ||= {}));
+        if (hit) room = Math.min(room, hit.t * c - LEAN_PAD);
+      }
+      room = Math.max(0, room);
+      this._leanRoom = room < this._leanRoom ? room : Math.min(room, this._leanRoom + dt * 2.5);      // duvara yaklaşınca anında kısalır, açılınca yumuşak uzar (köşe geçişinde sıçrama yok)
+      const off = Math.min(ay * LEAN_OFF, this._leanRoom);
+      this.leanK = sg * off / LEAN_OFF;
+      this.leanOff.set(rx * sg * off, -ay * LEAN_DROP, rz * sg * off);
+    } else { this.leanOff.set(0, 0, 0); this.leanK = 0; this._leanRoom = LEAN_OFF; }
   }
 
   // Doğma koruması kalkanı: mavi, nabız gibi atan yarı saydam balon (düşman da görür; "mermi geçiyor" yanılgısını önler)
@@ -856,11 +871,11 @@ export class Soldier {
     const lean = -(0.03 * moveAmt + 0.17 * run * moveAmt) - 0.09 * c - 0.07 * stanceK;
     const aimP = clamp(this.pitch + this.recoilP, -0.9, 0.9) * 0.7;
     p.torso.rotation.x = (aimP + lean) * (1 - pr);
-    p.torso.rotation.z = Math.sin(ph) * 0.035 * moveAmt * (1 + run) * (1 - pr) - this.leanT * 0.32 + Math.sin(T * 0.9 + this.id) * 0.012 * stanceK;
-    p.torso.position.x = this.leanT * 0.12;
+    p.torso.rotation.z = Math.sin(ph) * 0.035 * moveAmt * (1 + run) * (1 - pr) - this.leanK * LEAN_TORSO + Math.sin(T * 0.9 + this.id) * 0.012 * stanceK;
+    p.torso.position.x = this.leanK * LEAN_SHIFT;      // 12.166: gerçekleşen eğilme (leanK) → model kafası vuruş kutusu / göz kaymasıyla aynı yerde
     p.torso.position.y = 1.17 - 0.27 * c + breathe - idleLow;
     p.head.rotation.x = (-lean * 0.7 - aimP * 0.25) * (1 - pr);
-    p.head.rotation.z = this.leanT * 0.18;
+    p.head.rotation.z = this.leanK * 0.2;
     root.position.y -= (0.018 + 0.035 * run) * moveAmt * Math.sin(ph) ** 2;    // adım sırasında hafif çökme
     const twist = Math.sin(ph) * (0.05 + 0.08 * run) * moveAmt;
     const swing = Math.sin(ph + Math.PI) * moveAmt * (0.5 + 0.5 * run);
