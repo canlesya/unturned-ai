@@ -147,7 +147,7 @@ const easeOutBack = (t, k = 1.7) => { t = clamp(t, 0, 1) - 1; return 1 + t * t *
 const fpGrip = (id, hold) => { const d = FP_GRIP[hold === 'pistol' ? 'pistol' : hold === 'launcher' ? 'launcher' : hold === 'rifle' ? 'rifle' : 'item'], o = FP_GRIP[id] || {}; return { ...d, ...o }; };
 const MELEE_SPRINT = { pos: [-0.04, 0.06, -0.06], rx: 0.65, ry: 0.3, rz: -0.1 };
 
-// ── ACOG / PSO-1 merceği (12.162; 12.128–12.155'teki resim-içinde-resim kaldırıldı) ── nişanda dünya kamerası TAM EKRAN yakınlaşır (OPTICS.acog.zoom, taslak A ×2),
+// ── ACOG / PSO-1 merceği (12.162; 12.128–12.155'teki resim-içinde-resim kaldırıldı) ── nişanda dünya kamerası TAM EKRAN yakınlaşır (OPTICS.acog.zoom, 12.163 taslak C ×1,5; dokunmatik ×1,85),
 // göz merceğindeki disk saydam camdır: önce (renderOrder −1) yalnız derinliğe yazılır → arkasındaki tüp / mercek çizilmez, dünya görünür (mercek içi = dışı, doğal).
 // Geçişte disk koyu camdan saydama açılır (LENS_ON → +LENS_FADE); retikül 3B ışıyan nokta, tam nişanda HUD #rdot (red dot ile aynı, ADS_HUD).
 export const LENS_ON = 0.3, LENS_FADE = 0.2;
@@ -845,9 +845,10 @@ export class Player {
   thirdCamera(dt, T) {
     const s = this.s, g = this.game, v = this._tv, cam = g.camera;
     const fwd = s.aimDir(v.f), right = s.right(v.r);
-    const adsK = 1 - s.adsT * 0.45;                                             // nişan alırken kamera biraz yaklaşır
+    // 12.163: nişanda kamera YERİNDE kalır (yalnız FOV daralır). Eskiden 2,5 → 1,375 m'ye yaklaşıp omuzdan %30 içeri kayıyordu: FOV büyütmesiyle birlikte
+    // yakın nesne orantısız büyüyordu (oyuncudan 1,5 m'deki duvar ×2,79, 40 m'deki hedef ×2,05; ACOG ×2'de %36 fark, scripts/depthzoom.mjs THIRD=1)
     const pivot = s.eye(v.p); pivot.y += 0.1;
-    const des = v.d.copy(pivot).addScaledVector(fwd, -2.5 * adsK * T).addScaledVector(right, this.sideT * 0.72 * (1 - s.adsT * 0.3) * T);
+    const des = v.d.copy(pivot).addScaledVector(fwd, -2.5 * T).addScaledVector(right, this.sideT * 0.72 * T);
     des.y += 0.2 * T;
     const dir = v.e.subVectors(des, pivot), len = dir.length();
     if (len > 1e-4) {
@@ -877,7 +878,7 @@ export class Player {
     const opts = list.map((id, i) => {
       const a = -Math.PI / 2 + (i * 2 * Math.PI) / n, d = document.createElement('div');
       d.style.cssText = `position:absolute;left:calc(50% + ${Math.cos(a) * R}px);top:calc(50% + ${Math.sin(a) * R}px);transform:translate(-50%,-50%);min-width:130px;padding:10px 14px;text-align:center;background:rgba(9,13,19,.78);border:2px solid rgba(255,255,255,.2);letter-spacing:2px;text-transform:uppercase;transition:.08s`;
-      d.innerHTML = `<div style="font-size:18px;font-weight:700">${opticName(id)}</div><div style="font-size:11px;opacity:.65;margin-top:3px">${OPTICS[id].zoom ? $t('hud.zoom', { n: OPTICS[id].zoom }) : ''}</div>`;
+      d.innerHTML = `<div style="font-size:18px;font-weight:700">${opticName(id)}</div><div style="font-size:11px;opacity:.65;margin-top:3px">${OPTICS[id].zoom ? $t('hud.zoom', { n: +this.zoomOf(OPTICS[id].zoom, OPTICS[id]).toFixed(2) }) : ''}</div>`;
       el.appendChild(d);
       return { id, a, d };
     });
@@ -941,9 +942,10 @@ export class Player {
   }
 
   // Etkin nişan büyütmesi: dokunmatikte dürbünsüz nişangâhlar (demir / red dot / holo, ≤ 2×) daha çok yakınlaştırır (küçük ekranda hedef seçilsin):
-  // demir 1,15 → 1,30×, red dot / holo 1,3 → 1,60× (önce ×1,6: 1,24 / 1,48); dürbünler (ACOG 3×, 4×, 6×) aynı
-  zoomOf(z) { return this.touch && z > 1 && z < 2 ? 1 + (z - 1) * 2 : z; }
-  zoomEff() { return this.zoomOf(this.s.zoomNow || 0); }
+  // demir 1,15 → 1,30×, red dot / holo 1,3 → 1,60× (önce ×1,6: 1,24 / 1,48); dürbünler (4×, 6×) aynı
+  // 12.163: nişangâhın kendi dokunmatik büyütmesi varsa (ACOG ×1,5 → ×1,85; genel kural onu ×2'ye çıkarıp red dot ×1,6'ya çok yaklaştırırdı) o kullanılır
+  zoomOf(z, o) { return !this.touch ? z : o?.touchZoom && z === o.zoom ? o.touchZoom : z > 1 && z < 2 ? 1 + (z - 1) * 2 : z; }
+  zoomEff() { const s = this.s; return this.zoomOf(s.zoomNow || 0, s.stat.ball ? null : s.opticDef); }
   // o anki görüş büyütmesi (model ile aynı eğri, 1 = yok): FOV, fare / ok tuşu / dokunmatik hassasiyeti bunu kullanır
   zoomCur() { const s = this.s, z = this.zoomEff(); return z > 1 && !this.vm.model?.userData.noAds ? lerp(1, z, adsEase(s.adsT)) : 1; }
   // Dikey FOV (derece): masaüstünde ayar doğrudan dikey FOV; dokunmatikte ayar YATAY FOV'dur (2,2:1 telefonda dikey 75° → yatay 118°, düşman küçücük kalıyordu)

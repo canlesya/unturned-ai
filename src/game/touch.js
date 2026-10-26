@@ -397,7 +397,7 @@ export class TouchControls {
     const now = s.opticId;
     this.op.innerHTML = `<div class="w"><h5>${t('tc.opTitle')}<small>${wName(s.item.id)}</small></h5><div class="cs">${list.map((id) => {
       const o = OPTICS[id];
-      return `<button data-o="${id}" class="${id === now ? 'cur' : ''}"><svg viewBox="0 0 24 24">${OPI[id] || ''}</svg>${opticName(id)}<small>${o.zoom ? t('tc.opZoom', { n: +p.zoomOf(o.zoom).toFixed(2) }) : ''}</small></button>`;
+      return `<button data-o="${id}" class="${id === now ? 'cur' : ''}"><svg viewBox="0 0 24 24">${OPI[id] || ''}</svg>${opticName(id)}<small>${o.zoom ? t('tc.opZoom', { n: +p.zoomOf(o.zoom, o).toFixed(2) }) : ''}</small></button>`;
     }).join('')}</div><div class="hint">${t('tc.opHint')}</div></div>`;
     this.op.classList.add('on'); this.opOpen = true;
   }

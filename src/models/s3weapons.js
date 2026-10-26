@@ -12,7 +12,7 @@ const guard = (k, outer, hole, w, slot = 'metal') => k.prof(outer, w, slot, { ho
 const circ = (cx, cy, r, n = 14) => Array.from({ length: n }, (_, i) => [cx + Math.cos((i / n) * Math.PI * 2) * r, cy + Math.sin((i / n) * Math.PI * 2) * r]);
 
 // Nişan alırken gözden nişan noktasına uzaklık (kamera uzayı, m): nişangâh türü başına SABİT → her silahta aynı ekran boyu (eski OPT_K / ADS_K karşılığı)
-export const ADS_DIST = { iron: 0.286, reddot: 0.36, rmr: 0.33, holo: 0.39, acog: ACOG.dist, scope: 0.042 };      // 12.162: ACOG göz 19 cm geride (taslak A; 12.128'de 12,5 cm → mercek ekranın %34'ü + kalın halka) → göz merceği (r 16,8 mm, ADS_FOV 40) ekranın ≈ %22'si, çevresinde dünya görünür
+export const ADS_DIST = { iron: 0.286, reddot: 0.36, rmr: 0.33, holo: 0.39, acog: ACOG.dist, scope: 0.042 };      // 12.162 / 12.163: ACOG göz 23,5 cm geride (taslak C ×1,5; A 19 cm, 12.128'de 12,5 cm → mercek ekranın %34'ü + kalın halka) → göz merceği (r 16,8 mm, ADS_FOV 40) ekranın ≈ %18'i, çevresinde dünya görünür
 export const ACOG_DOT = 0.0049 * ADS_DIST.acog;      // 12.155 / 12.162: ACOG / PSO-1 ışıyan nokta (m): tam nişanda ekranda ≈ red dot HUD noktası (0,62 vh), geçişte zıplamaz
 // 12.126: ADS_NEAR (nişanda 25–33 cm yakın düzlem) kalktı → silah kesilmez; cam neredeyse görünmez (BattleBit: yalnız ince çerçeve + ışıyan retikül)
 const GLASS_MAT = new THREE.MeshStandardMaterial({ color: '#9fd4ff', transparent: true, opacity: 0.045, roughness: 0.05, metalness: 0.3, depthWrite: false });
