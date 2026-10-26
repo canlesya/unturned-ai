@@ -123,7 +123,7 @@ if (ONLY.includes('1')) {
 const EDGES = {
   colgecidi: [['Suicide (T Spawn → Mid)', [-2.75, 7.4, 52.25], [-2.75, 51.25]], ['Short Stairs / Boost', [22.75, 5.55, -43.25], [24.25, -43.25]], ['Titanic duvarı', [-45.75, 7.96, 36.75], [-45.75, 35.75]], ['Pit', [57.75, 4.6, 9.25], [57.75, 9.25]]],
   kasaba: [['Su kulesi', [-26.25, 8, -42.25], [-26.25, -41.75]], ['Kilise', [-39.25, 7.9, 11.25], [-39.75, 11.25]]],
-  us: [['Komuta Binası çatısı', [-8.25, 10.7, 6.75], [-8.25, 7.25]], ['Kontrol kulesi (Hangar yanı)', [19.75, 11, -46.75], [19.75, -46.25]]],
+  us: [['Komuta Binası çatısı', [-8.25, 10.85, 6.85], [-8.25, 7.6]], ['Radar çatısı', [-3.5, 7.65, 48.85], [-3.5, 49.6]]],      // 12.170 v3: kontrol kulesi çatısı artık kapalı
 };
 if (ONLY.includes('2')) {
   console.log('── 2) haritalarda kenardan inme (yürüyerek / koşup zıplayarak)');

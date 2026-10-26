@@ -1,0 +1,52 @@
+// Askeri Üs önce / sonra kareleri (12.170): aynı bakış noktaları eski ve yeni haritada.  node scripts/usviews.mjs <url> <çıktı klasörü> [DEV=desktop,pixel7] [TOD=day,night] [ONLY=ad,…] [THUMB=1]
+// Serbest kamera (HUD, silah, askerler gizli; simülasyon ilk karede durur: iz / mermi deliği yok). Kuşbakışı + plan + göz hizası + iç mekân.
+import { chromium, devices } from 'playwright';
+import fs from 'fs';
+const base = process.argv[2] || 'http://127.0.0.1:5243', OUT = process.argv[3] || '/tmp/wb-us/sonra';
+fs.mkdirSync(OUT, { recursive: true });
+const strip = (d) => { const { defaultBrowserType, ...r } = d; return r; };
+const DEVS = { desktop: { viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1 }, pixel7: strip(devices['Pixel 7 landscape']) };
+const want = (process.env.DEV || 'desktop').split(','), tods = (process.env.TOD || 'day').split(','), only = process.env.ONLY ? process.env.ONLY.split(',') : null;
+export const VIEWS = [
+  ['00-kusbakisi', [-70, 95, 105], [0, 0, 0]], ['00-plan', [0, 175, 0.01], [0, 0, 0]],
+  ['01-mavi-kamp', [-74, 1.7, -1], [-56, 1.5, 3]], ['02-mavi-kapi-disi', [-46, 1.7, 4], [-60, 1.6, 0]], ['03-ana-cadde', [-46, 1.7, 1.5], [-10, 1.2, 0]],
+  ['04-komuta-meydan', [9, 1.7, 16], [-2, 3, 0]], ['05-hangar-onu', [7, 1.7, -27], [0, 3, -45]], ['06-radar', [-9, 1.7, 31], [3, 4, 46]],
+  ['07-tunel-agzi', [-56.5, 1.7, -34.5], [-46, 1.5, -36]], ['08-akaryakit', [26, 1.7, -4], [36, 2, -20]], ['09-kisla', [-47.5, 1.7, 18.8], [-24, 1.6, 18.5]],
+  ['10-konteyner', [-55.5, 1.7, 28.6], [-70, 1.5, 42]], ['11-garaj', [-55, 1.7, -36], [-68, 1.6, -50]], ['12-helipad', [24, 1.7, -36], [36, 2, -50]],
+  ['13-bunker-gb', [-30, 1.7, 30], [-45, 1.2, 40]],
+  ['14-drone-kuzey', [-25, 22, -14], [-5, 0, -42]], ['15-drone-guney', [25, 22, 22], [0, 0, 46]], ['16-drone-kd', [10, 24, -5], [36, 0, -30]],
+  ['17-drone-gb', [-12, 24, 8], [-40, 0, 30]], ['18-drone-kamp', [-40, 26, 0], [-68, 0, 0]],
+  ['i1-komuta-ic', [-7.3, 1.65, 5.6], [-7, 1.2, -5]], ['i2-savas-odasi', [8.8, 8.15, 5.6], [0, 7.2, -3]], ['i3-hangar-ic', [9, 1.7, -37.5], [-6, 2.2, -48]],
+  ['i4-tunel-ic', [-45, 1.6, -36.6], [-20, 1.3, -36]], ['i5-kisla-ic', [-44.5, 1.65, 9.3], [-37, 1, 14]], ['i6-komuta-cati', [7, 11.6, 5.5], [-6, 9.9, -5]],
+];
+const browser = await chromium.launch({ args: ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu'] });
+for (const dk of want) for (const tod of tods) {
+  const D = DEVS[dk], mob = dk !== 'desktop';
+  const ctx = await browser.newContext({ ...D }); const page = await ctx.newPage();
+  const errs = []; page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+  await page.goto(`${base}/?autostart=8v8&map=us&type=conquest&debug=1&nolock=1&tod=${tod}${mob ? '&touch=1' : ''}`);
+  await page.waitForFunction('window.__game && window.__game.running', null, { timeout: 180000 });
+  await page.evaluate(() => { const g = window.__game; g.simOff = true; g.playerSoldier.protT = 99; });
+  await page.waitForTimeout(1200);
+  await page.evaluate(() => {
+    const g = window.__game, P = Object.getPrototypeOf(g); g.hud.root.style.display = 'none'; g.player.vm.render = () => {};
+    const orig = P.render; window.__cam = null;
+    g.render = function () { const c = this.camera, v = window.__cam; for (const s of this.soldiers) if (s.model) s.model.root.visible = false; if (v) { c.position.set(...v.p); c.rotation.order = 'YXZ'; c.lookAt(...v.t); c.fov = v.fov; c.updateProjectionMatrix(); if (this.scene.fog) this.scene.fog.far = v.far; this.playerSoldier.pos.set(v.p[0], 0, v.p[2]); } orig.call(this); };
+  });
+  for (const [name, p, t] of VIEWS) {
+    if (only && !only.includes(name)) continue;
+    const aerial = p[1] > 20, far0 = await page.evaluate(() => window.__game.scene.fog?.far || 400);
+    await page.evaluate(([p, t, fov, far]) => { window.__cam = { p, t, fov, far }; }, [p, t, name === '00-plan' ? 46 : aerial ? 50 : 70, aerial && p[1] > 60 ? 900 : far0]);
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: `${OUT}/${dk}-${tod}-${name}.png`, timeout: 180000 });
+    if (name === '00-kusbakisi' && process.env.THUMB === '1' && dk === 'desktop' && tod === 'day') {
+      await page.setViewportSize({ width: 960, height: 540 }); await page.waitForTimeout(900);
+      await page.screenshot({ path: 'public/img/us.jpg', type: 'jpeg', quality: 86 });
+      await page.setViewportSize(D.viewport);
+    }
+    await page.evaluate((f) => { if (window.__game.scene.fog) window.__game.scene.fog.far = f; }, far0);
+  }
+  console.log(dk, tod, 'sayfa hatası:', errs.length, errs.slice(0, 3).join(' | '));
+  await ctx.close();
+}
+await browser.close();
