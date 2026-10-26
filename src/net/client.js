@@ -215,6 +215,9 @@ export class NetClient {
         if (local) this.game.emit('switch', s);
         else { s.cur = p.c; s._syncWeaponModel(true); }
       } else if ((skChanged || opChanged) && !local && s.alive) s._syncWeaponModel(true);
+      const wr = typeof p.wr === 'string' ? p.wr : '';                                              // 12.167 kıyafet kodu (insan); yoksa bot çeşitlemesi / kendi tercihim
+      if (!local && wr !== s.wearCode && !s.def.zombie && !this.game.headless) { s.wearCode = wr; s._buildModel(); s._modelWeapon = undefined; s._syncWeaponModel(true); }
+      else s.wearCode = local ? '' : wr;
     }
     if (!local) {
       if (s.cur !== p.c) { s.cur = p.c; s._syncWeaponModel(); }

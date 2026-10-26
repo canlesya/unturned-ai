@@ -137,15 +137,16 @@ export class MenuScene {
     return scene;
   }
 
-  showCharacter({ team = 'blue', cls = 'assault', weapon = null, optic = 'reddot', wskin = 'std' }) {
-    const key = [team, cls, weapon, optic].join('|');
+  showCharacter({ team = 'blue', cls = 'assault', weapon = null, optic = 'reddot', wskin = 'std', wear = '', spin = false }) {
+    this._spin = spin;                                                           // 12.167 Görünüm sekmesi: model tam tur döner (önden / yandan / arkadan)
+    const key = [team, cls, weapon, optic, wear].join('|');
     if (this.char && this._charKey === key) {                                   // yalnız kaplama değişti: karakter yeniden kurulmaz, elindeki silah yenilenir
       if (this._charSkin !== wskin) { this._charSkin = wskin; const w = this.char.setWeapon(this.char.weapon?.userData.id || null, optic, wskin); w?.traverse((o) => { if (o.isMesh) o.castShadow = true; }); }
       return;
     }
     if (this.char) { this.show.scene.remove(this.char.root); this.char = null; }
     this._charKey = key; this._charSkin = wskin;
-    const ch = createCharacter({ team, cls, skinIndex: 1, weapon: weapon || undefined, optic, wskin });
+    const ch = createCharacter({ team, cls, skinIndex: 1, weapon: weapon || undefined, optic, wskin, wear });
     ch.root.traverse((o) => { if (o.isMesh) o.castShadow = true; });
     ch.root.rotation.y = Math.PI + 0.6;
     this.show.scene.add(ch.root);
@@ -223,7 +224,7 @@ export class MenuScene {
     const r = this.renderer;
     if (this.mode !== 'showroom' && !this.world) { /* ilk harita henüz kuruluyor: boş kare (vitrin sahnesi araya girmesin) */ }
     else if (this.mode === 'showroom') {
-      if (this.char) this.char.root.rotation.y = this._charYaw + Math.sin(this.t * 0.5) * 0.35;
+      if (this.char) this.char.root.rotation.y = this._spin ? this._charYaw + this.t * 0.7 : this._charYaw + Math.sin(this.t * 0.5) * 0.35;
       if (this.wpnPiv) { this.wpnPiv.rotation.set(0.08, -Math.PI / 2 + Math.sin(this.t * 0.45) * 0.55, 0); this.wpnPiv.position.y = 0.42 + Math.sin(this.t * 0.9) * 0.012; }      // yan görünüş, hafif salınım
       r.render(this.show.scene, this.show.cam);
     } else {
