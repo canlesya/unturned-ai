@@ -11,7 +11,7 @@ a.send(JSON.stringify({ t: 'create', name: 'Ali', team: 'blue', cfg: { map: 'kas
 await wait(1200);
 const code = a.msgs.find((m) => m.t === 'welcome').room;
 b.send(JSON.stringify({ t: 'join', room: code, name: 'Veli', team: 'blue' }));
-c.send(JSON.stringify({ t: 'join', room: code, name: 'Can', team: 'red' }));
+c.send(JSON.stringify({ t: 'join', room: code, name: 'Cem', team: 'red' }));
 await wait(1200);
 check(chats(a).some((m) => m.sys && /Veli.*katıldı/.test(m.m)), 'katılma sistem mesajı geldi');
 
@@ -34,7 +34,7 @@ check(chats(c).filter((m) => m.name === 'Veli').length === 1, 'boş / geçersiz 
 
 for (let i = 0; i < 8; i++) c.send(JSON.stringify({ t: 'chat', m: 'spam ' + i }));
 await wait(900);
-const spam = chats(a).filter((m) => m.name === 'Can').length;
+const spam = chats(a).filter((m) => m.name === 'Cem').length;
 check(spam === 4, 'hız sınırı: 8 mesajdan ' + spam + ' tanesi geçti (4 bekleniyor)');
 check(chats(c).some((m) => m.sys && /hızlı/.test(m.m)), 'spam yapana uyarı gitti');
 

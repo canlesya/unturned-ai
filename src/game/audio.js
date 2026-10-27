@@ -206,15 +206,16 @@ export class Sfx {
     this._play(v, src, chain, t, t + buf.duration / rate + 0.02);
   }
 
-  explosion(pos) {
+  explosion(pos, big = false) {
     if (!this.ctx) return;
-    const v = this._voice(pos, 1, { ref: 42, rv: 0.55 });
+    const v = this._voice(pos, 1, { ref: big ? 70 : 42, rv: 0.55 });
     if (v.gain < 0.003) { for (const x of v.nodes) x.disconnect(); return; }
     if (v.d < 80) this._noise({ v, gain: 0.9, dur: 0.035, f0: 5000, f1: 1200, type: 'highpass', att: 0.0008 });   // ilk şok çatlaması
     this._noise({ v, gain: 1.1, dur: 0.9, f0: 2500, f1: 80, att: 0.003 });
     this._tone({ v, gain: 1.0, dur: 0.8, f0: 68, f1: 22, att: 0.004 });
     this._noise({ v, gain: 0.55, dur: 2.0, f0: 420, f1: 40, delay: 0.05, att: 0.08 });              // uzun gümbürtü
     if (!MOB) this._noise({ v, gain: 0.12, dur: 0.7, f0: 3500, f1: 1800, type: 'bandpass', q: 0.8, delay: 0.22, att: 0.05 });   // dökülen moloz
+    if (big) { this._tone({ v, gain: 0.9, dur: 1.2, f0: 48, f1: 16, att: 0.006 }); this._noise({ v, gain: 0.35, dur: 1.4, f0: 900, f1: 60, delay: 0.12, att: 0.1 }); }      // 12.188 tank topu: daha derin gümbürtü + toprak yağmuru
   }
   // İsabet geri bildirimi (konumsuz, kuru): gövde = kısa "tık", kafa = metalik çan; dmg ile tok / parlak
   hit(dmg = 30) {
@@ -385,6 +386,11 @@ export class Sfx {
     this._noise({ v, gain: 0.1, dur: 0.05, f0: 900, f1: 200, att: 0.002 });
     if (Math.random() < 0.16) { const f = 2600 + Math.random() * 1600; this._tone({ v, gain: 0.045, dur: 0.2, f0: f, f1: f * 0.45, delay: 0.01, att: 0.004 }); }
   }
+  // 12.191 bayrak sesleri: kazanınca yükselen majör üçlü (parlak), kaybedince inen minör (kalın), nötrleşince iki kısa nötr ton; ele geçirirken her %25'te hafif tık
+  flagWin() { if (!this.ctx) return; const v = this._voice(null, 1); [[523, 0], [659, 0.11], [784, 0.22]].forEach(([f, d]) => this._tone({ v, gain: 0.26, dur: 0.24, f0: f, f1: f, type: 'triangle', delay: d })); this._tone({ v, gain: 0.14, dur: 0.55, f0: 1046, f1: 1046, delay: 0.32 }); }
+  flagLose() { if (!this.ctx) return; const v = this._voice(null, 1); [[440, 0], [349, 0.16], [262, 0.32]].forEach(([f, d]) => { this._tone({ v, gain: 0.12, dur: 0.3, f0: f, f1: f * 0.98, type: 'sawtooth', delay: d }); this._tone({ v, gain: 0.22, dur: 0.32, f0: f, f1: f * 0.98, type: 'triangle', delay: d }); }); this._tone({ v, gain: 0.16, dur: 0.6, f0: 131, f1: 110, delay: 0.32 }); }
+  flagNeutral(good) { if (!this.ctx) return; const v = this._voice(null, 1); const a = good ? 587 : 494, b = good ? 698 : 415; this._tone({ v, gain: 0.2, dur: 0.16, f0: a, f1: a, type: 'triangle' }); this._tone({ v, gain: 0.2, dur: 0.22, f0: b, f1: b, type: 'triangle', delay: 0.13 }); }
+  capTick(up) { if (!this.ctx) return; const v = this._voice(null, 1); const f = up ? 1320 : 660; this._tone({ v, gain: 0.07, dur: 0.07, f0: f, f1: f, type: 'triangle' }); }
   capture() { if (!this.ctx) return; const v = this._voice(null, 1); this._tone({ v, gain: 0.3, dur: 0.25, f0: 523, f1: 523, type: 'triangle' }); this._tone({ v, gain: 0.3, dur: 0.32, f0: 784, f1: 784, type: 'triangle', delay: 0.15 }); this._tone({ v, gain: 0.12, dur: 0.4, f0: 1046, f1: 1046, delay: 0.15 }); }
 }
 

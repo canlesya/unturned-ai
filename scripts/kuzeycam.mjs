@@ -57,7 +57,24 @@ export const IC = [
   ['i01-han-alt', [-27.4, 1.9, 34.4], [-35, 1.0, 38.5], 80, 10.5], ['i02-han-ust', [-27.6, 4.9, 37], [-35, 3.8, 33], 80, 10.5],
   ['i03-ciftlik-alt', [150.5, 1.9, -57.6], [150, 0.9, -62.5], 80, 10.5], ['i04-sapel-ic', [27.6, 1.8, -24], [33.5, 1.2, -24], 80, 10.5],
 ];
-const LIST = process.env.CAMSET === 'fill' ? FILL : process.env.CAMSET === 'detay' ? DETAY : process.env.CAMSET === 'ic' ? IC : CAMS;
+// 12.184 QA bakışları (CAMSET=qa)
+export const QA = [
+  ['k-baraj', [690, 150, -30], [700, 0, -60], 55, null],
+  ['q01-baraj-guney', [700, 1.7, -8], [700, 0, -60], 70, 10.5],
+  ['q02-baraj-yol', [688, 1.7, 14], [690, 0, -60], 70, 10.5],
+  ['q03-baraj-alt', [660, 1.7, -60], [700, 14, -60], 70, 10.5],
+  ['q04-tel-ev', [-138, 14, 326], [-156, 6, 338], 62, 10.5],
+  ['q05-tel-agac', [-60, 4, 404], [-100, 7, 372], 66, 10.5],
+  ['q06-tel-agac2', [24, 3, 226], [8, 7, 172], 66, 10.5],
+  ['q07-tel-agac3', [-330, 3, -490], [-310, 7, -540], 66, 10.5],
+  ['q10-ciftlik-KB', [-90, 2, -80], [-110, 2, -100], 70, 10.5], ['q11-ciftlik-BA', [-280, 2, 80], [-300, 2, 102], 70, 10.5],
+  ['q12-ciftlik-GD', [556, 2, 216], [536, 2, 236], 70, 10.5], ['q13-ciftlik-KK', [162, 2, -508], [182, 2, -528], 70, 10.5],
+  ['q14-ciftlik-BB', [-520, 2, 354], [-540, 2, 334], 70, 10.5], ['q15-ciftlik-SD', [490, 2, 90], [470, 2, 70], 70, 10.5],
+  ['q16-kontrol-R9', [662, 2, 162], [650, 1, 150], 70, 10.5], ['q17-ocak', [-640, 3, -350], [-662, 1, -372], 70, 10.5],
+  ['q20-ahir-GD', [547, 1.8, 216], [537, 1.5, 220], 70, 10.5], ['q21-avci-kulube', [-629, 1.8, -244], [-638, 1.5, -240], 70, 10.5], ['q22-ahir-BB', [-551, 1.8, 346], [-541, 1.5, 350], 70, 10.5],
+  ['q18-dg-gecit', [350, 2, -60], [330, 1, -76], 70, 10.5], ['q19-gece-ciftlik', [-90, 3, -80], [-110, 2, -100], 70, 'night'],
+];
+const LIST = process.env.CAMSET === 'qa' ? QA : process.env.CAMSET === 'fill' ? FILL : process.env.CAMSET === 'detay' ? DETAY : process.env.CAMSET === 'ic' ? IC : CAMS;
 const want = process.argv[2] ? process.argv[2].split(',') : null;
 const mobile = !!process.env.MOBILE;
 const browser = await chromium.launch({ headless: !process.env.HEADFUL, args: process.env.GPU ? ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu'] : ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });

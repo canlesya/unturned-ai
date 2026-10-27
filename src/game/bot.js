@@ -132,8 +132,7 @@ export class BotBrain {
       }
       if (mate) { this.setGoal(mate.pos.x + rand(-3, 3), mate.pos.z + rand(-3, 3), rand(5, 9)); return; }
     }
-    const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * obj.r * 0.8;
-    const gx = obj.x + Math.cos(a) * r, gz = obj.z + Math.sin(a) * r;
+    const { x: gx, z: gz } = g.objPoint(obj, 0.8);                                   // 12.184 hedef kotunda (Baraj: tepe, alttaki kanyon değil)
     this.setGoal(gx, gz, g.map.big ? Math.max(rand(14, 28), Math.hypot(gx - s.pos.x, gz - s.pos.z) / 4.2 + 12) : rand(14, 28));   // 12.172 büyük harita: hedefe varacak kadar süre (yolun ortasında yeni hedef seçip gidip gelmesin)
     // yan kol: bazen ara nokta üzerinden dolan (kanat manevrası)
     if (Math.hypot(gx - s.pos.x, gz - s.pos.z) > 40 && Math.random() < (this.role === 'rusher' ? 0.7 : 0.45)) {
@@ -459,6 +458,7 @@ export class BotBrain {
         g.pathBudget--;
         const tgt = this.via || this.goal;
         this.path = g.nav.findPath(s.pos.x, s.pos.z, tgt.x, tgt.z, 0.7, s.pos.y, tgt.y);
+        if (this.path && g.nav.threadDoors) g.nav.threadDoors(this.path, s.pos.x, s.pos.z);      // 12.184 Kuzey Vadisi: kapıdan kapı ekseninde geç (pervaza takılma)
         this.repathT = rand(2.5, 4);
         if (!this.path) { this.goal = null; this.via = null; return null; }
         // 12.161 Cephe: hedef kapalı hücrede (ev duvarı içi vb.) ve en yakın boş hücre botun kendi hücresi → tek noktalı yol hemen düşer, bot HER ADIM yeniden ister ve
@@ -472,7 +472,7 @@ export class BotBrain {
     // ara noktayı geçmiş say: 0,9 m içinde VE bir sonraki nokta buradan ızgarada görünüyorsa (kapı pervazı / köşe: görünmüyorsa noktaya 0,35 m'ye kadar yürür, köşeyi kesip pervaza sürtünmez)
     while (this.path.length > 1) {
       const dd = Math.hypot(wp.x - s.pos.x, wp.z - s.pos.z) + off(wp);
-      if (dd >= 0.9 || (dd > 0.35 && !g.nav.nearestNode && !g.nav.los(g.nav.idx(s.pos.x, s.pos.z), g.nav.idx(this.path[1].x, this.path[1].z)))) break;
+      if (dd >= (wp.tight ? 0.4 : 0.9) || (dd > 0.35 && !g.nav.nearestNode && !g.nav.los(g.nav.idx(s.pos.x, s.pos.z), g.nav.idx(this.path[1].x, this.path[1].z)))) break;
       this.path.shift(); wp = this.path[0];
     }
     const wd = Math.hypot(wp.x - s.pos.x, wp.z - s.pos.z);

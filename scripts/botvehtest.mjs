@@ -125,7 +125,9 @@ function headless() {
     S.done();
     let tIn = -1, tAir = -1, tOrbit = -1, tDmg = -1, tLand = -1, minAgl = 1e9, maxAgl = 0, inBase = 0, states = new Set(), gunFire = 0, hpAtDmg = 0;
     const Z = g.map.baseZones.red;
-    const mg = V.mgFire.bind(V); V.mgFire = (s, held, dt) => { const r = mg(s, held, dt); if (r) gunFire++; return r; };
+    let nose = 0, rockets = 0;
+    const mg = V.mgFire.bind(V); V.mgFire = (s, held, dt) => { const r = mg(s, held, dt); if (r) { if (s.seat === 0) nose++; else gunFire++; } return r; };
+    const fr = V.fireRocket.bind(V); V.fireRocket = (vv, by) => { const r = fr(vv, by); if (r) rockets++; return r; };
     S.run(260, (t) => {
       if (tIn < 0 && v.seats[0]) { tIn = t; P = v.seats[0]; }
       nGun = Math.max(nGun, (v.seats[1] ? 1 : 0) + (v.seats[2] ? 1 : 0));
@@ -145,6 +147,7 @@ function headless() {
     ok(tOrbit > 0 && tOrbit < 110, 'helikopter: Kavşak çevresinde yörüngeye girer', `${f1(tOrbit)} sn`);
     ok(minAgl > 12 && maxAgl < 120, 'helikopter: seyir / yörüngede güvenli irtifa (yere / ağaca inmez)', `zeminden ${f1(minAgl)}–${f1(maxAgl)} m`);
     ok(gunFire > 0 && E1.deaths + E2.deaths > 0, 'helikopter: kapı nişancıları bayraktaki düşmana ateş eder, öldürür', `${gunFire} mermi · düşman ölümü ${E1.deaths + E2.deaths}`);
+    ok(nose > 0, 'helikopter: pilot saldırı dalışında burun topunu kullanır (12.188 API: mgFire koltuk 0)', `${nose} burun mermisi · ${rockets} roket (roket yalnız araca / 2+ kişilik kümeye)`);
     ok(inBase === 0, 'helikopter: düşman üssüne girmez', `${inBase} adım`);
     ok(tLand > 0 && padD < 30 && v.alive, 'helikopter: hasar alınca (%50) helipade döner, iner, pilot iner', tLand > 0 ? `${f1(tLand - tDmg)} sn · pada ${f1(padD)} m · can ${Math.round(v.hp)}/${Math.round(hpAtDmg)}` : `inmedi · durumlar ${[...states].join(',')}`);
     ok(S.impact.sum < 60, 'helikopter: çarpma / sert iniş hasarı yok', `${S.impact.n} olay / ${f1(S.impact.sum)}`);

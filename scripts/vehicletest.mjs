@@ -171,10 +171,10 @@ function headlessTank() {
   ok(!e1.alive, '120 m: mermi düşüşüyle yayla gider (top açısı ' + f2(el * 180 / Math.PI) + '°), patlama askeri öldürür', `uçuş ${f2(ft)} sn · asker ${e1.alive ? 'canlı ' + Math.round(e1.hp) : 'öldü'}`);
   // zırh: mermi 0, el bombası az, RPG / tank topu çok
   const t2 = V.list.find((x) => x.id === 'R-T1'), e2 = foe(t2.st.x + 20, t2.st.z);
-  const hp0 = t2.hp; V.damage(t2, 30, e2, 'bullet'); const dB = hp0 - t2.hp;
+  const hp0 = t2.hp; V.damage(t2, 30, s, 'bullet'); const dB = hp0 - t2.hp;      // 12.188: atan = Mavi (R-T1 Kırmızı; dost ateşi araca işlemez)
   const P = (x, y, z) => new (s.pos.constructor)(x, y, z);
-  g.explode(P(t2.st.x + 1.8, t2.st.y + 0.5, t2.st.z), 7.5, 130, e2, 'El Bombası'); const dG = hp0 - t2.hp - dB;
-  g.explode(P(t2.st.x, t2.st.y + 1.2, t2.st.z - 3.4), 6.5, 160, e2, 'RPG-7', undefined, 'at'); const dR = hp0 - t2.hp - dB - dG;
+  g.explode(P(t2.st.x + 1.8, t2.st.y + 0.5, t2.st.z), 7.5, 130, s, 'El Bombası'); const dG = hp0 - t2.hp - dB;
+  g.explode(P(t2.st.x, t2.st.y + 1.2, t2.st.z - 3.4), 6.5, 160, s, 'RPG-7', undefined, 'at'); const dR = hp0 - t2.hp - dB - dG;
   ok(dB === 0 && dG > 0 && dG < 50 && dR > 150, 'zırh: tüfek mermisi 0 · el bombası az · RPG çok', `mermi ${f1(dB)} · el bombası ${f1(dG)} · RPG ${f1(dR)} (can ${D.hp} → ${Math.round(D.hp / dR + 0.5)} RPG)`);
   // tank topu ↔ jip: tek atış
   const j = V.list.find((x) => x.id === 'R-J1'); g.explode(P(j.st.x, j.st.y + 0.8, j.st.z), D.cannon.radius, D.cannon.dmg, s, D.cannon.name, undefined, 'at');
@@ -432,9 +432,17 @@ async function browserOffline(chromium) {
     if (tod === 'day') { await ev(() => { const g = window.__game, V = g.vehicles, me = g.playerSoldier, v = V.list.find((x) => x.id === 'B-H1'); me.pos.set(v.st.x + 9, v.st.y, v.st.z - 8); g.world.settle(me); me.yaw = Math.atan2(-(v.st.x - me.pos.x), -(v.st.z - me.pos.z)); me.pitch = 0.05; }); await shot('01-helipadde'); }
     await ev(() => { const g = window.__game, V = g.vehicles, me = g.playerSoldier, v = V.list.find((x) => x.id === 'B-H1'); me.pos.set(v.st.x + 2.6, v.st.y, v.st.z); g.world.settle(me); V.toggle(me); g.player.vehCam = 'third'; me.yaw = v.st.yaw; me.pitch = -0.2; v.lights = g.night; });
     await shot('02-pilot-rotor-donuyor', 1800);
+    if (tod === 'day') await ev(() => { const g = window.__game, V = g.vehicles, v = g.playerSoldier.veh; g.soldiers.filter((s) => s.team === 'blue' && !s.isPlayer).slice(0, 2).forEach((b, i) => V.enter(b, v, i + 2)); });      // 12.192: sağ kapı nişancısı + kabin yolcusu (bot)
     await page.keyboard.down('Space'); await page.waitForTimeout(3200); await shot('03-kalkis-rotor-ruzgari', 0); await page.waitForTimeout(2500); await page.keyboard.up('Space');
     await page.keyboard.down('KeyW'); await page.waitForTimeout(2800); await shot('04-ileri-ucus', 0);
-    await page.keyboard.down('KeyD'); await page.waitForTimeout(900); await shot('05-yana-yatis', 0); await page.keyboard.up('KeyD'); await page.keyboard.up('KeyW');
+    await page.keyboard.down('KeyD'); await page.waitForTimeout(900); await shot('05-yana-yatis', 0);
+    if (tod === 'day') {      // 12.192: eğik (ileri + yana) uçan helikopterde koltuktakilerin modeli gövdenin koltuğunda (eskiden 0,15–0,25 m kayıyordu), kapı nişancısı kapıya dönük
+      const rs = await ev(() => { const g = window.__game, V = g.vehicles, v = g.playerSoldier.veh, M = g.vehView.items[v.idx].model, B = M.userData.body || M;
+        return new Promise((res) => requestAnimationFrame(() => { M.updateMatrixWorld(true); res({ tilt: +(Math.abs(v.st.pitch) + Math.abs(v.st.roll)).toFixed(2), s: v.seats.map((s, i) => { if (!s || !s.model.root.visible) return null; const r = s.model.root, l = B.worldToLocal(r.getWorldPosition(new r.position.constructor())), sp = v.def.seat[i]; const q = B.getWorldQuaternion(new r.quaternion.constructor()).invert().multiply(r.quaternion), fx = new r.position.constructor(0, 0, -1).applyQuaternion(q); return [i, +Math.hypot(l.x - sp[1], l.z + sp[0]).toFixed(3), +Math.atan2(-fx.x, -fx.z).toFixed(2)]; }).filter(Boolean) }); })); });
+      const off = Math.max(...rs.s.map((x) => x[1])), gun = rs.s.find((x) => x[0] === 2);
+      ok(rs.tilt > 0.15 && rs.s.length >= 2 && off < 0.02 && gun && Math.abs(gun[2] + Math.PI / 2) < 0.15, 'tarayıcı helikopter: eğik uçuşta koltuktakiler gövdenin koltuğunda (kayma yok), sağ kapı nişancısı kapıya dönük', JSON.stringify(rs));
+    }
+    await page.keyboard.up('KeyD'); await page.keyboard.up('KeyW');
     await ev(() => { window.__game.player.vehCam = 'first'; }); await shot('06-kokpit', 700);
     await ev(() => { const g = window.__game, me = g.playerSoldier; g.player.vehCam = 'third'; me.yaw = me.veh.st.yaw + 2.7; me.pitch = -0.35; }); await shot('07-onden-takip', 700);
     const flew = await ev(() => { const g = window.__game, v = g.playerSoldier.veh; return { alt: v.st.y - g.world.heightAt(v.st.x, v.st.z), d: Math.hypot(v.st.x - v.spawn.x, v.st.z - v.spawn.z) }; });
@@ -447,6 +455,14 @@ async function browserOffline(chromium) {
     await ev(() => { const g = window.__game, V = g.vehicles, me = g.playerSoldier, v = me.veh; V.exit(me); me.pos.set(v.st.x - 12, g.world.heightAt(v.st.x - 12, v.st.z + 10), v.st.z + 10); g.world.settle(me); me.yaw = Math.atan2(-(v.st.x - me.pos.x), -(v.st.z - me.pos.z)); me.pitch = Math.atan2(v.st.y + 1.5 - me.pos.y - 1.6, Math.hypot(v.st.x - me.pos.x, v.st.z - me.pos.z)); v.hp = 140; });
     await shot('09-hasarli-yaniyor', 1800);
     await ev(() => { const v = window.__game.vehicles.list.find((x) => x.id === 'B-H1'); v.hp = 1; }); await shot('10-enkaz', 3000);
+    if (tod === 'day') {      // 12.192: geliştirici uçuşu (L) 3. şahısta: donmuş zıplama pozu yok (bacaklar sarkık, ileri uçuşta hafif yatış)
+      await ev(() => { const g = window.__game, me = g.playerSoldier; if (!me.alive) g.respawn(me); if (me.veh) g.vehicles.exit(me); me.fly = true; me.pos.y += 15; if (!g.player.third) g.player.toggleThird(); });
+      await page.keyboard.down('KeyW'); await page.waitForTimeout(1200);
+      const fp = await ev(() => { const me = window.__game.playerSoldier, p = me.model.parts; return { vis: me.model.root.visible, hipL: +p.legs.L.hip.rotation.x.toFixed(2), kneeL: +p.legs.L.knee.rotation.x.toFixed(2), lean: +(me.flyLean || 0).toFixed(2) }; });
+      await shot('12-gelistirici-ucusu-3sahis', 0); await page.keyboard.up('KeyW');
+      ok(fp.vis && fp.hipL < 0.35 && fp.kneeL > -0.6 && fp.lean > 0.1, 'tarayıcı: geliştirici uçuşu 3. şahıs — süzülme pozu (bacaklar sarkık, ileri yatış)', JSON.stringify(fp));
+      await ev(() => { const g = window.__game, me = g.playerSoldier; me.fly = false; if (g.player.third) g.player.toggleThird(); });
+    }
     ok(!errs.length, `tarayıcı helikopter (${tod === 'day' ? 'gündüz' : 'gece'}): sayfa hatası yok`, errs.slice(0, 2).join(' | '));
     await page.context().close();
   }
@@ -517,11 +533,8 @@ async function onlineTank(chromium) {
   // nişan + ateş (A): hedef gövdesine top yayı (ikiye bölme, istemcinin gördüğü durumdan)
   const fireRes = await A.evaluate(async (id) => {
     const g = window.__game, me = g.playerSoldier, v = me.veh, D = v.def, T = g.soldiers[id];
-    const aimAt = () => { const tu = D.turret, st = v.st, c = T.center(), px = st.x - Math.sin(st.yaw) * tu.f, pz = st.z - Math.cos(st.yaw) * tu.f, dx = c.x - px, dz = c.z - pz, dist = Math.hypot(dx, dz);
-      me.yaw = Math.atan2(-dx, -dz);
-      const yAt = (pt) => { const vz = Math.cos(pt) * D.cannon.speed, vy = Math.sin(pt) * D.cannon.speed, tf = (dist - tu.len * Math.cos(pt)) / vz; return st.y + tu.pivot + tu.len * Math.sin(pt) + vy * tf - 0.5 * D.cannon.grav * tf * tf; };
-      let lo = -0.12, hi = 0.3; for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; if (yAt(m) < c.y) lo = m; else hi = m; }
-      me.pitch = (lo + hi) / 2; return dist; };
+    // 12.188: oyuncu gibi ARTIYI (kamera ışını) hedefin gövdesine koy — top balistik olarak artının noktasına hedeflenir (gy / gp girdisi)
+    const aimAt = () => { const cam = g.camera.position, c = T.center(), dx = c.x - cam.x, dz = c.z - cam.z; me.yaw = Math.atan2(-dx, -dz); me.pitch = Math.atan2(c.y - cam.y, Math.hypot(dx, dz)); return Math.round(Math.hypot(c.x - v.st.x, c.z - v.st.z)); };
     const id2 = setInterval(aimAt, 16); const dist = aimAt();
     await new Promise((r) => setTimeout(r, 2600));
     let seen = 0; const h = (e) => { const m = JSON.parse(e.data); if (m.t === 'ev' && m.l.some((x) => x.e === 'ts')) seen++; }; g.online.ws.addEventListener('message', h);
@@ -601,7 +614,7 @@ async function onlineHeli(chromium) {
   await A.evaluate(() => { const g = window.__game, me = g.playerSoldier; window.__fall = []; window.__fi = setInterval(() => { const H = g.vehicles.list.find((x) => x.id === 'B-H1'); window.__fall.push([+me.pos.y.toFixed(1), +(me.pos.y - g.world.heightAt(me.pos.x, me.pos.z)).toFixed(1), me.hp, me.alive, !!me.veh, me.swim ? 'S' : '', H.st ? +(H.st.y - g.world.heightAt(H.st.x, H.st.z)).toFixed(1) : null, H.st ? +(H.st.rpm || 0).toFixed(2) : null, Math.round(H.hp), H.alive, H.st ? [+H.st.x.toFixed(1), +H.st.y.toFixed(2), +H.st.z.toFixed(1), +H.st.pitch.toFixed(2), +H.st.roll.toFixed(2), H.st.air ? 1 : 0] : null]); }, 500); });
   await A.keyboard.press('KeyE'); await A.waitForTimeout(9000);
   const fall = await A.evaluate(() => { clearInterval(window.__fi); return window.__fall; }), pilotDied = fall.some((f) => !f[3]), fallH = Math.max(...fall.map((f) => f[1]));
-  const boom = await Promise.all([A, B].map((P) => P.evaluate(() => { const g = window.__game, v = g.vehicles.list.find((x) => x.id === 'B-H1'), me = g.playerSoldier; return { wreck: v.wreck, alive: v.alive, me: me.alive }; })));
+  const boom = await Promise.all([A, B].map((P) => P.evaluate(() => { const g = window.__game, v = g.vehicles.list.find((x) => x.id === 'B-H1'), me = g.playerSoldier; return { wreck: v.wreck, alive: v.alive, me: me.alive, y: +(v.st?.y - g.world.heightAt(v.st.x, v.st.z)).toFixed(1), rpm: +(v.st?.rpm || 0).toFixed(2), hp: Math.round(v.hp), seats: v.seats.map((s) => (s ? s.name : "-")).join("/") }; })));
   await B.screenshot({ path: `${OUT}/../heli/22-cevrimici-dusus${tag ? '-vekil' : ''}.png` });
   ok(boom.every((b) => !b.alive) && pilotDied, 'pilot havada inerse: helikopter düşüp patlar (iki istemcide), atlayan pilot düşüp ölür' + tag, `${JSON.stringify(boom)} · pilot ${fallH.toFixed(0)} m'den düştü${pilotDied && boom.every((b) => !b.alive) ? '' : ' · ' + JSON.stringify(fall.slice(0, 18))}`);
   ok(!A.errs.length && !B.errs.length, 'çevrim içi helikopter: sayfa hatası yok' + tag, [...A.errs, ...B.errs].slice(0, 2).join(' | '));

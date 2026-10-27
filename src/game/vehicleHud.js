@@ -2,7 +2,8 @@ import { t } from '../i18n/index.js';
 import '../i18n/vehicle.js';
 import { codeLabel } from '../core/keybinds.js';
 import * as THREE from 'three';
-import { gunPose, mgAt } from '../sim/vehicle.js';
+import { gunPose, mgAt, seatGun, toWorld } from '../sim/vehicle.js';
+import { dirFromAngles } from './util.js';
 
 // 12.177 araç HUD'u (yalnız tarayıcı): yaklaşınca binme ipucu ("E · Jip · Sür / Bin"), araçtayken panel: ad, can çubuğu, hız (sürücü),
 // 4 koltuk (benimki turuncu, dolu = takım rengi + ad), tuş ipuçları, yanma / su uyarısı; araca isabette küçük turuncu işaret + metal tıkırtısı.
@@ -23,9 +24,29 @@ const CSS = `
 #vhPanel .warn{display:none;margin-top:5px;text-align:center;font-size:13px;font-weight:800;letter-spacing:3px;color:#ff6a4a;animation:vhw .5s infinite alternate}
 @keyframes vhw{to{opacity:.45}}
 #vhPanel .gun{display:none;margin-bottom:6px;font-size:12px;letter-spacing:2px;font-weight:700}#vhPanel .gun i{display:block;height:5px;margin-top:3px;background:rgba(255,255,255,.12)}#vhPanel .gun i b{display:block;height:100%;background:#ffb04a}
-#vhGun{position:absolute;width:26px;height:26px;margin:-13px 0 0 -13px;border:2px solid rgba(255,190,90,.95);border-radius:50%;pointer-events:none;display:none;box-shadow:0 0 4px #000}
-#vhGun::after{content:'';position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;background:#ffbe5a;border-radius:50%}
-#vhGun.rl{border-color:rgba(200,200,200,.5)}#vhGun.rl::after{background:#aaa}
+/* 12.188 nişan (Battlefield 3 / 4 referansı): tank sürücüsünde TEK ana artı ekran ortasında (mermi artının gösterdiği noktaya düşer: top balistik
+   olarak oraya hedeflenir) + çevresinde dolum halkası + menzil; kule / top henüz yetişmediyse küçük "namlu burada" işareti (hizalanınca kaybolur);
+   V dürbün görünümünde nişancı dürbünü örtüsü. Helikopter pilotunda sabit burun artısı. Makineli koltuklarda piyade artısı + ısınma / yay durumu. */
+#vhAim{position:absolute;left:50%;top:50%;width:64px;height:64px;margin:-32px 0 0 -32px;pointer-events:none;display:none}
+#vhAim svg{width:64px;height:64px;overflow:visible;filter:drop-shadow(0 0 1.5px #000)}
+#vhAim .rg{fill:none;stroke:rgba(255,255,255,.9);stroke-width:1.6}
+#vhAim .rl{fill:none;stroke:#ffb04a;stroke-width:2.6;stroke-linecap:round;transform:rotate(-90deg);transform-origin:32px 32px}
+#vhAim.ld .rl{stroke:rgba(210,210,210,.75)}#vhAim.ld .rg{stroke:rgba(255,255,255,.5)}
+#vhAim.foe .rg{stroke:#ff5a3a}
+#vhAim .rn{position:absolute;left:70px;top:25px;font:700 11px Bahnschrift,Rajdhani,sans-serif;letter-spacing:1px;color:#e8edf5;text-shadow:0 1px 2px #000;white-space:nowrap}
+#vhGun{position:absolute;width:14px;height:14px;margin:-7px 0 0 -7px;border:2px solid rgba(255,176,74,.95);border-radius:50%;pointer-events:none;display:none;box-shadow:0 0 3px #000}
+#vhGun::after{content:'';position:absolute;left:50%;top:50%;width:3px;height:3px;margin:-1.5px 0 0 -1.5px;background:#ffb04a;border-radius:50%}
+#vhNose{position:absolute;width:36px;height:36px;margin:-18px 0 0 -18px;pointer-events:none;display:none}
+#vhNose svg{width:36px;height:36px;overflow:visible;filter:drop-shadow(0 0 1.5px #000)}#vhNose path,#vhNose circle{fill:none;stroke:rgba(140,255,170,.95);stroke-width:1.6}
+#vhNose.hot path,#vhNose.hot circle{stroke:#ff6a4a}
+#vhSight{position:absolute;inset:0;pointer-events:none;display:none;background:radial-gradient(circle at 50% 50%,rgba(0,0,0,0) 0,rgba(0,0,0,0) 30vh,rgba(4,6,8,.9) 31vh,rgba(4,6,8,.96) 100%)}
+#vhSight i{position:absolute;background:rgba(20,24,20,.85)}
+#vhSight .h{left:calc(50% - 30vh);width:calc(30vh - 44px);top:50%;height:2px;margin-top:-1px}#vhSight .h2{left:calc(50% + 44px);width:calc(30vh - 44px);top:50%;height:2px;margin-top:-1px}
+#vhSight .v{left:50%;width:2px;margin-left:-1px;top:calc(50% + 44px);height:calc(30vh - 44px)}
+#vhSight b{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(50% - 30vh + 10px);font:700 11px Bahnschrift,Rajdhani,sans-serif;letter-spacing:2px;color:#cfe8c8;text-shadow:0 1px 2px #000}
+#vhState{position:absolute;left:50%;top:calc(50% + 26px);transform:translateX(-50%);font:700 11px Bahnschrift,Rajdhani,sans-serif;letter-spacing:3px;color:#cfd4da;pointer-events:none;text-shadow:0 1px 2px #000;display:none}
+#vhState.hot{color:#ff6a4a}
+#vhPanel .gun i b.hot{background:#ff5a3a}
 #vhArm{position:absolute;left:50%;top:calc(50% + 22px);transform:translateX(-50%);font:700 11px Bahnschrift,Rajdhani,sans-serif;letter-spacing:3px;color:#cfd4da;opacity:0;pointer-events:none;text-shadow:0 1px 2px #000}
 #vhHit{position:absolute;left:50%;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;border:2px solid #ffb04a;transform:rotate(45deg) scale(.6);opacity:0;pointer-events:none}
 body.mob #vhPanel{zoom:.6;bottom:auto;top:calc(74px / .6);left:50%}
@@ -43,8 +64,14 @@ export class VehicleHud {
     this.p.innerHTML = `<div class="top"><span class="nm"></span><span class="spd"></span></div><div class="hp"><i></i></div><div class="gun"><span></span><i><b></b></i></div><div class="seats">${[0, 1, 2, 3].map(() => '<div></div>').join('')}</div><div class="hint"></div><div class="warn"></div>`;
     this.hit = document.createElement('div'); this.hit.id = 'vhHit';
     this.gunEl = document.createElement('div'); this.gunEl.id = 'vhGun';
+    this.aim = document.createElement('div'); this.aim.id = 'vhAim';
+    this.aim.innerHTML = '<svg viewBox="0 0 64 64"><circle class="rg" cx="32" cy="32" r="17" stroke-dasharray="20.7 6"/><circle class="rl" cx="32" cy="32" r="22" stroke-dasharray="138.2" stroke-dashoffset="0"/><circle cx="32" cy="32" r="1.6" fill="#fff"/><path class="rg" d="M32 4v8M32 52v8M4 32h8M52 32h8"/></svg><span class="rn"></span>';
+    this.nose = document.createElement('div'); this.nose.id = 'vhNose';
+    this.nose.innerHTML = '<svg viewBox="0 0 36 36"><circle cx="18" cy="18" r="2"/><path d="M2 18h9M25 18h9M18 25v9M8 8l4 4M28 8l-4 4"/></svg>';
+    this.sight = document.createElement('div'); this.sight.id = 'vhSight'; this.sight.innerHTML = '<i class="h"></i><i class="h2"></i><i class="v"></i><b></b>';
+    this.state = document.createElement('div'); this.state.id = 'vhState';
     this.arm = document.createElement('div'); this.arm.id = 'vhArm'; this.arm.textContent = t('veh.armor');
-    root.append(this.pr, this.p, this.hit, this.gunEl, this.arm);
+    root.append(this.sight, this.pr, this.p, this.hit, this.gunEl, this.aim, this.nose, this.state, this.arm);
     this.q = { nm: this.p.querySelector('.nm'), spd: this.p.querySelector('.spd'), hp: this.p.querySelector('.hp i'), seats: [...this.p.querySelectorAll('.seats div')], hint: this.p.querySelector('.hint'), warn: this.p.querySelector('.warn'), gun: this.p.querySelector('.gun'), gunT: this.p.querySelector('.gun span'), gunB: this.p.querySelector('.gun i b') };
     this._k = {};
     game.on('vehhit', (e) => this.onHit(e));
@@ -52,7 +79,7 @@ export class VehicleHud {
 
   key(id) { const c = this.g.binds.codes(id)[0]; return c ? codeLabel(c) : '?'; }
 
-  set(el, k, v, prop = 'textContent') { if (this._k[k] !== v) { this._k[k] = v; el[prop] = v; } }
+  set(el, k, v, prop = 'textContent', dash) { if (this._k[k] !== v) { this._k[k] = v; if (dash) el.style.strokeDashoffset = v; else el[prop] = v; } }
 
   update() {
     const g = this.g, me = g.playerSoldier, V = g.vehicles;
@@ -63,7 +90,7 @@ export class VehicleHud {
     this.set(this.pr.style, 'prd', n ? 'block' : 'none', 'display');
     if (n) this.set(this.pr, 'prt', t('veh.prompt', { k: g.player?.touch ? '⟲' : this.key('vehicle'), n: t('veh.' + n.v.type), s: n.seat === 0 ? t('veh.drive') : t('veh.ride') + ' (' + t('veh.seat.' + n.seat).toLowerCase() + ')' }), 'innerHTML');
     this.set(this.p.style, 'pd', v ? 'block' : 'none', 'display');
-    this.reticle(v && v.st && me.seat === 0 && v.def.cannon ? v : null);
+    this.aimHud(v && v.st ? v : null, me);
     const am = (this._am ||= this.g.hud.root.querySelector('#ammo')), hideAm = !!(v && (me.seat === 0 || mgAt(v.def, me.seat)));      // sürücü / makineli: kendi silahının cephanesi anlamsız
     if (am) this.set(am.style, 'amv', hideAm ? 'hidden' : '', 'visibility');
     if (!v || !v.st) return;
@@ -74,11 +101,18 @@ export class VehicleHud {
     this.set(this.q.hp.style, 'hpw', Math.round(hp * 100) + '%', 'width');
     this.set(this.q.hp.style, 'hpc', hp > 0.5 ? '#7fd36a' : hp > d.burnAt ? '#ffc94a' : '#ff5a3a', 'background');
     this.q.seats.forEach((el, i) => this.set(el.style, 'sd' + i, i < v.seats.length ? '' : 'none', 'display'));
-    const c = d.cannon, gunner = !!mgAt(d, me.seat);
-    this.set(this.q.gun.style, 'gd', c && (me.seat === 0 || gunner) ? 'block' : 'none', 'display');
+    const c = d.cannon, gunner = !!mgAt(d, me.seat), G = seatGun(d, me.seat);
+    this.set(this.q.gun.style, 'gd', c && me.seat === 0 || G ? 'block' : 'none', 'display');
+    let hot = false;
     if (c && me.seat === 0) { this.set(this.q.gunT, 'gt', v.rl > 0 ? t('veh.reload', { n: v.rl.toFixed(1) }) : t('veh.ready')); this.set(this.q.gunB.style, 'gw', Math.round((1 - v.rl / c.reload) * 100) + '%', 'width'); }
-    else if (gunner) { this.set(this.q.gunT, 'gt', t('veh.mg')); this.set(this.q.gunB.style, 'gw', '100%', 'width'); }
-    if (d.heli) {                                                         // 12.179 helikopter: rotor devri + irtifa (zeminden)
+    else if (G) {                                                         // 12.188 makineli / burun topu: ısınma çubuğu (+ pilotta roket sayısı)
+      hot = !!me.vhot;
+      const rk = d.rockets && me.seat === 0 ? ' · ' + ((v.rkR || 0) > 0 ? t('veh.rkLoad', { n: v.rkR.toFixed(1) }) : t('veh.rk', { n: v.rk ?? d.rockets.n })) : '';
+      this.set(this.q.gunT, 'gt', (hot ? t('veh.hot') : t(me.seat === 0 ? 'veh.nose' : 'veh.mg')) + rk);
+      this.set(this.q.gunB.style, 'gw', Math.round((me.vheat || 0) * 100) + '%', 'width');
+    }
+    this.set(this.q.gunB, 'gbc', hot ? 'hot' : '', 'className');
+    if (d.heli && !(me.seat === 0 && G)) {                                                         // 12.179 helikopter: rotor devri + irtifa (zeminden)
       const alt = Math.max(0, v.st.y - g.world.heightAt(v.st.x, v.st.z)), r = Math.round((v.st.rpm || 0) * 100);
       this.set(this.q.gun.style, 'gd', 'block', 'display');
       this.set(this.q.gunT, 'gt', t('veh.heliBar', { r, h: Math.round(alt) }));
@@ -90,34 +124,56 @@ export class VehicleHud {
       this.set(el, 'sc' + i, mine ? 'me' : '', 'className');
       this.set(el.style, 'sb' + i, o && !mine ? (o.team === 'blue' ? 'rgba(74,163,255,.25)' : 'rgba(255,90,67,.25)') : '', 'background');
     });
-    const hk = d.heli ? (me.seat === 0 ? 'veh.hint.heli' : gunner ? 'veh.hint.gunner' : 'veh.hint.pas') : c ? (me.seat === 0 ? 'veh.hint.tank' : 'veh.hint.gunner') : me.seat === 0 ? 'veh.hint.drv' : 'veh.hint.pas';
+    const hk = d.heli ? (me.seat === 0 ? 'veh.hint.heli' : gunner ? 'veh.hint.gunner' : 'veh.hint.pas') : c ? (me.seat === 0 ? 'veh.hint.tank' : 'veh.hint.gunner') : me.seat === 0 ? 'veh.hint.drv' : gunner ? 'veh.hint.gunner' : 'veh.hint.pas';
     this.set(this.q.hint, 'hint', t(hk, { f: this.key('flashlight'), v: this.key('vehCam'), e: this.key('vehicle'), n: v.seats.length }), 'innerHTML');
     const w = v.burn ? t('veh.burn') : v.st.sunk ? t('veh.sunk') : d.heli && me.seat === 0 && (v.st.rpm || 0) < 0.85 ? t('veh.rotor') : '';
     this.set(this.q.warn, 'w', w); this.set(this.q.warn.style, 'wd', w ? 'block' : 'none', 'display');
   }
 
   // 12.178 top nişangâhı: merminin düşeceği nokta (namlu ucundan aynı yerçekimiyle yay; dünya / araç / 4 sn) ekrana izdüşürülür; dolumda gri
-  reticle(v) {
-    const el = this.gunEl;
-    if (!v) { this.set(el.style, 'gvd', 'none', 'display'); return; }
-    const g = this.g, c = v.def.cannon, st = g.vehView ? g.vehView.pose(v) : v.st, o = (this._o ||= { x: 0, y: 0, z: 0 }), d = (this._d ||= { x: 0, y: 0, z: 0 });
-    gunPose(st, o, d);
-    const p = (this._pp ||= new THREE.Vector3()).set(o.x, o.y, o.z), vel = (this._vv ||= new THREE.Vector3()).set(d.x * c.speed, d.y * c.speed, d.z * c.speed), dir = (this._dd ||= new THREE.Vector3());
-    let hit = null;
-    for (let k = 0; k < 100 && !hit; k++) {
-      const h = 0.04; vel.y -= c.grav * h;
-      const L = vel.length() * h; dir.copy(vel).multiplyScalar(1 / vel.length());
-      const w = g.world.raycast(p, dir, L, (this._h ||= {})), vr = g.vehicles.raycast(p, dir, w ? w.t : L, v);
-      if (vr) hit = p.clone().addScaledVector(dir, vr.t); else if (w) hit = w.point.clone();
-      p.addScaledVector(vel, h);
+  // 12.188 koltuğa göre TEK nişan: tank sürücüsü → ortada ana artı (+ dolum halkası, menzil; kule / top yetişmediyse "namlu burada" işareti = gerçek
+  // isabet noktası, Vehicles.predictShell; V dürbünde dürbün örtüsü) · helikopter pilotu → burun topunun sabit artısı (burnun gösterdiği nokta) ·
+  // makineli koltukları → piyade artısı (hud.js) + yay dışı / aşırı ısınma yazısı (artı soluklaşır) · jip / helikopter sürücüsü silahsız → artı yok.
+  aimHud(v, me) {
+    const g = this.g, P = g.player, seat = v ? me.seat : -1, d = v?.def;
+    const tank = !!(v && seat === 0 && d.cannon), G = v ? seatGun(d, seat) : null, pilot = !!(G && G.fixed);
+    this.set(this.aim.style, 'aimd', tank ? 'block' : 'none', 'display');
+    this.set(this.sight.style, 'sgd', tank && P?._vcam === 'first' ? 'block' : 'none', 'display');
+    this.set(this.nose.style, 'nsd', pilot ? 'block' : 'none', 'display');
+    const stt = v && G && !pilot ? g.vehicles.gunState(me) : (pilot && me.vhot ? 'hot' : '');
+    this.set(this.state.style, 'std', stt ? 'block' : 'none', 'display');
+    if (stt) { this.set(this.state, 'stt', t(stt === 'hot' ? 'veh.hot' : 'veh.arc')); this.set(this.state, 'stc', stt, 'className'); }
+    const cr = (this._cr ||= g.hud.root.querySelector('#cross'));
+    if (cr) this.set(cr.style, 'cro', stt ? '0.3' : '', 'opacity');
+    if (!tank) { this.set(this.gunEl.style, 'gvd', 'none', 'display'); }
+    if (tank) {
+      const c = d.cannon, k = 1 - v.rl / c.reload;
+      this.set(this.aim, 'acl', (v.rl > 0 ? 'ld' : '') + (me.gunAim && me.gunAim.hit && this.foeAt(me.gunAim.P) ? ' foe' : ''), 'className');
+      const rl = (this._rl ||= this.aim.querySelector('.rl'));
+      this.set(rl, 'rlo', (138.2 * (1 - Math.max(0, Math.min(1, k)))).toFixed(1), 'style', true);
+      this.set(this.aim.querySelector('.rn'), 'rn', me.gunAim ? (me.gunAim.hit ? Math.round(me.gunAim.dist) + ' m' : '—') : '');
+      this.set(this.sight.querySelector('b'), 'sgz', me.ads ? '×2.6' : '×1.15');
+      // gerçek isabet noktası (aynı fizik): ortadan 9 px'ten fazla ayrıysa (kule döner / top sınırda / araç hızla gidiyor) küçük işaret
+      const r = g.vehicles.predictShell(v, me, (this._pr ||= {}));
+      let show = false;
+      if (r) {
+        const q = (this._pp ||= new THREE.Vector3()).set(r.p.x, r.p.y, r.p.z).project(g.camera), x = (q.x + 1) / 2 * innerWidth, y = (1 - q.y) / 2 * innerHeight;
+        show = q.z < 1 && Math.abs(q.x) < 1.1 && Math.abs(q.y) < 1.1 && Math.hypot(x - innerWidth / 2, y - innerHeight / 2) > 9;
+        if (show) { this.gunEl.style.left = x.toFixed(1) + 'px'; this.gunEl.style.top = y.toFixed(1) + 'px'; }
+      }
+      this.set(this.gunEl.style, 'gvd', show ? 'block' : 'none', 'display');
     }
-    const q = (hit || p).project(g.camera);
-    const on = q.z < 1 && Math.abs(q.x) < 1.2 && Math.abs(q.y) < 1.2;
-    this.set(el.style, 'gvd', on ? 'block' : 'none', 'display');
-    if (!on) return;
-    el.style.left = ((q.x + 1) / 2 * innerWidth).toFixed(1) + 'px'; el.style.top = ((1 - q.y) / 2 * innerHeight).toFixed(1) + 'px';
-    this.set(el, 'gcl', v.rl > 0 ? 'rl' : '', 'className');
+    if (pilot) {
+      const st = v.st, o = toWorld(st, G.f, 0, G.u, (this._no ||= {})), dd = dirFromAngles(st.yaw, (st.pitch || 0) + (G.dp || 0), (this._nd ||= new THREE.Vector3()));
+      const h = g.world.raycast(o, dd, 400, (this._nh ||= {})), L = h ? h.t : 300;
+      const q = (this._pp ||= new THREE.Vector3()).set(o.x + dd.x * L, o.y + dd.y * L, o.z + dd.z * L).project(g.camera);
+      const on = q.z < 1 && Math.abs(q.x) < 1.1 && Math.abs(q.y) < 1.1;
+      this.set(this.nose.style, 'nsd', on ? 'block' : 'none', 'display');
+      if (on) { this.nose.style.left = ((q.x + 1) / 2 * innerWidth).toFixed(1) + 'px'; this.nose.style.top = ((1 - q.y) / 2 * innerHeight).toFixed(1) + 'px'; }
+      this.set(this.nose, 'ncl', me.vhot ? 'hot' : '', 'className');
+    }
   }
+  foeAt(P) { const me = this.g.playerSoldier; for (const e of this.g.soldiers) if (e.alive && e.team !== me.team && Math.hypot(e.pos.x - P.x, e.pos.z - P.z) < 0.8 && P.y > e.pos.y - 0.2 && P.y < e.pos.y + e.height + 0.3) return true; return false; }
 
   onHit(e) {
     if (e.armor || e.dmg === 0) {                                     // zırh: mermi seker (hasar yok)
@@ -131,5 +187,5 @@ export class VehicleHud {
     this.g.sfx._tone?.({ gain: 0.12, dur: 0.07, f0: 1700, f1: 1300, type: 'triangle', att: 0.001 });
   }
 
-  dispose() { this.pr.remove(); this.p.remove(); this.hit.remove(); this.gunEl.remove(); this.arm.remove(); }
+  dispose() { for (const e of [this.pr, this.p, this.hit, this.gunEl, this.aim, this.nose, this.sight, this.state, this.arm]) e.remove(); }
 }

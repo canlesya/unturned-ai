@@ -5,6 +5,7 @@ import { createHeli, HELI_MATS } from '../models/heli.js';
 import { toWorld, gunPose } from '../sim/vehicle.js';
 import { SIM_DT } from '../net/protocol.js';
 import { waterYAt } from '../sim/swim.js';
+import { SEAT_DROP } from './vehicles.js';
 
 // ───── Araç görünümü (12.177; yalnız tarayıcı) ─────
 // Model (takım rengine göre şablon kopyası), görsel süspansiyon (dikey ivme + eğim / yatış gecikmesi: yaylı gövde), teker dönüşü + ön teker
@@ -15,6 +16,7 @@ import { waterYAt } from '../sim/swim.js';
 // korna (iki tonlu) — sentez, sfx kanalı. Kamera: vehCamera (sürücü içeriden / takip; V).
 const MAXP = 700;
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _e = new THREE.Euler(0, 0, 0, 'YXZ'), _p = { x: 0, y: 0, z: 0 }, _h = {};
+const _rp = new THREE.Vector3(), _rq = new THREE.Quaternion(), _rq2 = new THREE.Quaternion(), _ry = new THREE.Quaternion(), _up = new THREE.Vector3(0, 1, 0);
 const CHAR = new THREE.MeshStandardMaterial({ color: '#1f1c1a', flatShading: true, roughness: 0.95 });
 // türe göre efekt noktaları (yerel f, r, u): farlar, egzoz [f, r, u, yukarı mı], toz (palet / arka teker), hasar dumanı (motor), motor sesi [taban Hz, devir aralığı]
 const FXP = {
@@ -136,6 +138,26 @@ export class VehicleView {
     return true;
   }
 
+  // 12.192 koltuktakiler aracın ÇİZİLEN gövdesine oturur (her karede, aracın modeli konduktan sonra): konum = gövde yerelinde koltuk − oturma payı,
+  // dönüş = gövdenin dünya dönüşü (eğim / yatış / görsel süspansiyon dahil) · koltuk yaw'ı. Eskiden kök dünya dikeyinde 0,78 m aşağıda + ham sim
+  // durumuyla dönüyordu → eğik helikopterde (ileri uçuşta burun −0,28 rad, virajda yatış) asker gövdeye göre 0,15–0,25 m kayıyor, gövdeden / kapıdan
+  // taşıyor, uzaktaki yolcu sallanıyordu
+  seatRiders(it, v) {
+    if (!v.alive || !v.st) return;
+    const d = v.def, B = it.model.userData.body || it.model;
+    let upd = false;
+    for (let i = 0; i < v.seats.length; i++) {
+      const s = v.seats[i], r = s?.model?.root;
+      if (!s || !s.alive || s.veh !== v || !r || !r.visible || !r.parent) continue;
+      if (!upd) { it.model.updateMatrixWorld(true); upd = true; }
+      const sp = d.seat[i];
+      _rp.set(sp[1], sp[2] - SEAT_DROP - 0.28 + (s.model.groundOffset ?? 0), -sp[0]); B.localToWorld(_rp); r.parent.worldToLocal(_rp);
+      r.position.copy(_rp);
+      B.getWorldQuaternion(_rq); _ry.setFromAxisAngle(_up, s._seatRel || 0); r.quaternion.copy(_rq).multiply(_ry);
+      r.quaternion.premultiply(r.parent.getWorldQuaternion(_rq2).invert());          // kökün ebeveyni sahne (birim) — değilse onun dönüşü düşülür
+    }
+  }
+
   setCharred(it, on) {
     if (it.charred === on) return;
     it.charred = on;
@@ -182,7 +204,7 @@ export class VehicleView {
           const seat = M.seats[i], side = M.arc[seat], gn = v.seats[seat], rest = -side * Math.PI / 2;
           let rel = gn ? ((gn.yaw - st.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI : rest;
           const dd = ((rel - rest + Math.PI * 3) % (Math.PI * 2)) - Math.PI; rel = rest + Math.max(-M.arcW, Math.min(M.arcW, dd));
-          dg.rotation.y = rel; U.doorGuns[i].rotation.x = gn ? Math.max(-0.7, Math.min(0.4, gn.pitch)) : -0.2;
+          dg.rotation.y = rel; U.doorGuns[i].rotation.x = gn ? Math.max(M.elev[0], Math.min(M.elev[1], gn.pitch)) : -0.2;
         });
         if (v.alive && rpm > 0.5 && far < 160) this.wash(it, v, st, rpm, dt);
       } else if (U.tank) {
@@ -190,7 +212,7 @@ export class VehicleView {
         U.turret.rotation.y = ((st.tyaw - st.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
         it.rec = Math.max(0, (it.rec || 0) - dt * 2.2);
         U.gun.rotation.x = st.gp; U.gun.position.z = -1.35 + Math.sin(Math.min(1, it.rec) * Math.PI) * 0.35;
-        const gn = v.def.mg ? v.seats[v.def.mg.seat] : null;
+        const gn = v.def.mg ? v.seats[v.def.mg.seats[0]] : null;      // 12.188: eski "mg.seat" (yok) → halka nişancıyı hiç izlemiyordu
         U.ring.rotation.y = gn ? ((gn.yaw - st.tyaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI : 0;
         U.mg.rotation.x = gn ? Math.max(-0.3, Math.min(0.6, gn.pitch)) : 0;
         if (v.alive) { const w = yr * 1.3; it.sL = (it.sL || 0) + (fwd - w) * dt; it.sR = (it.sR || 0) + (fwd + w) * dt; }
@@ -205,7 +227,13 @@ export class VehicleView {
         U.needle.rotation.z = -Math.min(1, Math.abs(fwd) / d.maxF) * 2.4 + 1.2;
         const fp = mine && me.seat === 0 && P && P._vcam === 'first';
         U.hands.visible = !!fp;
+        if (U.jmg && d.mg) {                                             // 12.188 jip makinelisi: nişancının bakışıyla 360° (yoksa ileri), yükseliş sınırlı
+          const gn = v.seats[d.mg.seats[0]];
+          U.jmg.rotation.y = gn ? ((gn.yaw - st.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI : 0;
+          U.jgun.rotation.x = gn ? Math.max(d.mg.elev[0], Math.min(d.mg.elev[1], gn.pitch)) : -0.05;
+        }
       }
+      this.seatRiders(it, v);
       this.setCharred(it, !v.alive && v.wreck);
       // ışıklar
       const on = v.alive && v.lights, br = v.alive && (st.thr < -0.05 && fwd > 0.5 || v.st.brk);
@@ -338,6 +366,14 @@ export class VehicleView {
   cannonFx(sh) {
     const g = this.g, v = sh.v, it = this.items[v.idx], st = v.st;
     if (!st) return;
+    if (sh.w) {                                                          // 12.188 helikopter roketi: kapsül ağzında alev + geri püskürme dumanı + "fışş" sesi
+      const sp = Math.hypot(sh.vx, sh.vy, sh.vz) || 1, dx = sh.vx / sp, dy = sh.vy / sp, dz = sh.vz / sp;
+      for (let i = 0; i < 5; i++) this.glow.emit(sh.x, sh.y, sh.z, dx * 4 + (Math.random() - 0.5), dy * 4, dz * 4 + (Math.random() - 0.5), 0.12, 0.9, 0.25, 1, 0.7, 0.3, 1, 0, 4);
+      for (let i = 0; i < 6; i++) this.smoke.emit(sh.x - dx * 1.2, sh.y - dy * 1.2, sh.z - dz * 1.2, -dx * 6 + (Math.random() - 0.5) * 2, -dy * 6 + 0.3, -dz * 6 + (Math.random() - 0.5) * 2, 1.2, 0.4, 1.6, 0.7, 0.68, 0.64, 0.45, -0.1, 1.2);
+      const sfx = g.sfx, P = new THREE.Vector3(sh.x, sh.y, sh.z), dc = P.distanceTo(g.camera.position);
+      if (sfx?.ctx && sfx._voice) { const vv = sfx._voice(dc < 3 ? null : P, 1, { ref: 45, rv: 0.4 }); if (vv.gain > 0.003) { sfx._noise({ v: vv, gain: 0.7, dur: 0.45, f0: 3500, f1: 900, type: 'bandpass', q: 0.7, att: 0.005 }); sfx._tone({ v: vv, gain: 0.35, dur: 0.25, f0: 140, f1: 60, att: 0.004 }); } else for (const x of vv.nodes) x.disconnect(); }
+      return;
+    }
     if (it) { it.rec = 1; it.svp -= 0.9; }
     const o = { x: 0, y: 0, z: 0 }, d = { x: 0, y: 0, z: 0 }; gunPose(st, o, d);
     for (let i = 0; i < 10; i++) this.glow.emit(o.x + d.x * 0.6, o.y + d.y * 0.6, o.z + d.z * 0.6, d.x * (6 + Math.random() * 8) + (Math.random() - 0.5) * 2, d.y * 8 + (Math.random() - 0.5) * 2, d.z * (6 + Math.random() * 8) + (Math.random() - 0.5) * 2, 0.16, 1.2, 0.3, 1, 0.75, 0.35, 1, 0, 4);

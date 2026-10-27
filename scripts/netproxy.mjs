@@ -20,7 +20,10 @@ wss.on('connection', (c) => {
     last[tag] = t;
     setTimeout(() => { if (to.readyState === 1) to.send(d, { binary: isBin }); }, t - now);
   });
-  up.on('open', () => { pipe(c, up, 'up'); pipe(up, c, 'down'); });
+  // bağlantı açılmadan gelen ilk mesajlar (oda kur / katıl) kaybolmasın: hedef açılınca sırayla iletilir
+  const early = []; c.on('message', (d, isBin) => { if (up.readyState !== 1) early.push([d, isBin]); });
+  up.on('open', () => { for (const [d, isBin] of early.splice(0)) up.send(d, { binary: isBin }); pipe(c, up, 'up'); pipe(up, c, 'down'); });
+  up.on('error', () => c.close());
   c.on('close', () => { clearInterval(spikes); up.close(); }); up.on('close', () => c.close());
 });
 console.log(`vekil :${LISTEN} → :${TARGET} · tek yön ${BASE}-${BASE + JIT} ms${SPIKE_RATE ? ` · takılma ${SPIKE_RATE}/sn × ≤${SPIKE_MS} ms` : ''}`);

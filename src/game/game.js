@@ -44,13 +44,14 @@ import { EndFlow } from './endFlow.js';
 import { t as $t } from '../i18n/index.js';
 import { placeName, banText } from '../i18n/game.js';                                                         // oyun içi sözlük (hud. / death. / end. …)
 import { Payload } from './payload.js';
+import { ObjFx } from './objFx.js';                                  // 12.191 bayrak direği + zemin halkası (yalnız istemci)
 import { Front } from './front.js';                                  // Cephe modu (12.158)
 import { Vehicles } from './vehicles.js';                            // 12.177 araçlar (Kuzey Vadisi: jip)
 import { assignSquadsBig, perchBig, spawnFlagBig } from './bigBots.js';           // 12.189 büyük harita bot çatışma akışı
 import { vnav } from './vehicleBots.js';                                         // 12.189 bot sürücüler (araç ızgarası)
 import { VehicleView } from './vehicleView.js';
 import { VehicleHud } from './vehicleHud.js';
-import { VT, mgAt } from '../sim/vehicle.js';
+import { VT, mgAt, seatGun, heFalloff } from '../sim/vehicle.js';
 import { spaceSetup } from './space.js';
 import { NADE, nadeStep, simulateNade, NadeView } from './grenade.js';
 import { createWeapon } from '../models/weapons.js';
@@ -232,6 +233,7 @@ export class Game {
     } else {
       this.effects = new Effects(this.scene);
       this.effects.cam = this.camera;                              // 12.146: uzaktaki isabet efekti kameraya uzaklıkla büyür
+      this.effects.groundAt = (x, z) => this.world.heightAt(x, z);   // 12.188: patlama parçacıkları arazide durur (eskiden y = 0'a dek düşüp araziden geçiyordu)
       this.sfx = new Sfx();
       this.sfx.setVolume(this.settings.volume);
       this.sfx.setMix({ sfx: this.settings.vSfx ?? 1, amb: this.settings.vAmb ?? 1, rain: this.settings.rainSound !== false });
@@ -299,7 +301,7 @@ export class Game {
       this.hud = nullSink();
       this.killfx = nullSink();
       this.playerSoldier = null;
-      this.HN = 40;                                            // lag compensation geçmişi (adım)
+      this.HN = 60;                                            // lag compensation geçmişi (adım). 12.187: 40 → 60 (geri sarma en çok 57 adım = 0,95 sn; yüksek ping + titreşim tamponu + takılma sonrası kuyrukta isabet kırpılmasın)
       this.histBuf = new Float32Array(this.HN * this.soldiers.length * 9);
       this.running = true;
       if (opts.bots === false) {                               // botsuz oda: slotlar oyuncu gelene kadar boş
@@ -311,6 +313,7 @@ export class Game {
     }
     this.hud = new Hud(this);
     this.killfx = new KillFx(this);                                                // vuruş / öldürme hissi (kendi katmanı)
+    this.objFx = this.mode.objectives.length && !opts.editor ? new ObjFx(this) : null;   // 12.191 bayrak direği (bez ilerlemeyle iner / çıkar) + alan sınırı halkası
     if (this.online) this.chat = new Chat(this);                                   // sohbet yalnızca çevrimiçi odalarda
     this.player = new Player(this, this.playerSoldier, this.settings);
     this.nadeView = new NadeView(this);                                            // 12.144: bomba yörünge önizlemesi + pişirme göstergesi
@@ -586,9 +589,11 @@ export class Game {
     s.flashOn = false; s.stanceLeft = false; s.shotOff = null;
     if (s.seat === 0) {
       if (inp.vl) v.lights = !v.lights;
-      v.horn = !v.def.cannon && !!inp.fh;                              // jip: sol tık korna · tank: ana top
-      V.drive(v, { f: inp.f, r: inp.r, b: !!inp.j, u: !!inp.j, d: !!inp.dn, yw: inp.yw, pt: inp.pt }, dt);      // 12.178: bakış = kule / top hedefi · 12.179 helikopter: j yüksel, dn alçal, bakış burun
+      v.horn = !!v.def.horn && !!inp.fh;                               // jip: sol tık korna · tank: ana top · 12.188 helikopter: burun topu (korna yok)
+      V.drive(v, { f: inp.f, r: inp.r, b: !!inp.j, u: !!inp.j, d: !!inp.dn, yw: inp.gy ?? inp.yw, pt: inp.gp ?? inp.pt }, dt);      // 12.188 gy / gp: artının noktasına balistik top hedefi · 12.178: bakış = kule / top hedefi · 12.179 helikopter: j yüksel, dn alçal, bakış burun
       if (v.def.cannon && (inp.fh || inp.fp)) V.fireCannon(v, s);
+      if (seatGun(v.def, 0)) V.mgFire(s, !!inp.fh, dt);                // 12.188 helikopter pilotu: burun topu (sol tık)
+      if (v.def.rockets && inp.a) V.fireRocket(v, s);                    // · roketler (sağ tık)
       for (const o of v.seats) if (o) V.place(o);
       h.fireBuf = 0;
       return;
@@ -612,6 +617,7 @@ export class Game {
   pastPos(s, vt) {
     if (!this.histBuf) return null;
     const N = this.soldiers.length, T = this.tick, t = Math.max(T - (this.HN - 3), Math.min(T, vt)), i0 = Math.floor(t), f = t - i0, i1 = Math.min(T, i0 + 1);
+    if (t < 1) return null;                                          // 12.187: maçın ilk adımları (tampon henüz dolmadı; negatif indeks NaN konum verirdi)
     const b = this.histBuf, k = s.id, o0 = (i0 % this.HN) * N * 9 + k * 9, o1 = (i1 % this.HN) * N * 9 + k * 9;
     return new THREE.Vector3(b[o0] + (b[o1] - b[o0]) * f, b[o0 + 1] + (b[o1 + 1] - b[o0 + 1]) * f, b[o0 + 2] + (b[o1 + 2] - b[o0 + 2]) * f);
   }
@@ -825,10 +831,40 @@ export class Game {
     return true;
   }
 
+  // 12.184 hedefin kotu: harita veriyorsa o.y (Kuzey Vadisi Baraj bayrağı baraj tepesinde, 24 m), yoksa merkezdeki zemin. Ele geçirme alanı = yarıçap + bu kotun ±8 m'si
+  // (eskiden hep arazi kotu: Baraj'da direğin yanındaki asker alamıyor, 23 m aşağıdaki kanyon tabanı alıyordu).
+  objY(o) { return Number.isFinite(o.y) ? o.y : this.world.heightAt(o.x, o.z); }
+  inObjective(p, o) { return Math.hypot(p.x - o.x, p.z - o.z) < o.r && Math.abs(p.y - this.objY(o)) < 8; }
+  // 12.191 ele geçirme hızı (çubuk birimi / sn, + Mavi'ye): alandaki fark (en çok 3) × TUNE.captureRate (× Cephe çarpanı). updateMode ve HUD aynı işlevi kullanır.
+  capRate(o, b = o.nb || 0, r = o.nr || 0) {
+    if (this.front && !this.front.capturable(o)) return 0;
+    return clamp(b - r, -3, 3) * TUNE.captureRate * (this.front ? this.front.capMul(o) : 1);
+  }
+  // Hedef alanında yürünür nokta (bot hedefi / ileri doğuş): alanın zemin kotu hedef kotundan ±3 m'den çok sapan yerleri varsa (Baraj: kanyon tabanı, göl)
+  // yalnız hedef kotundaki hücreler; yoksa eskisi gibi dairede rastgele (null → çağıran kendisi seçer)
+  objCells(o) {
+    if (o._cells !== undefined) return o._cells;
+    o._cells = null;
+    if (!Number.isFinite(o.y) || !this.nav) return null;
+    const nav = this.nav, c = nav.cell, out = []; let bad = 0;
+    for (let z = o.z - o.r; z <= o.z + o.r; z += c) for (let x = o.x - o.r; x <= o.x + o.r; x += c) {
+      if (Math.hypot(x - o.x, z - o.z) > o.r * 0.85 || !nav.isFree(x, z)) continue;
+      if (Math.abs(this.world.groundAt(x, z) - o.y) <= 3) out.push([x, z]); else bad++;
+    }
+    if (bad && out.length) o._cells = out;
+    return o._cells;
+  }
+  objPoint(o, k = 0.8) {
+    const cl = this.objCells(o);
+    if (cl) { const [x, z] = cl[Math.floor(Math.random() * cl.length)]; return { x: x + (Math.random() - 0.5) * this.nav.cell * 0.8, z: z + (Math.random() - 0.5) * this.nav.cell * 0.8 }; }
+    const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * o.r * k;
+    return { x: o.x + Math.cos(a) * r, z: o.z + Math.sin(a) * r };
+  }
+
   _free(x, z, s) {
     if (!this.nav.isFree(x, z)) return false;
     if (this.nav.floor && this.nav.floorAt(x, z) > 0.3) return false;            // ileri doğuş platform / çatı hücresine düşmesin (doğuş y = 0: kutunun içinde kalırdı)
-    if (this.world._hits(this.world.query(x - 1, z - 1, x + 1, z + 1, (this._fq ||= [])), x, this.world.heightAt(x, z) + 0.2, z, 1.6)) return false;   // 12.168: gövde duvara / eşyaya girmesin (boş hücrenin kenarı duvara 0,1 m yakın olabilir)
+    if (this.world._hits(this.world.query(x - 1, z - 1, x + 1, z + 1, (this._fq ||= [])), x, this.world.groundAt(x, z) + 0.2, z, 1.6)) return false;   // 12.168: gövde duvara / eşyaya girmesin (boş hücrenin kenarı duvara 0,1 m yakın olabilir) · 12.184 tabliye üstünde tabliye kotunda
     return !this.soldiers.some((e) => e !== s && e.alive && Math.hypot(e.pos.x - x, e.pos.z - z) < 1.1);
   }
 
@@ -913,9 +949,10 @@ export class Game {
       if (own.length) target = this.map.big ? (spawnFlagBig(this, s, own) || (Math.random() < 0.5 ? this.frontFlag(team, own) : null)) : pick(own);      // 12.189: mangal hedefine en yakın bayrak (yoksa yarı yarıya ön hat / üs: araç)
     }
     if (target && this.canForwardSpawn(target, team)) {
+      const cl = this.objCells(target);                                             // 12.184 alan kotu karışıksa (Baraj) yalnız hedef kotundaki hücreler
       for (let k = 0; k < 14; k++) {
         const a = Math.random() * Math.PI * 2, rr = target.r * (0.25 + Math.random() * 0.6);
-        const x = target.x + Math.cos(a) * rr, z = target.z + Math.sin(a) * rr;
+        const { x, z } = cl ? this.objPoint(target) : { x: target.x + Math.cos(a) * rr, z: target.z + Math.sin(a) * rr };
         if (this._free(x, z, s)) return { x, z, ry: Math.atan2(-(target.x - x), -(target.z - z)) + (Math.random() - 0.5) * 3, forward: true };
       }
     }
@@ -1146,7 +1183,7 @@ export class Game {
     if (this.perchCache.has(key)) return this.perchCache.get(key);
     const home = this.map.spawns[team][0];
     let best = null, bs = -1e9;
-    const oc = new THREE.Vector3(o.x, this.world.heightAt(o.x, o.z) + 1.3, o.z), pe = new THREE.Vector3();
+    const oy = this.objY(o), oc = new THREE.Vector3(o.x, oy + 1.3, o.z), pe = new THREE.Vector3();
     for (let k = 0; k < 90; k++) {
       const a = Math.random() * Math.PI * 2, d = 26 + Math.random() * 40;
       const x = o.x + Math.cos(a) * d, z = o.z + Math.sin(a) * d;
@@ -1154,7 +1191,7 @@ export class Game {
       const y = this.world.heightAt(x, z);
       pe.set(x, y + 1.0, z);
       if (!this.world.clear(pe, oc)) continue;
-      const sc = (y - this.world.heightAt(o.x, o.z)) * 0.6 + d * 0.05 - Math.hypot(x - home.x, z - home.z) * 0.03 + Math.random();
+      const sc = (y - oy) * 0.6 + d * 0.05 - Math.hypot(x - home.x, z - home.z) * 0.03 + Math.random();
       if (sc > bs) { bs = sc; best = { x, z }; }
     }
     this.perchCache.set(key, best);
@@ -1318,6 +1355,14 @@ export class Game {
 
   netEvent(ev) { if (this.headless) this.netEvents.push(ev); }
 
+  // 12.187: nokta birinci şahıstaki yerel oyuncunun gövdesinde mi (kendi kanı kameranın dibinde ekranı kaplayan kırmızı kutular olarak çiziliyordu;
+  // isabeti hasar göstergesi / ekran kızarması anlatır). Sunucu atış anında hedefi geri sardığından yatayda 1,2 m pay. 3. şahısta kan görünür.
+  ownBody(p) {
+    const me = this.playerSoldier;
+    if (!me || !me.alive || this.showSelf) return false;
+    return Math.hypot(p.x - me.pos.x, p.z - me.pos.z) < 1.2 && p.y > me.pos.y - 0.3 && p.y < me.pos.y + 2.2;
+  }
+
   // ───── çevrimiçi istemci: sunucu olayları ─────
   onNetEvents(list) {
     const me = this.playerSoldier, V = THREE.Vector3;
@@ -1326,13 +1371,17 @@ export class Game {
       switch (ev.e) {
         case 'sh': {                                  // başkasının atışı: iz, kıvılcım/kan, namlu alevi, ses
           if (!by || by === me) break;
-          const st = (ev.vm ? VT.tank.mg : WSTATS[by.item.id]) || {}, o = new V(...ev.o), p = new V(...ev.p);      // vm: 12.178 tank makinelisi
+          const st = (ev.vm ? VT.tank.mg : WSTATS[by.item.id]) || {}, p = new V(...ev.p);      // vm: 12.178 tank makinelisi
+          // 12.187: iz / alev atıcının GÖRÜNEN namlusundan. Sunucunun namlusu (ev.o) atıcının şimdiki yeri; burada atıcı interpolasyonla ~100–250 ms
+          // geride çizilir → yana yürüyerek ateş edenin izi silahının 0,6–1,4 m yanından çıkıyordu. Vuruş noktası (p) aynı kalır.
+          let o = new V(...ev.o);
+          if (!ev.vm && by.alive && by.model?.weapon && o.distanceToSquared(by.pos) < 25) o = by.muzzleWorld(new V());
           const dir = p.clone().sub(o).normalize();
           this.effects.tracer(o, p, st.tracer);
-          if (ev.k === 'f') this.effects.blood(p, 7, dir.clone().negate());
+          if (ev.k === 'f' && !this.ownBody(p)) this.effects.blood(p, 7, dir.clone().negate());
           else if (ev.k === 'w' && ev.ws) this.effects.splash(p);                                                       // 12.180 suya isabet
           else if (ev.k === 'w') { const n = new V(...ev.n); if (ev.vh) this.effects.spark(p, 6, n, '#ffe7b0'); else { this.effects.spark(p, 4, n); this.effects.dust(p, n); this.effects.decal(p, n); } }      // vh: araç gövdesi (12.177)
-          if (ev.b) for (let i = 0; i + 2 < ev.b.length; i += 3) this.effects.blood(new V(ev.b[i], ev.b[i + 1], ev.b[i + 2]), 7, dir.clone().negate());     // 12.164: delip geçilen askerler
+          if (ev.b) for (let i = 0; i + 2 < ev.b.length; i += 3) { const bp = new V(ev.b[i], ev.b[i + 1], ev.b[i + 2]); if (!this.ownBody(bp)) this.effects.blood(bp, 7, dir.clone().negate()); }     // 12.164: delip geçilen askerler
           if (ev.tw) { const tp = new V(ev.tw[0], ev.tw[1], ev.tw[2]), tn = new V(ev.tw[3], ev.tw[4], ev.tw[5]); this.effects.spark(tp, 3, tn); this.effects.decal(tp, tn); }     // 12.164: ince levha geçişi
           if (ev.m) { this.effects.muzzle(o, dir); this.sfx.shot(st.sound, by.pos); by.flashT = 0.06; if (st.charge) by.railT = 0; }      // 12.160 railT: ray tüfeği şarjı 3. şahısta (yeni ağ alanı yok)
           break;
@@ -1470,6 +1519,7 @@ export class Game {
   rewind(shooter, vt) {
     const N = this.soldiers.length, T = this.tick;                   // en son kaydedilen adım (etiket = adım sonrası tick)
     const t = Math.max(T - (this.HN - 3), Math.min(T, vt));
+    if (t < 1) return () => {};                                      // 12.187: maçın ilk adımları (tampon dolmadı): geri sarma yok
     const i0 = Math.floor(t), f = t - i0, i1 = Math.min(T, i0 + 1);
     const b = this.histBuf, a0 = (i0 % this.HN) * N * 9, a1 = (i1 % this.HN) * N * 9;
     const saved = [];
@@ -1540,6 +1590,7 @@ export class Game {
     this.nadeView?.draw();
     const now = performance.now(), dt = Math.min(0.1, (now - (this._rT || now)) / 1000); this._rT = now;
     this._vmLightUpdate(dt);
+    this.objFx?.frame(dt);
     const post = this.post?.on && this.post.begin() ? this.post : null;      // begin() false: hedef sürücü sınırını aşıyor → doğrudan ekrana (12.151)
     const uw = this.world.terrain?.waterY ? (this.underwater ||= new Underwater(this)) : null;      // 12.180 su altı görünümü (sis + ton + boğuk ses; su vermeyen haritada yok)
     uw?.begin(dt);
@@ -1660,7 +1711,7 @@ export class Game {
         const pt = origin.clone().addScaledVector(dir, ht); pts.push(pt);
         const f = ht <= r0 ? 1 : lerpClamp(1, st.minMul, (ht - r0) / (r1 - r0));
         const zm = zone === 'head' ? TUNE.headMul : zone === 'legs' ? TUNE.legMul : 1;
-        this.effects.blood(pt, 7, dir.clone().negate());
+        if (!(e.isPlayer && !this.showSelf)) this.effects.blood(pt, 7, dir.clone().negate());      // 12.187: birinci şahısta kendi kanın kameraya çizilmez
         const wm = ht > woodT ? TUNE.woodMul : 1, tm = ht > thinT ? TUNE.penWallMul : 1;
         if (wm < 1 && !woodShown) { woodShown = true; woodFx(); }
         // çevrimiçi istemcide hasar yok: sunucu hesaplar, sonucu olay olarak yollar (aynı ışın, aynı geri sarılmış konumlar → aynı hedefler)
@@ -1685,7 +1736,7 @@ export class Game {
       if (!wh.veh && (wh.collider || wh.normal.y > 0.5)) this.effects.dust(pt, wh.normal);
       if (!wh.veh) this.effects.decal(pt, wh.normal);                           // araçta iz bırakmaz (gövde hareket eder)
       if (shooter.isPlayer || pt.distanceTo(this.camera.position) < 25) this.sfx.impact(pt);
-      if (wh.veh && !this.online) { const f = wh.t <= st.range[0] ? 1 : lerpClamp(1, st.minMul, (wh.t - st.range[0]) / (st.range[1] - st.range[0])); this.vehicles.damage(wh.veh, st.dmg * f * (st.pellets ? 0.6 : 1) * (shooter.dmgMul || 1), shooter, 'bullet', st.name); }
+      if (wh.veh && !this.online) { const f = wh.t <= st.range[0] ? 1 : lerpClamp(1, st.minMul, (wh.t - st.range[0]) / (st.range[1] - st.range[0])); this.vehicles.damage(wh.veh, st.dmg * f * (st.pellets ? 0.6 : 1) * (shooter.dmgMul || 1), shooter, st.vk || 'bullet', st.name); }
       if (ev) { ev.k = 'w'; ev.p = [q2(pt.x), q2(pt.y), q2(pt.z)]; ev.n = [q2(wh.normal.x), q2(wh.normal.y), q2(wh.normal.z)]; if (wh.veh) ev.vh = 1; }
     } else {
       const end = origin.clone().addScaledVector(dir, 120);
@@ -1909,31 +1960,48 @@ export class Game {
   }
 
   // selfMul: atanın kendi hasar çarpanı (varsayılan TUNE.selfBlast; elde patlayan bomba öldürür). Duvar arkası: patlamadan gövde merkezi YA DA başa açık hat yoksa hasar yok.
-  explode(pos, radius, dmg, owner, name, selfMul, kind = 'blast') {
+  // 12.188 opt (tank topu HE): { he, inner, vehInner, n } — he: iri patlama efekti / sarsıntı + askere uzaklık gövde EKSENİNE (yere düşen mermi ayaktan
+  // ölçülür), görüş çıkışı yüzey normali yönünde 0,3 m (+ yere düşende 0,7 m yukarıdan ikinci çıkış: arazinin kıl payı tümseği parçacığı kesmez),
+  // hasar inner içinde tam → radius'ta 0 (heFalloff), daha güçlü itme. İz (kurum) çevrim içi istemcide de çizilir (eskiden yalnız yetkili tarafta).
+  explode(pos, radius, dmg, owner, name, selfMul, kind = 'blast', opt = null) {
+    const he = !!opt?.he;
     this.effects.explosion(pos, radius);
-    this.sfx.explosion(pos);
-    this.alertNear(pos, owner.team, 90);
+    if (he) this.effects.heBlast?.(pos, opt.n);
+    this.sfx.explosion(pos, he);
+    this.alertNear(pos, owner.team, he ? 140 : 90);
     const dc = pos.distanceTo(this.camera.position);
-    this.effects.shake = Math.max(this.effects.shake, clamp(1 - dc / 35, 0, 1) * 1.1);
+    this.effects.shake = Math.max(this.effects.shake, he ? clamp(1 - dc / 60, 0, 1) * 1.6 : clamp(1 - dc / 35, 0, 1) * 1.1);
+    if (!this.headless) {
+      const dn = new THREE.Vector3(0, -1, 0);
+      const gh = this.world.raycast(new THREE.Vector3(pos.x, pos.y + 1, pos.z), dn, 6, {});
+      if (gh) this.effects.decal(gh.point, gh.normal, true);
+    }
     if (this.online) return;                // hasar sunucuda
-    this.vehicles?.blast(pos, radius, dmg, owner, name, kind);                     // 12.177: araç hasarı (gövdeye en yakın noktadan) · 12.178 kind 'at' = tanksavar (RPG, tank topu)
-    const o = pos.clone(); o.y += 0.3;
+    this.vehicles?.blast(pos, radius, dmg, owner, name, kind, opt);               // 12.177: araç hasarı (gövdeye en yakın noktadan) · 12.178 kind 'at' = tanksavar (RPG, tank topu)
+    const o = pos.clone(); if (opt?.n) o.addScaledVector(opt.n, 0.3); o.y += 0.3;
+    let o2 = null;
+    if (he && !(opt.n && opt.n.y < 0.7)) { o2 = pos.clone(); o2.y += 0.7; if (!this.world.clear(o, o2)) o2 = null; }      // yalnız yere düşen mermide (duvarın / kum torbasının yüzüne çarpan merminin arkası korunur)
+    const W = this.world, inner = opt?.inner;
     for (const e of this.soldiers) {
       if (!e.alive) continue;
       if (e.team === owner.team && e !== owner) continue;
       if (this.vehicles?.hiddenSeat(e)) continue;                                   // 12.178: tank içindeki sürücü zırh arkasında (araçla birlikte ölür)
       const c = e.center(new THREE.Vector3());
-      const d = c.distanceTo(pos);
+      const d = he ? Math.hypot(e.pos.x - pos.x, clamp(pos.y, e.pos.y + 0.15, e.pos.y + e.height - 0.1) - pos.y, e.pos.z - pos.z) : c.distanceTo(pos);
       if (d > radius) continue;
-      if (!this.world.clear(o, c) && !this.world.clear(o, e.eye(_xe))) continue;
-      let a = dmg * (1 - (d / radius) ** 2);
+      const eye = e.eye(_xe);
+      if (!W.clear(o, c) && !W.clear(o, eye)) {
+        if (!he) continue;
+        const kn = (this._xk ||= new THREE.Vector3()).set(e.pos.x, e.pos.y + 0.45, e.pos.z);
+        if (!W.clear(o, kn) && !(o2 && (W.clear(o2, c) || W.clear(o2, eye)))) continue;
+      }
+      const f = inner != null ? heFalloff(d, radius, inner) : 1 - (d / radius) ** 2;
+      let a = dmg * f;
       if (e === owner) a *= selfMul ?? TUNE.selfBlast;
       e.takeDamage(a, owner, 'body', pos, name);
-      e.vel.x += (c.x - pos.x) / (d + 0.5) * 3; e.vel.z += (c.z - pos.z) / (d + 0.5) * 3;
+      const kb = he ? 3 + 4 * f : 3;
+      e.vel.x += (c.x - pos.x) / (d + 0.5) * kb; e.vel.z += (c.z - pos.z) / (d + 0.5) * kb;
     }
-    const dn = new THREE.Vector3(0, -1, 0);
-    const gh = this.world.raycast(new THREE.Vector3(pos.x, pos.y + 1, pos.z), dn, 6, {});
-    if (gh) this.effects.decal(gh.point, gh.normal, true);
   }
 
   // ───── Mod: hedef ele geçirme + bilet ─────
@@ -1951,18 +2019,18 @@ export class Game {
     this.capT -= dt;
     if (this.capT <= 0) {
       const step = 0.1;
-      this.capT = step;
+      this.capT = Math.max(0, this.capT + step);                                   // 12.191 biriktirerek: eskiden "= step" → 60 Hz'de 7 adımda bir (0,117 sn), 30 Hz'de 4 adımda bir; gerçek hız kare hızına bağlıydı, HUD tahmini tutmazdı
       for (const o of this.mode.objectives) {
-        if (this.front && !this.front.capturable(o)) continue;                     // Cephe: yalnız etkin nokta (zincirin geri kalanı kilitli)
         let b = 0, r = 0;
         for (const s of this.soldiers) {
           if (!s.alive) continue;
-          if (Math.hypot(s.pos.x - o.x, s.pos.z - o.z) < o.r && Math.abs(s.pos.y - this.world.heightAt(o.x, o.z)) < 8) (s.team === 'blue' ? b++ : r++);
+          if (this.inObjective(s.pos, o)) (s.team === 'blue' ? b++ : r++);
         }
-        const net = clamp(b - r, -3, 3);
-        if (net !== 0) {
+        o.nb = b; o.nr = r;                                                        // 12.191 alandaki sayılar (HUD + snapshot: istemci aynı sayıyı gösterir)
+        const rate = this.capRate(o);                                              // Cephe: yalnız etkin nokta (zincirin geri kalanı kilitli → 0)
+        if (rate !== 0) {
           const prev = o.owner;
-          o.p = clamp(o.p + net * TUNE.captureRate * (this.front ? this.front.capMul(o) : 1) * step, -1, 1);
+          o.p = clamp(o.p + rate * step, -1, 1);
           if (o.p >= 1 && o.owner !== 'blue') o.owner = 'blue';
           else if (o.p <= -1 && o.owner !== 'red') o.owner = 'red';
           else if (o.owner === 'blue' && o.p <= 0) o.owner = null;
@@ -2012,15 +2080,10 @@ export class Game {
   }
 
   onFlag(o, prev) {
-    const mine = this.playerSoldier?.team;
     if (this.map.big) this.squadT = Math.min(this.squadT, 1);                     // 12.189: bayrak el değişti → cephe görevleri 1 sn içinde yeniden
     this.emit('flag', { o, prev });
     if (this.headless || this.front) return;                                      // Cephe: bildirim front.js'te (cephe kayması)
-    if (o.owner) {
-      const good = o.owner === mine;
-      this.hud.toast($t(good ? 'hud.t.captured' : 'hud.t.lost', { f: placeName(o.name) }), good ? '#7ec8ff' : '#ff8a7a');
-      this.sfx.capture();
-    } else if (prev) this.hud.toast($t('hud.t.neutral', { f: placeName(o.name) }), '#cfd3d8');
+    this.hud.flagEvent?.(o, prev);                                               // 12.191: bildirim ("A — Radar Tepesi ele geçirildi") + öldürme akışı + kazanma / kaybetme sesi (captureHud.js)
   }
 
   // ───── Silah Yarışı ─────
@@ -2161,7 +2224,7 @@ export class Game {
     this.abfx?.dispose();
     this.chat?.dispose();
     this.killfx.dispose();
-    this.hud.dispose();
+    this.hud.dispose(); this.objFx?.dispose();
     this.sfx.dispose?.();
     this.post?.dispose();
     this.renderer.dispose();

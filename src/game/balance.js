@@ -12,7 +12,8 @@ export const TUNE = {
   medicHeal: 2.5, medicRadius: 6, resupply: 0.12, reviveHp: 0.55,
   // 12.164 penWalls (0 / 1, varsayılan KAPALI): delen silah (stats.js PEN) en çok 1 ince levhadan (en ince boyutu ≤ penThick m; çit, tahta, sac) geçer, arkasında hasar × penWallMul
   headMul: 2.1, legMul: 0.8, woodMul: 0.65, penWalls: 0, penThick: 0.12, penWallMul: 0.6, backstab: BACKSTAB_DMG, selfBlast: 0.55,
-  captureRate: 0.085, bleed: BLEED_S,
+  captureRate: 0.073, bleed: BLEED_S,
+  // 12.191 captureRate 0,085 → 0,073: ele geçirme sayacı artık kare hızından bağımsız (game.updateMode); sunucudaki (60 Hz) eski etkin hız 0,085 × 6/7 ≈ 0,073 korunur
   sightDay: 130, sightSunset: 105, sightNight: 62,
   plSpeed: 1.0, plCrowd: 0.25, plRadius: 3.5, plBackDelay: 20, plBackSpeed: 0.35, plBonus: 120, plOverGrace: 1.5, plSupply: 0.08, plAtkRespawn: 1.0, plDefRespawn: 0.75,   // Vagon modu: taban hız (m/sn), ek iten başına +%, itme yarıçapı, geri kayma bekleme / hız, kontrol noktası süre ödülü, uzatma payı, vagon yanı ikmal, doğma süresi çarpanı (12.150: botlar vagonu gerçekten oynayınca saldıran 1,0 / savunan 0,75 — savunan doğuşu raydan uzak)
   spaceGrav: 0.36, spaceJump: 0.86, spaceAir: 3.4,                  // 12.157 Uzay modu: yer çekimi çarpanı (Dünya'nın ~1/3'ü), zıplama hızı çarpanı (zirve ≈ 2 m, havada ≈ 1,7 sn), havada yön denetimi (normal 2,2)
@@ -126,7 +127,7 @@ export function balanceSections() {
         f('mode.maxPerTeam', 'Takım başına en çok oyuncu', 1, 32), f('mode.dmMax', 'Ölüm maçı / silah yarışı en çok', 2, 16),
         f('mode.dmKills', 'Ölüm maçı öldürme hedefi', 5, 200), f('mode.infMin', 'Enfekte en az oyuncu', 2, 24, 2), f('mode.infMax', 'Enfekte en çok oyuncu', 4, 32, 2),
         f('mode.pbKills', 'Paintball eleme hedefi', 5, 200), f('mode.pbMin', 'Paintball en az oyuncu', 2, 12), f('mode.pbMax', 'Paintball en çok oyuncu', 2, 16),
-        f('mode.time', 'Varsayılan maç süresi', 60, 3600, 30, 'sn'), f('tune.captureRate', 'Bayrak ele geçirme hızı', 0.01, 0.5, 0.005), f('tune.bleed', 'Bilet kanaması aralığı', 1, 60, 1, 'sn')] },
+        f('mode.time', 'Varsayılan maç süresi', 60, 3600, 30, 'sn'), f('tune.captureRate', 'Bayrak ele geçirme hızı', 0.01, 0.5, 0.001), f('tune.bleed', 'Bilet kanaması aralığı', 1, 60, 1, 'sn')] },
       { id: 'pbpickups', name: 'Paintball kutuları', preview: { kind: 'icon', icon: 'first-aid-kit' }, fields: [
         f('tune.pbAmmoRespawn', 'Boya topu kutusu yeniden belirme', 3, 120, 1, 'sn'), f('tune.pbHealthRespawn', 'Can kutusu yeniden belirme', 3, 120, 1, 'sn'), f('tune.pbHeal', 'Can kutusunun verdiği can', 5, 100, 5, 'can')] },
       { id: 'payload', name: 'Vagon', preview: { kind: 'icon', icon: 'flag' }, fields: [

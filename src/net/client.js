@@ -9,7 +9,7 @@ import { fallHeight } from '../sim/fall.js';
 import { packVehState, applyVehState, stepVehicle } from '../sim/vehicle.js';
 
 // Diğer oyuncuların gösterim gecikmesi (interpolasyon tamponu) ağın titremesine göre uyarlanır (12.137):
-// en az 6 adım = 100 ms (20 Hz snapshot'ta iki örnek arası), titreşimli bağlantıda en çok 15 adım = 250 ms (lag compensation HN=40 içinde).
+// en az 6 adım = 100 ms (20 Hz snapshot'ta iki örnek arası), titreşimli bağlantıda en çok 15 adım = 250 ms (lag compensation HN=60 içinde; 12.187).
 // Canlı ölçüm: doğrudan bağlantıda (RTT p50 30 ms) snapshot'ların %8'i en hızlı gelişe göre > 50 ms geç → sabit 100 ms tamponda saniyede ~1 donma.
 const INTERP_MIN = 6, INTERP_MAX = 15;
 const EXTRAP_MAX = 6;                  // tampon yine de boşalırsa en çok 100 ms hızla ileri tahmin (sonra son konumda bekler)
@@ -107,9 +107,10 @@ export class NetClient {
       ve: e.ve ? 1 : undefined, vs: e.vs || undefined, vl: e.vl ? 1 : undefined,    // 12.177 araç kenar olayları (yalnız basılınca)
       dn: inp.dn ? 1 : undefined,                                                    // 12.179 helikopter: alçal (C / Ctrl basılı)
       co: s.shotOff ? [+s.shotOff.x.toFixed(2), +s.shotOff.y.toFixed(2), +s.shotOff.z.toFixed(2)] : undefined,
+      gy: s.gunAim ? +s.gunAim.y.toFixed(4) : undefined, gp: s.gunAim ? +s.gunAim.p.toFixed(4) : undefined,      // 12.188 tank: topun hedef yönü (artının gösterdiği noktaya balistik çözüm)
     });
     const fire = !!(fireHeld || e.fp || e.rl);
-    this.hist.push({ q, fire, inp: { f: inp.f, r: inp.r, lean: inp.lean, sprint: !!inp.sprint, jump: !!inp.jump, dive: !!inp.dive, dn: !!inp.dn }, ads: !!s.ads, adsT: s.adsT, yaw: s.yaw, pitch: s.pitch, e, st: { x: s.pos.x, y: s.pos.y, z: s.pos.z } });
+    this.hist.push({ q, fire, gy: s.gunAim?.y, gp: s.gunAim?.p, inp: { f: inp.f, r: inp.r, lean: inp.lean, sprint: !!inp.sprint, jump: !!inp.jump, dive: !!inp.dive, dn: !!inp.dn }, ads: !!s.ads, adsT: s.adsT, yaw: s.yaw, pitch: s.pitch, e, st: { x: s.pos.x, y: s.pos.y, z: s.pos.z } });
     if (this.hist.length > 240) this.hist.shift();
   }
 
@@ -183,7 +184,9 @@ export class NetClient {
     if (m.pl && g.payload) g.payload.applyNet(m.pl);                           // Vagon: konum + durum (gösterim netFrame'de yumuşar)
     if (m.fr && g.front) g.front.applyNet(m.fr);                               // Cephe: etkin sektör (doğuş aşaması + şerit)
     if (m.vh && g.vehicles) g.vehicles.netSnap(m.k, m.vh);                     // 12.177: değişen araçlar (araç başına tampon; gösterim interpolate'te)
-    m.o.forEach((o, i) => { const ob = g.mode.objectives[i]; if (!ob) return; const prev = ob.owner; ob.owner = o[0] === 1 ? 'blue' : o[0] === 2 ? 'red' : null; ob.p = o[1]; if (ob.owner !== prev) g.onFlag?.(ob, prev); });
+    // 12.191 bayraklar: [sahip, ilerleme, alandaki Mavi, Kırmızı]; ilk snapshot (geç katılım) bildirim / ses çıkarmaz, yalnız durumu kurar
+    const first = !this._oSeen, at = performance.now(); this._oSeen = true;
+    m.o.forEach((o, i) => { const ob = g.mode.objectives[i]; if (!ob) return; const prev = ob.owner; ob.owner = o[0] === 1 ? 'blue' : o[0] === 2 ? 'red' : null; ob.p = o[1]; ob.nb = o[2] || 0; ob.nr = o[3] || 0; ob._at = at; if (first) ob.pd = ob.p; else if (ob.owner !== prev) g.onFlag?.(ob, prev); });
     this.reconcile(m.me);
   }
 
@@ -342,7 +345,7 @@ export class NetClient {
     const bx = v.st.x, by = v.st.y, bz = v.st.z;
     applyVehState(v.st, b);
     for (const h of this.hist) {
-      stepVehicle(v.st, { f: h.inp.f, r: h.inp.r, b: h.inp.jump, u: h.inp.jump, d: h.inp.dn, yw: h.yaw, pt: h.pitch }, SIM_DT, g.world);      // 12.178: kule hedefi o girdideki bakış
+      stepVehicle(v.st, { f: h.inp.f, r: h.inp.r, b: h.inp.jump, u: h.inp.jump, d: h.inp.dn, yw: h.gy ?? h.yaw, pt: h.gp ?? h.pitch }, SIM_DT, g.world);      // 12.178: kule hedefi o girdideki bakış
       h.vst = packVehState(v.st);
     }
     g.vehicles.place(s);
@@ -368,6 +371,7 @@ export class NetClient {
     const t = b.k > a.k ? Math.max(0, Math.min(1, (rt - a.k) / (b.k - a.k))) : 0;
     // tampon boşaldı (snapshot geç kaldı): son hızla en çok EXTRAP_MAX adım ileri tahmin; yerdeyken dikey tahmin yok
     const last = S[S.length - 1], over = a === last ? rt - last.k : 0, ex = over > 0 ? Math.min(over, EXTRAP_MAX) / SIM_HZ : 0;
+    if (over > EXTRAP_MAX) this.rt = last.k + EXTRAP_MAX;             // 12.187: bekleme anında ekranda görünen an (son + 100 ms ileri tahmin) atışta vt olarak gider; eski: rt ilerlemeye devam ediyordu → sunucu hedefi görünmeyen bir ana sarıyordu
     this.stats.frames++;
     if (over > 0) { this.stats.extrap++; if (over > EXTRAP_MAX) this.stats.hold++; }
     const me = g.playerSoldier;

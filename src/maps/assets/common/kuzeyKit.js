@@ -48,3 +48,36 @@ export function addDoor(b, x, z, ry, y, lx, lz, nlx, nlz) {
   const pts = [-1.2, -0.4, 0, 0.6, 1.4].map((t) => lw(x, z, ry, lx + nlx * t, lz + nlz * t));
   ctxAdd(b, 'doors', { y, pts: pts.map(([a, c]) => [+a.toFixed(2), +c.toFixed(2)]) });
 }
+
+// 12.184 tel (sarkık doğru, kuzey.js makeFx ile aynı eğri) o ana kadar kurulmuş bir çarpışma kutusunun içinden geçiyor mu (ev / ahır / çatı).
+// cs: ChunkSet (yalnız telin geçtiği yığınlara bakar); uçlardaki 0,6 m (direğin kendisi) sayılmaz.
+export function wireClear(cs, a, b, sag) {
+  const L = Math.hypot(b[0] - a[0], b[2] - a[2]), n = Math.max(2, Math.ceil(L / 0.5)), seen = new Set();
+  const cols = [];
+  for (let i = 0; i <= 4; i++) { const t = i / 4, k = cs.key(a[0] + (b[0] - a[0]) * t, a[2] + (b[2] - a[2]) * t); if (seen.has(k)) continue; seen.add(k); const c = cs.map.get(k); if (c) cols.push(...c.b.colliders); }
+  for (let i = 1; i < n; i++) {
+    const t = i / n; if (t * L < 0.6 || (1 - t) * L < 0.6) continue;
+    const x = a[0] + (b[0] - a[0]) * t, z = a[2] + (b[2] - a[2]) * t, y = a[1] + (b[1] - a[1]) * t - 4 * sag * L * t * (1 - t) * 0.5;
+    for (const c of cols) if (x > c.min[0] - 0.1 && x < c.max[0] + 0.1 && z > c.min[2] - 0.1 && z < c.max[2] + 0.1 && y > c.min[1] - 0.1 && y < c.max[1] + 0.5) return false;
+  }
+  return true;
+}
+
+// 12.184 kapı önü taş basamakları (b.with(x, y0, z, ry) içinde, yerel koordinat): kapı yerel (at, face) noktasında +z'ye bakar, genişlik w.
+// Basamak 0,36 m derin, en çok 0,4 m rıht; her basamağın altı kendi ayak izindeki en alçak arazinin 0,3 m altına iner (havada köşe yok); arazi basamak
+// tepesinin 0,4 m altına yaklaşınca biter (son rıht ≤ 0,4 m). Döşeme arazinin ≤ 0,4 m üstündeyse basamak yok.
+export function doorSteps(b, Tr, x, z, ry, y0, at, face, w, color, kind) {
+  const run = 0.36, gAt = (lz) => { const [ax, az] = lw(x, z, ry, at - w / 2, lz - run / 2), [bx, bz] = lw(x, z, ry, at + w / 2, lz + run / 2); return footY(Tr, Math.min(ax, bx), Math.max(ax, bx), Math.min(az, bz), Math.max(az, bz)); };
+  const gC = (lz) => Tr.heightAt(...lw(x, z, ry, at, lz)) - y0;              // kapı ekseninde arazi (yerel kot)
+  const hd = -gC(face + run / 2);
+  if (hd <= 0.4) return 0;
+  const n = Math.ceil(hd / 0.4), rise = hd / n;
+  let k = 1;
+  for (; k < 12; k++) {
+    const lz = face + (k - 0.5) * run, top = -k * rise, f = gAt(lz), g = gC(lz);
+    if (g >= top - 0.02) break;                                              // arazi basamağa ulaştı
+    b.box(at, f.min - 0.3 - y0, lz, w, top - (f.min - 0.3 - y0), run, color, { kind });
+    if (top - Math.max(g, gC(lz + run)) <= 0.4) break;                       // buradan araziye ≤ 0,4 m
+  }
+  return k;
+}

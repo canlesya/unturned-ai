@@ -8,7 +8,7 @@
 // durduran kutular: zeminden > 0,65 m, < 2,6 m'de başlayan; dik yamaç > ~32°, derin su) → uzaklık dönüşümü → her hücrenin en yakın engele
 // (yamaç kenarı dahil: yol seti) açıklığı. Maliyet: asfalt / toprak yol 1, banket 1,4, arazi 2,4 + eğim; engele yakın hücre pahalı. A* (ağırlıklı) jip 1,6 m, tank
 // 2,3 m açıklık ister (tank köy sokaklarına girmez). Rota 3 m'lik noktalar; sürüş ileri bakışlı izleme (pure pursuit).
-import { mgAt, gunPose, toLocal2 } from '../sim/vehicle.js';
+import { mgAt, gunPose, toLocal2, toWorld } from '../sim/vehicle.js';
 import { clamp, rand, angleDiff, yawFromDir } from './util.js';
 import * as THREE from 'three';
 
@@ -30,7 +30,7 @@ export const VBOT = {
     hard: { err: 0.01, lead: 0.85, cd: 0.8, react: [0.6, 1.0], range: 220, inf: { err: 1.6, cd: 1.5, range: 150 } },
   },
 };
-const _o = { x: 0, y: 0, z: 0 }, _d = { x: 0, y: 0, z: 0 }, _e = new THREE.Vector3(), _t = new THREE.Vector3();
+const _o = { x: 0, y: 0, z: 0 }, _d = { x: 0, y: 0, z: 0 }, _cp = { x: 0, y: 0, z: 0 }, _cd = { x: 0, y: 0, z: 0 }, _gs = {}, _e = new THREE.Vector3(), _t = new THREE.Vector3();
 // ölçüm sayaçları (testler okur: g.vbStats)
 const stat = (g) => (g.vbStats ||= { enter: 0, exit: {}, rev: 0, plans: 0, planMs: 0, planMax: 0, fail: 0, shots: 0, arrive: 0 });
 const kindOf = (v) => (v.def.heli ? 'heli' : v.def.cannon ? 'tank' : 'jip');
@@ -452,14 +452,17 @@ function tankGun(b, dt, inp) {
   if (!tg) { inp.yw = yawFromDir(-Math.sin(st.yaw), -Math.cos(st.yaw)); inp.pt = 0.02; return; }
   const p = tg.s ? tg.s.center(_t) : _t.set(tg.v.st.x, tg.v.st.y + tg.v.def.top * 0.55, tg.v.st.z);
   const tv = tg.s ? tg.s.vel : { x: tg.v.st.vx, z: tg.v.st.vz };
+  // 12.188 API: Vehicles.gunAimFor (oyuncunun artısıyla aynı balistik çözüm: kule ekseninden hedef noktasına düşük yay) — hedef noktası öncülü;
+  // asker: gövdesi (12.188 HE iç yarıçap 3 m + 1,3 m yakın geçiş tapası: gövdeye nişan en etkili), araç: gövdenin ortası
   gunPose(st, _o, _d);
-  let dx = p.x - _o.x, dz = p.z - _o.z;
-  const D0 = Math.hypot(dx, dz), tof = D0 / c.speed;
-  dx += tv.x * tof * G.lead; dz += tv.z * tof * G.lead;
-  const D = Math.hypot(dx, dz), dy = (tg.s ? tg.s.pos.y - 0.25 : p.y) - _o.y;          // asker: ayağının dibindeki zemine (yandan ıskalayan mermi yokuş aşağı uçup uzağa düşmesin, yanında patlasın)
-  const drop = Math.atan((c.grav * D) / (2 * c.speed * c.speed));
-  inp.yw = yawFromDir(dx, dz) + vd.err[0];
-  inp.pt = Math.atan2(dy, D) + drop + vd.err[1];
+  const D0 = Math.hypot(p.x - _o.x, p.z - _o.z), tof = D0 / c.speed;
+  const ax = p.x + tv.x * tof * G.lead, az = p.z + tv.z * tof * G.lead, ay = p.y - (tg.s ? 0.2 : 0);
+  const tu = v.def.turret, co = toWorld(st, tu.f, 0, tu.pivot, _cp), L = Math.hypot(ax - co.x, ay - co.y, az - co.z) || 1;
+  _cd.x = (ax - co.x) / L; _cd.y = (ay - co.y) / L; _cd.z = (az - co.z) / L;
+  const sol = g.vehicles.gunAimFor(v, co, _cd, s, _gs);
+  const dx = ax - _o.x, dz = az - _o.z, D = Math.hypot(dx, dz) || 1;
+  inp.yw = sol.y + vd.err[0];
+  inp.pt = sol.p + vd.err[1];
   vd.react -= dt;
   // ateş: dolum + ek bekleme bitti, kule hedefte, açı top sınırında
   const yerr = Math.abs(angleDiff(st.tyaw, inp.yw)), perr = Math.abs(st.gp + st.pitch * Math.cos(st.tyaw - st.yaw) - inp.pt);
@@ -590,6 +593,9 @@ function heliDrive(b, dt, inp) {
     if ((vd.landFor = (vd.landFor || 0) + dt) > 40 && !st.air) { vbExit(b, 'indi'); return; }
     V.drive(v, inp, dt); return;
   }
+  // 12.188 pilot silahları: yörüngede / bayrağa yaklaşırken arada bir saldırı dalışı (burun topu + araca / kalabalığa roket)
+  if ((vd.state === 'orbit' || (vd.state === 'cruise' && o && Math.hypot(st.x - o.x, st.z - o.z) < 260)) && heliAttack(b, dt, inp, gnd)) { V.drive(v, inp, dt); return; }
+  else V.mgFire(s, false, dt);                                          // tetik bırakıldı: burun topu soğur
   // seyir / yörünge: burun hedefe, hız açıya göre, irtifa ileri bakışla
   const dx = tx - st.x, dz = tz - st.z, D = Math.hypot(dx, dz) || 1;
   inp.yw = yawFromDir(dx, dz);
@@ -603,4 +609,53 @@ function heliDrive(b, dt, inp) {
   // ilerleme: 45 sn'de hedefe 30 m yaklaşmadıysa (yörünge hariç) üsse dön
   if (vd.state === 'cruise') { vd.progT = (vd.progT || 0) + dt; if (D < (vd.prog ?? 1e9) - 30) { vd.prog = D; vd.progT = 0; } if (vd.progT > 45) vd.state = 'rtb'; }
   V.drive(v, inp, dt);
+}
+
+// Saldırı dalışı (12.188 burun topu sabit: burnun yönünde −0,05 rad; roket de burnun yönünde): görünen düşman (önce araç, sonra 2+ asker kümesi,
+// sonra tek asker) 70–230 m'de → burun ona döner, gerekli dalış açısı kadar ileri basılır (helikopterin burun eğimi ileri girdisiyle), burun hedefe
+// oturunca burun topu basılı (zorluk saçılması), araç / kalabalıkta roket. En çok 6 sn; zeminden 22 m altına inmez; sonraki dalış 12–20 sn sonra.
+const _he = new THREE.Vector3(), _ht = new THREE.Vector3();
+function heliAttack(b, dt, inp, gnd) {
+  const s = b.s, g = b.game, V = g.vehicles, v = s.veh, st = v.st, vd = b.vd, N = v.def.nose, RK = v.def.rockets;
+  if (!N) return false;
+  const agl = st.y - gnd;
+  if (!vd.atk) {
+    if (g.time < (vd.atkNext ?? (vd.atkNext = g.time + rand(4, 10))) || agl < 26) return false;
+    vd.atkNext = g.time + 1.5;
+    const eye = _he.set(st.x, st.y + 0.6, st.z);
+    let best = null, bs = 1e9;
+    for (const o of V.list) {
+      if (!o.alive || !o.st || o === v || o.def.heli) continue;
+      const tm = V.teamOf(o); if (!tm || tm === s.team || !o.seats.some(Boolean)) continue;
+      const d = Math.hypot(o.st.x - st.x, o.st.z - st.z); if (d < 70 || d > 230) continue;
+      if (!g.botSees(eye, _ht.set(o.st.x, o.st.y + 1, o.st.z))) continue;
+      const sc = d - 120; if (sc < bs) { bs = sc; best = { v: o }; }
+    }
+    for (const e of g.soldiers) {
+      if (!e.alive || e.team === s.team || e.veh || e.protT > 0.5) continue;
+      const d = Math.hypot(e.pos.x - st.x, e.pos.z - st.z); if (d < 70 || d > 230) continue;
+      if (!g.botSees(eye, e.center(_ht))) continue;
+      let n = 0; for (const q of g.soldiers) if (q.alive && q.team === e.team && Math.hypot(q.pos.x - e.pos.x, q.pos.z - e.pos.z) < 7) n++;
+      const sc = d - (n >= 2 ? 60 : 0); if (sc < bs) { bs = sc; best = { s: e, n }; }
+    }
+    if (!best) return false;
+    vd.atk = { ...best, t: 0, react: rand(0.4, 0.9) * (b.dk === 'easy' ? 1.8 : b.dk === 'hard' ? 0.7 : 1) };
+  }
+  const A = vd.atk;
+  A.t += dt;
+  const tp = A.v ? (A.v.alive ? _ht.set(A.v.st.x, A.v.st.y + 0.8, A.v.st.z) : null) : (A.s.alive && !A.s.veh ? A.s.center(_ht) : null);
+  const D = tp ? Math.hypot(tp.x - st.x, tp.z - st.z) : 0;
+  if (!tp || A.t > 6 || D < 55 || agl < 22 || v.hp < v.def.hp * HELI.rtbHp) { vd.atk = null; vd.atkNext = g.time + rand(12, 20); V.mgFire(s, false, dt); return false; }
+  const dx = tp.x - st.x, dz = tp.z - st.z;
+  inp.yw = yawFromDir(dx, dz);
+  const want = Math.atan2(tp.y - (st.y + 0.7), D) - (N.dp || 0);      // gereken burun eğimi (aşağı −)
+  const ye = Math.abs(angleDiff(st.yaw, inp.yw)), pe = st.pitch - want;
+  inp.f = ye > 0.4 ? 0.05 : clamp(-want / 0.22, 0.1, 1);              // ileri girdi burnu eğer (stepHeli: −0,2 · f)
+  if (st.y - gnd < 30) inp.u = true;
+  s.botExtraSpread = b.d.err * 0.45;
+  A.react -= dt;
+  const on = A.react <= 0 && ye < 0.035 + 2 / (D + 20) && Math.abs(pe) < 0.05;
+  V.mgFire(s, on && !s.vhot, dt);
+  if (on && RK && (A.v || A.n >= 2) && (vd.rkT = (vd.rkT || 0) - dt) <= 0) { if (V.fireRocket(v, s)) vd.rkT = b.dk === 'hard' ? 0.25 : b.dk === 'easy' ? 0.9 : 0.45; }
+  return true;
 }

@@ -146,6 +146,18 @@ export class Effects {
     this.shake = Math.max(this.shake, 0.6);
   }
 
+  // 12.188 tank topu (HE) ek efekti: yerden fışkıran toprak sütunu + iri toz bulutu (yavaş yükselir) + yere yayılan toz halkası + kıvılcım saçması.
+  // explosion()'ın üstüne; n: yüzey normali (duvara / araca isabette saçma o yöne)
+  heBlast(p, n) {
+    const up = n && n.y > 0.4 ? n : _UP, k = Math.min(2.2, this._far(p) * 0.6 + 0.6);
+    for (let i = 0; i < 22; i++) this._part(p, i % 3 ? '#5a4632' : '#3b2f22', rand(0.12, 0.3) * k, up, rand(9, 15), rand(0.9, 1.5), 15);
+    for (let i = 0; i < 12; i++) this._part(p, i % 2 ? '#8a7b66' : '#6f6556', rand(0.6, 1.1) * k, up, rand(2, 4), rand(1.8, 2.6), -0.6);
+    for (let i = 0; i < 14; i++) { const a = (i / 14) * Math.PI * 2; this._part(p, '#9a8b73', rand(0.35, 0.6) * k, (this._hv ||= new THREE.Vector3()).set(Math.cos(a), 0.05, Math.sin(a)), rand(7, 10), rand(0.7, 1.1), 1); }
+    if (n && n.y <= 0.4) for (let i = 0; i < 10; i++) this._part(p, '#ffd27a', rand(0.06, 0.12) * k, n, rand(8, 13), rand(0.3, 0.5), 9);
+    this.boom.userData.life = this.boom.userData.max * 1.4;
+    this.shake = Math.max(this.shake, 0.8);
+  }
+
   _remove(arr, i) {
     const m = arr[i];
     this.scene.remove(m);
@@ -170,7 +182,8 @@ export class Effects {
       if ((u.life -= dt) <= 0) { this._remove(this.parts, i); continue; }
       u.v.y -= u.grav * dt * (this.gravMul ?? 1);                   // 12.157: Uzay modunda parçacıklar da yavaş düşer
       m.position.addScaledVector(u.v, dt);
-      if (m.position.y < 0.02) { m.position.y = 0.02; u.v.multiplyScalar(0.3); u.v.y = 0; }
+      const gy = this.groundAt && u.v.y < 0 ? this.groundAt(m.position.x, m.position.z) + 0.02 : 0.02;
+      if (m.position.y < gy) { m.position.y = gy; u.v.multiplyScalar(0.3); u.v.y = 0; }
       m.scale.multiplyScalar(1 - dt * 0.6);
     }
     for (let i = this.explosions.length - 1; i >= 0; i--) {
