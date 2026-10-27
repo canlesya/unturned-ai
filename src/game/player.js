@@ -9,7 +9,9 @@ import { tintPaint } from '../models/paintball.js';
 import { paintColorOf } from './paint.js';
 import { TEAMS } from '../core/palette.js';
 import { WSTATS, OPTICS, OPTIC_ALLOWED, ZT_ORDER } from './stats.js';
-import { reloadAnim, meleePose, SWING_HIT_K } from './anim.js';
+import { meleePose, SWING_HIT_K } from './anim.js';
+import { reloadPlan, reloadMode } from './reloadPlan.js';
+import { reloadGeo, blendPoint, brkPoint, itemOff } from './reloadGeo.js';
 import { fpHand, handBasis, zombieColors } from '../models/fpHands.js';
 import { box } from '../core/geo.js';
 import { clamp, lerp, V3, adsEase, ADS_HUD, zoomFov, SCOPE_ON } from './util.js';
@@ -35,7 +37,10 @@ const ADS_FOV = 40;      // taslak (BattleBit): nişanda silah kamerası daralı
 // El = eldiven renkli kutu + gömlek renkli kol kutusu (silaha bağlı, silah yerelinde); yakın dövüş = sapı saran kutu yumruk. Zombi pençesi: organik yol (fpHands, ayrı kol, morph).
 const Z = new THREE.Vector3(0, 0, 1);
 const REST_L = new THREE.Vector3(-0.2, -0.3, 0.2);      // sol el dinlenme (kullanılmıyorsa ekran dışı)
-const POUCH_VM = new THREE.Vector3(-0.3, -0.34, 0.3);   // yelek şarjör cebi (silah yerelinde)
+// 12.195 yükleme: cep / dirsekler kamera uzayında (sağ el; sol el modunda aynalanır). Cep ekranın sol altının dışında (el orada görünmez)
+const POUCH_CAM = new THREE.Vector3(-0.2, -0.6, -0.2), ELBOW_L = new THREE.Vector3(-0.3, -0.52, -0.2), ELBOW_R = new THREE.Vector3(0.3, -0.5, -0.18);
+const RL_TILT = { p90: -0.22, rpg: 0, pbpistol: 0, ww_mg: 0.2 };                 // şarjör elde çekilirken eğilme (rad; dik şarjörde 0,3)
+const _rlInv = new THREE.Matrix4(), _rlH = new THREE.Vector3(), _rlH2 = new THREE.Vector3(), _rlE = new THREE.Vector3(), _rlV = new THREE.Vector3(), _X = new THREE.Vector3(1, 0, 0), ZERO3 = new THREE.Vector3();
 // Yakın dövüş bekleme duruşu, silaha göre (12.131, Unturned): bıçak = kutu yumruk sağ-altta, ağız ileri-sola yatık · satır = yukarı-sola eğik kılıç · tomahawk = sap sağ-alttan çapraz, baş yukarıda
 export const MELEE_IDLE = {
   knife: { pos: [0.15, -0.15, -0.38], rx: 0.28, ry: 0.68, rz: -1.3 },
@@ -221,6 +226,7 @@ export class ViewModel {
   setItem(id, team, kind, optic, skin, wskin = 'std') {
     for (const a of this.arms || []) { this.cam.remove(a.mesh); a.mesh.geometry.dispose(); }
     this.arms = [];
+    this.clearDrops();
     if (this.model) { const own = this.model.userData.ownMat; this.root.remove(this.model); this.model.traverse((o) => { o.geometry?.dispose(); const mt = o.material; if (mt && !Array.isArray(mt) && (own || (mt.userData.skinMat && !mt.userData.shared))) mt.dispose(); }); }      // setFade kopyaları + modele özel kaplama malzemesi
     this.id = id;
     this.raise = 1; this.slideT = 9; this.cylA = this.cylTo = 0; this.rk.K = this.rk.Kv = this.rk.S = this.rk.Sv = 0;
@@ -313,6 +319,7 @@ export class ViewModel {
       this.handL = (kind === 'gun' || kind === 'launcher') ? hand(this.hLfg || REST_L, -1) : null;
       if (this.handL && !this.hLfg) this.handL.visible = false;
     }
+    this.hRgrip = gunK && this.handR ? this.handR.position.clone() : null;      // 12.195: sağ elin kabza yeri (sürgü çekerken oradan ayrılır)
     g.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
     this.model = g;
     this.root.add(g);
@@ -392,11 +399,20 @@ export class ViewModel {
     }
 
     // yeniden doldurma ilerlemesi
+    // 12.195: reloadPlan (CS2 düzeni) — el adlandırılmış noktalar arasında gezer, şarjör ele bağlı; bitince (ya da fişekte ateşle kesilince) son pozdan 0,22 sn'de yerine döner
     let ra = null;
+    const rlMode = isGun ? reloadMode(this.id, st) : null;
     if (s.reloadT > 0 && isGun) {
-      const el = s.reloadTotal - s.reloadT;
-      ra = reloadAnim(s.reloadStyle, clamp(el / s.reloadTotal, 0, 1), s.reloadEmpty, s.reloadStyle === 'shell' ? ((el / st.shell) % 1 + 1) % 1 : 0);
-    }
+      const el = s.reloadTotal - s.reloadT, sh = rlMode === 'shell';
+      ra = reloadPlan(rlMode, clamp(el / s.reloadTotal, 0, 1), s.reloadEmpty, sh ? ((el / st.shell) % 1 + 1) % 1 : 0, sh ? st.shell / s.reloadTotal : 0.2);
+      this.rlOut = 1;
+    } else if (isGun && this.rlOut > 0 && this.rlLast) {
+      this.rlOut = Math.max(0, this.rlOut - dt / 0.22);
+      const e = this.rlOut * this.rlOut * (3 - 2 * this.rlOut), L = this.rlLast;
+      ra = { mode: L.mode, post: e, act: L.act * e, tilt: L.tilt * e, lift: L.lift * e, slap: 0, L: null, R: null, ch: 0, bolt: L.bolt * e, brk: L.brk * e, cyl: L.cyl * e, lid: L.lid * e, slide: 0, mag: 'gun', item: null };
+      if (this.rlOut <= 0) this.rlLast = null;
+    } else this.rlOut = 0;
+    if (ra && !ra.post) this.rlLast = ra;
 
     // sprint (bıçakta yukarıda tutulur; yüklerken sprint pozu azalır)
     const sp = s.sprinting ? 1 : 0;
@@ -455,46 +471,36 @@ export class ViewModel {
     this.boltK = boltK;
     if (p.scopeOn && boltK > 0) { camRoll += boltK * 0.035 * (this.game.leftHand ? -1 : 1); camPitch -= boltK * 0.012; }      // 12.153: dürbünde kalınır; sürgü çekilirken görüş hafif yatar / iner (HUD'da dürbün halkası kayar), atış zaten bekleme süresinde
     if (u.bolt) { const bb = ra ? ra.bolt : boltK; u.bolt.g.position.set(0, u.bolt.pivot, bb * 0.085); u.bolt.g.rotation.z = u.boltSlide ? 0 : bb * 0.9; }      // boltSlide (12.158): kurma kolu yalnız kayar
-    // şarjör alt grubu
-    if (u.mag) {
-      const ax = u.magAxis || [0, -1, 0], off = ra ? ra.magOut * 0.24 : 0;
-      u.mag.visible = ra ? ra.magVis : !u.magHidden && !(u.pingEmpty && s.item?.mag === 0);      // magHidden (12.158): şerit klips yalnız doldururken; pingEmpty: yarı otomatikte boş klips fırlamış
-      u.mag.position.set(ax[0] * off, ax[1] * off, ax[2] * off);
-      u.mag.rotation.x = ra ? -ra.magOut * 0.35 : 0;
-    }
     // 12.141 tabanca sürgüsü: atışta 14 ms'de geri, 24 ms'ye dek bekler, 70 ms'de önde; son mermide geride kilitli kalır. Boş doldurmada şarjör takılınca (%64) öne fırlar (+ küçük sarsıntı)
     if (u.slide && fe) {
       const sl = u.slide;
       if (sl.kind === 'cyl') {                                                  // revolver: silindir atıştan 35 ms sonra 60° döner
         if (this.slideT > 0.035) this.cylA += (this.cylTo - this.cylA) * Math.min(1, dt * 26);
         sl.g.rotation.z = -this.cylA;
+        const cg = ra?.cyl ? reloadGeo(u, this.id, rlMode).cyl : null, ct = ra?.cyl || 0;      // 12.195: doldururken silindir sola açılır
+        sl.g.position.set(cg ? cg.out.x * ct : 0, sl.pivot + (cg ? cg.out.y * ct : 0), 0);
       } else {
         const t = this.slideT, it = s.item;
         let x = t < 0.014 ? t / 0.014 : t < 0.024 ? 1 : 1 - (1 - (1 - clamp((t - 0.024) / 0.046, 0, 1)) ** 3);
         let lock = !!it && it.mag <= 0 && st.mag > 0;
-        if (ra) { const kR = clamp((s.reloadTotal - s.reloadT) / s.reloadTotal, 0, 1); lock = s.reloadEmpty && kR < 0.64; if (s.reloadEmpty && kR >= 0.64) x = Math.max(x, 1 - clamp((kR - 0.64) / 0.035, 0, 1)); }
+        if (ra && !ra.post) { lock = s.reloadEmpty && ra.slide >= 1; if (s.reloadEmpty) x = Math.max(x, ra.slide); }      // 12.195: boşta sürgü şarjör oturduktan sonra (plan.slide) öne fırlar
         if (lock) x = t < 0.014 ? Math.max(x, this.slideX) : 1;
         if (this._slLock && !lock && ra) this.fireFeel(s, 0.35);              // sürgü bırakıldı: tok "çak"
         this._slLock = lock; this.slideX = x;
         sl.g.position.z = x * sl.travel;
       }
     }
-    // sol el
-    if (this.handL) {
-      if (ra) {
-        this.handL.visible = true;
-        const fg = this.hLfg || REST_L;
-        const mg = u.magPos ? u.magPos.clone().add(new THREE.Vector3(0, -0.02, 0)) : new THREE.Vector3(0, -0.03, -0.03);
-        if (u.mag && ra.magOut > 0 && ra.w.mag > 0.4) mg.addScaledVector(new THREE.Vector3(...(u.magAxis || [0, -1, 0])), ra.magOut * 0.24);
-        const ch = u.chargePos ? new THREE.Vector3(...u.chargePos) : new THREE.Vector3(0.02, 0.07, -0.09);
-        const w = fe ? { ...ra.w, fg: ra.w.fg + ra.w.charge, charge: 0 } : ra.w;      // 12.141 tabanca: kol şarjı yok (sürgü bırakma: şarjör takılınca sürgü öne fırlar, sol el ekranın altına iner — eski kol ekranı kaplıyordu)
-        this.handL.position.set(0, 0, 0).addScaledVector(fg, w.fg).addScaledVector(mg, w.mag).addScaledVector(POUCH_VM, w.pouch).addScaledVector(ch, w.charge);
-        this.handL.position.z += ra.charge * 0.08 * w.charge;    // kol şarjını geri çek
-      } else {
-        this.handL.visible = !!this.hLfg && insp < 0.15;               // incelerken sol el silahı bırakır
-        if (this.hLfg) this.handL.position.copy(this.hLfg);
-      }
+    // sol el (yüklemede: aşağıda, kök dönüşümünden sonra — cep / dirsek kamera uzayında)
+    if (this.handL && !ra) {
+      this.handL.visible = !!this.hLfg && insp < 0.15;               // incelerken sol el silahı bırakır
+      if (this.hLfg) this.handL.position.copy(this.hLfg);
     }
+    if (this.handR && this.hRgrip && !ra?.R) this.handR.position.copy(this.hRgrip);
+    if (u.mag && !ra) {                                              // şarjör alt grubu (yükleme dışında yerinde)
+      u.mag.visible = !u.magHidden && !(u.pingEmpty && s.item?.mag === 0);      // magHidden (12.158): şerit klips yalnız doldururken; pingEmpty: yarı otomatikte boş klips fırlamış
+      u.mag.position.set(0, 0, 0); u.mag.quaternion.identity();
+    }
+    if (u.brk && !ra) u.brk.g.rotation.x = 0;
     // kol kutuları (12.124 yönleri, 12.125'te korundu): belden nişana yumuşak döner (dir0 → dirA); yeni yönlerle kol bel / geçiş / nişanda silaha girmez (armclip 0 mm)
     for (const hd of isMelee || this.zh ? [] : [this.handR, this.handL]) {
       const sl = hd?.userData.sleeve; if (!sl) continue;
@@ -550,6 +556,8 @@ export class ViewModel {
     this.root.rotation.set(rx, ry * mir, rz * mir);
     if (swQ) { if (mir < 0) swQ.y = -swQ.y, swQ.z = -swQ.z; this.root.quaternion.premultiply(swQ); }      // aynada dördey: (x, −y, −z, w)
     this.root.scale.set(VM_SCALE * mir, VM_SCALE, VM_SCALE);
+    if (ra && this.model) this.reloadPose(ra, u, rlMode, s, mir);
+    this.stepDrops(dt);
     const hs = isMelee && !this.zh && this.handR?.userData.sleeve;
     if (hs) {                                                        // yakın dövüş kolu: yumruktan dirsek noktasına (12.135; eskiden sapın uzantısıydı → bazı pozlarda kameraya giriyordu)
       const hr = this.handR, U = hr.userData;
@@ -623,6 +631,122 @@ export class ViewModel {
     // 12.162: ACOG merceği adsT > LENS_ON'da saydamlaşır (derinlik maskesi); koyu cam LENS_FADE boyunca söner. Retikül red dot gibi: 3B nokta tam nişanda HUD #rdot'a geçer
     if (this.lensDisc) { const on = s.alive && s.overlay === 'lens' && s.adsT > LENS_ON; this.lensDisc.visible = on; if (on) this._lensTint.opacity = 1 - clamp((s.adsT - LENS_ON) / LENS_FADE, 0, 1); this.lensDisc.children[0].visible = on && this._lensTint.opacity > 0.004; }
     this.setFade(fk * 0.5, (s.overlay === 'dot' || s.overlay === 'holo' || (s.overlay === 'lens' && s.opticDef?.reticle === 'dot')) && ads > ADS_HUD && !this.noFade ? 0 : 1);      // 12.174: öncü dürbünün siyah retikülü 3B kalır (HUD'a geçmez)      // noFade: adsalign 3B retikülü ölçer
+  }
+
+  // ── 12.195 yükleme pozu: sol / sağ el plan noktalarında, şarjör ele bağlı (elin tutma noktasında; havada süzülmez), cep ve dirsek kamera uzayında ──
+  reloadPose(ra, u, mode, s, mir) {
+    const geo = reloadGeo(u, this.id, mode), g = this.model;
+    this.root.updateMatrix(); g.updateMatrix();
+    _fm.multiplyMatrices(this.root.matrix, g.matrix); _rlInv.copy(_fm).invert();
+    const toGun = (x, y, z, o) => o.set(x * mir, y, z).applyMatrix4(_rlInv);
+    const ex = this._rlEx || (this._rlEx = { fg: null, pouch: new THREE.Vector3(), gR: new THREE.Vector3(), u: null });
+    ex.fg = this.hLfg; ex.u = u; ex.gR.copy(this.hRgrip || u.gripR || ZERO3);
+    toGun(POUCH_CAM.x, POUCH_CAM.y, POUCH_CAM.z, ex.pouch);
+    const post = ra.post ?? 0;
+    if (u.brk) u.brk.g.rotation.x = (geo.brk?.A ?? -0.6) * (ra.brk || 0);         // kırma namlu
+    const hL = this.handL;
+    if (hL) {
+      if (ra.L) { blendPoint(geo, ra.L, ra, ex, _rlH); (this._rlHL ||= new THREE.Vector3()).copy(_rlH); }
+      else _rlH.copy(this.hLfg || ex.pouch).lerp(this._rlHL || _rlH, post);      // bitiş: son pozdan kundağa / cebe
+      hL.position.copy(_rlH); hL.visible = true;
+      const sl = hL.userData.sleeve;                                                    // kol: elden ekran dışındaki dirseğe (silahın dışından)
+      if (sl) {
+        toGun(ELBOW_L.x, ELBOW_L.y, ELBOW_L.z, _rlE).sub(_rlH).normalize();
+        _w.copy(hL.userData.dir0).lerp(_rlE, clamp(ra.act * 1.4, 0, 1)).normalize();
+        sl.position.copy(_w).multiplyScalar(hL.userData.len / 2 + hL.userData.off).add(hL.userData.lat); sl.quaternion.setFromUnitVectors(Z, _w);
+      }
+    }
+    const hR = this.handR;
+    if (hR && ra.R) {
+      blendPoint(geo, ra.R, ra, ex, _rlH2); hR.position.copy(_rlH2);
+      const gw = ra.R.reduce((a, [n, c]) => a + (n === 'gR' ? c : 0), 0), sl = hR.userData.sleeve;
+      if (sl) {
+        toGun(ELBOW_R.x, ELBOW_R.y, ELBOW_R.z, _rlE).sub(_rlH2).normalize();
+        _w.copy(hR.userData.dir0).lerp(_rlE, clamp((1 - gw) * 1.4, 0, 1)).normalize();
+        sl.position.copy(_w).multiplyScalar(hR.userData.len / 2 + hR.userData.off).add(hR.userData.lat); sl.quaternion.setFromUnitVectors(Z, _w);
+      }
+    }
+    // şarjör: takılı / elde / bırakıldı
+    const mg = u.mag, st = ra.mag, prev = this._rlMag;
+    if (mg) {
+      if (st === 'hand' && hL) {
+        const d = _rlH.distanceTo(geo.G), a = (RL_TILT[this.id] ?? (Math.abs(geo.out.y) >= 0.7 ? 0.3 : 0)) * clamp(d / geo.L, 0, 1);
+        mg.quaternion.setFromAxisAngle(geo.tAx, a);
+        mg.position.copy(geo.G).applyQuaternion(mg.quaternion).negate().add(_rlH);
+        mg.visible = true;
+      } else if (mode === 'hopper' && geo.lid) {                                       // paintball: kapak menteşesinden açılır (silaha bağlı)
+        mg.quaternion.setFromAxisAngle(_X, geo.lid.A * (ra.lid || 0));
+        mg.position.copy(geo.lid.piv).applyQuaternion(mg.quaternion).negate().add(geo.lid.piv); mg.visible = true;
+      } else {
+        mg.position.set(0, 0, 0); mg.quaternion.identity();
+        mg.visible = post ? !u.magHidden : st === 'gun';
+      }
+      if (st === 'drop' && prev && prev !== 'drop' && !post) this.dropPart(mg, prev === 'hand' ? _rlV.set(-0.5 * mir, -0.4, 0.25) : _rlV.set(-0.05 * mir, -0.9, 0.05));      // eski şarjör düşer
+      if (st === 'drop') mg.visible = false;
+    }
+    this._rlMag = post ? null : st;
+    // eldeki parça (fişek / 40 mm / doldurucu / boya tüpü)
+    const it = ra.item, pit = this._rlItem;
+    for (const [n, m] of Object.entries(this._rlItems || {})) m.visible = n === it;
+    if (it && hL) {
+      const m = this.itemMesh(it); m.visible = true; itemOff(geo, it, ra.brk || 0, m.position);
+      m.rotation.set(geo.brk && (it === 'round' || it === 'shell') ? geo.brk.A * (ra.brk || 0) : 0, 0, 0);
+    }
+    if (pit && !it && ra.toss != null && !post) { const m = this.itemMesh(pit); m.visible = true; this.dropPart(m, _rlV.set(-0.6 * mir, 0.2, 0.3)); m.visible = false; }
+    this._rlItem = post ? null : it;
+    // boş kovan (M79 / revolver)
+    const kk = post ? 1 : clamp((s.reloadTotal - s.reloadT) / s.reloadTotal, 0, 1);
+    if (ra.eject != null && !post && kk >= ra.eject && !this._rlEj) { this._rlEj = true; this.ejectCases(mode, geo, mir); }
+    if (post || kk < (ra.eject ?? 0)) this._rlEj = false;
+  }
+  // elde taşınan parça ağı (el grubunun çocuğu; ilk kullanımda kurulur)
+  itemMesh(name) {
+    const its = this._rlItems || (this._rlItems = {});
+    if (its[name] && its[name].parent === this.handL) return its[name];
+    const M = (c, mt = 0.2) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.5, metalness: mt });
+    const cy = (r, l, mt, z = 0, x = 0, y = 0) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, l, 10), mt); m.rotation.x = Math.PI / 2; m.position.set(x, y, z); return m; };
+    const grp = new THREE.Group();
+    if (name === 'shell') grp.add(cy(0.0095, 0.05, M('#b3261e', 0.05), -0.006), cy(0.0102, 0.016, M('#c9a043', 0.85), 0.026));
+    else if (name === 'round') grp.add(cy(0.02, 0.05, M('#c9a043', 0.8), 0.02), cy(0.0185, 0.035, M('#5d6b3a', 0.2), -0.02));
+    else if (name === 'loader') { grp.add(cy(0.027, 0.018, M('#2a2b2e', 0.5)), cy(0.008, 0.03, M('#3a3b3e', 0.4), 0.02)); for (let i = 0; i < 6; i++) { const an = i * Math.PI / 3 + Math.PI / 2; grp.add(cy(0.0052, 0.03, M('#c9a043', 0.85), -0.022, Math.cos(an) * 0.019, Math.sin(an) * 0.019)); } }
+    else if (name === 'pod') { const a = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.11, 12), new THREE.MeshStandardMaterial({ color: '#e8e8ea', roughness: 0.3, transparent: true, opacity: 0.75 })); const b = new THREE.Mesh(new THREE.CylinderGeometry(0.019, 0.019, 0.09, 10), M(this.model?.userData.paint || '#ff4fa3', 0)); grp.add(a, b); }
+    grp.traverse((o) => { if (o.isMesh) o.frustumCulled = false; });
+    this.handL.add(grp); its[name] = grp;
+    return grp;
+  }
+  // düşen parça: kamera uzayına kopyalanır, yer çekimiyle düşer, döner, ~0,75 sn sonra kaybolur (en çok 8)
+  dropPart(src, v) {
+    this.root.updateMatrixWorld(true); this.cam.updateMatrixWorld(true);
+    const c = src.clone(); c.visible = true;
+    _fm.copy(this.cam.matrixWorld).invert().multiply(src.matrixWorld);
+    _fm.decompose(c.position, c.quaternion, c.scale);
+    c.traverse((o) => { o.frustumCulled = false; });
+    this.cam.add(c);
+    (this.drops ||= []).push({ o: c, v: v.clone(), w: new THREE.Vector3((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 4, (Math.random() - 0.5) * 8), life: 0.75 });
+    while (this.drops.length > 8) this.cam.remove(this.drops.shift().o);
+  }
+  stepDrops(dt) {
+    if (!this.drops?.length) return;
+    for (const d of this.drops) {
+      d.life -= dt; d.v.y -= 7.5 * dt; d.o.position.addScaledVector(d.v, dt);
+      d.o.rotation.x += d.w.x * dt; d.o.rotation.y += d.w.y * dt; d.o.rotation.z += d.w.z * dt;
+      d.o.visible = this.root.visible && d.life > 0;
+    }
+    this.drops = this.drops.filter((d) => { if (d.life > 0) return true; this.cam.remove(d.o); return false; });
+  }
+  clearDrops() { for (const d of this.drops || []) this.cam.remove(d.o); this.drops = []; this._rlMag = this._rlItem = null; this._rlItems = null; this.rlOut = 0; this.rlLast = null; this._rlHL = null; this._rlEj = false; }
+  // boş kovanlar: M79 tek 40 mm kovan, revolver altı kovan (silindirin arkasından)
+  ejectCases(mode, geo, mir) {
+    const mat = new THREE.MeshStandardMaterial({ color: '#c99a3e', metalness: 0.85, roughness: 0.32 });
+    const ps = [];
+    if (mode === 'break' && geo.brk) ps.push(brkPoint(geo, geo.brk.rear, 1, new THREE.Vector3()).add(new THREE.Vector3(0, 0, 0.03)));
+    if (mode === 'cyl' && geo.cyl) for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; ps.push(geo.cyl.rear.clone().add(geo.cyl.out).add(new THREE.Vector3(Math.cos(a) * 0.019, Math.sin(a) * 0.019, 0.01))); }
+    for (const p of ps) {
+      const r = mode === 'break' ? 0.02 : 0.0052, m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, mode === 'break' ? 0.05 : 0.03, 10), mat);
+      m.rotation.x = Math.PI / 2; m.position.copy(p); this.model.add(m);
+      this.dropPart(m, _rlV.set((-0.2 + Math.random() * 0.2) * mir, mode === 'break' ? 0.7 : -0.4 - Math.random() * 0.3, mode === 'break' ? 0.6 : 0.1));
+      this.model.remove(m);
+    }
   }
 
   // adsalign testi: S3 retikülleri saf eflatun (ekranda merkez ölçümü)

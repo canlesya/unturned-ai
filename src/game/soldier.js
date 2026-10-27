@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { createCharacter } from '../models/character.js';
 import { WSTATS, CLASS_DEFS, OPTICS, OPTIC_ORDER, OPTIC_ALLOWED, resolveOptic, cleanEraOptics, makeLoadout, frontLoadout, TAC_RELOAD, BACKSTAB_DMG, ZOMBIE, ZTYPES, BOSS, ZBOSS, ggItems, cleanSkins, spaceLoadout } from './stats.js';
 import { SWING_HIT_K } from './anim.js';
+import { reloadMode, reloadSeatK } from './reloadPlan.js';
 import { H_STAND, H_CROUCH, H_PRONE } from './collision.js';
 import { dirFromAngles, clamp, rand, lerp } from './util.js';
 import { TUNE } from './balance.js';
@@ -259,7 +260,8 @@ export class Soldier {
     } else {
       this.reloadT = this.reloadTotal = st.reload * (it.mag > 0 ? TAC_RELOAD : 1);
     }
-    this.game.sfx.reload(this.pos, style, this.reloadTotal, this.reloadEmpty);
+    this.rlSeated = false; this.rlSeatK = reloadSeatK(reloadMode(it.id, st), this.reloadEmpty) ?? 1;
+    this.game.sfx.reload(this.pos, style, this.reloadTotal, this.reloadEmpty, it.id);
     this.game.emit('reload', this);
     this.game.netEvent({ e: 'rld', by: this.id, s: style, t: +this.reloadTotal.toFixed(3), em: this.reloadEmpty ? 1 : 0, sh: +(this.shellT || 0).toFixed(3) });
     return true;
@@ -710,7 +712,10 @@ export class Soldier {
     this.sinceShot += dt;
     { const st = this.stat; this.bloom = Math.max(0, this.bloom - dt * (st.ball ? (this.sinceShot > 0.12 ? st.bloomRec ?? 0.06 : 0.006) : 0.05)); }      // paintball: seri sürerken açılma neredeyse sönmez, bırakınca toparlanır
     this.recoilP = Math.max(0, this.recoilP - dt * (0.06 + this.recoilP * 4.5));
-    if (this.reloadT > 0) {
+    if (this.reloadT > 0 && this.game.online && this !== this.game.playerSoldier) {
+      // 12.195: çevrim içinde uzaktaki savaşçı: cephanesi bilinmez (yedek 0 görünür → fişekli reload hemen bitiyordu, 3. şahısta animasyon yoktu); süre yalnız görüntü için akar
+      this.reloadT = this.rlId && this.item?.id !== this.rlId ? 0 : Math.max(0, this.reloadT - dt);
+    } else if (this.reloadT > 0) {
       const it = this.item, st = this.stat;
       if (this.reloadStyle === 'shell') {
         // mermi mermi: her mermi girdiğinde ses; dolunca biter
@@ -724,11 +729,14 @@ export class Soldier {
         else this.reloadT = Math.max(0.001, this.shellT + (left - 1) * st.shell);
       } else {
         this.reloadT -= dt;
-        if (this.reloadT <= 0) {
+        // 12.195: mermi şarjör YERİNE OTURDUĞU anda girer (reloadPlan seat; FP / 3. şahıs / ses aynı an). Kalan süre (kurma kolu, el kundağa) bitmeden
+        // ateş yok; o arada silah değiştirilirse dolu şarjör kalır (CS2 gibi). Sunucu = istemci = çevrimdışı (aynı kod)
+        const kS = this.rlSeatK ?? 1, seated = this.reloadT <= 0 || 1 - this.reloadT / this.reloadTotal >= kS;
+        if (seated && !this.rlSeated) {
           const need = st.mag - it.mag, take = Math.min(need, it.reserve);
-          it.mag += take; it.reserve -= take; this.rlDoneT = RL_GAP;
-          this.game.emit('reloaded', this);
+          it.mag += take; it.reserve -= take; this.rlSeated = true;
         }
+        if (this.reloadT <= 0) { this.rlDoneT = RL_GAP; this.game.emit('reloaded', this); }
       }
     }
     this.rlDoneT = Math.max(0, this.rlDoneT - dt);
@@ -967,7 +975,7 @@ export class Soldier {
     if (this.reloadT > 0 && this.stat.kind !== 'medkit') {
       const st = this.stat, shell = this.reloadStyle === 'shell';
       const el = this.reloadTotal - this.reloadT;
-      reload = { style: this.reloadStyle, k: clamp(el / this.reloadTotal, 0, 1), empty: this.reloadEmpty, ph: shell ? ((el / st.shell) % 1 + 1) % 1 : 0 };
+      reload = { style: this.reloadStyle, k: clamp(el / this.reloadTotal, 0, 1), empty: this.reloadEmpty, ph: shell ? ((el / st.shell) % 1 + 1) % 1 : 0, id: this.item?.id, shk: shell ? st.shell / this.reloadTotal : 0.2 };      // 12.195: id → reloadPlan biçimi / noktaları
     }
     if (this.swing) melee = { kind: this.swing.kind, k: clamp(this.swing.t / this.swing.dur, 0, 1) };
     const vh = this.veh && this.veh.st;

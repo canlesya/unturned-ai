@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { getCtx, noiseBuf, makeIR, isMobile, uiSound } from './actx.js';
 import { SYN, SHOT_DRAFT, shotBuffers } from './gunsynth.js';
 import { isSpaceShot, spaceShot } from './spaceSfx.js';
+import { reloadCues, reloadMode } from './reloadPlan.js';
 
 // WebAudio ile sentezlenmiş sesler (dosya yok). Her ses bir "ses kaynağı" (voice): mesafe kısması + mesafeye göre alçak geçiren (uzak = boğuk) + sağ/sol pan + ses hızı gecikmesi + yankı gönderimi.
 // Katmanlar: çatlama (kısa yüksek geçiren gürültü) + gövde (taranan alçak geçiren gürültü) + gümbürtü (perdesi düşen ton) + kuyruk (uzun boğuk yankı). Bitince düğümler ayrılır (sızıntı yok, this.live sayar).
@@ -318,17 +319,22 @@ export class Sfx {
     this._tone({ v, gain: 0.22, dur: 0.16, f0: 170, f1: 70, type: 'sawtooth' });
   }
   // Yükleme sesleri: animasyonla aynı zaman çizelgesi (şarjör çıkar → yeni şarjör takılır → kol şarjı); metal tık + sürtünme
-  reload(pos, style = 'mag', total = 1.4, empty = true) {
+  // 12.195: anlar reloadPlan zaman çizelgesinden (rel bırakma, out sıyrılma, pouch cep, box kutu, seat oturma = sayaç dolar, ch1 / ch2 kol, bolt1 / bolt2 sürgü)
+  reload(pos, style = 'mag', total = 1.4, empty = true, id = null) {
     if (!this.ctx || style === 'shell') return;                // mermi başına ayrı (shell)
     const t = total, v = this._voice(pos, 1, { ref: 10, rv: 0.1 });
     if (v.gain < 0.003) { for (const x of v.nodes) x.disconnect(); return; }
     if (style === 'clip') { this.clipReload(v, pos, t); return; }                                // 12.158: şerit / en-bloc klips
-    this._clk(v, t * 0.12, 3200, 0.2);                                                              // şarjör bırakma düğmesi
-    this._noise({ v, gain: 0.16, dur: 0.11, f0: 1300, f1: 600, type: 'bandpass', q: 0.9, delay: t * 0.22, att: 0.02 });   // şarjör sıyrılır
-    this._noise({ v, gain: 0.1, dur: 0.1, f0: 1700, f1: 900, type: 'bandpass', delay: t * 0.36, att: 0.02 });             // kemerden yeni şarjör
-    this._clk(v, t * 0.56, 1900, 0.34); this._tone({ v, gain: 0.16, dur: 0.06, f0: 300, f1: 160, delay: t * 0.56 });     // takılır (tok)
-    if (empty) { this._clk(v, t * 0.66, 2300, 0.26); this._clk(v, t * 0.78, 2800, 0.32); }                              // kol şarjı geri / ileri
-    if (style === 'bolt') { this.bolt(pos, t * 0.66); this.bolt(pos, t * 0.82); }
+    const c = reloadCues(reloadMode(id, { reloadStyle: style }), empty) || {};
+    if (c.rel != null) this._clk(v, t * c.rel, 3200, 0.2);                                                              // şarjör bırakma düğmesi
+    if (c.out != null) this._noise({ v, gain: 0.16, dur: 0.11, f0: 1300, f1: 600, type: 'bandpass', q: 0.9, delay: t * c.out, att: 0.02 });   // şarjör sıyrılır
+    if (c.pouch != null) this._noise({ v, gain: 0.1, dur: 0.1, f0: 1700, f1: 900, type: 'bandpass', delay: t * c.pouch, att: 0.02 });             // kemerden yeni şarjör
+    if (c.box != null) this._clk(v, t * c.box, 1500, 0.26);
+    if (c.seat != null) { this._clk(v, t * c.seat, 1900, 0.34); this._tone({ v, gain: 0.16, dur: 0.06, f0: 300, f1: 160, delay: t * c.seat }); }     // takılır (tok)
+    if (empty && c.ch1 != null) this._clk(v, t * c.ch1, 2300, 0.26);
+    if (empty && c.ch2 != null) this._clk(v, t * c.ch2, 2800, 0.32);                              // kol şarjı geri / ileri, tabanca sürgüsü, silindir / namlu kapanır
+    if (c.cls != null) this._clk(v, t * c.cls, 2600, 0.3);                                        // namlu / silindir / kapak kapanır
+    if (empty && c.bolt1 != null) { this.bolt(pos, t * c.bolt1); }
   }
   dry(pos) { if (this.ctx) this._clk(this._voice(pos, 1, { ref: 8 }), 0, 3400, 0.2); }
   shell(pos) { if (!this.ctx) return; const v = this._voice(pos, 1, { ref: 10 }); this._noise({ v, gain: 0.26, dur: 0.05, f0: 2600, f1: 1400, type: 'bandpass' }); this._tone({ v, gain: 0.12, dur: 0.05, f0: 420, f1: 260, type: 'triangle', delay: 0.02 }); }
