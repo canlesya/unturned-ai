@@ -281,6 +281,68 @@ export class BotBrain {
     }
   }
 
+  // 12.177 araç (aşama 1: botlar SÜRMEZ, yalnız insan sürücünün aracına yolcu olur). Çatışmada değilken: yakındaki (≤ 18 m) takım arkadaşı insanın
+  // sürdüğü yavaş araçta boş yolcu koltuğu varsa ona yürür ve biner; sürücü korna çalarsa 35 m'den gelir. Sürücü inerse / araç yanarsa / batarsa
+  // ya da araç yola çıktıktan sonra 4 sn durursa (varış) iner.
+  board() {
+    const s = this.s, g = this.game, V = g.vehicles;
+    if (this.target || s.hp < 30) return;
+    let best = null, bd = 1e9;
+    for (const v of V.list) {
+      const drv = v.alive && v.st ? v.seats[0] : null;
+      if (!drv || !drv.human && !drv.isPlayer || drv.team !== s.team || v.burn || v.st.sunk) continue;
+      if (!v.seats.some((o, i) => i > 0 && !o)) continue;
+      const d = Math.hypot(v.st.x - s.pos.x, v.st.z - s.pos.z), sp = V.speed(v);
+      if ((d < 18 && sp < 3) || (v.horn && d < 35 && sp < 6)) if (d < bd) { bd = d; best = v; }
+    }
+    if (!best) { if (this.rideGoal) { this.rideGoal = null; this.goalT = 0; } return; }
+    if (bd < best.def.hl + 1.6 && Math.abs(s.pos.y - best.st.y) < 2) {             // kapıda: ilk boş yolcu koltuğuna
+      const i = best.seats.findIndex((o, k) => k > 0 && !o);
+      if (i > 0) { V.enter(s, best, i); this.rideGoal = null; this.vstopT = 0; this.rodeMoved = false; this.target = null; }
+      return;
+    }
+    const i = best.seats.findIndex((o, k) => k > 0 && !o), sp = best.def.seat[i], side = Math.sign(sp[1]) || 1;      // boş koltuğun kapısına (gövdenin içine yol aranmaz)
+    const fx = -Math.sin(best.st.yaw), fz = -Math.cos(best.st.yaw), rx = Math.cos(best.st.yaw), rz = -Math.sin(best.st.yaw), r = side * (best.def.hw + 0.9);
+    const gx = best.st.x + fx * sp[0] + rx * r, gz = best.st.z + fz * sp[0] + rz * r;
+    this.rideGoal = best;
+    if (!this.goal || Math.hypot(this.goal.x - gx, this.goal.z - gz) > 1.5) this.setGoal(gx, gz, 4, best.st.y); else this.goalT = Math.max(this.goalT, 2);      // yol yeniden aranmaz (bütçe)
+  }
+
+  rideTick(dt) {
+    const s = this.s, g = this.game, V = g.vehicles, v = s.veh, drv = v.seats[0];
+    this.senseT -= dt;
+    if (this.senseT <= 0) { this.senseT = 0.25 + Math.random() * 0.1; this.sense(); }
+    if (this.target && !this.target.alive) this.target = null;
+    const sp = V.speed(v);
+    if (v.burn || v.st.sunk || !drv || !(drv.human || drv.isPlayer)) { if (sp < 4 || v.burn || v.st.sunk) { V.exit(s); this.goalT = 0; } return; }
+    if (sp > 3) this.rodeMoved = true;
+    this.vstopT = sp < 0.8 ? (this.vstopT || 0) + dt : 0;
+    if (this.vstopT > (this.rodeMoved ? 4 : 25)) { V.exit(s); this.vstopT = 0; this.rodeMoved = false; this.goalT = 0; return; }      // yola çıktıktan sonra 4 sn durdu = vardı (hiç kalkmadıysa 25 sn bekler)
+    const st = s.stat;
+    if ((st.kind === 'gun' || st.kind === 'launcher') && s.item.mag <= 0 && s.reloadT <= 0 && s.item.reserve > 0) s.startReload();
+    if (st.kind !== 'gun') { if (s.items[0]?.mag + s.items[0]?.reserve > 0) s.switchTo(0); return; }
+    if (this.target) {
+      const tg = this.target, eye = s.eye(tA), tc = tg.center(tC);
+      const dx = tc.x - eye.x, dz = tc.z - eye.z, dist = Math.hypot(dx, dz);
+      const wantYaw = yawFromDir(dx, dz), wantPitch = Math.atan2(tc.y - eye.y, dist);
+      const turn = this.d.turn * 0.8;
+      const dyaw = angleDiff(s.yaw, wantYaw);
+      s.yaw += clamp(dyaw, -turn * dt, turn * dt);
+      s.pitch += clamp(wantPitch - s.pitch, -turn * dt, turn * dt);
+      s.botExtraSpread = this.d.err * (0.9 + dist / 50) * (1 + Math.min(1, sp / 10));      // hareketli araçtan isabet düşer
+      this.reactT -= dt;
+      if (this.reactT <= 0 && Math.abs(dyaw) < 0.08 + 2 / (dist + 8)) {
+        if (this.burstPause > 0) this.burstPause -= dt;
+        else { if (this.burstLeft <= 0) this.burstLeft = Math.round(rand(this.d.burst[0], this.d.burst[1])); if (s.tryFire()) { this.burstLeft--; if (this.burstLeft <= 0) this.burstPause = rand(0.3, 0.9); } }
+      }
+    } else {
+      s.botExtraSpread = 0; this.burstLeft = 0;
+      const side = v.def.seat[s.seat][1] < 0 ? 1 : -1, look = v.st.yaw + side * (s.seat >= 2 ? 1.2 : 0.7) + Math.sin(g.time * 0.4 + s.id) * 0.4;   // koltuğun tarafına (dışarı) bakar
+      s.yaw += clamp(angleDiff(s.yaw, look), -2 * dt, 2 * dt);
+      s.pitch += (0 - s.pitch) * Math.min(1, dt * 3);
+    }
+  }
+
   // Zombi botu özel gücü: türüne göre uygun anda kullanır
   useZAbility(dist, los, near) {
     const s = this.s, ab = s.ability;
@@ -445,6 +507,8 @@ export class BotBrain {
     if (!s.alive) return;
     if ((s.swim || this.swimming) && this.swimOut(dt)) return;
     if (s.def.zombie) { this.updateZombie(dt); return; }
+    if (s.veh) { this.rideTick(dt); return; }                                   // 12.177: yolcu bot (sürmez): yalnız nişan + ateş
+    if (g.vehicles && (this.boardT = (this.boardT ?? rand(0, 0.3)) - dt) <= 0) { this.boardT = 0.3; this.board(); }
     if (this.role === undefined) this.role = tacRole(this);
     if (this.atSpot && this.spot && Math.hypot(this.spot.x - s.pos.x, this.spot.z - s.pos.z) > 2.5) this.atSpot = false;
     this.t += dt;

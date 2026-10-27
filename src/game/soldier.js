@@ -189,6 +189,7 @@ export class Soldier {
   center(out = new THREE.Vector3()) { return out.set(this.pos.x, this.pos.y + this.height * 0.6, this.pos.z); }
 
   spawn(point, protect = 2) {
+    if (this.veh) this.game.vehicles?.release(this);                              // 12.177: koltuk kaydı kalmasın
     this.pos.set(point.x, 0, point.z);
     this.vel.set(0, 0, 0);
     this.yaw = point.ry; this.pitch = 0; this.recoilP = 0;
@@ -286,6 +287,7 @@ export class Soldier {
   // Tetik: held = basılı, buf = yeni tık tamponu (>0). Dönen true → tampon tüketildi. Player ve sunucu (humanTick) aynı mantığı kullanır.
   triggerUpdate(held, buf) {
     if (!this.alive) { this.burstLeft = 0; return false; }
+    if (this.veh && this.seat === 0) { this.burstLeft = 0; return false; }          // 12.177: sürücü ateş etmez (sol tık korna)
     if (this.swim && !this.cook && !swimCanFire(this, this.stat)) { this.burstLeft = 0; return false; }     // 12.180 yüzerken: yüzeyde yalnız tabanca, su altında hiçbiri
     if (this.stat.kind === 'throwable') return this._nadeTrigger(held, buf);
     const mode = this.fireModeNow;
@@ -304,7 +306,7 @@ export class Soldier {
 
   spreadNow(st) {
     const hipv = st.hip ?? 0.01, adsv = st.ads ?? 0.002;
-    const speed = Math.hypot(this.vel.x, this.vel.z);
+    const vs = Math.hypot(this.vel.x, this.vel.z), speed = this.veh ? 0 : vs;          // 12.177: araçtaki yolcu koşmuyor (koşu / hareket cezası yerine araç sarsıntısı)
     if (st.ball) return this._ballSpread(st, hipv, adsv, speed);
     // 12.153: dürbünlü keskin nişancı (st.scope): isabet yalnız dürbün oturunca (adsT 0,6 → 1 yumuşak); belde / geçişte ilk atış indirimi yok (no-scope / erken quickscope şansa kalır)
     // 12.156: insan (oyuncu / sunucudaki insan) için belden keskin nişancı anlamlı isabetsiz (st.noscope koni; eski hip 0,03 → 10 m'de gövdeye %100) ve dürbün
@@ -319,6 +321,7 @@ export class Soldier {
     if (this.blindT > 0.5) s += 0.04;
     if (this.crouching) s *= 0.7;
     if (this.swim) s += 0.03;                                          // 12.180 yüzerken (yüzeyde tabanca): dalgada sallanır
+    if (this.veh) s += Math.min(vs * 0.0008, 0.012) * (1 - this.adsT * 0.5);      // 12.177 hareketli araçtan atış: hızla artan sarsıntı (55 km/s ≈ +0,012 rad)
     s += this.bloom;                                                   // seri atışta açılma
     // duran oyuncunun ilk atışı (kısa bir aradan sonra) isabetli olsun
     if (this.sinceShot > 0.3 && speed < 1.5 && this.onGround) s *= sc ? 1 - 0.8 * sk : 0.2;
@@ -340,6 +343,7 @@ export class Soldier {
 
   tryFire() {
     if (!this.alive || this.cd > 0 || this.switchT > 0 || this.useT > 0) return false;
+    if (this.veh && (this.seat === 0 || this.stat.kind === 'mine' || this.stat.kind === 'ammobox' || this.stat.kind === 'medkit')) return false;     // 12.177: sürücü ateş etmez; araçtan mayın / kutu kurulmaz
     if (this.swim && !swimCanFire(this, this.stat)) return false;
     if (this.def.zombie && this.game.graceLeft > 0) return false;                     // Enfekte hazırlık süresi
     if (this.reloadT > 0 && !this.cancelShellReload()) return false;
@@ -667,6 +671,7 @@ export class Soldier {
       this.cook = null;
       if (st?.cook && this.item.id === c.id && this.item.mag > 0) { this.item.mag--; this.game.spawnGrenade(this, new THREE.Vector3(this.pos.x, this.pos.y + 0.9, this.pos.z), new THREE.Vector3(this.vel.x * 0.3, 0.5, this.vel.z * 0.3), st, null, { fuse: st.fuse - c.t }); }
     }
+    if (this.veh) this.game.vehicles?.exit(this);                                  // 12.177: araçta ölen kapıdan düşer (koltuk boşalır, araç sürer)
     this.alive = false; this.hp = 0;
     this.deaths++;
     this.deadT = 0; this.deadDir = Math.random() > 0.5 ? 1 : -1;
@@ -813,6 +818,23 @@ export class Soldier {
   }
 
   // Üçüncü şahıs model senkronu (oyuncu hariç): hıza bağlı adım döngüsü, gövde eğimi, kol sallanması
+  // 12.177 araçta oturuş (yalnız görsel): kalça / bacaklar aracın yönünde (eğim + yatış dahil), gövde bakışa döner (±1,3 rad), kollar silahta ya da direksiyonda
+  _seatPose(m, p, root, vh) {
+    const angDiff = (a, b) => ((a - b + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+    root.rotation.order = 'YXZ';
+    root.rotation.set(vh.pitch, vh.yaw, vh.roll);
+    root.position.y = this.pos.y + (m.groundOffset ?? 0) - 0.28;
+    this.bodyYaw = vh.yaw;
+    this._seatTwist = this.seat === 0 ? clamp(angDiff(this.yaw, vh.yaw), -0.5, 0.5) * 0.4 : clamp(angDiff(this.yaw, vh.yaw), -1.3, 1.3);
+    for (const lg of [p.legs.L, p.legs.R]) {
+      lg.hip.rotation.x = 1.42; lg.knee.rotation.x = -1.32; lg.hip.rotation.z = (lg === p.legs.R ? 1 : -1) * 0.06;
+      if (lg.foot) lg.foot.rotation.x = -0.1;
+      lg.hip.position.y = 0.88; lg.hip.position.x = (lg === p.legs.R ? 1 : -1) * 0.12;
+    }
+    p.torso.rotation.x = clamp(this.pitch + this.recoilP, -0.9, 0.9) * 0.5 - 0.05; p.torso.rotation.z = 0; p.torso.position.x = 0; p.torso.position.y = 1.17;
+    p.head.rotation.x = -clamp(this.pitch, -0.9, 0.9) * 0.3; p.head.rotation.z = 0;
+  }
+
   // 12.180 su görsel / ses: suya düşüş / atlayış sıçraması, yüzerken yüzey dalgacıkları (başkaları), yüzeye çıkış nefesi (oyuncu)
   _waterFx(dt) {
     const g = this.game, wy = waterYAt(g.world?.terrain, this.pos.x, this.pos.z);
@@ -947,6 +969,9 @@ export class Soldier {
       reload = { style: this.reloadStyle, k: clamp(el / this.reloadTotal, 0, 1), empty: this.reloadEmpty, ph: shell ? ((el / st.shell) % 1 + 1) % 1 : 0 };
     }
     if (this.swing) melee = { kind: this.swing.kind, k: clamp(this.swing.t / this.swing.dur, 0, 1) };
+    const vh = this.veh && this.veh.st;
+    if (vh) { this._seatPose(m, p, root, vh); m.refreshHold({ twist: this._seatTwist, side: 1, aimP: clamp(this.pitch + this.recoilP, -0.8, 0.8), reload, melee, drive: this.seat === 0, wheelA: -vh.steer * 2.2 }); return; }
+    if (root.rotation.order !== 'XYZ') root.rotation.order = 'XYZ';
     m.refreshHold({ sprint: Math.max(this.sprintT, swK) * (1 - pr), kick: clamp(this.flashT / 0.06, 0, 1), twist: (twist + twistY) * (1 - pr), swing, side: this.stanceT, prone: pr, aimP: clamp(this.pitch + this.recoilP, -0.8, 0.8), reload, melee });
     if (m.zshape && pr < 0.5) this._zombiePose(m, p, root, T, ph, moveAmt, run);
   }

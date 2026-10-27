@@ -1,7 +1,7 @@
 // Tuş özelleştirme: eylem → en çok 2 tuş (KeyboardEvent.code). Menüde (Kontroller) değiştirilir, localStorage'da (prefs.keys) saklanır,
 // oyunda Player / Game bu modül üzerinden okur. Fare tuşları (ateş / nişan), Esc ve sunucu geliştirici tuşları sabittir.
 
-export const GROUPS = ['Hareket', 'Duruş', 'Silah', 'Kamera ve arayüz'];
+export const GROUPS = ['Hareket', 'Duruş', 'Silah', 'Kamera ve arayüz', 'Araç'];
 
 // id, etiket, grup, varsayılan tuşlar
 export const ACTIONS = [
@@ -33,6 +33,9 @@ export const ACTIONS = [
   ['team', 'Takım seçimi (çevrimiçi)', 3, ['KeyM']],
   ['chat', 'Sohbet (çevrimiçi) · Shift ile takıma', 3, ['Enter']],
   ['scoreboard', 'Skor tablosu (basılı tut)', 3, ['Tab']],
+  // 12.177 araçlar: E (sağa eğilmeyle ortak; araç yanında / içindeyken binme-inme), V (bıçakla ortak; araçtayken kamera), koltuk = 1–4, far = Fener tuşu, korna = sol tık (sürücü)
+  ['vehicle', 'Araca bin / in', 4, ['KeyE']],
+  ['vehCam', 'Araç kamerası (içeriden / takip)', 4, ['KeyV']],
 ].map(([id, label, group, def]) => ({ id, label, group, def }));
 
 // Sağ/sol modifier tuşları aynı sayılır (Ctrl, Shift, Alt)

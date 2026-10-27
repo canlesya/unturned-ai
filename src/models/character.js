@@ -547,6 +547,15 @@ function applyPose(api, w, o = {}) {
   const body = mp ? mp.body * 0.6 : 0;
   torso.rotation.y = -blade + twist + body;
   head.rotation.y = blade * 0.92 - twist * 0.9 - body * 0.9;
+  if (o.drive) {                                        // 12.177: araç sürücüsü: silah gizli, iki el direksiyonda (o.wheelA = direksiyon simidinin açısı, rad)
+    if (w) w.visible = false;
+    const a = o.wheelA || 0, c = Math.cos(a), s = Math.sin(a);
+    torso.rotation.y = 0; head.rotation.y = -twist * 0.5;
+    poseArm(armR, V(0.17 * c, 0.05 + 0.15 * s, -0.36));
+    poseArm(armL, V(-0.17 * c, 0.05 - 0.15 * s, -0.36));
+    return;
+  }
+  if (w && w.visible === false) w.visible = true;
   if (!w) {
     // silahsız: kollar ters yönde sallanır
     const k = 0.6 + 0.12 * sprint;

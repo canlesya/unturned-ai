@@ -21,6 +21,7 @@ import { TouchControls, isTouch } from './touch.js';
 import { ScopeBreath } from './breath.js';
 import { norm, codeLabel, slotOrder } from '../core/keybinds.js';
 import { t as $t } from '../i18n/index.js';
+import { vehCamera } from './vehicleView.js';                   // 12.177 araç kamerası (sürücü içeriden / takip)
 import { wName, opticName, fireName } from '../i18n/game.js';
 
 const VM_SCALE = 0.92;
@@ -753,8 +754,12 @@ export class Player {
       const s = this.s;
       if (!this.game.running) return;
       if (kb.is('chat', code) && this.game.chat && this.locked && !this.wheel) { e.preventDefault(); this.game.chat.open(e.shiftKey); return; }      // sohbet (çevrimiçi): Enter herkese, Shift+Enter takıma
-      if (kb.is('wheel', code) && s.alive && !this.wheel) this.openWheel();
-      if (kb.is('third', code) && s.alive) this.toggleThird();
+      if (kb.is('wheel', code) && s.alive && !this.wheel && !s.veh) this.openWheel();
+      // 12.177 araç: E bin / in (yanında ya da içindeyken; değilse E sağa eğilmedir), V kamera (sürücü), 1–4 koltuk
+      const V = this.game.vehicles;
+      if (V && s.alive && kb.is('vehicle', code) && (s.veh || V.near(s))) { this.vehLatch = true; if (this.game.online) this.game.online.edge('ve'); else V.toggle(s); }
+      if (V && s.veh && kb.is('vehCam', code)) { this.vehCam = this.vehCam === 'first' ? 'third' : 'first'; this.game.hud.toast($t(this.vehCam === 'first' ? 'veh.t.camFirst' : 'veh.t.camThird'), '#cfe6ff'); }
+      if (kb.is('third', code) && s.alive && !s.veh) this.toggleThird();
       if (kb.is('inspect', code) && s.alive && !this.wheel) this.vm.inspect(s);                  // silah inceleme (CS tarzı)
       if (kb.is('leftHand', code)) this.toggleHand();
       if (this.devTools() && s.alive) {
@@ -768,11 +773,12 @@ export class Player {
       if (this.third && kb.is('leanLeft', code)) this.side = -1;                     // 3. şahıs: eğilme tuşları omuz değiştirir (aynı zamanda yatırır)
       if (this.third && kb.is('leanRight', code)) this.side = 1;
       if (kb.is('reload', code)) { s.startReload(); this.game.online?.edge('rl'); }
-      if (s.alive && kb.is('crouch', code)) { s.toggleCrouch(); this.game.online?.edge('c'); }
-      if (s.alive && kb.is('prone', code)) { s.toggleProne(); this.game.online?.edge('p'); }
+      if (s.alive && !s.veh && kb.is('crouch', code)) { s.toggleCrouch(); this.game.online?.edge('c'); }
+      if (s.alive && !s.veh && kb.is('prone', code)) { s.toggleProne(); this.game.online?.edge('p'); }
       if (s.alive && kb.is('optic', code)) { this.game.online?.edge('o'); const o = s.cycleOptic(); if (o) { this.game.hud.toast($t('hud.t.optic', { o: opticName(s.opticId) }), '#cfe6ff'); this.saveEraOptic(); } }
       const slot = kb.slotOf(code);                                                 // tuş konumu (1 ana, 2 yedek, 3 bıçak, 4 ekipman) → items indeksi
-      if (slot >= 0) { const i = slotOrder(s.items.length)[slot]; if (i !== undefined) s.switchTo(i); }
+      if (s.veh) { const n = /^Digit[1-4]$/.test(code) ? +code[5] - 1 : -1; if (n >= 0 && s.alive) { if (this.game.online) this.game.online.edges.vs = n + 1; else V.seatTo(s, n); } }      // araçta 1–4 = koltuk (silah: fare tekerleği)
+      else if (slot >= 0) { const i = slotOrder(s.items.length)[slot]; if (i !== undefined) s.switchTo(i); }
       if (kb.is('fireMode', code) && s.alive) { s.toggleFireMode(); this.game.online?.edge('fm'); }
       if (kb.is('scoreboard', code)) { e.preventDefault(); this.game.hud.showScoreboard(true); }
       if (kb.is('ability', code) && s.alive && s.def.zombie && !e.repeat) this.zAbility();
@@ -799,6 +805,7 @@ export class Player {
       if (kb.is('wheel', code)) this.closeWheel();
       if (code === 'Tab' || kb.is('scoreboard', code)) e.preventDefault();
       this.keys.delete(code);
+      if (kb.is('vehicle', code)) this.vehLatch = false;
       if (kb.is('jump', code)) this.spaceLatch = false;
       if (kb.is('scoreboard', code)) this.game.hud.showScoreboard(false);
     });
@@ -974,6 +981,35 @@ export class Player {
     s.pitch = clamp(s.pitch - dy, -1.5, 1.5);
   }
 
+  // 12.177 araçtaki girdi: sürücü → gaz / direksiyon / fren (Boşluk) / korna (sol tık) aracı bir adım sürer (çevrimdışı yetkili, çevrim içi tahmin);
+  // yolcu → yalnız silah (ateş, şarjör). Bakış araçla döner (aracın yaw değişimi bakışa eklenir: kamera araca göre aynı yöne bakmaya devam eder).
+  vehInput(dt, k, kb, T) {
+    const s = this.s, g = this.game, V = g.vehicles, v = s.veh;
+    if (!v || !v.st) return;
+    const yw = v.st.yaw;
+    if (this._vveh === v && this._vyaw !== undefined) s.yaw += ((yw - this._vyaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+    this._vyaw = yw; this._vveh = v;
+    const drv = s.seat === 0;
+    const f = drv ? (kb.held('forward', k) ? 1 : 0) - (kb.held('back', k) ? 1 : 0) || (T ? T.f : 0) : 0;
+    const r = drv ? (kb.held('right', k) ? 1 : 0) - (kb.held('left', k) ? 1 : 0) || (T ? T.r : 0) : 0;
+    const brake = drv && (kb.held('jump', k) || !!(T && T.jump));
+    const inp = { f, r, lean: 0, sprint: false, jump: brake };
+    if (drv) {
+      v.horn = this.fireHeld && this.locked;
+      V.drive(v, { f, r, b: brake }, dt);
+      V.place(s);
+      if (!g.online) for (const o of v.seats) if (o && o !== s) V.place(o);
+      this._vyaw = v.st.yaw;
+    } else V.place(s);
+    if (g.online) { g.online.pushInput(inp, s, this.fireHeld); if (drv) g.online.markVeh(v); }
+    if (!drv && this.locked) {
+      const st = s.stat;
+      if (st.kind === 'melee') { if (this.fireHeld || this.fireBuf > 0) { if (s.tryFire()) this.fireBuf = 0; } }
+      else if (s.triggerUpdate(this.fireHeld, this.fireBuf)) this.fireBuf = 0;
+    }
+    if (g.online) g.online.markAmmo(s);
+  }
+
   dispose() { this.closeWheel(); for (const [t, ev, fn, opt] of this._bound) t.removeEventListener(ev, fn, opt); this._bound = []; this.fx?.remove(); this.fxSmoke?.remove(); this.touch?.dispose(); }
 
   // 12.180 suya giriş / çıkış: giriş anında elde ateş edilemeyen silah varsa yan silaha geçilir (çıkınca eskisine döner); nişan kapanır; yüzeye çıkış nefesi
@@ -1002,6 +1038,7 @@ export class Player {
     if (s.alive && !g.opts.autoplay) {
       const k = this.keys;
       const kb = this.kb, T = this.touch;
+      if (s.veh) this.vehInput(dt, k, kb, T); else {
       // 12.156: dürbün sallanması bakışa (yaw / pitch) "sanal fare" olarak eklenir → kamera, retikül, mermi ve sunucuya giden yaw / pitch aynı
       const bw = this.breath.step(dt, s, this.locked && (kb.held('holdBreath', k) || !!T?.breath));
       if (bw[0] || bw[1]) { s.yaw += bw[0]; s.pitch = clamp(s.pitch + bw[1], -1.5, 1.5); }
@@ -1014,7 +1051,7 @@ export class Player {
       this._sprintReq = sprintReq; this._adsCur = s.cur;
       const r = (kb.held('right', k) ? 1 : 0) - (kb.held('left', k) ? 1 : 0) || (T ? T.r : 0);
       const st = s.stat;
-      const lean = (kb.held('leanRight', k) ? 1 : 0) - (kb.held('leanLeft', k) ? 1 : 0);                 // 3. şahısta da Q/E yatar (ve omuzu değiştirir)
+      const lean = (kb.held('leanRight', k) && !this.vehLatch ? 1 : 0) - (kb.held('leanLeft', k) ? 1 : 0);                 // 3. şahısta da Q/E yatar (ve omuzu değiştirir) · 12.177: araca binme / inme E'si basılıyken eğilmez
       const inp = { f, r, lean, sprint: kb.held('sprint', k) || !!(T && T.sprint), jump: (kb.held('jump', k) && !this.spaceLatch) || !!(T && T.jump), dive: kb.held('crouch', k) || !!(T && T.dive) };      // 12.180 dive: çömel BASILI (yüzerken dal)
       if (s.swim !== !!this._swimWas) this.swimEdge(s);
       if (s.fly) this.flyMove(f, r, k, dt); else applyInput(s, inp, dt);
@@ -1034,6 +1071,7 @@ export class Player {
       if (s.onGround && sp > 1.5 && !s.crouching && !s.prone) {
         s.stepT -= dt * (sp / TUNE.walkSpeed) * (g.abfx?.stepMul || 1);             // atılış / öfke: adım temposu hızlanır
         if (s.stepT <= 0) { s.stepT = 0.42; g.sfx.step(null); }
+      }
       }
     }
 
@@ -1057,8 +1095,10 @@ export class Player {
     this.thirdT += Math.sign(wantThird - this.thirdT) * Math.min(Math.abs(wantThird - this.thirdT), dt * 4.5);
     this.sideT += (this.side - this.sideT) * (1 - Math.exp(-9 * dt));
     s.stanceLeft = this.third && this.thirdT > 0.3 && this.side < 0;          // karakter modeli sol omuz duruşuna geçsin (aynalı)
-    if (s.alive) {
+    if (s.alive && s.veh && vehCamera(this, dt)) { this.deathCamT = 0; this.camPos.copy(cam.position); }      // 12.177 araç kamerası (sürücü: içeriden / takip; yolcu takipte)
+    else if (s.alive) {
       this.deathCamT = 0;
+      if (this._vcam) { this._vcam = null; this.bodyVisible = false; }
       s.eye(cam.position);
       cam.rotation.order = 'YXZ';
       cam.rotation.set(

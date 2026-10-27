@@ -8,6 +8,7 @@ import { LIMITS, useBalance } from '../src/game/balance.js';
 import { currentBalance, balanceMeta } from './balanceStore.js';
 import { MAPS } from '../src/maps/index.js';
 import { nextOptions, tallyVotes } from '../src/game/nextMatch.js';
+import { packVehState } from '../src/sim/vehicle.js';
 
 const RESTART_ENV = +process.env.BF_RESTART_MS || 0, RESTART_MS = RESTART_ENV || 15000;      // maç sonu ekranı (resmi odada oylama) süresi; ortam değişkeni resmi sunucunun voteSec'ini de ezer (test)
 const EMPTY_ENV = +process.env.BF_EMPTY_ROTATE_MS || 0;                                    // boş resmi oda harita değişimi (test); yoksa sunucunun idleMin alanı
@@ -309,6 +310,7 @@ export class Room {
       fh: m.fh ? 1 : 0, fp: m.fp ? 1 : 0, rl: m.rl ? 1 : 0, fm: m.fm ? 1 : 0, o: m.o ? 1 : 0, ab: m.ab ? 1 : 0,
       vt: Number.isFinite(m.vt) ? m.vt : null,
       sd: m.sd ? 1 : 0, tl: m.tl ? 1 : 0,                                            // 12.159: fener (eski istemci yollamaz → kapalı)
+      ve: m.ve ? 1 : 0, vs: Math.round(num(m.vs, 0, 4)), vl: m.vl ? 1 : 0,         // 12.177 araç: bin / in, koltuk (1–4), far
       co: Array.isArray(m.co) && m.co.length === 3 && m.co.every(Number.isFinite) ? m.co.map((v) => Math.max(-4.5, Math.min(4.5, v))) : null,
     });
   }
@@ -360,7 +362,7 @@ export class Room {
     if (typeof m.spawn === 'string') h.spawnChoice = m.spawn === 'base' || (m.spawn === 'front' && g.map.big) || g.mode.objectives.some((o) => o.id === m.spawn) ? m.spawn : 'base';
   }
 
-  // BF_DEBUG=1 ile açılan test komutları (ask: kuyruk / bütçe / atıcı durumu da döner): { t:'dbg', tp:[x,z] } ışınla · { tpy:[x,y,z] } havada bırak · { hp } can · { bots:false } botları sustur · { pb:1 } herkese paintball silahları · { zb:'brute' } zombi ol · { dmg:[id,hasar,kafa] } başkasını vur · { tps:[id,x,z,yaw,can] } başkasını ışınla · { ask } durum
+  // BF_DEBUG=1 ile açılan test komutları (12.177: { vtp } aracı ışınla, { vdmg } araca hasar; ask: kuyruk / bütçe / atıcı durumu da döner): { t:'dbg', tp:[x,z] } ışınla · { tpy:[x,y,z] } havada bırak · { hp } can · { bots:false } botları sustur · { pb:1 } herkese paintball silahları · { zb:'brute' } zombi ol · { dmg:[id,hasar,kafa] } başkasını vur · { tps:[id,x,z,yaw,can] } başkasını ışınla · { ask } durum
   debug(id, m) {
     const c = this.clients.get(id), g = this.game;
     if (!c) return;
@@ -388,6 +390,8 @@ export class Room {
       if (Number.isFinite(g.timeLeft)) g.timeLeft = Math.min(g.timeLeft, g.mode.time - ZOMBIE.grace - 1);
       g.netEvent({ e: 'inf', v: s.id, bs: 0, zt: ZT_ORDER.indexOf(s.ztype) + 1, zl: s.zLives });
     }
+    if (g.vehicles && Array.isArray(m.vtp) && m.vtp.length >= 2 && m.vtp.every(Number.isFinite)) { const v = s.veh || g.vehicles.list[m.vtp[3] | 0]; if (v?.st) { v.st.x = m.vtp[0]; v.st.z = m.vtp[1]; v.st.y = g.world.heightAt(m.vtp[0], m.vtp[1]); if (m.vtp.length > 2) v.st.yaw = m.vtp[2]; v.st.vx = v.st.vy = v.st.vz = 0; v.sleep = false; } }   // 12.177 { vtp:[x,z,yaw?,araç?] } aracı ışınla
+    if (g.vehicles && Array.isArray(m.vdmg)) { const v = g.vehicles.list[m.vdmg[0] | 0]; if (v?.alive) g.vehicles.damage(v, +m.vdmg[1] || 0, null, m.vdmg[2] || 'impact'); }   // { vdmg:[araç, hasar, tür?] }
     if (m.bots === false) { g.brainsOff = g.brains.splice(0); }
     if (m.bots === true && g.brainsOff) { g.brains.push(...g.brainsOff); g.brainsOff = null; }
     if (m.ask && c.ws.readyState === 1) c.ws.send(JSON.stringify({ t: 'dbg', optic: s.opticId, item: s.item.id, zb: !!s.def.zombie, ab: [+s.abT.toFixed(2), +s.abActive.toFixed(2)],
@@ -424,7 +428,7 @@ export class Room {
     const g = this.game;
     g.step(SIM_DT);
     this.tick = g.tick;
-    for (const c of this.clients.values()) if (c.h.tickAck) { c.h.ackState = packSoldier(c.h.s); c.h.ackAm = c.h.s.items.map((it) => [it.mag, it.reserve]); }      // ack anındaki cephane: istemci aynı girdideki kendi tahminiyle karşılaştırır (12.138)
+    for (const c of this.clients.values()) if (c.h.tickAck) { c.h.ackState = packSoldier(c.h.s); c.h.ackAm = c.h.s.items.map((it) => [it.mag, it.reserve]); c.h.ackVeh = c.h.s.veh && c.h.s.seat === 0 && c.h.s.veh.st ? packVehState(c.h.s.veh.st) : null; }      // ack anındaki cephane: istemci aynı girdideki kendi tahminiyle karşılaştırır (12.138) · 12.177 sürücünün araç durumu (tahmin uzlaştırması)
     if (g.netEvents.length) { this.sendEvents(g.netEvents); g.netEvents.length = 0; }
     if (this.tick % SNAP_EVERY === 0 && this.clients.size) this.snapshot();
   }
@@ -438,12 +442,14 @@ export class Room {
     const all = JSON.stringify(g.soldiers.map((s) => { const sg = slowSig(s), ch = force || sig[s.id] !== sg; if (ch) sig[s.id] = sg; return packSoldier(s, ch); }));
     const o = JSON.stringify(g.mode.objectives.map((ob) => [ob.owner === 'blue' ? 1 : ob.owner === 'red' ? 2 : 0, Math.round(ob.p * 100) / 100]));
     const tl = g.timeLeft === Infinity ? -1 : Math.round(g.timeLeft * 10) / 10;
-    const pl = (g.payload ? `"pl":${JSON.stringify(g.payload.pack())},` : '') + (g.front ? `"fr":${JSON.stringify(g.front.pack())},` : '');      // Cephe: [etkin nokta sırası, cephe değişimi, bitti]                                   // Vagon: [yol mesafesi, iten | durduran | durum | uzatma]
+    const vh = g.vehicles ? g.vehicles.pack(force) : null;                    // 12.177: yalnız değişen araçlar (duran araç yollanmaz; katılımda / 2 sn'de bir hepsi)
+    const pl = (g.payload ? `"pl":${JSON.stringify(g.payload.pack())},` : '') + (g.front ? `"fr":${JSON.stringify(g.front.pack())},` : '') + (vh && vh.length ? `"vh":${JSON.stringify(vh)},` : '');      // Cephe: [etkin nokta sırası, cephe değişimi, bitti]                                   // Vagon: [yol mesafesi, iten | durduran | durum | uzatma]
     const head = `{"t":"snap","k":${this.tick},"tk":[${Math.round(g.tickets.blue)},${Math.round(g.tickets.red)}],"tl":${tl},"o":${o},${pl}"s":${all},"me":`;
     for (const c of this.clients.values()) {
       if (c.ws.readyState !== 1) continue;
       const h = c.h, s = h.s;
       const me = { ack: h.ack, rs: s.spawnN, st: h.ackState || packSoldier(s), now: packSoldier(s), rt: +s.respawnT.toFixed(2), am: s.items.map((it) => [it.mag, it.reserve]), aa: h.ackAm, ab: [+s.abT.toFixed(1), +s.abActive.toFixed(1)] };
+      if (h.ackVeh) me.vs = h.ackVeh;
       c.ws.send(head + JSON.stringify(me) + '}');
     }
   }
