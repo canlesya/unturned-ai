@@ -265,6 +265,7 @@ export function buildCephe() {
     b.box(x0 + 0.5, FLOOR, cz + sd * 0.6, 0.9, 0.55, 2.0, PLANK, kk(FK.PLANK));
     b.box(x1 - 0.5, FLOOR, zf - sd * 0.5, 0.8, 0.6, 0.7, PLANK_D, kk(FK.PLANK));
     b.box(cx, Hw - 0.42, cz, 0.16, 0.22, 0.16, '#ffd58a', { collide: false, o: { glow: true } });
+    b.box(cx, Hw - 0.2, cz, 0.03, 0.2, 0.03, IRON, nk(FK.METAL));                                                     // 12.185 askı teli (lamba tavandan 20 cm aşağıda havada duruyordu)
     b.box(cx, FLOOR, ze - sd * 1.85, 2.4, 0.55 - FLOOR, 0.5, BAG2, kk(FK.SANDBAG));                                       // kapı önü perde (siper içinde, iki yandan geçilir)
   });
   // ───────── 4. beton sığınaklar: A Batı Tabyası (tarlada beton makineli yuvası, siperin arkasından ateş eder), G Komuta Sığınağı (gömülü, destek hattından girilir) ─────────
@@ -291,6 +292,7 @@ export function buildCephe() {
     b.box(cx, y0, z1 - 0.35, 1.0, 1.0 - y0, 0.5, PLANK_D, kk(FK.PLANK));                                                      // makineli masası
     b.box(x0 + 0.6, y0, z0 + 0.6, 0.9, 0.6 - y0, 0.6, '#55603f', kk(FK.PLANK));
     b.box(cx, Hc - 0.3, cz, 0.18, 0.2, 0.18, '#ffd58a', { collide: false, o: { glow: true } });
+    b.box(cx, Hc - 0.1, cz, 0.03, 0.1, 0.03, IRON, nk(FK.METAL));                                                     // 12.185 askı teli
   });
   pillbox(-40, -34, 37, 41, 'A');
   for (const k of bunkers) b.obj('beton:' + k.name, () => {                         // gömülü: taban = siper tabanı, yarık güneyde 0,3–0,62 m (ateş basamağında ayakta göz 0,47)
@@ -307,6 +309,7 @@ export function buildCephe() {
     b.box(cx, FLOOR, cz - 0.4, 2.2, 0.8, 1.2, PLANK, kk(FK.PLANK)); b.box(cx, FLOOR + 0.8, cz - 0.4, 1.0, 0.02, 0.7, '#d8ceb0', nk(FK.PLAIN));     // harita masası
     b.box(x0 + 0.6, FLOOR, cz + 1.4, 0.6, 1.5, 0.5, '#4a4f3f', kk(FK.METAL)); b.box(x1 - 0.7, FLOOR, z0 + 1.2, 0.9, 0.6, 0.6, '#55603f', kk(FK.PLANK));   // telsiz dolabı, sandık
     b.box(cx, Hc - 0.3, cz, 0.18, 0.2, 0.18, '#ffd58a', { collide: false, o: { glow: true } });
+    b.box(cx, Hc - 0.1, cz, 0.03, 0.1, 0.03, IRON, nk(FK.METAL));                                                     // 12.185 askı teli
   });
   // makineli tüfek (dekor; çatal ayaklı, şeritli)
   function mgProp(x, y, z) {
@@ -461,13 +464,19 @@ export function buildCephe() {
     b.box(-22, 8.4 - 0.25, -2.2, TX1 - TX0 - tt + 0.05, 0.25, TZ1 - TZ0 - tt - 0.35, PLANK, kk(FK.PLANK, { tag: 'plat' }));
     b.withKind(FK.TILE, () => b.cyl(-22, y0 + TH, -2.2, 0.15, 3.4, 3.2, '#4a3a30', { seg: 4, ry: PI / 4 }));
     b.box(-22, 10.6, -2.2, 0.14, 0.9, 0.14, TIMBER, nk(FK.TIMBER));                                   // çan
+    b.box(-22, 11.5, -2.2, TX1 - TX0 - tt, 0.18, 0.2, TIMBER, kk(FK.TIMBER));                           // 12.185 çan kirişi: iki iç duvar yüzü arası (çan çubuğu 11,5'te havada asılıydı)
     b.cyl(-22, 9.55, -2.2, 0.32, 0.5, 0.75, '#5b4a2e', { collide: false, seg: 8, kind: FK.METAL });
     // iskele merdiveni: nefin doğu duvarı boyunca kuzeyden güneye 28 basamak (0,3 × 0,45) → sahanlık (8,4) → çan katına köprü
     const SX = -16.0, sw = 1.2;
     for (let i = 0; i < 28; i++) b.box(SX, (i + 1) * 0.3 - 0.2, -17.6 + (i + 0.5) * 0.45, sw, 0.2, 0.45, PLANK, kk(FK.PLANK, { tag: 'plat' }));   // ince basamaklar (altı açık iskele)
     b.box(SX, 8.15, -4.2, sw, 0.25, 2.4, PLANK, kk(FK.PLANK, { tag: 'plat' }));
     b.box(-17.9, 8.15, -2.2, 3.8, 0.25, 1.3, PLANK, kk(FK.PLANK, { tag: 'plat' }));
-    for (let z = -16.5; z < -3; z += 2.4) { const top = Math.max(0.3, Math.min(8.4, (z + 17.6) / 0.45 * 0.3)); b.box(SX + 0.55, y0, z, 0.16, top - 0.2, 0.16, TIMBER, kk(FK.TIMBER)); b.box(SX - 0.55, y0, z, 0.16, top - 0.2, 0.16, TIMBER, kk(FK.TIMBER)); }
+    // dikmeler basamağın (ya da sahanlığın) ALT yüzüne kadar: 12.185 öncesi her dikme basamağın 0,27–0,4 m altında bitiyordu → basamaklar havada duruyordu;
+    // iç dikme nef duvarına 3 cm giriyordu (SX ± 0,55) → ±0,52: iç dikme duvar yüzüne, dış dikme basamak kenarına hizalı
+    for (let z = -16.5; z < -3; z += 2.4) {
+      const i = Math.min(Math.floor((z - 0.08 + 17.6) / 0.45), 27), under = z - 0.08 >= -5.0 ? 8.15 : (i + 1) * 0.3 - 0.2;      // dikmenin ayak izindeki alçak basamağın alt yüzü
+      for (const sd of [1, -1]) b.box(SX + sd * 0.52, y0, z, 0.16, under - y0, 0.16, TIMBER, kk(FK.TIMBER));
+    }
     b.box(SX + sw / 2 + 0.03, 9.05, -4.2, 0.06, 0.06, 2.4, TIMBER, nk(FK.TIMBER)); b.box(-17.9, 9.05, -1.52, 3.8, 0.06, 0.06, TIMBER, nk(FK.TIMBER)); b.box(-17.9, 9.05, -2.88, 3.8, 0.06, 0.06, TIMBER, nk(FK.TIMBER));
   });
   co('Kilise', -22, -12, true); co('Çan Kulesi', -22, -2); co('Kilise İskelesi', -16, -10);

@@ -63,6 +63,19 @@ export class NavGrid {
         if (z0 > z1) z0 = z1 = Math.max(0, Math.min(this.h - 1, Math.floor(((c.min[2] + c.max[2]) / 2 - this.minZ) / CELL)));
         for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) { const i = z * this.w + x; if (c.max[1] > this.floor[i]) this.floor[i] = c.max[1]; this.blocked[i] = 0; }
       }
+      // 12.185 platformun YAN yüzü de alçak komşusu için duvardır: platform hücrelerinin kenarındaki zemin hücresi (merkezi kutuya 0,35 m'den yakın)
+      // gövdeyi (R 0,32) sığdırmaz. Önce bu hücreler serbestti → yol platform / merdiven yanını sıyırıyor, bot yan yüze dayanıp takılıyordu
+      // (New York metro platformu, Batı Cephesi iskelesi). Basamaktan (≤ 0,75 m: çıkılır / sıçranır) ya da baş üstündeki kattan (alt yüzü > 1,6 m) etkilenmez.
+      for (const c of colliders) {
+        if (c.tag !== 'plat') continue;
+        const [x0, x1] = cellRange(c.min[0] - INFL, c.max[0] + INFL, this.minX, this.w);
+        const [z0, z1] = cellRange(c.min[2] - INFL, c.max[2] + INFL, this.minZ, this.h);
+        for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) {
+          const i = z * this.w + x, f = this.floor[i];
+          if (c.max[1] - f <= 0.75 || c.min[1] - f > 1.6) continue;
+          this.blocked[i] = 1;
+        }
+      }
       for (const c of colliders) {                                         // zemin yüksekliğine göre engeller (platform üstündeki duvar/korkuluk da engel)
         if (c.tag === 'deck' || c.tag === 'plat') continue;
         const [x0, x1] = cellRange(c.min[0] - INFL, c.max[0] + INFL, this.minX, this.w);
@@ -203,9 +216,30 @@ export class NavGrid {
   }
 
   // Yol: [Vector3...] ya da null
-  findPath(sx, sz, gx, gz, maxStep = 0.7) {
+  // 12.185 katlı ızgara: (x, z) hücresinin zemini y'den çok yüksekse (asker merdiven / iskele / sahanlık ALTINDA) o hücreden yol başlamaz —
+  // yol üstteki basamaktan çıkar, bot alttan basamağın altına yürüyüp kafasını çarpar, takılırdı (Batı Cephesi kilise iskelesi). y'ye uyan en yakın boş hücre.
+  nearestLevel(x, z, y) {
+    const i0 = this.nearestFree(x, z);
+    if (!this.floor || y == null || i0 < 0 || this.floor[i0] - y < 1.0) return i0;
+    const cx = Math.floor((x - this.minX) / this.cell), cz = Math.floor((z - this.minZ) / this.cell);
+    for (let r = 1; r <= 4 / this.cell; r++) {
+      let best = -1, bd = 1e9;
+      for (let dz = -r; dz <= r; dz++) for (let dx = -r; dx <= r; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+        const X = cx + dx, Z = cz + dz;
+        if (X < 0 || Z < 0 || X >= this.w || Z >= this.h) continue;
+        const j = Z * this.w + X;
+        if (this.blocked[j] || Math.abs(this.floor[j] - y) > 0.6) continue;
+        const d = dx * dx + dz * dz; if (d < bd) { bd = d; best = j; }
+      }
+      if (best >= 0) return best;
+    }
+    return i0;
+  }
+
+  findPath(sx, sz, gx, gz, maxStep = 0.7, sy = null) {
     this._ms = maxStep;
-    const s = this.nearestFree(sx, sz), g = this.nearestFree(gx, gz);
+    const s = this.nearestLevel(sx, sz, sy), g = this.nearestFree(gx, gz);
     if (s < 0 || g < 0) return null;
     if (s === g) return [new THREE.Vector3(this.cx(g), 0, this.cz(g))];
     const cm = this.comps(maxStep);

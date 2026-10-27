@@ -397,7 +397,7 @@ export class BotBrain {
         this.repathT -= dt;
         if ((!this.path || this.repathT <= 0) && g.pathBudget > 0) {
           g.pathBudget--;
-          this.path = g.nav.findPath(s.pos.x, s.pos.z, tg.pos.x, tg.pos.z, 1.15);        // zombi 1.15 m basamağa kadar sıçrayarak çıkar
+          this.path = g.nav.findPath(s.pos.x, s.pos.z, tg.pos.x, tg.pos.z, 1.15, s.pos.y);        // zombi 1.15 m basamağa kadar sıçrayarak çıkar
           this.repathT = rand(1.4, 2.6);
         }
         if (this.path && this.path.length) {
