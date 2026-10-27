@@ -34,7 +34,7 @@ const tA = new THREE.Vector3(), tB = new THREE.Vector3();
 // Hesap (~100–300 ms) tek seferde yapılmaz: üreteç her oyun adımında en çok BUDGET ms ilerler (sunucu tik'i takılmaz); bitene kadar tacMap null döner
 // ve nişancı / pusucu geçici olarak tüfekçi gibi hedef seçer.
 const CACHE = new Map(), JOBS = new Map(), BUDGET = 4;
-export const tacEligible = (g) => !!(g.nav && !g.nav.nearestNode && !g.mode.infection && !g.payload && !g.front && !g.mode.gungame && !g.mode.paintball && g.map.spawns?.blue?.[0] && g.map.spawns?.red?.[0]);
+export const tacEligible = (g) => !!(g.nav && !g.map.big && !g.nav.nearestNode && !g.mode.infection && !g.payload && !g.front && !g.mode.gungame && !g.mode.paintball && g.map.spawns?.blue?.[0] && g.map.spawns?.red?.[0]);
 export function tacMap(g) {
   if (g._tac) return g._tac;
   if (g._tac === null) return null;

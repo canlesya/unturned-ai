@@ -8,6 +8,7 @@ import { aimNade } from './grenade.js';
 import { tacRole, tacPickGoal, tacHold, tacAim, tacMayFire, tacFired, tacCombatMove, tacStrafeDir, tacHear, tacMateDown, tacOf } from './botTactics.js';
 import { plTick, plPickGoal, plArrive, plAnchored, plTargetBias, plCombatMove, plStuck } from './payloadBots.js';
 import { SWIM, waterYAt } from '../sim/swim.js';
+import { vbBoard, vbRelease, vbDrive, vbRideOk, vbCrew } from './vehicleBots.js';           // 12.189 bot sürücüler
 import { frTick, frPickGoal, frArrive, frAnchored, frTargetBias, frCombatMove, frStuck, frDamaged } from './frontBots.js';     // 12.158 Cephe modu
 
 // silah rolleri (bot davranışı)
@@ -52,6 +53,7 @@ export class BotBrain {
     this.holdT = 0;
     this.via = null; this.perching = false; this.perch = null;
     this.role = undefined; this.spot = null; this.atSpot = false; this.aimTg = null; this.ambWait = 0; this.settleT = 0; this.settleNeed = null;     // 12.152 rol / mevzi / nişan (botTactics.js)
+    this.vd = null; this.vRide = null; if (this.vRes) vbRelease(this);             // 12.189 sürücü durumu / araç rezervasyonu / çağrıldığı koltuk
   }
 
   // flaşbang yedi: soldier.blind() çağırır; hedef unutulur
@@ -94,6 +96,7 @@ export class BotBrain {
     const g = this.game, s = this.s;
     const objs = g.mode.objectives;
     this.via = null;
+    { const v = this.vRes || this.vRide?.v; if (v && v.alive && v.st) { this.setGoal(v.st.x, v.st.z, 20); return; } }      // 12.189: araca yürüyor (vbBoard / vbCrew kapıya yönlendirir)
     if (g.mode.infection) { this.huddle(); return; }      // Enfekte: insan botlar zombiye koşmaz, birbirine yakın durup birlikte savunur
     if (g.front) { frPickGoal(this); return; }            // Cephe: rol planı (frontBots.js): mevzi / nokta savunması · nokta saldırısı / kanat / nişancı
     if (g.payload) { plPickGoal(this); return; }          // Vagon: rol planı (payloadBots.js): eskort / öncü / yan · durdurucu / siper / yan
@@ -123,6 +126,7 @@ export class BotBrain {
       let mate = null, md = 1e9;
       for (const a of g.soldiers) {
         if (a === s || !a.alive || a.team !== s.team || a.cls === 'medic') continue;
+        if (g.map.big && (a.squad !== s.squad || Math.hypot(a.pos.x - g.map.spawns[s.team][0].x, a.pos.z - g.map.spawns[s.team][0].z) < 150)) continue;    // 12.189 büyük harita: yalnız mangal arkadaşı, üsteki değil (sıhhiyeler üste birbirini izleyip kalıyordu)
         const d = Math.hypot(a.pos.x - s.pos.x, a.pos.z - s.pos.z);
         if (d < md && d < 45) { md = d; mate = a; }
       }
@@ -246,15 +250,17 @@ export class BotBrain {
     const eye = s.eye(tA);
     const fwd = tB.set(-Math.sin(s.yaw), 0, -Math.cos(s.yaw));
     const alerted = g.time - this.alertT < 3;
+    const at = g.vehicles && (s.items[2]?.id === 'rpg' || s.items[2]?.id === 'm79') && s.items[2].mag > 0;      // 12.189 tanksavarı var
     let best = null, bd = 1e9;
     for (const e of g.soldiers) {
       if (!e.alive || e.team === s.team || e.protT > 0.5) continue;
+      if (g.vehicles && !at && g.vehicles.hiddenSeat(e)) continue;                 // 12.189: zırhın içindeki tank sürücüsüne tüfekle ateş etmez (mermi işlemez; yanındaki piyadeyle savaşır)
       if (e.cloaked && Math.hypot(e.pos.x - s.pos.x, e.pos.z - s.pos.z) > 6) continue;       // görünmez zombi yakına gelmeden fark edilmez
       const tc = e.center(tC);
       const dx = tc.x - eye.x, dz = tc.z - eye.z;
       const dist = Math.hypot(dx, dz);
       const vis = g.night ? (e.flashOn || e.flashT > 0 ? TUNE.sightDay : TUNE.sightNight) : g.tod === 'sunset' ? TUNE.sightSunset : TUNE.sightDay;
-      if (dist > vis * (g.visMul || 1)) continue;
+      if (dist > vis * (g.visMul || 1) * (g.map.big ? 1.35 : 1)) continue;      // 12.189 büyük harita: açık arazide daha uzağı fark eder (130 → 175 m gündüz)
       if (!alerted && (fwd.x * dx + fwd.z * dz) / (dist + 1e-6) < 0.3) continue;
       if (dist > 22 && e.crouching) { if (Math.random() < 0.3) continue; }
       let head = false;
@@ -288,13 +294,15 @@ export class BotBrain {
   board() {
     const s = this.s, g = this.game, V = g.vehicles;
     if (this.target || s.hp < 30) return;
+    if (vbCrew(this) || vbBoard(this)) return;                                   // 12.189: çağrıldığı koltuğa / boş araca sürücü olarak yürüyor, biniyor
     let best = null, bd = 1e9;
     for (const v of V.list) {
       const drv = v.alive && v.st ? v.seats[0] : null;
-      if (!drv || !drv.human && !drv.isPlayer || drv.team !== s.team || v.burn || v.st.sunk || (v.def.heli && v.st.air)) continue;      // helikoptere yalnız yerdeyken
+      const bot = drv && !drv.human && !drv.isPlayer && v.alive && vbRideOk(this, v);     // 12.189: bot sürücü yolcu bekliyor
+      if (!drv || !drv.human && !drv.isPlayer && !bot || drv.team !== s.team || v.burn || v.st.sunk || (v.def.heli && v.st.air)) continue;      // helikoptere yalnız yerdeyken
       if (!v.seats.some((o, i) => i > 0 && !o)) continue;
       const d = Math.hypot(v.st.x - s.pos.x, v.st.z - s.pos.z), sp = V.speed(v);
-      if ((d < 18 && sp < 3) || (v.horn && d < 35 && sp < 6)) if (d < bd) { bd = d; best = v; }
+      if ((d < 18 && sp < 3) || (v.horn && d < 35 && sp < 6) || (bot && d < (v.def.heli ? 75 : v.def.cannon ? 45 : 35) && sp < 1)) if (d < bd) { bd = d; best = v; }
     }
     if (!best) { if (this.rideGoal) { this.rideGoal = null; this.rideTo = null; this.goalT = 0; } return; }
     if (bd < best.def.hl + 1.6 && Math.abs(s.pos.y - best.st.y) < 2) {             // kapıda: ilk boş yolcu koltuğuna
@@ -315,9 +323,11 @@ export class BotBrain {
     if (this.target && !this.target.alive) this.target = null;
     const sp = V.speed(v);
     const flying = v.def.heli && v.st.air;                                      // 12.179: uçan helikopterden inilmez (yanıyor / pilotsuz olsa da: atlarsa düşer)
-    if ((v.burn || v.st.sunk || !drv || !(drv.human || drv.isPlayer)) && !flying) { if (sp < 4 || v.burn || v.st.sunk) { V.exit(s); this.goalT = 0; } return; }
+    const bdrv = drv && !(drv.human || drv.isPlayer) ? drv.brain?.vd : null;       // 12.189 bot sürücü
+    const waitDrv = !drv && v.botRes?.s.alive && g.time < v.botResT;               // 12.189: çağrıldığı araca sürücüden önce bindi (sürücü geliyor)
+    if ((v.burn || v.st.sunk || (!drv && !waitDrv) || (drv && !(drv.human || drv.isPlayer || bdrv))) && !flying) { if (sp < 4 || v.burn || v.st.sunk) { V.exit(s); this.goalT = 0; } return; }
     if (sp > 3 || flying) this.rodeMoved = true;
-    this.vstopT = sp < 0.8 && !flying ? (this.vstopT || 0) + dt : 0;
+    this.vstopT = sp < 0.8 && !flying && !(bdrv && (bdrv.state === 'wait' || (v.def.cannon && bdrv.state === 'hold'))) ? (this.vstopT || 0) + dt : 0;      // bot sürücü bekliyor / tank bayrakta savaşıyor: nişancı inmez
     if (this.vstopT > (this.rodeMoved ? 4 : 25)) { V.exit(s); this.vstopT = 0; this.rodeMoved = false; this.goalT = 0; return; }      // yola çıktıktan sonra 4 sn durdu = vardı (hiç kalkmadıysa 25 sn bekler)
     const st = s.stat, mg = !!mgAt(v.def, s.seat);                           // 12.178 tank nişancısı / 12.179 helikopter kapı nişancısı: makineli (cephane sınırsız)
     if (!mg && (st.kind === 'gun' || st.kind === 'launcher') && s.item.mag <= 0 && s.reloadT <= 0 && s.item.reserve > 0) s.startReload();
@@ -331,9 +341,10 @@ export class BotBrain {
       const dyaw = angleDiff(s.yaw, wantYaw);
       s.yaw += clamp(dyaw, -turn * dt, turn * dt);
       s.pitch += clamp(wantPitch - s.pitch, -turn * dt, turn * dt);
-      s.botExtraSpread = this.d.err * (0.9 + dist / 50) * (1 + Math.min(1, sp / 10));      // hareketli araçtan isabet düşer
+      s.botExtraSpread = mg ? this.d.err * 0.4 * (0.4 + dist / 200) * (1 + Math.min(0.5, sp / 30))      // 12.189 kapı / kule makinelisi (sabit kundak): eski formülle 120 m'de ~0,26 rad saçılıp hiç vurmuyordu
+        : this.d.err * (0.9 + dist / 50) * (1 + Math.min(1, sp / 10));      // hareketli araçtan isabet düşer
       this.reactT -= dt;
-      if (this.reactT <= 0 && Math.abs(dyaw) < 0.08 + 2 / (dist + 8)) {
+      if (this.reactT <= 0 && Math.abs(dyaw) < (mg ? 0.025 + 1 / (dist + 8) : 0.08 + 2 / (dist + 8)) && (!mg || Math.abs(wantPitch - s.pitch) < 0.03 + 1 / (dist + 8))) {      // 12.189 makineli: nişan oturunca (eskiden 0,1 rad sapmayla basıyordu)
         if (this.burstPause > 0) this.burstPause -= dt;
         else if (mg) { fire = true; if ((this.mgT = (this.mgT ?? rand(0.8, 1.6)) - dt) <= 0) { this.mgT = undefined; this.burstPause = rand(0.4, 1); } }
         else { if (this.burstLeft <= 0) this.burstLeft = Math.round(rand(this.d.burst[0], this.d.burst[1])); if (s.tryFire()) { this.burstLeft--; if (this.burstLeft <= 0) this.burstPause = rand(0.3, 0.9); } }
@@ -439,7 +450,7 @@ export class BotBrain {
     const gd = Math.hypot(this.goal.x - s.pos.x, this.goal.z - s.pos.z) + (g.nav.nearestNode ? Math.max(0, Math.abs(this.goal.y - s.pos.y) - 1.2) * 3 : 0);   // katlı: hedef katta değilse varılmış sayılmaz
     if (gd < 1.8 && !this.via) {
       this.holdT -= dt;
-      if (this.perching) { if (this.spot) tacHold(this, dt); else { s.crouching = true; if (this.holdT <= 0) this.holdT = 3; } } else if (g.payload && this.plRole) plArrive(this); else if (g.front && this.frRole) frArrive(this, dt); else if (this.holdT <= 0) { this.holdT = rand(2, 5); if (g.nav.nearestNode && Math.random() < 0.6) this.pickGoal(); else this.setGoal(this.goal.x + rand(-6, 6), this.goal.z + rand(-6, 6), 10, this.goal.y); }      // katlı haritada yeni dolaşma noktası (kat değiştirsin)
+      if (this.perching) { if (this.spot) tacHold(this, dt); else { s.crouching = true; if (this.holdT <= 0) this.holdT = 3; } } else if (g.payload && this.plRole) plArrive(this); else if (g.front && this.frRole) frArrive(this, dt); else if (this.holdT <= 0) { this.holdT = rand(2, 5); if (g.nav.nearestNode && Math.random() < 0.6) this.pickGoal(); else this.setGoal(this.goal.x + rand(-6, 6), this.goal.z + rand(-6, 6), g.map.big ? Math.max(this.goalT, 2) : 10, this.goal.y); }      // 12.189 büyük harita: bekleme hedefin süresini yenilemez (eskiden her 2–5 sn'de 10 sn'ye dönüp bot bayrakta sonsuza dek kalıyordu)      // katlı haritada yeni dolaşma noktası (kat değiştirsin)
       return [0, 0, 0];
     }
     this.repathT -= dt;
@@ -511,7 +522,7 @@ export class BotBrain {
     if (!s.alive) return;
     if ((s.swim || this.swimming) && this.swimOut(dt)) return;
     if (s.def.zombie) { this.updateZombie(dt); return; }
-    if (s.veh) { this.rideTick(dt); return; }                                   // 12.177: yolcu bot (sürmez): yalnız nişan + ateş
+    if (s.veh) { if (s.seat === 0 && this.vd) vbDrive(this, dt); else this.rideTick(dt); return; }     // 12.177 yolcu bot: nişan + ateş · 12.189 sürücü bot: vehicleBots.js
     if (g.vehicles && (this.boardT = (this.boardT ?? rand(0, 0.3)) - dt) <= 0) { this.boardT = 0.3; this.board(); }
     if (this.rideGoal && this.rideTo && !this.target) {                     // araca doğrudan yürü (≤ 18 m: yol ızgarası araçları bilmez, 2 m hücrede kapı noktası kaba)
       const dx = this.rideTo.x - s.pos.x, dz = this.rideTo.z - s.pos.z, d = Math.hypot(dx, dz), k = Math.min(1, dt * 10), sp = d > 0.4 ? TUNE.walkSpeed * s.spd : 0;

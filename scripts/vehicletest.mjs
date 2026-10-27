@@ -102,6 +102,7 @@ function headless() {
   ok(inside === 0 && s.alive, 'yaya araca yürüyünce gövdeye girmez (itilir)', `içeride kare ${inside} · ${f2(xs)}`);
   // bot yolcu
   const gb = mkG({ bots: true, match: { perTeam: 6, type: 'conquest' } }), VB = gb.vehicles;
+  for (const x of VB.list) x.botBad = 1e9;                                    // 12.189: botlar artık kendileri de sürer — bu denetim yalnız yolcu / nişancı kuralını ölçer
   const hb = gb.claimSlot('blue', 'Sürücü', 'assault', {}), hq = gb.humans.get(hb.id);
   const vb = VB.list.find((x) => x.id === 'B-J2');
   let qb = 0; const stepB = (n, o = {}) => { for (let i = 0; i < n; i++) { hq.queue.push({ q: ++qb, f: 0, r: 0, l: 0, s: 0, j: 0, a: 0, yw: hb.yaw, pt: 0, w: hb.cur, c: 0, p: 0, u: 0, fh: 0, fp: 0, rl: 0, fm: 0, o: 0, ab: 0, vt: null, ve: 0, vs: 0, vl: 0, ...o }); gb.step(1 / 60); } };
@@ -218,6 +219,7 @@ function headlessTank() {
   ok(maxX < 50 - VT.jip.hw + 0.2 && nade.pos.x < maxX - 0.2, 'el bombası araç gövdesinden geri seker (içinden geçmez)', `en ileri x ${f2(maxX)} (gövde ${f2(50 - VT.jip.hw)}) · son ${f2(nade.pos.x)}`);
   // bot nişancı
   const gb = new Game(null, { headless: true, map: 'kuzey', tod: 'day', weather: 'clear', diff: 'normal', bots: true, match: { perTeam: 6, type: 'conquest' } }), VB = gb.vehicles;
+  for (const x of VB.list) x.botBad = 1e9;                                    // 12.189: botlar artık kendileri de sürer — bu denetim yalnız yolcu / nişancı kuralını ölçer
   const hb = gb.claimSlot('blue', 'Sürücü', 'assault', {}), hq = gb.humans.get(hb.id), tb = VB.list.find((x) => x.id === 'B-T2');
   hb.pos.set(tb.st.x + 2.4, tb.st.y, tb.st.z); hb.protT = 0; VB.enter(hb, tb, 0);
   const m = gb.soldiers.find((e) => e.team === 'blue' && e.brain); m.pos.set(tb.st.x - 7, tb.st.y, tb.st.z + 3); gb.world.settle(m); m.brain.target = null;
@@ -294,6 +296,7 @@ function headlessHeli() {
   ok(!s.alive && to > 9.5 && to < 11, 'savaş alanı dışında uçan pilot ~10 sn sonra ölür (yükseklik fark etmez)', `${f1(to)} sn · irtifa ${f1(H.st.y - g.world.heightAt(H.st.x, H.st.z))} m`);
   // bot kapı nişancısı: yerdeki helikoptere biner, uçarken inmez
   const gb = new Game(null, { headless: true, map: 'kuzey', tod: 'day', weather: 'clear', diff: 'normal', bots: true, match: { perTeam: 6, type: 'conquest' } }), VB = gb.vehicles;
+  for (const x of VB.list) x.botBad = 1e9;                                    // 12.189: botlar artık kendileri de sürer — bu denetim yalnız yolcu / nişancı kuralını ölçer
   const pb = gb.claimSlot('blue', 'Pilot', 'assault', {}), hpq = gb.humans.get(pb.id), HB = VB.list.find((x) => x.id === 'B-H2');
   pb.pos.set(HB.st.x + 2.6, HB.st.y, HB.st.z); pb.protT = 0; VB.enter(pb, HB, 0);
   const m = gb.soldiers.filter((e) => e.team === 'blue' && e.brain).slice(0, 2);

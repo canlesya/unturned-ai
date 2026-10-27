@@ -46,6 +46,8 @@ import { placeName, banText } from '../i18n/game.js';                           
 import { Payload } from './payload.js';
 import { Front } from './front.js';                                  // Cephe modu (12.158)
 import { Vehicles } from './vehicles.js';                            // 12.177 araçlar (Kuzey Vadisi: jip)
+import { assignSquadsBig, perchBig, spawnFlagBig } from './bigBots.js';           // 12.189 büyük harita bot çatışma akışı
+import { vnav } from './vehicleBots.js';                                         // 12.189 bot sürücüler (araç ızgarası)
 import { VehicleView } from './vehicleView.js';
 import { VehicleHud } from './vehicleHud.js';
 import { VT, mgAt } from '../sim/vehicle.js';
@@ -217,6 +219,7 @@ export class Game {
     this.payload = this.mode.payload && this.map.payload ? new Payload(this) : null;   // Vagon modu: ray + vagon + aşamalı doğuşlar (payload.js)
     this.front = this.mode.front && this.map.front ? new Front(this) : null;           // Cephe modu: sektörler + aşamalı doğuşlar (front.js)
     this.vehicles = Vehicles.wanted(this) ? new Vehicles(this) : null;              // 12.177: araç doğuşu olan haritada (Ele Geçirme) araçlar; diğer haritalarda null → davranış aynı
+    if (this.vehicles && !opts.online && opts.bots !== false && !opts.editor) vnav(this);   // 12.189 bot sürücü araç ızgarası: kurulumda (harita başına bir kez, ~0,3 sn; maç ortasında sunucu takılmasın)
     this.spawnChoice = 'base';
 
     this.visMul = 1;
@@ -905,9 +908,9 @@ export class Game {
     const ctl = s ? this.ctlOf(s) : null;
     if (ctl && ctl.spawnChoice === 'front') target = this.front ? null : this.frontFlag(team);
     else if (ctl && ctl.spawnChoice !== 'base') target = this.front ? null : this.mode.objectives.find((o) => o.id === ctl.spawnChoice);
-    else if (s && !ctl && !this.front && Math.random() < (this.map.big ? 0.8 : 0.35)) {                 // 12.172 büyük harita: botlar çoğunlukla ön hattan doğar
+    else if (s && !ctl && !this.front && Math.random() < (this.map.big ? 0.9 : 0.35)) {                 // 12.172 büyük harita: botlar çoğunlukla ön hattan doğar
       const own = this.mode.objectives.filter((o) => o.owner === team && this.canForwardSpawn(o, team));
-      if (own.length) target = this.map.big ? this.frontFlag(team, own) : pick(own);
+      if (own.length) target = this.map.big ? (spawnFlagBig(this, s, own) || (Math.random() < 0.5 ? this.frontFlag(team, own) : null)) : pick(own);      // 12.189: mangal hedefine en yakın bayrak (yoksa yarı yarıya ön hat / üs: araç)
     }
     if (target && this.canForwardSpawn(target, team)) {
       for (let k = 0; k < 14; k++) {
@@ -1107,6 +1110,7 @@ export class Game {
   assignSquads() {
     const objs = this.front ? this.front.activeList() : this.mode.objectives;  // Cephe: yalnız etkin nokta
     if (!objs.length) return;
+    if (this.map.big && !this.front) { assignSquadsBig(this); return; }       // 12.189 büyük harita: cephe görevleri (bigBots.js)
     for (const team of ['blue', 'red']) {
       const nSq = Math.ceil(this.soldiers.filter((s) => s.team === team).length / 4);
       const load = new Map(objs.map((o) => [o.id, 0]));
@@ -1137,6 +1141,7 @@ export class Game {
 
   // Keskin nişancı gözetleme noktası: hedefi gören, yüksek/uzak, kendi tarafa yakın nokta
   perch(o, team) {
+    if (this.map.big) return perchBig(this, o, team);                        // 12.189: büyük haritada tepe noktası (60–160 m, bot görüşüyle)
     const key = o.id + team;
     if (this.perchCache.has(key)) return this.perchCache.get(key);
     const home = this.map.spawns[team][0];
@@ -1291,7 +1296,7 @@ export class Game {
     this.pickups.update(dt);
     updateGadgets(this, dt, this.time);
     this.squadT -= dt;
-    if (this.squadT <= 0) { this.squadT = this.map.big ? 40 : 18; this.assignSquads(); }
+    if (this.squadT <= 0) { this.squadT = this.map.big ? 12 : 18; this.assignSquads(); }      // 12.189 büyük harita: 40 → 12 sn (görev değişmezse botların hedefi değişmez)
     this.weather.update(dt);
     this.updateMode(dt);
     this.updateBaseZones(dt);
@@ -1745,6 +1750,7 @@ export class Game {
   placeDeployable(s, st) { return placeDeployable(this, s, st); }
 
   alertNear(pos, team, radius) {
+    if (this.map.big) radius *= 2.5;                                              // 12.189 büyük harita: açık arazide silah sesi uzağa gider (yakındaki botlar çatışmaya yönelir)
     for (const s of this.soldiers) {
       if (!s.alive || s.team === team || !s.brain) continue;
       if (Math.hypot(s.pos.x - pos.x, s.pos.z - pos.z) < radius) s.brain.hear(pos, radius);
@@ -2007,6 +2013,7 @@ export class Game {
 
   onFlag(o, prev) {
     const mine = this.playerSoldier?.team;
+    if (this.map.big) this.squadT = Math.min(this.squadT, 1);                     // 12.189: bayrak el değişti → cephe görevleri 1 sn içinde yeniden
     this.emit('flag', { o, prev });
     if (this.headless || this.front) return;                                      // Cephe: bildirim front.js'te (cephe kayması)
     if (o.owner) {
