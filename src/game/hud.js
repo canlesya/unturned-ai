@@ -22,6 +22,9 @@ const NADE_SVG = '<svg class="hsi nd" viewBox="0 0 16 16"><ellipse cx="7.5" cy="
 const HS_SVG = '<svg class="hsi" viewBox="0 0 16 16"><circle cx="8" cy="7" r="4.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 0v4M8 10v6M0 7h4M12 7h4" stroke="currentColor" stroke-width="1.6"/></svg>';
 const PEN_SVG = '<svg class="hsi pni" viewBox="0 0 16 16"><path d="M1 8h11.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M10.2 4.6 13.8 8l-3.6 3.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><rect x="4.4" y="3" width="1.8" height="10" rx=".6" fill="currentColor" opacity=".55"/><rect x="7.6" y="3" width="1.8" height="10" rx=".6" fill="currentColor" opacity=".55"/></svg>';     // 12.164: delip geçme öldürmesi (ok iki gövdeden geçer)
 const FALL_SVG = '<svg class="fli" viewBox="0 0 16 16"><path d="M8 1v9M4.2 6.6 8 10.4l3.8-3.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 14.2h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';   // düşme (12.143): aşağı ok + zemin
+// 12.188 araç silahı öldürmeleri: tank topu (mermi), roket, araç makinelisi (iki mermi), araç patlaması / ezme (araç silueti)
+const VSVG = { shell: '<svg class="hsi vs" viewBox="0 0 16 16"><path d="M2 6.5h8l4 1.5-4 1.5H2z" fill="currentColor"/><path d="M2 5.5v5" stroke="currentColor" stroke-width="1.6"/></svg>', rocket: '<svg class="hsi vs" viewBox="0 0 16 16"><path d="M3 7h8l3 1-3 1H3z" fill="currentColor"/><path d="M3 7 1 5M3 9l-2 2" stroke="currentColor" stroke-width="1.3"/></svg>', mg: '<svg class="hsi vs" viewBox="0 0 16 16"><path d="M1 5h9l2 1-2 1H1zM1 9h9l2 1-2 1H1z" fill="currentColor"/></svg>', veh: '<svg class="hsi vs" viewBox="0 0 16 16"><path d="M1 10h14v2H1zM3 7h7l2 3H2z" fill="currentColor"/><circle cx="4" cy="12.5" r="1.5" fill="currentColor"/><circle cx="12" cy="12.5" r="1.5" fill="currentColor"/></svg>' };
+const VEH_KF = { 'Tank topu': 'shell', 'Roket': 'rocket', 'Tank makinelisi': 'mg', 'Kapı makinelisi': 'mg', 'Jip makinelisi': 'mg', 'Burun topu': 'mg', 'Jip': 'veh', 'Tank': 'veh', 'Helikopter': 'veh' };
 const DROWN_SVG = '<svg class="fli" viewBox="0 0 16 16"><path d="M8 1.6C6 4.6 4 7 4 9.6a4 4 0 0 0 8 0C12 7 10 4.6 8 1.6z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>';   // 12.180 boğuldu: su damlası
 const CSS = `
 #hud{position:fixed;inset:0;pointer-events:none;font-family:Bahnschrift,'Rajdhani','Arial Narrow','Segoe UI',system-ui,sans-serif;color:#fff;user-select:none;z-index:5;letter-spacing:.5px;
@@ -63,7 +66,7 @@ const CSS = `
 .kf .b{color:#8cc4ff}.kf .r{color:#ff9a88}
 .kf .w{font-size:11px;margin:0 9px;color:#ffe2bd;letter-spacing:1px;padding:1px 7px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.14);text-transform:uppercase;display:inline-flex;align-items:center;gap:5px}
 .kf .w .hsi{width:12px;height:12px;color:#ff6a4a}.kf .w .nd{color:#c9d68a}
-.kf .w .fli{width:12px;height:12px;color:#ffb36a}.kf .w .pni{color:#9fe2ff}
+.kf .w .fli{width:12px;height:12px;color:#ffb36a}.kf .w .vs{color:#ffc36a}.kf .w .pni{color:#9fe2ff}
 @keyframes kf{0%{opacity:0;transform:translateX(24px)}5%{opacity:1;transform:none}85%{opacity:1}100%{opacity:0}}
 /* nişan */
 #cross{position:absolute;left:50%;top:50%;width:0;height:0}
@@ -610,7 +613,7 @@ export class Hud {
     const nm = dispName;
     const wl = wLabel(weapon);
     d.innerHTML = killer && killer !== victim
-      ? `<span class="${cls(killer)}">${nm(killer)}</span><span class="w">${weapon === 'El Bombası' ? NADE_SVG : ''}${EN(wl)}${pn ? PEN_SVG : ''}${hs ? HS_SVG : ''}</span><span class="${cls(victim)}">${nm(victim)}</span>`
+      ? `<span class="${cls(killer)}">${nm(killer)}</span><span class="w">${weapon === 'El Bombası' ? NADE_SVG : VEH_KF[weapon] ? VSVG[VEH_KF[weapon]] : ''}${EN(wl)}${pn ? PEN_SVG : ''}${hs ? HS_SVG : ''}</span><span class="${cls(victim)}">${nm(victim)}</span>`
       : `<span class="${cls(victim)}">${nm(victim)}</span><span class="w">${weapon === 'Düştü' ? FALL_SVG : weapon === 'Boğuldu' ? DROWN_SVG : ''}${wl && !/^(İntihar)$/.test(weapon) ? wl : t('hud.kf.died')}</span>`;
     f.appendChild(d);
     while (f.children.length > 6) f.firstChild.remove();
@@ -836,7 +839,7 @@ export class Hud {
     const ov = p.overlay, adsL = p.adsT, ads = adsEase(adsL);           // adsL doğrusal (dürbün eşiği silah modeliyle aynı), ads görsel eğri
     const scopeOn = p.alive && ov === 'scope' && (g.player ? !!g.player.scopeOn : adsL > 0.9);      // 12.127: bayrak ViewModel'de (çıkışta dünya ×2'nin altına inene dek açık; model aynı bayrakla gizli)
     const tp = g.showSelf;                                   // 3. şahıs kamera: optik örtüsü yok, artı hep görünür
-    const showCross = p.alive && (ads < 0.6 || tp) && !p.scoped;      // 12.174: dönem dürbünü takılı tüfekte de      // 12.156: dürbünlü keskin nişancıda belden artı yok (no-scope tahmine kalır; isabet işareti #hitm ayrı, çalışır)
+    const showCross = p.alive && (ads < 0.6 || tp) && !p.scoped && !(p.veh && p.seat === 0);      // 12.188: sürücüde artı yok (tank: nişan = top nişangâhı #vhGun; ekran ortası namlu hattı değil, 20 m+ kısa düşüyordu)      // 12.174: dönem dürbünü takılı tüfekte de      // 12.156: dürbünlü keskin nişancıda belden artı yok (no-scope tahmine kalır; isabet işareti #hitm ayrı, çalışır)
     cross.style.display = showCross ? 'block' : 'none';
     cross.classList.toggle('ads', ads > 0.5 && !tp);
     const spread = p.spreadNow(st) * 900;

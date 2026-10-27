@@ -386,6 +386,7 @@ export class TouchControls {
     if (id === 'crouch') this.dive = down;                                     // 12.180: yüzerken çömel düğmesi basılıyken dalınır
     if (id === 'crouch' && !down && this.down) { this.down = false; if (b) b.classList.remove('on'); }      // 12.183: alçal basılıyken inilse / koltuk değişse de bırakınca söner (eskiden takılı kalıyordu → sonraki binişte kendiliğinden alçalış)
     if (id === 'crouch' && s.veh?.def.heli && s.seat === 0) { this.down = down; if (b) b.classList.toggle('on', down); return; }      // 12.179 helikopter pilotu: çömel butonu basılıyken alçal
+    if (id === 'ads' && s.veh?.def.rockets && s.seat === 0) { s.ads = down; if (b) b.classList.toggle('on', down); return; }      // 12.188 helikopter pilotu: nişan butonu basılıyken roket
     if (!down) { if (id === 'jump') this.jump = false; return; }
     if (id === 'pause') { g.togglePause(); return; }
     if (!s.alive) return;
@@ -553,7 +554,7 @@ export class TouchControls {
     this.b.third.classList.toggle('on', !!p.third);
     {                                                                                      // 12.177 araç butonları: bin / in yalnız araç yanında ya da içindeyken; kamera sürücüde; koltuk araçta
       const V = g.vehicles, inV = !!s.veh, near = !inV && V ? !!V.near(s) : false, drv = inV && s.seat === 0;
-      const key = (inV ? 1 : 0) | (near ? 2 : 0) | (drv ? 4 : 0) | (inV && s.veh.def.heli ? 8 : 0);
+      const key = (inV ? 1 : 0) | (near ? 2 : 0) | (drv ? 4 : 0) | (inV && s.veh.def.heli ? 8 : 0) | (inV && (s.veh.def.cannon || s.veh.def.rockets) ? 16 : 0);
       if (key !== this._vk) {
         this._vk = key;
         this.b.veh.classList.toggle('hid', !inV && !near); this.b.veh.classList.toggle('on', inV);
@@ -561,7 +562,8 @@ export class TouchControls {
         const hp = inV && drv && s.veh.def.heli;
         for (const k of ['nade', 'third']) this.b[k].classList.toggle('vh', inV);
         this.b.crouch.classList.toggle('vh', inV && !hp);                                  // helikopter pilotunda çömel = alçal, zıpla = yüksel
-        for (const k of ['ads', 'reload', 'swap', 'optic']) this.b[k].classList.toggle('vh', drv);
+        for (const k of ['reload', 'swap', 'optic']) this.b[k].classList.toggle('vh', drv);
+        this.b.ads.classList.toggle('vh', drv && !(s.veh.def.cannon || s.veh.def.rockets));      // 12.188: nişan butonu tank sürücüsünde yakınlaştırma, helikopter pilotunda roket
       }
     }
     // zombi: güç butonu (halka = bekleme / etkin süre), silah butonları yok

@@ -57,6 +57,18 @@ function build(team) {
   B([0.1, 1.4, 1.1], C, [0, 2.95, 7.45], [-0.35, 0, 0]);                     // dikey kanat
   B([0.11, 0.45, 0.9], M, [0, 2.75, 7.4], [-0.35, 0, 0]);                    // kuyruk takım bandı
   B([2.0, 0.08, 0.6], C, [0, 2.05, 6.4]);                                     // yatay dengeleyici
+  // 12.188 pilot silahları: burun altı top (gövdeye sabit; namlu ucu = VT nose f 3,55 · u 0,72) + iki kısa kanat altında roket kapsülü (ağız = VT rockets.pods)
+  B([0.34, 0.2, 0.5], METAL, [0, 0.82, -2.85]);                               // top yatağı (burnun altına oturur)
+  const ball = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6), mat('#2b2d2e')); ball.position.set(0, 0.7, -2.95); body.add(ball);
+  const brl = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 0.62, 8), mat('#151617')); brl.rotation.x = Math.PI / 2; brl.position.set(0, 0.72, -3.25); body.add(brl);
+  B([0.09, 0.09, 0.1], '#111', [0, 0.72, -3.55]);                              // namlu ağzı
+  for (const sx of [-1, 1]) {
+    B([0.52, 0.07, 0.5], dk, [sx * 1.4, 0.86, -1.0]);                         // kısa kanat (gövde tabanına bağlı)
+    B([0.06, 0.12, 0.3], DK, [sx * 1.62, 0.78, -1.0]);                        // askı
+    const pod = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 1.3, 8), mat('#3a3f33')); pod.rotation.x = Math.PI / 2; pod.position.set(sx * 1.62, 0.6, -1.05); body.add(pod);
+    const fr = new THREE.Mesh(new THREE.CylinderGeometry(0.175, 0.175, 0.06, 8), mat(DK)); fr.rotation.x = Math.PI / 2; fr.position.set(sx * 1.62, 0.6, -1.7); body.add(fr);
+    for (let i = 0; i < 6; i++) { const a = (i / 6) * Math.PI * 2, t = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.02, 6), mat('#0c0c0c')); t.rotation.x = Math.PI / 2; t.position.set(sx * 1.62 + Math.cos(a) * 0.1, 0.6 + Math.sin(a) * 0.1, -1.72); body.add(t); }   // tüp ağızları
+  }
   mergeVC(body);
   // cam (ön + yan kokpit)
   const gl = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 1.25), GLASS); gl.position.set(0, 1.95, -2.62); gl.rotation.x = -0.5; gl.renderOrder = 3; root.add(gl);

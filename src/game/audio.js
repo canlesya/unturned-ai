@@ -206,15 +206,16 @@ export class Sfx {
     this._play(v, src, chain, t, t + buf.duration / rate + 0.02);
   }
 
-  explosion(pos) {
+  explosion(pos, big = false) {
     if (!this.ctx) return;
-    const v = this._voice(pos, 1, { ref: 42, rv: 0.55 });
+    const v = this._voice(pos, 1, { ref: big ? 70 : 42, rv: 0.55 });
     if (v.gain < 0.003) { for (const x of v.nodes) x.disconnect(); return; }
     if (v.d < 80) this._noise({ v, gain: 0.9, dur: 0.035, f0: 5000, f1: 1200, type: 'highpass', att: 0.0008 });   // ilk şok çatlaması
     this._noise({ v, gain: 1.1, dur: 0.9, f0: 2500, f1: 80, att: 0.003 });
     this._tone({ v, gain: 1.0, dur: 0.8, f0: 68, f1: 22, att: 0.004 });
     this._noise({ v, gain: 0.55, dur: 2.0, f0: 420, f1: 40, delay: 0.05, att: 0.08 });              // uzun gümbürtü
     if (!MOB) this._noise({ v, gain: 0.12, dur: 0.7, f0: 3500, f1: 1800, type: 'bandpass', q: 0.8, delay: 0.22, att: 0.05 });   // dökülen moloz
+    if (big) { this._tone({ v, gain: 0.9, dur: 1.2, f0: 48, f1: 16, att: 0.006 }); this._noise({ v, gain: 0.35, dur: 1.4, f0: 900, f1: 60, delay: 0.12, att: 0.1 }); }      // 12.188 tank topu: daha derin gümbürtü + toprak yağmuru
   }
   // İsabet geri bildirimi (konumsuz, kuru): gövde = kısa "tık", kafa = metalik çan; dmg ile tok / parlak
   hit(dmg = 30) {

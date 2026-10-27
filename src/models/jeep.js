@@ -84,7 +84,11 @@ function build(team) {
   B([0.04, 0.32, 0.04], METAL, [-0.42, 1.12, -0.42], [0.95, 0, 0]);                          // direksiyon mili
   B([0.05, 0.3, 0.05], '#202122', [-0.02, 0.72, -0.15], [-0.3, 0, 0]); B([0.08, 0.08, 0.08], '#141414', [-0.02, 0.87, -0.11]);   // vites kolu
   // koltuklar: ön iki, arka sıra
-  for (const [x, z, y] of [[-0.42, -0.12, 0.78], [0.42, -0.12, 0.78], [-0.42, 0.78, 0.84], [0.42, 0.78, 0.84]]) {
+  // 12.188: ön yolcu koltuğu yerine makineli nişancısı (ortada, ön koltukların arkasında yükseltilmiş tabure + halka kundak; VT.jip.seat[1] = [−0,38, 0, 1,1] · göz ≈ 1,88,0])
+  B([0.08, 0.48, 0.08], METAL, [0, 0.81, 0.38]); B([0.36, 0.08, 0.32], SEAT, [0, 1.06, 0.4]);          // tabure
+  for (const sx of [-1, 1]) B([0.06, 0.8, 0.06], METAL, [sx * 0.42, 0.97, 0.38]);                       // halka kundak dikmeleri (tabandan halkaya)
+  const rg = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.03, 4, 18), mat(METAL)); rg.rotation.x = Math.PI / 2; rg.position.set(0, 1.36, 0.38); body.add(rg);
+  for (const [x, z, y] of [[-0.42, -0.12, 0.78], [-0.42, 0.78, 0.84], [0.42, 0.78, 0.84]]) {
     B([0.5, 0.12, 0.46], SEAT, [x, y - 0.06, z + 0.02]);
     B([0.5, 0.5, 0.1], SEAT, [x, y + 0.24, z + 0.3], [0.18, 0, 0]);
     B([0.4, 0.2, 0.42], dk, [x, y - 0.22, z + 0.02]);                                         // koltuk ayağı (tabana)
@@ -133,6 +137,20 @@ function build(team) {
   const needle = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.06, 0.004), mat('#d23a22')); needle.geometry.translate(0, 0.028, 0);
   mergeVC(fx); mergeVC(steer);                                   // çizim çağrısı: far / stop / direksiyon parçaları malzeme başına tek
   needle.name = 'ibre'; needle.position.set(JEEP.gauge[0], JEEP.gauge[1], JEEP.gauge[2] + 0.13); needle.rotation.x = -0.25; root.add(needle);
+  // 12.188 halka kundaklı makineli: kızak halkanın üstünde nişancının bakışıyla döner (yaw), silah yükselir (pitch); kalkan gözün altında (görüş açık)
+  const jm = new THREE.Group(); jm.name = 'jipMG'; jm.position.set(0, 1.36, 0.38); root.add(jm);
+  box(jm, [0.16, 0.1, 0.16], METAL, [0, 0.05, -0.42]);                       // kızak (halkaya oturur)
+  box(jm, [0.06, 0.08, 0.06], METAL, [0, 0.1, -0.42]);                       // çatal
+  box(jm, [0.6, 0.22, 0.03], dk, [0, 0.13, -0.58], [-0.12, 0, 0]);           // kalkan (namlu ortasından geçer; üstü gözün ~0,25 m altında)
+  for (const sx of [-1, 1]) box(jm, [0.03, 0.26, 0.16], dk, [sx * 0.3, 0.15, -0.52], [0, sx * 0.35, 0]);   // kalkan kulakları
+  box(jm, [0.4, 0.03, 0.03], M, [0, 0.23, -0.595], [-0.12, 0, 0]);          // takım şeridi
+  const jg = new THREE.Group(); jg.name = 'jipMGsilah'; jg.position.set(0, 0.14, -0.42); jm.add(jg);
+  box(jg, [0.12, 0.14, 0.5], '#232425', [0, 0, 0.02]);                       // gövde
+  const jb = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.032, 0.72, 8), mat('#151617')); jb.rotation.x = Math.PI / 2; jb.position.set(0, 0.01, -0.58); jg.add(jb);
+  box(jg, [0.06, 0.06, 0.1], '#0e0e0f', [0, 0.01, -0.95]);                   // alev gizleyici
+  box(jg, [0.16, 0.13, 0.2], '#3b4a32', [0.14, -0.03, 0.02]);                // fişek kutusu
+  for (const sx of [-1, 1]) box(jg, [0.025, 0.1, 0.025], '#111', [sx * 0.05, -0.05, 0.3]);   // tutamaklar
+  mergeVC(jm);                                                   // alt grup (silah) da birleşir (mergeVC özyineli)
   return root;                                                   // başvurular kopyada bağlanır (şablonun userData'sı boş kalmalı: clone JSON kopyalar)
 }
 
@@ -143,6 +161,6 @@ export function createJeep(team) {
   const r = T.clone(true);
   const find = (n) => r.getObjectByName(n);
   const wheels = r.children.filter((c) => c.name === 'teker').map((c) => ({ piv: c, w: c.children[0], front: c.position.z < 0 }));
-  r.userData = { wheels, steer: find('direksiyon'), hands: find('eller'), arms: find('kollar'), needle: find('ibre'), glass: find('cam'), fx: find('ışık'), body: find('gövde'), team: k };
+  r.userData = { wheels, jmg: find('jipMG'), jgun: find('jipMGsilah'), steer: find('direksiyon'), hands: find('eller'), arms: find('kollar'), needle: find('ibre'), glass: find('cam'), fx: find('ışık'), body: find('gövde'), team: k };
   return r;
 }

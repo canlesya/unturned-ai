@@ -49,7 +49,7 @@ import { Front } from './front.js';                                  // Cephe mo
 import { Vehicles } from './vehicles.js';                            // 12.177 araçlar (Kuzey Vadisi: jip)
 import { VehicleView } from './vehicleView.js';
 import { VehicleHud } from './vehicleHud.js';
-import { VT, mgAt } from '../sim/vehicle.js';
+import { VT, mgAt, seatGun, heFalloff } from '../sim/vehicle.js';
 import { spaceSetup } from './space.js';
 import { NADE, nadeStep, simulateNade, NadeView } from './grenade.js';
 import { createWeapon } from '../models/weapons.js';
@@ -230,6 +230,7 @@ export class Game {
     } else {
       this.effects = new Effects(this.scene);
       this.effects.cam = this.camera;                              // 12.146: uzaktaki isabet efekti kameraya uzaklıkla büyür
+      this.effects.groundAt = (x, z) => this.world.heightAt(x, z);   // 12.188: patlama parçacıkları arazide durur (eskiden y = 0'a dek düşüp araziden geçiyordu)
       this.sfx = new Sfx();
       this.sfx.setVolume(this.settings.volume);
       this.sfx.setMix({ sfx: this.settings.vSfx ?? 1, amb: this.settings.vAmb ?? 1, rain: this.settings.rainSound !== false });
@@ -585,9 +586,11 @@ export class Game {
     s.flashOn = false; s.stanceLeft = false; s.shotOff = null;
     if (s.seat === 0) {
       if (inp.vl) v.lights = !v.lights;
-      v.horn = !v.def.cannon && !!inp.fh;                              // jip: sol tık korna · tank: ana top
-      V.drive(v, { f: inp.f, r: inp.r, b: !!inp.j, u: !!inp.j, d: !!inp.dn, yw: inp.yw, pt: inp.pt }, dt);      // 12.178: bakış = kule / top hedefi · 12.179 helikopter: j yüksel, dn alçal, bakış burun
+      v.horn = !!v.def.horn && !!inp.fh;                               // jip: sol tık korna · tank: ana top · 12.188 helikopter: burun topu (korna yok)
+      V.drive(v, { f: inp.f, r: inp.r, b: !!inp.j, u: !!inp.j, d: !!inp.dn, yw: inp.gy ?? inp.yw, pt: inp.gp ?? inp.pt }, dt);      // 12.188 gy / gp: artının noktasına balistik top hedefi · 12.178: bakış = kule / top hedefi · 12.179 helikopter: j yüksel, dn alçal, bakış burun
       if (v.def.cannon && (inp.fh || inp.fp)) V.fireCannon(v, s);
+      if (seatGun(v.def, 0)) V.mgFire(s, !!inp.fh, dt);                // 12.188 helikopter pilotu: burun topu (sol tık)
+      if (v.def.rockets && inp.a) V.fireRocket(v, s);                    // · roketler (sağ tık)
       for (const o of v.seats) if (o) V.place(o);
       h.fireBuf = 0;
       return;
@@ -1728,7 +1731,7 @@ export class Game {
       if (!wh.veh && (wh.collider || wh.normal.y > 0.5)) this.effects.dust(pt, wh.normal);
       if (!wh.veh) this.effects.decal(pt, wh.normal);                           // araçta iz bırakmaz (gövde hareket eder)
       if (shooter.isPlayer || pt.distanceTo(this.camera.position) < 25) this.sfx.impact(pt);
-      if (wh.veh && !this.online) { const f = wh.t <= st.range[0] ? 1 : lerpClamp(1, st.minMul, (wh.t - st.range[0]) / (st.range[1] - st.range[0])); this.vehicles.damage(wh.veh, st.dmg * f * (st.pellets ? 0.6 : 1) * (shooter.dmgMul || 1), shooter, 'bullet', st.name); }
+      if (wh.veh && !this.online) { const f = wh.t <= st.range[0] ? 1 : lerpClamp(1, st.minMul, (wh.t - st.range[0]) / (st.range[1] - st.range[0])); this.vehicles.damage(wh.veh, st.dmg * f * (st.pellets ? 0.6 : 1) * (shooter.dmgMul || 1), shooter, st.vk || 'bullet', st.name); }
       if (ev) { ev.k = 'w'; ev.p = [q2(pt.x), q2(pt.y), q2(pt.z)]; ev.n = [q2(wh.normal.x), q2(wh.normal.y), q2(wh.normal.z)]; if (wh.veh) ev.vh = 1; }
     } else {
       const end = origin.clone().addScaledVector(dir, 120);
@@ -1951,31 +1954,48 @@ export class Game {
   }
 
   // selfMul: atanın kendi hasar çarpanı (varsayılan TUNE.selfBlast; elde patlayan bomba öldürür). Duvar arkası: patlamadan gövde merkezi YA DA başa açık hat yoksa hasar yok.
-  explode(pos, radius, dmg, owner, name, selfMul, kind = 'blast') {
+  // 12.188 opt (tank topu HE): { he, inner, vehInner, n } — he: iri patlama efekti / sarsıntı + askere uzaklık gövde EKSENİNE (yere düşen mermi ayaktan
+  // ölçülür), görüş çıkışı yüzey normali yönünde 0,3 m (+ yere düşende 0,7 m yukarıdan ikinci çıkış: arazinin kıl payı tümseği parçacığı kesmez),
+  // hasar inner içinde tam → radius'ta 0 (heFalloff), daha güçlü itme. İz (kurum) çevrim içi istemcide de çizilir (eskiden yalnız yetkili tarafta).
+  explode(pos, radius, dmg, owner, name, selfMul, kind = 'blast', opt = null) {
+    const he = !!opt?.he;
     this.effects.explosion(pos, radius);
-    this.sfx.explosion(pos);
-    this.alertNear(pos, owner.team, 90);
+    if (he) this.effects.heBlast?.(pos, opt.n);
+    this.sfx.explosion(pos, he);
+    this.alertNear(pos, owner.team, he ? 140 : 90);
     const dc = pos.distanceTo(this.camera.position);
-    this.effects.shake = Math.max(this.effects.shake, clamp(1 - dc / 35, 0, 1) * 1.1);
+    this.effects.shake = Math.max(this.effects.shake, he ? clamp(1 - dc / 60, 0, 1) * 1.6 : clamp(1 - dc / 35, 0, 1) * 1.1);
+    if (!this.headless) {
+      const dn = new THREE.Vector3(0, -1, 0);
+      const gh = this.world.raycast(new THREE.Vector3(pos.x, pos.y + 1, pos.z), dn, 6, {});
+      if (gh) this.effects.decal(gh.point, gh.normal, true);
+    }
     if (this.online) return;                // hasar sunucuda
-    this.vehicles?.blast(pos, radius, dmg, owner, name, kind);                     // 12.177: araç hasarı (gövdeye en yakın noktadan) · 12.178 kind 'at' = tanksavar (RPG, tank topu)
-    const o = pos.clone(); o.y += 0.3;
+    this.vehicles?.blast(pos, radius, dmg, owner, name, kind, opt);               // 12.177: araç hasarı (gövdeye en yakın noktadan) · 12.178 kind 'at' = tanksavar (RPG, tank topu)
+    const o = pos.clone(); if (opt?.n) o.addScaledVector(opt.n, 0.3); o.y += 0.3;
+    let o2 = null;
+    if (he && !(opt.n && opt.n.y < 0.7)) { o2 = pos.clone(); o2.y += 0.7; if (!this.world.clear(o, o2)) o2 = null; }      // yalnız yere düşen mermide (duvarın / kum torbasının yüzüne çarpan merminin arkası korunur)
+    const W = this.world, inner = opt?.inner;
     for (const e of this.soldiers) {
       if (!e.alive) continue;
       if (e.team === owner.team && e !== owner) continue;
       if (this.vehicles?.hiddenSeat(e)) continue;                                   // 12.178: tank içindeki sürücü zırh arkasında (araçla birlikte ölür)
       const c = e.center(new THREE.Vector3());
-      const d = c.distanceTo(pos);
+      const d = he ? Math.hypot(e.pos.x - pos.x, clamp(pos.y, e.pos.y + 0.15, e.pos.y + e.height - 0.1) - pos.y, e.pos.z - pos.z) : c.distanceTo(pos);
       if (d > radius) continue;
-      if (!this.world.clear(o, c) && !this.world.clear(o, e.eye(_xe))) continue;
-      let a = dmg * (1 - (d / radius) ** 2);
+      const eye = e.eye(_xe);
+      if (!W.clear(o, c) && !W.clear(o, eye)) {
+        if (!he) continue;
+        const kn = (this._xk ||= new THREE.Vector3()).set(e.pos.x, e.pos.y + 0.45, e.pos.z);
+        if (!W.clear(o, kn) && !(o2 && (W.clear(o2, c) || W.clear(o2, eye)))) continue;
+      }
+      const f = inner != null ? heFalloff(d, radius, inner) : 1 - (d / radius) ** 2;
+      let a = dmg * f;
       if (e === owner) a *= selfMul ?? TUNE.selfBlast;
       e.takeDamage(a, owner, 'body', pos, name);
-      e.vel.x += (c.x - pos.x) / (d + 0.5) * 3; e.vel.z += (c.z - pos.z) / (d + 0.5) * 3;
+      const kb = he ? 3 + 4 * f : 3;
+      e.vel.x += (c.x - pos.x) / (d + 0.5) * kb; e.vel.z += (c.z - pos.z) / (d + 0.5) * kb;
     }
-    const dn = new THREE.Vector3(0, -1, 0);
-    const gh = this.world.raycast(new THREE.Vector3(pos.x, pos.y + 1, pos.z), dn, 6, {});
-    if (gh) this.effects.decal(gh.point, gh.normal, true);
   }
 
   // ───── Mod: hedef ele geçirme + bilet ─────
