@@ -2,7 +2,9 @@ import * as THREE from 'three';
 import { box, taperBox, cylY, ico, V, mergeStatic, mergeVC } from '../core/geo.js';
 import { C, TEAMS, SKINS } from '../core/palette.js';
 import { createWeapon } from './weapons.js';
-import { reloadAnim, meleePose } from '../game/anim.js';
+import { meleePose } from '../game/anim.js';
+import { reloadPlan, reloadMode } from '../game/reloadPlan.js';
+import { reloadGeo, blendPoint } from '../game/reloadGeo.js';
 import { ZTYPES, ZBOSS, BOSS } from '../game/stats.js';
 import { buildZombie, ZMAT } from './zombieBody.js';
 import { ww2Gear, ww2Look } from './ww2gear.js';                       // 12.158: Cephe modu 1940'lar üniformaları
@@ -567,7 +569,8 @@ function applyPose(api, w, o = {}) {
   const hold = u.hold;
   const zm = api.cls === 'zombie' && hold === 'melee';
   const m = zm ? ZMOUNT : MOUNTS[hold] || MOUNTS.rifle, sp = zm ? ZSPRINT : SPRINT[hold] || SPRINT.rifle;
-  const ra = reload ? reloadAnim(reload.style, reload.k, reload.empty, reload.ph) : null;
+  const rlMode = reload ? reloadMode(reload.id, { reloadStyle: reload.style }) : null;      // 12.195: birinci şahısla aynı koreografi (reloadPlan)
+  const ra = reload ? reloadPlan(rlMode, reload.k, reload.empty, reload.ph, reload.shk ?? 0.2) : null;
   const spr = sprint * (1 - (ra ? ra.tilt * 0.75 : 0)) * (mp ? 0.3 : 1);
   // yatarken gövde yerle paralel: silah gövde yerelinde +Y yönüne (dünyada ileri) uzanır
   const PR = { pos: [0.1, 0.62, 0.02], rotX: Math.PI / 2 };
@@ -595,12 +598,8 @@ function applyPose(api, w, o = {}) {
     mount.rotation.x += mp.rx; mount.rotation.y += mp.ry; mount.rotation.z += mp.rz;
   }
   // şarjör / sürgü alt grupları
-  if (u.mag) {
-    const ax = u.magAxis || [0, -1, 0], off = ra ? ra.magOut * 0.24 : 0;
-    u.mag.visible = ra ? ra.magVis : !u.magHidden;
-    u.mag.position.set(ax[0] * off, ax[1] * off, ax[2] * off);
-    u.mag.rotation.x = ra ? -ra.magOut * 0.35 : 0;
-  }
+  if (u.mag && !ra) { u.mag.visible = !u.magHidden; u.mag.position.set(0, 0, 0); u.mag.quaternion.identity(); }
+  if (u.brk) u.brk.g.rotation.x = ra ? (u.brk.angle ?? -0.6) * (ra.brk || 0) : 0;
   if (u.bolt) {
     const b = ra ? ra.bolt : 0;
     u.bolt.g.position.set(0, u.bolt.pivot, b * 0.085);
@@ -619,14 +618,19 @@ function applyPose(api, w, o = {}) {
   }
   const restL = () => armL.shoulder.clone().add(V(-0.03, -0.55, -0.05 + swing * 0.3));
   if (ra) {
-    const fg = u.gripL ? toTorso(u.gripL) : restL();
-    const mg = u.magPos ? u.magPos.clone().add(V(0, -0.03, 0)) : V(0.0, -0.03, -0.03);
-    if (u.mag && ra.magOut > 0 && ra.w.mag > 0.5) mg.addScaledVector(V(...(u.magAxis || [0, -1, 0])), ra.magOut * 0.24);
-    const magT = toTorso(mg);
-    const chT = toTorso(V(0, 0.075, 0.0));
-    const wt = ra.w;
-    const tgt = fg.multiplyScalar(wt.fg).add(magT.multiplyScalar(wt.mag)).add(POUCH.clone().multiplyScalar(wt.pouch)).add(chT.multiplyScalar(wt.charge));
-    poseArm(armL, tgt);
+    // 12.195: sol el plan noktalarında (silah yerelinde çözülür), cep gövde yerelinde; şarjör ele bağlı (birinci şahısla aynı an / yer)
+    const geo = reloadGeo(u, reload.id, rlMode), inv = mount.matrix.clone().invert();
+    const ex = { fg: u.gripL ? u.gripL : restL().applyMatrix4(inv), pouch: POUCH.clone().applyMatrix4(inv), gR: u.gripR, u };
+    const h = ra.L ? blendPoint(geo, ra.L, ra, ex) : ex.fg.clone();
+    poseArm(armL, toTorso(h));
+    h.copy(armL.hand.position).applyMatrix4(inv);                                        // kol erişemezse (uzun tüfek) şarjör yine elin kendisinde
+    if (u.mag) {
+      if (ra.mag === 'hand') {
+        const a = (Math.abs(geo.out.y) >= 0.7 && reload.id !== 'p90' ? 0.3 : 0) * Math.min(1, h.distanceTo(geo.G) / geo.L);
+        u.mag.quaternion.setFromAxisAngle(geo.tAx, a); u.mag.position.copy(geo.G).applyQuaternion(u.mag.quaternion).negate().add(h); u.mag.visible = true;
+      } else { u.mag.position.set(0, 0, 0); u.mag.quaternion.identity(); u.mag.visible = ra.mag === 'gun' || (rlMode === 'hopper'); }
+    }
+    if (ra.R) poseArm(armR, toTorso(blendPoint(geo, ra.R, ra, ex)));
   } else if (u.gripL) poseArm(armL, toTorso(u.gripL));
   else if (nadeL > 0.01) poseArm(armL, restL().lerp(NADE_AIM_L, nadeL));         // üstten atışta sol kol hedefi gösterir
   else poseArm(armL, restL());

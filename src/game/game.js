@@ -1431,7 +1431,7 @@ export class Game {
         case 'dep': netDeploy(this, ev); break;
         case 'depx': netUndeploy(this, ev.id); break;
         case 'ammo': if (ev.v === me.id) { this.hud.toast($t('hud.t.ammo'), '#9be07a'); this.sfx.deploy(me.pos); } break;
-        case 'rld': if (by && by !== me) { by.reloadStyle = ev.s; by.reloadTotal = by.reloadT = ev.t; by.reloadEmpty = !!ev.em; by.shellT = ev.sh; } break;
+        case 'rld': if (by && by !== me) { by.reloadStyle = ev.s; by.reloadTotal = by.reloadT = ev.t; by.reloadEmpty = !!ev.em; by.shellT = ev.sh; by.rlId = by.item?.id; } break;      // 12.195: süre Soldier.update'te yalnız görüntü için akar (silah değişince biter)
         case 'inf': {                                // bir insan zombi oldu: takım + sınıf (model) değişir
           const v = this.soldiers[ev.v]; if (!v) break;
           v.team = 'red'; v.boss = !!ev.bs; v.zLives = ev.zl ?? 2; v.ztype = ZT_ORDER[(ev.zt || 1) - 1] || 'walker'; v.setClass('zombie');
