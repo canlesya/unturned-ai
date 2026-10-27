@@ -2,7 +2,7 @@
 import { addStrings } from './index.js';
 
 addStrings('tr', {
-  'match.victory': 'ZAFER!', 'match.defeat': 'YENİLGİ',
+  'match.victory': 'ZAFER!', 'match.defeat': 'YENİLGİ', 'match.draw': 'BERABERE', 'match.drawWhy': '{why}. Skorlar eşit: berabere.',
   'match.kills': 'Öldürme', 'match.deaths': 'Ölüm', 'match.score': 'Puan', 'match.xp': 'XP',
   'match.won': '{why}. {team} kazandı.', 'match.wonFfa': '{why}.',
   'match.rank': 'Sıralama', 'match.lvl': 'Sv ',
@@ -21,7 +21,7 @@ addStrings('tr', {
 });
 
 addStrings('en', {
-  'match.victory': 'VICTORY!', 'match.defeat': 'DEFEAT',
+  'match.victory': 'VICTORY!', 'match.defeat': 'DEFEAT', 'match.draw': 'DRAW', 'match.drawWhy': '{why}. Scores are level: draw.',
   'match.kills': 'Kills', 'match.deaths': 'Deaths', 'match.score': 'Score', 'match.xp': 'XP',
   'match.won': '{why}. {team} won.', 'match.wonFfa': '{why}.',
   'match.rank': 'Ranking', 'match.lvl': 'Lv ',

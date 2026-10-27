@@ -108,7 +108,7 @@ export class Front {
     if (g.tickets.blue <= 0 || g.tickets.red <= 0) { const w = g.tickets.blue <= 0 ? 'red' : 'blue'; return [w, t('front.winTk', { name: this.name })]; }
     if (g.timeLeft !== Infinity && g.timeLeft <= 0) {
       const nb = this.owned('blue'), nr = this.owned('red');
-      const w = nb !== nr ? (nb > nr ? 'blue' : 'red') : g.tickets.blue >= g.tickets.red ? 'blue' : 'red';
+      const tb = Math.round(g.tickets.blue), tr = Math.round(g.tickets.red), w = nb !== nr ? (nb > nr ? 'blue' : 'red') : tb !== tr ? (tb > tr ? 'blue' : 'red') : 'draw';      // 12.197 nokta + bilet eşitse berabere
       return [w, t('front.winTime', { b: nb, r: nr })];
     }
     return null;

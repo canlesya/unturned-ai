@@ -219,9 +219,12 @@ export function buildCgMap(b, T, L, CALLOUTS) {
   { const all = spawns.red; spawns.red = all.slice(0, 12); pickSpawns([26.5, -46, 36.5, -36], 'red', PI, 0); spawns.red = spawns.red.slice(0, 24); for (const p of all.slice(12)) if (spawns.red.length < 24) spawns.red.push(p); }
 
   const objectives = [
-    { id: 'uzun', name: 'Uzun A', label: 'U', x: 54, z: 15, r: 9, core: true },
-    { id: 'orta', name: 'Orta', label: 'O', x: -6.4, z: 3.5, r: 10, core: true },
-    { id: 'tunel', name: 'Alt Tüneller', label: 'T', x: -27, z: -16.5, r: 8, core: true },
+    // 12.197 bayraklar iki doğuşa yürüme uzaklığı dengelenerek kaydı (eski: Uzun A (54,15) / Orta (−6,4,3,5) / Alt Tüneller (−27,−16,5) — üçü de CT avlusuna
+    // 31 / 36 / 69 m daha yakındı, Ele Geçirme'de CT tarafı 20 maçın 19'unu alıyordu). T avlusu çatışmada güçlü olduğu için tam eşit uzaklık T'ye kayıyordu (%67–69);
+    // Orta CT'ye ~12 m yakın bırakıldı → 16 maçta 8 / 8. Yalnız ele geçirme alanı (HUD işareti / pusula); dünyada geometri yok.
+    { id: 'uzun', name: 'Uzun Kapılar', label: 'U', x: 28, z: 6, r: 9, core: true },
+    { id: 'orta', name: 'Orta', label: 'O', x: -6, z: 10, r: 10, core: true },
+    { id: 'tunel', name: 'Üst Tüneller', label: 'T', x: -52, z: -4, r: 8, core: true },
   ];
   const env = {
     sky: ['#5c98d6', '#c6dcec', '#f3e3c4'], fog: ['#e4d3ae', 120, 340],

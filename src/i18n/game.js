@@ -35,7 +35,7 @@ const PW = { kuzey: 'North', güney: 'South', doğu: 'East', batı: 'West', k: '
   kırmızı: 'Red', mavi: 'Blue', doğuş: 'Spawn', çıkışı: 'Exit', portal: 'Gantry', vinç: 'Crane', kule: 'Tower', rıhtım: 'Dock', tünel: 'Tunnel', çatısı: 'Roof', hattı: 'Lane', orta: 'Mid',
   geçit: 'Pass', turuncu: 'Orange', mor: 'Purple', turkuaz: 'Turquoise', kale: 'Fort', köprüsü: 'Bridge', kanadı: 'Wing', iskelesi: 'Pier', evler: 'Houses', kilise: 'Church', kavşak: 'Crossroads',
   benzinlik: 'Gas Station', pazar: 'Market', ambar: 'Barn', gözetleme: 'Watch', tepesi: 'Hill', köprü: 'Bridge', orman: 'Forest', kampı: 'Camp', değirmen: 'Mill', komuta: 'Command', binası: 'Building',
-  kışla: 'Barracks', akaryakıt: 'Fuel Depot', merkez: 'Center', uzun: 'Long', alt: 'Lower', tüneller: 'Tunnels', depo: 'Warehouse',
+  kışla: 'Barracks', akaryakıt: 'Fuel Depot', merkez: 'Center', uzun: 'Long', alt: 'Lower', üst: 'Upper', kapılar: 'Doors', tüneller: 'Tunnels', depo: 'Warehouse',
   anıt: 'Monument', meydanı: 'Square', karakol: 'Outpost', cadde: 'Avenue', çökmüş: 'Collapsed', bina: 'Building', metro: 'Subway', otopark: 'Parking Garage', inşaat: 'Construction Site' };      // 12.185 New York bölgeleri
 const PF = { 'Asma kat': 'Mezzanine' };
 export function placeName(str) {
@@ -81,7 +81,7 @@ addStrings('tr', {
   'hud.t.ammo': 'Mühimmat dolduruldu', 'hud.t.ammoBox': 'Cephane kutusu kuruldu', 'hud.t.knifed': 'Bıçakla öldürüldün: Seviye {n}/{m}',
   'hud.t.noTeamPb': "Paintball'da takım yok: herkes tek", 'hud.t.noTeamDm': 'Ölüm maçında takım yok: herkes tek', 'hud.t.noTeamInf': 'Enfekte modunda takım seçilmez',
   'hud.t.teamFail': 'Takım değiştirilemedi', 'hud.t.disconnected': 'Sunucu bağlantısı koptu',
-  'hud.t.captured': '{f} ele geçirildi', 'hud.t.lost': '{f} düşman tarafından ele geçirildi', 'hud.t.neutral': '{f} tarafsız oldu',
+  'hud.t.half': 'Devre arası: taraflar değişti, yeni doğuşunuz karşı avlu', 'hud.popHalf': 'DEVRE ARASI · TARAF DEĞİŞTİ', 'hud.popCap': '+{n} BAYRAK', 'hud.popNeutral': '+{n} TARAFSIZLAŞTIRMA', 'hud.t.captured': '{f} ele geçirildi', 'hud.t.lost': '{f} düşman tarafından ele geçirildi', 'hud.t.neutral': '{f} tarafsız oldu',
   'hud.t.fireMode': 'Atış modu: {m}', 'hud.t.optic': 'Nişangâh: {o}', 'hud.t.noOptic': '{w}: seçilebilir nişangâh yok',
   'hud.t.leftHand': 'Silah sol elde', 'hud.t.rightHand': 'Silah sağ elde', 'hud.t.thirdOff': 'Bu odada 3. şahıs kamera kapalı',
   'hud.t.third': '3. şahıs kamera · {a} / {b} ile omuz değiştir · {c}: 1. şahıs', 'hud.t.first': '1. şahıs kamera',
@@ -158,7 +158,7 @@ addStrings('en', {
   'hud.t.ammo': 'Ammo refilled', 'hud.t.ammoBox': 'Ammo box deployed', 'hud.t.knifed': 'Knifed: Level {n}/{m}',
   'hud.t.noTeamPb': 'No teams in Paintball: everyone for themselves', 'hud.t.noTeamDm': 'No teams in Deathmatch: everyone for themselves', 'hud.t.noTeamInf': 'Teams cannot be chosen in Infection',
   'hud.t.teamFail': 'Could not switch team', 'hud.t.disconnected': 'Lost connection to the server',
-  'hud.t.captured': '{f} captured', 'hud.t.lost': '{f} captured by the enemy', 'hud.t.neutral': '{f} is neutral',
+  'hud.t.half': 'Half-time: sides switched, you now spawn at the other base', 'hud.popHalf': 'HALF-TIME · SIDES SWITCHED', 'hud.popCap': '+{n} FLAG', 'hud.popNeutral': '+{n} NEUTRALIZED', 'hud.t.captured': '{f} captured', 'hud.t.lost': '{f} captured by the enemy', 'hud.t.neutral': '{f} is neutral',
   'hud.t.fireMode': 'Fire mode: {m}', 'hud.t.optic': 'Sight: {o}', 'hud.t.noOptic': '{w}: no sights available',
   'hud.t.leftHand': 'Weapon in left hand', 'hud.t.rightHand': 'Weapon in right hand', 'hud.t.thirdOff': 'Third-person camera is disabled in this room',
   'hud.t.third': 'Third-person camera · {a} / {b} to swap shoulder · {c}: first person', 'hud.t.first': 'First-person camera',

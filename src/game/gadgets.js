@@ -165,7 +165,7 @@ export function placeDeployable(game, s, st) {
   return false;
 }
 
-function removeDeployable(game, d) {
+export function removeDeployable(game, d) {
   game.scene.remove(d.mesh);
   const i = game.deployables.indexOf(d);
   if (i >= 0) game.deployables.splice(i, 1);
