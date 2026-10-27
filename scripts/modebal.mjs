@@ -22,7 +22,7 @@ const KPOS = process.env.KPOS ? [] : null;                      // KPOS=dosya: �
 import { writeFileSync } from 'node:fs';
 
 function run(sd) {
-  seed = sd * 7919 + 13;
+  seed = sd * 7919 + 13; for (let k = 0; k < 3; k++) { seed = Math.imul(seed ^ (seed >>> 16), 0x85ebca6b) >>> 0; seed = Math.imul(seed ^ (seed >>> 13), 0xc2b2ae35) >>> 0; seed = (seed ^ (seed >>> 16)) >>> 0; }   // karıştır: ardışık tohumların LCG akışları birbirine bağlı olmasın
   const match = { perTeam: per, type };
   if (process.env.TIME) match.time = +process.env.TIME;
   const g = new Game(null, { headless: true, map, tod: 'day', weather: 'clear', diff, match });

@@ -139,7 +139,7 @@ export class Payload {
   result() {
     const g = this.g;
     if (this.done) return [ATK, t('payload.winAtk')];
-    if (g.timeLeft !== Infinity && g.timeLeft <= 0 && (!this.over || this.overGrace <= 0)) return [DEF, t('payload.winDef', { pct: Math.round(this.progress * 100), name: this.nextName })];
+    if (g.timeLeft !== Infinity && g.timeLeft <= 0 && (!this.over || this.overGrace <= 0)) return [DEF, t('payload.winDef', { pct: Math.min(99, Math.floor(this.progress * 100)), name: this.nextName })];      // 12.197 durdurulan vagon '%100' yazmasın (%99,6 yuvarlanıyordu)
     return null;
   }
 
