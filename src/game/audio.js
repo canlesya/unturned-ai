@@ -167,6 +167,7 @@ export class Sfx {
     if (isSpaceShot(kind)) return spaceShot(this, kind, pos);              // 12.157 Uzay modu enerji silahları (spaceSfx.js)
     switch (kind) {
       case 'knife': this._noise({ pos, gain: 0.28, dur: 0.16, f0: 900, f1: 3200, type: 'bandpass', q: 1.2 }); return;
+      case 'knifeH': this._noise({ pos, gain: 0.34, dur: 0.3, f0: 420, f1: 2400, type: 'bandpass', q: 1.1, delay: 0.15 }); return;      // 12.194 ağır vuruş: kurmadan sonra daha kalın, uzun hışırtı
       case 'throw': this._noise({ pos, gain: 0.2, dur: 0.15, f0: 1500, f1: 600, type: 'bandpass' }); return;
       case 'marker': if (this.draft !== 'A') break; { const v = this._voice(pos, 1, { rv: 0.12 }); this._noise({ v, gain: 0.34, dur: 0.05, f0: 2200, f1: 700, type: 'bandpass', q: 1.4 }); this._tone({ v, gain: 0.26, dur: 0.05, f0: 300, f1: 120, type: 'triangle' }); this._noise({ v, gain: 0.1, dur: 0.09, f0: 6000, f1: 2500, type: 'highpass', delay: 0.01 }); return; }   // paintball: kuru "pop" + gaz tıslaması
       case 'pbpistol': if (this.draft !== 'A') break; { const v = this._voice(pos, 1, { rv: 0.1 }); this._noise({ v, gain: 0.3, dur: 0.045, f0: 2800, f1: 900, type: 'bandpass', q: 1.4 }); this._tone({ v, gain: 0.22, dur: 0.045, f0: 380, f1: 150, type: 'triangle' }); return; }

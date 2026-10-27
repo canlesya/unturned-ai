@@ -567,7 +567,7 @@ export class Game {
       if (o.length() <= 4.5) { const e = s.eye(), to = e.clone().add(o); if (this.world.clear(e, to)) s.shotOff = o; }
     }
     const st = s.stat;
-    if (st.kind === 'melee') { if (inp.fh || h.fireBuf > 0) { if (s.tryFire()) h.fireBuf = 0; } }
+    if (st.kind === 'melee') { if (s.meleeInput(inp.fh, h.fireBuf)) h.fireBuf = 0; }
     else if (s.triggerUpdate(!!inp.fh, h.fireBuf)) h.fireBuf = 0;
     s.rewindTick = null; s.inSeq = null;
   }
@@ -599,7 +599,7 @@ export class Game {
     if (back) s.pos.copy(back);
     const st = s.stat;
     if (mgAt(v.def, s.seat)) V.mgFire(s, !!inp.fh, dt);             // 12.178 tank nişancısı · 12.179 helikopter kapı nişancısı: makineli
-    else if (st.kind === 'melee') { if (inp.fh || h.fireBuf > 0) { if (s.tryFire()) h.fireBuf = 0; } }
+    else if (st.kind === 'melee') { if (s.meleeInput(inp.fh, h.fireBuf)) h.fireBuf = 0; }
     else if (s.triggerUpdate(!!inp.fh, h.fireBuf)) h.fireBuf = 0;
     if (keep) s.pos.copy(keep);
     s.rewindTick = null; s.inSeq = null;
@@ -1407,7 +1407,7 @@ export class Game {
         case 'lvl': { const v = this.soldiers[ev.v]; if (v) { const up = ev.l > v.ggLevel; v.ggLevel = ev.l; if (v === me && up) this.showLevel(v, true); else if (v === me) this.hud.toast($t('hud.t.knifed', { n: ev.l + 1, m: GG_LADDER.length }), '#ff8a6a'); } break; }
         case 'pb': case 'pbh': this.paint.onNet(ev); break;          // paintball: top doğdu / oyuncuya isabet
         case 'pk': this.pickups.onNet(ev); break;                    // paintball: kutu alındı / yeniden belirdi
-        case 'swg': if (by && by !== me) { by.swing = { t: 0, dur: ev.d, kind: ev.k, idx: 0, done: true }; by.comboT = ev.d + 0.38; } break;
+        case 'swg': if (by && by !== me) { by.swing = { t: 0, dur: ev.d, kind: ev.k, idx: 0, done: true, hv: !!ev.h }; by.comboT = ev.d + 0.38; } break;
         case 'as': if (ev.to === me.id) { assistPop(this, this.soldiers[ev.v], ev.p); this.emit('assist', { by: me, victim: this.soldiers[ev.v], pts: ev.p }); } break;     // 12.165: kişisel asist bildirimi (sunucu yalnız ilgiliye yollar)
       }
     }

@@ -50,6 +50,7 @@ function weaponFields(id) {
   if (!s) return out;
   if (s.kind === 'melee') {
     out.push(f(p + 'dmg', 'Hasar', 1, 300), f(p + 'reach', 'Erişim', 1, 4, 0.1, 'm'), f(p + 'rpm', 'Vuruş/dk', 20, 300), f(p + 'move', 'Hareket hızı', 0.5, 1.5, 0.01, '×'));
+    if (s.heavy) out.push(f(p + 'heavyMul', 'Ağır vuruş (sağ tık) hasar çarpanı', 1, 3, 0.05, '×'), f(p + 'heavyT', 'Ağır vuruş süresi', 0.3, 1.5, 0.02, 'sn'));      // 12.194
     return out;
   }
   if (s.kind === 'launcher') {

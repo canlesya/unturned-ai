@@ -604,7 +604,7 @@ export class BotBrain {
         if (this.burstPause > 0) this.burstPause -= dt;
         else {
           if (this.burstLeft <= 0) this.burstLeft = Math.round(rand(this.d.burst[0], this.d.burst[1]));
-          const fired = s.tryFire();
+          const fired = s.tryFire(st.kind === 'melee' && !!st.heavy && s.isBehind(tg));      // 12.194: bıçaklı bot hedefin arkasındaysa ağır vuruş (CS2)
           if (fired) {
             this.burstLeft--;
             if (!inf) tacFired(this);

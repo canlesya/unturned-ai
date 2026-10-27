@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { createCharacter } from '../models/character.js';
 import { WSTATS, CLASS_DEFS, OPTICS, OPTIC_ORDER, OPTIC_ALLOWED, resolveOptic, cleanEraOptics, makeLoadout, frontLoadout, TAC_RELOAD, BACKSTAB_DMG, ZOMBIE, ZTYPES, BOSS, ZBOSS, ggItems, cleanSkins, spaceLoadout } from './stats.js';
-import { SWING_HIT_K } from './anim.js';
+import { swingHitK } from './anim.js';
 import { H_STAND, H_CROUCH, H_PRONE } from './collision.js';
 import { dirFromAngles, clamp, rand, lerp } from './util.js';
 import { TUNE } from './balance.js';
@@ -342,14 +342,20 @@ export class Soldier {
     return s + this.botExtraSpread;
   }
 
-  tryFire() {
+  // 12.194 yakın dövüş girdisi (oyuncu, sunucu, istemci tahmini aynı): sol tık / tampon = hızlı kombo, sağ tık (nişan bayrağı s.ads) = ağır vuruş (CS2 / Valorant)
+  meleeInput(fire, buf) {
+    if (fire || buf > 0) return this.tryFire();
+    return !!(this.ads && this.stat.heavy) && this.tryFire(true);
+  }
+
+  tryFire(heavy = false) {
     if (!this.alive || this.cd > 0 || this.switchT > 0 || this.useT > 0) return false;
     if (this.veh && (this.seat === 0 || this.stat.kind === 'mine' || this.stat.kind === 'ammobox' || this.stat.kind === 'medkit')) return false;     // 12.177: sürücü ateş etmez; araçtan mayın / kutu kurulmaz
     if (this.swim && !swimCanFire(this, this.stat)) return false;
     if (this.def.zombie && this.game.graceLeft > 0) return false;                     // Enfekte hazırlık süresi
     if (this.reloadT > 0 && !this.cancelShellReload()) return false;
     const it = this.item, st = this.stat;
-    if (st.kind === 'melee') return this._melee(st);
+    if (st.kind === 'melee') return this._melee(st, heavy);
     if (st.kind === 'medkit') return this._medkit(it, st);
     if (it.mag <= 0) {
       if (!this.startReload()) { this.cd = 0.3; this.game.sfx.dry(this.pos); if (this.isPlayer) this.game.emit('dry', this); }
@@ -502,20 +508,25 @@ export class Soldier {
     return true;
   }
 
-  // Yakın dövüş: savurma başlar; vuruş animasyonun orta anında (gecikmeli) uygulanır. Kombo: sağ→sol, sol→sağ, saplama
-  _melee(st) {
-    const idx = this.comboT > 0 ? (this.comboN + 1) % 3 : 0;
-    this.comboN = idx;
-    const kind = st.swings[idx];
-    const dur = kind === 'stab' ? st.stabT : st.swingT;
+  // Yakın dövüş: savurma başlar; vuruş animasyonun vuruş karesinde (swingHitK: hızlı 0,44 · ağır 0,5) uygulanır.
+  // Hızlı (sol tık): st.swings sırayla (bıçak / satır / tomahawk sağ→sol, sol→sağ; pençe + saplama), %80'de zincirlenir. Ağır (sağ tık, st.heavy): uzun kurma, tam süre bekler, komboyu sıfırlar.
+  _melee(st, heavy = false) {
+    const hv = !!(heavy && st.heavy);
+    let kind, idx, dur;
+    if (hv) { kind = st.heavy; idx = -1; dur = st.heavyT; this.comboT = 0; this.comboN = -1; }
+    else {
+      idx = this.comboT > 0 ? (this.comboN + 1) % st.swings.length : 0;
+      this.comboN = idx; kind = st.swings[idx];
+      dur = kind === 'stab' ? st.stabT : st.swingT;
+      this.comboT = dur + 0.38;
+    }
     if (this.def.zombie && this.cloaked && this.abActive > 0) this.abActive = 0;      // saldırı görünmezliği bitirir
-    this.swing = { t: 0, dur, kind, idx, done: false };
-    this.comboT = dur + 0.38;
-    this.cd = dur * 0.8;                                   // %80'de yeni savurma zincirlenebilir (hızlı çekme)
+    this.swing = { t: 0, dur, kind, idx, done: false, hv };
+    this.cd = hv ? dur : dur * 0.8;                        // hızlı: %80'de yeni savurma zincirlenebilir · ağır: savurma bitene dek
     this.sprinting = false;
-    this.game.sfx.shot('knife', this.pos);
+    this.game.sfx.shot(hv ? 'knifeH' : 'knife', this.pos);
     this.game.emit('melee', this);
-    this.game.netEvent({ e: 'swg', by: this.id, k: kind, d: +dur.toFixed(3) });
+    this.game.netEvent({ e: 'swg', by: this.id, k: kind, d: +dur.toFixed(3), ...(hv ? { h: 1 } : null) });
     this.flashT = 0;
     return true;
   }
@@ -530,7 +541,7 @@ export class Soldier {
     if (hit && hit.victim) {
       const v = hit.victim;
       const zb = this.def.zombie, back = !zb && this.isBehind(v);                       // zombi arkadan tek vuruş yapmaz
-      const mul = (sw.kind === 'stab' ? st.stabMul : 1) * (zb ? this.zt.dmg / st.dmg * ((this.boss || (this.abActive > 0 && this.zt.ability.id === 'rage')) ? BOSS.rageDmg : 1) : 1);
+      const mul = (sw.hv ? st.heavyMul || 1 : sw.kind === 'stab' ? st.stabMul || 1 : 1) * (zb ? this.zt.dmg / st.dmg * ((this.boss || (this.abActive > 0 && this.zt.ability.id === 'rage')) ? BOSS.rageDmg : 1) : 1);
       g.effects.blood(hit.point, back ? 14 : 8, d.clone().negate());
       g.sfx.knifeHit(hit.point, back);
       v.takeDamage((back ? TUNE.backstab : st.dmg * mul) * this.dmgMul, this, 'body', this.pos, back ? st.name + ' · arkadan' : st.name);
@@ -549,7 +560,7 @@ export class Soldier {
     const fx = -Math.sin(v.yaw), fz = -Math.cos(v.yaw);
     let dx = v.pos.x - this.pos.x, dz = v.pos.z - this.pos.z;
     const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
-    return fx * dx + fz * dz > 0.55;
+    return fx * dx + fz * dz > 0.475;                    // 12.194: CS2 sırttan bıçak konisi (≈ 61,6°; eski 0,55 ≈ 56,6°)
   }
 
   _medkit(it, st) {
@@ -704,7 +715,7 @@ export class Soldier {
     if (this.swing) {
       const sw = this.swing;
       sw.t += dt;
-      if (!sw.done && sw.t >= sw.dur * SWING_HIT_K) { sw.done = true; this._meleeStrike(sw); }
+      if (!sw.done && sw.t >= sw.dur * swingHitK(sw)) { sw.done = true; this._meleeStrike(sw); }
       if (sw.t >= sw.dur) this.swing = null;
     }
     this.sinceShot += dt;
@@ -969,7 +980,7 @@ export class Soldier {
       const el = this.reloadTotal - this.reloadT;
       reload = { style: this.reloadStyle, k: clamp(el / this.reloadTotal, 0, 1), empty: this.reloadEmpty, ph: shell ? ((el / st.shell) % 1 + 1) % 1 : 0 };
     }
-    if (this.swing) melee = { kind: this.swing.kind, k: clamp(this.swing.t / this.swing.dur, 0, 1) };
+    if (this.swing) melee = { kind: this.swing.kind, k: clamp(this.swing.t / this.swing.dur, 0, 1), hv: !!this.swing.hv };
     const vh = this.veh && this.veh.st;
     if (vh) { const mg = !!mgAt(this.veh.def, this.seat); this._seatPose(m, p, root, vh, mg); m.refreshHold({ twist: this._seatTwist, side: 1, aimP: clamp(this.pitch + this.recoilP, -0.8, 0.8), reload, melee, drive: this.seat === 0 || mg, wheelA: mg ? 0 : -vh.steer * 2.2 }); if (this.veh.def.hidden?.[this.seat]) root.visible = false; return; }      // 12.178: tank sürücüsü gövdede görünmez, nişancı makineliyi tutar
     if (root.rotation.order !== 'XYZ') root.rotation.order = 'XYZ';

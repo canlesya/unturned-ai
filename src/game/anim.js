@@ -83,11 +83,23 @@ const SWINGS = {
   diag: { W: P(0.24, 0.18, 0.1, 0.8, -0.75, -0.95, -0.55), S: P(-0.24, -0.18, -0.16, -0.55, 0.85, 0.85, 0.55) },
 };
 export const SWING_HIT_K = 0.44;
+// 12.194 (CS2 / Valorant): sağ tık ağır vuruş — uzun kurma (anticipation), vuruş anı k 0,5 (ağız ekran ortasından geçer), takip + toparlanma
+export const HEAVY_HIT_K = 0.5;
+export const swingHitK = (sw) => (sw && sw.hv ? HEAVY_HIT_K : SWING_HIT_K);
 const lerpP = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t, rx: a.rx + (b.rx - a.rx) * t, ry: a.ry + (b.ry - a.ry) * t, rz: a.rz + (b.rz - a.rz) * t, body: a.body + (b.body - a.body) * t });
 const ZERO = P(0, 0, 0, 0, 0, 0, 0);
+const scaleP = (a, k) => ({ x: a.x * k, y: a.y * k, z: a.z * k, rx: a.rx * k, ry: a.ry * k, rz: a.rz * k, body: a.body * k });
 
-export function meleePose(kind, k) {
+// Üçüncü şahıs (ve zombi pençesi) eğrisi. hv: ağır vuruş → kurma 0–0,34 (daha geniş, ×1,25), vuruş 0,34–0,56 (k 0,5'te ağız ortada), takip 0,56–0,66, toparlanma
+export function meleePose(kind, k, hv = false) {
   const sw = SWINGS[kind] || SWINGS.rl;
+  if (hv) {
+    const W = scaleP(sw.W, 1.25), S = scaleP(sw.S, 1.1);
+    if (k < 0.34) return lerpP(ZERO, W, easeOut(k / 0.34));
+    if (k < 0.56) { const u = seg(k, 0.34, 0.56); return lerpP(W, S, easeIn(u) * 0.6 + u * 0.4); }
+    if (k < 0.66) return S;
+    return lerpP(S, ZERO, smooth(seg(k, 0.66, 1)));
+  }
   if (k < 0.24) return lerpP(ZERO, sw.W, easeOut(k / 0.24));
   if (k < 0.5) { const u = seg(k, 0.24, 0.5); return lerpP(sw.W, sw.S, easeIn(u) * 0.55 + u * 0.45); }
   if (k < 0.58) return sw.S;

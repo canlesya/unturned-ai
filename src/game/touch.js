@@ -381,7 +381,8 @@ export class TouchControls {
       } else { p.fireHeld = this.anyFire(); this.looks.delete(t.identifier); if (b) b.style.transform = ''; }
       return;
     }
-    if (id === 'breath') { this.breath = down; return; }                         // 12.156: basılı tutulduğu sürece nefes tut (Player → ScopeBreath)
+    if (id === 'ads' && s.stat.kind === 'melee' && !s.veh) { s.ads = down && s.alive; if (b) b.classList.toggle('on', s.ads); return; }      // 12.194: yakın dövüşte nişan düğmesi = ağır vuruş (basılı tuttukça; CS2 sağ tık)
+    if (id === 'breath') { this.breath = down; return; }                       // 12.156: basılı tutulduğu sürece nefes tut (Player → ScopeBreath)
     if (id === 'score') { g.hud.showScoreboard(down); return; }
     if (id === 'crouch') this.dive = down;                                     // 12.180: yüzerken çömel düğmesi basılıyken dalınır
     if (id === 'crouch' && !down && this.down) { this.down = false; if (b) b.classList.remove('on'); }      // 12.183: alçal basılıyken inilse / koltuk değişse de bırakınca söner (eskiden takılı kalıyordu → sonraki binişte kendiliğinden alçalış)

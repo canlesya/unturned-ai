@@ -543,7 +543,7 @@ function applyPose(api, w, o = {}) {
   const { sprint = 0, kick = 0, twist = 0, swing = 0, prone = 0, aimP = 0, reload = null, melee = null, side = 1 } = o;
   const { torso, head, mount, armR, armL } = api.parts;
   const blade = api.blade * side;                       // side: +1 sağ omuz duruşu, −1 sol omuz (aynalı: gövde ters yöne döner, silah yine sağ elde)
-  const mp = melee ? meleePose(melee.kind, melee.k) : null;
+  const mp = melee ? meleePose(melee.kind, melee.k, melee.hv) : null;
   const body = mp ? mp.body * 0.6 : 0;
   torso.rotation.y = -blade + twist + body;
   head.rotation.y = blade * 0.92 - twist * 0.9 - body * 0.9;

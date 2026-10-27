@@ -6,6 +6,7 @@ import { finish } from './weapon_util.js';
 // S3 (BattleBit tarzı) silah kiti — silah laboratuvarından (src/weaponlab/kit.js) oyuna taşındı: her parça geometrisine "wf" özniteliği yazılır (x = malzeme yuvası, y = gölge çarpanı, z = desen) → tüm silah TEK ağda birleşir, kaplama (skin) yalnız uniform değişimi.
 // Yuvalar: gövde / mobilya (dipçik-kabza-tutamaç) / metal (namlu, küçük çelik) / aksesuar (nişangâh, ray) / mercek / ışıyan (retikül). Desen: 0 düz, 1 benekli kabza, 2 tırtıl / oluk.
 // Konvansiyon oyunla aynı: köken = tabanca kabzası, namlu -Z, yukarı +Y, sağ +X. lod=true → ayrıntı (o.d) parçaları atlanır, pah yok, silindir 6 kenar (3. şahıs ≤ 600 üçgen).
+const _gb = new THREE.Vector3(), _gc = new THREE.Vector3();
 export const SL = { body: 0, furn: 1, metal: 2, acc: 3, lens: 4, glow: 5 };
 
 export class Kit {
@@ -53,6 +54,57 @@ export class Kit {
     const g = new THREE.ExtrudeGeometry(sh, { depth: w - 2 * c, bevelEnabled: c > 0, bevelThickness: c, bevelSize: c, bevelOffset: -c, bevelSegments: 1, curveSegments: 1 });
     g.translate(0, 0, -(w / 2 - c)); g.rotateY(Math.PI / 2); g.translate(o.x || 0, 0, 0);
     if (o.rot) { g.translate(0, -(o.piv?.[1] || 0), -(o.piv?.[2] || 0)); g.rotateX(o.rot[0] || 0); g.translate(0, o.piv?.[1] || 0, o.piv?.[2] || 0); }
+    return this._push(g, slot, { ...o, rot: null, pos: null });
+  }
+  // 12.194 Bileylenmiş ağız (kenar şeridi yerine gerçek "bileme yüzü"): T = gövdenin alt sınırı ([z, y], x = ±w/2), E = keskin kenar ([z, y], x = 0), eşit uzunlukta.
+  // İki eğik yüz kenarda tek çizgide birleşir → eskiden ağız şeridinin dışa bakan 6,5 mm'lik dik duvarı yoktu, sıyırarak bakınca 1–2 piksellik parlak metal çizgisi titriyordu.
+  // caps: [baş, son] kapak üçgenleri (T ile E aynı noktada bitiyorsa kapak yok). tip: [z, y] verilirse son çift ucun tek noktasına (x = 0) daralır.
+  grind(T, E, w, slot, o = {}) {
+    if (this.skip(o)) return;
+    const h = w / 2, P = [], push = (a, b, c, ex) => {                              // ex: beklenen dış yön (sargı yönü buna göre)
+      const n = _gb.subVectors(b, a).cross(_gc.subVectors(c, a));
+      if (n.dot(ex) < 0) P.push(a, c, b); else P.push(a, b, c);
+    };
+    const V3 = (x, [z, y]) => new THREE.Vector3(x, y, z);
+    for (let i = 0; i < T.length - 1; i++) for (const sx of [1, -1]) {
+      const a = V3(sx * h, T[i]), b = V3(sx * h, T[i + 1]), c = V3(0, E[i + 1]), d = V3(0, E[i]);
+      const ex = new THREE.Vector3(sx, E[i][1] - T[i][1] + E[i + 1][1] - T[i + 1][1], E[i][0] - T[i][0] + E[i + 1][0] - T[i + 1][0]).normalize();   // dışa + kenara doğru
+      push(a, b, c, ex); push(a, c, d, ex);
+    }
+    if (o.tip) {
+      const L = T.length - 1, t = V3(0, o.tip), ax = new THREE.Vector3(0, o.tip[1] - T[L][1], o.tip[0] - T[L][0]).normalize();
+      for (const sx of [1, -1]) push(V3(sx * h, T[L]), t, V3(0, E[L]), new THREE.Vector3(sx, 0, 0).addScaledVector(ax, 0.3));
+    }
+    const caps = o.caps || [true, !o.tip];
+    for (const [i, j] of [[0, 1], [T.length - 1, T.length - 2]]) {
+      if (!caps[i === 0 ? 0 : 1]) continue;
+      const ex = new THREE.Vector3(0, 0, Math.sign(T[i][0] - T[j][0]) || 1);
+      push(V3(h, T[i]), V3(-h, T[i]), V3(0, E[i]), ex);
+    }
+    const g = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(P.flatMap((v) => [v.x, v.y, v.z]), 3));
+    g.computeVertexNormals();
+    return this._push(g, slot, { ...o, rot: null, pos: null });
+  }
+  // 12.194 Bıçak gövdesi (yassı yanlar + sırt) ucunda x = 0'a daralır: S = sırt ([z, y], dipten uca), G = bileme çizgisi (grind'in T'si), tip = uç ([z, y], x = 0).
+  // Yanlar S + tip + ters G çokgeni (uca değen üçgenler eğik → sivri uç; eskiden 6,5 mm küt uç), sırt duvarı S boyunca, dip kapağı siperin içinde.
+  bladeBody(S, G, tip, w, slot, o = {}) {
+    if (this.skip(o)) return;
+    const h = w / 2, P = [], V3 = (x, [z, y]) => new THREE.Vector3(x, y, z);
+    const push = (a, b, c, ex) => { const n = _gb.subVectors(b, a).cross(_gc.subVectors(c, a)); if (n.dot(ex) < 0) P.push(a, c, b); else P.push(a, b, c); };
+    const poly = [...S, tip, ...G.slice().reverse()], isTip = (i) => i === S.length;
+    const tri = THREE.ShapeUtils.triangulateShape(poly.map(([z, y]) => new THREE.Vector2(z, y)), []);
+    for (const sx of [1, -1]) for (const [a, b, c] of tri) push(V3(isTip(a) ? 0 : sx * h, poly[a]), V3(isTip(b) ? 0 : sx * h, poly[b]), V3(isTip(c) ? 0 : sx * h, poly[c]), new THREE.Vector3(sx, 0, 0));
+    const sp = [...S, tip];
+    let A2 = 0; for (let i = 0; i < poly.length; i++) { const [z0, y0] = poly[i], [z1, y1] = poly[(i + 1) % poly.length]; A2 += z0 * y1 - z1 * y0; }      // çokgen yönü (z, y düzleminde)
+    for (let i = 0; i < sp.length - 1; i++) {                                         // sırt duvarı (dış yön: çokgenin dışına bakan dikme)
+      const [z0, y0] = sp[i], [z1, y1] = sp[i + 1], sg = A2 > 0 ? 1 : -1, ex = new THREE.Vector3(0, -(z1 - z0) * sg, (y1 - y0) * sg).normalize();
+      if (i === sp.length - 2) push(V3(h, sp[i]), V3(-h, sp[i]), V3(0, sp[i + 1]), ex);
+      else { push(V3(h, sp[i]), V3(-h, sp[i]), V3(-h, sp[i + 1]), ex); push(V3(h, sp[i]), V3(-h, sp[i + 1]), V3(h, sp[i + 1]), ex); }
+    }
+    const ex0 = new THREE.Vector3(0, 0, Math.sign(S[0][0] - tip[0]));                 // dip kapağı (S0 – G0 arası)
+    push(V3(h, S[0]), V3(-h, S[0]), V3(-h, G[0]), ex0); push(V3(h, S[0]), V3(-h, G[0]), V3(h, G[0]), ex0);
+    const g = new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(P.flatMap((v) => [v.x, v.y, v.z]), 3));
+    g.computeVertexNormals();
     return this._push(g, slot, { ...o, rot: null, pos: null });
   }
   // Kesit (x, y noktaları) Z boyunca z0 → z1 çekilir (toz kapağı, tutamaç, ray kesiti); o.holes kesit boşlukları (nişangâh penceresi)
