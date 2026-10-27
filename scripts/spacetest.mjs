@@ -11,6 +11,7 @@ import { sanitizeCfg, MAPS_FOR } from '../server/room.js';
 import { WSTATS, SPACE_WEAPONS } from '../src/game/stats.js';
 import { TUNE } from '../src/game/balance.js';
 import { simulateNade } from '../src/game/grenade.js';
+import { World } from '../src/game/collision.js';
 import { mapsFor } from '../src/maps/index.js';
 
 let fail = 0; const check = (ok, msg) => { console.log((ok ? 'OK    ' : 'HATA  ') + msg); if (!ok) fail++; };
@@ -41,8 +42,9 @@ const drop = (g) => { const s = g.soldiers[0]; s.pos.set(g.map.id === 'yorunge' 
 const d0 = drop(J0.g), d1 = drop(J1.g);
 check(d0 > 50 && d1 === 0, `15 m düşüş hasarı: normal ${d0} · Uzay ${d1}`);
 // el bombası: aynı atış, düşük yer çekiminde daha uzun yol / sürede yere değer
-const nadeAt = (g) => (g.map.id === 'yorunge' ? V(-40, 1.6, -18) : V(g.map.spawns.blue[0].x, 1.6, g.map.spawns.blue[0].z));
-const nade = (g) => { const p = nadeAt(g); return { ...simulateNade(g.world, p.clone(), V(0, 2.5 + 19 * 0.26, -19 * 0.97), 3.0), o: p }; };
+// 12.185: atış düz, engelsiz zeminde (aynı yer çekimi çarpanı) — harita yerleşimi değişince (Kasaba v3 doğuşu, Yörünge kayaları) bomba duvara çarpıp test yanlış HATA veriyordu
+const flatWorld = (g) => { const w = new World([], { minX: -500, maxX: 500, minZ: -500, maxZ: 500 }, null); w.grav = g.world.grav; return w; };
+const nade = (g) => { const p = V(0, 1.6, 0); return { ...simulateNade(flatWorld(g), p.clone(), V(0, 2.5 + 19 * 0.26, -19 * 0.97), 3.0), o: p }; };
 const nd = (r) => (r.land ? Math.hypot(r.land.x - r.o.x, r.land.z - r.o.z) : 0);
 const n0 = nade(J0.g), n1 = nade(J1.g);
 check(nd(n1) > nd(n0) * 1.3, `el bombası ilk değme (15°): normal ${nd(n0).toFixed(1)} m · Uzay ${nd(n1).toFixed(1)} m`);

@@ -361,7 +361,8 @@ export function buildYorunge() {
     for (const sx of [-1, 1]) b.stairs(sx * 10.58, -27.5, 0, sx < 0 ? '+x' : '-x', 2.4, 16, 0.25, 0.38, METAL2, { tag: 'stair' });
     for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.box(sx * 0.7, 4.0, -27.5 + sz * 0.7, 0.16, 14, 0.16, METAL, k(YK.METAL));   // anten direği bacakları (birebir); çaprazlar süs
     for (let y = 5.0; y < 18; y += 1.6) { b.box(0, 4 + y - 4, -26.8, 1.56, 0.08, 0.08, METAL, nk(YK.METAL)); b.box(0, 4 + y - 4, -28.2, 1.56, 0.08, 0.08, METAL, nk(YK.METAL)); b.box(0.7, 4 + y - 4, -27.5, 0.08, 0.08, 1.56, METAL, nk(YK.METAL)); b.box(-0.7, 4 + y - 4, -27.5, 0.08, 0.08, 1.56, METAL, nk(YK.METAL)); }
-    b.box(0, 18.0, -27.5, 0.3, 0.3, 0.3, '#ff3b30', LIGHT('#ff3b30', 2.2));
+    b.box(0, 18.0, -27.5, 1.56, 0.08, 1.56, METAL, nk(YK.METAL));                                             // 12.185 direk başlığı: dört bacağın tepesine oturur (ikaz lambası direğin ortasında havada duruyordu)
+    b.box(0, 18.08, -27.5, 0.3, 0.3, 0.3, '#ff3b30', LIGHT('#ff3b30', 2.2));
     b.box(3.0, 4.0, -29.6, 1.4, 0.8, 1.2, METAL2, k(YK.METAL));                                                // çanak kaidesi (siper)
     b.cyl(3.0, 5.2, -29.6, 1.3, 0.25, 0.5, HULL2, nk(YK.HULL, { rx: 0.8, seg: 14 }));
     for (const sx of [-1, 1]) b.box(sx * 2.0, 0, -23.96, 1.6, 2.4, 0.06, METAL, nk(YK.METAL));                  // kapalı servis kapıları (süs)

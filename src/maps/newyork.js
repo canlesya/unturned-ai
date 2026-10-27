@@ -321,7 +321,17 @@ export function buildNewYork() {
   const spawns = { blue: [], red: [] };
   for (let i = 0; i < 24; i++) spawns.blue.push({ x: -23 + (i % 6) * 2.6, z: -5 + Math.floor(i / 6) * 3.2, ry: -Math.PI / 2 });          // meydanın batısı: anıta ve kamyonlara yakın
   for (let i = 0; i < 24; i++) { if (i % 2) spawns.red.push({ x: 58 + (i >> 1) % 7 * 3, z: -50 + ((i >> 1) / 7 | 0) * 3, ry: Math.PI }); else spawns.red.push({ x: -80 + (i >> 1) % 6 * 2.4, z: 44 + ((i >> 1) / 6 | 0) * 3, ry: 0 }); }     // bosslar arka arsalardan (insanların görüşünün dışında) başlar
+  // 12.185 doğuş ızgarası karakoldaki araç enkazına (x −24…−21,4, z 4,2…6,9) giriyordu: asker arabanın İÇİNDE doğuyordu. Gövdesi (R 0,32 + pay) bir katıya değen nokta atılır.
+  const solidNear = (p) => b.colliders.some((c) => c.max[1] > 0.3 && c.min[1] < 1.8 && p.x > c.min[0] - 0.45 && p.x < c.max[0] + 0.45 && p.z > c.min[2] - 0.45 && p.z < c.max[2] + 0.45);
+  for (const t of ['blue', 'red']) spawns[t] = spawns[t].filter((p) => !solidNear(p));
   const objectives = [{ id: 'merkez', name: 'Merkez', core: true, x: 0, z: 0, r: 8 }];
+  // 12.185 bölge adları (geliştirici P + minimap başlığı; New York'ta hiç yoktu): meydan, Broadway iki ucu, 5. cadde iki ucu, insanların çıktığı yüksek noktalar
+  const callouts = [
+    { name: 'Anıt Meydanı', x: 0, z: 0, major: true }, { name: 'Karakol', x: -19, z: 0 }, { name: 'Batı Broadway', x: -50, z: 0, major: true }, { name: 'Doğu Broadway', x: 48, z: 0, major: true },
+    { name: 'Kuzey Cadde', x: 0, z: -38 }, { name: 'Güney Cadde', x: 0, z: 36 }, { name: 'Çökmüş Bina', x: -23, z: 25 }, { name: 'Batı Kamyon', x: -30, z: -3.6 }, { name: 'Doğu Kamyon', x: 24, z: 3.6 },
+    { name: 'Doğu Metro', x: 21, z: 11.5 }, { name: 'Batı Metro', x: -21, z: -11.5 }, { name: 'Otopark', x: -65, z: -47, major: true }, { name: 'İnşaat', x: 67, z: 48, major: true },
+    { name: 'Market Çatısı', x: 59, z: -39 }, { name: 'Park', x: -6, z: 48 }, { name: 'Kilise', x: -8, z: -47 }, { name: 'Benzinlik', x: 46, z: 48 },
+  ];
 
   // tenteler: eğimli kumaş + ön saçak (yalnız görsel); altında üstüne çıkılabilen / uzanan bir şey varsa (kamyon, metro çatısı, konteyner, direk) konmaz: kafa kumaşa girmesin
   for (const A of awnings) {
@@ -341,7 +351,7 @@ export function buildNewYork() {
       m.position.set(s.x, s.y, s.z); m.rotation.y = s.ry; group.add(m);
       if ((s.o?.glow ?? true) && s.o?.fg && s.text !== 'SUBWAY') neon.push({ x: s.x, y: s.y, z: s.z, w: s.w, color: s.o.fg, blink: i % 5 === 2, mesh: m });     // neon halesi; her 5. tabela bozuk (ara ara söner)
     }
-    const hosp = textPlane('NO\nSAFE\nPLACE', 6, 6, { fg: '#b3201a', font: 'bold 260px sans-serif', drip: true }); hosp.position.set(-9.12, 3.4, 22); hosp.rotation.y = Math.PI / 2; group.add(hosp);
+    const hosp = textPlane('NO\nSAFE\nPLACE', 6, 6, { fg: '#b3201a', font: 'bold 260px sans-serif', drip: true }); hosp.position.set(-9.12, 3.4, 22); hosp.rotation.y = -Math.PI / 2; group.add(hosp);      // 12.185: yüzü arsaya (−x) — önce duvara bakıyordu, arsadan (çift yüz) TERS okunuyordu
     const g2 = textPlane('THEY ARE\nEVERYWHERE', 9, 4, { fg: '#c4281f', font: 'bold 200px sans-serif', drip: true }); g2.position.set(34.2, 3.2, -22); g2.rotation.y = Math.PI / 2; group.add(g2);
   }
   // ───────── gece efektleri (yalnız görsel): ateş ışığı, hale, duman, kıvılcım, lamba parlaması ─────────
@@ -370,6 +380,7 @@ export function buildNewYork() {
     roads,
     spawns,
     objectives,
+    callouts,
     perches,
     decor: { manholes, holes: holeList },                                                                   // yalnız görsel (test bakışları)
     layered: true,

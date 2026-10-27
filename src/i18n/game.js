@@ -35,7 +35,8 @@ const PW = { kuzey: 'North', güney: 'South', doğu: 'East', batı: 'West', k: '
   kırmızı: 'Red', mavi: 'Blue', doğuş: 'Spawn', çıkışı: 'Exit', portal: 'Gantry', vinç: 'Crane', kule: 'Tower', rıhtım: 'Dock', tünel: 'Tunnel', çatısı: 'Roof', hattı: 'Lane', orta: 'Mid',
   geçit: 'Pass', turuncu: 'Orange', mor: 'Purple', turkuaz: 'Turquoise', kale: 'Fort', köprüsü: 'Bridge', kanadı: 'Wing', iskelesi: 'Pier', evler: 'Houses', kilise: 'Church', kavşak: 'Crossroads',
   benzinlik: 'Gas Station', pazar: 'Market', ambar: 'Barn', gözetleme: 'Watch', tepesi: 'Hill', köprü: 'Bridge', orman: 'Forest', kampı: 'Camp', değirmen: 'Mill', komuta: 'Command', binası: 'Building',
-  kışla: 'Barracks', akaryakıt: 'Fuel Depot', merkez: 'Center', uzun: 'Long', alt: 'Lower', tüneller: 'Tunnels', depo: 'Warehouse' };
+  kışla: 'Barracks', akaryakıt: 'Fuel Depot', merkez: 'Center', uzun: 'Long', alt: 'Lower', tüneller: 'Tunnels', depo: 'Warehouse',
+  anıt: 'Monument', meydanı: 'Square', karakol: 'Outpost', cadde: 'Avenue', çökmüş: 'Collapsed', bina: 'Building', metro: 'Subway', otopark: 'Parking Garage', inşaat: 'Construction Site' };      // 12.185 New York bölgeleri
 const PF = { 'Asma kat': 'Mezzanine' };
 export function placeName(str) {
   if (!str || lang() === 'tr') return str;
