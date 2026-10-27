@@ -6,7 +6,7 @@
 import { chromium, devices } from 'playwright';
 import { writeFileSync } from 'fs';
 const base = process.argv[2] || 'http://127.0.0.1:5180', DEV = process.env.DEV || 'desk', only = process.env.ONLY ? new RegExp(process.env.ONLY) : null;
-const COMBOS = [['ak47', 'iron'], ['ak47', 'reddot'], ['m4a1', 'holo'], ['m4a1', 'acog'], ['svd', 'acog'], ['laser', 'acog'], ['mp5', 'reddot'], ['lmg', 'holo'], ['pistol', 'iron'], ['sniper', 'scope'], ['barrett', 'scope6'],
+const COMBOS = [['ak47', 'iron'], ['ak47', 'reddot'], ['m4a1', 'holo'], ['m4a1', 'x2'], ['m4a1', 'x3'], ['m4a1', 'acog'], ['m4a1', 'x6'], ['sniper', 'x8'], ['barrett', 'x8'], ['mp5', 'acog'], ['svd', 'acog'], ['laser', 'acog'], ['mp5', 'reddot'], ['lmg', 'holo'], ['pistol', 'iron'], ['sniper', 'scope'], ['barrett', 'scope6'],
   ['ww_bolt', 'ww_peep'], ['ww_smgb', 'ww_peep'], ['ww_bolt', 'ww_scout'], ['ww_semi', 'ww_scout'], ['ww_bolt', 'ww_sc25'], ['ww_bolt', 'ww_sc4'], ['ww_sniper', 'ww_sc25'], ['ww_sniper', 'ww_sc4']].filter(([i, o]) => !only || only.test(`${i}:${o}`));
 const browser = await chromium.launch({ headless: false, args: ['--use-angle=metal', '--ignore-gpu-blocklist'] });
 const strip = (d) => { const { defaultBrowserType, ...r } = d; return r; };
@@ -22,13 +22,13 @@ await page.evaluate(() => {
   s.protT = 1e9;
   window.__run = ({ id, optic }) => {
     g.simulate = false;                                                         // canlı döngü yalnız çizer; adımları test atar (her biri gerçek g.step)
-    s.cur = 0; s.items[0] = { id, mag: 30, reserve: 90 }; s.optic = optic; if (s.model) s.model.optic = optic;
+    s.cur = 0; s.items[0] = { id, mag: 30, reserve: 90 }; s.optic = optic; s.optics = {}; if (s.model) s.model.optic = optic;
     p.refreshWeapon(); s.ads = false; s.adsT = 0; s.reloadT = 0; s.switchT = 0; s.sprinting = false; s.vel.set(0, 0, 0);
     const vm = p.vm; vm.noSway = true;
     for (let i = 0; i < 60; i++) g.step(1 / 60);
     vm.raise = 0; vm.kick = 0; vm.kickR = 0;
     const u = vm.model.userData, hip = vm.pos.z, tgt = vm.adsTarget(u).z + (s.stat.adsLow ? s.stat.adsLow[2] : 0), zE = p.zoomEff();
-    const frames = [], hudEl = { dot: document.getElementById('rdot'), lens: document.getElementById('rdot'), holo: document.getElementById('holo') }[s.overlay];
+    const frames = [], hudEl = { dot: document.getElementById('rdot'), lens: document.getElementById('lens'), holo: document.getElementById('holo') }[s.overlay];      // 12.190: büyüten mercekte HUD = #lens (retikül + dış bulanıklık)
     const sc = document.getElementById('scope'), blk = document.getElementById('scopeblk');
     const lens = s.overlay === 'lens' && !!vm.lensDisc, T = (d) => Math.tan((d * Math.PI) / 360);
     const rec = (ph) => {
@@ -42,20 +42,21 @@ await page.evaluate(() => {
     return { overlay: s.overlay, ret: s.opticDef?.reticle, zE, frames };
   };
 });
-const rows = []; let bad = 0;
+const rows = []; let bad = 0; const WWZ0 = { ww_peep: 1, ww_scout: 1, ww_sc25: 1, ww_sc4: 1 };
 for (const [id, optic] of COMBOS) {
   const r = await page.evaluate((o) => window.__run(o), { id, optic });
   const F = r.frames, err = [];
   const dmax = Math.max(...F.map((f) => Math.abs(f.model - f.world)));
   if (r.zE > 1 && dmax > 0.05) err.push(`model − dünya en çok ${dmax.toFixed(3)}`);
-  const hudEarly = F.filter((f) => f.hud && f.world < 0.95);
+  const hudEarly = F.filter((f) => f.hud && f.world < 0.95 && r.overlay !== 'lens');      // 12.190: #lens merceği izler (geçişte de görünür)
   if (hudEarly.length) err.push(`HUD retikülü dünya ${hudEarly[0].world} iken`);
   const hudMiss = r.overlay === 'dot' || r.overlay === 'holo' || (r.overlay === 'lens' && r.ret === 'dot') ? F.filter((f) => f.ph === 'in' && f.adsT >= 1 && !f.hud).length : 0;
   if (hudMiss) err.push(`tam nişanda HUD yok (${hudMiss} kare)`);
   const fullMag = Math.max(...F.map((f) => f.mag));
   if (r.zE > 1 && Math.abs(fullMag - r.zE) > 0.01) err.push(`tam nişanda dünya ×${fullMag} (beklenen ×${r.zE})`);
-  const acogExp = DEV === 'desk' ? 1.5 : 1.85;      // 12.163: ACOG / PSO-1 taslak C (masaüstü ×1,5, dokunmatik ×1,85)
-  if (optic === 'acog' && Math.abs(r.zE - acogExp) > 1e-6) err.push(`ACOG büyütmesi ×${r.zE} (beklenen ×${acogExp})`);      // 12.162: tüm optiklerde tam ekran büyütme = nişangâh büyütmesi
+  const PZ = { iron: DEV === 'desk' ? 1.15 : 1.3, reddot: DEV === 'desk' ? 1.2 : 1.4, holo: DEV === 'desk' ? 1.2 : 1.4, x2: 2, x3: 3, acog: 4, scope: 4, scope6: 6, x6: 6, x8: 8 };      // 12.190 PUBG büyütmeleri (dokunmatik: 2×'in altı 1 + (z − 1)·2)
+  if (PZ[optic] && !WWZ0[optic] && Math.abs(r.zE - PZ[optic]) > 1e-6) err.push(`${optic} büyütmesi ×${r.zE} (beklenen ×${PZ[optic]})`);
+  if (r.overlay === 'lens' && r.ret !== 'post' && F.some((f) => f.ph === 'in' && f.adsT >= 1 && !f.hud)) err.push('büyüten mercekte tam nişanda #lens yok');
   const WWZ = { ww_peep: DEV === 'desk' ? 1.15 : 1.3, ww_scout: DEV === 'desk' ? 1.5 : 1.85, ww_sc25: 2.5, ww_sc4: 4 };      // 12.174 dönem nişangâhları (dokunmatik: demir kuralı / öncü dürbünün kendi değeri)
   if (WWZ[optic] && Math.abs(r.zE - WWZ[optic]) > 1e-6) err.push(`${optic} büyütmesi ×${r.zE} (beklenen ×${WWZ[optic]})`);
   if (r.ret === 'post' && F.some((f) => f.hud)) err.push('öncü dürbünde HUD kırmızı noktası görünüyor');

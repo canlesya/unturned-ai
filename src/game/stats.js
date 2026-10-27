@@ -346,46 +346,39 @@ export const DIFFICULTY = {
 export const BOT_NAMES = ['Kaan', 'Efe', 'Deniz', 'Mert', 'Ada', 'Ege', 'Can', 'Selin', 'Arda', 'Yağız', 'Barış', 'Ceren', 'Emre', 'Zeynep', 'Onur',
   'Tuna', 'Berk', 'Defne', 'Kerem', 'Ilgaz', 'Sarp', 'Mehmet', 'Alp', 'Ozan', 'Mina', 'Rüzgar', 'Çınar', 'Toprak', 'Bora', 'Aylin'];
 
-// 12.162 ACOG (sınıf FPS'ler gibi): nişanda TÜM görüntü (dünya kamerası) yumuşakça yakınlaşır, mercek saydam cam + sade kırmızı nokta (PiP yok).
-// Taslak tek sabit: A = ×2 tam ekran, orta boy mercek (göz 19 cm geride → çap ekranın ≈ %22'si) · B = ×2,5, biraz büyük mercek (15,5 cm → ≈ %27)
-// · C (12.163, varsayılan) = ×1,5 (CoD gibi hafif; yakın dövüşte de kullanılır), küçük mercek (göz 23,5 cm → ≈ %18, çevrede daha çok dünya). Oyunda ?acog=A|B|C ile denenir.
-// touch: dokunmatikte büyütme (red dot / holo orada ×1,6: ACOG ondan belirgin büyük kalsın; eski genel kural 1 + (z − 1)·2 ×1,5'i ×2'ye çıkarırdı)
-export const ACOG_DRAFTS = { A: { zoom: 2, dist: 0.19 }, B: { zoom: 2.5, dist: 0.155 }, C: { zoom: 1.5, dist: 0.235, touch: 1.85 } };
-export const ACOG_DRAFT = (typeof location !== 'undefined' && (/[?&]acog=([ABC])\b/.exec(location.search || '') || [])[1]) || 'C';
-export const ACOG = ACOG_DRAFTS[ACOG_DRAFT];
-// Nişangâhlar: zoom çarpanı (= nişanda tam ekran büyütme), ADS arayüz örtüsü (none | dot | holo | lens | scope)
+// 12.190 Nişangâhlar PUBG örneğiyle: 1× red dot / holo hafif yakınlaşır (×1,2), büyüten nişangâhlar gerçek büyütmede (2× / 3× / 4× ACOG / 6× / 8×). Büyütme hep TAM EKRAN
+// dünya FOV'u (12.162 / 12.163: yakın / uzak eşit büyür, 3. şahıs kamera yaklaşmaz). overlay: none | dot | holo | lens (2× / 3× / 4×: saydam 3B mercek, göz yakın → mercek ekranın
+// %46 / %54 / %62'si; dışı HUD'da bulanık + koyu, gövde halkası; retikül HUD'da ince SVG, merceği izler) | scope (6× / 8× / keskin nişancı dürbünleri: 12.153 kararma + dürbün örtüsü).
+// reticle: x2 (nokta + kenardan dört ince direk) | x3 (ince artı + kırmızı nokta + düşüş çentikleri) | chev (ACOG şevronu + BDC merdiveni) | mil | post / post3 (12.174) · zoomMin: değişken
+// büyütme (nişandayken fare tekerleği; PUBG 6× = 3–6×, 8× = 4–8×) · adsTime: nişana geçiş (sn; büyüdükçe yavaş, PUBG gibi). Eski ACOG ×1,5 taslakları (12.163 ACOG_DRAFTS) kalktı.
 export const OPTICS = {
   iron: { label: 'Demir Nişan', zoom: 1.15, overlay: 'none' },
-  reddot: { label: 'Red Dot', zoom: 1.3, overlay: 'dot' },
-  holo: { label: 'Holografik', zoom: 1.3, overlay: 'holo' },
-  acog: { label: 'ACOG', zoom: ACOG.zoom, touchZoom: ACOG.touch, overlay: 'lens', reticle: 'dot' },      // 12.162 / 12.163: tam ekran ×1,5 (taslak C; A ×2, B ×2,5); örtü / kararma yok, saydam 3B mercek + HUD kırmızı nokta (red dot gibi)
-  scope: { label: '4x Dürbün', zoom: 4, overlay: 'scope', reticle: 'mil' },
-  scope6: { label: '6x Dürbün', zoom: 6, overlay: 'scope', reticle: 'mil' },
+  reddot: { label: 'Red Dot', zoom: 1.2, overlay: 'dot' },
+  holo: { label: 'Holografik', zoom: 1.2, overlay: 'holo' },
+  acog: { label: '4× ACOG', zoom: 4, overlay: 'lens', reticle: 'chev', adsTime: 0.17 },      // 12.190: PUBG 4× ACOG (12.163'te ×1,5 + nokta). SVD'de PSO-1 (4×, aynı retikül)
+  scope: { label: '4× Dürbün', zoom: 4, overlay: 'scope', reticle: 'mil' },
+  scope6: { label: '6× Dürbün', zoom: 6, overlay: 'scope', reticle: 'mil' },
 };
-export const OPTIC_ORDER = ['iron', 'reddot', 'holo', 'acog'];
+// Büyütme sırası (tercih edilen nişangâh silahta yoksa en yakın büyütmeli olana düşer)
+export const OPTIC_ORDER = ['iron', 'reddot', 'holo', 'x2', 'x3', 'acog', 'scope', 'scope6', 'x6', 'x8'];
+export const BOT_OPTICS = ['iron', 'reddot', 'holo', 'x2', 'acog'];      // botların rastgele nişangâhı (yalnız 3. şahıs görüntüsü; bot nişanı büyütme kullanmaz)
+// 12.190 izinler (PUBG mantığı, sade): taarruz tüfekleri / M249 6×'e kadar, kısa tüfek / HMK / PKM 4× ACOG'a kadar, P90 / pompalı 2×'e kadar, tabanca yalnız red dot (RMR),
+// keskin nişancı 4× (kendi) / 6× / 8×, Barrett 6× (kendi) / 8×, SVD 4× PSO-1 / 6× / 8×. Liste sırası = B ile dönüş sırası (büyütmeye göre).
+const AR = ['iron', 'reddot', 'holo', 'x2', 'x3', 'acog', 'x6'], SMG = ['iron', 'reddot', 'holo', 'x2', 'x3', 'acog'], CQB = ['iron', 'reddot', 'holo', 'x2'];
 export const OPTIC_ALLOWED = {
-  ak47: ['iron', 'reddot', 'holo', 'acog'],
-  m4a1: ['iron', 'reddot', 'holo', 'acog'],
-  scarh: ['iron', 'reddot', 'holo', 'acog'],
-  aug: ['iron', 'reddot', 'holo', 'acog'],
-  g36: ['iron', 'reddot', 'holo', 'acog'],
-  ak74u: ['iron', 'reddot', 'holo'],
-  mp5: ['iron', 'reddot', 'holo', 'acog'],
-  vector: ['iron', 'reddot', 'holo'],
-  p90: ['iron', 'reddot', 'holo'],
+  ak47: AR, m4a1: AR, scarh: AR, aug: AR, g36: AR,
+  ak74u: SMG, mp5: SMG, vector: SMG, p90: CQB,
   mac10: ['iron', 'reddot'],
-  lmg: ['iron', 'reddot', 'holo', 'acog'],
-  pkm: ['iron', 'reddot', 'holo'],
-  shotgun: ['iron', 'reddot', 'holo'],
-  aa12: ['iron', 'reddot', 'holo'],
+  lmg: AR, pkm: SMG,
+  shotgun: CQB, aa12: CQB,
   dbl: ['iron'],
   pistol: ['iron', 'reddot'],
   m1911: ['iron', 'reddot'],
   deagle: ['iron', 'reddot'],
   revolver: ['iron'],
-  sniper: ['scope'],
-  svd: ['acog'],
-  barrett: ['scope6'],
+  sniper: ['scope', 'x6', 'x8'],
+  svd: ['acog', 'x6', 'x8'],
+  barrett: ['scope6', 'x8'],
   rpg: ['iron'],
   m79: ['iron'],
   pbrifle: ['reddot'],
@@ -460,7 +453,7 @@ Object.assign(WSTATS, {
     sight: [0, 0.128, -0.1], dist: 0.28, dot: true, sound: 'spelmg', tracer: '#ff6a3a', space: true, heat: true,
   },
 });
-Object.assign(OPTIC_ALLOWED, { laser: ['iron', 'reddot', 'holo', 'acog'], plasma: ['iron', 'reddot', 'holo'], epistol: ['iron', 'reddot'], railgun: ['scope'], scatter: ['iron', 'reddot', 'holo'], elmg: ['iron', 'reddot', 'holo', 'acog'] });
+Object.assign(OPTIC_ALLOWED, { laser: ['iron', 'reddot', 'holo', 'x2', 'acog'], plasma: ['iron', 'reddot', 'holo', 'x2'], epistol: ['iron', 'reddot'], railgun: ['scope'], scatter: ['iron', 'reddot', 'holo'], elmg: ['iron', 'reddot', 'holo', 'x2', 'acog'] });      // 12.190: 2× eklendi, ACOG artık 4×
 export const SPACE_WEAPONS = ['laser', 'plasma', 'epistol', 'railgun', 'scatter', 'elmg'];
 // Sınıf başına Uzay donanımı (gadget / yakın dövüş normal sınıftaki gibi)
 export const SPACE_CLASS = {
@@ -553,11 +546,20 @@ Object.assign(OPTIC_ALLOWED, {
   ww_bolt: ['iron', 'ww_peep', 'ww_scout', 'ww_sc25', 'ww_sc4'], ww_semi: ['iron', 'ww_peep', 'ww_scout', 'ww_sc25'], ww_sniper: ['ww_sc4', 'ww_sc25'],
   ww_smgb: ['iron', 'ww_peep'], ww_smgr: ['iron', 'ww_peep'], ww_lmg: ['iron', 'ww_peep'], ww_mg: ['iron', 'ww_peep'], ww_pistol: ['iron'],
 });
-// Ağdan / profilden gelen dönem nişangâhı tercihlerini temizle (silah → nişangâh; yalnız 1940'lar silahı + o silaha izinli nişangâh)
+// 12.190 yeni modern nişangâhlar (ağ kodu OPTIC_IDS = OPTICS sırası: yeni kimlikler SONA eklenir → eski istemci bilmediğini yok sayar)
+Object.assign(OPTICS, {
+  x2: { label: '2× Nişangâh', zoom: 2, overlay: 'lens', reticle: 'x2', adsTime: 0.13 },
+  x3: { label: '3× Nişangâh', zoom: 3, overlay: 'lens', reticle: 'x3', adsTime: 0.15 },
+  x6: { label: '6× Dürbün', zoom: 6, zoomMin: 3, overlay: 'scope', reticle: 'mil', adsTime: 0.22 },
+  x8: { label: '8× Dürbün', zoom: 8, zoomMin: 4, overlay: 'scope', reticle: 'mil', adsTime: 0.27 },
+});
+// Ağdan / profilden gelen silah başına nişangâh tercihlerini temizle (silah → nişangâh; yalnız o silaha izinli nişangâh). 12.174'te yalnız 1940'lar silahlarıydı;
+// 12.190: modern silahlar da silah başına (PUBG gibi her silahın kendi nişangâhı; genel `optic` tercihi yalnız seçilmemiş silahların varsayılanı). Kayıt anahtarı
+// eski adıyla `frontOptics` (menü / profil), ağ alanı `fo` — eski kayıtlar aynen okunur.
 export function cleanEraOptics(o) {
   if (!o || typeof o !== 'object') return {};
   const r = {};
-  for (const [w, v] of Object.entries(o)) if (WSTATS[w]?.era && typeof v === 'string' && (OPTIC_ALLOWED[w] || []).includes(v)) r[w] = v;
+  for (const [w, v] of Object.entries(o)) if (WSTATS[w] && typeof v === 'string' && OPTICS[v] && (OPTIC_ALLOWED[w] || []).includes(v)) r[w] = v;
   return r;
 }
 // Ağ kodu (12.174): nişangâh kimliği ↔ tek karakter (OPTICS sırası; yeni nişangâhlar hep sona eklenir → eski istemci bilmediğini yok sayar)

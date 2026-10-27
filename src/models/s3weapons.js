@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { Kit, bez, rail } from './s3kit.js';
 import { skinMaterial } from './skins.js';
-import { ACOG } from '../game/stats.js';
 
 // S3 "BattleBit" silahları (silah laboratuvarı c9c5506'dan oyuna, 12.122): AK-47, M4A1, Glock 17, M24, Pompalı (yeni). Yan profil çekme + pah, yarıklı ray, benekli kabza, kaburgalı şarjör.
 // Sözleşme eski modellerle aynı (finish: gripR / gripL / muzzle / hold / length / mag / bolt; ±1 cm). Nişangâh (demir / red dot / holo / ACOG) aynı Kit'e kurulur → silah + nişangâh TEK ağ,
@@ -12,8 +11,12 @@ const guard = (k, outer, hole, w, slot = 'metal') => k.prof(outer, w, slot, { ho
 const circ = (cx, cy, r, n = 14) => Array.from({ length: n }, (_, i) => [cx + Math.cos((i / n) * Math.PI * 2) * r, cy + Math.sin((i / n) * Math.PI * 2) * r]);
 
 // Nişan alırken gözden nişan noktasına uzaklık (kamera uzayı, m): nişangâh türü başına SABİT → her silahta aynı ekran boyu (eski OPT_K / ADS_K karşılığı)
-export const ADS_DIST = { iron: 0.286, reddot: 0.36, rmr: 0.33, holo: 0.39, acog: ACOG.dist, scope: 0.042 };      // 12.162 / 12.163: ACOG göz 23,5 cm geride (taslak C ×1,5; A 19 cm, 12.128'de 12,5 cm → mercek ekranın %34'ü + kalın halka) → göz merceği (r 16,8 mm, ADS_FOV 40) ekranın ≈ %18'i, çevresinde dünya görünür
-export const ACOG_DOT = 0.0049 * ADS_DIST.acog;      // 12.155 / 12.162: ACOG / PSO-1 ışıyan nokta (m): tam nişanda ekranda ≈ red dot HUD noktası (0,62 vh), geçişte zıplamaz
+// 12.190 büyüten mercekler (PUBG): göz merceğe yakın → mercek ekran yüksekliğinin x2 %46 / x3 %54 / ACOG (4×) %62 / PSO-1 %62'si (r · 0,92 / (tan 20° · d), ADS_FOV 40);
+// eski ACOG (12.163) 23,5 cm'de %18'di. Mercek dışı HUD'da bulanık + koyu (#lens), retikül HUD'da (mercekle birlikte hareket eder, tam nişanda ekran ortası = mermi noktası)
+export const LENS_FR = { x2: 0.46, x3: 0.54, acog: 0.62, pso: 0.62 };
+const lensDist = (r, f) => (r * 0.92) / (Math.tan((20 * Math.PI) / 180) * f);
+export const ADS_DIST = { iron: 0.286, reddot: 0.36, rmr: 0.33, holo: 0.39, scope: 0.042, x2: lensDist(0.0141, LENS_FR.x2), x3: lensDist(0.0151, LENS_FR.x3), acog: lensDist(0.0168, LENS_FR.acog), pso: lensDist(0.0165, LENS_FR.pso) };      // 12.162 / 12.163: ACOG göz 23,5 cm geride (taslak C ×1,5; A 19 cm, 12.128'de 12,5 cm → mercek ekranın %34'ü + kalın halka) → göz merceği (r 16,8 mm, ADS_FOV 40) ekranın ≈ %18'i, çevresinde dünya görünür
+export const ACOG_DOT = 0.0012;      // 12.155 nokta (12.190: büyüten merceklerin retikülü HUD'da; yalnız eski yollar için)
 // 12.126: ADS_NEAR (nişanda 25–33 cm yakın düzlem) kalktı → silah kesilmez; cam neredeyse görünmez (BattleBit: yalnız ince çerçeve + ışıyan retikül)
 const GLASS_MAT = new THREE.MeshStandardMaterial({ color: '#9fd4ff', transparent: true, opacity: 0.045, roughness: 0.05, metalness: 0.3, depthWrite: false });
 GLASS_MAT.userData.glass = true;
@@ -57,7 +60,7 @@ function holo(k, yb, z) {
   k.glass.push({ rect: [0.052, 0.044], pos: [0, cy, zf - 0.0005] });
   return { sight: [0, cy, z], dist: ADS_DIST.holo, overlay: 'holo' };
 }
-// ACOG 3× (TA31 tarzı): dövme gövde, objektif / göz çanı, üstte fiber kanalı, göz merceğinde ışıyan nokta (12.155, eski şevron; PiP'e geçmeden önce görünür)
+// ACOG 4× (TA31 tarzı, 12.190 PUBG 4×): dövme gövde, objektif / göz çanı, üstte fiber kanalı. Retikül (kırmızı şevron + BDC) HUD'da (#lens), merceği izler
 function acog(k, yb, z) {
   const cy = yb + 0.034, ze = z + 0.066;
   if (k.lod) { k.box([0.034, 0.024, 0.08], [0, yb + 0.012, z], 'acc'); k.cyl(0.0205, 0.017, 0.17, [0, cy, z - 0.012], 'acc', { seg: 6 }); return { sight: [0, cy, ze], dist: ADS_DIST.acog, overlay: 'scope' }; }
@@ -73,14 +76,82 @@ function acog(k, yb, z) {
   k.cyl(0.0185, 0.0185, 0.002, [0, cy, z - 0.0855], 'lens', { seg: 18 });                                 // ön mercek
   k.cyl(0.0168, 0.0168, 0.002, [0, cy, ze - 0.001], 'lens', { seg: 18 });                               // göz merceği
   k.xsec(circ(0, cy, 0.018, 28), ze + 0.0002, ze - 0.009, 'acc', { holes: [circ(0, cy, 0.0169, 28)], c: 0.0005, cap: 1, sh: 0.8 });      // 12.162: ince göz çanı halkası (dış 19,2 → 18 mm, 1,1 mm kenar; arkadaki çan / objektif halkanın gölgesinde kalır → mercek çevresinde dünya), ön yüzü mercek diskiyle aynı düzlemde (12.129)
-  k.box([ACOG_DOT, ACOG_DOT, 0.0006], [0, cy, ze + 0.0004], 'glow');                                     // 12.155: ışıyan nokta (eski şevron) = nişan noktası; tam nişanda HUD #rdot'a geçer (red dot gibi, ADS_HUD)
-  return { sight: [0, cy, ze], dist: ADS_DIST.acog, overlay: 'scope', lens: [0.0168, 0, cy, ze + 0.0003, ACOG_DOT] };      // lens: saydam mercek diski (yarıçap, merkez; göz merceğinin hemen önünde, 12.162: derinlik maskesi → arkasındaki tüp çizilmez, dünya görünür)
+  return { sight: [0, cy, ze], dist: ADS_DIST.acog, overlay: 'lens', lens: [0.0168, 0, cy, ze + 0.0003, 0] };      // lens: saydam mercek diski (yarıçap, merkez; göz merceğinin hemen önünde, 12.162: derinlik maskesi → arkasındaki tüp çizilmez, dünya görünür)
+}
+// ── 12.190 PUBG tarzı büyüten nişangâhlar (S3 dili, marka / yazı yok) ──
+// göz merceği ince halkası (dış r + 1,1 mm, ön yüzü mercek diskiyle aynı düzlemde, 12.129 / 12.162) + mercekler; lens = saydam disk (derinlik maskesi, 12.162)
+function eyeRing(k, r, cy, ze, n = 28) { k.xsec(circ(0, cy, r + 0.0011, n), ze + 0.0002, ze - 0.008, 'acc', { holes: [circ(0, cy, r, n)], c: 0.0005, cap: 1, sh: 0.8 }); }
+// 2× (PUBG "2× Aimpoint" benzeri kısa tüp): alçak QD ayak + kol, ince gövde borusu, biraz geniş objektif, üstte parlaklık düğmesi
+function x2(k, yb, z) {
+  const cy = yb + 0.03, ze = z + 0.046, re = 0.0141;
+  if (k.lod) { k.box([0.024, 0.012, 0.04], [0, yb + 0.006, z], 'acc'); k.cyl(0.0175, 0.0155, 0.095, [0, cy, z - 0.004], 'acc', { seg: 6 }); return { sight: [0, cy, ze], dist: ADS_DIST.x2, overlay: 'lens' }; }
+  k.box([0.026, 0.007, 0.046], [0, yb + 0.0035, z - 0.002], 'acc', { c: 0.0015 });                         // QD taban
+  k.box([0.004, 0.011, 0.022], [0.0145, yb + 0.006, z + 0.006], 'acc', { c: 0.001, d: 1 });               // QD kolu (sağ)
+  k.box([0.013, cy - 0.0155 - yb - 0.006, 0.034], [0, (yb + 0.006 + cy - 0.0155) / 2, z - 0.002], 'acc', { c: 0.001 });   // yükseltici (tepesi borunun alt yüzünde)
+  k.cyl(0.0155, 0.0155, 0.058, [0, cy, z - 0.006], 'acc', { seg: 20 });                                    // gövde borusu
+  k.cyl(0.018, 0.0155, 0.012, [0, cy, z - 0.041], 'acc', { seg: 20 });                                     // objektif konisi
+  k.cyl(0.018, 0.018, 0.012, [0, cy, z - 0.053], 'acc', { seg: 20, sh: 0.9 });                             // objektif çanı
+  k.cyl(0.0152, 0.0158, 0.02, [0, cy, z + 0.035], 'acc', { seg: 20 });                                     // göz çanı
+  k.cyl(0.006, 0.006, 0.007, [0, cy + 0.0185, z - 0.008], 'acc', { ax: 'y', seg: 12, pat: 2 });            // parlaklık düğmesi
+  k.cyl(0.0168, 0.0168, 0.002, [0, cy, z - 0.0585], 'lens', { seg: 20 });
+  k.cyl(re, re, 0.002, [0, cy, ze - 0.001], 'lens', { seg: 20 });
+  eyeRing(k, re, cy, ze);
+  return { sight: [0, cy, ze], dist: ADS_DIST.x2, overlay: 'lens', lens: [re, 0, cy, ze + 0.0003, 0] };
+}
+// 3× (PUBG 3× benzeri kompakt prizma): köşeli gövde, yuvarlak objektif / göz çanı, yanda pil kapağı, üstte kısa ray parçası
+function x3(k, yb, z) {
+  const cy = yb + 0.032, ze = z + 0.052, re = 0.0151;
+  if (k.lod) { k.box([0.03, 0.03, 0.085], [0, cy - 0.002, z], 'acc'); k.cyl(0.019, 0.019, 0.02, [0, cy, z - 0.05], 'acc', { seg: 6 }); return { sight: [0, cy, ze], dist: ADS_DIST.x3, overlay: 'lens' }; }
+  k.box([0.03, 0.008, 0.062], [0, yb + 0.004, z], 'acc', { c: 0.0015 });                                  // taban
+  k.xsec(rrect(0, cy - 0.001, 0.0165, 0.0165, 0.006, 3), z + 0.032, z - 0.04, 'acc', { c: 0.0012 });      // köşeli prizma gövdesi
+  k.box([0.012, 0.004, 0.034], [0, cy + 0.0175, z - 0.004], 'acc', { c: 0.0008, sh: 0.85 });              // üst ray parçası
+  if (!k.lod) for (let i = 0; i < 3; i++) k.box([0.0125, 0.0015, 0.004], [0, cy + 0.0198, z - 0.016 + i * 0.012], 'acc', { sh: 0.6, d: 1 });
+  k.cyl(0.0065, 0.0065, 0.008, [0.02, cy + 0.002, z - 0.006], 'acc', { ax: 'x', seg: 12, pat: 2 });       // pil / parlaklık kapağı
+  k.cyl(0.0195, 0.0175, 0.014, [0, cy, z - 0.047], 'acc', { seg: 20 });                                   // objektif çanı
+  k.cyl(0.0195, 0.0195, 0.008, [0, cy, z - 0.058], 'acc', { seg: 20, sh: 0.9 });
+  k.cyl(0.016, 0.0165, 0.02, [0, cy, z + 0.042], 'acc', { seg: 20 });                                     // göz çanı
+  k.cyl(0.018, 0.018, 0.002, [0, cy, z - 0.0625], 'lens', { seg: 20 });
+  k.cyl(re, re, 0.002, [0, cy, ze - 0.001], 'lens', { seg: 20 });
+  eyeRing(k, re, cy, ze);
+  return { sight: [0, cy, ze], dist: ADS_DIST.x3, overlay: 'lens', lens: [re, 0, cy, ze + 0.0003, 0] };
+}
+// Halkalı keskin nişancı dürbünleri (6× değişken 3–6×, 8× değişken 4–8× CQBSS benzeri): tek parça uzatmalı taban + iki halka, gövde borusu, kuleler, büyütme halkası (tırtıl),
+// objektif / göz çanı. Dürbün örtüsü ('scope'): tam nişanda model gizli, HUD mil retikülü; geçişte 12.153 kararması
+function riflescope(k, yb, z, o) {
+  const big = o.big, R = big ? 0.0168 : 0.015, cy = yb + (big ? 0.044 : 0.04), L = big ? 0.165 : 0.15, Ro = big ? 0.0255 : 0.0215, Re = big ? 0.0195 : 0.0178;
+  const zf = z - L / 2 - (big ? 0.012 : 0.006), ze = z + L / 2 + 0.052;
+  if (k.lod) { k.box([0.024, cy - R - yb, 0.12], [0, (yb + cy - R) / 2, z], 'acc'); k.cyl(R, R, L + 0.06, [0, cy, z + 0.02], 'acc', { seg: 6 }); k.cyl(Ro, R, 0.08, [0, cy, zf - 0.03], 'acc', { seg: 6 }); return { sight: [0, cy, ze], dist: ADS_DIST.scope, overlay: 'scope' }; }
+  k.box([0.024, 0.008, 0.15], [0, yb + 0.004, z], 'acc', { c: 0.0015 });                                   // uzatmalı tek parça taban
+  for (const dz of [-0.045, 0.045]) {                                                                         // iki halka (ayak + kelepçe; borunun dışında → camdan görünmez)
+    k.box([0.02, cy - R - yb - 0.008 + 0.002, 0.016], [0, (yb + 0.008 + cy - R) / 2, z + dz], 'acc', { c: 0.001 });
+    k.ring(R + 0.0028, 0.0028, [0, cy, z + dz], 'acc', { ax: 'z', seg: 16, d: 1 });
+  }
+  k.cyl(R, R, L, [0, cy, z], 'acc', { seg: 18 });                                                           // gövde borusu
+  k.cyl(0.0105, 0.0105, 0.02, [0, cy + R + 0.008, z - 0.002], 'acc', { ax: 'y', seg: 12 });                // yükseklik kulesi
+  k.cyl(0.0115, 0.0115, 0.008, [0, cy + R + 0.019, z - 0.002], 'acc', { ax: 'y', seg: 12, pat: 2, sh: 0.85 });
+  k.cyl(0.0105, 0.0105, 0.02, [R + 0.008, cy, z - 0.002], 'acc', { ax: 'x', seg: 12 });                    // yan kule
+  k.cyl(0.0115, 0.0115, 0.008, [R + 0.019, cy, z - 0.002], 'acc', { ax: 'x', seg: 12, pat: 2, sh: 0.85, d: 1 });
+  if (big) k.cyl(0.012, 0.012, 0.014, [-R - 0.006, cy, z - 0.002], 'acc', { ax: 'x', seg: 12, pat: 2, sh: 0.9, d: 1 });   // 8×: sol paralaks düğmesi
+  k.cyl(Ro, R, big ? 0.05 : 0.042, [0, cy, z - L / 2 - (big ? 0.025 : 0.021)], 'acc', { seg: 20 });         // objektif konisi
+  k.cyl(Ro, Ro, big ? 0.05 : 0.036, [0, cy, zf - (big ? 0.044 : 0.033)], 'acc', { seg: 20, sh: 0.88 });     // objektif çanı (8×: güneşlikli uzun)
+  k.cyl(R + 0.0035, R + 0.0035, 0.022, [0, cy, z + L / 2 + 0.006], 'acc', { seg: 20, pat: 2, sh: 0.9 });     // büyütme halkası (tırtıl)
+  k.box([0.003, 0.006, 0.006], [0, cy + R + 0.0045, z + L / 2 + 0.006], 'acc', { sh: 0.6, d: 1 });          // büyütme halkası kolu
+  k.cyl(R + 0.002, Re, 0.034, [0, cy, ze - 0.017], 'acc', { seg: 20 });                                    // göz çanı
+  k.cyl(Ro - 0.002, Ro - 0.002, 0.002, [0, cy, zf - (big ? 0.07 : 0.052)], 'lens', { seg: 20 });
+  k.cyl(Re - 0.0015, Re - 0.0015, 0.002, [0, cy, ze - 0.001], 'lens', { seg: 20, d: 1 });
+  const cw = 0.008;
+  for (const [w, hh] of [[cw, 0.0004], [0.0004, cw]]) k.box([w, hh, 0.0005], [0, cy, ze + 0.0004], 'glow', { d: 1 });      // göz merceğinde ince artı (M24 dürbünü gibi; geçişte görünür, tam nişanda HUD mil retikülü)
+  return { sight: [0, cy, ze], dist: ADS_DIST.scope, overlay: 'scope' };
 }
 // Seçilen nişangâhı kur (iron → null: silah kendi demir nişanını kurar)
 function optic(k, o, yb, z, pistol = false) {
   if (o === 'reddot') return pistol ? rmr(k, yb, z) : redDot(k, yb, z);
   if (o === 'holo') return holo(k, yb, z);
   if (o === 'acog') return acog(k, yb, z);
+  if (o === 'x2') return x2(k, yb, z);
+  if (o === 'x3') return x3(k, yb, z);
+  if (o === 'x6') return riflescope(k, yb, z - 0.02, { big: false });
+  if (o === 'x8') return riflescope(k, yb, z - 0.03, { big: true });
   return null;
 }
 // Katlanır arka gez (MBUS): açıkken halka delikli plaka (gez deliği = nişan noktası), optik takılıyken yatık
@@ -271,7 +342,7 @@ export function pistol(mat = skinMaterial('pistol'), lod = false, o = 'iron') {
 }
 
 // ───────────────────────── M24 Keskin ─────────────────────────
-export function sniper(mat = skinMaterial('sniper'), lod = false) {
+export function sniper(mat = skinMaterial('sniper'), lod = false, o = 'scope') {
   const k = newKit(lod);
   // kompozit dipçik (HS tarzı): yanak tümseği, entegre kabza, uzun ön kundak; kabza benekli panel; dipçik pedi
   k.prof([[0.43, 0.064], [0.43, -0.11], [0.405, -0.122], [0.26, -0.072], [0.15, -0.052], [0.122, -0.1], [0.1, -0.118], [0.062, -0.112], [0.042, -0.064], [0.034, -0.036], [-0.07, -0.036], [-0.12, -0.03], [-0.48, -0.012], [-0.505, -0.004], [-0.505, 0.03], [-0.48, 0.036], [-0.07, 0.04], [0.04, 0.044], [0.07, 0.034], [0.13, 0.052], [0.26, 0.074], [0.4, 0.07]], 0.052, 'furn', { c: 0.009 });
@@ -287,8 +358,10 @@ export function sniper(mat = skinMaterial('sniper'), lod = false) {
   // ağır namlu + namlu ağzı
   k.cyl(0.0105, 0.0145, 0.72, [0, 0.058, -0.54], 'metal', { seg: 10 });
   k.cyl(0.0122, 0.0122, 0.03, [0, 0.058, -0.915], 'metal', { seg: 10, sh: 0.7 });
-  // dürbün: halkalar + gövde borusu + göz / objektif çanları + kuleler + mercekler + göz merceğinde ışıyan merkez
-  for (const z of [0.03, -0.13]) { k.box([0.026, 0.04, 0.02], [0, 0.098, z], 'acc', { c: 0.003 }); k.ring(0.0215, 0.005, [0, 0.142, z], 'acc', { ax: 'z', seg: 12, d: 1 }); }
+  // dürbün: halkalar + gövde borusu + göz / objektif çanları + kuleler + mercekler + göz merceğinde ışıyan merkez (12.190: 6× / 8× takılınca rayda o dürbün)
+  const mounted = o === 'x6' || o === 'x8', sg = mounted ? optic(k, o, 0.082, -0.03) : { sight: [0, 0.142, 0.159], dist: ADS_DIST.scope, overlay: 'scope' };
+  if (!mounted) for (const z of [0.03, -0.13]) { k.box([0.026, 0.04, 0.02], [0, 0.098, z], 'acc', { c: 0.003 }); k.ring(0.0215, 0.005, [0, 0.142, z], 'acc', { ax: 'z', seg: 12, d: 1 }); }
+  if (!mounted) {
   k.cyl(0.019, 0.019, 0.27, [0, 0.142, -0.05], 'acc', { seg: 14 });
   k.cyl(0.019, 0.025, 0.035, [0, 0.142, 0.1], 'acc', { seg: 14 });
   k.cyl(0.025, 0.025, 0.04, [0, 0.142, 0.137], 'acc', { seg: 14, sh: 0.85 });
@@ -301,6 +374,7 @@ export function sniper(mat = skinMaterial('sniper'), lod = false) {
   k.cyl(0.028, 0.028, 0.002, [0, 0.142, -0.303], 'lens', { seg: 14 });
   k.cyl(0.022, 0.022, 0.002, [0, 0.142, 0.158], 'lens', { seg: 14, d: 1 });
   for (const [w, hh] of [[0.012, 0.0004], [0.0004, 0.012]]) k.box([w, hh, 0.0005], [0, 0.142, 0.1594], 'glow', { d: 1 });   // göz merceğinde ince artı (12.139: 0,6 → 0,4 mm; dürbüne geçişte kalın pembe artı gibiydi)
+  }
   // sürgü (grup, pivot = mekanizma ekseni): sürgü başı + kol + topuz
   k.cyl(0.0125, 0.0125, 0.03, [0, 0.058, 0.1], 'metal', { g: 'bolt', seg: 10 });
   k.box([0.042, 0.007, 0.009], [0.024, 0.05, 0.075], 'metal', { g: 'bolt', rot: [0, 0, -0.55] });
@@ -308,8 +382,7 @@ export function sniper(mat = skinMaterial('sniper'), lod = false) {
   // iç şarjör (grup): taban plakası
   k.box([0.03, 0.007, 0.075], [0, -0.038, -0.11], 'metal', { g: 'mag', c: 0.002 });
   k.box([0.026, 0.05, 0.07], [0, -0.01, -0.11], 'metal', { g: 'mag' });
-  return done(k, mat, { name: 'M24 Keskin', hold: 'rifle', gripR: [0, -0.03, 0.054], gripL: [0, -0.03, -0.36], muzzle: [0, 0.058, -0.93], length: 1.3, boltPivot: 0.058 },
-    { sight: [0, 0.142, 0.159], dist: ADS_DIST.scope, overlay: 'scope' });
+  return done(k, mat, { name: 'M24 Keskin', hold: 'rifle', gripR: [0, -0.03, 0.054], gripL: [0, -0.03, -0.36], muzzle: [0, 0.058, -0.93], length: 1.3, boltPivot: 0.058 }, sg);
 }
 
 // ───────────────────────── Pompalı (Remington 870 tarzı, yeni) ─────────────────────────

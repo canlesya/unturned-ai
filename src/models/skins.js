@@ -16,6 +16,13 @@ export const STD = {
   optic: { body: ['#1d1e21', 0.6, 0.2], furn: ['#25272a', 0.7, 0], metal: ['#333437', 0.4, 0.6], acc: ['#1c1d20', 0.6, 0.2] },
 };
 const LENS = ['#10201f', 0.06, 0.6], GLOW = ['#ff2a1f', 1, 0];
+// 12.190 retikül rengi (Ayarlar; PUBG gibi): HUD retikülleri CSS --rc, 3B ışıyan retikül GLOW (sonra kurulan silah malzemeleri; maç başında kurulur)
+export const RET_COLORS = { red: '#ff2a1a', green: '#3dff5c', yellow: '#ffd21a', cyan: '#2ee6ff' };
+export function setReticleColor(k) {
+  const c = RET_COLORS[k] || RET_COLORS.red;
+  GLOW[0] = k === 'red' || !RET_COLORS[k] ? '#ff2a1f' : c;
+  if (typeof document !== 'undefined') document.documentElement.style.setProperty('--rc', c);
+}
 // 12.157 Uzay modu enerji silahları: kırık beyaz kabuk, koyu iskelet; en = ışıyan enerji parçalarının rengi (desen 3, uEn)
 Object.assign(STD, {
   laser: { body: ['#d6d6d0', 0.42, 0.05], furn: ['#2c3036', 0.6, 0.1], metal: ['#4a5058', 0.35, 0.65], acc: ['#1e2126', 0.5, 0.25], en: '#3fe2ff' },

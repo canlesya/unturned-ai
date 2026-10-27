@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { createCharacter } from '../models/character.js';
-import { WSTATS, CLASS_DEFS, OPTICS, OPTIC_ORDER, OPTIC_ALLOWED, resolveOptic, cleanEraOptics, makeLoadout, frontLoadout, TAC_RELOAD, BACKSTAB_DMG, ZOMBIE, ZTYPES, BOSS, ZBOSS, ggItems, cleanSkins, spaceLoadout } from './stats.js';
+import { WSTATS, CLASS_DEFS, OPTICS, BOT_OPTICS, OPTIC_ALLOWED, resolveOptic, cleanEraOptics, makeLoadout, frontLoadout, TAC_RELOAD, BACKSTAB_DMG, ZOMBIE, ZTYPES, BOSS, ZBOSS, ggItems, cleanSkins, spaceLoadout } from './stats.js';
 import { SWING_HIT_K } from './anim.js';
 import { H_STAND, H_CROUCH, H_PRONE } from './collision.js';
 import { dirFromAngles, clamp, rand, lerp } from './util.js';
@@ -52,8 +52,8 @@ export class Soldier {
     this.crouching = false; this.crouchT = 0;
     this.prone = false; this.proneT = 0;
     this.leanDir = 0; this.leanT = 0; this.leanK = 0; this.leanOff = new THREE.Vector3(); this._leanRoom = LEAN_OFF;
-    this.optic = isPlayer ? (game.opts?.optic || 'reddot') : OPTIC_ORDER[Math.floor(Math.random() * OPTIC_ORDER.length)];
-    this.optics = isPlayer ? cleanEraOptics(game.opts?.frontOptics) : {};      // 12.174: silah başına nişangâh (1940'lar silahları; uzak askerlerde ağdan 'op')
+    this.optic = isPlayer ? (game.opts?.optic || 'reddot') : BOT_OPTICS[Math.floor(Math.random() * BOT_OPTICS.length)];
+    this.optics = isPlayer ? cleanEraOptics(game.opts?.frontOptics) : {};      // 12.174: silah başına nişangâh (12.190: modern silahlar da; uzak askerlerde ağdan 'op')
     this.sprinting = false; this.ads = false; this.adsT = 0;
     this.eyeY = EYE_STAND;
     this.alive = false;
@@ -142,8 +142,8 @@ export class Soldier {
   loadout() { return (this.game.mode?.front && !CLASS_DEFS[this.cls]?.zombie ? frontLoadout : this.game.mode?.space ? spaceLoadout : makeLoadout)(this.cls, this.team, this.choice); }      // 12.157: Uzay enerji silahları · 12.158: Cephe 1940'lar donanımı (FRONT_KIT)      // 12.157: Uzay modunda enerji silahları (stats.js SPACE_CLASS)
   get opticId() { return this.opticFor(this.item.id); }
   opticFor(id) { return resolveOptic(id, this.optics?.[id] || this.optic); }      // 12.174: silaha özgü seçim (dönem nişangâhları) yoksa genel tercih
-  get scoped() { return !!this.stat.scope || this.opticDef?.overlay === 'scope'; }      // 12.174: dürbünlü silah ya da dürbün takılı tüfek (12.153 / 12.156 kuralları)
-  get adsRate() { const o = this.opticDef, t = o?.adsTime || this.stat.adsTime; return t ? 1 / t : o?.overlay === 'scope' ? 6 : 9 * (o?.adsK || 1); }      // nişana geçiş hızı (1/sn; 12.153 adsTime, 12.174 dönem dürbünü / diyoptr)
+  get scoped() { const o = this.opticDef; return !!this.stat.scope || (o?.overlay === 'scope' && !!o.era); }      // 12.174: dürbünlü silah ya da dönem dürbünü takılı tüfek (12.153 / 12.156 kuralları: belden artı yok, belden isabetsiz, tepme) · 12.190: modern 6× / 8× takılı tüfek / makineli bu kurallara girmez (artı + olağan isabet; nefes tutma örtüyle gelir)
+  get adsRate() { const o = this.opticDef, t = o?.era ? o.adsTime || this.stat.adsTime : Math.max(o?.adsTime || 0, this.stat.adsTime || 0); return t ? 1 / t : o?.overlay === 'scope' ? 6 : 9 * (o?.adsK || 1); }      // nişana geçiş hızı (1/sn; 12.153 adsTime, 12.174 dönem dürbünü / diyoptr; 12.190 modern: silah ve nişangâh sürelerinin büyüğü → M24'e 8× takınca 0,25 → 0,27 sn)
   skinOf(id) { return (this.skins && this.skins[id]) || 'std'; }
   // 12.167 kıyafet: ağdan gelen kod > kendi tercihim (insan) > bot çeşitlemesi (kimliğe bağlı, istemcide aynı)
   wearSpec() {
@@ -312,7 +312,7 @@ export class Soldier {
     // 12.153: dürbünlü keskin nişancı (st.scope): isabet yalnız dürbün oturunca (adsT 0,6 → 1 yumuşak); belde / geçişte ilk atış indirimi yok (no-scope / erken quickscope şansa kalır)
     // 12.156: insan (oyuncu / sunucudaki insan) için belden keskin nişancı anlamlı isabetsiz (st.noscope koni; eski hip 0,03 → 10 m'de gövdeye %100) ve dürbün
     // TAM oturmadan (adsT < SCOPE_ACC) atış belden sayılır. Botlar eski eğride (bot nişanı ayrı: tacAim + botExtraSpread)
-    const sc = st.scope || (st === this.stat && this.opticDef?.overlay === 'scope');      // 12.174: sürgülü / yarı otomatik tüfeğe takılan dönem dürbünü de
+    const sc = st.scope || (st === this.stat && this.opticDef?.overlay === 'scope' && !!this.opticDef.era);      // 12.174: sürgülü / yarı otomatik tüfeğe takılan dönem dürbünü de (12.190: modern 6× / 8× değil)
     const hum = sc && (this.isPlayer || this.human), a0 = hum ? SCOPE_ACC : 0.6;
     const sk = sc ? smooth01((this.adsT - a0) / (1 - a0)) : this.adsT;
     let s = lerp(hum ? st.noscope ?? hipv : hipv, adsv, sk);
@@ -611,7 +611,7 @@ export class Soldier {
   setOptic(id) {
     const allowed = OPTIC_ALLOWED[this.item.id] || [];
     if (!allowed.includes(id) || !OPTICS[id]) return null;
-    if (this.stat.era) this.optics[this.item.id] = id; else this.optic = id;      // 12.174: dönem silahında silaha özgü (modern genel tercih bozulmaz)
+    this.optics[this.item.id] = id;      // 12.190: her silah kendi nişangâhı (12.174'te yalnız dönem silahı; modern genel tercih `optic` seçilmemiş silahların varsayılanı olarak kalır)
     this.model.optic = id;
     this._syncWeaponModel(true);
     this.game.emit('switch', this);
@@ -624,7 +624,7 @@ export class Soldier {
     const list = allowed.filter((o) => OPTICS[o]);      // izin listesi sırası (modern listeler OPTIC_ORDER sırasında; 12.174 dönem nişangâhları kendi sırasında)
     if (list.length < 2) return null;
     const nx = list[(list.indexOf(this.opticId) + 1) % list.length];
-    if (this.stat.era) this.optics[this.item.id] = nx; else this.optic = nx;
+    this.optics[this.item.id] = nx;
     this.adsT = 0;      // 12.154: nişangâh değişince nişana yeniden girilir (eski: yeni nişangâhın büyütmesi tam nişanda o karede devreye giriyordu)
     this.model.optic = nx;
     this._syncWeaponModel(true);

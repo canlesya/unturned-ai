@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { rail, sideRail, bez } from './s3kit.js';
 import { skinMaterial, STD } from './skins.js';
-import { S3PARTS, ADS_DIST, ACOG_DOT } from './s3weapons.js';
+import { S3PARTS, ADS_DIST } from './s3weapons.js';
 
 // S3 "BattleBit" ikinci tur (tüfek / DMR / keskin / pompalı / bomba atar): SCAR-H, AUG, G36, AK-74U, SVD, Barrett M82, AA-12, Çift Namlu, M79 — s3weapons.js kalıbıyla (yan profil çekme + pah, tek ağ + cam).
 // Sözleşme eski modellerle (weapons_more.js) birebir: muzzle / gripR / gripL / length aynı → mermi / tepme / hasar / sunucu değişmez; kutu eller aynı kabza noktalarında.
@@ -249,12 +249,12 @@ export function ak74u(mat = skinMaterial('ak74u'), lod = false, o = 'iron') {
   return done(k, mat, { name: 'AK-74U', hold: 'rifle', gripR: [0, -0.03, 0.045], gripL: [0, -0.03, -0.27], muzzle: [0, 0.015, -0.5], length: 0.88 }, sg);
 }
 
-// PSO-1 dürbünü (SVD): yan ray ayağı + köprü, uzun güneşlik, büyük yükseklik / yan tamburu, pil kapağı, lastik göz kapağı (açık), göz merceğinde ışıyan nokta (12.155; ACOG ile aynı eksen / ölçü)
+// PSO-1 dürbünü (SVD, 4×): yan ray ayağı + köprü, uzun güneşlik, büyük yükseklik / yan tamburu, pil kapağı, lastik göz kapağı (açık). 12.190: retikül (şevron + BDC) HUD'da, ACOG gibi büyük mercek
 function pso(k, yb, z) {
   const cy = yb + 0.034, ze = z + 0.066;
   coverMount(k, [[0.0275, 0.07], [0.0275, 0.0735], [0.02, 0.088], [0.012, yb + 0.006]], [[0.0245, 0.07], [0.0245, 0.072], [0.0175, 0.085], [0.005, 0.0885]], z - 0.01, 0.1);   // kapak ayağı: tek parça eyer (12.139; eski 50 mm köprü + yan ayak merceğin altında geniş plaka)
   k.box([0.014, cy - 0.0152 - yb - 0.006, 0.05], [0, (yb + 0.006 + cy - 0.0152) / 2, z - 0.01], 'acc', { c: 0.0015 });   // ayak (tepesi borunun alt yüzünde: dürbün camından görünmez)
-  if (k.lod) { k.cyl(0.02, 0.0165, 0.24, [0, cy, z - 0.04], 'acc', { seg: 6 }); return { sight: [0, cy, ze], dist: ADS_DIST.acog, overlay: 'scope' }; }
+  if (k.lod) { k.cyl(0.02, 0.0165, 0.24, [0, cy, z - 0.04], 'acc', { seg: 6 }); return { sight: [0, cy, ze], dist: ADS_DIST.pso, overlay: 'lens' }; }
   k.cyl(0.0155, 0.0155, 0.12, [0, cy, z - 0.005], 'acc', { seg: 16 });                                   // gövde borusu
   k.cyl(0.021, 0.0155, 0.03, [0, cy, z - 0.08], 'acc', { seg: 18 });                                     // objektif konisi
   k.cyl(0.021, 0.021, 0.07, [0, cy, z - 0.13], 'acc', { seg: 18, sh: 0.92 });                            // güneşlik
@@ -265,12 +265,11 @@ function pso(k, yb, z) {
   k.cyl(0.0055, 0.0055, 0.007, [-0.0185, cy, z - 0.05], 'acc', { ax: 'x', seg: 8, d: 1 });               // aydınlatma pil kapağı (12.139: yanda, alçak; eskiden sol üstte çıkıntı)
   k.cyl(0.0195, 0.0195, 0.002, [0, cy, z - 0.164], 'lens', { seg: 18 });
   k.cyl(0.0165, 0.0165, 0.002, [0, cy, ze - 0.001], 'lens', { seg: 18 });
-  k.box([ACOG_DOT, ACOG_DOT, 0.0006], [0, cy, ze + 0.0004], 'glow');                                     // 12.155: ışıyan nokta = nişan noktası; tam nişanda HUD #rdot'a geçer (12.162)
-  return { sight: [0, cy, ze], dist: ADS_DIST.acog, overlay: 'scope', lens: [0.0165, 0, cy, ze + 0.0003, ACOG_DOT] };      // 12.162: ACOG ile aynı saydam mercek (derinlik maskesi)
+  return { sight: [0, cy, ze], dist: ADS_DIST.pso, overlay: 'lens', lens: [0.0165, 0, cy, ze + 0.0003, 0] };      // 12.162: ACOG ile aynı saydam mercek (derinlik maskesi)
 }
 
 // ───────────────────────── SVD Dragunov ─────────────────────────
-export function svd(mat = skinMaterial('svd'), lod = false) {
+export function svd(mat = skinMaterial('svd'), lod = false, o = 'acog') {
   const k = newKit(lod);
   // gövde + kubbeli üst kapak + kaburgalar, sol yan ray, kurma / emniyet kolu, trunnion
   k.box([0.046, 0.07, 0.32], [0, 0.02, -0.1], 'body', { c: 0.005, ax: 'z' });
@@ -307,8 +306,12 @@ export function svd(mat = skinMaterial('svd'), lod = false) {
   trigger(k, 0.0, -0.016);
   k.box([0.016, 0.02, 0.01], [0, -0.026, -0.085], 'metal', { d: 1, c: 0.002 });
   k.ring(0.011, 0.0025, [0, -0.115, 0.37], 'metal', { d: 1 }); k.ring(0.011, 0.0025, [0, -0.016, -0.5], 'metal', { d: 1 });
-  // PSO-1 (yan ray, ACOG 3× örtüsü)
-  const sg = pso(k, 0.092, -0.06);
+  // PSO-1 (yan ray, 4×) · 12.190: 6× / 8× takılınca aynı kapak eyerinin üstünde uzatmalı tabanla
+  let sg;
+  if (o === 'x6' || o === 'x8') {
+    coverMount(k, [[0.0275, 0.07], [0.0275, 0.0735], [0.02, 0.088], [0.012, 0.098]], [[0.0245, 0.07], [0.0245, 0.072], [0.0175, 0.085], [0.005, 0.0885]], -0.07, 0.1);
+    sg = optic(k, o, 0.098, -0.04);
+  } else sg = pso(k, 0.092, -0.06);
   // 10'luk şarjör (grup): hafif kavis, kabartma oluk, taban
   const R = bez([-0.087, -0.015], [-0.09, -0.07], [-0.102, -0.116], lod ? 2 : 4), F = bez([-0.165, -0.015], [-0.17, -0.065], [-0.188, -0.106], lod ? 2 : 4);
   k.prof([...R, ...[...F].reverse()], 0.03, 'body', { c: 0.003, g: 'mag', sh: 0.95 });
@@ -318,7 +321,7 @@ export function svd(mat = skinMaterial('svd'), lod = false) {
 }
 
 // ───────────────────────── Barrett M82A1 ─────────────────────────
-export function barrett(mat = skinMaterial('barrett'), lod = false) {
+export function barrett(mat = skinMaterial('barrett'), lod = false, o = 'scope6') {
   const k = newKit(lod), cy = 0.148, ze = 0.137;
   // üst gövde (uzun sac kutu, önde büyük hafifletme pencereleri) + tam boy ray, kurma kolu, alt gövde (şarjör yuvası)
   k.xsec([[-0.033, 0.0], [0.033, 0.0], [0.033, 0.085], [0.027, 0.095], [-0.027, 0.095], [-0.033, 0.085]], 0.17, -0.62, 'body', { c: 0.005 });
@@ -349,7 +352,9 @@ export function barrett(mat = skinMaterial('barrett'), lod = false) {
   for (const sx of [-1, 1]) { k.box([0.012, 0.014, 0.3], [sx * 0.03, 0.012, -0.83], 'metal', { c: 0.003 }); k.box([0.02, 0.012, 0.03], [sx * 0.03, 0.008, -0.985], 'metal', { c: 0.003, d: 1 }); }
   // taşıma sapı (dürbünün önünde, alçak)
   k.prof([[-0.33, 0.103], [-0.43, 0.103], [-0.425, 0.124], [-0.415, 0.13], [-0.345, 0.13], [-0.335, 0.124]], 0.016, 'acc', { c: 0.003, d: 1, holes: [[[-0.345, 0.108], [-0.415, 0.108], [-0.415, 0.122], [-0.345, 0.122]]] });
-  // 10× dürbün: halkalar, gövde, objektif / göz çanları, kuleler, mercekler, göz merceğinde ince artı
+  // 10× dürbün: halkalar, gövde, objektif / göz çanları, kuleler, mercekler, göz merceğinde ince artı (12.190: 8× takılınca rayda o dürbün)
+  const mounted = o === 'x8', sg = mounted ? optic(k, o, 0.103, 0.0) : { sight: [0, cy, ze], dist: ADS_DIST.scope, overlay: 'scope' };
+  if (!mounted) {
   for (const z of [0.03, -0.15]) { k.box([0.03, 0.026, 0.022], [0, 0.116, z], 'acc', { c: 0.003 }); k.ring(0.0235, 0.0045, [0, cy, z], 'acc', { ax: 'z', seg: 12, d: 1 }); }   // halka / ayak borunun dışında (camdan görünmez)
   k.cyl(0.019, 0.019, 0.26, [0, cy, -0.07], 'acc', { seg: 14 });
   k.cyl(0.03, 0.019, 0.05, [0, cy, -0.225], 'acc', { seg: 16 });
@@ -362,12 +367,12 @@ export function barrett(mat = skinMaterial('barrett'), lod = false) {
   k.cyl(0.027, 0.027, 0.002, [0, cy, -0.301], 'lens', { seg: 16 });
   k.cyl(0.021, 0.021, 0.002, [0, cy, ze - 0.001], 'lens', { seg: 16, d: 1 });
   cross(k, cy, ze + 0.0004);
+  }
   // 10'luk kutu şarjör (grup)
   k.prof([[-0.038, -0.04], [-0.162, -0.04], [-0.162, -0.13], [-0.038, -0.13]], 0.052, 'body', { c: 0.004, g: 'mag' });
   for (let i = 0; i < 3; i++) k.box([0.054, 0.06, 0.008], [0, -0.085, -0.06 - i * 0.04], 'body', { g: 'mag', d: 1, sh: 0.85 });
   k.box([0.058, 0.012, 0.13], [0, -0.136, -0.1], 'metal', { g: 'mag', c: 0.003 });
-  return done(k, mat, { name: 'Barrett .50', hold: 'rifle', gripR: [0, -0.03, 0.06], gripL: [0, -0.05, -0.5], muzzle: [0, 0.05, -1.13], length: 1.65 },
-    { sight: [0, cy, ze], dist: ADS_DIST.scope, overlay: 'scope' });
+  return done(k, mat, { name: 'Barrett .50', hold: 'rifle', gripR: [0, -0.03, 0.06], gripL: [0, -0.05, -0.5], muzzle: [0, 0.05, -1.13], length: 1.65 }, sg);
 }
 
 // ───────────────────────── AA-12 ─────────────────────────

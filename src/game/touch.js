@@ -16,6 +16,7 @@ import { OPTICS } from './stats.js';
 import { t } from '../i18n/index.js';
 import '../i18n/touch.js';
 import { wName, opticName } from '../i18n/game.js';
+import { OPTIC_ICON, OPTIC_MAG } from './opticIcons.js';
 
 const KEY = 'warbyte.touch';
 const DEF = { joy: 'fixed', fire: 'fixed', leftFire: true, opacity: 0.8, sens: 1, adsSens: 0.75, gyro: 'off', gyroSens: 1, gyroInvX: false, gyroInvY: false, aim: true, aimStr: 1, retSz: 1, layout: {} };
@@ -43,20 +44,8 @@ const I = {
   vcam: '<rect x="3" y="7" width="13" height="10" rx="2"/><path d="M16 11l5-3v8l-5-3"/>',
   seat: '<path d="M7 4v9h9l2 7M7 13l-2 7M10 4h-3"/><path d="M14 4l3 3-3 3"/>',
 };
-// seçici kartlarında küçük nişangâh önizlemesi ve buton etiketi
-const OPI = {
-  iron: '<path d="M4 20h6v-8h4v8h6" stroke="#e8edf5" stroke-width="2" fill="none"/><rect x="11" y="6" width="2" height="9" fill="#e8edf5"/>',
-  reddot: '<circle cx="12" cy="12" r="9" stroke="#8a929c" stroke-width="1.5" fill="none"/><circle cx="12" cy="12" r="2.4" fill="#ff2a1a"/>',
-  holo: '<circle cx="12" cy="12" r="7" stroke="#ff3326" stroke-width="1.6" fill="none"/><circle cx="12" cy="12" r="1.4" fill="#ff3326"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="#ff3326" stroke-width="1.6"/>',
-  acog: '<circle cx="12" cy="12" r="10" stroke="#8a929c" stroke-width="1.5" fill="none"/><path d="M8.5 15L12 10.5l3.5 4.5" stroke="#ff2e1f" stroke-width="1.8" fill="none"/>',
-  scope: '<circle cx="12" cy="12" r="10" stroke="#8a929c" stroke-width="1.5" fill="none"/><path d="M2 12h20M12 2v20" stroke="#e8edf5" stroke-width="1"/>',
-};
-OPI.scope6 = OPI.scope;
-// 12.174 dönem nişangâhları: diyoptr halka + arpacık, öncü dürbün (direk + çizgi), üç direkli dürbün
-OPI.ww_peep = '<circle cx="12" cy="12" r="7" stroke="#e8edf5" stroke-width="2" fill="none"/><rect x="11" y="10" width="2" height="7" fill="#e8edf5"/>';
-OPI.ww_scout = '<circle cx="12" cy="12" r="10" stroke="#8a929c" stroke-width="1.5" fill="none"/><path d="M2 12h20" stroke="#e8edf5" stroke-width="1"/><path d="M10.6 22v-8L12 12l1.4 2v8z" fill="#e8edf5"/>';
-OPI.ww_sc25 = OPI.ww_sc4 = '<circle cx="12" cy="12" r="10" stroke="#8a929c" stroke-width="1.5" fill="none"/><path d="M2 11h7.5v2H2zM14.5 11H22v2h-7.5zM10.8 22v-8L12 12l1.2 2v8z" fill="#e8edf5"/>';
-const OPS = { acog: '3×', scope: '4×', scope6: '6×', ww_scout: '1,5×', ww_sc25: '2,5×', ww_sc4: '4×' }, opLabel = (id) => OPS[id] || (id ? t('tc.op.' + id) : '');   // nişangâh butonu etiketi
+// seçici kartlarında küçük nişangâh önizlemesi ve buton etiketi (12.190: ortak opticIcons.js; 2× / 3× / 4× ACOG / 6× / 8× eklendi)
+const OPI = OPTIC_ICON, opLabel = (id) => OPTIC_MAG[id] || (id ? t('tc.op.' + id) : '');   // nişangâh butonu etiketi
 const CSS = `
 #tc{position:fixed;inset:0;z-index:6;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;font-family:Bahnschrift,'Rajdhani','Arial Narrow',system-ui,sans-serif}
 #tc.off{display:none}

@@ -46,6 +46,10 @@ const ANALYZE = async ({ b64, kind, mode }) => {
   if (mode === 'probe' || mode === 'hud') {
     const c = cloud(mode === 'probe' ? magenta : kind === 'idot' ? white : red);
     if (!c.n) return { err: 'retikül bulunamadı' };
+    if (kind === 'chev') {                                                            // 12.190 ACOG / PSO şevronu: nişan noktası = ucu (en üst kırmızı satırın ortası)
+      const top = c.pts.filter(([, y]) => y === c.minY), tx = top.reduce((a, [x]) => a + x + 0.5, 0) / top.length;
+      return { dx: tx - cx, dy: c.minY - cy, n: c.n };
+    }
     res.dx = c.x - cx; res.dy = c.y - cy; res.n = c.n;
     return res;
   }
@@ -97,7 +101,7 @@ for (const dev of (process.env.DEV || 'desk,mob,iph').split(',')) {
     window.__show = (mode) => {                                                                             // HUD: yalnız retikül öğeleri
       for (const e of hudEls) e.style.visibility = mode === 'hud' ? '' : 'hidden';
       const h = document.getElementById('hud');
-      if (h) for (const c of h.querySelectorAll(':scope > *')) c.style.visibility = mode === 'hud' && /^(rdot|holo|scope|idot)$/.test(c.id) ? 'visible' : 'hidden';
+      if (h) for (const c of h.querySelectorAll(':scope > *')) c.style.visibility = mode === 'hud' && /^(rdot|holo|scope|idot|lens)$/.test(c.id) ? 'visible' : 'hidden';
     };
     window.__pose = (o) => {
       g.simulate = false;
@@ -124,13 +128,15 @@ for (const dev of (process.env.DEV || 'desk,mob,iph').split(',')) {
     const key = `${id}:${optic}`;
     if (only && !only.test(key)) continue;
     const ret = {};
-    const dot = optic === 'reddot' || optic === 'acog', holo = optic === 'holo', scope = ovl === 'scope', post = rtc === 'post' || rtc === 'post3';      // 12.162: ACOG red dot gibi (3D nokta + mercek penceresi + HUD #rdot)
+    const lensR = ovl === 'lens' && /^(x2|x3|chev)$/.test(rtc || '');      // 12.190: büyüten mercek retikülü HUD'da (3B ışıyan parça yok): cam penceresi + HUD (nokta merkezi / şevron ucu)
+    const dot = optic === 'reddot', holo = optic === 'holo', scope = ovl === 'scope', post = rtc === 'post' || rtc === 'post3';      // 12.162: ACOG red dot gibi (3D nokta + mercek penceresi + HUD #rdot)
     const open = ovl === 'none';                                                    // demir + 12.174 diyoptr: gez / arpacık ölçümü
     const jobs = [];
     if (open) jobs.push(['gez', 'iron', 'iron']);
-    else { jobs.push(['3D', 'probe', post ? rtc : 'c']); if (!scope) jobs.push(['cam', 'glass', 'c']); }
+    else { if (!lensR) jobs.push(['3D', 'probe', post ? rtc : 'c']); if (!scope) jobs.push(['cam', 'glass', 'c']); }
+    if (lensR) jobs.push(['HUD', 'hud', rtc === 'chev' ? 'chev' : 'c']);
     if (rtc === 'post3') jobs.push(['HUD', 'hud', 'post3']);                        // 12.174: dönem dürbünü HUD üç direği (koyu)
-    else if (!(rtc === 'post') && (dot || holo || scope || dev !== 'desk')) jobs.push(['HUD', 'hud', open ? 'idot' : 'c']);      // öncü dürbünün HUD retikülü yok (3B siyah direk)
+    else if (!lensR && !(rtc === 'post') && (dot || holo || scope || dev !== 'desk')) jobs.push(['HUD', 'hud', open ? 'idot' : 'c']);      // öncü dürbünün HUD retikülü yok (3B siyah direk)
     for (const [name, mode, kind] of jobs) {
       const info = await page.evaluate((o) => window.__pose(o), { id, optic, mode, sway: process.env.SWAY ? 1.7 + rows.length * 0.37 : 0 });
       await page.waitForTimeout(90);
