@@ -5,6 +5,7 @@ import { createHeli, HELI_MATS } from '../models/heli.js';
 import { toWorld, gunPose } from '../sim/vehicle.js';
 import { SIM_DT } from '../net/protocol.js';
 import { waterYAt } from '../sim/swim.js';
+import { SEAT_DROP } from './vehicles.js';
 
 // ───── Araç görünümü (12.177; yalnız tarayıcı) ─────
 // Model (takım rengine göre şablon kopyası), görsel süspansiyon (dikey ivme + eğim / yatış gecikmesi: yaylı gövde), teker dönüşü + ön teker
@@ -15,6 +16,7 @@ import { waterYAt } from '../sim/swim.js';
 // korna (iki tonlu) — sentez, sfx kanalı. Kamera: vehCamera (sürücü içeriden / takip; V).
 const MAXP = 700;
 const _v = new THREE.Vector3(), _w = new THREE.Vector3(), _q = new THREE.Quaternion(), _q2 = new THREE.Quaternion(), _e = new THREE.Euler(0, 0, 0, 'YXZ'), _p = { x: 0, y: 0, z: 0 }, _h = {};
+const _rp = new THREE.Vector3(), _rq = new THREE.Quaternion(), _rq2 = new THREE.Quaternion(), _ry = new THREE.Quaternion(), _up = new THREE.Vector3(0, 1, 0);
 const CHAR = new THREE.MeshStandardMaterial({ color: '#1f1c1a', flatShading: true, roughness: 0.95 });
 // türe göre efekt noktaları (yerel f, r, u): farlar, egzoz [f, r, u, yukarı mı], toz (palet / arka teker), hasar dumanı (motor), motor sesi [taban Hz, devir aralığı]
 const FXP = {
@@ -136,6 +138,26 @@ export class VehicleView {
     return true;
   }
 
+  // 12.192 koltuktakiler aracın ÇİZİLEN gövdesine oturur (her karede, aracın modeli konduktan sonra): konum = gövde yerelinde koltuk − oturma payı,
+  // dönüş = gövdenin dünya dönüşü (eğim / yatış / görsel süspansiyon dahil) · koltuk yaw'ı. Eskiden kök dünya dikeyinde 0,78 m aşağıda + ham sim
+  // durumuyla dönüyordu → eğik helikopterde (ileri uçuşta burun −0,28 rad, virajda yatış) asker gövdeye göre 0,15–0,25 m kayıyor, gövdeden / kapıdan
+  // taşıyor, uzaktaki yolcu sallanıyordu
+  seatRiders(it, v) {
+    if (!v.alive || !v.st) return;
+    const d = v.def, B = it.model.userData.body || it.model;
+    let upd = false;
+    for (let i = 0; i < v.seats.length; i++) {
+      const s = v.seats[i], r = s?.model?.root;
+      if (!s || !s.alive || s.veh !== v || !r || !r.visible || !r.parent) continue;
+      if (!upd) { it.model.updateMatrixWorld(true); upd = true; }
+      const sp = d.seat[i];
+      _rp.set(sp[1], sp[2] - SEAT_DROP - 0.28 + (s.model.groundOffset ?? 0), -sp[0]); B.localToWorld(_rp); r.parent.worldToLocal(_rp);
+      r.position.copy(_rp);
+      B.getWorldQuaternion(_rq); _ry.setFromAxisAngle(_up, s._seatRel || 0); r.quaternion.copy(_rq).multiply(_ry);
+      r.quaternion.premultiply(r.parent.getWorldQuaternion(_rq2).invert());          // kökün ebeveyni sahne (birim) — değilse onun dönüşü düşülür
+    }
+  }
+
   setCharred(it, on) {
     if (it.charred === on) return;
     it.charred = on;
@@ -206,6 +228,7 @@ export class VehicleView {
         const fp = mine && me.seat === 0 && P && P._vcam === 'first';
         U.hands.visible = !!fp;
       }
+      this.seatRiders(it, v);
       this.setCharred(it, !v.alive && v.wreck);
       // ışıklar
       const on = v.alive && v.lights, br = v.alive && (st.thr < -0.05 && fwd > 0.5 || v.st.brk);
