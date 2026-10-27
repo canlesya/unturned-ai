@@ -31,7 +31,7 @@ export function buildKuzey() {
   const cs = new ChunkSet({ size: 200, surface });
   const rng = makeRng(1972);
   const { occ, wires, orchard, rocks } = placeAll(cs, T, rng);
-  const veg = scatterVegetation(T, occ, makeRng(7272), makeRng(9191), { outer: visual, orchard, rocks });
+  const veg = scatterVegetation(T, occ, makeRng(7272), makeRng(9191), { outer: visual, orchard, rocks, wires });
   vegetationColliders(veg, cs);
   fallenLogs(veg.logs, cs);
   const nWheat = fieldCover(T, cs);
@@ -73,8 +73,8 @@ export function buildKuzey() {
     view: { far: 7000, near: 0.1 }, navCell: 2, big: true, playArea: KZ_PLAY, dayCycle: KZ_CYCLE,
     lootSpots: loot, navDoors: ctx.doors || [],
     swimExits: ctx.swimExits || [],                                                                // 12.180 dik kıyılı suyun çıkış noktaları (baraj gölü merdiveni): içine düşen bot buraya yüzer                                                   // ileride battle royale: bina içi masa / raf / sandık / zemin noktaları
-    navPost: (nav) => navPost(nav, ctx),
-    callouts: CALLOUTS.map(([name, x, z]) => ({ name, x, z, ...(/Üs$/.test(name) ? { major: true } : {}) })),          // mini haritada yalnız üs adları (bayraklar zaten işaretli)
+    navPost: (nav) => navPost(nav, ctx, T, colliders),
+    callouts: CALLOUTS.map(([name, x, z, r]) => ({ name, x, z, r, ...(/Üs$/.test(name) ? { major: true } : {}) })),          // mini haritada yalnız üs adları (bayraklar zaten işaretli)
     mini: null, roads: roadRects, roadColor: '#5b5d61',
     spawns, baseZones: { blue: zoneOf(pad('BHQ')), red: zoneOf(pad('RHQ')) },
     objectives: FLAGS.map((f) => ({ ...f, label: f.id, y: flagY(f), core: !!f.core })),
@@ -90,15 +90,123 @@ export function buildKuzey() {
 
 // görsel katmanlar (tarayıcı): arazi ağı, orman, su, atmosfer, teller; her karede LOD + zaman (Game.render → map.fx.update(t, camera, game))
 // nav son işlemi: savaş alanı dışı (3 m pay) kapalı (botlar sınıra gitmez) · kapı hücreleri açık (2 m ızgarada 1,2 m'lik kapı duvar şişirmesiyle kapanıyordu)
-function navPost(nav, ctx) {
+function navPost(nav, ctx, T, colliders) {
   const A = KZ_PLAY, c = nav.cell;
   for (let j = 0; j < nav.h; j++) for (let i = 0; i < nav.w; i++) {
     const x = nav.minX + (i + 0.5) * c, z = nav.minZ + (j + 0.5) * c;
     if (x < A.minX + 3 || x > A.maxX - 3 || z < A.minZ + 3 || z > A.maxZ - 3) nav.blocked[j * nav.w + i] = 1;
   }
+  if (colliders) { navThin(nav, T, colliders); navFloors(nav, ctx, colliders); }
   let n = 0;
   for (const d of ctx.doors || []) for (const [x, z] of d.pts) { const k = nav.idx(x, z); if (k >= 0 && k < nav.blocked.length && nav.blocked[k]) { nav.blocked[k] = 0; n++; } }
   nav.opened = n;
+  navDoorThread(nav, ctx.doors || []);
+  // 12.184 baraj: gövdenin bütün kademeleri 'deck' (tabliye) → 2 m ızgara mansap yüzünün 2 m'lik basamaklarını da "yürünür" sayıyordu; bot kanyon
+  // tabanından Baraj bayrağına (tepe, 24 m) dümdüz yüze yürüyüp takılıyordu. Tepe kotunda olmayan kademe hücreleri kapalı → tepeye iki yamaçtan çıkılır.
+  if (!T || !colliders) return;
+  const dk = colliders.filter((q) => q.tag === 'deck' && q.min[0] > DAM.x - 60 && q.max[0] < DAM.x + 20);
+  let nd = 0;
+  for (let j = 0; j < nav.h; j++) for (let i = 0; i < nav.w; i++) {
+    const x = nav.minX + (i + 0.5) * c, z = nav.minZ + (j + 0.5) * c;
+    if (x < DAM.x - 40 || x > DAM.x + 10 || Math.abs(z - DAM.z) > DAM.len / 2 + 10) continue;
+    const g = T.heightAt(x, z); let top = g;
+    for (const q of dk) if (x > q.min[0] && x < q.max[0] && z > q.min[2] && z < q.max[2] && q.max[1] > top) top = q.max[1];
+    if (top - g > 0.6 && top < DAM.crest - 0.6) { const k = j * nav.w + i; if (!nav.blocked[k]) { nav.blocked[k] = 1; nd++; } }
+  }
+  nav.damFace = nd;
+  // 12.184 dik yamaç: nav hücre merkezindeki eğime bakar (> 0,95 kapalı), fizik ise adım başına eksen eğimine (> 1,2 çıkılamaz). Kanyon / kayalık
+  // yamaçlarda merkez yatık, hücrenin bir köşesi dik kalabiliyor → bot yola çıkıp yamacın dibinde gidip geliyordu. Hücrenin 5 noktasında eksen eğimi > 1,2 → kapalı.
+  let ns = 0;
+  for (let j = 0; j < nav.h; j++) for (let i = 0; i < nav.w; i++) {
+    const k = j * nav.w + i; if (nav.blocked[k]) continue;
+    const x = nav.minX + (i + 0.5) * c, z = nav.minZ + (j + 0.5) * c;
+    if (T.slopeAt(x, z, 0.6) < 0.5 || dk.some((q) => x > q.min[0] && x < q.max[0] && z > q.min[2] && z < q.max[2] && q.max[1] > T.heightAt(x, z) - 0.3)) continue;   // tabliye (baraj) üstü: arazi eğimi değil
+    for (const [ox, oz] of SUB) {
+      const px = x + ox, pz = z + oz;
+      if (Math.abs(T.heightAt(px + 0.25, pz) - T.heightAt(px - 0.25, pz)) > 0.6 || Math.abs(T.heightAt(px, pz + 0.25) - T.heightAt(px, pz - 0.25)) > 0.6) { nav.blocked[k] = 1; ns++; break; }
+    }
+  }
+  nav.steep = ns;
+}
+const SUB = [[0, 0], [-0.5, -0.5], [0.5, -0.5], [-0.5, 0.5], [0.5, 0.5]];
+
+// 12.184 kapıdan geçiş: 2 m ızgaranın ara noktası hücre merkezi, kapı 1,2 m (gövde 0,32 m yarıçap → pervaz payı ±0,28 m); merkez kapı ekseninden
+// 0,4–0,9 m kayınca bot pervaza yürüyüp eşikte takılıyordu. Yol bir kapı hücresinden geçiyorsa kapı ekseninde dış + iç nokta (yakından geçilir: tight) eklenir.
+function navDoorThread(nav, doors) {
+  const of = new Map();
+  doors.forEach((d, di) => { for (const [x, z] of d.pts) of.set(nav.idx(x, z), di); });
+  nav.threadDoors = (path, x0, z0) => {
+    let px = x0, pz = z0, last = -1;
+    for (let i = 0; i < path.length; i++) {
+      const q = path[i]; if (q.door !== undefined) { px = q.x; pz = q.z; continue; }
+      const L = Math.hypot(q.x - px, q.z - pz), n = Math.ceil(L / 0.5);
+      let hit = -1;
+      for (let k = 0; k <= n && hit < 0; k++) { const t = n ? k / n : 0, di = of.get(nav.idx(px + (q.x - px) * t, pz + (q.z - pz) * t)); if (di !== undefined && di !== last) hit = di; }
+      if (hit >= 0) {
+        const P = doors[hit].pts, a = P[0], b = P[4];
+        const [n0, n1] = Math.hypot(a[0] - px, a[1] - pz) < Math.hypot(b[0] - px, b[1] - pz) ? [a, b] : [b, a];
+        const w0 = q.clone().set(n0[0], q.y, n0[1]), w1 = q.clone().set(n1[0], q.y, n1[1]); w0.door = w1.door = hit; w0.tight = w1.tight = true;
+        path.splice(i, 0, w0, w1); i += 2; last = hit;
+      }
+      px = q.x; pz = q.z;
+    }
+    return path;
+  };
+}
+
+// 12.184 ince duvar: NavGrid bir kutuyu şişirilmiş aralığında hücre MERKEZİ varsa kapatır; 0,3 m duvar (+ 2 × 0,35) iki merkez arasına düşünce hiç
+// kapanmıyordu → nav duvarın içinden yol çiziyor, bot duvara yürüyüp takılıyordu (köy / mezra evleri, ahır, avlu duvarı, çit, gözetleme kulesi ayağı /
+// merdiveni, ağaç gövdesi, direk). Gövde bandındaki kutunun hücresiz kalan ekseninde ortasındaki hücre kapatılır.
+function navThin(nav, T, colliders) {
+  const c = nav.cell, INF = 0.35; let n = 0;
+  const rng = (lo, hi, min) => [Math.ceil((lo - min) / c - 0.5), Math.floor((hi - min) / c - 0.5)];
+  for (const q of colliders) {
+    if (q.tag === 'deck' || q.tag === 'veh') continue;
+    const sx = q.max[0] - q.min[0], sz = q.max[2] - q.min[2];
+    if (sx > 60 || sz > 60) continue;
+    let [a0, a1] = rng(q.min[0] - INF, q.max[0] + INF, nav.minX), [b0, b1] = rng(q.min[2] - INF, q.max[2] + INF, nav.minZ);
+    const ex = a0 > a1, ez = b0 > b1;
+    if (!ex && !ez) continue;
+    const gy = T.heightAt((q.min[0] + q.max[0]) / 2, (q.min[2] + q.max[2]) / 2);
+    if (q.min[1] - gy > 1.6 || q.max[1] - gy < 0.45) continue;
+    if (ex) a0 = a1 = Math.floor(((q.min[0] + q.max[0]) / 2 - nav.minX) / c);
+    if (ez) b0 = b1 = Math.floor(((q.min[2] + q.max[2]) / 2 - nav.minZ) / c);
+    for (let j = Math.max(0, b0); j <= Math.min(nav.h - 1, b1); j++) for (let i = Math.max(0, a0); i <= Math.min(nav.w - 1, a1); i++) { const k = j * nav.w + i; if (!nav.blocked[k]) { nav.blocked[k] = 1; n++; } }
+  }
+  nav.thin = n;
+}
+
+// 12.184 bina içi nav: 2 m ızgara engeli arazi kotuna göre ölçer → eğimdeki binanın taş kaidesi (döşeme, arazinin 0,45 m'den çok üstünde) bütün ayak izini
+// kapatıyordu; botlar yeni döşenmiş evlere (ve eğimdeki eski evlere / ahırlara) giremiyordu (kapı hücresi açık, içi kapalı). Kapının içindeki döşeme kutusu
+// (üstü kapı kotunda) bulunur; ayak izindeki hücreler döşeme kotuna göre yeniden hesaplanır: duvar / eşya / merdiven (gövde bandında) kapalı, gerisi açık.
+// İnce duvar iki hücre merkezinin arasına düşse de en yakın hücre kapanır (duvar nav'da delik bırakmaz).
+function navFloors(nav, ctx, colliders) {
+  const c = nav.cell, INF = 0.35, done = new Set();
+  const cells = (lo, hi, min, n) => { let a = Math.ceil((lo - min) / c - 0.5), b = Math.floor((hi - min) / c - 0.5); if (a > b) a = b = Math.floor(((lo + hi) / 2 - min) / c); return [Math.max(0, a), Math.min(n - 1, b)]; };
+  let opened = 0;
+  for (const d of ctx.doors || []) {
+    const [ix, iz] = d.pts[0];
+    const F = colliders.find((q) => Math.abs(q.max[1] - d.y) < 0.06 && ix > q.min[0] && ix < q.max[0] && iz > q.min[2] && iz < q.max[2] && (q.max[0] - q.min[0]) * (q.max[2] - q.min[2]) > 6);
+    if (!F || done.has(F)) continue;
+    done.add(F);
+    const top = F.max[1];
+    const [x0, x1] = cells(F.min[0] + INF, F.max[0] - INF, nav.minX, nav.w), [z0, z1] = cells(F.min[2] + INF, F.max[2] - INF, nav.minZ, nav.h);
+    const near = colliders.filter((q) => q !== F && q.max[0] > F.min[0] - 1 && q.min[0] < F.max[0] + 1 && q.max[2] > F.min[2] - 1 && q.min[2] < F.max[2] + 1 && q.min[1] - top < 1.6 && q.max[1] - top > 0.45);
+    const X0 = x0 - 1, X1 = x1 + 1, Z0 = z0 - 1, Z1 = z1 + 1, NW = X1 - X0 + 1;         // 1 hücre pay: dış duvarın hücresi döşeme aralığının dışına düşebilir (yalnız kapatır)
+    const blk = new Uint8Array(NW * (Z1 - Z0 + 1));
+    for (const q of near) {
+      const [a0, a1] = cells(q.min[0] - INF, q.max[0] + INF, nav.minX, nav.w), [b0, b1] = cells(q.min[2] - INF, q.max[2] + INF, nav.minZ, nav.h);
+      for (let j = Math.max(Z0, b0); j <= Math.min(Z1, b1); j++) for (let i = Math.max(X0, a0); i <= Math.min(X1, a1); i++) blk[(j - Z0) * NW + (i - X0)] = 1;
+    }
+    for (let j = Z0; j <= Z1; j++) for (let i = X0; i <= X1; i++) {
+      if (i < 0 || j < 0 || i >= nav.w || j >= nav.h) continue;
+      const k = j * nav.w + i, b = blk[(j - Z0) * NW + (i - X0)], inF = i >= x0 && i <= x1 && j >= z0 && j <= z1;
+      if (!inF) { if (b) nav.blocked[k] = 1; continue; }
+      if (!b && nav.blocked[k]) opened++;
+      nav.blocked[k] = b;
+    }
+  }
+  nav.floors = done.size; nav.floorOpened = opened;
 }
 
 function makeFx(map, T, cs, veg, occ) {
@@ -128,7 +236,7 @@ function makeFx(map, T, cs, veg, occ) {
       game0 = game;
       cyc = game.tod !== 'night' && Number.isFinite(game.mode?.time) && game.mode.time > 0 ? KZ_CYCLE[game.tod] || null : null;
       hour = cyc ? cyc[0] : KZ_HOURS[game.tod] ?? KZ_HOURS.day;
-      if (game.tod === 'night') { atm.setNight(water); life.setLight(1); } else if (cyc) this.setHour(hour, game); else { atm.setHour(hour, null, water); life.setLight(lightOf(hour)); }
+      if (game.tod === 'night') { atm.setNight(water); life.setLight(1); } else if (cyc) this.setHour(hour, game); else { atm.setHour(hour, this.weather !== 'clear' ? game : null, water, true); life.setLight(lightOf(hour)); }   // 12.184 sabit saatte de yağmur / sis gök + güneşe uygulanır
       if (game.tod === 'night') life.setSmokeColor(new THREE.Color('#3a4258'), 0.55);
       if (this.weather === 'rain') grass.mesh.userData.U.uWind.value = 1.8;
       // hayvanlar silah sesinden ürker (sfx.shot / explosion kancası; çevrim içinde uzak oyuncuların atışları da buradan geçer)

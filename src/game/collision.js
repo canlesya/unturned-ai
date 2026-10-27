@@ -166,12 +166,17 @@ export class World {
   }
 
   // Doğma/ışınlanma sonrası: alçak engellerin (bordür vb.) içindeyse üstüne oturt
+  // Zemin kotu: arazi ya da üstündeki köprü / baraj tabliyesi ('deck'); doğuş / hedef kotu denetimleri bunu kullanır (12.184)
+  groundAt(x, z) {
+    let y = this.terrain ? this.terrain.heightAt(x, z) : 0;
+    const dk = this.query(x - 0.5, z - 0.5, x + 0.5, z + 0.5, (this._tmp5 ||= []));
+    for (const c of dk) if (c.tag === 'deck' && x > c.min[0] && x < c.max[0] && z > c.min[2] && z < c.max[2] && c.max[1] > y) y = c.max[1];
+    return y;
+  }
   settle(s) {
     const p = s.pos;
-    if (this.terrain) p.y = this.terrain.heightAt(p.x, p.z);
     // köprü tabliyesi ('deck') üstüne doğan: arazi yerine tabliyeye çık (yoksa köprünün altındaki nehir yatağında kalır)
-    const dk = this.query(p.x - 0.5, p.z - 0.5, p.x + 0.5, p.z + 0.5, (this._tmp5 ||= []));
-    for (const c of dk) if (c.tag === 'deck' && p.x > c.min[0] && p.x < c.max[0] && p.z > c.min[2] && p.z < c.max[2] && c.max[1] > p.y) p.y = c.max[1];
+    p.y = this.groundAt(p.x, p.z);
     for (let i = 0; i < 4; i++) {
       const list = this.query(p.x - 1, p.z - 1, p.x + 1, p.z + 1, (this._tmp4 ||= []));
       const c = this._hits(list, p.x, p.y, p.z, 0.3);

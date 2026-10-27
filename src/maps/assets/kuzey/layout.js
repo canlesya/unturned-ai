@@ -101,11 +101,11 @@ export const VEHICLES = [
 // Takım Çatışması (tdm) alt alanı: Köy (dar sokaklar, araçsız). Doğuşlar köyün iki ucunda.
 export const TDM_AREA = { bounds: { minX: -370, maxX: -90, minZ: 130, maxZ: 370 }, blue: { x: -128, z: 300 }, red: { x: -340, z: 196 } };
 
-// Bölge adları (mini harita / P tuşu)
+// Bölge adları (mini harita / P tuşu). 4. değer: HUD'da adın görüneceği yarıçap (m; 12.184 — varsayılan 14 m 1,6 km'lik haritada neredeyse hiç görünmüyordu)
 export const CALLOUTS = [
-  ['Mavi Üs', 120, 700], ['Kırmızı Üs', -120, -700], ['Radar Tepesi', -560, 120], ['Köy', -230, 250], ['Kavşak', 0, 9], ['Fabrika', 250, -300],
-  ['Baraj', 700, -60], ['Çiftlik', 400, 420], ['Kereste Kampı', -380, -450], ['Değirmen', -470, -31], ['Doğu Geçidi', 330, -76], ['Batı Geçidi', -205, 41],
-  ['Santral', 640, 30], ['Benzinlik', 40, 330], ['Taş Ocağı', -680, -380], ['Elektrik Hattı', 480, -160],
+  ['Mavi Üs', 120, 700, 125], ['Kırmızı Üs', -120, -700, 125], ['Radar Tepesi', -560, 120, 70], ['Köy', -230, 250, 120], ['Kavşak', 0, 9, 75], ['Fabrika', 250, -300, 120],
+  ['Baraj', 700, -60, 70], ['Çiftlik', 400, 420, 80], ['Kereste Kampı', -380, -450, 75], ['Değirmen', -470, -31, 55], ['Doğu Geçidi', 330, -76, 50], ['Batı Geçidi', -205, 41, 50],
+  ['Santral', 640, 30, 40], ['Benzinlik', 40, 330, 40], ['Taş Ocağı', -668, -376, 50], ['Elektrik Hattı', 480, -150, 45],
 ];
 
 // Orman ve tarla alanları (kurulum + plan ortak): forest = yoğun iğne yapraklı (+ huş), fields = tarla dikdörtgenleri [x, z, w, d, tür]

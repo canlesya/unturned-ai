@@ -9,8 +9,21 @@ import { makeRng } from '../../builder.js';
 // 12.182 doldurma: açık alanda gürültü lekeleri hâlinde çalılık (çalı + genç ladin + huş / meşe), yollar boyunca ve tarla kenarlarında çalı çitleri,
 // iki katı kaya kümesi / devrik ağaç, mezra meyve bahçeleri. Çarpışan bitkiler (gövde / kaya / kütük) birbirine girmez (yakınlık ızgarası).
 const sst = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
-export function scatterVegetation(T, occ, rng, rngOuter, { outer = true, orchard = [], rocks = [] } = {}) {
+export function scatterVegetation(T, occ, rng, rngOuter, { outer = true, orchard = [], rocks = [], wires = [] } = {}) {
   const out = [], cellOcc = new Map(), OC = 16;
+  // 12.184 tel koridoru: elektrik / telefon teli ağaç tepesinin içinden geçmesin (tel noktaları 1 m aralık, 8 m ızgara). Tepe yatay yarıçapı ≈ CR · boy,
+  // yüksekliği tabandan 0,2–1,02 boy. Rastgele akış kaymasın diye ağaç her şey çekildikten SONRA elenir (diğer ağaçlar birebir aynı kalır).
+  const WH = new Map(), WC = 8, CR = { pine: 0.22, spruce: 0.26, birch: 0.22, oak: 0.34 };
+  for (const [a, b, sag] of wires) {
+    const L = Math.hypot(b[0] - a[0], b[2] - a[2]), n = Math.max(1, Math.ceil(L));
+    for (let i = 0; i <= n; i++) { const t = i / n, x = a[0] + (b[0] - a[0]) * t, z = a[2] + (b[2] - a[2]) * t, y = a[1] + (b[1] - a[1]) * t - 4 * sag * L * t * (1 - t) * 0.5, k = Math.floor(x / WC) + ',' + Math.floor(z / WC); let q = WH.get(k); if (!q) WH.set(k, (q = [])); q.push([x, y, z]); }
+  }
+  const wireHit = (t) => {
+    const cr = CR[t.k]; if (!cr || !WH.size) return false;
+    const R = cr * t.s + 0.4, y0 = t.y + 0.2 * t.s, y1 = t.y + 1.02 * t.s;
+    for (let i = Math.floor((t.x - R) / WC); i <= Math.floor((t.x + R) / WC); i++) for (let j = Math.floor((t.z - R) / WC); j <= Math.floor((t.z + R) / WC); j++) for (const p of WH.get(i + ',' + j) || []) if (p[1] > y0 && p[1] < y1 && Math.hypot(p[0] - t.x, p[2] - t.z) < R) return true;
+    return false;
+  };
   // çarpışan bitki yakınlık ızgarası: [x, z, r] (gövde / kaya / kütük parçası) — iki katı birbirine girmesin
   const solid = new Map(), SC = 4, sk = (i, j) => i + ',' + j;
   const solidFree = (x, z, r) => { const i0 = Math.floor((x - r - 4) / SC), i1 = Math.floor((x + r + 4) / SC), j0 = Math.floor((z - r - 4) / SC), j1 = Math.floor((z + r + 4) / SC);
@@ -53,6 +66,7 @@ export function scatterVegetation(T, occ, rng, rngOuter, { outer = true, orchard
       if (inside && r1 >= dens && kind === 'bush' && thicket > 0.3) sc = 1.6 + 1.3 * u;     // çalılıkta boylu çalı (ayaktakini de saklar)
       const t = { k: kind, x: +x.toFixed(2), y: +y.toFixed(2), z: +z.toFixed(2), s: +sc.toFixed(2), ry: +(R() * 6.283).toFixed(3), inside };
       if (kind === 'rock') { t.w = 0.9 + R() * 0.8; t.d = 0.8 + R() * 0.7; t.tilt = (R() - 0.5) * 0.3; }
+      if (wireHit(t)) continue;
       if (inside) { const sr = solidR(t); if (sr > 0) { if (!solidFree(t.x, t.z, sr)) continue; solidAdd(t.x, t.z, sr); } }
       out.push(t);
     }
@@ -65,6 +79,7 @@ export function scatterVegetation(T, occ, rng, rngOuter, { outer = true, orchard
   for (const [x, z, k, s] of orchard) {
     if (!okAt(x, z, 1.2) || T.slopeAt(x, z, 1) > 0.6) continue;
     const t = { k, x: +x.toFixed(2), y: +T.heightAt(x, z).toFixed(2), z: +z.toFixed(2), s: +s.toFixed(2), ry: +(O() * 6.283).toFixed(3), inside: true };
+    if (wireHit(t)) continue;
     const sr = solidR(t); if (!solidFree(t.x, t.z, sr)) continue; solidAdd(t.x, t.z, sr); out.push(t);
   }
   // 12.182 büyük kaya blokları (Taş Ocağı): çarpışmalı, birbirine girmez
@@ -105,7 +120,7 @@ export function scatterVegetation(T, occ, rng, rngOuter, { outer = true, orchard
       const t = i / n, x = x0 + (x1 - x0) * t + (X() - 0.5) * 0.8, z = z0 + (z1 - z0) * t + (X() - 0.5) * 0.8, s = 1.7 + X() * 1.1, ry = X() * 6.28, gap = X() < 0.05;
       if (gap || !okAt(x, z, 0.8)) continue;                                                     // ara sıra boşluk: içinden geçilir
       const h = { k: X() < 0.12 ? 'oak' : 'bush', x: +x.toFixed(2), y: +T.heightAt(x, z).toFixed(2), z: +z.toFixed(2), s: +(s).toFixed(2), ry: +ry.toFixed(3), inside: true, hedge: true };
-      if (h.k === 'oak') { h.s = +(9 + X() * 5).toFixed(2); const sr = solidR(h); if (!solidFree(h.x, h.z, sr)) { h.k = 'bush'; h.s = +s.toFixed(2); } else solidAdd(h.x, h.z, sr); }
+      if (h.k === 'oak') { h.s = +(9 + X() * 5).toFixed(2); const sr = solidR(h); if (wireHit(h)) { h.k = 'bush'; h.s = +s.toFixed(2); } else if (!solidFree(h.x, h.z, sr)) { h.k = 'bush'; h.s = +s.toFixed(2); } else solidAdd(h.x, h.z, sr); }
       out.push(h);
     }
   }

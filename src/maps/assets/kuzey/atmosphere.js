@@ -143,8 +143,19 @@ export class Atmosphere {
     this.hour = h; this.sunDir.copy(d);
     if (game) {
       const sc = game.scene, dome = game.env?.dome;
-      if (dome) { const U = dome.material.uniforms; U.top.value.copy(s.sky[0]); U.mid.value.copy(s.sky[1]); U.hor.value.copy(s.sky[2]); U.sunC.value.copy(s.sun); U.sunDir.value.copy(d); U.halo.value = s.alt < 14 ? 0.75 : 0.32; U.disk.value = s.alt > -1 ? 5 : 0; }
-      if (game.sun) { game.sun.color.copy(s.sun); game.sun.intensity = s.sunI * Math.max(0, Math.min(1, (s.alt + 3) / 8)); }
+      // 12.184 hava: yağmur / sis gök kubbesini (mavi gök + güneş diski) ve güneş gücünü de bastırır — eskiden maç boyu gün döngüsü her 2 sn'de açık hava
+      // değerlerini geri yazıyordu (yağmurda mavi gök, keskin güneş gölgesi). Gök sis rengine çekilir, güneş ×0,45 / ×0,6 (weather.js ile aynı), şimşek için sunI güncel.
+      const wk = game.weather?.kind || 'clear', wet = wk === 'rain' || wk === 'fog';
+      if (dome) {
+        const U = dome.material.uniforms; U.top.value.copy(s.sky[0]); U.mid.value.copy(s.sky[1]); U.hor.value.copy(s.sky[2]); U.sunC.value.copy(s.sun); U.sunDir.value.copy(d); U.halo.value = s.alt < 14 ? 0.75 : 0.32; U.disk.value = s.alt > -1 ? 5 : 0;
+        if (wet && sc.fog) { const fc = sc.fog.color, k = wk === 'fog' ? 1 : 0.7; U.top.value.lerp(fc, wk === 'fog' ? 1 : k * 0.85); U.mid.value.lerp(fc, k); U.hor.value.lerp(fc, Math.min(1, k + 0.2)); U.disk.value = 0; U.halo.value *= 0.25; if (wk === 'fog') { const bi = 1 / Math.max(0.3, sc.backgroundIntensity ?? 1); for (const q of [U.top, U.mid, U.hor]) q.value.copy(fc).multiplyScalar(bi); } }   // sis: gök tam sis renginde (kubbe backgroundIntensity ile kararıyordu → dağ arası koyu leke)
+      }
+      if (game.sun) {
+        const base = s.sunI * Math.max(0, Math.min(1, (s.alt + 3) / 8));
+        game.sun.color.copy(s.sun); game.sun.intensity = base * (wk === 'rain' ? 0.45 : wk === 'fog' ? 0.6 : 1);
+        if (game.weather && wet) game.weather.sunI = base;
+      }
+      this.wet = wet ? wk : null;
       if (game.sunOff) game.sunOff.copy(sunDirAt(h, Math.max(3, s.alt))).multiplyScalar(160);
       sc.traverse((o) => { if (o.isHemisphereLight) { o.color.copy(s.hemi[0]); o.groundColor.copy(s.hemi[1]); o.intensity = s.hemi[2]; } });
       if (sc.fog && !weatherFog) { sc.fog.color.copy(s.fog[0]); sc.fog.near = s.fog[1]; sc.fog.far = s.fog[2]; }
@@ -155,6 +166,8 @@ export class Atmosphere {
     cu.uLit.value.copy(s.sun).lerp(new THREE.Color('#ffffff'), s.alt > 15 ? 0.75 : 0.25);
     cu.uShade.value.copy(s.sky[1]).lerp(s.hemi[1], 0.35).multiplyScalar(s.alt > 10 ? 1.0 : 0.8);
     cu.uHor.value.copy(s.sky[2]);
+    if (this.wet) { cu.uLit.value.lerp(new THREE.Color('#9aa2ab'), 0.6); cu.uShade.value.multiplyScalar(0.72); cu.uSunC.value.multiplyScalar(0.3); cu.uCov.value = 0.3; } else cu.uCov.value = 0.46;   // 12.184 yağmur: kapalı, gri bulut
+    this.clouds.visible = this.wet !== 'fog';                                                      // sisli havada bulut tabakası sisin üstünde koyu leke gibi kalıyordu
     if (this.mist) { this.mist.U.uCol.value.copy(s.fog[0]).lerp(new THREE.Color('#ffffff'), 0.25); this.mist.U.uSunC.value.copy(s.sun); this.mist.U.uSun.value.copy(d); this.setMistAmt(s.mist); }
     if (water) for (const m of water.mats) { const U = m.userData.U; U.uSky.value.copy(s.sky[1]); U.uHor.value.copy(s.sky[2]); U.uSunC.value.copy(s.sun); U.uSun.value.copy(d); }
     return s;

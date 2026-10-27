@@ -1,5 +1,5 @@
 import { KK } from './surface.js';
-import { Q, lw, worldRect, pickOf, ctxAdd } from '../common/kuzeyKit.js';
+import { Q, lw, worldRect, pickOf, ctxAdd, wireClear } from '../common/kuzeyKit.js';
 import { house, barn } from './house.js';
 import { fence, stoneWall, logStack, crate, barrel, hayBale, streetLamp, jersey } from './props.js';
 import { pole } from './infra.js';
@@ -165,6 +165,7 @@ function roadside(ctx) {
       if (acc < 46) continue;
       const x = r.pts[i][0] + nx * off, z = r.pts[i][1] + nz * off;
       if (!ok(x, z) || T.roadAt(x, z) || !ctx.free([x - 0.5, x + 0.5, z - 0.5, z + 0.5], 0.3)) { prev = null; continue; }
+      if (prev && i - prevI < 40) { const y0 = T.heightAt(x, z) - 0.3; if (!(wireClear(ctx.cs, prev[0], [x - 0.8, y0 + 7.9, z], 0.02) && wireClear(ctx.cs, prev[1], [x + 0.8, y0 + 7.9, z], 0.02))) continue; }   // 12.184 tel yapıdan geçerdi: sonraki örnek
       acc = 0; ctx.occ.push([x - 0.4, x + 0.4, z - 0.4, z + 0.4]);
       const top = pole(at(x, z), T, x, z);
       if (prev && i - prevI < 40) for (let k = 0; k < 2; k++) wires.push([prev[k], top[k], 0.02]);
