@@ -117,9 +117,9 @@ export function placeAll(cs, T, rng) {
     parking(at(X(-34), Z(-32)), T, X(-34), Z(-32), 4, 16);
   }
   for (const hp of HELIPADS) { helipad(at(hp.x, hp.z), T, hp); occ.push([hp.x - hp.r, hp.x + hp.r, hp.z - hp.r, hp.z + hp.r]); }
-  // araç doğuş noktaları: henüz mekaniği olmayan türlerde sabit model (görsel yer tutucu). 12.177: jip gerçek araç (game/vehicles.js) → yer tutucu yok, alan yine dolu sayılır
+  // araç doğuş noktaları: henüz mekaniği olmayan türlerde sabit model (görsel yer tutucu). 12.177 / 12.178: jip + tank gerçek araç (game/vehicles.js) → yer tutucu yok, alan yine dolu sayılır
   for (const v of VEHICLES) {
-    if (v.type === 'jip') { occ.push([v.x - 4, v.x + 4, v.z - 4, v.z + 4]); continue; }
+    if (v.type === 'jip' || v.type === 'tank') { occ.push([v.x - 4, v.x + 4, v.z - 4, v.z + 4]); continue; }      // 12.178: tank da gerçek araç
     if (v.type.startsWith('heli') || v.type === 'bot') continue;
     const fn = v.type === 'tank' ? tankM : v.type === 'zpt' ? apcM : v.type === 'kamyon' ? truckM : jeepM, ry = Math.round((v.ry - Math.PI / 2) / Q) * Q;
     const b = at(v.x, v.z), y = T.heightAt(v.x, v.z) - 0.05;

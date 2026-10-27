@@ -48,6 +48,7 @@ import { Front } from './front.js';                                  // Cephe mo
 import { Vehicles } from './vehicles.js';                            // 12.177 araçlar (Kuzey Vadisi: jip)
 import { VehicleView } from './vehicleView.js';
 import { VehicleHud } from './vehicleHud.js';
+import { VT } from '../sim/vehicle.js';
 import { spaceSetup } from './space.js';
 import { NADE, nadeStep, simulateNade, NadeView } from './grenade.js';
 import { createWeapon } from '../models/weapons.js';
@@ -582,8 +583,9 @@ export class Game {
     s.flashOn = false; s.stanceLeft = false; s.shotOff = null;
     if (s.seat === 0) {
       if (inp.vl) v.lights = !v.lights;
-      v.horn = !!inp.fh;
-      V.drive(v, { f: inp.f, r: inp.r, b: !!inp.j }, dt);
+      v.horn = !v.def.cannon && !!inp.fh;                              // jip: sol tık korna · tank: ana top
+      V.drive(v, { f: inp.f, r: inp.r, b: !!inp.j, yw: inp.yw, pt: inp.pt }, dt);      // 12.178: bakış = kule / top hedefi
+      if (v.def.cannon && (inp.fh || inp.fp)) V.fireCannon(v, s);
       for (const o of v.seats) if (o) V.place(o);
       h.fireBuf = 0;
       return;
@@ -596,7 +598,8 @@ export class Game {
     const back = s.rewindTick != null ? this.pastPos(s, s.rewindTick) : null, keep = back ? s.pos.clone() : null;
     if (back) s.pos.copy(back);
     const st = s.stat;
-    if (st.kind === 'melee') { if (inp.fh || h.fireBuf > 0) { if (s.tryFire()) h.fireBuf = 0; } }
+    if (v.def.mg?.seat === s.seat) V.mgFire(s, !!inp.fh, dt);       // 12.178 tank nişancısı: kule makinelisi
+    else if (st.kind === 'melee') { if (inp.fh || h.fireBuf > 0) { if (s.tryFire()) h.fireBuf = 0; } }
     else if (s.triggerUpdate(!!inp.fh, h.fireBuf)) h.fireBuf = 0;
     if (keep) s.pos.copy(keep);
     s.rewindTick = null; s.inSeq = null;
@@ -651,6 +654,9 @@ export class Game {
     const idle = !inp.f && !inp.r && !inp.j;
     if (!idle && this.tick % 3) return;
     q.shift(); h.backlog--; h.dropped = (h.dropped || 0) + 1;
+    // 12.178 sürücü: atlanan girdi aracın bir fizik adımıydı (istemci onu tahmin etti) → atlamak yerine bu adımda fazladan işlenir
+    // (birikme yine erir; araç istemciyle aynı yolu izler → gecikmeli bağlantıda düzeltme olmaz). Yalnız kuyruktaki gerçek girdi: hız kazandırmaz
+    if (h.s.veh && h.s.seat === 0 && h.s.alive) { h.ack = inp.q; h.tickAck = true; this.humanTick(h, inp, SIM_DT); }
   }
 
   // ───── olaylar ─────
@@ -1256,6 +1262,7 @@ export class Game {
       const t = this._c0; this._c0 = this._c1; this._c1 = t; t.p.copy(c.position); t.q.copy(c.quaternion);
     }
     this.updateProjectiles(dt);
+    this.vehicles?.clientShells(dt);                // 12.178 tank mermisi uçuşu (görsel; isabet sunucudan)
     this.paint.update(dt);
     this.pickups.update(dt);
     updateGadgets(this, dt, this.time);
@@ -1314,7 +1321,7 @@ export class Game {
       switch (ev.e) {
         case 'sh': {                                  // başkasının atışı: iz, kıvılcım/kan, namlu alevi, ses
           if (!by || by === me) break;
-          const st = WSTATS[by.item.id] || {}, o = new V(...ev.o), p = new V(...ev.p);
+          const st = (ev.vm ? VT.tank.mg : WSTATS[by.item.id]) || {}, o = new V(...ev.o), p = new V(...ev.p);      // vm: 12.178 tank makinelisi
           const dir = p.clone().sub(o).normalize();
           this.effects.tracer(o, p, st.tracer);
           if (ev.k === 'f') this.effects.blood(p, 7, dir.clone().negate());
@@ -1327,7 +1334,9 @@ export class Game {
         }
         case 'hm': if (ev.by === me.id) this.emit('hitmark', { zone: ev.hd ? 'head' : 'body', dead: !!ev.dead, pn: ev.pn || 0 }); break;
         case 'vhm': if (ev.by === me.id) this.emit('vehhit', { v: this.vehicles?.get(ev.i), dmg: ev.d }); break;                 // 12.177: araca isabet (yalnız atıcıya)
-        case 'vx': this.vehicles?.netBoom(ev); break;                                                                          // 12.177: araç patladı / battı
+        case 'vx': this.vehicles?.netBoom(ev); break;
+        case 'ts': this.vehicles?.netShell(ev); break;                                                                          // 12.178 tank topu ateşledi
+        case 'tsb': this.vehicles?.netShellBoom(ev); break;                                                                     // tank mermisi patladı                                                                          // 12.177: araç patladı / battı
         case 'dmg': if (ev.v === me.id) { this.hud.damageFrom(new V(ev.x, 0, ev.z), me); this.sfx.hurt(); } break;
         case 'fall': if (ev.v === me.id && !(this.time - (this._fallFxAt ?? -9) < 1)) this.fallFx(ev.d); break;
         case 'drown': if (ev.v === me.id && !(this.time - (this._drownFxAt ?? -9) < 0.8)) this.drownFx(ev.d); break;     // 12.180 boğulma: tahmin kaçtıysa sunucudan     // düşme hasarı: tahmin etmediysek (yanlış tahmin) sunucudan geri bildirim
@@ -1532,7 +1541,7 @@ export class Game {
     r.clear();
     r.render(this.scene, this.camera);
     uw?.overlay(r);
-    if (this.playerSoldier.alive && !this.showSelf && !(this.playerSoldier.veh && this.playerSoldier.seat === 0)) this.player.vm.render(r, innerWidth, innerHeight);      // 12.177: sürücünün elinde silah yok
+    if (this.playerSoldier.alive && !this.showSelf && !(this.playerSoldier.veh && (this.playerSoldier.seat === 0 || this.playerSoldier.veh.def.mg?.seat === this.playerSoldier.seat))) this.player.vm.render(r, innerWidth, innerHeight);      // 12.177: sürücünün elinde silah yok
     uw?.end();
     if (post) post.end();
   }
@@ -1604,7 +1613,7 @@ export class Game {
       }
     }
     // 12.177: araç gövdesi mermiyi durdurur (yönlü kutu; üstü açık jipte yolcunun gövdesi kutunun üstünde kalır → vurulur)
-    const vhit = this.vehicles?.raycast(origin, dir, Math.min(maxT, wh ? wh.t : maxT));
+    const vhit = this.vehicles?.raycast(origin, dir, Math.min(maxT, wh ? wh.t : maxT), shooter.veh);      // kendi aracı (koltuktan ateş) ışını kesmez
     if (vhit) wh = { t: vhit.t, veh: vhit.v, collider: null, point: new THREE.Vector3(vhit.point.x, vhit.point.y, vhit.point.z), normal: new THREE.Vector3(vhit.normal.x, vhit.normal.y, vhit.normal.z) };
     const tw = wh ? wh.t : Infinity;
     const wE = this.waterEntry(origin, dir, Math.min(tw, maxT)), wStop = wE == null ? Infinity : wE + WATER_STOP;      // 12.180: su mermiyi 1,5 m'de durdurur (dalan korunur)
@@ -1631,6 +1640,7 @@ export class Game {
     const first = this._firstPellet; this._firstPellet = false;
     const q2 = (v) => Math.round(v * 100) / 100;
     const ev = this.headless ? { e: 'sh', by: shooter.id, m: first ? 1 : 0, o: [q2(muzzle.x), q2(muzzle.y), q2(muzzle.z)] } : null;
+    if (ev && st.vmg) ev.vm = 1;
     if (thinP) { this.effects.spark(thinP, 3, thinN); this.effects.decal(thinP, thinN); if (ev) ev.tw = [q2(thinP.x), q2(thinP.y), q2(thinP.z), q2(thinN.x), q2(thinN.y), q2(thinN.z)]; }
     const woodFx = () => { const wp = wd.point.clone(); this.effects.spark(wp, 3, wd.normal); this.effects.decal(wp, wd.normal); };
     let woodShown = false;
@@ -1844,6 +1854,7 @@ export class Game {
         while (p.acc >= NADE.h - 1e-9 && !boom) {
           p.acc -= NADE.h;
           if (p.fuse <= 1e-9) { boom = p.pos.clone(); break; }
+          if (this.vehicles?.nadeBounce(p, NADE.h)) { p.steps++; p.fuse -= NADE.h; if (++p.bounces < 6) this.sfx.impact(p.pos); continue; }      // 12.178: el bombası araç gövdesinden seker
           const hit = nadeStep(p, this.world, p.ph);
           p.steps++; p.fuse -= NADE.h;
           if (hit > 2 && ++p.bounces < 6) this.sfx.impact(p.pos);
@@ -1886,24 +1897,25 @@ export class Game {
         this.netEvent({ e: 'boom', id: p.id, k: gt === 'smoke' ? 's' : gt === 'flash' ? 'f' : 'x', p: v3(boom), r: p.st.radius, w: STAT_ID.get(p.st), by: p.owner.id });
         if (gt === 'smoke') spawnSmoke(this, boom, p.st, p.owner);
         else if (gt === 'flash') flashBang(this, boom, p.owner, p.st);
-        else this.explode(boom, p.st.radius, p.st.dmg, p.owner, p.st.name, p.inHand ? 9 : undefined);
+        else this.explode(boom, p.st.radius, p.st.dmg, p.owner, p.st.name, p.inHand ? 9 : undefined, p.type === 'rocket' ? 'at' : 'blast');      // 12.178: RPG tanksavar
       }
     }
   }
 
   // selfMul: atanın kendi hasar çarpanı (varsayılan TUNE.selfBlast; elde patlayan bomba öldürür). Duvar arkası: patlamadan gövde merkezi YA DA başa açık hat yoksa hasar yok.
-  explode(pos, radius, dmg, owner, name, selfMul) {
+  explode(pos, radius, dmg, owner, name, selfMul, kind = 'blast') {
     this.effects.explosion(pos, radius);
     this.sfx.explosion(pos);
     this.alertNear(pos, owner.team, 90);
     const dc = pos.distanceTo(this.camera.position);
     this.effects.shake = Math.max(this.effects.shake, clamp(1 - dc / 35, 0, 1) * 1.1);
     if (this.online) return;                // hasar sunucuda
-    this.vehicles?.blast(pos, radius, dmg, owner, name);                           // 12.177: araç hasarı (gövdeye en yakın noktadan)
+    this.vehicles?.blast(pos, radius, dmg, owner, name, kind);                     // 12.177: araç hasarı (gövdeye en yakın noktadan) · 12.178 kind 'at' = tanksavar (RPG, tank topu)
     const o = pos.clone(); o.y += 0.3;
     for (const e of this.soldiers) {
       if (!e.alive) continue;
       if (e.team === owner.team && e !== owner) continue;
+      if (this.vehicles?.hiddenSeat(e)) continue;                                   // 12.178: tank içindeki sürücü zırh arkasında (araçla birlikte ölür)
       const c = e.center(new THREE.Vector3());
       const d = c.distanceTo(pos);
       if (d > radius) continue;

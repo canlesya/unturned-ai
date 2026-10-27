@@ -295,17 +295,16 @@ export class BotBrain {
       const d = Math.hypot(v.st.x - s.pos.x, v.st.z - s.pos.z), sp = V.speed(v);
       if ((d < 18 && sp < 3) || (v.horn && d < 35 && sp < 6)) if (d < bd) { bd = d; best = v; }
     }
-    if (!best) { if (this.rideGoal) { this.rideGoal = null; this.goalT = 0; } return; }
+    if (!best) { if (this.rideGoal) { this.rideGoal = null; this.rideTo = null; this.goalT = 0; } return; }
     if (bd < best.def.hl + 1.6 && Math.abs(s.pos.y - best.st.y) < 2) {             // kapıda: ilk boş yolcu koltuğuna
       const i = best.seats.findIndex((o, k) => k > 0 && !o);
-      if (i > 0) { V.enter(s, best, i); this.rideGoal = null; this.vstopT = 0; this.rodeMoved = false; this.target = null; }
+      if (i > 0) { V.enter(s, best, i); this.rideGoal = null; this.rideTo = null; this.vstopT = 0; this.rodeMoved = false; this.target = null; }
       return;
     }
     const i = best.seats.findIndex((o, k) => k > 0 && !o), sp = best.def.seat[i], side = Math.sign(sp[1]) || 1;      // boş koltuğun kapısına (gövdenin içine yol aranmaz)
     const fx = -Math.sin(best.st.yaw), fz = -Math.cos(best.st.yaw), rx = Math.cos(best.st.yaw), rz = -Math.sin(best.st.yaw), r = side * (best.def.hw + 0.9);
     const gx = best.st.x + fx * sp[0] + rx * r, gz = best.st.z + fz * sp[0] + rz * r;
-    this.rideGoal = best;
-    if (!this.goal || Math.hypot(this.goal.x - gx, this.goal.z - gz) > 1.5) this.setGoal(gx, gz, 4, best.st.y); else this.goalT = Math.max(this.goalT, 2);      // yol yeniden aranmaz (bütçe)
+    this.rideGoal = best; this.rideTo = { x: gx, z: gz };
   }
 
   rideTick(dt) {
@@ -318,9 +317,10 @@ export class BotBrain {
     if (sp > 3) this.rodeMoved = true;
     this.vstopT = sp < 0.8 ? (this.vstopT || 0) + dt : 0;
     if (this.vstopT > (this.rodeMoved ? 4 : 25)) { V.exit(s); this.vstopT = 0; this.rodeMoved = false; this.goalT = 0; return; }      // yola çıktıktan sonra 4 sn durdu = vardı (hiç kalkmadıysa 25 sn bekler)
-    const st = s.stat;
-    if ((st.kind === 'gun' || st.kind === 'launcher') && s.item.mag <= 0 && s.reloadT <= 0 && s.item.reserve > 0) s.startReload();
-    if (st.kind !== 'gun') { if (s.items[0]?.mag + s.items[0]?.reserve > 0) s.switchTo(0); return; }
+    const st = s.stat, mg = v.def.mg?.seat === s.seat;                      // 12.178 tank nişancısı: kule makinelisi (cephane sınırsız)
+    if (!mg && (st.kind === 'gun' || st.kind === 'launcher') && s.item.mag <= 0 && s.reloadT <= 0 && s.item.reserve > 0) s.startReload();
+    if (!mg && st.kind !== 'gun') { if (s.items[0]?.mag + s.items[0]?.reserve > 0) s.switchTo(0); return; }
+    let fire = false;
     if (this.target) {
       const tg = this.target, eye = s.eye(tA), tc = tg.center(tC);
       const dx = tc.x - eye.x, dz = tc.z - eye.z, dist = Math.hypot(dx, dz);
@@ -333,6 +333,7 @@ export class BotBrain {
       this.reactT -= dt;
       if (this.reactT <= 0 && Math.abs(dyaw) < 0.08 + 2 / (dist + 8)) {
         if (this.burstPause > 0) this.burstPause -= dt;
+        else if (mg) { fire = true; if ((this.mgT = (this.mgT ?? rand(0.8, 1.6)) - dt) <= 0) { this.mgT = undefined; this.burstPause = rand(0.4, 1); } }
         else { if (this.burstLeft <= 0) this.burstLeft = Math.round(rand(this.d.burst[0], this.d.burst[1])); if (s.tryFire()) { this.burstLeft--; if (this.burstLeft <= 0) this.burstPause = rand(0.3, 0.9); } }
       }
     } else {
@@ -341,6 +342,7 @@ export class BotBrain {
       s.yaw += clamp(angleDiff(s.yaw, look), -2 * dt, 2 * dt);
       s.pitch += (0 - s.pitch) * Math.min(1, dt * 3);
     }
+    if (mg) V.mgFire(s, fire, dt);
   }
 
   // Zombi botu özel gücü: türüne göre uygun anda kullanır
@@ -509,6 +511,13 @@ export class BotBrain {
     if (s.def.zombie) { this.updateZombie(dt); return; }
     if (s.veh) { this.rideTick(dt); return; }                                   // 12.177: yolcu bot (sürmez): yalnız nişan + ateş
     if (g.vehicles && (this.boardT = (this.boardT ?? rand(0, 0.3)) - dt) <= 0) { this.boardT = 0.3; this.board(); }
+    if (this.rideGoal && this.rideTo && !this.target) {                     // araca doğrudan yürü (≤ 18 m: yol ızgarası araçları bilmez, 2 m hücrede kapı noktası kaba)
+      const dx = this.rideTo.x - s.pos.x, dz = this.rideTo.z - s.pos.z, d = Math.hypot(dx, dz), k = Math.min(1, dt * 10), sp = d > 0.4 ? TUNE.walkSpeed * s.spd : 0;
+      s.vel.x = lerp(s.vel.x, d > 0.4 ? dx / d * sp : 0, k); s.vel.z = lerp(s.vel.z, d > 0.4 ? dz / d * sp : 0, k);
+      if (d > 0.4) s.yaw += clamp(angleDiff(s.yaw, yawFromDir(dx, dz)), -6 * dt, 6 * dt);
+      s.sprinting = false; s.ads = false;
+      return;
+    }
     if (this.role === undefined) this.role = tacRole(this);
     if (this.atSpot && this.spot && Math.hypot(this.spot.x - s.pos.x, this.spot.z - s.pos.z) > 2.5) this.atSpot = false;
     this.t += dt;

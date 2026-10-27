@@ -986,8 +986,8 @@ export class Player {
   vehInput(dt, k, kb, T) {
     const s = this.s, g = this.game, V = g.vehicles, v = s.veh;
     if (!v || !v.st) return;
-    const yw = v.st.yaw;
-    if (this._vveh === v && this._vyaw !== undefined) s.yaw += ((yw - this._vyaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+    const yw = v.st.yaw, stab = !!v.def.turret;                         // 12.178 tank: bakış dünyada sabit (kule dengeli), gövde dönüşü bakışı döndürmez
+    if (!stab && this._vveh === v && this._vyaw !== undefined) s.yaw += ((yw - this._vyaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
     this._vyaw = yw; this._vveh = v;
     const drv = s.seat === 0;
     const f = drv ? (kb.held('forward', k) ? 1 : 0) - (kb.held('back', k) ? 1 : 0) || (T ? T.f : 0) : 0;
@@ -995,14 +995,16 @@ export class Player {
     const brake = drv && (kb.held('jump', k) || !!(T && T.jump));
     const inp = { f, r, lean: 0, sprint: false, jump: brake };
     if (drv) {
-      v.horn = this.fireHeld && this.locked;
-      V.drive(v, { f, r, b: brake }, dt);
+      v.horn = !v.def.cannon && this.fireHeld && this.locked;
+      V.drive(v, { f, r, b: brake, yw: s.yaw, pt: s.pitch }, dt);
+      if (v.def.cannon && this.fireHeld && this.locked && !g.online) V.fireCannon(v, s);      // çevrimdışı: ana top (çevrim içinde sunucu ateşler, 'ts' olayı)
       V.place(s);
       if (!g.online) for (const o of v.seats) if (o && o !== s) V.place(o);
       this._vyaw = v.st.yaw;
     } else V.place(s);
     if (g.online) { g.online.pushInput(inp, s, this.fireHeld); if (drv) g.online.markVeh(v); }
-    if (!drv && this.locked) {
+    if (!drv && v.def.mg?.seat === s.seat) V.mgFire(s, this.fireHeld && this.locked, dt);      // tank nişancısı: makineli (çevrim içinde iz / ses tahmini, hasar sunucuda)
+    else if (!drv && this.locked) {
       const st = s.stat;
       if (st.kind === 'melee') { if (this.fireHeld || this.fireBuf > 0) { if (s.tryFire()) this.fireBuf = 0; } }
       else if (s.triggerUpdate(this.fireHeld, this.fireBuf)) this.fireBuf = 0;
