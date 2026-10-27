@@ -28,6 +28,26 @@ export const VT = {
     blastMul: 1.6, bulletMul: 0.12, ramMin: 5.5,              // patlama hasarı çarpanı, mermi hasarı çarpanı, yayaya çarpma hasarının başladığı hız (m/sn)
     burnAt: 0.25, burnRate: 9, boom: [6, 110],                 // can oranı bu altındaysa yanar (sn başına can), patlama [yarıçap, hasar]
     respawn: 30, wreck: 8, idleRespawn: 120,                   // yeniden doğuş (sn), enkaz süresi, boş bırakılınca (doğuştan uzakta) yenilenme
+    atMul: 1.6, mass: 1, wade: 1.1, ramMul: 16, stepUp: 0.55,  // tanksavar (RPG / tank topu) çarpanı, kütle (araç itişmesi), boğulma derinliği, çarpma hasarı / (m/sn), tırmanılan basamak
+  },
+  // 12.178 TANK: paletli (yerinde döner, kaymaz, yavaş), kule bakışla döner (dengeli: gövde dönse de nişan kalır), ana top (patlayıcı, mermi düşüşü,
+  // yavaş dolum) sürücüde; kule üstü makineli 2. koltukta (nişancı). Zırh: piyade mermisi hasarsız, el bombası / genel patlama az, tanksavar (RPG, tank topu) tam.
+  tank: {
+    name: 'Tank', hp: 1000, seats: 2, tracked: true,
+    hl: 3.3, hw: 1.7, top: 1.75, clear: 0.42,
+    wb: 5.0, tr: 2.6, wheelR: 0.36,
+    maxF: 11, maxR: 5, accel: 5.5, brake: 9, roll: 2.2, drag: 0.004, slopeG: 0.6,   // slopeG: paletin yokuşta tutunması (yer çekimi bileşeni × bu)
+    steerMax: 1, steerRate: 3, turn: 0.85, grip: 16, gripHand: 16,   // turn: paletli dönüş hızı (rad/sn, yerinde; hızla %35 azalır)
+    slide: 0.85, climbK: 1.4,
+    // koltuklar: 0 sürücü (gövde içi, görünmez; ana topu da kullanır), 1 nişancı (kule kapağı, belden yukarısı dışarıda; makineli)
+    seat: [[1.95, -0.62, 0.75], [-0.35, 0.42, 2.15]], hidden: [true, false],
+    blastMul: 0.3, bulletMul: 0, atMul: 1.25, ramMin: 2.5, ramMul: 40, mass: 4, wade: 1.6, stepUp: 0.8,
+    burnAt: 0.2, burnRate: 14, boom: [8, 140],
+    respawn: 45, wreck: 10, idleRespawn: 150,
+    // kule: dikey eksen gövde merkezinden ileri tf (m), kule üstü / yükseklik; ana top: pivot yüksekliği, namlu boyu, açı sınırları, dönüş hızları
+    turret: { f: -0.35, y0: 1.75, y1: 2.55, hw: 1.3, hl: 1.55, pivot: 2.18, len: 4.3, gunMin: -0.12, gunMax: 0.32, yawRate: 0.95, pitchRate: 0.6 },
+    cannon: { reload: 4.5, speed: 150, grav: 9, dmg: 300, radius: 5.5, name: 'Tank topu' },
+    mg: { seat: 1, name: 'Tank makinelisi', dmg: 24, rpm: 600, range: [60, 170], minMul: 0.6, hip: 0.012, tracer: '#ffd37a', sound: 'pkm', vmg: true },
   },
 };
 
@@ -51,20 +71,20 @@ export function toLocal2(v, x, z) {
 }
 
 // Teker zemini: arazi ile ref'in STEP_UP üstüne kadar olan kutu tepelerinin en yükseği
-export function groundAt(world, x, z, ref) {
+export function groundAt(world, x, z, ref, up = STEP_UP) {
   let h = world.heightAt(x, z);
   const list = world.query(x - 0.05, z - 0.05, x + 0.05, z + 0.05, _tmp);
   for (const c of list) {
     if (x <= c.min[0] || x >= c.max[0] || z <= c.min[2] || z >= c.max[2]) continue;
     const t = c.max[1];
-    if (t > h && t <= ref + STEP_UP) h = t;
+    if (t > h && t <= ref + up) h = t;
   }
   return h;
 }
 
 export function makeVehicle(type, x, y, z, yaw) {
   const d = VT[type];
-  return { type, def: d, x, y, z, yaw, pitch: 0, roll: 0, vx: 0, vy: 0, vz: 0, steer: 0, air: false, thr: 0, brk: 0, sunk: false, hit: 0, land: 0, wl: [0, 0, 0, 0] };
+  return { type, def: d, x, y, z, yaw, pitch: 0, roll: 0, vx: 0, vy: 0, vz: 0, steer: 0, air: false, thr: 0, brk: 0, sunk: false, hit: 0, land: 0, wl: [0, 0, 0, 0], tyaw: yaw, gp: 0 };
 }
 
 // Dört teker zemini (sıra: ön sol, ön sağ, arka sol, arka sağ) → w[0..3]
@@ -73,7 +93,7 @@ function wheels(v, world, out, ref) {
   const hf = d.wb / 2, ht = d.tr / 2;
   let k = 0;
   for (const f of [hf, -hf]) for (const r of [-ht, ht]) {
-    out[k++] = groundAt(world, v.x + fx * f + rx * r, v.z + fz * f + rz * r, ref);
+    out[k++] = groundAt(world, v.x + fx * f + rx * r, v.z + fz * f + rz * r, ref, d.stepUp ?? STEP_UP);
   }
   return out;
 }
@@ -106,13 +126,21 @@ export function stepVehicle(v, inp, dt, world) {
   const w0 = wheels(v, T, _q, v.y + 0.05);
   const g0 = (w0[0] + w0[1] + w0[2] + w0[3]) / 4;
   const onG = !v.air;
-  // direksiyon (havada da döner, etkisi yok)
-  const want = rr * d.steerMax / (1 + Math.abs(vF) / 10);
+  // direksiyon (havada da döner, etkisi yok). Paletli: steer = dönüş isteği (−1..1, yumuşatılmış)
+  const want = d.tracked ? rr : rr * d.steerMax / (1 + Math.abs(vF) / 10);
   v.steer += Math.max(-d.steerRate * dt, Math.min(d.steerRate * dt, -want - v.steer));      // sağa (r > 0) dönüş = yaw azalır → steer negatif
+  // kule + top (yalnız taretli araç): bakış yönüne sınırlı hızla döner (dünya ekseninde dengeli). Sürücüsüzken olduğu yerde kalır
+  if (d.turret && inp && Number.isFinite(inp.yw)) {
+    const tu = d.turret, dy = ((inp.yw - v.tyaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+    v.tyaw += Math.max(-tu.yawRate * dt, Math.min(tu.yawRate * dt, dy));
+    if (v.tyaw > Math.PI) v.tyaw -= Math.PI * 2; else if (v.tyaw < -Math.PI) v.tyaw += Math.PI * 2;
+    const wp = Math.max(tu.gunMin, Math.min(tu.gunMax, (inp.pt || 0) - v.pitch * Math.cos(v.tyaw - v.yaw)));      // gövde eğimi top açısından düşülür (sınırlar gövdeye göre)
+    v.gp += Math.max(-tu.pitchRate * dt, Math.min(tu.pitchRate * dt, wp - v.gp));
+  }
   if (onG) {
     const pitch = v.pitch, sp = Math.sin(pitch);
     // eğim: yer çekiminin ileri bileşeni (yokuş yukarı yavaşlatır); yan bileşeni tutunma söndürür
-    vF -= VEH_G * sp * dt;
+    vF -= VEH_G * sp * (d.slopeG ?? 1) * dt;
     vR -= VEH_G * Math.sin(v.roll) * dt * 0.6;
     // motor / geri vites / fren
     const up = Math.max(0, Math.tan(pitch) * Math.sign(vF || f || 1));          // yokuş yukarı gidiş: güç düşer (dik yokuşa çıkamaz)
@@ -132,8 +160,9 @@ export function stepVehicle(v, inp, dt, world) {
     const gx = ((w0[0] + w0[1]) - (w0[2] + w0[3])) / (2 * d.wb), gr = ((w0[1] + w0[3]) - (w0[0] + w0[2])) / (2 * d.tr), slope = Math.hypot(gx, gr);
     const grip = (hand && Math.abs(vF) > 3 ? d.gripHand : d.grip) * (slope > d.slide ? 0.35 : 1);
     vR *= Math.exp(-grip * dt);
-    // dönüş
-    v.yaw += (vF * Math.tan(v.steer) / d.wb) * dt;
+    // dönüş: tekerli = v · tan(açı) / dingil · paletli = yerinde döner (hızla biraz azalır)
+    if (d.tracked) v.yaw += v.steer * d.turn * (1 - 0.35 * Math.min(1, Math.abs(vF) / d.maxF)) * dt;
+    else v.yaw += (vF * Math.tan(v.steer) / d.wb) * dt;
     // çok dik yamaç: aşağı kayma (eğim yönünün tersine)
     if (slope > d.slide) {
       const a = VEH_G * (slope - d.slide) * 1.4 * dt / slope;
@@ -147,21 +176,21 @@ export function stepVehicle(v, inp, dt, world) {
   }
   // su: sürüklenme (derinlikle), derin suda boğulma
   const dep = submerged(T.terrain, v.x, v.y, v.z);                                 // 12.180 su yüzeyi (sim/swim.js); suyu olmayan haritada −1e9
-  if (dep > 0.05) { const k = Math.exp(-dep * 1.3 * dt); v.vx *= k; v.vz *= k; if (dep > 1.1) v.sunk = true; }      // gövde ortası 1,1 m su altında = motor (hava girişi) boğulur
+  if (dep > 0.05) { const k = Math.exp(-dep * 1.3 * dt); v.vx *= k; v.vz *= k; if (dep > (d.wade ?? 1.1)) v.sunk = true; }      // gövde ortası 1,1 m su altında = motor (hava girişi) boğulur
   // yatay hareket + dik arazi duvarı
   const ox = v.x, oz = v.z;
   v.x += v.vx * dt; v.z += v.vz * dt;
   {
     const w1 = wheels(v, T, _tmp4, v.y + 0.05), mv = Math.hypot(v.x - ox, v.z - oz);
     let wall = false;
-    for (let i = 0; i < 4; i++) if (w1[i] - w0[i] > Math.max(STEP_UP, 1.5 * mv + 0.02) && w1[i] > v.y + 0.3) { wall = true; break; }
+    for (let i = 0; i < 4; i++) if (w1[i] - w0[i] > Math.max(d.stepUp ?? STEP_UP, 1.5 * mv + 0.02) && w1[i] > v.y + 0.3) { wall = true; break; }
     if (wall) { v.x = ox; v.z = oz; const sp = Math.hypot(v.vx, v.vz); if (sp > v.hit) v.hit = sp; v.vx *= -0.15; v.vz *= -0.15; }
   }
   // kutu çarpışmaları (gövde: zemin + STEP_UP üstü ile tavan arası)
   for (let it = 0; it < 3; it++) {
     const list = T.query(v.x - 3, v.z - 3, v.x + 3, v.z + 3, _tmp2);
     let any = false;
-    const lo = v.y + STEP_UP + 0.02, hi = v.y + d.top + 0.3;
+    const lo = v.y + (d.stepUp ?? STEP_UP) + 0.02, hi = v.y + d.top + 0.3;
     for (const c of list) {
       if (c.max[1] <= lo || c.min[1] >= hi || c.nocar) continue;
       const m = obbBox(v, c);
@@ -202,8 +231,17 @@ export const vehicleAtRest = (v) => !v.air && Math.abs(v.vx) + Math.abs(v.vz) < 
 
 // Ağ / uzlaştırma için tam durum (kesinlik: 3 hane)
 const q3 = (x) => Math.round(x * 1000) / 1000;
-export function packVehState(v) { return [q3(v.x), q3(v.y), q3(v.z), q3(v.yaw), q3(v.pitch), q3(v.roll), q3(v.vx), q3(v.vy), q3(v.vz), q3(v.steer), v.air ? 1 : 0]; }
-export function applyVehState(v, a) { v.x = a[0]; v.y = a[1]; v.z = a[2]; v.yaw = a[3]; v.pitch = a[4]; v.roll = a[5]; v.vx = a[6]; v.vy = a[7]; v.vz = a[8]; v.steer = a[9]; v.air = !!a[10]; }
+export function packVehState(v) { const a = [q3(v.x), q3(v.y), q3(v.z), q3(v.yaw), q3(v.pitch), q3(v.roll), q3(v.vx), q3(v.vy), q3(v.vz), q3(v.steer), v.air ? 1 : 0]; if (v.def.turret) a.push(q3(v.tyaw), q3(v.gp)); return a; }
+export function applyVehState(v, a) { v.x = a[0]; v.y = a[1]; v.z = a[2]; v.yaw = a[3]; v.pitch = a[4]; v.roll = a[5]; v.vx = a[6]; v.vy = a[7]; v.vz = a[8]; v.steer = a[9]; v.air = !!a[10]; if (a.length > 12) { v.tyaw = a[11]; v.gp = a[12]; } }
+
+// 12.178 namlu ucu ve yönü (dünya): kule ekseni gövdede (tf ileri), kule yaw dünyada, top açısı kule eğimine eklenir
+export function gunPose(v, outP, outD) {
+  const tu = v.def.turret, c = toWorld(v, tu.f, 0, tu.pivot, { x: 0, y: 0, z: 0 });
+  const ps = v.pitch * Math.cos(v.tyaw - v.yaw), pt = v.gp + ps, cp = Math.cos(pt);
+  outD.x = -Math.sin(v.tyaw) * cp; outD.y = Math.sin(pt); outD.z = -Math.cos(v.tyaw) * cp;
+  outP.x = c.x + outD.x * tu.len; outP.y = c.y + outD.y * tu.len; outP.z = c.z + outD.z * tu.len;
+  return outP;
+}
 
 // Işın ↔ araç gövdesi (yönlü kutu: yaw + pitch + roll). Dönen t (yoksa −1) ve yerel normal ekseni
 export function rayVehicle(v, o, dir, maxT, out) {
@@ -219,16 +257,22 @@ export function rayVehicle(v, o, dir, maxT, out) {
     return res;
   };
   const lo = inv(o.x - v.x, o.y - v.y, o.z - v.z, [0, 0, 0]), ld = inv(dir.x, dir.y, dir.z, [0, 0, 0]);
-  const mn = [-d.hw, d.clear, -d.hl], mx = [d.hw, d.top, d.hl];
-  let t0 = 0, t1 = maxT, ax = -1, sg = 0;
-  for (let a = 0; a < 3; a++) {
-    const iv = 1 / (ld[a] || 1e-9);
-    let ta = (mn[a] - lo[a]) * iv, tb = (mx[a] - lo[a]) * iv, s = -1;
-    if (ta > tb) { const t = ta; ta = tb; tb = t; s = 1; }
-    if (ta > t0) { t0 = ta; ax = a; sg = s; }
-    if (tb < t1) t1 = tb;
-    if (t0 > t1) return -1;
-  }
-  if (out) { out.ax = ax; out.sg = sg; }
-  return t0 > 0 ? t0 : -1;
+  const box = (mn, mx) => {
+    let t0 = 0, t1 = maxT, ax = -1, sg = 0;
+    for (let a = 0; a < 3; a++) {
+      const iv = 1 / (ld[a] || 1e-9);
+      let ta = (mn[a] - lo[a]) * iv, tb = (mx[a] - lo[a]) * iv, s = -1;
+      if (ta > tb) { const t = ta; ta = tb; tb = t; s = 1; }
+      if (ta > t0) { t0 = ta; ax = a; sg = s; }
+      if (tb < t1) t1 = tb;
+      if (t0 > t1) return null;
+    }
+    return t0 > 0 ? [t0, ax, sg] : null;
+  };
+  let h = box([-d.hw, d.clear, -d.hl], [d.hw, d.top, d.hl]);
+  const tu = d.turret;
+  if (tu) { const z = -tu.f, k = box([-tu.hw, tu.y0, z - tu.hl], [tu.hw, tu.y1, z + tu.hl]); if (k && (!h || k[0] < h[0])) h = k; }      // kule (gövde ekseninde yaklaşık kare)
+  if (!h) return -1;
+  if (out) { out.ax = h[1]; out.sg = h[2]; }
+  return h[0];
 }

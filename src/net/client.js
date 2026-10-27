@@ -333,14 +333,15 @@ export class NetClient {
     const v = s.veh, g = this.game;
     if (!me.vs || !rec.vst || !v.st) return;
     const a = rec.vst, b = me.vs;
-    const err = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) + Math.abs(((a[3] - b[3] + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * 2;
+    const ad = (x, y) => Math.abs(((x - y + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+    const err = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]) + ad(a[3], b[3]) * 2 + (a.length > 12 && b.length > 12 ? ad(a[11], b[11]) * 2 : 0);      // 12.178: kule yaw'ı da
     this.stats.vehErr = err;
     if (err <= POS_EPS) return;
     this.stats.vehFix = (this.stats.vehFix || 0) + 1; this.stats.vehErrSum = (this.stats.vehErrSum || 0) + err; this.stats.vehErrMax = Math.max(this.stats.vehErrMax || 0, err);
     const bx = v.st.x, by = v.st.y, bz = v.st.z;
     applyVehState(v.st, b);
     for (const h of this.hist) {
-      stepVehicle(v.st, { f: h.inp.f, r: h.inp.r, b: h.inp.jump }, SIM_DT, g.world);
+      stepVehicle(v.st, { f: h.inp.f, r: h.inp.r, b: h.inp.jump, yw: h.yaw, pt: h.pitch }, SIM_DT, g.world);      // 12.178: kule hedefi o girdideki bakış
       h.vst = packVehState(v.st);
     }
     g.vehicles.place(s);

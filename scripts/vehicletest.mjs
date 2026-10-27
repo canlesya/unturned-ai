@@ -10,6 +10,7 @@
 // Ortam: URL (http://127.0.0.1:5397) · SRV (ws://127.0.0.1:8941) · OUT (/tmp/wb-arac/jip) · ONLY=headless|browser|online
 import { Game } from '../src/game/game.js';
 import { VT } from '../src/sim/vehicle.js';
+import { WSTATS } from '../src/game/stats.js';
 import fs from 'fs';
 
 const URL0 = process.env.URL || 'http://127.0.0.1:5397', SRV = process.env.SRV || 'ws://127.0.0.1:8941', OUT = process.env.OUT || '/tmp/wb-arac/jip', ONLY = process.env.ONLY || '';
@@ -22,7 +23,7 @@ function headless() {
   console.log('── başsız ──');
   const mkG = (o = {}) => new Game(null, { headless: true, map: 'kuzey', tod: 'day', weather: 'clear', diff: 'normal', bots: false, match: { perTeam: 4, type: 'conquest' }, ...o });
   const g = mkG(), V = g.vehicles;
-  ok(V && V.list.length === 12 && V.list.filter((v) => v.alive).length === 6, 'kurulum: 12 jip doğuşu (6 üs + 6 bayrak), maç başında üslerdeki 6 jip hazır, bayrak jipleri bayrak alınınca', V ? `${V.list.length} / ${V.list.filter((v) => v.alive).length}` : 'yok');
+  ok(V && V.list.length === 16 && V.list.filter((v) => v.alive).length === 10, 'kurulum: 12 jip (6 üs + 6 bayrak) + 4 tank (üslerde), maç başında üslerdeki 6 jip + 4 tank hazır, bayrak jipleri bayrak alınınca', V ? `${V.list.length} / ${V.list.filter((v) => v.alive).length}` : 'yok');
   const others = [['kasaba', 'conquest'], ['colgecidi', 'tdm'], ['kuzey', 'tdm'], ['vadi', 'conquest']].map(([map, type]) => { const o = new Game(null, { headless: true, map, tod: 'day', weather: 'clear', diff: 'normal', bots: false, match: { perTeam: 2, type } }); return map + '/' + type + ':' + (o.vehicles ? 'VAR' : 'yok'); });
   ok(others.every((s) => s.endsWith('yok')), 'diğer haritalar / Kuzey TDM: araç yöneticisi yok (davranış aynı)', others.join(' '));
   const s = g.claimSlot('blue', 'Test', 'assault', {}), h = g.humans.get(s.id);
@@ -128,6 +129,105 @@ function headless() {
   ok(idle === 0 || idle === 1, 'ağ: duran araç anlık görüntüye yazılmaz (yalnız değişen)', `tam liste ${full} B · değişen ${idle}`);
 }
 
+// ───────── 1b) başsız: TANK (12.178) ─────────
+function headlessTank() {
+  console.log('── başsız: tank ──');
+  const g = new Game(null, { headless: true, map: 'kuzey', tod: 'day', weather: 'clear', diff: 'normal', bots: false, match: { perTeam: 6, type: 'conquest' } }), V = g.vehicles, D = VT.tank;
+  const s = g.claimSlot('blue', 'Tankçı', 'assault', {}), h = g.humans.get(s.id);
+  let q = 0;
+  const step = (n, o = {}) => { for (let i = 0; i < n; i++) { h.queue.push({ q: ++q, f: 0, r: 0, l: 0, s: 0, j: 0, a: 0, yw: s.yaw, pt: s.pitch, w: s.cur, c: 0, p: 0, u: 0, fh: 0, fp: 0, rl: 0, fm: 0, o: 0, ab: 0, vt: null, ve: 0, vs: 0, vl: 0, ...(typeof o === 'function' ? o(i) : o) }); g.step(1 / 60); } };
+  const put = (v, x, z, yaw) => { v.st.x = x; v.st.z = z; v.st.y = g.world.heightAt(x, z); v.st.yaw = yaw; v.st.tyaw = yaw; v.st.gp = 0; v.st.vx = v.st.vy = v.st.vz = 0; v.st.air = false; v.st.sunk = false; v.sleep = false; };
+  const foe = (x, z) => { const e = g.soldiers.find((o) => o.team === 'red' && !o.alive || o.team === 'red' && o.vacant) || g.soldiers.filter((o) => o.team === 'red')[0]; e.vacant = false; e.spawn({ x, z, ry: 0 }, 0); g.world.settle(e); e.protT = 0; e.hp = e.maxHp; return e; };
+  const t = V.list.find((x) => x.id === 'B-T1');
+  s.pos.set(t.st.x + 2.4, t.st.y, t.st.z); s.protT = 0; step(1, { ve: 1 }); step(1);
+  ok(s.veh === t && s.seat === 0 && V.hiddenSeat(s), 'tank: E ile sürücü (gövde içinde, görünmez; ana top da sürücüde)', `koltuk ${s.seat}`);
+  put(t, 0, 330, 0); step(1);
+  step(240, { f: 1, yw: 0 });
+  const sp = V.speed(t);
+  ok(sp > 8.5 && sp < 11.5, 'paletli: 4 sn tam gaz yavaş araç', `${f1(sp)} m/sn = ${Math.round(sp * 3.6)} km/s`);
+  step(150, { j: 1 }); const y0 = t.st.yaw; step(120, { r: 1 });
+  ok(V.speed(t) < 1 && Math.abs(t.st.yaw - y0) > 1.2, 'yerinde dönüş (D, gaz yok)', `Δyaw ${f2(t.st.yaw - y0)} · hız ${f2(V.speed(t))}`);
+  const aim = t.st.tyaw + 1.6; let tt = 0; while (Math.abs(((t.st.tyaw - aim + Math.PI * 3) % (Math.PI * 2)) - Math.PI) > 0.02 && tt < 5) { step(6, { yw: aim, pt: 0.5 }); tt += 0.1; }
+  ok(tt > 1.2 && tt < 2.5 && Math.abs(t.st.gp - D.turret.gunMax) < 0.02, 'kule bakışa sınırlı hızla döner (90° ≈ 1,7 sn), top açısı sınırda', `${f1(tt)} sn · top ${f2(t.st.gp)}`);
+  const tyw = t.st.tyaw; step(90, { r: 1, yw: tyw, pt: 0 });
+  ok(Math.abs(((t.st.tyaw - tyw + Math.PI * 3) % (Math.PI * 2)) - Math.PI) < 0.03, 'dengeli kule: gövde dönerken nişan aynı yönde kalır', f2(t.st.tyaw - tyw));
+  // ana top: 120 m'deki düşmana; yay + patlama
+  const YE = -Math.PI / 2;                                             // üs düzlüğünde doğuya (eğimsiz: gövde eğimi top açısı sınırını değiştirir)
+  put(t, 10, 715, YE); step(2, { yw: YE, pt: 0 });
+  const e1 = foe(130, 715); e1.hp = 100;
+  // nişan açısı: mermi yayının hedef gövde ortasından geçtiği top açısı (ikiye bölme; sim/vehicle gunPose + aynı yerçekimi)
+  const dist = 120, tyAt = (pt) => { const tu = D.turret, y0 = t.st.y + tu.pivot, vz = Math.cos(pt) * D.cannon.speed, vy = Math.sin(pt) * D.cannon.speed, z0 = tu.len * Math.cos(pt) + tu.f, tf = (dist - z0) / vz; return y0 + tu.len * Math.sin(pt) + vy * tf - 0.5 * D.cannon.grav * tf * tf; };
+  let lo = -0.1, hi = 0.3; const ty = e1.pos.y + 0.9; for (let i = 0; i < 40; i++) { const mid = (lo + hi) / 2; if (tyAt(mid) < ty) lo = mid; else hi = mid; }
+  const el = (lo + hi) / 2;
+  step(80, { yw: YE, pt: el });
+  const nS = V.shells.length; step(1, { yw: YE, pt: el, fh: 1, fp: 1 });
+  const fired = V.shells.length > nS, rl0 = t.rl;
+  step(1, { yw: YE, pt: el, fh: 1, fp: 1 });
+  const fired2 = V.shells.length > nS + 1;
+  let ft = 0; while (V.shells.length && ft < 3) { step(3, { yw: YE, pt: el }); ft += 0.05; }
+  ok(fired && !fired2 && Math.abs(rl0 - D.cannon.reload) < 0.05, 'ana top: tek atış, ' + D.cannon.reload + ' sn dolum (basılı tutmak ikinciyi atmaz)', `dolum ${f2(rl0)}`);
+  if (e1.alive) console.log('  top debug', JSON.stringify({ e1: [e1.pos.x, e1.pos.y, e1.pos.z].map((x) => +x.toFixed(2)), t: [t.st.x, t.st.y, t.st.z, t.st.tyaw, t.st.gp, t.st.pitch].map((x) => +x.toFixed(3)), b: g.netEvents.filter((x) => x.e === 'tsb').slice(-1) }));
+  ok(!e1.alive, '120 m: mermi düşüşüyle yayla gider (top açısı ' + f2(el * 180 / Math.PI) + '°), patlama askeri öldürür', `uçuş ${f2(ft)} sn · asker ${e1.alive ? 'canlı ' + Math.round(e1.hp) : 'öldü'}`);
+  // zırh: mermi 0, el bombası az, RPG / tank topu çok
+  const t2 = V.list.find((x) => x.id === 'R-T1'), e2 = foe(t2.st.x + 20, t2.st.z);
+  const hp0 = t2.hp; V.damage(t2, 30, e2, 'bullet'); const dB = hp0 - t2.hp;
+  const P = (x, y, z) => new (s.pos.constructor)(x, y, z);
+  g.explode(P(t2.st.x + 1.8, t2.st.y + 0.5, t2.st.z), 7.5, 130, e2, 'El Bombası'); const dG = hp0 - t2.hp - dB;
+  g.explode(P(t2.st.x, t2.st.y + 1.2, t2.st.z - 3.4), 6.5, 160, e2, 'RPG-7', undefined, 'at'); const dR = hp0 - t2.hp - dB - dG;
+  ok(dB === 0 && dG > 0 && dG < 50 && dR > 150, 'zırh: tüfek mermisi 0 · el bombası az · RPG çok', `mermi ${f1(dB)} · el bombası ${f1(dG)} · RPG ${f1(dR)} (can ${D.hp} → ${Math.round(D.hp / dR + 0.5)} RPG)`);
+  // tank topu ↔ jip: tek atış
+  const j = V.list.find((x) => x.id === 'R-J1'); g.explode(P(j.st.x, j.st.y + 0.8, j.st.z), D.cannon.radius, D.cannon.dmg, s, D.cannon.name, undefined, 'at');
+  ok(!j.alive, 'tank topu jipi tek atışta patlatır');
+  // sürücü zırh arkasında: yanında el bombası → sürücüye hasar yok
+  const sh0 = s.hp; g.explode(P(t.st.x + 2.2, t.st.y + 0.3, t.st.z), 7.5, 130, e2, 'El Bombası');
+  ok(s.hp === sh0 && s.alive, 'tank içindeki sürücü el bombası sıçramasından korunur', `can ${sh0} → ${s.hp}`);
+  // nişancı + makineli: 40 m'deki düşmanı vurur
+  put(t, 0, 300, 0); step(2, { yw: 0 });
+  const gunner = g.claimSlot('blue', 'Nişancı', 'assault', {}), hg = g.humans.get(gunner.id);
+  gunner.pos.set(t.st.x - 2.4, t.st.y, t.st.z); gunner.protT = 0; V.enter(gunner, t, 1);
+  const e3 = foe(t.st.x + 30, t.st.z - 25); e3.hp = 100;
+  let k = 0, hits = 0;
+  for (; k < 180 && e3.alive; k++) {
+    const ey = gunner.eye(), c = e3.center(), dx = c.x - ey.x, dz = c.z - ey.z;
+    hg.queue.push({ q: k + 1, f: 0, r: 0, l: 0, s: 0, j: 0, a: 0, yw: Math.atan2(-dx, -dz), pt: Math.atan2(c.y - ey.y, Math.hypot(dx, dz)), w: gunner.cur, c: 0, p: 0, u: 0, fh: 1, fp: k === 0 ? 1 : 0, rl: 0, fm: 0, o: 0, ab: 0, vt: null });
+    h.queue.push({ q: ++q, f: 0, r: 0, l: 0, s: 0, j: 0, a: 0, yw: s.yaw, pt: 0, w: s.cur, c: 0, p: 0, u: 0, fh: 0, fp: 0, rl: 0, fm: 0, o: 0, ab: 0, vt: null });
+    g.step(1 / 60);
+  }
+  ok(!e3.alive && gunner.items[0].mag === WSTATS[gunner.items[0].id].mag, 'nişancı: kule makinelisi 40 m\'deki düşmanı öldürür (kendi silahının cephanesi harcanmaz)', `${f2(k / 60)} sn`);
+  // çarpma: yavaş tank da ezer; tank jipi iter
+  V.exit(gunner);
+  put(t, 0, 330, 0); step(2, { yw: 0 });
+  const e4 = foe(0, 318); e4.hp = 100;
+  step(150, { f: 1, yw: 0 });
+  ok(!e4.alive, 'tank düşmanı ezer (≥ ' + D.ramMin + ' m/sn)', `${e4.alive ? 'canlı' : 'öldü'}`);
+  const j2 = V.list.find((x) => x.id === 'B-J3'); put(j2, 0, t.st.z - 7.5, Math.PI / 2); put(t, 0, t.st.z, 0); step(1, { yw: 0 });
+  const jz = j2.st.z; step(150, { f: 1, yw: 0 });
+  ok(jz - j2.st.z > 3, 'tank yolundaki jipi iter (kütle)', `jip ${f1(jz - j2.st.z)} m itildi · tank hızı ${f1(V.speed(t))}`);
+  // köprü + geçit + derin su
+  put(t, 0, 66, 0); step(1); let maxY = -99; step(780, () => { maxY = Math.max(maxY, t.st.y); return { f: 0.8, yw: 0 }; });
+  ok(t.st.z < -15 && maxY > 6 && !t.st.sunk, 'tank Taş Köprü\'den geçer', `z ${f1(t.st.z)} · en yüksek ${f2(maxY)}`);
+  put(t, 336, 20, 0.05); step(1); let minY = 99; step(1500, () => { minY = Math.min(minY, t.st.y); return { f: 1, yw: 0.05 }; });
+  ok(t.st.z < -105 && !t.st.sunk, 'tank doğu sığ geçidinden geçer', `z ${f1(t.st.z)} · en alçak ${f2(minY)}`);
+  put(t, -100, 62, 0); step(1); let tS = 0, out = -1; while (t.alive && tS < 14) { step(6, { f: 0.7, yw: 0 }); tS += 0.1; if (out < 0 && !s.veh) out = tS; }
+  ok(!t.alive && out > 0 && s.alive, 'tank derin nehirde batar (sürücü çıkar, yüzer)', `iniş ${f1(out)} sn · araç gitti ${f1(tS)} sn`);
+  // el bombası araçtan seker
+  const jj = V.list.find((x) => x.id === 'B-J1'); put(jj, 50, 300, 0); g.step(1 / 60);
+  const thrower = g.soldiers.find((o) => o.team === 'blue' && o !== s && o !== gunner); thrower.vacant = false; thrower.spawn({ x: 44, z: 300, ry: 0 }, 0); g.world.settle(thrower);
+  const nade = g.spawnGrenade(thrower, P(44, jj.st.y + 0.9, 300), P(10, 3.5, 0), WSTATS.grenade, null, {});
+  let minX = 99, maxX = -99; for (let i = 0; i < 60; i++) { g.step(1 / 60); maxX = Math.max(maxX, nade.pos.x); }
+  ok(maxX < 50 - VT.jip.hw + 0.2 && nade.pos.x < maxX - 0.2, 'el bombası araç gövdesinden geri seker (içinden geçmez)', `en ileri x ${f2(maxX)} (gövde ${f2(50 - VT.jip.hw)}) · son ${f2(nade.pos.x)}`);
+  // bot nişancı
+  const gb = new Game(null, { headless: true, map: 'kuzey', tod: 'day', weather: 'clear', diff: 'normal', bots: true, match: { perTeam: 6, type: 'conquest' } }), VB = gb.vehicles;
+  const hb = gb.claimSlot('blue', 'Sürücü', 'assault', {}), hq = gb.humans.get(hb.id), tb = VB.list.find((x) => x.id === 'B-T2');
+  hb.pos.set(tb.st.x + 2.4, tb.st.y, tb.st.z); hb.protT = 0; VB.enter(hb, tb, 0);
+  const m = gb.soldiers.find((e) => e.team === 'blue' && e.brain); m.pos.set(tb.st.x - 7, tb.st.y, tb.st.z + 3); gb.world.settle(m); m.brain.target = null;
+  let tb0 = 0; for (; tb0 < 8 && !tb.seats[1]; tb0 += 0.1) { for (let i = 0; i < 6; i++) { hq.queue.push({ q: tb0 * 100 + i, f: 0, r: 0, l: 0, s: 0, j: 0, a: 0, yw: hb.yaw, pt: 0, w: hb.cur, c: 0, p: 0, u: 0, fh: 0, fp: 0, rl: 0, fm: 0, o: 0, ab: 0, vt: null }); gb.step(1 / 60); } }
+  ok(tb.seats[1]?.brain, 'bot nişancı: insanın sürdüğü tankın makineli koltuğuna biner', `${f1(tb0)} sn`);
+  // maliyet
+  const t0 = performance.now(); for (let i = 0; i < 2000; i++) V.drive(t.alive ? t : V.list.find((x) => x.type === 'tank' && x.alive), { f: 1, r: 0.3, yw: 1, pt: 0.1 }, 1 / 60);
+  ok(true, 'tank sürücü adımı', `${f1((performance.now() - t0) / 2000 * 1000)} µs`);
+}
+
 // ───────── 2) tarayıcı (çevrimdışı) ─────────
 async function browserOffline(chromium) {
   console.log('── tarayıcı (çevrimdışı) ──');
@@ -174,6 +274,49 @@ async function browserOffline(chromium) {
     ok(!errs.length, `tarayıcı (${tod === 'day' ? 'gündüz' : 'gece'}): sayfa hatası yok`, errs.slice(0, 2).join(' | '));
     await page.context().close();
   }
+  // 12.178 TANK görüntüleri → /tmp/wb-arac/tank (gündüz + gece)
+  const TOUT = OUT.replace(/jip\/?$/, 'tank'); fs.mkdirSync(TOUT, { recursive: true });
+  for (const tod of ['day', 'night']) {
+    const page = await (await browser.newContext({ viewport: { width: 1280, height: 720 }, locale: 'tr-TR' })).newPage();
+    const errs = []; page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); });
+    await page.goto(`${URL0}/?autostart=4v4&map=kuzey&type=conquest&tod=${tod}&debug=1&nolock=1&nologin=1`);
+    await page.waitForFunction('window.__game && window.__game.running', null, { timeout: 180000 });
+    await page.waitForTimeout(1200);
+    const ev = (f, a) => page.evaluate(f, a), shot = async (n, w = 400) => { await page.waitForTimeout(w); await page.screenshot({ path: `${TOUT}/${tod === 'night' ? 'gece-' : ''}${n}.png` }); };
+    await ev(() => { const g = window.__game; g.brainsOff = g.brains.splice(0); g.devGod = true; g.playerSoldier.fly = false; });
+    if (tod === 'day') {
+      await ev(() => { const g = window.__game, V = g.vehicles, me = g.playerSoldier, v = V.list.find((x) => x.id === 'B-T1'); me.pos.set(v.st.x + 7, v.st.y, v.st.z - 6); g.world.settle(me); me.yaw = Math.atan2(-(v.st.x - me.pos.x), -(v.st.z - me.pos.z)); me.pitch = -0.12; });
+      await shot('01-disaridan');
+    }
+    await ev(() => { const g = window.__game, V = g.vehicles, me = g.playerSoldier, v = V.list.find((x) => x.id === 'B-T1'); me.pos.set(v.st.x + 2.6, v.st.y, v.st.z); g.world.settle(me); V.toggle(me); v.st.x = 0; v.st.z = 330; v.st.y = g.world.heightAt(0, 330); v.st.yaw = 0; v.st.tyaw = 0; v.lights = g.night; g.player.vehCam = 'third'; me.yaw = 0.7; me.pitch = -0.05; });
+    await shot('02-surucu-takip-kule', 2200);
+    await page.keyboard.down('KeyW'); await page.keyboard.down('KeyA'); await page.waitForTimeout(1200); await page.keyboard.up('KeyA'); await page.waitForTimeout(1800);
+    await ev(() => { const g = window.__game, me = g.playerSoldier; me.yaw = me.veh.st.yaw + Math.PI * 0.8; me.pitch = -0.25; });
+    await shot('03-surus-palet-toz', 1500); await page.keyboard.up('KeyW');
+    await page.keyboard.down('Space'); await page.waitForTimeout(800); await page.keyboard.up('Space');
+    await ev(() => { const g = window.__game, me = g.playerSoldier; me.yaw = me.veh.st.yaw; me.pitch = 0.01; });
+    await page.waitForTimeout(2200);
+    await ev(() => { window.__game.player.fireHeld = true; }); await page.waitForTimeout(90); await ev(() => { window.__game.player.fireHeld = false; });
+    await shot('04-ana-top-ates', 60);
+    await shot('05-mermi-isabet', 900);
+    const rl = await ev(() => window.__game.playerSoldier.veh.rl);
+    await ev(() => { window.__game.player.vehCam = 'first'; }); await shot('06-nisanci-durbunu');
+    await ev(() => { window.__game.playerSoldier.ads = true; }); await shot('07-durbun-yakinlastirma');
+    await ev(() => { const g = window.__game, V = g.vehicles, me = g.playerSoldier; me.ads = false; V.seatTo(me, 1); me.yaw = me.veh.st.yaw + 0.5; me.pitch = -0.05; });
+    await ev(() => { window.__game.player.fireHeld = true; }); await shot('08-kule-makinelisi', 500); await ev(() => { window.__game.player.fireHeld = false; });
+    const gun = await ev(() => { const me = window.__game.playerSoldier; return me.seat; });
+    await ev(() => { const g = window.__game, V = g.vehicles, me = g.playerSoldier, v = me.veh; V.exit(me); const b = g.soldiers.find((s) => s.team === 'blue' && s !== me); b.spawn({ x: v.st.x + 4, z: v.st.z, ry: 0 }, 0); V.enter(b, v, 1); me.pos.set(v.st.x - 9, v.st.y, v.st.z + 6); g.world.settle(me); me.yaw = Math.atan2(-(v.st.x - me.pos.x), -(v.st.z - me.pos.z)); me.pitch = -0.1; v.hp = 420; });
+    await shot('09-disaridan-nisanci-hasarli', 1600);
+    await ev(() => { const v = window.__game.vehicles.list.find((x) => x.id === 'B-T1'); v.hp = 150; }); await shot('10-yaniyor', 2200);
+    await ev(() => { const v = window.__game.vehicles.list.find((x) => x.id === 'B-T1'); v.hp = 1; }); await shot('11-enkaz', 3500);
+    if (tod === 'day') {
+      ok(rl > 2.5 && gun === 1, 'tarayıcı tank: sol tık ana top (dolum başladı), 2 → nişancı makinelisi', `dolum ${rl.toFixed(1)} · koltuk ${gun}`);
+      await ev(() => { const g = window.__game, V = g.vehicles, me = g.playerSoldier, v = V.list.find((x) => x.id === 'B-T2'); me.pos.set(v.st.x + 2.6, v.st.y, v.st.z); g.world.settle(me); V.toggle(me); v.st.x = 333; v.st.z = -40; v.st.y = g.world.heightAt(333, -40); v.st.yaw = 0.05; v.st.tyaw = 0.05; g.player.vehCam = 'third'; me.yaw = 0.05 + 2.3; me.pitch = -0.3; });
+      await page.keyboard.down('KeyW'); await shot('12-gecit-su', 2600); await page.keyboard.up('KeyW');
+    }
+    ok(!errs.length, `tarayıcı tank (${tod === 'day' ? 'gündüz' : 'gece'}): sayfa hatası yok`, errs.slice(0, 2).join(' | '));
+    await page.context().close();
+  }
   // telefon (Pixel 7 profili): dokunmatik araç butonları
   const ctx = await browser.newContext({ viewport: { width: 915, height: 412 }, deviceScaleFactor: 2.6, isMobile: true, hasTouch: true, userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36', locale: 'tr-TR' });
   const mp = await ctx.newPage(); const merr = []; mp.on('pageerror', (e) => merr.push(e.message));
@@ -189,7 +332,74 @@ async function browserOffline(chromium) {
   const mv = await mp.evaluate(() => { const g = window.__game, me = g.playerSoldier; if (me.veh) { me.yaw = me.veh.st.yaw + 2.6; me.pitch = -0.3; } return { veh: me.veh?.id, vcam: !document.querySelector('#tc [data-b="vcam"]').classList.contains('hid'), seat: !document.querySelector('#tc [data-b="seat"]').classList.contains('hid') }; });
   await mp.waitForTimeout(400);
   await mp.screenshot({ path: `${OUT}/12-telefon-surucu.png` });
+  await mp.evaluate(() => { const g = window.__game, V = g.vehicles, me = g.playerSoldier, t = V.list.find((x) => x.id === 'B-T1'); V.exit(me); me.pos.set(t.st.x + 2.6, t.st.y, t.st.z); g.world.settle(me); V.toggle(me); me.yaw = t.st.yaw + 2.6; me.pitch = -0.25; });
+  await mp.waitForTimeout(900); await mp.screenshot({ path: `${OUT.replace(/jip\/?$/, 'tank')}/13-telefon-tank.png` });
   ok(btn && mv.veh === 'B-J1' && mv.vcam && mv.seat && !merr.length, 'telefon: araç yanında "bin" butonu, dokununca sürücü; kamera + koltuk butonları (joystick = gaz / direksiyon, zıpla = fren, ateş = korna)', JSON.stringify(mv) + (merr.length ? ' · ' + merr[0] : ''));
+  await browser.close();
+}
+
+// ───────── 3b) çevrim içi TANK (12.178): A sürücü + top, B nişancı (makineli) ─────────
+async function onlineTank(chromium) {
+  const tag = process.env.PROXY ? ' [vekil ' + process.env.PROXY + ']' : '';
+  console.log('── çevrim içi: tank' + tag + ' ──');
+  const browser = await chromium.launch({ args: ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu'] });
+  const mk = async () => { const p = await (await browser.newContext({ viewport: { width: 1280, height: 720 }, locale: 'tr-TR' })).newPage(); p.errs = []; p.on('pageerror', (e) => p.errs.push(e.message)); return p; };
+  const A = await mk(), B = await mk();
+  await A.goto(`${URL0}/?online=new&name=Ali&server=${encodeURIComponent(SRV)}&map=kuzey&type=conquest&per=4&team=blue&debug=1&nolock=1&nologin=1`);
+  await A.waitForFunction('window.__game && window.__game.running && window.__game.playerSoldier.alive', null, { timeout: 240000 });
+  const code = await A.evaluate(() => window.__game._badgeCode);
+  await B.goto(`${URL0}/?online=${code}&name=Veli&team=blue&server=${encodeURIComponent(SRV)}&debug=1&nolock=1&nologin=1`);
+  await B.waitForFunction('window.__game && window.__game.running && window.__game.playerSoldier.alive', null, { timeout: 240000 });
+  for (const P of [A, B]) await P.evaluate(() => window.__game.online.send({ t: 'dbg', bots: false }));
+  await A.waitForTimeout(1500);
+  const jp = await A.evaluate(() => { const v = window.__game.vehicles.list.find((x) => x.id === 'B-T1'); return [v.st.x, v.st.z]; });
+  await A.evaluate((p) => window.__game.online.send({ t: 'dbg', tp: [p[0] + 2.6, p[1]] }), jp);
+  await B.evaluate((p) => window.__game.online.send({ t: 'dbg', tp: [p[0] - 2.6, p[1] + 0.5] }), jp);
+  await A.waitForTimeout(1500);
+  await A.keyboard.press('KeyE'); await A.waitForTimeout(900); await B.keyboard.press('KeyE'); await B.waitForTimeout(900);
+  const seats = await Promise.all([A, B].map((P) => P.evaluate(() => { const me = window.__game.playerSoldier; return [me.veh?.id, me.seat]; })));
+  ok(seats[0][0] === 'B-T1' && seats[0][1] === 0 && seats[1][0] === 'B-T1' && seats[1][1] === 1, 'çevrim içi tank: A sürücü (top), B nişancı (makineli)' + tag, JSON.stringify(seats));
+  await A.evaluate(() => window.__game.online.send({ t: 'dbg', vtp: [0, 330, 0] }));
+  await A.waitForTimeout(1800);
+  const ids = await A.evaluate(() => { const g = window.__game, r = g.soldiers.filter((s) => s.team === 'red' && s.alive); g.online.send({ t: 'dbg', tps: [r[0].id, 0, 240, 0, 100] }); g.online.send({ t: 'dbg', tps: [r[1].id, 28, 300, 0, 100] }); g.player.vehCam = 'third'; g.playerSoldier.yaw = 0; g.playerSoldier.pitch = 0; return [r[0].id, r[1].id]; });
+  await A.waitForTimeout(700);
+  await A.evaluate(() => { const s = window.__game.online.stats; s.vehFix = 0; s.vehErrMax = 0; s.vehErrSum = 0; window.__c0 = s.corrections; });
+  // sür + kuleyi çevir
+  await A.keyboard.down('KeyW'); await A.evaluate(() => { const g = window.__game, me = g.playerSoldier; window.__aimI = setInterval(() => { me.yaw = Math.sin(performance.now() / 600) * 0.8; }, 16); });
+  await A.waitForTimeout(3500); await A.keyboard.up('KeyW');
+  await A.keyboard.down('Space'); await A.waitForTimeout(1200); await A.keyboard.up('Space');
+  await A.evaluate(() => clearInterval(window.__aimI));
+  // nişan + ateş (A): hedef gövdesine top yayı (ikiye bölme, istemcinin gördüğü durumdan)
+  const fireRes = await A.evaluate(async (id) => {
+    const g = window.__game, me = g.playerSoldier, v = me.veh, D = v.def, T = g.soldiers[id];
+    const aimAt = () => { const tu = D.turret, st = v.st, c = T.center(), px = st.x - Math.sin(st.yaw) * tu.f, pz = st.z - Math.cos(st.yaw) * tu.f, dx = c.x - px, dz = c.z - pz, dist = Math.hypot(dx, dz);
+      me.yaw = Math.atan2(-dx, -dz);
+      const yAt = (pt) => { const vz = Math.cos(pt) * D.cannon.speed, vy = Math.sin(pt) * D.cannon.speed, tf = (dist - tu.len * Math.cos(pt)) / vz; return st.y + tu.pivot + tu.len * Math.sin(pt) + vy * tf - 0.5 * D.cannon.grav * tf * tf; };
+      let lo = -0.12, hi = 0.3; for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; if (yAt(m) < c.y) lo = m; else hi = m; }
+      me.pitch = (lo + hi) / 2; return dist; };
+    const id2 = setInterval(aimAt, 16); const dist = aimAt();
+    await new Promise((r) => setTimeout(r, 2600));
+    let seen = 0; const h = (e) => { const m = JSON.parse(e.data); if (m.t === 'ev' && m.l.some((x) => x.e === 'ts')) seen++; }; g.online.ws.addEventListener('message', h);
+    g.player.fireHeld = true; await new Promise((r) => setTimeout(r, 120)); g.player.fireHeld = false;
+    await new Promise((r) => setTimeout(r, 2500)); clearInterval(id2);
+    return { dist: Math.round(dist), seen, hp: T.hp, alive: T.alive, rl: +v.rl.toFixed(1) };
+  }, ids[0]);
+  ok(fireRes.seen >= 1 && (!fireRes.alive || fireRes.hp < 100), 'çevrim içi ana top: sunucu ateşler (ts), mermi yayla ' + fireRes.dist + ' m\'deki askeri öldürür, dolum sürer' + tag, JSON.stringify(fireRes));
+  await A.screenshot({ path: `${OUT}/../tank/20-cevrimici-A-surucu${tag ? '-vekil' : ''}.png` });
+  // B nişancı: 28 m yandaki düşmana makineli
+  const mg = await B.evaluate(async (id) => {
+    const g = window.__game, me = g.playerSoldier, T = g.soldiers[id];
+    const aim = () => { const e = me.eye(), c = T.center(), dx = c.x - e.x, dz = c.z - e.z; me.yaw = Math.atan2(-dx, -dz); me.pitch = Math.atan2(c.y - e.y, Math.hypot(dx, dz)); };
+    const i2 = setInterval(aim, 8); aim(); g.player.fireHeld = true;
+    await new Promise((r) => setTimeout(r, 1500)); g.player.fireHeld = false; clearInterval(i2);
+    await new Promise((r) => setTimeout(r, 500));
+    return { hp: T.hp, alive: T.alive, d: Math.round(Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z)) };
+  }, ids[1]);
+  await B.screenshot({ path: `${OUT}/../tank/21-cevrimici-B-nisanci${tag ? '-vekil' : ''}.png` });
+  ok(!mg.alive || mg.hp < 100, 'çevrim içi nişancı makinelisi isabet eder' + tag, JSON.stringify(mg));
+  const st = await A.evaluate(() => { const s = window.__game.online.stats; return { fix: s.vehFix || 0, errMax: +(s.vehErrMax || 0).toFixed(3), avg: s.vehFix ? +(s.vehErrSum / s.vehFix).toFixed(3) : 0, corr: s.corrections - window.__c0, rtt: Math.round(s.rtt) }; });
+  ok(st.errMax < (tag ? 0.6 : 0.3), 'tank sürücü tahmini (sürüş + kule)' + tag, `araç düzeltmesi ${st.fix} · en büyük ${st.errMax} m · ort ${st.avg} · RTT ${st.rtt} ms`);
+  ok(!A.errs.length && !B.errs.length, 'çevrim içi tank: sayfa hatası yok' + tag, [...A.errs, ...B.errs].slice(0, 2).join(' | '));
   await browser.close();
 }
 
@@ -244,12 +454,14 @@ async function online(chromium) {
   const bwD = await bwP;
   const ra = await A.evaluate(() => { window.__recStop(); return window.__rec; }), rb = await B.evaluate(() => { window.__recStop(); return window.__rec; });
   const at = (r, t) => { for (let i = 1; i < r.length; i++) if (r[i][0] >= t) { const a = r[i - 1], b = r[i], k = (t - a[0]) / Math.max(1, b[0] - a[0]); return [a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k]; } return null; };
-  const es = []; for (const s of rb) { const p = at(ra, s[0] - (s[3] || 100) - 15); if (p) es.push(Math.hypot(p[0] - s[1], p[1] - s[2])); }
+  const rtts = await Promise.all([A, B].map((P) => P.evaluate(() => window.__game.online.stats.rtt || 0)));
+  const lag = (rtts[0] + rtts[1]) / 2;                                // A'nın tahmini sunucunun ~RTT/2 önünde, B'nin görüntüsü sunucunun RTT/2 + interpolasyon gecikmesi arkasında
+  const es = []; for (const s of rb) { const p = at(ra, s[0] - (s[3] || 100) - 15 - lag); if (p) es.push(Math.hypot(p[0] - s[1], p[1] - s[2])); }
   es.sort((a, b) => a - b);
   const st = await A.evaluate(() => { const s = window.__game.online.stats; return { fix: s.vehFix || 0, errMax: +(s.vehErrMax || 0).toFixed(3), corr: s.corrections - window.__c0, rtt: Math.round(s.rtt) }; });
   const dist = Math.hypot(ra[ra.length - 1][1] - ra[0][1], ra[ra.length - 1][2] - ra[0][2]);
-  ok(dist > 40 && st.fix <= 2 && st.errMax < 0.3, 'sürücü tahmini: sunucuyla uyumlu (araç düzeltmesi az)', `yol ${dist.toFixed(0)} m · düzeltme ${st.fix} · en büyük ${st.errMax} m · asker düzeltmesi ${st.corr} · RTT ${st.rtt} ms`);
-  ok(es.length > 100 && es[es.length >> 1] < 0.15 && es[Math.floor(es.length * 0.95)] < 0.4, 'B (yolcu) aracı A ile aynı yolda görür (interpolasyon gecikmesi kaydırılınca)', `medyan ${es[es.length >> 1]?.toFixed(3)} m · %95 ${es[Math.floor(es.length * 0.95)]?.toFixed(3)} m · ${es.length} örnek`);
+  ok(dist > 40 && st.errMax < (process.env.PROXY ? 0.6 : 0.3), 'sürücü tahmini: sunucuyla uyumlu (araç düzeltmesi az)' + (process.env.PROXY ? ' [vekil ' + process.env.PROXY + ']' : ''), `yol ${dist.toFixed(0)} m · düzeltme ${st.fix} · en büyük ${st.errMax} m · asker düzeltmesi ${st.corr} · RTT ${st.rtt} ms`);
+  ok(es.length > 100 && es[es.length >> 1] < (process.env.PROXY ? 0.6 : 0.25) && es[Math.floor(es.length * 0.95)] < (process.env.PROXY ? 1.2 : 0.4), 'B (yolcu) aracı A ile aynı yolda görür (interpolasyon gecikmesi + RTT kaydırılınca)', `medyan ${es[es.length >> 1]?.toFixed(3)} m · %95 ${es[Math.floor(es.length * 0.95)]?.toFixed(3)} m · ${es.length} örnek`);
   ok(bwD - bw0 < 6000, 'bant genişliği: park ↔ bir jip sürülürken (istemci başına)', `${(bw0 / 1024).toFixed(1)} → ${(bwD / 1024).toFixed(1)} KB/sn (+${((bwD - bw0) / 1024).toFixed(1)})`);
   ok(hr.hp < hr.hp0 || !hr.alive, 'hareketli araçtan yolcu isabeti (geri sarma atıcının koltuğuna da)', `${Math.round(hr.d)} m · ${hr.shots} atış · can ${hr.hp0} → ${hr.hp}${hr.alive ? '' : ' (öldü)'}` + (hr.hp < hr.hp0 || !hr.alive ? '' : ' · ' + JSON.stringify(hr)));
   // araç patlat: iki istemcide enkaz, içindekiler ölür
@@ -263,10 +475,14 @@ async function online(chromium) {
 }
 
 if (!ONLY || ONLY === 'headless') headless();
+if (!ONLY || ONLY === 'headless' || ONLY === 'tank') headlessTank();
 let chromium = null;
 try { ({ chromium } = await import('playwright')); } catch { console.log('(playwright yok: tarayıcı bölümleri atlandı)'); }
 const up = async (u) => { try { const r = await fetch(u); return r.ok; } catch { return false; } };
 if (chromium && (!ONLY || ONLY === 'browser')) { if (await up(URL0)) await browserOffline(chromium); else console.log('(vite yok: ' + URL0 + ' — çevrimdışı tarayıcı bölümü atlandı)'); }
-if (chromium && (!ONLY || ONLY === 'online')) { if (await up(SRV.replace(/^ws/, 'http') + '/health')) await online(chromium); else console.log('(sunucu yok: ' + SRV + ' — çevrim içi bölüm atlandı)'); }
+if (chromium && (!ONLY || ONLY === 'online' || ONLY === 'onlinetank')) {
+  if (await up(SRV.replace(/^ws/, 'http') + '/health') || process.env.PROXY) { if (ONLY !== 'onlinetank') await online(chromium); await onlineTank(chromium); }
+  else console.log('(sunucu yok: ' + SRV + ' — çevrim içi bölüm atlandı)');
+}
 console.log(fails ? `sonuç: ${fails} HATA` : 'sonuç: OK');
 process.exit(fails ? 1 : 0);

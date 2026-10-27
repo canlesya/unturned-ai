@@ -300,7 +300,11 @@ export class Room {
     if (!c || !Number.isInteger(m.q)) return;
     const h = c.h;
     if (h.queue.length > 60) return;      // taşma koruması
-    h.queue.push({
+    if (m.q <= h.ack) return;              // 12.178: geç gelen (sonrakisi işlenmiş) girdi atılır
+    const Q = h.queue; let at = Q.length;  // sıra no'ya göre sıralı ekle (yol üstünde yer değiştiren mesaj tahmini bozmasın; aynı no iki kez gelmez)
+    while (at > 0 && Q[at - 1].q > m.q) at--;
+    if (at > 0 && Q[at - 1].q === m.q) return;
+    h.queue.splice(at, 0, {
       q: m.q,
       f: Math.round(num(m.f, -1, 1) * 100) / 100, r: Math.round(num(m.r, -1, 1) * 100) / 100, l: Math.round(num(m.l, -1, 1)),     // f / r analog (dokunmatik joystick)
       s: m.s ? 1 : 0, j: m.j ? 1 : 0, a: m.a ? 1 : 0, dn: m.dn ? 1 : 0,        // dn: 12.180 dalma (çömel basılı)

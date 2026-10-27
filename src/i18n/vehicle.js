@@ -8,6 +8,9 @@ addStrings('tr', {
   'veh.hint.pas': '<b>Sol tık</b> ateş · <b>Tekerlek</b> silah · <b>1–4</b> koltuk · <b>{e}</b> in',
   'veh.burn': 'ARAÇ YANIYOR — İN!', 'veh.sunk': 'MOTOR SU ALDI', 'veh.t.camFirst': 'Araç kamerası: içeriden', 'veh.t.camThird': 'Araç kamerası: takip',
   'veh.t.lightsOn': 'Farlar açık', 'veh.t.lightsOff': 'Farlar kapalı', 'veh.kf': 'Jip',
+  'veh.tank': 'TANK', 'veh.reload': 'ANA TOP DOLUYOR · {n} sn', 'veh.ready': 'ANA TOP HAZIR', 'veh.mg': 'MAKİNELİ', 'veh.armor': 'ZIRH',
+  'veh.hint.tank': '<b>W A S D</b> sür · <b>Fare</b> kule · <b>Sol tık</b> ana top · <b>Sağ tık</b> yakınlaştır · <b>{v}</b> dürbün / takip · <b>{f}</b> far · <b>1–{n}</b> koltuk · <b>{e}</b> in',
+  'veh.hint.gunner': '<b>Sol tık</b> makineli · <b>Fare</b> nişan · <b>1–{n}</b> koltuk · <b>{e}</b> in',
   'agroup.4': 'Araç', 'tc.n.veh': 'Araca bin / in', 'tc.n.vcam': 'Araç kamerası', 'tc.n.seat': 'Koltuk değiştir',
 });
 addStrings('en', {
@@ -17,6 +20,9 @@ addStrings('en', {
   'veh.hint.pas': '<b>Left click</b> fire · <b>Wheel</b> weapon · <b>1–4</b> seat · <b>{e}</b> exit',
   'veh.burn': 'VEHICLE ON FIRE — GET OUT!', 'veh.sunk': 'ENGINE FLOODED', 'veh.t.camFirst': 'Vehicle camera: inside', 'veh.t.camThird': 'Vehicle camera: chase',
   'veh.t.lightsOn': 'Headlights on', 'veh.t.lightsOff': 'Headlights off', 'veh.kf': 'Jeep',
+  'veh.tank': 'TANK', 'veh.reload': 'MAIN GUN LOADING · {n} s', 'veh.ready': 'MAIN GUN READY', 'veh.mg': 'MACHINE GUN', 'veh.armor': 'ARMOR',
+  'veh.hint.tank': '<b>W A S D</b> drive · <b>Mouse</b> turret · <b>Left click</b> main gun · <b>Right click</b> zoom · <b>{v}</b> sight / chase · <b>{f}</b> lights · <b>1–{n}</b> seat · <b>{e}</b> exit',
+  'veh.hint.gunner': '<b>Left click</b> machine gun · <b>Mouse</b> aim · <b>1–{n}</b> seat · <b>{e}</b> exit',
   'agroup.4': 'Vehicle', 'action.vehicle': 'Enter / exit vehicle', 'action.vehCam': 'Vehicle camera (inside / chase)',
   'tc.n.veh': 'Enter / exit vehicle', 'tc.n.vcam': 'Vehicle camera', 'tc.n.seat': 'Switch seat',
 });
