@@ -384,6 +384,7 @@ export class TouchControls {
     if (id === 'breath') { this.breath = down; return; }                         // 12.156: basılı tutulduğu sürece nefes tut (Player → ScopeBreath)
     if (id === 'score') { g.hud.showScoreboard(down); return; }
     if (id === 'crouch') this.dive = down;                                     // 12.180: yüzerken çömel düğmesi basılıyken dalınır
+    if (id === 'crouch' && !down && this.down) { this.down = false; if (b) b.classList.remove('on'); }      // 12.183: alçal basılıyken inilse / koltuk değişse de bırakınca söner (eskiden takılı kalıyordu → sonraki binişte kendiliğinden alçalış)
     if (id === 'crouch' && s.veh?.def.heli && s.seat === 0) { this.down = down; if (b) b.classList.toggle('on', down); return; }      // 12.179 helikopter pilotu: çömel butonu basılıyken alçal
     if (!down) { if (id === 'jump') this.jump = false; return; }
     if (id === 'pause') { g.togglePause(); return; }

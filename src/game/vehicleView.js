@@ -109,6 +109,7 @@ export class VehicleView {
     o.x = p.x + (st.x - p.x) * a + vo.x; o.y = p.y + (st.y - p.y) * a + vo.y; o.z = p.z + (st.z - p.z) * a + vo.z;
     o.yaw = la(p.yaw, st.yaw); o.pitch = p.pitch + (st.pitch - p.pitch) * a; o.roll = p.roll + (st.roll - p.roll) * a;
     o.vx = st.vx; o.vy = st.vy; o.vz = st.vz; o.steer = st.steer; o.thr = st.thr; o.air = st.air; o.def = st.def; o.tyaw = st.tyaw; o.gp = st.gp; o.brk = st.brk;
+    o.rpm = st.rpm; o.sunk = st.sunk;              // 12.183: rotor devri de (yoksa çevrim içi pilotun kendi helikopterinde rotor / rotor sesi / rüzgârı 0'da kalıyordu)
     return o;
   }
 
