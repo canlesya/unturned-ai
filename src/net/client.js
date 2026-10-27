@@ -105,10 +105,11 @@ export class NetClient {
       fh: fireHeld ? 1 : 0, fp: e.fp | 0, rl: e.rl | 0, fm: e.fm | 0, o: e.o | 0, ab: e.ab | 0, vt: +this.rt.toFixed(2),
       sd: s.stanceLeft ? 1 : 0, tl: s.flashOn ? 1 : undefined,                      // 12.159: fener açık (yalnız açıkken yollanır; yoksa sunucu kapalı sayar)
       ve: e.ve ? 1 : undefined, vs: e.vs || undefined, vl: e.vl ? 1 : undefined,    // 12.177 araç kenar olayları (yalnız basılınca)
+      dn: inp.dn ? 1 : undefined,                                                    // 12.179 helikopter: alçal (C / Ctrl basılı)
       co: s.shotOff ? [+s.shotOff.x.toFixed(2), +s.shotOff.y.toFixed(2), +s.shotOff.z.toFixed(2)] : undefined,
     });
     const fire = !!(fireHeld || e.fp || e.rl);
-    this.hist.push({ q, fire, inp: { f: inp.f, r: inp.r, lean: inp.lean, sprint: !!inp.sprint, jump: !!inp.jump, dive: !!inp.dive }, ads: !!s.ads, adsT: s.adsT, yaw: s.yaw, pitch: s.pitch, e, st: { x: s.pos.x, y: s.pos.y, z: s.pos.z } });
+    this.hist.push({ q, fire, inp: { f: inp.f, r: inp.r, lean: inp.lean, sprint: !!inp.sprint, jump: !!inp.jump, dive: !!inp.dive, dn: !!inp.dn }, ads: !!s.ads, adsT: s.adsT, yaw: s.yaw, pitch: s.pitch, e, st: { x: s.pos.x, y: s.pos.y, z: s.pos.z } });
     if (this.hist.length > 240) this.hist.shift();
   }
 
@@ -341,7 +342,7 @@ export class NetClient {
     const bx = v.st.x, by = v.st.y, bz = v.st.z;
     applyVehState(v.st, b);
     for (const h of this.hist) {
-      stepVehicle(v.st, { f: h.inp.f, r: h.inp.r, b: h.inp.jump, yw: h.yaw, pt: h.pitch }, SIM_DT, g.world);      // 12.178: kule hedefi o girdideki bakış
+      stepVehicle(v.st, { f: h.inp.f, r: h.inp.r, b: h.inp.jump, u: h.inp.jump, d: h.inp.dn, yw: h.yaw, pt: h.pitch }, SIM_DT, g.world);      // 12.178: kule hedefi o girdideki bakış
       h.vst = packVehState(v.st);
     }
     g.vehicles.place(s);

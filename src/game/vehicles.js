@@ -1,4 +1,4 @@
-import { VT, makeVehicle, stepVehicle, toWorld, toLocal2, obbBox, rayVehicle, packVehState, applyVehState, vehicleAtRest, groundAt, gunPose } from '../sim/vehicle.js';
+import { VT, makeVehicle, stepVehicle, toWorld, toLocal2, obbBox, rayVehicle, packVehState, applyVehState, vehicleAtRest, groundAt, gunPose, mgAt } from '../sim/vehicle.js';
 import { dirFromAngles } from './util.js';
 import * as THREE from 'three';
 import { R as SR } from './collision.js';
@@ -139,15 +139,17 @@ export class Vehicles {
     const tries = [[sp[0], side * (d.hw + 0.62)], [sp[0], -side * (d.hw + 0.62)], [-(d.hl + 0.7), 0], [d.hl + 0.7, 0], [sp[0] - 0.6, side * (d.hw + 0.62)], [sp[0] + 0.6, side * (d.hw + 0.62)]];
     this.release(s);
     let ok = false;
-    for (const [f, r] of tries) {
+    const fly = d.heli && st.air && st.y - W.heightAt(st.x, st.z) > 2;      // 12.179 uçan helikopter: kapıdan boşluğa (zemine oturtulmaz → düşer)
+    for (const [f, r] of fly ? tries.slice(0, 2) : tries) {
       const p = toWorld({ ...st, pitch: 0, roll: 0 }, f, r, 0, _p);
+      if (fly) { s.pos.set(p.x, st.y + 0.3, p.z); if (W.canStand(s)) { ok = true; break; } continue; }
       s.pos.set(p.x, Math.max(st.y, W.heightAt(p.x, p.z)), p.z);
       W.settle(s);
       if (W.canStand(s) && Math.abs(s.pos.y - st.y) < 1.8 && !this.inside(s, 0.05)) { ok = true; break; }
     }
     if (!ok) { const p = toWorld(st, 0, 0, d.top + 0.05, _p); s.pos.set(p.x, p.y, p.z); }    // her yer kapalı: üstüne
     s.vel.set(st.vx * 0.5, Math.max(0, st.vy * 0.5), st.vz * 0.5);
-    s.onGround = false; s.fallTop = s.pos.y; s.fallSafe = true;
+    s.onGround = false; s.fallTop = s.pos.y; s.fallSafe = !(d.heli && st.air && st.y - W.heightAt(st.x, st.z) > 2);      // uçan helikopterden atlayan düşme hasarı alır
     s.height = 1.78;
     this.g.emit('vehexit', { s, v });
     return true;
@@ -178,9 +180,9 @@ export class Vehicles {
   // adım sonrası: çarpma / iniş hasarı (yetkili)
   afterStep(v, dt) {
     const st = v.st, d = v.def;
-    const k = 1 / (d.mass || 1);                                     // ağır araç (tank) çarpmadan az etkilenir
-    if (st.hit > 9) this.damage(v, (st.hit - 9) * 14 * k, v.lastHit && this.g.time - v.lastHitT < 6 ? v.lastHit : null, 'impact');
-    if (st.land > 9) this.damage(v, (st.land - 9) * 12 * k, null, 'impact');
+    const k = 1 / (d.mass || 1), hs = d.hitSafe ?? 9, ls = d.landSafe ?? 9;      // ağır araç (tank) çarpmadan az etkilenir · helikopter: düşük eşik, yüksek çarpan (sert iniş / rotor çarpması)
+    if (st.hit > hs) this.damage(v, (st.hit - hs) * (d.hitMul ?? 14) * k, v.lastHit && this.g.time - v.lastHitT < 6 ? v.lastHit : null, 'impact');
+    if (st.land > ls) this.damage(v, (st.land - ls) * (d.landMul ?? 12) * k, v.lastHit && this.g.time - v.lastHitT < 10 ? v.lastHit : null, 'impact');
   }
 
   // ── yetkili güncelleme (çevrimdışı / sunucu): Game.step, botlardan sonra ──
@@ -229,6 +231,7 @@ export class Vehicles {
   }
 
   deadTick(v, dt) {
+    if (v.wreck && v.def.heli && v.st?.air) stepVehicle(v.st, null, dt, this.g.world);      // 12.179: havada patlayan helikopterin enkazı düşer
     if (v.wreck) { v.deadT += dt; if (v.deadT >= v.def.wreck) { v.wreck = false; v.respawnT = v.def.respawn; } return; }
     if (!v.st && !v.spawnN) { this.trySpawn(v); return; }             // bayrak aracı: bayrak alınınca ilk doğuş
     v.respawnT -= dt;
@@ -449,10 +452,11 @@ export class Vehicles {
 
   // Kule makinelisi (nişancı koltuğu): basılı tutulunca rpm'de mermi; çıkış = nişancının gözü (kapakta), yön = bakış + sapma (tohumlu: istemci izi sunucuyla aynı)
   mgFire(s, held, dt) {
-    const v = s.veh, M = v?.def.mg;
-    if (!M || s.seat !== M.seat) return false;
+    const v = s.veh, M = v ? mgAt(v.def, s.seat) : null;
+    if (!M) return false;
     s.vcd = Math.max(0, (s.vcd || 0) - dt);
     if (!held || s.vcd > 0 || !v.alive) return false;
+    if (M.arc) { const side = M.arc[s.seat], dy = ((s.yaw - (v.st.yaw - side * Math.PI / 2) + Math.PI * 3) % (Math.PI * 2)) - Math.PI; if (Math.abs(dy) > M.arcW) return false; }      // 12.179 kapı makinelisi: kapının yönünde yay (sol kapı −1 = yaw + 90°)
     s.vcd = 60 / M.rpm;
     const g = this.g, o = s.eye(), base = dirFromAngles(s.yaw, s.pitch), rnd = g.paint.rngFor(s);
     const sp = M.hip + Math.min(this.speed(v) * 0.0008, 0.01) + (s.brain ? s.botExtraSpread : 0), a = rnd() * Math.PI * 2, rr = Math.sqrt(rnd()) * sp;
@@ -503,6 +507,7 @@ export class Vehicles {
       const tm = v.paint === 'blue' ? 1 : v.paint === 'red' ? 2 : 0;
       const a = st ? [v.idx, r2(st.x), r2(st.y), r2(st.z), r3(st.yaw), r3(st.pitch), r3(st.roll), r2(st.vx), r2(st.vy), r2(st.vz), r3(st.steer), Math.round(v.hp), fl, r2(st.thr), tm] : [v.idx, 0, -999, 0, 0, 0, 0, 0, 0, 0, 0, 0, fl, 0, tm];
       if (st && v.def.turret) a.push(r3(st.tyaw), r3(st.gp), Math.ceil(v.rl * 10) / 10);      // 12.178 kule yaw, top açısı, dolum (sn)
+      else if (st && v.def.heli) a.push(r2(st.rpm));                        // 12.179 rotor devri
       const sig = a.join(',');
       if (!force && sig === v.sig) continue;
       v.sig = sig;
@@ -545,7 +550,7 @@ export class Vehicles {
     const la = (x, y) => x + (((y - x + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * t;
     st.x = L(1) + A[7] * ex; st.y = L(2); st.z = L(3) + A[9] * ex; st.yaw = la(A[4], B[4]); st.pitch = L(5); st.roll = L(6);
     st.vx = A[7]; st.vy = A[8]; st.vz = A[9]; st.steer = L(10); st.thr = A[13]; st.air = !!(fl & F_AIR); st.sunk = !!(fl & F_SUNK);
-    if (A.length > 15 && B.length > 15) { st.tyaw = la(A[15], B[15]); st.gp = L(16); v.rl = A[17]; }
+    if (A.length > 15 && B.length > 15) { if (v.def.turret) { st.tyaw = la(A[15], B[15]); st.gp = L(16); v.rl = A[17]; } else if (v.def.heli) st.rpm = L(15); }
     if (v.alive && !was) { v.spawnN = (v.spawnN || 0) + 1; this.g.emit('vehspawn', v); }
   }
 

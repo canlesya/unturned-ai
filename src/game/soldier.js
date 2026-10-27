@@ -11,6 +11,7 @@ import { pbItems } from './match.js';
 import { cleanWear, wearCodeOf, botWear } from './wearIds.js';
 import { releaseCapeSway } from '../models/wear.js';
 import { throwState, pinSfx } from './grenade.js';
+import { mgAt } from '../sim/vehicle.js';
 import { spaceTp } from './space.js';
 import { SWIM, swimCanFire, waterYAt } from '../sim/swim.js';
 
@@ -970,7 +971,7 @@ export class Soldier {
     }
     if (this.swing) melee = { kind: this.swing.kind, k: clamp(this.swing.t / this.swing.dur, 0, 1) };
     const vh = this.veh && this.veh.st;
-    if (vh) { const mg = this.veh.def.mg?.seat === this.seat; this._seatPose(m, p, root, vh, mg); m.refreshHold({ twist: this._seatTwist, side: 1, aimP: clamp(this.pitch + this.recoilP, -0.8, 0.8), reload, melee, drive: this.seat === 0 || mg, wheelA: mg ? 0 : -vh.steer * 2.2 }); if (this.veh.def.hidden?.[this.seat]) root.visible = false; return; }      // 12.178: tank sürücüsü gövdede görünmez, nişancı makineliyi tutar
+    if (vh) { const mg = !!mgAt(this.veh.def, this.seat); this._seatPose(m, p, root, vh, mg); m.refreshHold({ twist: this._seatTwist, side: 1, aimP: clamp(this.pitch + this.recoilP, -0.8, 0.8), reload, melee, drive: this.seat === 0 || mg, wheelA: mg ? 0 : -vh.steer * 2.2 }); if (this.veh.def.hidden?.[this.seat]) root.visible = false; return; }      // 12.178: tank sürücüsü gövdede görünmez, nişancı makineliyi tutar
     if (root.rotation.order !== 'XYZ') root.rotation.order = 'XYZ';
     m.refreshHold({ sprint: Math.max(this.sprintT, swK) * (1 - pr), kick: clamp(this.flashT / 0.06, 0, 1), twist: (twist + twistY) * (1 - pr), swing, side: this.stanceT, prone: pr, aimP: clamp(this.pitch + this.recoilP, -0.8, 0.8), reload, melee });
     if (m.zshape && pr < 0.5) this._zombiePose(m, p, root, T, ph, moveAmt, run);

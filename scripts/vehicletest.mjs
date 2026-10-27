@@ -23,7 +23,7 @@ function headless() {
   console.log('── başsız ──');
   const mkG = (o = {}) => new Game(null, { headless: true, map: 'kuzey', tod: 'day', weather: 'clear', diff: 'normal', bots: false, match: { perTeam: 4, type: 'conquest' }, ...o });
   const g = mkG(), V = g.vehicles;
-  ok(V && V.list.length === 16 && V.list.filter((v) => v.alive).length === 10, 'kurulum: 12 jip (6 üs + 6 bayrak) + 4 tank (üslerde), maç başında üslerdeki 6 jip + 4 tank hazır, bayrak jipleri bayrak alınınca', V ? `${V.list.length} / ${V.list.filter((v) => v.alive).length}` : 'yok');
+  ok(V && V.list.length === 20 && V.list.filter((v) => v.alive).length === 14, 'kurulum: 12 jip (6 üs + 6 bayrak) + 4 tank + 4 helikopter (üs helipadleri), maç başında üslerdeki 6 jip + 4 tank + 4 helikopter hazır, bayrak jipleri bayrak alınınca', V ? `${V.list.length} / ${V.list.filter((v) => v.alive).length}` : 'yok');
   const others = [['kasaba', 'conquest'], ['colgecidi', 'tdm'], ['kuzey', 'tdm'], ['vadi', 'conquest']].map(([map, type]) => { const o = new Game(null, { headless: true, map, tod: 'day', weather: 'clear', diff: 'normal', bots: false, match: { perTeam: 2, type } }); return map + '/' + type + ':' + (o.vehicles ? 'VAR' : 'yok'); });
   ok(others.every((s) => s.endsWith('yok')), 'diğer haritalar / Kuzey TDM: araç yöneticisi yok (davranış aynı)', others.join(' '));
   const s = g.claimSlot('blue', 'Test', 'assault', {}), h = g.humans.get(s.id);
@@ -228,6 +228,89 @@ function headlessTank() {
   ok(true, 'tank sürücü adımı', `${f1((performance.now() - t0) / 2000 * 1000)} µs`);
 }
 
+// ───────── 1c) başsız: HELİKOPTER (12.179) ─────────
+function headlessHeli() {
+  console.log('── başsız: helikopter ──');
+  const g = new Game(null, { headless: true, map: 'kuzey', tod: 'day', weather: 'clear', diff: 'normal', bots: false, match: { perTeam: 6, type: 'conquest' } }), V = g.vehicles, D = VT['heli-n'];
+  const s = g.claimSlot('blue', 'Pilot', 'assault', {}), h = g.humans.get(s.id);
+  let q = 0;
+  const I = (o = {}) => ({ q: ++q, f: 0, r: 0, l: 0, s: 0, j: 0, a: 0, yw: s.yaw, pt: s.pitch, w: s.cur, c: 0, p: 0, u: 0, fh: 0, fp: 0, rl: 0, fm: 0, o: 0, ab: 0, vt: null, ve: 0, vs: 0, vl: 0, dn: 0, ...o });
+  const step = (n, o = {}) => { for (let i = 0; i < n; i++) { h.queue.push(I(typeof o === 'function' ? o(i) : o)); g.step(1 / 60); } };
+  const H = V.list.find((x) => x.id === 'B-H1'), pad = g.map.helipads.find((p) => p.id === 'BH1');
+  ok(H.alive && Math.hypot(H.st.x - pad.x, H.st.z - pad.z) < 0.5 && !H.st.air, 'helikopter helipadde (BH1) yerde doğar', `${f1(H.st.x)},${f1(H.st.z)} · y ${f2(H.st.y)}`);
+  s.pos.set(H.st.x + 2.6, H.st.y, H.st.z); s.protT = 0; step(1, { ve: 1 }); step(1);
+  ok(s.veh === H && s.seat === 0, 'E ile pilot koltuğu', s.seat);
+  const y0 = H.st.y; step(60, { j: 1, yw: H.st.yaw });
+  const early = H.st.y - y0;
+  let tt = 0; while (H.st.y - y0 < 20 && tt < 12) { step(6, { j: 1, yw: H.st.yaw }); tt += 0.1; }
+  ok(early < 0.3 && tt < 7, 'rotor önce döner (1 sn\'de kalkmaz), sonra Boşlukla yükselir', `ilk 1 sn ${f2(early)} m · 20 m'ye ${f1(tt + 1)} sn`);
+  step(60, { yw: H.st.yaw }); const hy = H.st.y; step(180, { yw: H.st.yaw });
+  ok(Math.abs(H.st.y - hy) < 0.6 && H.st.air, 'girdi yokken havada asılı kalır', `${f2(H.st.y - hy)} m / 3 sn`);
+  const hy2 = H.st.y; H.st.x = 0; H.st.z = 400; step(300, { f: 1, yw: 0 });
+  const spd = Math.hypot(H.st.vx, H.st.vz);
+  ok(spd > 35 && Math.abs(H.st.y - hy2) < 1.5, 'W: ileri (burun aşağı eğilir), irtifa korunur', `${Math.round(spd * 3.6)} km/s · eğim ${f2(H.st.pitch)}`);
+  const yw0 = H.st.yaw; step(90, { f: 1, yw: 1.2 });
+  ok(Math.abs(H.st.yaw - 1.2) < 0.08, 'burun fareyle (bakış yaw) döner', `${f2(yw0)} → ${f2(H.st.yaw)}`);
+  step(120, { f: -1, yw: 1.2 }); step(60, { yw: 1.2 });
+  step(90, { r: 1, yw: 1.2 });
+  ok(Math.abs(H.st.roll) > 0.1, 'D: yana kayma (gövde yatar)', `yatış ${f2(H.st.roll)}`);
+  // yumuşak iniş
+  H.st.x = 0; H.st.z = 300; H.st.vx = H.st.vz = 0; const hp0 = H.hp; let tl = 0; while (H.st.air && tl < 30) { step(6, { dn: 1, yw: 1.2 }); tl += 0.1; }
+  ok(!H.st.air && H.hp === hp0, 'C ile alçal: yere yaklaşınca yavaşlar, hasarsız iner', `${f1(tl)} sn · can ${Math.round(hp0)} → ${Math.round(H.hp)}`);
+  // kapı nişancısı: yay içinde vurur, dışında ateş etmez
+  step(1, { j: 1 }); let k = 0; while (H.st.y - g.world.heightAt(H.st.x, H.st.z) < 12 && k < 600) { step(1, { j: 1, yw: 0 }); k++; } step(60, { yw: 0 });
+  const gn = g.claimSlot('blue', 'Nişancı', 'assault', {}), hg = g.humans.get(gn.id); V.enter(gn, H, 1);
+  const tgt = g.soldiers.find((o) => o.team === 'red'); tgt.vacant = false; tgt.spawn({ x: H.st.x - 25, z: H.st.z + 4, ry: 0 }, 0); g.world.settle(tgt); tgt.protT = 0; tgt.hp = 100;
+  let n = 0; for (; n < 180 && tgt.alive; n++) { const e = gn.eye(), c = tgt.center(), dx = c.x - e.x, dz = c.z - e.z; hg.queue.push({ q: n + 1, f: 0, r: 0, l: 0, s: 0, j: 0, a: 0, yw: Math.atan2(-dx, -dz), pt: Math.atan2(c.y - e.y, Math.hypot(dx, dz)), w: gn.cur, c: 0, p: 0, u: 0, fh: 1, fp: n === 0 ? 1 : 0, rl: 0, fm: 0, o: 0, ab: 0, vt: null }); h.queue.push(I({ yw: 0 })); g.step(1 / 60); }
+  ok(!tgt.alive, 'sol kapı nişancısı (havada) soldaki düşmanı makineliyle öldürür', `${f2(n / 60)} sn`);
+  const t2 = tgt; t2.spawn({ x: H.st.x + 25, z: H.st.z, ry: 0 }, 0); g.world.settle(t2); t2.protT = 0; t2.hp = 100;
+  for (let i = 0; i < 90; i++) { const e = gn.eye(), c = t2.center(), dx = c.x - e.x, dz = c.z - e.z; hg.queue.push({ q: 500 + i, f: 0, r: 0, l: 0, s: 0, j: 0, a: 0, yw: Math.atan2(-dx, -dz), pt: Math.atan2(c.y - e.y, Math.hypot(dx, dz)), w: gn.cur, c: 0, p: 0, u: 0, fh: 1, fp: 0, rl: 0, fm: 0, o: 0, ab: 0, vt: null }); h.queue.push(I({ yw: 0 })); g.step(1 / 60); }
+  ok(t2.alive && t2.hp === 100, 'kapı yayı dışındaki (sağdaki) hedefe sol makineli ateş etmez', `can ${t2.hp}`);
+  V.exit(gn);
+  // hasar: mermi az, RPG çok; çarpma
+  const hb = H.hp; V.damage(H, 30, t2, 'bullet'); const dB = hb - H.hp;
+  g.explode(new (s.pos.constructor)(H.st.x, H.st.y + 1.5, H.st.z), 6.5, 160, t2, 'RPG-7', undefined, 'at'); const dR = hb - H.hp - dB;
+  ok(dB > 3 && dB < 6 && dR > 200, 'hasar: mermi az (× ' + D.bulletMul + '), RPG çok (2–3 RPG)', `mermi ${f1(dB)} · RPG ${f1(dR)}`);
+  H.hp = D.hp;
+  // dağa çarpma → hasar / patlama (kuzey dağları x −765 ötesi; burada Radar Tepesi yamacı yerine doğrudan yüksek arazi: alçalıp yamaca)
+  H.st.x = -560; H.st.z = 30; H.st.y = g.world.heightAt(-560, 30) + 6; H.st.vx = H.st.vz = H.st.vy = 0; H.st.air = true; H.st.yaw = 0;
+  let tc = 0, minHp = H.hp; while (H.alive && tc < 8) { step(6, { f: 1, dn: 1, yw: 0 }); tc += 0.1; minHp = Math.min(minHp, H.hp); }
+  ok(minHp < D.hp - 40, 'tam hızla yamaca / yere çarpma: ağır hasar (gövde / rotor ucu)', `can ${D.hp} → ${Math.round(Math.max(0, minHp))}${H.alive ? '' : ' (patladı)'}`);
+  // pilot havada atlar: helikopter düşer + patlar; pilot düşme hasarı alır
+  if (!H.alive) { while (!H.alive) g.step(0.25); }
+  if (!s.alive) g.respawn(s);
+  H.st.x = 0; H.st.z = 300; H.st.y = g.world.heightAt(0, 300); H.st.vx = H.st.vy = H.st.vz = 0; H.st.air = false; H.hp = D.hp;
+  s.pos.set(H.st.x + 2.6, H.st.y, H.st.z); s.protT = 0; if (!s.veh) { step(1, { ve: 1 }); step(1); }
+  let tu = 0; while ((H.st.y - g.world.heightAt(H.st.x, H.st.z) < 30 || H.st.rpm < 1) && tu < 15) { step(6, { j: 1, yw: H.st.yaw }); tu += 0.1; }
+  step(1, { ve: 1 }); const shp = s.hp;
+  let tf = 0; while (H.alive && tf < 20) { step(6, { yw: s.yaw }); tf += 0.1; }
+  ok(!H.alive && H.wreck && (s.hp < shp || !s.alive), 'pilot havada atlarsa: rotor söner, helikopter düşüp patlar; pilot düşme hasarı alır', `${f1(tf)} sn · pilot ${s.alive ? Math.round(s.hp) : 'öldü'}`);
+  // savaş alanı sınırı uçarken de geçerli
+  while (!H.alive) g.step(0.25);
+  if (!s.alive) g.respawn(s);
+  s.pos.set(H.st.x + 2.6, H.st.y, H.st.z); s.protT = 0; step(1, { ve: 1 }); step(1);
+  step(300, { j: 1, yw: H.st.yaw });
+  H.st.x = 790; H.st.z = 0; let to = 0; while (s.alive && to < 13) { step(6, { yw: H.st.yaw }); to += 0.1; }
+  ok(!s.alive && to > 9.5 && to < 11, 'savaş alanı dışında uçan pilot ~10 sn sonra ölür (yükseklik fark etmez)', `${f1(to)} sn · irtifa ${f1(H.st.y - g.world.heightAt(H.st.x, H.st.z))} m`);
+  // bot kapı nişancısı: yerdeki helikoptere biner, uçarken inmez
+  const gb = new Game(null, { headless: true, map: 'kuzey', tod: 'day', weather: 'clear', diff: 'normal', bots: true, match: { perTeam: 6, type: 'conquest' } }), VB = gb.vehicles;
+  const pb = gb.claimSlot('blue', 'Pilot', 'assault', {}), hpq = gb.humans.get(pb.id), HB = VB.list.find((x) => x.id === 'B-H2');
+  pb.pos.set(HB.st.x + 2.6, HB.st.y, HB.st.z); pb.protT = 0; VB.enter(pb, HB, 0);
+  const m = gb.soldiers.filter((e) => e.team === 'blue' && e.brain).slice(0, 2);
+  m.forEach((b, i) => { b.pos.set(HB.st.x - 8 - i * 2, HB.st.y, HB.st.z + 4); gb.world.settle(b); b.brain.target = null; });
+  let qq = 0, tb = 0; const sb = (o = {}) => { hpq.queue.push({ q: ++qq, f: 0, r: 0, l: 0, s: 0, j: 0, a: 0, yw: HB.st.yaw, pt: 0, w: pb.cur, c: 0, p: 0, u: 0, fh: 0, fp: 0, rl: 0, fm: 0, o: 0, ab: 0, vt: null, ve: 0, vs: 0, vl: 0, dn: 0, ...o }); gb.step(1 / 60); };
+  for (; tb < 8 && HB.seats.filter((o) => o?.brain).length < 2; tb += 1 / 60) sb();
+  const nB = HB.seats.filter((o) => o?.brain).length;
+  for (let i = 0; i < 600; i++) sb({ j: 1 }); for (let i = 0; i < 400; i++) sb({});
+  ok(nB >= 1 && HB.seats.filter((o) => o?.brain).length === nB && HB.st.air, 'bot nişancılar yerdeki helikoptere biner, havada asılıyken inmez', `${nB} bot · ${f1(tb)} sn · irtifa ${f1(HB.st.y - gb.world.heightAt(HB.st.x, HB.st.z))} m`);
+  // tank kulesi vuruş kutusu kuleyle döner
+  const T = V.list.find((x) => x.type === 'tank' && x.alive), tu2 = VT.tank.turret, P = (x, y, z) => new (s.pos.constructor)(x, y, z);
+  T.st.yaw = 0; T.st.pitch = 0; T.st.roll = 0; const cz = T.st.z + 0.35;     // kule ekseni (f −0,35 → z +0,35)
+  T.st.tyaw = 0; const r0 = V.raycast(P(T.st.x + 1.45, T.st.y + 4, cz), P(0, -1, 0), 10);
+  T.st.tyaw = Math.PI / 2; const r1 = V.raycast(P(T.st.x + 1.45, T.st.y + 4, cz), P(0, -1, 0), 10);
+  ok((!r0 || r0.point.y < T.st.y + 1.8) && r1 && r1.point.y > T.st.y + 2.3, 'tank kulesinin vuruş kutusu kuleyle döner', `düz: ${r0 ? f2(r0.point.y - T.st.y) : '—'} · 90°: ${r1 ? f2(r1.point.y - T.st.y) : '—'}`);
+}
+
 // ───────── 2) tarayıcı (çevrimdışı) ─────────
 async function browserOffline(chromium) {
   console.log('── tarayıcı (çevrimdışı) ──');
@@ -317,6 +400,37 @@ async function browserOffline(chromium) {
     ok(!errs.length, `tarayıcı tank (${tod === 'day' ? 'gündüz' : 'gece'}): sayfa hatası yok`, errs.slice(0, 2).join(' | '));
     await page.context().close();
   }
+  // 12.179 HELİKOPTER görüntüleri → /tmp/wb-arac/heli
+  const HOUT = OUT.replace(/jip\/?$/, 'heli'); fs.mkdirSync(HOUT, { recursive: true });
+  for (const tod of ['day', 'night']) {
+    const page = await (await browser.newContext({ viewport: { width: 1280, height: 720 }, locale: 'tr-TR' })).newPage();
+    const errs = []; page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); });
+    await page.goto(`${URL0}/?autostart=4v4&map=kuzey&type=conquest&tod=${tod}&debug=1&nolock=1&nologin=1`);
+    await page.waitForFunction('window.__game && window.__game.running', null, { timeout: 180000 });
+    await page.waitForTimeout(1200);
+    const ev = (f, a) => page.evaluate(f, a), shot = async (n, w = 400) => { await page.waitForTimeout(w); await page.screenshot({ path: `${HOUT}/${tod === 'night' ? 'gece-' : ''}${n}.png` }); };
+    await ev(() => { const g = window.__game; g.brainsOff = g.brains.splice(0); g.devGod = true; g.playerSoldier.fly = false; });
+    if (tod === 'day') { await ev(() => { const g = window.__game, V = g.vehicles, me = g.playerSoldier, v = V.list.find((x) => x.id === 'B-H1'); me.pos.set(v.st.x + 9, v.st.y, v.st.z - 8); g.world.settle(me); me.yaw = Math.atan2(-(v.st.x - me.pos.x), -(v.st.z - me.pos.z)); me.pitch = 0.05; }); await shot('01-helipadde'); }
+    await ev(() => { const g = window.__game, V = g.vehicles, me = g.playerSoldier, v = V.list.find((x) => x.id === 'B-H1'); me.pos.set(v.st.x + 2.6, v.st.y, v.st.z); g.world.settle(me); V.toggle(me); g.player.vehCam = 'third'; me.yaw = v.st.yaw; me.pitch = -0.2; v.lights = g.night; });
+    await shot('02-pilot-rotor-donuyor', 1800);
+    await page.keyboard.down('Space'); await page.waitForTimeout(3200); await shot('03-kalkis-rotor-ruzgari', 0); await page.waitForTimeout(2500); await page.keyboard.up('Space');
+    await page.keyboard.down('KeyW'); await page.waitForTimeout(2800); await shot('04-ileri-ucus', 0);
+    await page.keyboard.down('KeyD'); await page.waitForTimeout(900); await shot('05-yana-yatis', 0); await page.keyboard.up('KeyD'); await page.keyboard.up('KeyW');
+    await ev(() => { window.__game.player.vehCam = 'first'; }); await shot('06-kokpit', 700);
+    await ev(() => { const g = window.__game, me = g.playerSoldier; g.player.vehCam = 'third'; me.yaw = me.veh.st.yaw + 2.7; me.pitch = -0.35; }); await shot('07-onden-takip', 700);
+    const flew = await ev(() => { const g = window.__game, v = g.playerSoldier.veh; return { alt: v.st.y - g.world.heightAt(v.st.x, v.st.z), d: Math.hypot(v.st.x - v.spawn.x, v.st.z - v.spawn.z) }; });
+    await ev(() => { const g = window.__game, V = g.vehicles, me = g.playerSoldier; V.seatTo(me, 1); me.yaw = me.veh.st.yaw + Math.PI / 2; me.pitch = -0.45; });
+    await ev(() => { window.__game.player.fireHeld = true; }); await shot('08-kapi-nisancisi', 700); await ev(() => { window.__game.player.fireHeld = false; });
+    const seat = await ev(() => window.__game.playerSoldier.seat);
+    if (tod === 'day') ok(flew.alt > 15 && flew.d > 30 && seat === 1, 'tarayıcı helikopter: Boşluk kalkış, W ileri uçuş, 2 → sol kapı nişancısı', `irtifa ${flew.alt.toFixed(0)} m · ${flew.d.toFixed(0)} m · koltuk ${seat}`);
+    await ev(() => { const g = window.__game, V = g.vehicles, me = g.playerSoldier, v = me.veh; V.seatTo(me, 0); });
+    await page.keyboard.down('KeyC'); await page.waitForTimeout(4500); await page.keyboard.up('KeyC');
+    await ev(() => { const g = window.__game, V = g.vehicles, me = g.playerSoldier, v = me.veh; V.exit(me); me.pos.set(v.st.x - 12, g.world.heightAt(v.st.x - 12, v.st.z + 10), v.st.z + 10); g.world.settle(me); me.yaw = Math.atan2(-(v.st.x - me.pos.x), -(v.st.z - me.pos.z)); me.pitch = Math.atan2(v.st.y + 1.5 - me.pos.y - 1.6, Math.hypot(v.st.x - me.pos.x, v.st.z - me.pos.z)); v.hp = 140; });
+    await shot('09-hasarli-yaniyor', 1800);
+    await ev(() => { const v = window.__game.vehicles.list.find((x) => x.id === 'B-H1'); v.hp = 1; }); await shot('10-enkaz', 3000);
+    ok(!errs.length, `tarayıcı helikopter (${tod === 'day' ? 'gündüz' : 'gece'}): sayfa hatası yok`, errs.slice(0, 2).join(' | '));
+    await page.context().close();
+  }
   // telefon (Pixel 7 profili): dokunmatik araç butonları
   const ctx = await browser.newContext({ viewport: { width: 915, height: 412 }, deviceScaleFactor: 2.6, isMobile: true, hasTouch: true, userAgent: 'Mozilla/5.0 (Linux; Android 14; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36', locale: 'tr-TR' });
   const mp = await ctx.newPage(); const merr = []; mp.on('pageerror', (e) => merr.push(e.message));
@@ -334,6 +448,15 @@ async function browserOffline(chromium) {
   await mp.screenshot({ path: `${OUT}/12-telefon-surucu.png` });
   await mp.evaluate(() => { const g = window.__game, V = g.vehicles, me = g.playerSoldier, t = V.list.find((x) => x.id === 'B-T1'); V.exit(me); me.pos.set(t.st.x + 2.6, t.st.y, t.st.z); g.world.settle(me); V.toggle(me); me.yaw = t.st.yaw + 2.6; me.pitch = -0.25; });
   await mp.waitForTimeout(900); await mp.screenshot({ path: `${OUT.replace(/jip\/?$/, 'tank')}/13-telefon-tank.png` });
+  const mh = await mp.evaluate(() => { const g = window.__game, V = g.vehicles, me = g.playerSoldier, H = V.list.find((x) => x.id === 'B-H1'); V.exit(me); me.pos.set(H.st.x + 2.6, H.st.y, H.st.z); g.world.settle(me); V.toggle(me); me.yaw = H.st.yaw; me.pitch = -0.2; const vis = (k) => { const b = document.querySelector(`#tc [data-b="${k}"]`); return b && !b.classList.contains('hid') && !b.classList.contains('vh'); }; return { veh: me.veh?.id }; });
+  await mp.waitForTimeout(3300);
+  const jb = await mp.evaluate(() => document.querySelector('#tc [data-b="jump"]').getBoundingClientRect().toJSON());
+  const y0 = await mp.evaluate(() => window.__game.playerSoldier.veh.st.y);
+  await mp.touchscreen.tap(jb.x + jb.width / 2, jb.y + jb.height / 2);
+  await mp.evaluate(() => { const T = window.__game.player.touch; T.jump = true; }); await mp.waitForTimeout(2500); await mp.evaluate(() => { window.__game.player.touch.jump = false; });
+  const hm = await mp.evaluate((y0) => { const g = window.__game, v = g.playerSoldier.veh, vis = (k) => { const b = document.querySelector(`#tc [data-b="${k}"]`); return !!b && !b.classList.contains('hid') && !b.classList.contains('vh'); }; return { up: +(v.st.y - y0).toFixed(1), crouch: vis('crouch'), jump: vis('jump'), vcam: vis('vcam') }; }, y0);
+  await mp.screenshot({ path: `${OUT.replace(/jip\/?$/, 'heli')}/11-telefon-pilot.png` });
+  ok(mh.veh === 'B-H1' && hm.up > 5 && hm.crouch && hm.jump && hm.vcam, 'telefon helikopter: zıpla butonu basılıyken yükselir, çömel butonu = alçal, kamera butonu', JSON.stringify(hm));
   ok(btn && mv.veh === 'B-J1' && mv.vcam && mv.seat && !merr.length, 'telefon: araç yanında "bin" butonu, dokununca sürücü; kamera + koltuk butonları (joystick = gaz / direksiyon, zıpla = fren, ateş = korna)', JSON.stringify(mv) + (merr.length ? ' · ' + merr[0] : ''));
   await browser.close();
 }
@@ -400,6 +523,63 @@ async function onlineTank(chromium) {
   const st = await A.evaluate(() => { const s = window.__game.online.stats; return { fix: s.vehFix || 0, errMax: +(s.vehErrMax || 0).toFixed(3), avg: s.vehFix ? +(s.vehErrSum / s.vehFix).toFixed(3) : 0, corr: s.corrections - window.__c0, rtt: Math.round(s.rtt) }; });
   ok(st.errMax < (tag ? 0.6 : 0.3), 'tank sürücü tahmini (sürüş + kule)' + tag, `araç düzeltmesi ${st.fix} · en büyük ${st.errMax} m · ort ${st.avg} · RTT ${st.rtt} ms`);
   ok(!A.errs.length && !B.errs.length, 'çevrim içi tank: sayfa hatası yok' + tag, [...A.errs, ...B.errs].slice(0, 2).join(' | '));
+  await browser.close();
+}
+
+// ───────── 3c) çevrim içi HELİKOPTER (12.179): A pilot, B sol kapı nişancısı ─────────
+async function onlineHeli(chromium) {
+  const tag = process.env.PROXY ? ' [vekil ' + process.env.PROXY + ']' : '';
+  console.log('── çevrim içi: helikopter' + tag + ' ──');
+  const browser = await chromium.launch({ args: ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu'] });
+  const mk = async () => { const p = await (await browser.newContext({ viewport: { width: 1280, height: 720 }, locale: 'tr-TR' })).newPage(); p.errs = []; p.on('pageerror', (e) => p.errs.push(e.message)); return p; };
+  const A = await mk(), B = await mk();
+  await A.goto(`${URL0}/?online=new&name=Ali&server=${encodeURIComponent(SRV)}&map=kuzey&type=conquest&per=4&team=blue&debug=1&nolock=1&nologin=1`);
+  await A.waitForFunction('window.__game && window.__game.running && window.__game.playerSoldier.alive', null, { timeout: 240000 });
+  const code = await A.evaluate(() => window.__game._badgeCode);
+  await B.goto(`${URL0}/?online=${code}&name=Veli&team=blue&server=${encodeURIComponent(SRV)}&debug=1&nolock=1&nologin=1`);
+  await B.waitForFunction('window.__game && window.__game.running && window.__game.playerSoldier.alive', null, { timeout: 240000 });
+  for (const P of [A, B]) await P.evaluate(() => { const g = window.__game; g.online.send({ t: 'dbg', bots: false }); window.__bytes = 0; g.online.ws.addEventListener('message', (e) => { window.__bytes += e.data.length; }); });
+  await A.waitForTimeout(1500);
+  const jp = await A.evaluate(() => { const v = window.__game.vehicles.list.find((x) => x.id === 'B-H1'); return [v.st.x, v.st.z, v.st.yaw]; });
+  await A.evaluate((p) => window.__game.online.send({ t: 'dbg', tp: [p[0] + 2.4, p[1] - 1.5] }), jp);
+  await B.evaluate((p) => window.__game.online.send({ t: 'dbg', tp: [p[0] - 2.2, p[1] + 0.3] }), jp);
+  await A.waitForTimeout(1500);
+  await A.keyboard.press('KeyE'); await A.waitForTimeout(900); await B.keyboard.press('KeyE'); await B.waitForTimeout(900);
+  const seats = await Promise.all([A, B].map((P) => P.evaluate(() => { const me = window.__game.playerSoldier; return [me.veh?.id, me.seat]; })));
+  ok(seats[0][0] === 'B-H1' && seats[0][1] === 0 && seats[1][0] === 'B-H1' && seats[1][1] === 1, 'çevrim içi helikopter: A pilot, B sol kapı nişancısı' + tag, JSON.stringify(seats));
+  await A.evaluate(() => { const g = window.__game; g.player.vehCam = 'third'; g.playerSoldier.yaw = g.playerSoldier.veh.st.yaw; g.playerSoldier.pitch = -0.1; const s = g.online.stats; s.vehFix = 0; s.vehErrMax = 0; s.vehErrSum = 0; window.__c0 = s.corrections; });
+  const bw0 = await A.evaluate(async () => { const b = window.__bytes; await new Promise((r) => setTimeout(r, 3000)); return (window.__bytes - b) / 3; });
+  await A.keyboard.down('Space'); await A.waitForTimeout(6500); await A.keyboard.up('Space');
+  const bwP = A.evaluate(async () => { const b = window.__bytes; await new Promise((r) => setTimeout(r, 6000)); return (window.__bytes - b) / 6; });
+  await A.keyboard.down('KeyW'); await A.evaluate(() => { const g = window.__game, me = g.playerSoldier; window.__aimI = setInterval(() => { me.yaw += 0.006; }, 16); });
+  await A.waitForTimeout(4500); await A.keyboard.up('KeyW'); await A.evaluate(() => clearInterval(window.__aimI));
+  await A.waitForTimeout(1500);
+  const bwF = await bwP;
+  // B nişancı: helikopterin soluna kırmızı bir asker, havadan makineli
+  const tg = await A.evaluate(() => { const g = window.__game, v = g.playerSoldier.veh, r = g.soldiers.find((s) => s.team === 'red' && s.alive), lx = Math.cos(v.st.yaw + Math.PI / 2), lz = -Math.sin(v.st.yaw + Math.PI / 2); const x = v.st.x - Math.sin(v.st.yaw + Math.PI / 2) * 28, z = v.st.z - Math.cos(v.st.yaw + Math.PI / 2) * 28; g.online.send({ t: 'dbg', tps: [r.id, x, z, 0, 100] }); return r.id; });
+  await A.waitForTimeout(800);
+  const mg = await B.evaluate(async (id) => {
+    const g = window.__game, me = g.playerSoldier, T = g.soldiers[id];
+    const aim = () => { const e = me.eye(), c = T.center(), dx = c.x - e.x, dz = c.z - e.z; me.yaw = Math.atan2(-dx, -dz); me.pitch = Math.atan2(c.y - e.y, Math.hypot(dx, dz)); };
+    const i2 = setInterval(aim, 8); aim(); g.player.fireHeld = true;
+    await new Promise((r) => setTimeout(r, 2000)); g.player.fireHeld = false; clearInterval(i2);
+    await new Promise((r) => setTimeout(r, 500));
+    return { hp: T.hp, alive: T.alive, d: Math.round(Math.hypot(T.pos.x - me.pos.x, T.pos.z - me.pos.z)), alt: Math.round(me.pos.y - g.world.heightAt(me.pos.x, me.pos.z)) };
+  }, tg);
+  await A.screenshot({ path: `${OUT}/../heli/20-cevrimici-A-pilot${tag ? '-vekil' : ''}.png` }); await B.screenshot({ path: `${OUT}/../heli/21-cevrimici-B-kapi-nisancisi${tag ? '-vekil' : ''}.png` });
+  ok(!mg.alive || mg.hp < 100, 'çevrim içi kapı nişancısı uçan helikopterden isabet eder' + tag, JSON.stringify(mg));
+  const st = await A.evaluate(() => { const s = window.__game.online.stats; return { fix: s.vehFix || 0, errMax: +(s.vehErrMax || 0).toFixed(3), corr: s.corrections - window.__c0, rtt: Math.round(s.rtt) }; });
+  const bv = await Promise.all([A, B].map((P) => P.evaluate(() => { const v = window.__game.vehicles.list.find((x) => x.id === 'B-H1'); return [v.st.x, v.st.y, v.st.z]; })));
+  ok(st.errMax < (tag ? 0.6 : 0.3), 'pilot tahmini (kalkış + ileri uçuş + dönüş)' + tag, `araç düzeltmesi ${st.fix} · en büyük ${st.errMax} m · RTT ${st.rtt} ms · A↔B konum farkı ${Math.hypot(bv[0][0] - bv[1][0], bv[0][1] - bv[1][1], bv[0][2] - bv[1][2]).toFixed(2)} m (durunca)`);
+  ok(bwF - bw0 < 6000, 'bant genişliği: yerde ↔ uçarken (istemci başına)' + tag, `${(bw0 / 1024).toFixed(1)} → ${(bwF / 1024).toFixed(1)} KB/sn`);
+  // pilot iner (havada): helikopter düşer, patlar; iki istemcide enkaz
+  await A.evaluate(() => { const g = window.__game, me = g.playerSoldier; window.__fall = []; window.__fi = setInterval(() => window.__fall.push([+me.pos.y.toFixed(1), +(me.pos.y - g.world.heightAt(me.pos.x, me.pos.z)).toFixed(1), me.hp, me.alive, !!me.veh, me.swim ? 'S' : '']), 500); });
+  await A.keyboard.press('KeyE'); await A.waitForTimeout(9000);
+  const fall = await A.evaluate(() => { clearInterval(window.__fi); return window.__fall; }), pilotDied = fall.some((f) => !f[3]), fallH = Math.max(...fall.map((f) => f[1]));
+  const boom = await Promise.all([A, B].map((P) => P.evaluate(() => { const g = window.__game, v = g.vehicles.list.find((x) => x.id === 'B-H1'), me = g.playerSoldier; return { wreck: v.wreck, alive: v.alive, me: me.alive }; })));
+  await B.screenshot({ path: `${OUT}/../heli/22-cevrimici-dusus${tag ? '-vekil' : ''}.png` });
+  ok(boom.every((b) => !b.alive) && pilotDied, 'pilot havada inerse: helikopter düşüp patlar (iki istemcide), atlayan pilot düşüp ölür' + tag, `${JSON.stringify(boom)} · pilot ${fallH.toFixed(0)} m'den düştü`);
+  ok(!A.errs.length && !B.errs.length, 'çevrim içi helikopter: sayfa hatası yok' + tag, [...A.errs, ...B.errs].slice(0, 2).join(' | '));
   await browser.close();
 }
 
@@ -476,12 +656,13 @@ async function online(chromium) {
 
 if (!ONLY || ONLY === 'headless') headless();
 if (!ONLY || ONLY === 'headless' || ONLY === 'tank') headlessTank();
+if (!ONLY || ONLY === 'headless' || ONLY === 'heli') headlessHeli();
 let chromium = null;
 try { ({ chromium } = await import('playwright')); } catch { console.log('(playwright yok: tarayıcı bölümleri atlandı)'); }
 const up = async (u) => { try { const r = await fetch(u); return r.ok; } catch { return false; } };
 if (chromium && (!ONLY || ONLY === 'browser')) { if (await up(URL0)) await browserOffline(chromium); else console.log('(vite yok: ' + URL0 + ' — çevrimdışı tarayıcı bölümü atlandı)'); }
-if (chromium && (!ONLY || ONLY === 'online' || ONLY === 'onlinetank')) {
-  if (await up(SRV.replace(/^ws/, 'http') + '/health') || process.env.PROXY) { if (ONLY !== 'onlinetank') await online(chromium); await onlineTank(chromium); }
+if (chromium && (!ONLY || ONLY === 'online' || ONLY === 'onlinetank' || ONLY === 'onlineheli')) {
+  if (await up(SRV.replace(/^ws/, 'http') + '/health') || process.env.PROXY) { if (ONLY !== 'onlinetank' && ONLY !== 'onlineheli') await online(chromium); if (ONLY !== 'onlineheli') await onlineTank(chromium); await onlineHeli(chromium); }
   else console.log('(sunucu yok: ' + SRV + ' — çevrim içi bölüm atlandı)');
 }
 console.log(fails ? `sonuç: ${fails} HATA` : 'sonuç: OK');

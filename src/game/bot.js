@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { DIFFICULTY, WSTATS } from './stats.js';
+import { mgAt } from '../sim/vehicle.js';
 import { TUNE } from './balance.js';
 import { clamp, rand, angleDiff, yawFromDir, lerp, pick } from './util.js';
 import { ballLead } from './paint.js';
@@ -290,7 +291,7 @@ export class BotBrain {
     let best = null, bd = 1e9;
     for (const v of V.list) {
       const drv = v.alive && v.st ? v.seats[0] : null;
-      if (!drv || !drv.human && !drv.isPlayer || drv.team !== s.team || v.burn || v.st.sunk) continue;
+      if (!drv || !drv.human && !drv.isPlayer || drv.team !== s.team || v.burn || v.st.sunk || (v.def.heli && v.st.air)) continue;      // helikoptere yalnız yerdeyken
       if (!v.seats.some((o, i) => i > 0 && !o)) continue;
       const d = Math.hypot(v.st.x - s.pos.x, v.st.z - s.pos.z), sp = V.speed(v);
       if ((d < 18 && sp < 3) || (v.horn && d < 35 && sp < 6)) if (d < bd) { bd = d; best = v; }
@@ -313,11 +314,12 @@ export class BotBrain {
     if (this.senseT <= 0) { this.senseT = 0.25 + Math.random() * 0.1; this.sense(); }
     if (this.target && !this.target.alive) this.target = null;
     const sp = V.speed(v);
-    if (v.burn || v.st.sunk || !drv || !(drv.human || drv.isPlayer)) { if (sp < 4 || v.burn || v.st.sunk) { V.exit(s); this.goalT = 0; } return; }
-    if (sp > 3) this.rodeMoved = true;
-    this.vstopT = sp < 0.8 ? (this.vstopT || 0) + dt : 0;
+    const flying = v.def.heli && v.st.air;                                      // 12.179: uçan helikopterden inilmez (yanıyor / pilotsuz olsa da: atlarsa düşer)
+    if ((v.burn || v.st.sunk || !drv || !(drv.human || drv.isPlayer)) && !flying) { if (sp < 4 || v.burn || v.st.sunk) { V.exit(s); this.goalT = 0; } return; }
+    if (sp > 3 || flying) this.rodeMoved = true;
+    this.vstopT = sp < 0.8 && !flying ? (this.vstopT || 0) + dt : 0;
     if (this.vstopT > (this.rodeMoved ? 4 : 25)) { V.exit(s); this.vstopT = 0; this.rodeMoved = false; this.goalT = 0; return; }      // yola çıktıktan sonra 4 sn durdu = vardı (hiç kalkmadıysa 25 sn bekler)
-    const st = s.stat, mg = v.def.mg?.seat === s.seat;                      // 12.178 tank nişancısı: kule makinelisi (cephane sınırsız)
+    const st = s.stat, mg = !!mgAt(v.def, s.seat);                           // 12.178 tank nişancısı / 12.179 helikopter kapı nişancısı: makineli (cephane sınırsız)
     if (!mg && (st.kind === 'gun' || st.kind === 'launcher') && s.item.mag <= 0 && s.reloadT <= 0 && s.item.reserve > 0) s.startReload();
     if (!mg && st.kind !== 'gun') { if (s.items[0]?.mag + s.items[0]?.reserve > 0) s.switchTo(0); return; }
     let fire = false;
@@ -338,7 +340,7 @@ export class BotBrain {
       }
     } else {
       s.botExtraSpread = 0; this.burstLeft = 0;
-      const side = v.def.seat[s.seat][1] < 0 ? 1 : -1, look = v.st.yaw + side * (s.seat >= 2 ? 1.2 : 0.7) + Math.sin(g.time * 0.4 + s.id) * 0.4;   // koltuğun tarafına (dışarı) bakar
+      const side = v.def.seat[s.seat][1] < 0 ? 1 : -1, arc = v.def.mg?.arc?.[s.seat], look = (arc ? v.st.yaw - arc * Math.PI / 2 : v.st.yaw + side * (s.seat >= 2 ? 1.2 : 0.7)) + Math.sin(g.time * 0.4 + s.id) * 0.4;   // koltuğun tarafına (dışarı) bakar · kapı nişancısı kapıdan
       s.yaw += clamp(angleDiff(s.yaw, look), -2 * dt, 2 * dt);
       s.pitch += (0 - s.pitch) * Math.min(1, dt * 3);
     }

@@ -48,7 +48,7 @@ import { Front } from './front.js';                                  // Cephe mo
 import { Vehicles } from './vehicles.js';                            // 12.177 araçlar (Kuzey Vadisi: jip)
 import { VehicleView } from './vehicleView.js';
 import { VehicleHud } from './vehicleHud.js';
-import { VT } from '../sim/vehicle.js';
+import { VT, mgAt } from '../sim/vehicle.js';
 import { spaceSetup } from './space.js';
 import { NADE, nadeStep, simulateNade, NadeView } from './grenade.js';
 import { createWeapon } from '../models/weapons.js';
@@ -584,7 +584,7 @@ export class Game {
     if (s.seat === 0) {
       if (inp.vl) v.lights = !v.lights;
       v.horn = !v.def.cannon && !!inp.fh;                              // jip: sol tık korna · tank: ana top
-      V.drive(v, { f: inp.f, r: inp.r, b: !!inp.j, yw: inp.yw, pt: inp.pt }, dt);      // 12.178: bakış = kule / top hedefi
+      V.drive(v, { f: inp.f, r: inp.r, b: !!inp.j, u: !!inp.j, d: !!inp.dn, yw: inp.yw, pt: inp.pt }, dt);      // 12.178: bakış = kule / top hedefi · 12.179 helikopter: j yüksel, dn alçal, bakış burun
       if (v.def.cannon && (inp.fh || inp.fp)) V.fireCannon(v, s);
       for (const o of v.seats) if (o) V.place(o);
       h.fireBuf = 0;
@@ -598,7 +598,7 @@ export class Game {
     const back = s.rewindTick != null ? this.pastPos(s, s.rewindTick) : null, keep = back ? s.pos.clone() : null;
     if (back) s.pos.copy(back);
     const st = s.stat;
-    if (v.def.mg?.seat === s.seat) V.mgFire(s, !!inp.fh, dt);       // 12.178 tank nişancısı: kule makinelisi
+    if (mgAt(v.def, s.seat)) V.mgFire(s, !!inp.fh, dt);             // 12.178 tank nişancısı · 12.179 helikopter kapı nişancısı: makineli
     else if (st.kind === 'melee') { if (inp.fh || h.fireBuf > 0) { if (s.tryFire()) h.fireBuf = 0; } }
     else if (s.triggerUpdate(!!inp.fh, h.fireBuf)) h.fireBuf = 0;
     if (keep) s.pos.copy(keep);
@@ -1541,7 +1541,7 @@ export class Game {
     r.clear();
     r.render(this.scene, this.camera);
     uw?.overlay(r);
-    if (this.playerSoldier.alive && !this.showSelf && !(this.playerSoldier.veh && (this.playerSoldier.seat === 0 || this.playerSoldier.veh.def.mg?.seat === this.playerSoldier.seat))) this.player.vm.render(r, innerWidth, innerHeight);      // 12.177: sürücünün elinde silah yok
+    if (this.playerSoldier.alive && !this.showSelf && !(this.playerSoldier.veh && (this.playerSoldier.seat === 0 || mgAt(this.playerSoldier.veh.def, this.playerSoldier.seat)))) this.player.vm.render(r, innerWidth, innerHeight);      // 12.177: sürücünün elinde silah yok
     uw?.end();
     if (post) post.end();
   }
