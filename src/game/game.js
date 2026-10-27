@@ -723,6 +723,9 @@ export class Game {
       return;
     }
     if (!this._unlockBy && hud.$('pause').classList.contains('intro')) return;     // ilk giriş ekranı ("Hazır mısın?"): ilk kilit tıkla alınır
+    // 12.186: kilidi tarayıcı bıraktı ve AYNI Esc basışı sayfaya da geldi (yavaş karede olay sırası: önce pointerlockchange, sonra keydown) → menü açık kalsın.
+    // Eskiden bu ikinci teslim menüyü hemen kapatıp "Devam etmek için tıkla" katmanını açıyordu (esctest swiftshader'da her seferinde). Aynı basışın olayı kilit düşüşünden önce ya da birkaç ms sonra damgalanır; yeni basış insan hızında (≥ 100 ms) gelir.
+    if (this._unlockBy === 'user' && e.timeStamp - (this._unlockAt ?? -1e9) < 60) { e.preventDefault(); return; }
     if (hud.resumeShown) { e.preventDefault(); hud.setPaused(true); return; }                 // katman → menü
     if (hud.pausedShown) { e.preventDefault(); hud.showResume(true); this.requestLock(true); }   // menü → oyun (reddedilirse katman kalır)
   }

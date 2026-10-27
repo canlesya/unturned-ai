@@ -29,5 +29,6 @@ addStrings('en', {
   'veh.heli-n': 'HELICOPTER', 'veh.heli-s': 'HELICOPTER', 'veh.heliBar': 'ROTOR {r}% · ALT {h} m', 'veh.rotor': 'ROTOR SPINNING UP…',
   'veh.hint.heli': '<b>Space</b> climb · <b>C / Ctrl</b> descend · <b>W S</b> fwd / back · <b>A D</b> strafe · <b>Mouse</b> nose · <b>{v}</b> camera · <b>{f}</b> light · <b>1–{n}</b> seat · <b>{e}</b> exit (jumping out in the air = fall)',
   'agroup.4': 'Vehicle', 'action.vehicle': 'Enter / exit vehicle', 'action.vehCam': 'Vehicle camera (inside / chase)',
+  'set.grp.4': 'Vehicle', 'set.act.vehicle': 'Enter / exit vehicle', 'set.act.vehCam': 'Vehicle camera (inside / chase)',      // oyun içi Kontroller (Esc → Ayarlar)
   'tc.n.veh': 'Enter / exit vehicle', 'tc.n.vcam': 'Vehicle camera', 'tc.n.seat': 'Switch seat',
 });

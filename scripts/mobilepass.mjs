@@ -163,7 +163,7 @@ for (const dk of want) {
         for (const id of ['rdot', 'holo']) { const e = q(id); if (getComputedStyle(e).display !== 'none') { const a = r(e); out[id] = { w: a.width, cx: a.left + a.width / 2, cy: a.top + a.height / 2 }; } }
         return out;
       });
-      if (o.startsWith('scope') || o === 'acog') {
+      if (o.startsWith('scope')) {      // 12.186: ACOG 12.155 / 12.162'den beri dürbün örtüsü değil, saydam mercek + #rdot (aşağıda ortada denetlenir)
         const s = ov.scope;
         check(s && s.w >= ov.vw - 1 && s.h >= ov.vh - 1 && Math.abs(s.cx - ov.vw / 2) < 2 && Math.abs(s.cy - ov.vh / 2) < 2, `${dk} ${o}: dürbün örtüsü ekranı kaplıyor ve ortalı${s ? ` (${Math.round(s.w)}x${Math.round(s.h)}, halka ${Math.round(s.rg)} px)` : ' — YOK'}`);
         if (s && mob) check(s.rg >= ov.vh * 0.8, `${dk} ${o}: dürbün halkası küçük ekranda yeterince büyük (${Math.round(s.rg)} ≥ ${Math.round(ov.vh * 0.8)} px)`);

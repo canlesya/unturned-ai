@@ -4,7 +4,7 @@ import { t, addStrings, lang } from './index.js';
 import { WSTATS, ZTYPES, ZBOSS, OPTICS, CLASS_DEFS } from '../game/stats.js';
 
 const tf = (k, fb) => { const s = t(k); return s === k ? fb : s; };          // anahtar yoksa yedek (Türkçe veri adı)
-export const wName = (id) => tf(`hud.wpn.${id}`, WSTATS[id]?.name || id);
+export const wName = (id) => tf(`hud.wpn.${id}`, tf(`weapon.${id}.name`, WSTATS[id]?.name || id));      // 12.186: Uzay / Cephe silahlarının adı yalnız menü anahtarında (weapon.<id>.name): HUD / öldürme akışı İngilizcede Türkçe kalıyordu
 let byName = null;                                                            // Türkçe silah adı → kimlik (öldürme olayı adı taşır)
 export function wLabel(name) {
   if (!name) return '';
@@ -35,13 +35,22 @@ const PW = { kuzey: 'North', güney: 'South', doğu: 'East', batı: 'West', k: '
   kırmızı: 'Red', mavi: 'Blue', doğuş: 'Spawn', çıkışı: 'Exit', portal: 'Gantry', vinç: 'Crane', kule: 'Tower', rıhtım: 'Dock', tünel: 'Tunnel', çatısı: 'Roof', hattı: 'Lane', orta: 'Mid',
   geçit: 'Pass', turuncu: 'Orange', mor: 'Purple', turkuaz: 'Turquoise', kale: 'Fort', köprüsü: 'Bridge', kanadı: 'Wing', iskelesi: 'Pier', evler: 'Houses', kilise: 'Church', kavşak: 'Crossroads',
   benzinlik: 'Gas Station', pazar: 'Market', ambar: 'Barn', gözetleme: 'Watch', tepesi: 'Hill', köprü: 'Bridge', orman: 'Forest', kampı: 'Camp', değirmen: 'Mill', komuta: 'Command', binası: 'Building',
-  kışla: 'Barracks', akaryakıt: 'Fuel Depot', merkez: 'Center', uzun: 'Long', alt: 'Lower', tüneller: 'Tunnels', depo: 'Warehouse' };
-const PF = { 'Asma kat': 'Mezzanine' };
+  kışla: 'Barracks', akaryakıt: 'Fuel Depot', merkez: 'Center', uzun: 'Long', alt: 'Lower', tüneller: 'Tunnels', depo: 'Warehouse',
+  // 12.186: yeni haritaların (Kuzey Vadisi, Maden, Cephe, Uzay, Kasaba v3) bölge / bayrak adları İngilizcede Türkçe kalıyordu (ör. bayrak "Çiftlik")
+  geçidi: 'Pass', sokağı: 'Street', yolu: 'Road', yol: 'Road', köy: 'Village', çiftlik: 'Farm', çiftliği: 'Farm', evi: 'House', ev: 'House', avlusu: 'Yard', meydanı: 'Square',
+  karargâhı: 'HQ', sığınak: 'Shelter', sığınağı: 'Shelter', sığınakları: 'Shelters', kulübe: 'Hut', kulübesi: 'Hut', sırtı: 'Ridge', tabyası: 'Redoubt', köprübaşı: 'Bridgehead',
+  şikan: 'Chicane', bahçeler: 'Gardens', bahçesi: 'Orchard', meyve: 'Fruit', mezarlık: 'Cemetery', jeneratör: 'Generator', reaktör: 'Reactor', kompresör: 'Compressor', samanlık: 'Hayloft',
+  girişi: 'Entrance', caddesi: 'Avenue', enkazı: 'Wreck', kavşağı: 'Junction', güneybatı: 'Southwest', kuzeybatı: 'Northwest', çan: 'Bell', kulesi: 'Tower', çukur: 'Sunken',
+  çeşme: 'Fountain', sırt: 'Ridge', tarla: 'Field', makas: 'Switch', hakem: 'Referee', gözcü: 'Lookout', çit: 'Hedge', yıkık: 'Ruined', modül: 'Module',
+  rampası: 'Ramp', yığınları: 'Piles', cevher: 'Ore', kırma: 'Crusher', tesisi: 'Plant', kömür: 'Coal', bunkeri: 'Bunker', kayası: 'Rock', muhtarlık: "Mayor's Office",
+  ağzı: 'Mouth', iç: 'inner', anten: 'Antenna', istasyonu: 'Station', iniş: 'Landing', pisti: 'Strip', kontrol: 'Control', noktası: 'Point', ölüm: 'Death', bölgesi: 'Zone',
+  vadi: 'Valley', baraj: 'Dam' };
+const PF = { 'Asma kat': 'Mezzanine', 'Maden Ocağı': 'Mine', 'Taş Ocağı': 'Quarry', 'Geliştirici Atölyesi': 'Dev Workshop', 'Askeri Üs': 'Military Base', 'Yörünge Üssü': 'Orbital Station', 'Çöl Geçidi': 'Desert Pass' };
 export function placeName(str) {
   if (!str || lang() === 'tr') return str;
   const k = t(`hud.loc.${str}`); if (k !== `hud.loc.${str}`) return k;
   if (PF[str]) return PF[str];
-  return str.split(' ').map((w) => PW[w.toLocaleLowerCase('tr')] || w).join(' ');
+  return str.split(' ').map((w) => { const m = /^(\(?)(.*?)(\)?)$/.exec(w); return m[1] + (PW[m[2].toLocaleLowerCase('tr')] || m[2]) + m[3]; }).join(' ');      // "(güney)" → "(south)"
 }
 // Puan yazıları (#pops; game.js Türkçe yollar): '+100 ÖLDÜRME' · '+150 KAFA ATIŞI' · '+80 CANLANDIRMA' · 'SEVİYE 3/15 · AK-47'
 export function popText(s) {

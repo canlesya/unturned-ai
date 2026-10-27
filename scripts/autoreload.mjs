@@ -242,7 +242,7 @@ if (parts.includes('menu')) {
     await page.goto(`${BASE}/?debug=1`);
     await page.waitForSelector('.mn-nav', { timeout: 60000 }); await page.waitForTimeout(800);
     await page.click('.mn-nav[data-v=controls]'); await page.waitForTimeout(600);
-    const rows = await page.evaluate(() => [...document.querySelectorAll('.kbrow')].map((r) => r.innerText.replace(/\s+/g, ' ').trim()).filter((t) => /silah|Gadget|Bıçak|Knife|weapon/i.test(t)));
+    const rows = await page.evaluate(() => [...document.querySelectorAll('.kbrow')].map((r) => r.innerText.replace(/\s+/g, ' ').trim()).filter((t) => /^(Ana silah|Yedek silah|Bıçak|Gadget|Primary weapon|Secondary weapon|Knife)\b/i.test(t)));      // 12.186: 'Silahı incele' / 'Sol el ↔ sağ el (silahı tutan el)' sonradan eklendi, sayılmasın
     console.log(`      Kontroller (${tag}):`, rows.join(' · '));
     const el = await page.$('.kbrow:has-text("Knife"), .kbrow:has-text("Bıçak")');
     if (el) { await el.scrollIntoViewIfNeeded(); const box = await (await el.evaluateHandle((e) => e.closest('.pan'))).asElement().boundingBox(); await page.screenshot({ path: `${OUT}/kontroller-${tag}.png`, clip: box }); }

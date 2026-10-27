@@ -22,6 +22,14 @@ const HS_SVG = '<svg class="hsi" viewBox="0 0 16 16"><circle cx="8" cy="7" r="4.
 const PEN_SVG = '<svg class="hsi pni" viewBox="0 0 16 16"><path d="M1 8h11.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M10.2 4.6 13.8 8l-3.6 3.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><rect x="4.4" y="3" width="1.8" height="10" rx=".6" fill="currentColor" opacity=".55"/><rect x="7.6" y="3" width="1.8" height="10" rx=".6" fill="currentColor" opacity=".55"/></svg>';     // 12.164: delip geçme öldürmesi (ok iki gövdeden geçer)
 const FALL_SVG = '<svg class="fli" viewBox="0 0 16 16"><path d="M8 1v9M4.2 6.6 8 10.4l3.8-3.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 14.2h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';   // düşme (12.143): aşağı ok + zemin
 const DROWN_SVG = '<svg class="fli" viewBox="0 0 16 16"><path d="M8 1.6C6 4.6 4 7 4 9.6a4 4 0 0 0 8 0C12 7 10 4.6 8 1.6z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>';   // 12.180 boğuldu: su damlası
+// 12.186: öldürme akışı ikonu silah ADINDAN (her el bombası türü: Saplı El Bombası da; öldürene yazılan düşme / boğulma da — 12.165 kredisi)
+let FRAG_NAMES = null;
+const kfIcon = (w) => {
+  if (w === 'Düştü') return FALL_SVG;
+  if (w === 'Boğuldu') return DROWN_SVG;
+  FRAG_NAMES ||= new Set(Object.values(WSTATS).filter((s) => s.kind === 'throwable' && s.gtype === 'frag').map((s) => s.name));
+  return FRAG_NAMES.has(w) ? NADE_SVG : '';
+};
 const CSS = `
 #hud{position:fixed;inset:0;pointer-events:none;font-family:Bahnschrift,'Rajdhani','Arial Narrow','Segoe UI',system-ui,sans-serif;color:#fff;user-select:none;z-index:5;letter-spacing:.5px;
   --acc:#ff8a1f;--acc2:#ffb347;--pan:rgba(9,13,19,.74);--pan2:rgba(14,19,27,.9);--ln:rgba(255,255,255,.12);--dim:rgba(255,255,255,.62)}
@@ -67,8 +75,8 @@ const CSS = `
 /* nişan */
 #cross{position:absolute;left:50%;top:50%;width:0;height:0}
 #cross span{position:absolute;background:#fff;box-shadow:0 0 2px #000}
-#cross .h{width:8px;height:2px;top:-1px}#cross .v{width:2px;height:8px;left:-1px}
-#cross .l{left:calc(-8px - var(--g,6px))}#cross .r{left:var(--g,6px)}#cross .t{top:calc(-8px - var(--g,6px))}#cross .b{top:var(--g,6px)}
+#cross .h{width:6px;height:2px;top:-1px}#cross .v{width:2px;height:6px;left:-1px}
+#cross .l{left:calc(-6px - var(--g,4px))}#cross .r{left:var(--g,4px)}#cross .t{top:calc(-6px - var(--g,4px))}#cross .b{top:var(--g,4px)}
 #cross .dot{width:3px;height:3px;left:-1.5px;top:-1.5px;border-radius:50%}
 #cross.ads span:not(.dot){display:none}
 #rdot{position:absolute;left:50%;top:50%;width:.62vh;height:.62vh;margin:-.31vh 0 0 -.31vh;border-radius:50%;background:#ff3a26;box-shadow:0 0 1.5px .5px #ff2a1ae6,0 0 5px 1px #ff2a1a40;display:none}
@@ -608,8 +616,8 @@ export class Hud {
     const nm = dispName;
     const wl = wLabel(weapon);
     d.innerHTML = killer && killer !== victim
-      ? `<span class="${cls(killer)}">${nm(killer)}</span><span class="w">${weapon === 'El Bombası' ? NADE_SVG : ''}${EN(wl)}${pn ? PEN_SVG : ''}${hs ? HS_SVG : ''}</span><span class="${cls(victim)}">${nm(victim)}</span>`
-      : `<span class="${cls(victim)}">${nm(victim)}</span><span class="w">${weapon === 'Düştü' ? FALL_SVG : weapon === 'Boğuldu' ? DROWN_SVG : ''}${wl && !/^(İntihar)$/.test(weapon) ? wl : t('hud.kf.died')}</span>`;
+      ? `<span class="${cls(killer)}">${nm(killer)}</span><span class="w">${kfIcon(weapon)}${EN(wl)}${pn ? PEN_SVG : ''}${hs ? HS_SVG : ''}</span><span class="${cls(victim)}">${nm(victim)}</span>`
+      : `<span class="${cls(victim)}">${nm(victim)}</span><span class="w">${kfIcon(weapon)}${wl && !/^(İntihar)$/.test(weapon) ? wl : t('hud.kf.died')}</span>`;
     f.appendChild(d);
     while (f.children.length > 6) f.firstChild.remove();
     setTimeout(() => d.remove(), 6000);
@@ -844,8 +852,14 @@ export class Hud {
     const showCross = p.alive && (ads < 0.6 || tp) && !p.scoped;      // 12.174: dönem dürbünü takılı tüfekte de      // 12.156: dürbünlü keskin nişancıda belden artı yok (no-scope tahmine kalır; isabet işareti #hitm ayrı, çalışır)
     cross.style.display = showCross ? 'block' : 'none';
     cross.classList.toggle('ads', ads > 0.5 && !tp);
-    const spread = p.spreadNow(st) * 900;
-    cross.style.setProperty('--g', clamp(3 + spread, 3, 60) + 'px');
+    // 12.186 artı boşluğu (yalnız görsel; isabet / sapma değişmedi): eskiden 3 + sapma × 900 px (ekran ve FOV'dan bağımsız) → pompalı / PKM yürürken
+    // 50 / 18 px, koşarken 60 px (telefonda ekranın %25'i). Şimdi sapma konisinin ekrandaki gerçek yarıçapı (px = tan(sapma) / tan(FOV/2) × yükseklik/2)
+    // yumuşak doyuruluyor: küçük sapmada doğrusal (okunur), büyükte en çok 3 + M px (masaüstü M 16, telefonda ekranla küçülür) → CS / Valorant gibi derli toplu
+    if (showCross) {
+      const H = innerHeight, r = Math.tan(p.spreadNow(st)) / Math.tan(((g.camera?.fov || 75) * Math.PI) / 360) * (H / 2), M = 16 * clamp(H / 900, 0.6, 1);
+      const gap = (3 + M * (1 - Math.exp(-r / M))).toFixed(1);
+      if (gap !== this._crossG) { this._crossG = gap; cross.style.setProperty('--g', gap + 'px'); }
+    }
     this.pbReticle(p, st, ov === 'pbring' && p.alive && !tp && ads > 0.55);
     // HUD retikülü yalnız nişangâh tam oturunca (öncesinde modeldeki ışıyan nokta / halka görünür, ikisi ekran ortasında üst üste biner)
     $('rdot').style.display = p.alive && !tp && (ov === 'dot' || (ov === 'lens' && p.opticDef?.reticle === 'dot')) && ads > ADS_HUD ? 'block' : 'none';      // 12.174: öncü dürbün (reticle 'post') kendi 3B siyah retikülüyle      // 12.162: ACOG / PSO-1 de (saydam mercek + sade kırmızı nokta)
