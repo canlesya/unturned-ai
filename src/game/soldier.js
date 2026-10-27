@@ -456,6 +456,7 @@ export class Soldier {
       m = eye.addScaledVector(d, 0.8);
     } else m = this.muzzleWorld(new THREE.Vector3());
     if (st.impact) this.game.spawnShell(this, m, d, st); else this.game.spawnRocket(this, m, d, st);
+    this.protT = 0;                                                    // 12.186: roket / M79 atan da doğma korumasını kaybeder (eskiden yalnız mermi: korumalıyken roketle öldürülebiliyordu)
     this.game.sfx.shot(st.sound, this.pos);
     this.game.alertNear?.(this.pos, this.team, 40);
     if (this.isPlayer || this.human) { this.recoilP += st.kickV; this.game.emit('fire', this); }
@@ -552,6 +553,7 @@ export class Soldier {
     const o = { fuse, inHand };
     if (g.online && this.isPlayer) { o.pred = true; o.q = g.online.seq; }           // çevrimiçi: kendi bombam gecikmesiz (tahmin), sunucunun 'gr'si eşlenir
     g.spawnGrenade(this, p, v, st, null, o);
+    this.protT = 0;                                                               // 12.186: bomba atan da korumasız (mermiyle aynı kural)
     if (!inHand) { g.sfx.shot('throw', this.pos); if (this.isPlayer) g.emit('throw', this); }
     this.throwUnder = under;
     if (this.brain) this.nadeVis = this.items[2]?.id || null;                      // bot: atış savruluşu boyunca elinde bomba görünsün
@@ -565,6 +567,7 @@ export class Soldier {
     const ok = this.game.placeDeployable?.(this, st);
     if (!ok) { it.mag++; this.cd = 0.3; return false; }
     this.game.sfx.deploy(this.pos);
+    if (st.kind === 'mine') this.protT = 0;                                       // 12.186: claymore kuran da korumasız (cephane kutusu destek: koruma sürer)
     if (this.isPlayer) this.game.emit('throw', this);
     if (it.mag <= 0) this.autoSwitchT = 0.4;
     return true;
@@ -578,6 +581,7 @@ export class Soldier {
     const dur = kind === 'stab' ? st.stabT : st.swingT;
     if (this.def.zombie && this.cloaked && this.abActive > 0) this.abActive = 0;      // saldırı görünmezliği bitirir
     this.swing = { t: 0, dur, kind, idx, done: false };
+    this.protT = 0;                                        // 12.186: savuran da korumasız (eskiden korumalıyken bıçaklanabiliyordu; silah yarışı son seviye bıçak)
     this.comboT = dur + 0.38;
     this.cd = dur * 0.8;                                   // %80'de yeni savurma zincirlenebilir (hızlı çekme)
     this.sprinting = false;
