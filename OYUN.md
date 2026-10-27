@@ -2002,3 +2002,25 @@ Kullanıcı: "Oyunda asist mantığı yok."
 - **Değişmeyen**: M4 / AUG / AK-74U, M24 (gövdeye tek atış), RPG / M79 / bombalar, kafa ×2,1 / bacak ×0,8, delme (yalnız keskin nişancı / DMR; ince duvar seçeneği kapalı), sınıf canları, "her şey açık" kuralı. Sunucu aynı `stats.js` + `Game.shootRay` kullanır; `netdmg.mjs` ile çevrim içi can kaybı çevrimdışıyla birebir.
 - **Testler**: firetest, combattest, spreadtest, penetrate, snipertest, sniperhip, pbtest, ggtest, nettest (sunucu :8989), netdmg, aimassist (GPU=1) OK.
 - **Açık**: Mühendis botları maçta hâlâ en düşük K/Ö (çatışma ortalaması 26 m, pompalı ≤ 10 m; insan Mühendis'te RPG var) — bot davranışı (pompalıyla yan / yakın rota) ya da Mühendis'e PDW (P90) seçeneği önerilir. Bot snipers 20 m'de güçlü (tek isabet = öldürme). Dokunmatikte tetik basılıyken yardım hâlâ güçlü (0,8°).
+
+### 12.196 Enfekte dengesi: normal zombi yem değil, boss tek başına taşımıyor
+- **Şikâyet:** "zombi modunda zombiler insanlara karşı çok avantajsız". **Ölçüm** (yeni `scripts/infstats.mjs`, New York, Zor, 8/12/16/24 kişi, tohumlu, paralel; "bot" = varsayılan insan botları, "usta" = insan botları `INF_BOT.crowd/desync = 0`, `err 0,012` → gerçek oyuncuya yakın nişan): zombi tarafının bütün gücü boss'taydı. Boss can başına **6,6 öldürme**, normal zombi can başına **0,15–0,35** (Dev ~0,9); normal zombi ilk isabetten ~0,8 sn sonra ölüyor, %45'i insanın 3 m yanında (4 pençe vuruşu gerekiyordu). Oyuncu çoğu zaman normal zombi olduğu için zombiyken işe yaramıyor; usta insanlar boss'u düşürünce zombiler dağılıp "tüm zombiler iyileşti" ile kaybediyordu. Ayrıca botlar hazırlık süresinde donuk boss'a önceden nişan alıyor, boss serbest kalır kalmaz ilk canını ~5 sn'de kaybediyordu.
+- **Normal zombiler** (`ZTYPES`, can ×1,6, pençe güçlü — insan 100 can): Yürüyen 300 can / 50 hasar (**2 vuruş**), Koşucu 220 / 40, Dev 700 / 60, Hayalet 240 / 42, Işınlanan 270 / 40 (önce 190/32, 140/28, 460/46, 150/32, 170/32). Hız, güçler, kafa çarpanı aynı.
+- **Boss** zayıfladı: `BOSS.hp` 1400 → **900** (12 kişide ≈1250, büyüme formülü aynı), pençe 46 → **34** (öfkeyle 48: 3 vuruş). Can hakkı 3, zırh, Gölge Sıçrayışı aynı.
+- **Hazırlık süresi:** insan botları donuk zombiyi hedef almaz (`bot.sense`); açılışta boss artık 66 m uzaktan gelip ilk canını oynayabiliyor.
+- **Zombi botları** (`bot.js` `INF_Z`): hedef seçiminde aynı insanı kovalayan her ek zombi +6 m (tek sıra koşmaz), hedefin 7 m yakınındaki her insan +3 m (kenardaki / yalnız insanı seçer), mevcut hedefe 4 m sadakat; ≥ 3 kişilik gruba yalnız saldırmaz: görüş dışında 22–40 m'de en çok 5 sn sürü bekler, yanına zombi gelince birlikte dalar; Işınlanan görüşteki hedefe 8–20 m'den ışınlanarak atılır. Boss eskisi gibi doğrudan gider.
+- **Yeni ayarlar** (admin paneli → Enfeksiyon → Kurallar, varsayılan kapalı / aynı): `zombie.horde` / `hordeMax` (insanlar sayıca üstünse normal zombi daha çok canla doğar: can × 1 + horde × (insan/zombi − 1), üst sınır; denemede insan kazanma oranını ~6 puan düşürdü, açık bırakılmadı), `zombie.spawnMin` (zombi doğuşu en yakın insandan en az 38 m).
+- **Sonuç** (900 sn süre, bot 80→96 maç, usta 80→96 maç; usta öncesi 600 sn'lik ölçüm, maçlar zaten 1,5–4 dk'da biter):
+
+| | Önce bot | Sonra bot | Önce usta | Sonra usta |
+|---|---|---|---|---|
+| İnsan kazandı 8 / 12 / 16 / 24 kişi | %5 / 25 / 35 / 20 | %17 / 25 / 21 / 4 | %20 / 60 / 40 / 65 | %33 / 46 / 67 / 54 |
+| İnsan kazandı toplam | %21 | %17 | %46 | **%50** |
+| Boss öldürme / can | 6,65 | **2,94** | 5,42 | **2,70** |
+| Normal zombi öldürme / can (Yürüyen · Koşucu · Hayalet · Işınlanan · Dev) | 0,33 · 0,18 · 0,35 · 0,22 · 0,99 | **0,62 · 0,41 · 0,51 · 0,40 · 1,33** | 0,21 · 0,15 · 0,20 · 0,20 · 0,87 | **0,49 · 0,30 · 0,36 · 0,33 · 1,26** |
+| Ort. maç süresi | 156 sn | 94 sn | 127 sn | 135 sn |
+
+  Gerçek oyuncu Zor bottan iyi nişan alır ("usta" sütunu): insan ~%50, zombi tarafında güç boss'tan normal zombilere geçti (oyuncu zombiyken öldürebiliyor). Yalnız botların oynadığı maçta insan botları hâlâ zayıf (%17; çoğunlukla boss + sürü baskını, 24 kişide %4). Mermi sorun değil: insan başına ~40–55 mermi/dk, mermisiz kalma %0. Zombi yol hatası ~0.
+- **Çevrimiçi:** kurallar sunucuda aynı kodla çalışır (`mh` anlık görüntüde). Yeni `scripts/infnet2.mjs`: iki gerçek istemci (gerçek GPU) — B zombi (Yürüyen) oldu, iki ekranda da can 300; B, A'yı 2 savuruşta düşürdü; A zombi (Koşucu, 220) doğdu; sayfa hatası 0. `infnet.mjs` eski sabit değerleri (boss > 1000, hayalet 150) güncellendi.
+- **Bilinen:** pençe vuruşu (`_meleeStrike`) çevrimiçinde geri sarılmıyor (lag compensation yalnız mermide): geri geri kaçan insana ~0,5 m eksik vurur. Yakın dövüş ortak kodu olduğu için bu turda değişmedi.
+- Test: `infstats` (öncesi / sonrası), `inflives`, `infabil`, `infhit`, `infstart` (ilk 14 sn insan atışı 0, görüşte doğma %0), `inftest newyork`, `infnet`, `infnet2` OK. Tablolar ve görüntüler: `/tmp/wb-bal1/`.

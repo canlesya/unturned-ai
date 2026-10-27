@@ -470,6 +470,14 @@ export class Game {
     return { h, z };
   }
 
+  // 12.196 Sürü dayanıklılığı: insanlar zombilerden kalabalıksa normal zombi daha çok canla doğar (can × 1 + horde × (insan/zombi − 1), en çok hordeMax).
+  // Az zombi çok insana tek tek koşup saniyede eriyordu; zombi çoğaldıkça çarpan 1'e iner. Boss kendi ölçeğini kullanır.
+  hordeMul() {
+    if (!this.mode.infection || !(ZOMBIE.horde > 0)) return 1;
+    const c = this.infCounts();
+    return Math.min(ZOMBIE.hordeMax || 1, 1 + ZOMBIE.horde * Math.max(0, c.h / Math.max(1, c.z) - 1));
+  }
+
   // Zombi doğma noktası: canlı insanlara yakın ama en az 38 m uzakta (üstlerine doğmasın)
   pickZombieSpawn(s, first) {
     const humans = this.soldiers.filter((e) => e.alive && e.team === 'blue');
@@ -483,7 +491,7 @@ export class Game {
       for (const e of humans) dmin = Math.min(dmin, Math.hypot(e.pos.x - p.x, e.pos.z - p.z));
       let seen = false;                                                          // hiçbir insanın görüşünde doğmasın (doğar doğmaz vurulmasın)
       if (!first) for (const e of humans) { if (Math.hypot(e.pos.x - p.x, e.pos.z - p.z) < 75 && this.losClear(e.eye(eyeP), tgtP.set(p.x, (p.y || 0) + 1.2, p.z))) { seen = true; break; } }
-      const sc = (dmin >= 38 ? 200 - dmin + Math.random() * 25 : dmin - 400) - (seen ? 500 : 0);        // yeterince uzak + görünmeyen olanlardan en yakını
+      const sc = (dmin >= (ZOMBIE.spawnMin || 38) ? 200 - dmin + Math.random() * 25 : dmin - 400) - (seen ? 500 : 0);        // yeterince uzak + görünmeyen olanlardan en yakını
       if (sc > bs) { bs = sc; best = p; }
     }
     const p = best || pick(pts), tgt = humans.length ? pick(humans).pos : { x: p.x, z: p.z - 1 };

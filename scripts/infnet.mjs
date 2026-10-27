@@ -1,5 +1,6 @@
 // Enfekte çevrimiçi testi: oda kur (type=inf), insan oyuncu zombi tarafından öldürülünce roster/olay/anlık görüntü doğru mu? (önce: BF_DEBUG=1 npm run server)
 import WebSocket from 'ws';
+import { ZTYPES } from '../src/game/stats.js';
 const URL = process.env.WS || 'ws://127.0.0.1:8787';
 const open = () => new Promise((res) => { const ws = new WebSocket(URL); ws.msgs = []; ws.on('message', (d) => ws.msgs.push(JSON.parse(d))); ws.on('open', () => res(ws)); });
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -17,7 +18,7 @@ check(zs.length >= 1 && zs.every((r) => r.team === 'red') && hs.every((r) => r.t
 const snap = a.msgs.filter((m) => m.t === 'snap').pop();
 check(snap && snap.tk[0] + snap.tk[1] === 8, `snapshot sayaçları insan+zombi = 8 (${snap && snap.tk})`);
 const bosses = a.msgs.filter((m) => m.t === 'snap').flatMap((m) => m.s).filter((p) => p.bs === 1).slice(0, 1);       // yavaş alanlar yalnızca değişince/periyodik gelir: ilk tam paketi ara
-check(bosses.length === 1 && bosses[0].mh > 1000 && bosses[0].zl === 3, `snapshot boss taşıyor: ${bosses.length} boss, can ${bosses[0] && bosses[0].mh}, hak ${bosses[0] && bosses[0].zl}`);
+check(bosses.length === 1 && bosses[0].mh > 500 && bosses[0].zl === 3, `snapshot boss taşıyor: ${bosses.length} boss, can ${bosses[0] && bosses[0].mh}, hak ${bosses[0] && bosses[0].zl}`);
 if (me.cls !== 'zombie') {
   a.send(JSON.stringify({ t: 'opt', zt: 'ghost' }));                 // sonraki doğuş için zombi türü: hayalet
   // kendimi öldür (debug): zombi olarak doğmalı
@@ -27,7 +28,7 @@ if (me.cls !== 'zombie') {
   check(ev.some((e) => e.v === w.id), 'inf olayı yayınlandı (benim kimliğim)');
   const s2 = a.msgs.filter((m) => m.t === 'snap').pop();
   check(s2.me.now.a === 1 && s2.me.now.it.length === 1 && s2.me.now.it[0] === 'claws', 'yeniden doğdum: tek eşya pençe');
-  check(s2.me.now.zt === 4 && s2.me.now.mh === 150, `seçtiğim tür geldi: hayalet (zt ${s2.me.now.zt}, can ${s2.me.now.mh})`);
+  check(s2.me.now.zt === 4 && s2.me.now.mh >= ZTYPES.ghost.hp, `seçtiğim tür geldi: hayalet (zt ${s2.me.now.zt}, can ${s2.me.now.mh})`);
   await wait(7500);                                                     // hazırlık süresi (14 sn) bitsin
   a.send(JSON.stringify({ t: 'in', q: 1, f: 0, r: 0, l: 0, s: 0, j: 0, a: 0, yw: 0, pt: 0, ab: 1 }));
   await wait(2000);
