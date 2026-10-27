@@ -5,7 +5,7 @@ import * as THREE from 'three';
 //   setHour(h) bunları ara değerler ve sahneye uygular (gök kubbesi, güneş, sis, yarımküre, bulut, su); maç içinde zamanla değişen ışık için de aynı yol.
 // - Bulut katmanı: 1,4 km yükseklikte 30 km'lik düzlem, kayan fbm bulutları (güneş tarafı parlak, alt yüzey gölgeli, ufka doğru incelir) — 1 çizim.
 // - Vadi pusu: 3 yatay katman (y 3 / 6 / 10 m); arazi yükseklik dokusundan (half float) zemine yakın yerde söner → tepeyi kesen sert çizgi yok,
-//   pus yalnız vadi tabanında / nehir üstünde toplanır; kameraya yakında söner (içinden geçerken perde görünmez).
+//   pus yalnız vadi tabanında / göl üstünde toplanır; kameraya yakında söner (içinden geçerken perde görünmez).
 
 // [saat, güneş yüksekliği (°), güneş rengi, güneş gücü, gök tepe, gök orta, ufuk, yarımküre üst, yarımküre alt, yarımküre gücü, sis rengi, sis yakın, sis uzak, pus]
 export const KEYS = [
@@ -156,7 +156,7 @@ export class Atmosphere {
     cu.uShade.value.copy(s.sky[1]).lerp(s.hemi[1], 0.35).multiplyScalar(s.alt > 10 ? 1.0 : 0.8);
     cu.uHor.value.copy(s.sky[2]);
     if (this.mist) { this.mist.U.uCol.value.copy(s.fog[0]).lerp(new THREE.Color('#ffffff'), 0.25); this.mist.U.uSunC.value.copy(s.sun); this.mist.U.uSun.value.copy(d); this.setMistAmt(s.mist); }
-    if (water) for (const m of [water.mat, water.lakeMat]) { const U = m.userData.U; U.uSky.value.copy(s.sky[1]); U.uHor.value.copy(s.sky[2]); U.uSunC.value.copy(s.sun); U.uSun.value.copy(d); }
+    if (water) for (const m of water.mats) { const U = m.userData.U; U.uSky.value.copy(s.sky[1]); U.uHor.value.copy(s.sky[2]); U.uSunC.value.copy(s.sun); U.uSun.value.copy(d); }
     return s;
   }
   // gece: oyunun gece hazır ayarı (gök / sis / ay ışığı) korunur; yalnız bulut / pus / su renkleri karartılır
@@ -165,7 +165,7 @@ export class Atmosphere {
     cu.uLit.value.set('#3a4566'); cu.uShade.value.copy(dark); cu.uHor.value.set('#233a68'); cu.uSunC.value.set('#6a7aa8'); cu.uCov.value = 0.52;
     this.sunDir.set(-0.4, 0.75, -0.3).normalize();
     if (this.mist) { this.mist.U.uCol.value.set('#2c3a58'); this.mist.U.uSunC.value.set('#000'); this.setMistAmt(0.45); }
-    if (water) for (const m of [water.mat, water.lakeMat]) { const U = m.userData.U; U.uSky.value.set('#10204a'); U.uHor.value.set('#233a68'); U.uSunC.value.set('#9fb4ff'); U.uSun.value.copy(this.sunDir); }
+    if (water) for (const m of water.mats) { const U = m.userData.U; U.uSky.value.set('#10204a'); U.uHor.value.set('#233a68'); U.uSunC.value.set('#9fb4ff'); U.uSun.value.copy(this.sunDir); }
   }
   update(t, cam) {
     this.clouds.userData.U.uTime.value = t;

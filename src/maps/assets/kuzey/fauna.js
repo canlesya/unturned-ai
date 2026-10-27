@@ -1,10 +1,10 @@
 import * as THREE from 'three';
-import { RIVER, FIELDS } from './layout.js';
+import { LAKE, KZ_LAKE, FIELDS } from './layout.js';
 
 // Kuzey Vadisi hayvanları (12.172, YALNIZ İSTEMCİ görseli: sunucuya / ağa / çarpışmaya / bot görüşüne etkisi yok; Math.random serbest).
 // İnek sürüsü (çiftlik çayırı), koyun sürüsü (köy yamacı), geyik grupları (orman kenarı: askere 45 m yaklaşınca / yakında ateş edilince kaçar,
 // uzaklaşıp görünmeden yeniden belirir), karga sürüleri (tarlada yerde; ateş sesiyle havalanır, döner, başka tarlaya konar), yüksekte süzülen
-// yırtıcılar, nehirde ördekler, ara sıra sıçrayan balık. Tür başına tek InstancedMesh (kanat çırpma / yürüme salınımı gölgelendiricide).
+// yırtıcılar, baraj gölünde ördekler, ara sıra sıçrayan balık (12.182: nehir yok). Tür başına tek InstancedMesh (kanat çırpma / yürüme salınımı gölgelendiricide).
 // Güncelleme: kameraya < 450 m olanlar her kare, ötekiler 8 karede bir. Sesler ambience.js (on(event)).
 
 const C = (h) => new THREE.Color(h);
@@ -85,8 +85,8 @@ export class Fauna {
       this.flocks.push(flock);
     }
     for (let i = 0; i < 3; i++) this.kinds.hawk.list.push({ k: 'hawk', cx: rnd(-500, 500), cz: rnd(-500, 500), r: rnd(60, 120), a: rnd(0, 6.3), y: rnd(110, 180), sp: rnd(0.08, 0.14) });
-    // ördekler: köprüler çevresinde nehirde
-    for (const [x, z] of [[-40, 18], [60, -22], [-420, -20], [250, -66]]) for (let i = 0; i < 3 + (x > 0 ? 1 : 0); i++) if (this.kinds.duck.list.length < 14) this.kinds.duck.list.push({ k: 'duck', x: x + rnd(-6, 6), z: z + rnd(-4, 4), ry: rnd(0, 6.3), vx: 0, vz: 0, t: rnd(0, 4) });
+    // ördekler: baraj gölünde (barajın menbası; barajdan / kıyıdan görünür)
+    for (const [x, z] of [[728, -58], [752, -78], [776, -52], [745, -40]]) for (let i = 0; i < 3 + (x > 750 ? 1 : 0); i++) if (this.kinds.duck.list.length < 14) this.kinds.duck.list.push({ k: 'duck', x: x + rnd(-6, 6), z: z + rnd(-4, 4), ry: rnd(0, 6.3), vx: 0, vz: 0, t: rnd(0, 4) });
     this.fish = { t: rnd(3, 8), on: false };
     for (const k in this.kinds) this.kinds[k].im.count = this.kinds[k].list.length || 0;
     this.M = new THREE.Matrix4(); this.q = new THREE.Quaternion(); this.e = new THREE.Euler(); this.s = new THREE.Vector3(1, 1, 1); this.p = new THREE.Vector3();
@@ -138,12 +138,12 @@ export class Fauna {
     }
     // ördek / yırtıcı / balık
     for (const a of this.kinds.duck.list) { a.t -= dt; if (a.t <= 0) { a.t = rnd(2, 6); a.vx = rnd(-0.4, 0.4); a.vz = rnd(-0.3, 0.3); if (Math.random() < 0.15 && Math.hypot(a.x - cam.x, a.z - cam.z) < 80) this.events.push(['duck', a.x, a.z]); }
-      const nx = a.x + a.vx * dt, nz = a.z + a.vz * dt; if (T.heightAt(nx, nz) < -0.8) { a.x = nx; a.z = nz; a.ry = Math.atan2(-a.vz, a.vx); } else { a.vx = -a.vx; a.vz = -a.vz; } }
+      const nx = a.x + a.vx * dt, nz = a.z + a.vz * dt; if (nx > 712 && T.heightAt(nx, nz) < KZ_LAKE - 0.8) { a.x = nx; a.z = nz; a.ry = Math.atan2(-a.vz, a.vx); } else { a.vx = -a.vx; a.vz = -a.vz; } }
     for (const h of this.kinds.hawk.list) h.a += h.sp * dt;
     const F = this.fish; F.t -= dt;
-    if (!F.on && F.t <= 0) {                                                                    // kameraya yakın nehir noktasında sıçrama
+    if (!F.on && F.t <= 0) {                                                                    // kameraya yakın göl noktasında sıçrama
       F.t = rnd(4, 9);
-      let best = null; for (let i = 0; i < 12; i++) { const q = RIVER[Math.floor(Math.random() * 19)], x = q[0] + rnd(-q[2] * 0.6, q[2] * 0.6), z = q[1] + rnd(-q[2] * 0.6, q[2] * 0.6), dd = Math.hypot(x - cam.x, z - cam.z); if (dd < 110 && T.heightAt(x, z) < -1.2) { best = [x, z]; break; } }
+      let best = null; for (let i = 0; i < 12; i++) { const q = LAKE[Math.floor(Math.random() * 3)], x = q[0] + rnd(0, 60), z = q[1] + rnd(-q[2] * 0.5, q[2] * 0.5), dd = Math.hypot(x - cam.x, z - cam.z); if (dd < 110 && x > 712 && T.heightAt(x, z) < KZ_LAKE - 1.2) { best = [x, z]; break; } }
       if (best) { F.on = true; F.x = best[0]; F.z = best[1]; F.u = 0; F.ry = rnd(0, 6.3); this.events.push(['fish', F.x, F.z]); }
     }
     if (F.on) { F.u += dt / 0.7; if (F.u >= 1) F.on = false; }
@@ -161,9 +161,9 @@ export class Fauna {
     });
     K.im.instanceMatrix.needsUpdate = true;
     const Hk = this.kinds.hawk; Hk.list.forEach((h, i) => put(Hk, i, h.cx + Math.cos(h.a) * h.r, h.y, h.cz + Math.sin(h.a) * h.r, -h.a, 0.25, 1.6)); Hk.im.instanceMatrix.needsUpdate = true;
-    const D = this.kinds.duck; D.list.forEach((a, i) => put(D, i, a.x, 0.02 + Math.sin(t * 2 + i) * 0.02, a.z, a.ry)); D.im.instanceMatrix.needsUpdate = true;
+    const D = this.kinds.duck; D.list.forEach((a, i) => put(D, i, a.x, KZ_LAKE + 0.02 + Math.sin(t * 2 + i) * 0.02, a.z, a.ry)); D.im.instanceMatrix.needsUpdate = true;
     const Fi = this.kinds.fish, F = this.fish;
-    if (F.on) { put(Fi, 0, F.x + Math.cos(F.ry) * F.u * 0.9, Math.sin(F.u * Math.PI) * 0.75 - 0.1, F.z - Math.sin(F.ry) * F.u * 0.9, F.ry, (0.5 - F.u) * 2.2); Fi.im.count = 1; } else Fi.im.count = 0;
+    if (F.on) { put(Fi, 0, F.x + Math.cos(F.ry) * F.u * 0.9, KZ_LAKE + Math.sin(F.u * Math.PI) * 0.75 - 0.1, F.z - Math.sin(F.ry) * F.u * 0.9, F.ry, (0.5 - F.u) * 2.2); Fi.im.count = 1; } else Fi.im.count = 0;
     Fi.im.instanceMatrix.needsUpdate = true;
   }
 }

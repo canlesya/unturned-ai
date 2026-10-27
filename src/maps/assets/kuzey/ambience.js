@@ -1,7 +1,7 @@
-import { RIVER } from './layout.js';
+import { LAKE } from './layout.js';
 
 // Kuzey Vadisi ortam sesleri (12.172, yalnız istemci; Sfx'in ortam kanalı ambBus — Ayarlar → Ortam sesi). Sentez (dosya yok):
-// sürekli: rüzgâr (yükseklikle / yağmurda artar), nehir (en yakın nehir noktasına uzaklık), fabrika uğultusu (D çevresi), gece cırcır böceği;
+// sürekli: rüzgâr (yükseklikle / yağmurda artar), baraj gölü dalga şıpırtısı (göl kıyısına uzaklık; 12.182 nehir yok), fabrika uğultusu (D çevresi), gece cırcır böceği;
 // olay: kuş cıvıltısı (gündüz, ağaç / çalı yakınında), kargalar (havalanınca), inek / koyun, ördek, uzak köy köpeği, balık şıpırtısı, baykuş (gece).
 const FACT = [250, -300], VILL = [-230, 250];
 export class Ambience {
@@ -60,8 +60,8 @@ export class Ambience {
     const alt = Math.max(0, cam.y - 20), windG = Math.min(0.2, 0.035 + alt * 0.0016) * (rain ? 1.7 : 1);
     set(this.wind.g, windG); set(this.wind2.g, windG * 0.35 * (0.6 + 0.4 * Math.sin(this.t * 0.31)));
     this.wind.fl.frequency.setTargetAtTime(340 + 160 * Math.sin(this.t * 0.17), now, 1.5);
-    let rd = 1e9; for (let i = 0; i < RIVER.length - 1; i++) { const a = RIVER[i], b = RIVER[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], l2 = dx * dx + dz * dz; let t = ((cam.x - a[0]) * dx + (cam.z - a[1]) * dz) / l2; t = Math.max(0, Math.min(1, t)); rd = Math.min(rd, Math.hypot(a[0] + dx * t - cam.x, a[1] + dz * t - cam.z) - a[2]); }
-    const rv = 0.11 / (1 + Math.max(0, rd) / 30) ** 1.5; set(this.river.g, rv); set(this.river2.g, rv * 0.35);
+    let rd = 1e9; for (let i = 0; i < LAKE.length - 1; i++) { const a = LAKE[i], b = LAKE[i + 1], dx = b[0] - a[0], dz = b[1] - a[1], l2 = dx * dx + dz * dz; let t = ((cam.x - a[0]) * dx + (cam.z - a[1]) * dz) / l2; t = Math.max(0, Math.min(1, t)); rd = Math.min(rd, Math.hypot(a[0] + dx * t - cam.x, a[1] + dz * t - cam.z) - a[2]); }
+    const rv = 0.06 / (1 + Math.max(0, rd + 20) / 30) ** 1.5; set(this.river.g, rv); set(this.river2.g, rv * 0.35);
     const fd = Math.hypot(cam.x - FACT[0], cam.z - FACT[1]); set(this.hum.g, 0.05 / (1 + (fd / 70) ** 2));
     set(this.crick.g, 0); this.lfoG.gain.setTargetAtTime(night ? 0.02 : 0, now, 1);
     if (!night && !rain && (this.next.bird -= dt) <= 0) { this.next.bird = 0.6 + Math.random() * (treeNear ? 2.2 : 6); const a = Math.random() * 6.28, r = 8 + Math.random() * 30; this.play('bird', cam.x + Math.cos(a) * r, cam.z + Math.sin(a) * r, 6 + Math.random() * 6); }

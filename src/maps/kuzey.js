@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { MapBuilder, makeRng } from './builder.js';
 import { KuzeyTerrain } from './assets/kuzey/terrain.js';
-import { KZ_BOUNDS, FLAGS, HQ, PADS, CALLOUTS, VEHICLES, HELIPADS, TDM_AREA, BRIDGES, DAM } from './assets/kuzey/layout.js';
+import { KZ_BOUNDS, FLAGS, HQ, PADS, CALLOUTS, VEHICLES, HELIPADS, TDM_AREA, DAM } from './assets/kuzey/layout.js';
 import { KK, makeKuzeyMaterial } from './assets/kuzey/surface.js';
 import { ChunkSet } from './assets/kuzey/chunks.js';
 import { placeAll } from './assets/kuzey/blockout.js';
@@ -17,7 +17,7 @@ import { Ambience } from './assets/kuzey/ambience.js';
 import { SURF } from './assets/kuzey/terrain.js';
 
 // "Kuzey Vadisi" (12.172) — büyük harita (1600 × 1600 m oynanır, 5 km uzak manzara), Ele Geçirme 7 bayrak + Takım Çatışması (köy alt alanı).
-// Arazi (2 m ızgara, yollar / köy sokakları / nehir / alanlar), bölgelerde varlıklar (içine girilen binalar), orman + çalı çiti + kaya + devrik ağaç + buğday,
+// Arazi (2 m ızgara, yollar / köy sokakları / baraj gölü / alanlar; 12.182 ortadaki nehir yok), bölgelerde varlıklar (içine girilen binalar), orman + çalı çiti + kaya + devrik ağaç + buğday,
 // su, gök / bulut / pus, maç boyu değişen gün ışığı, hayvanlar, ortam sesi, gece ışıkları; araç doğuş / heliped / yol ağı / ganimet noktası VERİSİ.
 // Görsel katmanlar (arazi ağı, orman, su, atmosfer) yalnız tarayıcıda kurulur (MapBuilder.noVisual: sunucu yalnız arazi + çarpışma + yerleşim).
 export const KZ_HOURS = { day: 10.5, sunset: 18.9 };
@@ -30,8 +30,8 @@ export function buildKuzey() {
   const surface = { ground: (x, z) => T.heightAt(x, z), kindOf: () => KK.PLAIN, seeded: true, material: makeKuzeyMaterial };
   const cs = new ChunkSet({ size: 200, surface });
   const rng = makeRng(1972);
-  const { occ, wires } = placeAll(cs, T, rng);
-  const veg = scatterVegetation(T, occ, makeRng(7272), makeRng(9191), { outer: visual });
+  const { occ, wires, orchard, rocks } = placeAll(cs, T, rng);
+  const veg = scatterVegetation(T, occ, makeRng(7272), makeRng(9191), { outer: visual, orchard, rocks });
   vegetationColliders(veg, cs);
   fallenLogs(veg.logs, cs);
   const nWheat = fieldCover(T, cs);
@@ -53,7 +53,7 @@ export function buildKuzey() {
   const spawns = { blue: spawnsFor('blue'), red: spawnsFor('red') };
   const pad = (id) => PADS.find((p) => p.id === id);
   const zoneOf = (p) => ({ minX: p.x - p.w / 2, maxX: p.x + p.w / 2, minZ: p.z - p.d / 2, maxZ: p.z + p.d / 2 });
-  const flagY = (f) => (f.id === 'C' ? BRIDGES[0].deck : f.id === 'E' ? DAM.crest : T.heightAt(f.x, f.z));
+  const flagY = (f) => (f.id === 'E' ? DAM.crest : T.heightAt(f.x, f.z));
   const ctx = cs.ctx, loot = (ctx.loot || []).filter((p) => Math.abs(p.x) < KZ_PLAY.maxX && Math.abs(p.z) < KZ_PLAY.maxZ);
 
   // mini harita: yollar (8 m'de bir dikdörtgen)

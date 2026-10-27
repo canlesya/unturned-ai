@@ -1,9 +1,9 @@
 import * as THREE from 'three';
-import { RIVER, LAKE, KZ_WATER, KZ_LAKE } from './layout.js';
+import { LAKE, KZ_LAKE } from './layout.js';
 import { outerHeight } from './terrain.js';
 import { TERRAIN_U } from './terrainMat.js';
 
-// Kuzey Vadisi suyu (12.172, yalnız görsel): nehir şeridi (eksen boyunca 6 m, enine 10 dilim) + baraj gölü. Köşe başına derinlik (su − zemin)
+// Kuzey Vadisi suyu (12.172, yalnız görsel): baraj gölü (12.182: ortadaki nehir şeridi kalktı). Köşe başına derinlik (su − zemin)
 // → sığda açık / yarı saydam, derinde koyu; kıyıda köpük; akış yönünde kayan dalga normali, Fresnel ile gök rengi, güneş parıltısı. Sis (three) uygulanır.
 // 12.180: iki yüzlü — alttan (dalan oyuncu) yüzeyin alt yüzü görünür: dalgalı açık turkuaz, uzakta koyulaşır (tam iç yansıma hissi; Snell penceresi yok),
 // gün ışığıyla (gök rengi) kararır. Üstten: yakında dalga normali yumuşatıldı (beyaz leke parıltısı yok), akış yönünde uzayan köpük çizgileri.
@@ -111,16 +111,14 @@ export function makeWaterMaterial(env = {}) {
 export class Water {
   constructor(T, env) {
     this.group = new THREE.Group(); this.group.name = 'kuzey-su';
-    this.mat = makeWaterMaterial(env);
-    const river = new THREE.Mesh(ribbon(RIVER.map((q) => [q[0], q[1], q[2]]), KZ_WATER, 22, 6, T), this.mat);
-    river.renderOrder = 2; this.group.add(river);
     this.lakeMat = makeWaterMaterial(env); this.lakeMat.userData.U.uFlow.value = 0.08;
+    this.mats = [this.lakeMat];
     this.lakeMat.userData.U.uDeep.value.set('#1a3236');
     const lake = new THREE.Mesh(ribbon(LAKE, KZ_LAKE, 70, 12, T, 12), this.lakeMat);
     lake.renderOrder = 2; this.group.add(lake);
   }
   update(t, sunDir) {
     TERRAIN_U.uTime.value = t % 3600;                                                     // su yatağı kostik deseni
-    for (const m of [this.mat, this.lakeMat]) { m.userData.U.uTime.value = t; if (sunDir) m.userData.U.uSun.value.copy(sunDir); }
+    for (const m of this.mats) { m.userData.U.uTime.value = t; if (sunDir) m.userData.U.uSun.value.copy(sunDir); }
   }
 }

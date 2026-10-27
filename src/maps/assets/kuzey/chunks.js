@@ -28,6 +28,8 @@ export class ChunkSet {
   build(root) {
     for (const c of this.list) {
       c.near = c.b.build(); c.farG = MapBuilder.noVisual ? null : c.b.far.build();
+      // 12.182 birleşik ağ kurulduktan sonra parça geometrileri / z-fight kayıtları bırakılır (tarayıcı yığını; çarpışma / görüş verisi kalır)
+      for (const q of [c.b, c.b.far]) { q.buckets.clear(); q._zitems = null; }
       c.group = new THREE.Group(); c.group.name = 'yığın:' + c.k;
       c.group.add(c.near); if (c.farG) { c.farG.visible = false; for (const m of c.farG.children) m.castShadow = false; c.group.add(c.farG); }
       root.add(c.group);
@@ -48,7 +50,7 @@ export class ChunkBuilder extends MapBuilder {
   constructor(farMin) {
     super();
     this.farMin = farMin;
-    this.far = new MapBuilder();
+    this.far = new MapBuilder(); this.far.isFar = true;                       // uzak kademe kopyası (denetim betikleri ayırt eder)
     this.far.stack = this.stack; this.far.objStack = this.objStack; this.far.kindStack = this.kindStack;    // aynı dönüşüm / kimlik / sınıf yığını
   }
   // sunucu (noVisual): görsel geometri hiç üretilmez, yalnız çarpışma kutusu (kurulum süresi / bellek)

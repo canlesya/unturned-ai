@@ -129,7 +129,7 @@ export function pylon(b, T, x, z, ry = 0, h = 30) {
     for (let yy = 4; yy < h * 0.8; yy += 4) { const r = leg(yy); for (const sd of [-1, 1]) { b.box(0, yy, sd * r, 2 * r, 0.14, 0.14, STEEL, { collide: false, kind: KK.METAL }); b.box(sd * r, yy, 0, 0.14, 0.14, 2 * r, STEEL, { collide: false, kind: KK.METAL }); } }
     b.box(0, h * 0.82, 0, 2 * top, h * 0.18, 2 * top, STEEL, { collide: false, kind: KK.METAL });
     for (const [ay, aw] of [[h * 0.72, 6.5], [h * 0.88, 4.6]]) {
-      b.box(0, ay, 0, 2 * aw, 0.4, 0.5, STEEL, { collide: false, kind: KK.METAL });
+      b.box(0, ay, 0, 2 * aw, 0.4, ay < h * 0.82 ? 2 * leg(ay) + 0.3 : 0.5, STEEL, { collide: false, kind: KK.METAL });     // 12.182 alt kol ayaklara değer
       for (const sd of [-1, 1]) arms.push([x + Math.cos(ry) * sd * aw, y0 + ay - 1.6, z - Math.sin(ry) * sd * aw]);
     }
   }));

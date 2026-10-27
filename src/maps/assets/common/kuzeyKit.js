@@ -23,6 +23,11 @@ export function roundCollide(b, x, y, z, r, h, tag) {
   for (const [a, c] of [[0.95, 0.31], [0.81, 0.59], [0.59, 0.81], [0.31, 0.95]]) b.collide(x, y, z, 2 * a * r, h, 2 * c * r, tag);
 }
 
+// 12.182 daha sıkı yuvarlak çarpışma (n kutu; birleşimin en dar yarıçapı ≈ r·cos(45°/n)): büyük gövdelerde (değirmen, ot yığını) görsel ile boşluk < 0,1 m
+export function roundCollideN(b, x, y, z, r, h, n = 8, tag) {
+  for (let k = 0; k < n; k++) { const a = (k + 0.5) / n * Math.PI / 2; b.collide(x, y, z, 2 * Math.cos(a) * r, h, 2 * Math.sin(a) * r, tag); }
+}
+
 // renk koyulaştır / aç (#rrggbb)
 export function shade(hex, k) {
   const n = parseInt(hex.slice(1), 16), f = (v) => Math.max(0, Math.min(255, Math.round(v * k)));

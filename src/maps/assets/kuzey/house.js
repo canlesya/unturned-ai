@@ -1,5 +1,13 @@
 import { KK } from './surface.js';
 import { Q, footY, worldRect, shade, roundCollide, lw, ctxAdd, addLoot, addDoor } from '../common/kuzeyKit.js';
+import { furnishRoom } from '../common/kasaba-furniture.js';
+import { makeRng } from '../../builder.js';
+// 12.182 Kasaba eşya kiti Kuzey malzemesinde (yüzey sınıfları KK): yeni mezra / çiftlik evlerinde (o.furnish) oda başı eşya tarifi
+const FS = { k: { wood: KK.PLANK, plain: KK.PLAIN, metal: KK.METAL, paint: KK.PLASTER, stone: KK.STONE, conc: KK.CONC, corr: KK.CORR, dirt: KK.PLAIN, veg: KK.LEAF, board: KK.PLANK } };
+const FURN = {
+  alt: [['kitchenRun', 'stove', 'cabinet', 'shelf', { set: 'table2', chairs: 2 }, { corner: 'plant' }, { art: 1 }], ['shelf', 'cabinet', 'stove', { set: 'table', chairs: 4 }, 'cabinet', { corner: 'floorLamp' }, { corner: 'plant' }, { art: 2 }]],
+  ust: [['bed2', 'wardrobe', 'dresser', { free: 'rug' }, { corner: 'plant' }, { art: 1 }], ['bed', 'bed', 'wardrobe', 'desk', { corner: 'floorLamp' }, { art: 1 }]],
+};
 
 // Kuzey Vadisi köy yapıları (12.172): ev (1–2 kat, içine girilir, merdivenli), ahır, kilise. Hepsi yerel çerçevede kurulur:
 // (x, z) merkez, ry = 90°'nin katı; kapı yerel +z yüzünde. Taban = ayak izindeki en yüksek arazi + 0,2; altı taş kaide (eğimli zeminde boşluk yok).
@@ -29,6 +37,7 @@ function gableRoof(b, w, d, H, color, kind, wall, ov = 0.45) {
 // ── Köy evi ──
 export function house(b, Tr, o) {
   const { x, z, w = 8, d = 6.5, floors = 2, ry = 0, wall = '#d6ccb8', roof = '#8a4a32', roofKind = KK.TILE, shutter = '#4b5a3a', seed = 1 } = o;
+  const sill = o.furnish ? 1.28 : 0.95;                                                            // 12.182 döşenmiş evde pencere eşiği yüksek (eşya pervaza değmez)
   const [x0, x1, z0, z1] = worldRect(x, z, w + 0.3, d + 0.3, ry);
   const fy = footY(Tr, x0, x1, z0, z1), y0 = fy.max + 0.2, H = floors * FH + 0.25;
   const id = o.id || `ev:${Math.round(x)}:${Math.round(z)}`;
@@ -39,7 +48,7 @@ export function house(b, Tr, o) {
     const door = { at: (seed % 3 - 1) * w * 0.18, w: 1.2, b: 0, top: 2.3 };
     const nW = Math.max(1, Math.round(w / 2.6)), nD = Math.max(1, Math.round(d / 2.8));
     // kat başına ayrı duvar bandı (aynı duvarda üst üste açıklık wall() ile tek çağrıda olmaz)
-    const opsF = (k) => ({ s: [...(k ? [] : [door]), ...winRow(w, nW, 0.95, 2.2, 1.1, k ? null : door)], n: winRow(w, nW, 0.95, 2.2), e: winRow(d, nD, 0.95, 2.2), w: winRow(d, nD, 0.95, 2.2) });
+    const opsF = (k) => ({ s: [...(k ? [] : [door]), ...winRow(w, nW, sill, 2.2, 1.1, k ? null : door)], n: winRow(w, nW, sill, 2.2), e: winRow(d, nD, sill, 2.2), w: winRow(d, nD, sill, 2.2) });
     const ops = { s: [], n: [], e: [], w: [] };
     for (let k = 0; k < floors; k++) {
       const o2 = opsF(k);
@@ -77,24 +86,41 @@ export function house(b, Tr, o) {
     const rh = gableRoof(b, w, d, H, roof, roofKind, wall);
     b.box(w * 0.26, H, -d * 0.12, 0.62, rh + 0.9, 0.62, shade(wall, 0.85), { collide: false, kind: KK.PLASTER });
     b.box(w * 0.26, H + rh + 0.9, -d * 0.12, 0.76, 0.12, 0.76, '#5e5a55', { collide: false, kind: KK.CONC });
-    // iç eşya (BR / ganimet için): masa (üst tabla + ayaklar ayrı çarpışma; altı boş) + dolap (dolu kutu, duvara yaslı)
-    const tx = iw * 0.12, tz = id2 * 0.16;
-    b.box(tx, 0.72, tz, 1.3, 0.06, 0.8, '#7a5a3c', { kind: KK.PLANK });
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.box(tx + sx * 0.58, 0, tz + sz * 0.33, 0.07, 0.72, 0.07, '#5b4130', { kind: KK.PLANK });
-    b.box(iw / 2 - 0.23, 0, 0.6, 0.42, 1.85, 1.1, '#6d5440', { kind: KK.PLANK });
-    if (floors > 1) b.box(-iw / 2 + 0.75, FH, id2 / 2 - 0.5, 1.4, 0.5, 0.9, '#8a7a64', { kind: KK.PLANK });                         // üst kat: sandık / yatak
+    if (o.furnish) {
+      // 12.182 döşenmiş ev (Kasaba eşya yerleştiricisi): kapı önü + merdiven / boşluk şeridi yürünür kalır, eşyalar birbirine / duvara girmez
+      let sd = 7; for (const ch of id) sd = (Math.imul(sd, 31) + ch.charCodeAt(0)) >>> 0;
+      const R = makeRng(sd), wins = (k) => ({ s: [], n: winRow(w, nW, sill, 2.2).map((q) => [q.at - q.w / 2 - 0.2, q.at + q.w / 2 + 0.2]), e: winRow(d, nD, sill, 2.2).map((q) => [q.at - q.w / 2 - 0.2, q.at + q.w / 2 + 0.2]), w: winRow(d, nD, sill, 2.2).map((q) => [q.at - q.w / 2 - 0.2, q.at + q.w / 2 + 0.2]) });
+      const solid = { n: true, s: true, e: true, w: true }, x0 = -iw / 2, x1 = iw / 2, z0 = -id2 / 2, z1 = id2 / 2;
+      const sw0 = winRow(w, nW, sill, 2.2, 1.1, door).map((q) => [q.at - q.w / 2 - 0.2, q.at + q.w / 2 + 0.2]);
+      const stair = floors > 1 ? [x0, x0 + 0.2 + 12 * 0.27 + 0.6, z0, z0 + 1.0 + 1.1] : null;
+      furnishRoom(b, FS, R, { x0, x1, z0, z1, y: 0, k: 0, type: 'ev', avoid: [[door.at - 0.9, door.at + 0.9, z1 - 1.4, z1], ...(stair ? [stair] : [])], wins: { ...wins(0), s: [...sw0, [door.at - 0.7, door.at + 0.7]] }, solid }, FURN.alt[sd & 1]);
+      if (floors > 1) furnishRoom(b, FS, R, { x0, x1, z0, z1, y: FH, k: 1, type: 'ev', avoid: [[x0, x1, z0, z0 + 1.05 + 0.9]], wins: { ...wins(1), s: winRow(w, nW, sill, 2.2).map((q) => [q.at - q.w / 2 - 0.2, q.at + q.w / 2 + 0.2]) }, solid }, FURN.ust[(sd >>> 3) & 1]);
+    } else {
+      // iç eşya (BR / ganimet için): masa (üst tabla + ayaklar ayrı çarpışma; altı boş) + dolap (dolu kutu, duvara yaslı)
+      const tx = iw * 0.12, tz = id2 * 0.16;
+      b.box(tx, 0.72, tz, 1.3, 0.06, 0.8, '#7a5a3c', { kind: KK.PLANK });
+      for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.box(tx + sx * 0.58, 0, tz + sz * 0.33, 0.07, 0.72, 0.07, '#5b4130', { kind: KK.PLANK });
+      b.box(iw / 2 - 0.23, 0, 0.6, 0.42, 1.85, 1.1, '#6d5440', { kind: KK.PLANK });
+      if (floors > 1) b.box(-iw / 2 + 0.75, FH, id2 / 2 - 0.5, 1.4, 0.5, 0.9, '#8a7a64', { kind: KK.PLANK });                         // üst kat: sandık / yatak
+    }
   }));
   // bağlam: ganimet noktaları, kapı (nav), gece pencere ışıkları (evlerin ~%60'ı), baca dumanı
   const iw = w - 2 * T, id2 = d - 2 * T;
-  addLoot(b, x, z, ry, y0, [[iw * 0.12, id2 * 0.16, 'masa', 0.78], [iw / 2 - 0.85, 0.6, 'raf'], [-iw / 2 + 0.6, id2 / 2 - 0.6, 'zemin'], [iw / 2 - 0.6, -id2 / 2 + 0.6, 'zemin']]);
-  if (floors > 1) addLoot(b, x, z, ry, y0 + FH, [[-iw / 2 + 0.75, id2 / 2 - 0.5, 'sandık', 0.5], [iw / 2 - 0.7, id2 / 2 - 0.7, 'zemin']]);
+  const door0 = (seed % 3 - 1) * w * 0.18;
+  if (o.furnish) {                                                                                 // döşenmiş evde ganimet: kapı önü + merdiven sahanlığı (eşyasız şeritler)
+    addLoot(b, x, z, ry, y0, [[door0, id2 / 2 - 0.7, 'zemin'], [-iw / 2 + 0.2 + 12 * 0.27 + 0.35, -id2 / 2 + 1.5, 'zemin']]);
+    if (floors > 1) addLoot(b, x, z, ry, y0 + FH, [[iw / 2 - 0.6, -id2 / 2 + 0.55, 'zemin']]);
+  } else {
+    addLoot(b, x, z, ry, y0, [[iw * 0.12, id2 * 0.16, 'masa', 0.78], [iw / 2 - 0.85, 0.6, 'raf'], [-iw / 2 + 0.6, id2 / 2 - 0.6, 'zemin'], [iw / 2 - 0.6, -id2 / 2 + 0.6, 'zemin']]);
+    if (floors > 1) addLoot(b, x, z, ry, y0 + FH, [[-iw / 2 + 0.75, id2 / 2 - 0.5, 'sandık', 0.5], [iw / 2 - 0.7, id2 / 2 - 0.7, 'zemin']]);
+  }
   const door = (seed % 3 - 1) * w * 0.18;
   addDoor(b, x, z, ry, y0, door, d / 2, 0, 1);
   const H2 = floors * FH + 0.25;
   if ((Math.round(x * 7 + z * 3) & 7) < 5) {
     for (let k = 0; k < floors; k++) for (const side of ['s', 'n', 'e', 'w']) {
       const len = side === 's' || side === 'n' ? w : d, n = Math.max(1, Math.round(len / (side === 's' || side === 'n' ? 2.6 : 2.8)));
-      for (const op of winRow(len, n, 0.95, 2.2, 1.1, side === 's' && !k ? { at: door, w: 1.2 } : null)) {
+      for (const op of winRow(len, n, sill, 2.2, 1.1, side === 's' && !k ? { at: door, w: 1.2 } : null)) {
         if (Math.abs(Math.round(op.at * 13 + k * 5 + x)) % 3 === 0) continue;                                         // her pencere yanmaz
         const [lx, lz, nx, nz] = side === 's' ? [op.at, d / 2 + 0.02, 0, 1] : side === 'n' ? [op.at, -d / 2 - 0.02, 0, -1] : side === 'e' ? [w / 2 + 0.02, op.at, 1, 0] : [-w / 2 - 0.02, op.at, -1, 0];
         const [wx, wz] = lw(x, z, ry, lx, lz), [qx, qz] = lw(0, 0, ry, nx, nz);
@@ -118,12 +144,12 @@ export function barn(b, Tr, o) {
     b.withKind(KK.PLANK, () => b.shell(-w / 2 + 0.15, w / 2 - 0.15, -d / 2 + 0.15, d / 2 - 0.15, 0, h, 0.3, wall, ops, { trim: '#5b4130', kind: KK.PLANK }));
     for (const sx of [-1, 1]) b.box(sx * 2.1, 0, d / 2 + 0.05, 0.22, 4.2, 0.12, '#e6dfd0', { collide: false, kind: KK.PLANK });     // kapı pervazı
     b.box(0, 4.0, d / 2 + 0.05, 4.4, 0.22, 0.12, '#e6dfd0', { collide: false, kind: KK.PLANK });
-    b.box(-w / 2 + 2.2, 0, d / 2 + 1.1, 1.8, 1.0, 0.6, '#8b6a42', { collide: true, kind: KK.PLANK, ry: 0 });                      // yemlik
+    if (w >= 8) b.box(w / 2 - 0.6, 0, 0, 0.6, 1.0, 1.8, '#8b6a42', { collide: true, kind: KK.PLANK, ry: 0 });                   // yemlik (12.182: içeride, yan duvara yaslı; dışarıda havada kalıyordu)
     b.box(0, h - 0.2, 0, w - 0.6, 0.2, d - 0.6, '#6d5440', { kind: KK.PLANK });
     gableRoof(b, w, d, h, roof, KK.SHEET, wall, 0.6);
-    for (const [hx, hz] of [[-w / 2 + 1.4, -d / 2 + 1.4], [-w / 2 + 2.8, -d / 2 + 1.4], [-w / 2 + 1.4, -d / 2 + 2.8]]) { b.cyl(hx, 0.6, hz, 0.6, 0.6, 1.2, '#cdb066', { rx: Q, center: true, seg: 10, collide: false }); b.collide(hx, 0, hz, 1.0, 1.15, 1.15); }
+    for (const [hx, hz] of (w >= 8 ? [[-w / 2 + 1.4, -d / 2 + 1.4], [-w / 2 + 2.8, -d / 2 + 1.4], [-w / 2 + 1.4, -d / 2 + 2.8]] : [[-w / 2 + 1.0, -d / 2 + 1.1]])) { b.cyl(hx, 0.6, hz, 0.6, 0.6, 1.2, '#cdb066', { rx: Q, center: true, seg: 10, collide: false }); b.collide(hx, 0, hz, 1.0, 1.15, 1.15); }   // küçük kulübede tek balya (ganimet noktaları boş kalır)
   }));
-  addLoot(b, x, z, ry, y0, [[w / 2 - 1.2, -d / 2 + 1.2, 'zemin'], [0, -d / 2 + 1.0, 'sandık'], [w / 2 - 1.2, d / 2 - 1.4, 'zemin']]);
+  addLoot(b, x, z, ry, y0, w >= 8 ? [[w / 2 - 1.2, -d / 2 + 1.2, 'zemin'], [0, -d / 2 + 1.0, 'sandık'], [w / 2 - 1.2, d / 2 - 1.4, 'zemin']] : [[w / 2 - 0.8, -d / 2 + 0.8, 'zemin'], [0.3, -d / 2 + 0.8, 'sandık']]);
   addDoor(b, x, z, ry, y0, 0, d / 2, 0, 1);
   return { y0, rect: [x0, x1, z0, z1] };
 }

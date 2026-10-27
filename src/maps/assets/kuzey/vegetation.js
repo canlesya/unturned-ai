@@ -1,13 +1,22 @@
 import { FLORA } from '../common/kuzeyFlora.js';
-import { forestDensity, outerHeight } from './terrain.js';
+import { forestDensity, outerHeight, fbm } from './terrain.js';
 import { FLAGS, FIELDS, PADS, HEDGES } from './layout.js';
 import { makeRng } from '../../builder.js';
 
 // Kuzey Vadisi bitki yerleşimi (12.172, deterministik → sunucu = istemci): 7 m titreşimli ızgara, orman yoğunluğu + tür seçimi (yükseklik / su / kenar).
 // Süzgeç: yol, su, dik yamaç (> 0,85), yapı ayak izi (occ), bayrak çevresi, tarla, düzlenmiş alan merkezi. Harita içi ağaçlar: gövde çarpışma kutusu + tepe yaprak küresi (bot görüşü).
 // Harita dışı (800–1060 m) kuşak: seyrek, çarpışmasız (kenar ormanlık görünsün).
-export function scatterVegetation(T, occ, rng, rngOuter, { outer = true } = {}) {
+// 12.182 doldurma: açık alanda gürültü lekeleri hâlinde çalılık (çalı + genç ladin + huş / meşe), yollar boyunca ve tarla kenarlarında çalı çitleri,
+// iki katı kaya kümesi / devrik ağaç, mezra meyve bahçeleri. Çarpışan bitkiler (gövde / kaya / kütük) birbirine girmez (yakınlık ızgarası).
+const sst = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+export function scatterVegetation(T, occ, rng, rngOuter, { outer = true, orchard = [], rocks = [] } = {}) {
   const out = [], cellOcc = new Map(), OC = 16;
+  // çarpışan bitki yakınlık ızgarası: [x, z, r] (gövde / kaya / kütük parçası) — iki katı birbirine girmesin
+  const solid = new Map(), SC = 4, sk = (i, j) => i + ',' + j;
+  const solidFree = (x, z, r) => { const i0 = Math.floor((x - r - 4) / SC), i1 = Math.floor((x + r + 4) / SC), j0 = Math.floor((z - r - 4) / SC), j1 = Math.floor((z + r + 4) / SC);
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) for (const q of solid.get(sk(i, j)) || []) if (Math.hypot(q[0] - x, q[1] - z) < q[2] + r + 0.25) return false; return true; };
+  const solidAdd = (x, z, r) => { const k = sk(Math.floor(x / SC), Math.floor(z / SC)); let a = solid.get(k); if (!a) solid.set(k, (a = [])); a.push([x, z, r]); };
+  const solidR = (t) => (t.k === 'rock' ? t.s * Math.max(t.w, t.d) * 0.5 : FLORA[t.k].trunkH > 0 ? Math.max(0.12, FLORA[t.k].trunkR * t.s) * 1.42 : 0);
   for (const r of occ) for (let i = Math.floor((r[0] - 2) / OC); i <= Math.floor((r[1] + 2) / OC); i++) for (let j = Math.floor((r[2] - 2) / OC); j <= Math.floor((r[3] + 2) / OC); j++) { const k = i + ',' + j; let a = cellOcc.get(k); if (!a) cellOcc.set(k, (a = [])); a.push(r); }
   const blocked = (x, z, m) => { const a = cellOcc.get(Math.floor(x / OC) + ',' + Math.floor(z / OC)); if (a) for (const r of a) if (x > r[0] - m && x < r[1] + m && z > r[2] - m && z < r[3] + m) return true; return false; };
   const nearFlag = (x, z) => FLAGS.some((f) => Math.hypot(x - f.x, z - f.z) < f.r + 6);
@@ -25,53 +34,105 @@ export function scatterVegetation(T, occ, rng, rngOuter, { outer = true } = {}) 
       if (!inner && (r3 > 0.45 || inside)) continue;                       // dış kuşak seyrek
       const dens = forestDensity(x, z);
       const y = inside ? T.heightAt(x, z) : outerHeight(x, z);
-      let kind = null;
+      let kind = null, thicket = 0;
+      if (inside) thicket = sst(0.5, 0.7, fbm(x / 70 + 13, z / 70 - 9, 97, 3)) * (1 - sst(0.25, 0.5, dens));       // 12.182 çalılık lekeleri (ormanın dışında)
       if (r1 < dens) {
         if (y < 1.4) continue;
         kind = y > 70 || r2 < 0.38 ? 'spruce' : r2 < 0.86 ? 'pine' : r2 < 0.95 ? 'birch' : 'oak';
-      } else if (r1 < dens + 0.075 && inside) kind = r2 < 0.72 ? 'bush' : r2 < 0.86 ? 'birch' : 'oak';          // açık alanda çalı / tek tük ağaç (12.172: iki katı)
-      else if (r1 > 0.994 && inside) kind = 'rock';
+      } else if (r1 < dens + 0.11 + 0.5 * thicket && inside) kind = r2 < 0.6 ? 'bush' : r2 < 0.74 ? 'spruce' : r2 < 0.88 ? 'birch' : 'oak';     // açık alanda çalı / tek tük ağaç; çalılıkta sık
+      else if (r1 > 0.992 && inside) kind = 'rock';
       if (!kind) continue;
       if (inside) {
         if (y < 1.3 || T.slopeAt(x, z, 1) > (kind === 'rock' ? 1.2 : 0.85)) continue;
         if (T.roadAt(x, z) || T.roadAt(x + 3, z) || T.roadAt(x - 3, z) || T.roadAt(x, z + 3) || T.roadAt(x, z - 3)) continue;
         if (blocked(x, z, kind === 'bush' ? 1.5 : 3) || nearFlag(x, z) || inField(x, z) || inPad(x, z)) continue;
       }
-      const F = FLORA[kind], sc = F.h[0] + (F.h[1] - F.h[0]) * R();
+      const F = FLORA[kind], u = R();
+      let sc = F.h[0] + (F.h[1] - F.h[0]) * u;
+      if (inside && r1 >= dens && kind === 'spruce') sc = 5 + 5 * u;                       // çalılıkta genç ladin
+      if (inside && r1 >= dens && kind === 'bush' && thicket > 0.3) sc = 1.6 + 1.3 * u;     // çalılıkta boylu çalı (ayaktakini de saklar)
       const t = { k: kind, x: +x.toFixed(2), y: +y.toFixed(2), z: +z.toFixed(2), s: +sc.toFixed(2), ry: +(R() * 6.283).toFixed(3), inside };
       if (kind === 'rock') { t.w = 0.9 + R() * 0.8; t.d = 0.8 + R() * 0.7; t.tilt = (R() - 0.5) * 0.3; }
+      if (inside) { const sr = solidR(t); if (sr > 0) { if (!solidFree(t.x, t.z, sr)) continue; solidAdd(t.x, t.z, sr); } }
       out.push(t);
     }
   };
   pass(rng, true);
   // 12.172 ek örtü (ayrı rastgele akış; sunucu = istemci): çalı çitleri, kaya kümeleri, devrik ağaçlar (eksen hizalı kütük)
   const X = makeRng(5150), okAt = (x, z, m = 1.5) => Math.abs(x) < 790 && Math.abs(z) < 790 && T.heightAt(x, z) > 1.3 && !T.roadAt(x, z) && !T.roadAt(x + 2, z) && !T.roadAt(x - 2, z) && !T.roadAt(x, z + 2) && !T.roadAt(x, z - 2) && !blocked(x, z, m) && !nearFlag(x, z);
-  for (const [x0, z0, x1, z1] of HEDGES) {
+  // 12.182 meyve bahçeleri (mezralar): sıra sıra meşe / huş, gövde çarpışmalı + tepe görüş küresi (ayrı rastgele akış: eski çit / kaya yerleşimi kaymaz)
+  const O = makeRng(6262);
+  for (const [x, z, k, s] of orchard) {
+    if (!okAt(x, z, 1.2) || T.slopeAt(x, z, 1) > 0.6) continue;
+    const t = { k, x: +x.toFixed(2), y: +T.heightAt(x, z).toFixed(2), z: +z.toFixed(2), s: +s.toFixed(2), ry: +(O() * 6.283).toFixed(3), inside: true };
+    const sr = solidR(t); if (!solidFree(t.x, t.z, sr)) continue; solidAdd(t.x, t.z, sr); out.push(t);
+  }
+  // 12.182 büyük kaya blokları (Taş Ocağı): çarpışmalı, birbirine girmez
+  for (const [x, z, sc] of rocks) {
+    if (!okAt(x, z, 2)) continue;
+    const t = { k: 'rock', x: +x.toFixed(2), y: +T.heightAt(x, z).toFixed(2), z: +z.toFixed(2), s: +sc.toFixed(2), ry: +(O() * 6.28).toFixed(3), inside: true, w: +(1.0 + O() * 0.6).toFixed(2), d: +(0.9 + O() * 0.6).toFixed(2), tilt: +((O() - 0.5) * 0.2).toFixed(3) };
+    const sr = solidR(t); if (!solidFree(t.x, t.z, sr)) continue; solidAdd(t.x, t.z, sr); out.push(t);
+  }
+  // 12.182 çalı çitleri: yolların iki yanında (banketten 6–9 m, 25–55 m'lik parçalar, aralarda boşluk) + tarla kenarları (2–3 kenar, kapı boşluklu)
+  const hedges = HEDGES.slice(), H = makeRng(6161), farFrom = (x, z) => !PADS.some((p) => p.id !== 'C' && p.id !== 'W' && (p.r ? Math.hypot(x - p.x, z - p.z) < p.r + 10 : Math.abs(x - p.x) < p.w / 2 + 8 && Math.abs(z - p.z) < p.d / 2 + 8));
+  for (const r of T.roads) {
+    if (r.t === 'lane') continue;
+    let acc = 30 + H() * 40;
+    for (let i = 3; i < r.pts.length - 3; i++) {
+      acc -= Math.hypot(r.pts[i][0] - r.pts[i - 1][0], r.pts[i][1] - r.pts[i - 1][1]);
+      if (acc > 0) continue;
+      const len = 25 + H() * 30, side = H() < 0.5 ? -1 : 1, off = r.w / 2 + 6 + H() * 3; acc = len + 18 + H() * 50;
+      const a = r.pts[i], j = Math.min(r.pts.length - 1, i + Math.round(len / 2)), bq = r.pts[j];
+      const pts = [];
+      for (let k = i; k <= j; k += 2) { const p0 = r.pts[Math.max(0, k - 2)], p1 = r.pts[Math.min(r.pts.length - 1, k + 2)], tl = Math.hypot(p1[0] - p0[0], p1[1] - p0[1]) || 1; pts.push([r.pts[k][0] - (p1[1] - p0[1]) / tl * off * side, r.pts[k][1] + (p1[0] - p0[0]) / tl * off * side]); }
+      if (pts.length < 3 || !farFrom(a[0], a[1]) || !farFrom(bq[0], bq[1])) continue;
+      for (let k = 0; k < pts.length - 1; k++) hedges.push([pts[k][0], pts[k][1], pts[k + 1][0], pts[k + 1][1]]);
+    }
+  }
+  for (const [fx, fz, w, d] of FIELDS) {
+    const x0 = fx - w / 2 - 2.5, x1 = fx + w / 2 + 2.5, z0 = fz - d / 2 - 2.5, z1 = fz + d / 2 + 2.5;
+    const edges = [[x0, z0, x1, z0], [x1, z0, x1, z1], [x1, z1, x0, z1], [x0, z1, x0, z0]];
+    for (let e = 0; e < 4; e++) {
+      if (H() < 0.3) continue;
+      const [ax, az, bx, bz] = edges[e], L = Math.hypot(bx - ax, bz - az), g0 = 0.3 + H() * 0.3, g1 = g0 + 9 / L;     // 9 m kapı boşluğu (araç / piyade)
+      hedges.push([ax, az, ax + (bx - ax) * g0, az + (bz - az) * g0]);
+      if (g1 < 1) hedges.push([ax + (bx - ax) * g1, az + (bz - az) * g1, bx, bz]);
+    }
+  }
+  for (const [x0, z0, x1, z1] of hedges) {
     const L = Math.hypot(x1 - x0, z1 - z0), n = Math.round(L / 1.45);
     for (let i = 0; i <= n; i++) {
       const t = i / n, x = x0 + (x1 - x0) * t + (X() - 0.5) * 0.8, z = z0 + (z1 - z0) * t + (X() - 0.5) * 0.8, s = 1.7 + X() * 1.1, ry = X() * 6.28, gap = X() < 0.05;
       if (gap || !okAt(x, z, 0.8)) continue;                                                     // ara sıra boşluk: içinden geçilir
-      out.push({ k: X() < 0.12 ? 'oak' : 'bush', x: +x.toFixed(2), y: +T.heightAt(x, z).toFixed(2), z: +z.toFixed(2), s: +(s).toFixed(2), ry: +ry.toFixed(3), inside: true, hedge: true });
-      if (out[out.length - 1].k === 'oak') out[out.length - 1].s = +(9 + X() * 5).toFixed(2);
+      const h = { k: X() < 0.12 ? 'oak' : 'bush', x: +x.toFixed(2), y: +T.heightAt(x, z).toFixed(2), z: +z.toFixed(2), s: +(s).toFixed(2), ry: +ry.toFixed(3), inside: true, hedge: true };
+      if (h.k === 'oak') { h.s = +(9 + X() * 5).toFixed(2); const sr = solidR(h); if (!solidFree(h.x, h.z, sr)) { h.k = 'bush'; h.s = +s.toFixed(2); } else solidAdd(h.x, h.z, sr); }
+      out.push(h);
     }
   }
-  for (let c = 0; c < 70; c++) {                                                                   // kaya kümeleri (3–7 kaya, yamaç / çayır)
+  for (let c = 0; c < 170; c++) {                                                                  // kaya kümeleri (3–7 kaya, yamaç / çayır; 12.182: 70 → 170)
     const cx = (X() - 0.5) * 1480, cz = (X() - 0.5) * 1480, n = 3 + Math.floor(X() * 5);
     if (!okAt(cx, cz, 6) || inPad(cx, cz) || inField(cx, cz)) { X(); continue; }
     for (let k = 0; k < n; k++) {
       const x = cx + (X() - 0.5) * 9, z = cz + (X() - 0.5) * 9, s = 1.2 + X() * (k ? 2.2 : 3.6);
+      const t = { k: 'rock', x: +x.toFixed(2), y: +T.heightAt(x, z).toFixed(2), z: +z.toFixed(2), s: +s.toFixed(2), ry: +(X() * 6.28).toFixed(3), inside: true, w: +(0.9 + X() * 0.8).toFixed(2), d: +(0.8 + X() * 0.7).toFixed(2), tilt: +((X() - 0.5) * 0.3).toFixed(3) };
       if (!okAt(x, z, 1.5)) continue;
-      out.push({ k: 'rock', x: +x.toFixed(2), y: +T.heightAt(x, z).toFixed(2), z: +z.toFixed(2), s: +s.toFixed(2), ry: +(X() * 6.28).toFixed(3), inside: true, w: +(0.9 + X() * 0.8).toFixed(2), d: +(0.8 + X() * 0.7).toFixed(2), tilt: +((X() - 0.5) * 0.3).toFixed(3) });
+      const sr = solidR(t); if (!solidFree(t.x, t.z, sr)) continue; solidAdd(t.x, t.z, sr);
+      out.push(t);
     }
   }
   const logs = [];
-  for (let c = 0; c < 400 && logs.length < 70; c++) {                                              // devrik ağaç: orman kenarı / içinde
+  for (let c = 0; c < 900 && logs.length < 160; c++) {                                             // devrik ağaç: orman kenarı / içinde / çalılık (12.182: 70 → 160)
     const x = (X() - 0.5) * 1500, z = (X() - 0.5) * 1500, ax = X() < 0.5, len = 6 + X() * 6, r = 0.26 + X() * 0.16;
-    if (forestDensity(x, z) < 0.25 || !okAt(x, z, 2)) continue;
+    if (forestDensity(x, z) < 0.25 && fbm(x / 70 + 13, z / 70 - 9, 97, 3) < 0.6) continue;
+    if (!okAt(x, z, 2)) continue;
     const ex = ax ? len / 2 : 0.6, ez = ax ? 0.6 : len / 2;
     if (!okAt(x - ex, z - ez, 1) || !okAt(x + ex, z + ez, 1) || T.slopeAt(x, z, 2) > 0.35) continue;
-    const y = Math.min(T.heightAt(x - ex, z - ez), T.heightAt(x + ex, z + ez), T.heightAt(x, z));
-    logs.push({ x: +x.toFixed(2), z: +z.toFixed(2), y: +y.toFixed(2), ax, len: +len.toFixed(2), r: +r.toFixed(2) });
+    const segs = []; for (let k = 0; k <= Math.ceil(len / 1.5); k++) { const f = k / Math.ceil(len / 1.5) - 0.5; segs.push([x + (ax ? f * len : 0), z + (ax ? 0 : f * len)]); }
+    if (!segs.every(([qx, qz]) => solidFree(qx, qz, r + 0.1))) continue;
+    for (const [qx, qz] of segs) solidAdd(qx, qz, r + 0.1);
+    let y = 1e9; for (const f of [-0.5, -0.25, 0, 0.25, 0.5]) for (const e of [-r, 0, r]) y = Math.min(y, T.heightAt(x + (ax ? f * len : e), z + (ax ? e : f * len)));   // 12.182 yan eğimde de oturur
+    y -= r * 0.1;
+    logs.push({ x: +x.toFixed(2), z: +z.toFixed(2), y: +y.toFixed(2), ax, len: +len.toFixed(2), r: +r.toFixed(2), endG: +T.heightAt(x + (ax ? len / 2 : 0), z + (ax ? 0 : len / 2)).toFixed(2) });   // endG: kesit ucu toprak altındaysa çizilmez
   }
   out.logs = logs;
   if (outer) pass(rngOuter, false);
@@ -96,9 +157,9 @@ export function fallenLogs(logs, cs) {
     const b = cs.at(L.x, L.z), y = L.y + L.r * 0.8;
     b.obj(`devrik:${Math.round(L.x)}:${Math.round(L.z)}`, () => {
       b.cyl(L.x, y, L.z, L.r * 0.8, L.r, L.len, '#5a4636', { rx: L.ax ? 0 : Math.PI / 2, rz: L.ax ? Math.PI / 2 : 0, center: true, seg: 7, collide: false, kind: 10 });
-      b.cyl(L.x + (L.ax ? L.len / 2 + 0.01 : 0), y, L.z + (L.ax ? 0 : L.len / 2 + 0.01), L.r * 0.9, L.r * 0.9, 0.02, '#b89466', { rx: L.ax ? 0 : Math.PI / 2, rz: L.ax ? Math.PI / 2 : 0, center: true, seg: 7, collide: false, kind: 14 });
+      if (L.endG < y + L.r * 0.6) b.cyl(L.x + (L.ax ? L.len / 2 + 0.01 : 0), y, L.z + (L.ax ? 0 : L.len / 2 + 0.01), L.r * 0.9, L.r * 0.9, 0.02, '#b89466', { rx: L.ax ? 0 : Math.PI / 2, rz: L.ax ? Math.PI / 2 : 0, center: true, seg: 7, collide: false, kind: 14 });
       b.collide(L.x, y - L.r * 0.72, L.z, L.ax ? L.len - 0.2 : L.r * 1.4, L.r * 1.44, L.ax ? L.r * 1.4 : L.len - 0.2);
-      for (const k of [-0.3, 0.15, 0.38]) b.ico(L.x + (L.ax ? k * L.len : 0), y + L.r * 0.9, L.z + (L.ax ? 0 : k * L.len), 0.28 + L.r * 0.4, '#5d4a38', { scale: [1.4, 0.5, 0.8], ry: k * 9 });   // kırık dal
+      b.collide(L.x, y - L.r * 0.95, L.z, L.ax ? L.len - 0.2 : L.r * 0.62, L.r * 1.9, L.ax ? L.r * 0.62 : L.len - 0.2);          // 12.182 artı kesit: kütüğün üstü / altı da katı
     });
   }
 }

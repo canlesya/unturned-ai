@@ -24,8 +24,11 @@ export function hall(b, Tr, o) {
     ops.e.push({ at: d * 0.2, w: 1.2, b: 0, top: 2.3 });
     b.withKind(KK.CORR, () => b.shell(-w / 2 + t / 2, w / 2 - t / 2, -d / 2 + t / 2, d / 2 - t / 2, 0, h, t, wall, ops, { trim, kind: KK.CORR }));
     // taban bandı (beton), köşe kolonları, kapı çerçeveleri
-    b.box(0, 0, 0, w + 0.06, 1.1, d + 0.06, shade(CONC, 0.95), { collide: false, kind: KK.CONC });
-    for (let i = 0; i <= Math.round(w / 6); i++) { const cx = -w / 2 + i * w / Math.round(w / 6); for (const sz of [-1, 1]) b.box(cx, 0, sz * (d / 2 + 0.08), 0.36, h, 0.16, STEEL, { collide: false, kind: KK.METAL }); }
+    // 12.182 taban bandı (3 cm, dış yüzde) kapı açıklıklarında kesilir; dış kolonlar katı ve kapı önüne gelmez
+    const doorAt = (side) => doors.filter(([, sd]) => sd === side).map(([f]) => [f * w - 2.75, f * w + 2.75]);
+    for (const side of [1, -1]) { let cur = -w / 2 - 0.03; for (const [g0, g1] of [...doorAt(side), [w / 2 + 0.03, w / 2 + 0.03]].sort((a, q) => a[0] - q[0])) { if (g0 - cur > 0.05) b.box((cur + g0) / 2, 0, side * (d / 2 + 0.015), g0 - cur, 1.1, 0.03, shade(CONC, 0.95), { collide: false, kind: KK.CONC }); cur = g1; } }
+    for (const sx of [1, -1]) { const e0 = sx > 0 ? [[d * 0.2 - 0.6, d * 0.2 + 0.6]] : []; let cur = -d / 2; for (const [g0, g1] of [...e0, [d / 2, d / 2]]) { if (g0 - cur > 0.05) b.box(sx * (w / 2 + 0.015), 0, (cur + g0) / 2, 0.03, 1.1, g0 - cur, shade(CONC, 0.95), { collide: false, kind: KK.CONC }); cur = g1; } }
+    for (let i = 0; i <= Math.round(w / 6); i++) { const cx = -w / 2 + i * w / Math.round(w / 6); for (const sz of [-1, 1]) { if (doorAt(sz).some(([g0, g1]) => cx > g0 - 0.3 && cx < g1 + 0.3)) continue; b.box(cx, 0, sz * (d / 2 + 0.08), 0.36, h, 0.16, STEEL, { kind: KK.METAL }); } }
     for (const [f, side] of doors) { for (const sd of [-1, 1]) b.box(f * w + sd * 2.75, 0, side * (d / 2 + 0.1), 0.3, 5.7, 0.2, '#c9a227', { collide: false, kind: KK.METAL }); b.box(f * w, 5.4, side * (d / 2 + 0.1), 5.8, 0.3, 0.2, '#c9a227', { collide: false, kind: KK.METAL }); }
     // iç kolonlar + asma kat iskelesi (bir uçta, merdivenli)
     for (let i = 1; i < Math.round(w / 8); i++) { const cx = -w / 2 + i * w / Math.round(w / 8); for (const sz of [-1, 1]) b.box(cx, 0, sz * (d / 2 - 3), 0.4, h - 0.4, 0.4, STEEL, { kind: KK.METAL }); }
@@ -41,7 +44,7 @@ export function hall(b, Tr, o) {
     b.box(0, h + rh - 0.1, 0, w * 0.7, 1.0, 2.2, shade(roof, 0.9), { collide: false, kind: KK.SHEET });
     b.box(0, h + rh - 0.05, 1.12, w * 0.7, 0.75, 0.05, '#2a3238', { collide: false, kind: KK.WIN });
     // kapı üstü projektörler (gece yanar: parlak malzeme + zemin ışık havuzu)
-    for (const [f, side] of doors) b.box(f * w, 6.0, side * (d / 2 + 0.35), 0.7, 0.3, 0.4, '#ffe8b0', { collide: false, o: { glow: true, emissive: '#ffdca0', emissiveIntensity: 1 } });
+    for (const [f, side] of doors) { b.box(f * w, 6.1, side * (d / 2 + 0.2), 0.12, 0.12, 0.4, '#3d4247', { collide: false, kind: KK.METAL }); b.box(f * w, 5.85, side * (d / 2 + 0.36), 0.7, 0.25, 0.32, '#ffe8b0', { collide: false, o: { glow: true, emissive: '#ffdca0', emissiveIntensity: 1 } }); }   // kollu projektör (duvara bağlı)
   }));
   addLoot(b, x, z, ry, S.y0, [[-w / 2 + 1.2, -d / 2 + 1.2, 'raf'], [w / 2 - 1.2, -d / 2 + 1.2, 'raf'], [w / 2 - 1.2, d / 2 - 1.2, 'zemin'], [-w / 4, d / 2 - 1.2, 'sandık'], [0, 0, 'zemin'], [w / 4, -d / 2 + 1.2, 'tezgâh'], [-w / 2 + w * 0.2, -d / 2 + 1.8, 'zemin', 4.2]]);
   for (const [f, side] of doors) { addDoor(b, x, z, ry, S.y0, f * w, side * d / 2, 0, side); const [px, pz] = lw(x, z, ry, f * w, side * (d / 2 + 7)); ctxAdd(b, 'lamps', [+px.toFixed(1), 0, +pz.toFixed(1), 9]); }
@@ -60,8 +63,9 @@ export function silo(b, Tr, o) {
     for (let k = 1; k < 5; k++) b.cyl(0, k * h / 5, 0, r + 0.05, r + 0.05, 0.18, shade(color, 0.8), { seg: 16, collide: false, kind: KK.METAL });
     b.cyl(0, h, 0, 0.5, r + 0.1, r * 0.55, shade(color, 0.92), { seg: 16, collide: false, kind: KK.SHEET });
     roundCollide(b, 0, h, 0, r * 0.6, r * 0.3);
-    for (let k = 0; k < h / 0.4; k++) b.box(0, k * 0.4 + 0.3, r + 0.18, 0.5, 0.04, 0.04, '#3d4247', { collide: false, kind: KK.METAL });   // merdiven basamakları
-    for (const sd of [-1, 1]) b.box(sd * 0.27, 0.2, r + 0.18, 0.05, h, 0.05, '#3d4247', { collide: false, kind: KK.METAL });
+    for (let k = 0; k * 0.4 + 0.3 < h - 0.1; k++) b.box(0, k * 0.4 + 0.3, r + 0.18, 0.5, 0.04, 0.04, '#3d4247', { collide: false, kind: KK.METAL });   // merdiven basamakları
+    for (const sd of [-1, 1]) b.box(sd * 0.27, 0, r + 0.18, 0.05, h, 0.05, '#3d4247', { collide: false, kind: KK.METAL });               // 12.182 korkuluk tabana iner
+    for (let yy = 1.5; yy < h; yy += 3) b.box(0, yy, r + 0.05, 0.6, 0.06, 0.24, '#3d4247', { collide: false, kind: KK.METAL });           // silindire bağlantı lamaları
   }));
 }
 
