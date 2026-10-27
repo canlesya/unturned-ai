@@ -12,7 +12,8 @@
 //   sırasında görünen en yakın düşmana yumuşakça döner (mıknatıs), nişana girerken hafif çekiş. Görüş: game.botSees (duvar + duman + yaprak).
 // Masaüstünde denemek için: ?touch=1
 import * as THREE from 'three';
-import { OPTICS } from './stats.js';
+import { OPTICS, WSTATS } from './stats.js';
+import '../i18n/nade.js';
 import { t } from '../i18n/index.js';
 import '../i18n/touch.js';
 import { wName, opticName } from '../i18n/game.js';
@@ -33,6 +34,8 @@ const I = {
   fire: '<circle cx="12" cy="12" r="7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>', fire2: '<circle cx="12" cy="12" r="7"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>',
   ads: '<circle cx="12" cy="12" r="3"/><path d="M3 12h3M18 12h3M12 3v3M12 18v3"/><circle cx="12" cy="12" r="8"/>',
   jump: '<path d="M12 19V5M6 11l6-6 6 6"/>', crouch: '<path d="M12 5v14M6 13l6 6 6-6"/>', reload: '<path d="M20 11a8 8 0 10-2.3 5.7M20 4v7h-7"/>',
+  nover: '<path d="M5 19C7 9 13 5 19 6"/><path d="M15 3l4 3-4 3"/>', nunder: '<path d="M4 13c4 6 10 6 15 2"/><path d="M15 12l4 3-4 3"/><path d="M3 20h18"/>',
+  ncook: '<circle cx="10" cy="14" r="6"/><circle cx="18" cy="6" r="3"/><path d="M13 10l3-3"/>',
   swap: '<path d="M4 8h13l-3-3M20 16H7l3 3"/>', nade: '<circle cx="12" cy="14" r="6"/><path d="M12 8V5h4M10 4h4"/>',
   third: '<circle cx="12" cy="7" r="3"/><path d="M6 21v-3a6 6 0 0112 0v3"/><path d="M3 4l3 3M21 4l-3 3"/>',
   optic: '<rect x="3" y="8" width="12" height="6" rx="1.5"/><path d="M15 9.5l5-2v7l-5-2M6.5 8V5.5h5V8"/>',
@@ -86,6 +89,11 @@ const CSS = `
 #tc .b[data-b=abil].act{background:rgba(255,138,31,.55);border-color:#ff8a1f}
 #tc .b[data-b=abil].cd svg.i{opacity:.55}
 #tc .b[data-b=optic] svg{width:50%;height:50%;margin-bottom:22%}
+#tc .ncz{position:absolute;display:none;place-items:center;border-radius:50%;background:rgba(10,14,20,.55);border:2px dashed rgba(255,255,255,.55);color:#fff;font-weight:800;letter-spacing:1px;font-size:12px;text-align:center;pointer-events:none}
+#tc .ncz.on{display:grid}#tc .ncz.hot{background:rgba(220,50,40,.75);border-color:#ff6a5a;border-style:solid}#tc .ncz.lit{opacity:.45}
+#tc .ncz b{display:block;font-size:22px;line-height:1}
+#tc .b .nl{position:absolute;left:50%;top:100%;transform:translateX(-50%);margin-top:2px;font-size:10px;font-weight:800;letter-spacing:1px;color:#fff;text-shadow:0 1px 2px #000;white-space:nowrap;pointer-events:none;display:none}
+#tc.nm .b .nl{display:block}
 #tc .b .ol{position:absolute;left:0;right:0;bottom:17%;text-align:center;color:#fff;font-weight:700;font-style:normal;letter-spacing:.5px;pointer-events:none;white-space:nowrap}
 /* nişangâh seçici (oyun katmanı #tc'nin DIŞINDA: kartlara dokunmak tıklama üretsin) */
 #tcOp{position:fixed;inset:0;z-index:8;display:none;place-items:center;background:radial-gradient(circle at 50% 45%,rgba(4,6,10,.2),rgba(4,6,10,.7));font-family:Bahnschrift,'Rajdhani','Arial Narrow',system-ui,sans-serif;color:#e8edf5;touch-action:manipulation;user-select:none;-webkit-user-select:none}
@@ -187,6 +195,8 @@ export class TouchControls {
       el.appendChild(d);
       this.b[id] = d;
     }
+    this.ncz = document.createElement('div'); this.ncz.className = 'ncz'; el.appendChild(this.ncz);      // 12.193 bomba iptal alanı (bomba düğmesi basılıyken)
+    for (const k of ['ads', 'reload']) { const lb = document.createElement('i'); lb.className = 'nl'; this.b[k].appendChild(lb); }
     this.layout();
     const opt = { passive: false };
     this.h = { s: (e) => this.start(e), m: (e) => this.move(e), e: (e) => this.end(e), rs: () => this.layout() };
@@ -257,6 +267,7 @@ export class TouchControls {
       if (this.joy && t.identifier === this.joy.id) { this.setJoy(t.clientX - this.jbc.x, t.clientY - this.jbc.y); continue; }
       const L = this.looks.get(t.identifier);
       if (L) {
+        if (L.nade) this.nczHover(t.clientX, t.clientY);
         this.lookBy(t.clientX - L.x, t.clientY - L.y); L.x = t.clientX; L.y = t.clientY;
         if (L.btn) L.btn.style.transform = `translate(${t.clientX - L.x0}px,${t.clientY - L.y0}px)`;     // hareketli ateş butonu parmağı izler
       }
@@ -381,6 +392,20 @@ export class TouchControls {
       } else { p.fireHeld = this.anyFire(); this.looks.delete(t.identifier); if (b) b.style.transform = ''; }
       return;
     }
+    if (id === 'nade' && this.p.s.items.some((it) => WSTATS[it.id]?.kind === 'throwable') && !s.veh) {      // 12.193 bomba düğmesi = hızlı atış: basılı tut → çek + yörünge (sürükle: nişan), bırak → at; iptal alanında bırak → atma
+      if (down) {
+        if (!p.locked) g.requestLock();
+        if (!s.alive) return;
+        p.quickNade(true);
+        this.looks.set(t.identifier, { x: t.clientX, y: t.clientY, x0: t.clientX, y0: t.clientY, nade: true });
+        this.nczShow(true);
+      } else {
+        const cancel = this.nczHot;
+        this.looks.delete(t.identifier); this.nczShow(false);
+        if (cancel) p.cancelNade(); else p.quickNade(false);
+      }
+      return;
+    }
     if (id === 'breath') { this.breath = down; return; }                         // 12.156: basılı tutulduğu sürece nefes tut (Player → ScopeBreath)
     if (id === 'score') { g.hud.showScoreboard(down); return; }
     if (id === 'crouch') this.dive = down;                                     // 12.180: yüzerken çömel düğmesi basılıyken dalınır
@@ -396,8 +421,8 @@ export class TouchControls {
     if (s.veh && (id === 'crouch' || id === 'swap' && s.seat === 0 || id === 'nade' || id === 'third')) return;      // araçta çömelme / ekipman yok
     if (id === 'jump') { if (s.prone || s.crouching) { s.standUp(); g.online?.edge('u'); } else this.jump = true; }
     else if (id === 'crouch') { s.toggleCrouch(); g.online?.edge('c'); }
-    else if (id === 'reload') { s.startReload(); g.online?.edge('rl'); }
-    else if (id === 'ads') { s.ads = !s.ads; }
+    else if (id === 'reload') { if (s.stat.kind === 'throwable') p.cookReq = true; else s.startReload(); g.online?.edge('rl'); }      // 12.193 bombada: PİŞİR (pimi çek)
+    else if (id === 'ads') { if (s.stat.kind === 'throwable') { p.nadeModeReq = true; g.online?.edge('nu'); } else s.ads = !s.ads; }      // bombada: ŞEKİL (üstten ↔ alttan)
     else if (id === 'third') { p.toggleThird(); }
     else if (id === 'optic') { this.openOptics(); }
     else if (id === 'abil') { if (s.def.zombie) p.zAbility(); }                   // zombi özel gücü (çevrimiçinde sunucuya 'ab' kenarı)
@@ -419,6 +444,22 @@ export class TouchControls {
     this.op.classList.add('on'); this.opOpen = true;
   }
   closeOptics() { if (!this.opOpen) return; this.opOpen = false; this.op.classList.remove('on'); }
+  // 12.193 iptal alanı: bomba düğmesinin üstünde (düğme boyunda), parmak üstüne gelince kırmızı; pim çekildiyse soluk (iptal yok)
+  nczShow(on) {
+    const z = this.ncz; this.nczHot = false;
+    z.classList.toggle('on', on); z.classList.remove('hot');
+    if (!on) return;
+    const r = this.b.nade.getBoundingClientRect(), sz = Math.max(64, r.height * 1.05);
+    Object.assign(z.style, { width: sz + 'px', height: sz + 'px', left: r.left + r.width / 2 - sz / 2 + 'px', top: Math.max(8, r.top - sz * 1.35) + 'px' });
+    z.innerHTML = `<div><b>✕</b>${t('nade.cancel')}</div>`;
+    this._nczR = { x: r.left + r.width / 2, y: Math.max(8, r.top - sz * 1.35) + sz / 2, r: sz * 0.62 };
+  }
+  nczHover(x, y) {
+    const R = this._nczR; if (!R) return;
+    const lit = !!this.p.s.cook?.lit, hot = !lit && Math.hypot(x - R.x, y - R.y) < R.r;
+    if (hot !== this.nczHot) { this.nczHot = hot; this.ncz.classList.toggle('hot', hot); }
+    this.ncz.classList.toggle('lit', lit);
+  }
   anyFire() { for (const v of this.btnTouch.values()) if (v === 'fire' || v === 'fire2') return true; return false; }
 
   // ── Jiroskop: telefonu çevirerek nişan (kapalı / yalnız nişandayken / hep). iOS izin ister (ayarlarda açarken). ──
@@ -551,6 +592,17 @@ export class TouchControls {
     if (bv !== this._bv) { this._bv = bv; this.b.breath.classList.toggle('hid', !bv); if (!bv) { this.breath = false; this.b.breath.classList.remove('on'); } }
     this.b.crouch.classList.toggle('on', !!(s.crouching || s.prone));
     this.b.nade.classList.toggle('on', s.cur === 2);
+    { const nm = s.stat.kind === 'throwable' && s.alive, key = nm ? (s.nadeUnder ? 'u' : 'o') + (s.stat.cook ? 'c' : '') : '';       // 12.193 bombada: nişan = ŞEKİL, şarjör = PİŞİR
+      if (key !== this._nmk) {
+        this._nmk = key; this.el.classList.toggle('nm', nm);
+        const ads = this.b.ads.querySelector('svg'), rl = this.b.reload.querySelector('svg');
+        ads.innerHTML = nm ? I[s.nadeUnder ? 'nunder' : 'nover'] : I.ads; rl.innerHTML = nm && s.stat.cook ? I.ncook : I.reload;
+        this.b.ads.querySelector('.nl').textContent = nm ? t(s.nadeUnder ? 'nade.under' : 'nade.over') : '';
+        this.b.reload.querySelector('.nl').textContent = nm && s.stat.cook ? t('nade.cook') : '';
+        this.b.reload.classList.toggle('hid', nm && !s.stat.cook);
+      }
+      this.b.reload.classList.toggle('on', !!(nm && s.cook?.lit));
+    }
     this.b.third.classList.toggle('on', !!p.third);
     {                                                                                      // 12.177 araç butonları: bin / in yalnız araç yanında ya da içindeyken; kamera sürücüde; koltuk araçta
       const V = g.vehicles, inV = !!s.veh, near = !inV && V ? !!V.near(s) : false, drv = inV && s.seat === 0;

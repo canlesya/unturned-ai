@@ -20,7 +20,8 @@ export const ACTIONS = [
   ['slot2', 'Yedek silah', 2, ['Digit2']],
   // 12.140: bıçak 3, ekipman 4. Kimlikler (slot3 = gadget, slot4 = bıçak) kayıtlı tercihler bozulmasın diye aynı kaldı; yalnız varsayılan tuş + sıra değişti
   ['slot4', 'Bıçak', 2, ['Digit3', 'KeyV']],
-  ['slot3', 'Gadget', 2, ['Digit4', 'KeyG']],
+  ['slot3', 'Gadget', 2, ['Digit4']],
+  ['quickNade', 'Hızlı bomba at (basılı tut: yörünge, bırak: at)', 2, ['KeyG']],          // 12.193: G artık hızlı atış (eskiden ekipman yuvasının ikinci tuşu)
   ['fireMode', 'Ateş modu (tek → seri → otomatik)', 2, ['KeyX']],
   ['ability', 'Zombi özel gücü (Enfekte) · sağ tık da çalışır', 2, ['KeyF']],
   ['optic', 'Nişangâh değiştir (hızlı)', 2, ['KeyB']],

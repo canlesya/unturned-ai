@@ -314,7 +314,7 @@ export class Room {
       yw: num(m.yw, -1e4, 1e4), pt: num(m.pt, -1.5, 1.5),
       w: Math.round(num(m.w, 0, 3)),
       c: m.c ? 1 : 0, p: m.p ? 1 : 0, u: m.u ? 1 : 0,
-      fh: m.fh ? 1 : 0, fp: m.fp ? 1 : 0, rl: m.rl ? 1 : 0, fm: m.fm ? 1 : 0, o: m.o ? 1 : 0, ab: m.ab ? 1 : 0,
+      fh: m.fh ? 1 : 0, fp: m.fp ? 1 : 0, rl: m.rl ? 1 : 0, fm: m.fm ? 1 : 0, o: m.o ? 1 : 0, ab: m.ab ? 1 : 0, nu: m.nu ? 1 : 0,      // nu: 12.193 bomba atış şekli
       vt: Number.isFinite(m.vt) ? m.vt : null,
       sd: m.sd ? 1 : 0, tl: m.tl ? 1 : 0,                                            // 12.159: fener (eski istemci yollamaz → kapalı)
       ve: m.ve ? 1 : 0, vs: Math.round(num(m.vs, 0, 4)), vl: m.vl ? 1 : 0,         // 12.177 araç: bin / in, koltuk (1–4), far

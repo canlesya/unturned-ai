@@ -51,7 +51,7 @@ import { VehicleView } from './vehicleView.js';
 import { VehicleHud } from './vehicleHud.js';
 import { VT, mgAt, seatGun, heFalloff } from '../sim/vehicle.js';
 import { spaceSetup } from './space.js';
-import { NADE, nadeStep, simulateNade, NadeView } from './grenade.js';
+import { NADE, nadeTick, NadeView, fragBlast, bounceSfx, aimNade } from './grenade.js';
 import { createWeapon } from '../models/weapons.js';
 import { initGadgets, updateGadgets, spawnSmoke, flashBang, smokeBlocks, smokeDensity, placeDeployable, netDeploy, netUndeploy } from './gadgets.js';
 
@@ -554,6 +554,7 @@ export class Game {
     if (inp.fm) s.toggleFireMode();
     if (inp.ab) s.useAbility();
     if (inp.o) s.cycleOptic();
+    if (inp.nu) s.toggleNadeMode();                                   // 12.193: bomba atış şekli (sağ tık; üstten ↔ alttan)
     applyInput(s, { f: inp.f, r: inp.r, lean: inp.l, sprint: !!inp.s, jump: !!inp.j, dive: !!inp.dn }, dt);
     // ateş: Player.update ile aynı mantık
     if (inp.fp) h.fireBuf = 0.15;
@@ -656,7 +657,7 @@ export class Game {
     if ((h.qWin = (h.qWin || 0) + 1) >= 30) { h.backlog = Math.max(0, h.qMin - 2); h.qMin = 99; h.qWin = 0; }
     if (!(h.backlog > 0) || q.length <= 2) return;
     const inp = q[0];
-    if (inp.c || inp.p || inp.u || inp.fp || inp.rl || inp.fm || inp.o || inp.ab || inp.ve || inp.vs || inp.vl || inp.w !== h.s.cur) return;
+    if (inp.c || inp.p || inp.u || inp.fp || inp.rl || inp.fm || inp.o || inp.ab || inp.ve || inp.vs || inp.vl || inp.nu || inp.w !== h.s.cur) return;
     const idle = !inp.f && !inp.r && !inp.j;
     if (!idle && this.tick % 3) return;
     q.shift(); h.backlog--; h.dropped = (h.dropped || 0) + 1;
@@ -1407,6 +1408,7 @@ export class Game {
           const pos = new V(...ev.p);
           if (ev.k === 's') { if (by) spawnSmoke(this, pos, WSTATS[ev.w], by); }
           else if (ev.k === 'f') { if (by) flashBang(this, pos, by, WSTATS[ev.w]); }
+          else if (by && WSTATS[ev.w]?.kind === 'throwable') this.fragBlast(pos, WSTATS[ev.w], by);      // 12.193: görsel + ses (hasar sunucuda)
           else if (by) this.explode(pos, ev.r, 0, by, '');
           break;
         }
@@ -1819,6 +1821,16 @@ export class Game {
     this.netEvent({ e: 'rk', id, by: owner.id, w: STAT_ID.get(st), o: v3(pos), d: v3(dir) });
   }
 
+  // 12.193 el bombası patlaması (grenade.js fragBlast; test / hata ayıklama buradan yakalar)
+  fragBlast(pos, st, owner, selfMul) { fragBlast(this, pos, st, owner, selfMul); }
+
+  // 12.193 bot bomba nişanı (aynı fizik; araç gövdeleri dahil). under: önce alttan dene (kısa mesafe) · fuse: kalan fünye
+  botAimNade(s, st, tp, under, fuse) {
+    const tol = st.gtype === 'flash' ? 6 : 3.5, o = { fuse, vehicles: this.vehicles };
+    return (under && aimNade(s, st, tp, this.world, tol, { ...o, under: true })) || aimNade(s, st, tp, this.world, tol, o)
+      || aimNade(s, st, tp, this.world, 7, { ...o, under: true }) || aimNade(s, st, tp, this.world, 7, o);      // pişirirken yer değişti: daha gevşek (yine de ondan uzağa)
+  }
+
   // Atılan bomba (el bombası / duman / flaş). o: { fuse (pişirilmişse kalan), inHand (elde patladı), pred (çevrimiçi: kendi atışımın tahmini, girdi sırası q) }
   // Fizik grenade.js'te (sabit adım): sunucu, istemci tahmini ve önizleme aynı yolu çizer.
   spawnGrenade(owner, pos, vel, st, net, o = {}) {
@@ -1836,9 +1848,10 @@ export class Game {
     const fuse = Number.isFinite(o.fuse) ? Math.max(0, o.fuse) : st.fuse;
     // görüntü: bomba ilk 0,18 sn'de elden (göz hattının sağ-altı) gerçek yola süzülür (fizik gözden başlar: duvardan atılamaz)
     const vis = new THREE.Vector3();
-    if (!this.headless && !o.inHand) { const r = owner.right(new THREE.Vector3()); vis.addScaledVector(r, 0.22).y -= 0.22; }
-    const p = { id, type: 'grenade', mesh: m, pos: pos.clone(), vel: vel.clone(), owner, st, fuse, bounces: 0, acc: 0, age: 0, steps: 0, ground: false, rest: false, vis, inHand: !!o.inHand, pred: !!o.pred, q: o.pred ? o.q : -1, ph: {} };
+    if (!this.headless && !o.inHand) { const r = owner.right(new THREE.Vector3()); vis.addScaledVector(r, 0.04).y -= 0.14; }      // 12.193: fizik zaten sağ omuzdan çıkar
+    const p = { id, type: 'grenade', mesh: m, pos: pos.clone(), vel: vel.clone(), owner, st, fuse, fuse0: fuse, bounces: 0, acc: 0, age: 0, steps: 0, ground: false, rest: false, hit1: false, vis, inHand: !!o.inHand, pred: !!o.pred, q: o.pred ? o.q : -1, ph: {} };
     this.projectiles.push(p);
+    if (!o.inHand && vel.lengthSq() > 4) owner.throwT = 0.45;                     // 12.193: 3. şahıs atış savruluşu (uzaktaki oyuncu da: 'gr' olayıyla)
     this.netEvent({ e: 'gr', id, by: owner.id, w: STAT_ID.get(st), o: v3(pos), v: v3(vel), f: +fuse.toFixed(3), q: Number.isFinite(owner.inSeq) ? owner.inSeq : -1, ih: o.inHand ? 1 : 0 });
     return p;
   }
@@ -1852,10 +1865,9 @@ export class Game {
       const p = mine.find((q) => q.q === ev.q) || mine.sort((a, b) => b.age - a.age)[0];
       if (p) {
         p.id = ev.id; p.pred = false;
-        const s0 = { pos: new V(...ev.o), vel: new V(...ev.v), ground: false, rest: false };
-        for (let k = 0; k < p.steps; k++) nadeStep(s0, this.world, p.ph);
-        p.pos.copy(s0.pos); p.vel.copy(s0.vel); p.ground = s0.ground; p.rest = s0.rest;
-        p.fuse = (Number.isFinite(ev.f) ? ev.f : st.fuse) - p.steps * NADE.h;
+        const s0 = { pos: new V(...ev.o), vel: new V(...ev.v), ground: false, rest: false, fuse: Number.isFinite(ev.f) ? ev.f : st.fuse, hit1: false, ph: p.ph };
+        for (let k = 0; k < p.steps && s0.fuse > 1e-9; k++) nadeTick(s0, this.world, st, this.vehicles);     // 12.193: aynı adım (ilk değme fünyesi + araç sekmesi dahil)
+        p.pos.copy(s0.pos); p.vel.copy(s0.vel); p.ground = s0.ground; p.rest = s0.rest; p.fuse = s0.fuse; p.hit1 = s0.hit1;
         return;
       }
     }
@@ -1905,10 +1917,9 @@ export class Game {
         while (p.acc >= NADE.h - 1e-9 && !boom) {
           p.acc -= NADE.h;
           if (p.fuse <= 1e-9) { boom = p.pos.clone(); break; }
-          if (this.vehicles?.nadeBounce(p, NADE.h)) { p.steps++; p.fuse -= NADE.h; if (++p.bounces < 6) this.sfx.impact(p.pos); continue; }      // 12.178: el bombası araç gövdesinden seker
-          const hit = nadeStep(p, this.world, p.ph);
-          p.steps++; p.fuse -= NADE.h;
-          if (hit > 2 && ++p.bounces < 6) this.sfx.impact(p.pos);
+          const hit = nadeTick(p, this.world, p.st, this.vehicles);                   // 12.193 ortak adım: fizik + araç gövdesinden sekme (12.178) + fünye (flaş: ilk değmeden 0,7 sn)
+          p.steps++;
+          if (hit > 1.2 && ++p.bounces < 8 && !this.headless) bounceSfx(this.sfx, p.pos, hit);
           if (p.fuse <= 1e-9) boom = p.pos.clone();
         }
         if (!this.headless) {
@@ -1948,6 +1959,7 @@ export class Game {
         this.netEvent({ e: 'boom', id: p.id, k: gt === 'smoke' ? 's' : gt === 'flash' ? 'f' : 'x', p: v3(boom), r: p.st.radius, w: STAT_ID.get(p.st), by: p.owner.id });
         if (gt === 'smoke') spawnSmoke(this, boom, p.st, p.owner);
         else if (gt === 'flash') flashBang(this, boom, p.owner, p.st);
+        else if (p.type === 'grenade' && p.st.kind === 'throwable') this.fragBlast(boom, p.st, p.owner, p.inHand ? 9 : undefined);      // 12.193 PUBG tarzı parça tesiri (öldürücü iç yarıçap + düşüş, siper)
         else this.explode(boom, p.st.radius, p.st.dmg, p.owner, p.st.name, p.inHand ? 9 : undefined, p.type === 'rocket' ? 'at' : 'blast');      // 12.178: RPG tanksavar
       }
     }
