@@ -398,6 +398,7 @@ export class TouchControls {
       }
       return;
     }
+    if (id === 'ads' && s.stat.kind === 'melee' && !s.veh) { s.ads = down && s.alive; if (b) b.classList.toggle('on', s.ads); return; }      // 12.194: yakın dövüşte nişan düğmesi = ağır vuruş (basılı tuttukça; CS2 sağ tık)
     if (id === 'breath') { this.breath = down; return; }                         // 12.156: basılı tutulduğu sürece nefes tut (Player → ScopeBreath)
     if (id === 'score') { g.hud.showScoreboard(down); return; }
     if (id === 'crouch') this.dive = down;                                     // 12.180: yüzerken çömel düğmesi basılıyken dalınır

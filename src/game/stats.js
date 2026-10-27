@@ -223,12 +223,12 @@ export const WSTATS = {
   knife: {
     name: 'Bıçak', kind: 'melee', slot: 'melee', desc: 'Hızlı kombo, arkadan tek vuruş.', stats: { dmg: 45, range: 40, rate: 90, control: 90, mobility: 100 },
     dmg: 45, reach: 2.1, rpm: 130, mag: 1, reserve: 0, move: 1.08, equip: 0.2, sound: 'knife',
-    swings: ['rl', 'lr', 'stab'], swingT: 0.36, stabT: 0.44, stabMul: 1.3,
+    swings: ['rl', 'lr'], swingT: 0.36, heavy: 'stab', heavyT: 0.62, heavyMul: 1.45,      // 12.194 CS2: sol tık sağ→sol / sol→sağ çapraz kesik (45), sağ tık ağır saplama (65 = CS2 ikincil), ikisi de arkadan tek vuruş
   },
   machete: {
     name: 'Satır', kind: 'melee', slot: 'melee', desc: 'Uzun menzil, ağır ve geniş savurma.', stats: { dmg: 62, range: 56, rate: 62, control: 70, mobility: 96 },
     dmg: 62, reach: 2.3, rpm: 100, mag: 1, reserve: 0, move: 1.05, equip: 0.26, sound: 'knife',
-    swings: ['rl', 'lr', 'diag'], swingT: 0.46, stabT: 0.5, stabMul: 1.2,
+    swings: ['rl', 'lr'], swingT: 0.46, heavy: 'diag', heavyT: 0.78, heavyMul: 1.2,      // 12.194: sağ tık ağır çapraz iniş (74; 12.198 dengesiyle hasar 62)
   },
   claws: {
     name: 'Pençe', kind: 'melee', slot: 'melee', desc: 'Zombi pençesi: hızlı, kanlı darbeler.', stats: { dmg: 40, range: 40, rate: 85, control: 90, mobility: 100 },
@@ -238,7 +238,7 @@ export const WSTATS = {
   tomahawk: {
     name: 'Tomahawk', kind: 'melee', slot: 'melee', desc: 'Tepeden inen ağır darbe, kısa menzil.', stats: { dmg: 90, range: 32, rate: 50, control: 60, mobility: 98 },
     dmg: 90, reach: 1.9, rpm: 80, mag: 1, reserve: 0, move: 1.06, equip: 0.24, sound: 'knife',
-    swings: ['chop', 'rl', 'chop'], swingT: 0.5, stabT: 0.5, stabMul: 1.15,
+    swings: ['rl', 'lr'], swingT: 0.5, heavy: 'chop', heavyT: 0.84, heavyMul: 1.05,      // 12.194: sol tık yatay kesikler, sağ tık tepeden ağır iniş (94,5; önden tek vuruş değil)
   },
   // ───────── Paintball (yalnız paintball modu: sınıf seçeneklerinde / silah yarışında yok) ─────────
   // ball: görünür boya topu (game/paint.js): speed m/sn, grav m/sn² (yaylı yol), life sn · head / legs: bölge çarpanı (TUNE.headMul yerine) · menzil düşüşü yok

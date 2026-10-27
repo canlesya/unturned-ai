@@ -11,7 +11,7 @@ const browser = await chromium.launch(GPU ? { headless: false, args: ['--use-ang
 const strip = (d) => { const { defaultBrowserType, ...r } = d; return r; };
 const errs = [];
 export const KS = [0, 0.12, 0.24, 0.35, 0.44, 0.55, 0.7, 0.85];
-const SW = { knife: ['rl', 'lr', 'stab'], machete: ['rl', 'lr', 'diag'], tomahawk: ['chop', 'rl'] };
+const SW = { knife: ['rl', 'lr', 'heavy'], machete: ['rl', 'lr', 'heavy'], tomahawk: ['rl', 'lr', 'heavy'] };      // 12.194: heavy = sağ tık ağır vuruş (st.heavy, heavyT)
 for (const dev of (process.env.DEV || 'desk,mob').split(',')) {
   const ctx = dev === 'desk' ? await browser.newContext({ viewport: { width: 1600, height: 900 } }) : await browser.newContext(strip(devices['Pixel 7 landscape']));
   const page = await ctx.newPage();
@@ -35,7 +35,7 @@ for (const dev of (process.env.DEV || 'desk,mob').split(',')) {
       s.swing = null; s.reloadT = 0; s.adsT = 0; s.ads = false; s.cd = 0; s.vel.set(0, 0, 0); s.sprinting = false; s.useT = 0;
       const n = o.raise !== undefined ? 1 : 40;
       for (let i = 0; i < n; i++) {
-        if (o.swing) { const dur = o.swing.kind === 'stab' ? S.stabT : S.swingT; s.swing = { t: dur * o.swing.k, dur, kind: o.swing.kind, idx: 0, done: true }; }
+        if (o.swing) { const hv = o.swing.kind === 'heavy', dur = hv ? S.heavyT : o.swing.kind === 'stab' ? S.stabT : S.swingT; s.swing = (s.swing && s.swing.hv === hv && s.swing.kind === (hv ? S.heavy : o.swing.kind)) ? s.swing : { t: 0, dur, kind: hv ? S.heavy : o.swing.kind, idx: 0, done: true, hv }; s.swing.t = dur * o.swing.k; }
         if (o.insp) vm.inspectT = o.insp; if (o.walk) vm.bobT = o.walk; if (o.sprint) vm.sprintT = 1, s.sprinting = true;
         if (o.raise !== undefined) vm.raise = o.raise + 1 / 60 * vm.raiseRate;
         p.update(1 / 60);
@@ -58,7 +58,9 @@ for (const dev of (process.env.DEV || 'desk,mob').split(',')) {
   });
   const shots = [];
   for (const id of ['knife', 'machete', 'tomahawk']) {
-    shots.push([`${id}-idle`, { id }], [`${id}-walk`, { id, walk: 1.2 }], [`${id}-sprint`, { id, sprint: 1 }], [`${id}-raise50`, { id, raise: 0.5 }], [`${id}-insp30`, { id, insp: 0.3 }], [`${id}-insp60`, { id, insp: 0.6 }], [`L-${id}-idle`, { id, left: 1 }]);
+    shots.push([`${id}-idle`, { id }], [`${id}-walk`, { id, walk: 1.2 }], [`${id}-walk2`, { id, walk: 2.6 }], [`${id}-sprint`, { id, sprint: 1 }], [`L-${id}-idle`, { id, left: 1 }]);
+    for (const r of [0.9, 0.7, 0.5, 0.3, 0.15, 0]) shots.push([`${id}-raise${String(Math.round(r * 100)).padStart(2, '0')}`, { id, raise: r }]);
+    for (const t of [0.1, 0.25, 0.4, 0.55, 0.68, 0.8, 0.88, 0.95]) shots.push([`${id}-insp${String(Math.round(t * 100)).padStart(2, '0')}`, { id, insp: t }]);
     for (const kind of SW[id]) for (const k of KS) shots.push([`${id}-${kind}-${String(Math.round(k * 100)).padStart(2, '0')}`, { id, swing: { kind, k } }]);
     for (const kind of SW[id]) shots.push([`L-${id}-${kind}-44`, { id, left: 1, swing: { kind, k: 0.44 } }]);
   }
