@@ -317,6 +317,7 @@ export class Room {
       ve: m.ve ? 1 : 0, vs: Math.round(num(m.vs, 0, 4)), vl: m.vl ? 1 : 0,         // 12.177 araç: bin / in, koltuk (1–4), far
       dn: m.dn ? 1 : 0,                                                              // 12.179 helikopter: alçal
       co: Array.isArray(m.co) && m.co.length === 3 && m.co.every(Number.isFinite) ? m.co.map((v) => Math.max(-4.5, Math.min(4.5, v))) : null,
+      gy: Number.isFinite(m.gy) ? num(m.gy, -1e4, 1e4) : null, gp: Number.isFinite(m.gp) ? num(m.gp, -1.5, 1.5) : null,      // 12.188 tank topu hedef yönü (yoksa bakış)
     });
   }
 

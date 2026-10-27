@@ -678,7 +678,7 @@ export class Soldier {
     this.deadT = 0; this.deadDir = Math.random() > 0.5 ? 1 : -1;
     this.ads = false; this.reloadT = 0; this.useT = 0; this.swing = null; this.autoSwitchT = 0;
     this.vel.set(0, 0, 0);
-    this.revivable = !/RPG|Bomba|Claymore|M79|üssü/i.test(weaponName || '');
+    this.revivable = !/RPG|Bomba|Claymore|M79|üssü|Tank topu/i.test(weaponName || '');
     if (!killer || killer === this) killer = this.game.assists?.creditFor(this) || killer;      // 12.165: düştü / intihar / kendi bombası: son 5 sn'de vuran düşmana öldürme yazılır
     if (killer && killer !== this) { killer.kills++; killer.score += headshot ? 150 : 100; }
     this.game.onKill(killer, this, weaponName, headshot);

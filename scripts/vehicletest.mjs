@@ -170,10 +170,10 @@ function headlessTank() {
   ok(!e1.alive, '120 m: mermi düşüşüyle yayla gider (top açısı ' + f2(el * 180 / Math.PI) + '°), patlama askeri öldürür', `uçuş ${f2(ft)} sn · asker ${e1.alive ? 'canlı ' + Math.round(e1.hp) : 'öldü'}`);
   // zırh: mermi 0, el bombası az, RPG / tank topu çok
   const t2 = V.list.find((x) => x.id === 'R-T1'), e2 = foe(t2.st.x + 20, t2.st.z);
-  const hp0 = t2.hp; V.damage(t2, 30, e2, 'bullet'); const dB = hp0 - t2.hp;
+  const hp0 = t2.hp; V.damage(t2, 30, s, 'bullet'); const dB = hp0 - t2.hp;      // 12.188: atan = Mavi (R-T1 Kırmızı; dost ateşi araca işlemez)
   const P = (x, y, z) => new (s.pos.constructor)(x, y, z);
-  g.explode(P(t2.st.x + 1.8, t2.st.y + 0.5, t2.st.z), 7.5, 130, e2, 'El Bombası'); const dG = hp0 - t2.hp - dB;
-  g.explode(P(t2.st.x, t2.st.y + 1.2, t2.st.z - 3.4), 6.5, 160, e2, 'RPG-7', undefined, 'at'); const dR = hp0 - t2.hp - dB - dG;
+  g.explode(P(t2.st.x + 1.8, t2.st.y + 0.5, t2.st.z), 7.5, 130, s, 'El Bombası'); const dG = hp0 - t2.hp - dB;
+  g.explode(P(t2.st.x, t2.st.y + 1.2, t2.st.z - 3.4), 6.5, 160, s, 'RPG-7', undefined, 'at'); const dR = hp0 - t2.hp - dB - dG;
   ok(dB === 0 && dG > 0 && dG < 50 && dR > 150, 'zırh: tüfek mermisi 0 · el bombası az · RPG çok', `mermi ${f1(dB)} · el bombası ${f1(dG)} · RPG ${f1(dR)} (can ${D.hp} → ${Math.round(D.hp / dR + 0.5)} RPG)`);
   // tank topu ↔ jip: tek atış
   const j = V.list.find((x) => x.id === 'R-J1'); g.explode(P(j.st.x, j.st.y + 0.8, j.st.z), D.cannon.radius, D.cannon.dmg, s, D.cannon.name, undefined, 'at');
@@ -495,11 +495,8 @@ async function onlineTank(chromium) {
   // nişan + ateş (A): hedef gövdesine top yayı (ikiye bölme, istemcinin gördüğü durumdan)
   const fireRes = await A.evaluate(async (id) => {
     const g = window.__game, me = g.playerSoldier, v = me.veh, D = v.def, T = g.soldiers[id];
-    const aimAt = () => { const tu = D.turret, st = v.st, c = T.center(), px = st.x - Math.sin(st.yaw) * tu.f, pz = st.z - Math.cos(st.yaw) * tu.f, dx = c.x - px, dz = c.z - pz, dist = Math.hypot(dx, dz);
-      me.yaw = Math.atan2(-dx, -dz);
-      const yAt = (pt) => { const vz = Math.cos(pt) * D.cannon.speed, vy = Math.sin(pt) * D.cannon.speed, tf = (dist - tu.len * Math.cos(pt)) / vz; return st.y + tu.pivot + tu.len * Math.sin(pt) + vy * tf - 0.5 * D.cannon.grav * tf * tf; };
-      let lo = -0.12, hi = 0.3; for (let i = 0; i < 30; i++) { const m = (lo + hi) / 2; if (yAt(m) < c.y) lo = m; else hi = m; }
-      me.pitch = (lo + hi) / 2; return dist; };
+    // 12.188: oyuncu gibi ARTIYI (kamera ışını) hedefin gövdesine koy — top balistik olarak artının noktasına hedeflenir (gy / gp girdisi)
+    const aimAt = () => { const cam = g.camera.position, c = T.center(), dx = c.x - cam.x, dz = c.z - cam.z; me.yaw = Math.atan2(-dx, -dz); me.pitch = Math.atan2(c.y - cam.y, Math.hypot(dx, dz)); return Math.round(Math.hypot(c.x - v.st.x, c.z - v.st.z)); };
     const id2 = setInterval(aimAt, 16); const dist = aimAt();
     await new Promise((r) => setTimeout(r, 2600));
     let seen = 0; const h = (e) => { const m = JSON.parse(e.data); if (m.t === 'ev' && m.l.some((x) => x.e === 'ts')) seen++; }; g.online.ws.addEventListener('message', h);
@@ -576,7 +573,7 @@ async function onlineHeli(chromium) {
   await A.evaluate(() => { const g = window.__game, me = g.playerSoldier; window.__fall = []; window.__fi = setInterval(() => window.__fall.push([+me.pos.y.toFixed(1), +(me.pos.y - g.world.heightAt(me.pos.x, me.pos.z)).toFixed(1), me.hp, me.alive, !!me.veh, me.swim ? 'S' : '']), 500); });
   await A.keyboard.press('KeyE'); await A.waitForTimeout(9000);
   const fall = await A.evaluate(() => { clearInterval(window.__fi); return window.__fall; }), pilotDied = fall.some((f) => !f[3]), fallH = Math.max(...fall.map((f) => f[1]));
-  const boom = await Promise.all([A, B].map((P) => P.evaluate(() => { const g = window.__game, v = g.vehicles.list.find((x) => x.id === 'B-H1'), me = g.playerSoldier; return { wreck: v.wreck, alive: v.alive, me: me.alive }; })));
+  const boom = await Promise.all([A, B].map((P) => P.evaluate(() => { const g = window.__game, v = g.vehicles.list.find((x) => x.id === 'B-H1'), me = g.playerSoldier; return { wreck: v.wreck, alive: v.alive, me: me.alive, y: +(v.st?.y - g.world.heightAt(v.st.x, v.st.z)).toFixed(1), rpm: +(v.st?.rpm || 0).toFixed(2), hp: Math.round(v.hp), seats: v.seats.map((s) => (s ? s.name : "-")).join("/") }; })));
   await B.screenshot({ path: `${OUT}/../heli/22-cevrimici-dusus${tag ? '-vekil' : ''}.png` });
   ok(boom.every((b) => !b.alive) && pilotDied, 'pilot havada inerse: helikopter düşüp patlar (iki istemcide), atlayan pilot düşüp ölür' + tag, `${JSON.stringify(boom)} · pilot ${fallH.toFixed(0)} m'den düştü${pilotDied ? '' : ' · ' + JSON.stringify(fall.slice(0, 8))}`);
   ok(!A.errs.length && !B.errs.length, 'çevrim içi helikopter: sayfa hatası yok' + tag, [...A.errs, ...B.errs].slice(0, 2).join(' | '));

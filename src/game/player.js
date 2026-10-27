@@ -12,7 +12,7 @@ import { WSTATS, OPTICS, OPTIC_ALLOWED, ZT_ORDER } from './stats.js';
 import { reloadAnim, meleePose, SWING_HIT_K } from './anim.js';
 import { fpHand, handBasis, zombieColors } from '../models/fpHands.js';
 import { box } from '../core/geo.js';
-import { clamp, lerp, V3, adsEase, ADS_HUD, zoomFov, SCOPE_ON } from './util.js';
+import { clamp, lerp, V3, adsEase, ADS_HUD, zoomFov, SCOPE_ON, dirFromAngles } from './util.js';
 import { applyInput } from '../sim/input.js';
 import { swimCanFire } from '../sim/swim.js';
 import { LEAN_ROLL } from './soldier.js';
@@ -22,7 +22,7 @@ import { ScopeBreath } from './breath.js';
 import { norm, codeLabel, slotOrder } from '../core/keybinds.js';
 import { t as $t } from '../i18n/index.js';
 import { vehCamera } from './vehicleView.js';
-import { mgAt } from '../sim/vehicle.js';                   // 12.177 araç kamerası (sürücü içeriden / takip)
+import { mgAt, seatGun } from '../sim/vehicle.js';                   // 12.177 araç kamerası (sürücü içeriden / takip)
 import { wName, opticName, fireName } from '../i18n/game.js';
 
 const VM_SCALE = 0.92;
@@ -995,16 +995,21 @@ export class Player {
     const r = drv ? (kb.held('right', k) ? 1 : 0) - (kb.held('left', k) ? 1 : 0) || (T ? T.r : 0) : 0;
     const brake = drv && (kb.held('jump', k) || !!(T && T.jump)), dn = drv && !!v.def.heli && (kb.held('crouch', k) || !!(T && T.down));      // helikopter: Boşluk yüksel, C / Ctrl alçal
     const inp = { f, r, lean: 0, sprint: false, jump: brake, dn };
+    if (drv && v.def.turret) {                                           // 12.188 tank: top artının gösterdiği noktaya (kamera ışını) balistik hedeflenir
+      const cam = g.camera.position, pc = this.vehCam === 'first' ? Math.max(-0.5, Math.min(0.6, s.pitch)) : Math.max(-0.75, Math.min(0.55, s.pitch));
+      s.gunAim = V.gunAimFor(v, cam, dirFromAngles(s.yaw, pc), s, (s._ga ||= {}));
+    } else s.gunAim = null;
     if (drv) {
-      v.horn = !v.def.cannon && this.fireHeld && this.locked;
-      V.drive(v, { f, r, b: brake, u: brake, d: dn, yw: s.yaw, pt: s.pitch }, dt);
+      v.horn = !!v.def.horn && this.fireHeld && this.locked;             // 12.188: korna yalnız jipte (helikopterde sol tık = burun topu)
+      V.drive(v, { f, r, b: brake, u: brake, d: dn, yw: s.gunAim ? s.gunAim.y : s.yaw, pt: s.gunAim ? s.gunAim.p : s.pitch }, dt);
       if (v.def.cannon && this.fireHeld && this.locked && !g.online) V.fireCannon(v, s);      // çevrimdışı: ana top (çevrim içinde sunucu ateşler, 'ts' olayı)
+      if (v.def.rockets && s.ads && this.locked && !g.online) V.fireRocket(v, s);              // 12.188 helikopter roketleri (sağ tık; çevrim içinde sunucu, girdi 'a')
       V.place(s);
       if (!g.online) for (const o of v.seats) if (o && o !== s) V.place(o);
       this._vyaw = v.st.yaw;
     } else V.place(s);
     if (g.online) { g.online.pushInput(inp, s, this.fireHeld); if (drv) g.online.markVeh(v); }
-    if (!drv && mgAt(v.def, s.seat)) V.mgFire(s, this.fireHeld && this.locked, dt);      // tank nişancısı: makineli (çevrim içinde iz / ses tahmini, hasar sunucuda)
+    if (seatGun(v.def, s.seat)) V.mgFire(s, this.fireHeld && this.locked, dt);      // tank / jip / kapı nişancısı + 12.188 helikopter pilotunun burun topu (çevrim içinde iz / ses tahmini, hasar sunucuda)
     else if (!drv && this.locked) {
       const st = s.stat;
       if (st.kind === 'melee') { if (this.fireHeld || this.fireBuf > 0) { if (s.tryFire()) this.fireBuf = 0; } }
