@@ -64,6 +64,7 @@ export class Soldier {
     this.reloadTotal = 1; this.reloadStyle = 'mag'; this.reloadEmpty = true; this.shellT = 0;
     this.swing = null; this.comboN = -1; this.comboT = 0; this.autoSwitchT = 0;
     this.blindT = 0; this.blindMax = 1;
+    this.cook = null; this.nadeUnder = false; this.botCook = null; this.throwT = 0; this.nadeVis = null; this.nadeNet = 0;     // 12.193 bomba: hazır / pim çekili, atış şekli, bot pişirmesi, 3. şahıs atış
     this.choice = isPlayer ? (game.opts?.loadout || {}) : { random: true };
     this.wear = isPlayer ? cleanWear(game.opts?.wear) : null;            // 12.167 kıyafet tercihi { c: { sınıf: kod }, all } (çevrimiçinde başkalarınınki yavaş alan wr → wearCode)
     this.wearCode = '';
@@ -200,7 +201,7 @@ export class Soldier {
     this.items = this.game.mode.gungame ? ggItems(this.ggLevel) : this.game.mode.paintball ? pbItems() : this.loadout();
     this.cur = 0;
     this.cd = 0; this.reloadT = 0; this.switchT = 0; this.useT = 0; this.swing = null; this.comboT = 0; this.autoSwitchT = 0; this.blindT = 0; this.burstLeft = 0;
-    this.cook = null; this.backT = 0; this.backTo = -1;
+    this.cook = null; this.backT = 0; this.backTo = -1; this.nadeUnder = false; this.botCook = null; this.throwT = 0; this.nadeVis = null;
     this.protT = protect; this.protNet = false;
     this.crouching = false; this.prone = false; this.proneT = 0; this.crouchT = 0; this.leanDir = 0; this.leanT = 0; this.leanK = 0; this.leanOff.set(0, 0, 0); this._leanRoom = LEAN_OFF;
     this.height = H_STAND; this.ads = false; this.adsT = 0;
@@ -212,9 +213,17 @@ export class Soldier {
     this.game.emit('spawn', this);
   }
 
+  // 3. şahıs: elde görünmesi gereken bomba (bot pişirme / atış savruluşu; çevrim içinde uzaktaki bot: F_NLIT bayrağı + 'gr' olayı)
+  _nadeVisId() {
+    if (this.nadeVis) return this.nadeVis;
+    if (!this.game.online || this.isPlayer || this.stat.kind === 'throwable') return null;
+    const g2 = this.items[2], k = g2 && WSTATS[g2.id]?.kind === 'throwable';
+    return k && ((this.nadeNet & 2) || this.throwT > 0) ? g2.id : null;
+  }
+
   _syncWeaponModel(force = false) {
     if (this.isPlayer && !this.game.showSelf) return;
-    const id = this.stat.kind === 'medkit' ? null : this.item.id;
+    const id = this._nadeVisId() || (this.stat.kind === 'medkit' ? null : this.item.id);      // 12.193: bot pişirirken / atarken elinde bomba
     if (!force && id === this._modelWeapon) return;
     this._modelWeapon = id;
     const w = this.model.setWeapon(id, id ? this.opticFor(id) : this.optic, id ? this.skinOf(id) : 'std');
@@ -234,7 +243,8 @@ export class Soldier {
   switchTo(i) {
     if (i === this.cur || !this.items[i] || !this.alive || !this.canEquip(i)) return;
     const eq = Math.min(0.35, WSTATS[this.items[i].id].equip ?? 0.3);
-    this.cook = null; this.backT = 0;                                              // pişirilen bombanın pimi geri takılır (silah değişince atılmaz)
+    if (this.cook?.lit) this._dropLit();                                           // 12.193: pimi çekilmiş bomba geri takılmaz → ayağının dibine düşer (PUBG)
+    this.cook = null; this.backT = 0; this.nadeUnder = false;                      // hazırlanan (pimi çekilmemiş) bomba cebe döner; atış şekli her çekişte üstten
     this.backTo = WSTATS[this.items[i].id].kind === 'throwable' ? this.cur : -1;   // attıktan sonra dönülecek silah
     this.cur = i; this.switchT = eq; this.reloadT = 0; this.rlDoneT = 0; this.useT = 0; this.swing = null; this.autoSwitchT = 0; this.burstLeft = 0;
     this.adsT = 0;      // 12.154: nişan eski silahındı; yeni silah belden başlar (eski: adsT ≈ 1 kalıyor, yeni silahın büyütmesi / dürbün örtüsü o karede açılıyordu). Dünya kamerası eski büyütmeyi Player'da kendi eğrisiyle söndürür
@@ -247,6 +257,7 @@ export class Soldier {
   // 0 görünebilir → çift reload / animasyon olmasın. Tek yer: otomatik (autoReload), boş tetik (tryFire) ve R aynı kuralı izler; sunucu = istemci = çevrimdışı
   startReload() {
     const it = this.item, st = this.stat;
+    if (st.kind === 'throwable') return this.cookNade();                          // 12.193 PUBG: bomba eldeyken R = pimi çek (pişir)
     if (this.reloadT > 0 || this.rlDoneT > 0 || this.swing || this.useT > 0 || !(st.kind === 'gun' || st.kind === 'launcher') || it.mag >= st.mag || it.reserve <= 0) return false;
     const style = st.reloadStyle || 'mag';
     this.reloadStyle = style;
@@ -344,6 +355,7 @@ export class Soldier {
 
   tryFire() {
     if (!this.alive || this.cd > 0 || this.switchT > 0 || this.useT > 0) return false;
+    if (this.botCook && !this._botNade) return false;                                 // 12.193: bot elinde pişen bombayı tutuyor (ateş etmez)
     if (this.veh && (this.seat === 0 || this.stat.kind === 'mine' || this.stat.kind === 'ammobox' || this.stat.kind === 'medkit')) return false;     // 12.177: sürücü ateş etmez; araçtan mayın / kutu kurulmaz
     if (this.swim && !swimCanFire(this, this.stat)) return false;
     if (this.def.zombie && this.game.graceLeft > 0) return false;                     // Enfekte hazırlık süresi
@@ -449,16 +461,16 @@ export class Soldier {
     return true;
   }
 
-  // Bomba tetiği (12.144; oyuncu ve sunucudaki insan aynı mantık): bas → pim çekilir (el bombasında fünye işlemeye başlar = pişirme),
-  // basılı tutarken yörünge önizlemesi (NadeView), bırakınca atılır. Bırakırken sağ tık (nişan) basılıysa alttan, kısa yuvarlama.
-  // Pişirilen el bombası elde süresi dolarsa elde patlar (atan ölür). Botlar tryFire → _throw ile pişirmeden atar.
+  // Bomba tetiği (12.144 → 12.193 PUBG tarzı; oyuncu ve sunucudaki insan aynı mantık):
+  // ateşe bas → bomba hazırlanır (kol kurulur, yörünge önizlemesi), basılı tutarken R → pim çekilir: fünye işlemeye başlar (pişirme; el bombası 5 sn,
+  // flaş 2,5 sn), sağ tık → atış şekli (üstten uzak / alttan yuvarlama), bırak → atılır. Pim çekilmeden atılırsa fünye bırakınca başlar (tam süre).
+  // Pişirilen bomba elde süresi dolarsa elde patlar (el bombası atanı öldürür). Botlar tryFire → _throw (bot pişirmesi: botCook).
   _nadeTrigger(held, buf) {
     const it = this.item, st = this.stat;
     if (!this.cook) {
       if (buf <= 0 || this.cd > 0 || this.switchT > 0 || this.useT > 0 || it.mag <= 0) return false;
-      this.cook = { t: 0, id: it.id };
-      if (this.isPlayer) pinSfx(this.game.sfx);
-      this.game.emit('pin', this);
+      this.cook = { t: 0, h: 0, id: it.id, lit: false };
+      this.game.emit('nadeprep', this);
       return true;
     }
     if (held) return false;
@@ -468,25 +480,79 @@ export class Soldier {
     this.cd = 60 / st.rpm;
     it.mag--;
     this.sprinting = false;
-    return this._throw(st, st.cook ? st.fuse - c.t : st.fuse, !!this.ads);
+    return this._throw(st, st.cook && c.lit ? st.fuse - c.t : st.fuse, !!this.nadeUnder);
   }
 
-  // Her adım: pişirme süresi; el bombası elde dolarsa patlar
+  // R (PUBG): bomba hazırken pimi çek → fünye işlemeye başlar. Dönen true: pişirme başladı
+  cookNade() {
+    const c = this.cook, st = this.stat;
+    if (!c || c.lit || !st.cook || c.id !== this.item.id) return false;
+    c.lit = true; c.t = 0;
+    if (this.isPlayer) pinSfx(this.game.sfx);
+    this.game.emit('pin', this);
+    return true;
+  }
+
+  // Sağ tık (PUBG): üstten atış ↔ alttan yuvarlama (bomba eldeyken; hazırlanırken de)
+  toggleNadeMode() {
+    if (this.stat.kind !== 'throwable' || !this.alive) return false;
+    this.nadeUnder = !this.nadeUnder;
+    this.game.emit('nademode', this);
+    return true;
+  }
+
+  // Her adım: hazırlama / pişirme süresi; pimi çekili bomba elde dolarsa patlar
   _cookTick(dt) {
     const c = this.cook, st = this.stat;
     if (c.id !== this.item.id || st.kind !== 'throwable') { this.cook = null; return; }
+    c.h += dt;
+    if (!c.lit) return;
     c.t += dt;
-    if (st.cook && c.t >= st.fuse) { this.cook = null; this.cd = 60 / st.rpm; this.item.mag--; this._throw(st, 0, false, true); }
+    if (st.cook && c.t >= st.fuse - 1e-9) { this.cook = null; this.cd = 60 / st.rpm; this.item.mag--; this._throw(st, 0, false, true); }
+  }
+
+  // Pimi çekili bombayı ayağının dibine bırak (silah değişimi / ölüm): kalan fünyeyle, hızsız düşer
+  _dropLit() {
+    const c = this.cook, st = c && WSTATS[c.id];
+    this.cook = null;
+    const it = this.items.find((x) => x.id === c?.id);
+    if (!st?.cook || !it || it.mag <= 0) return;
+    it.mag--;
+    const o = { fuse: Math.max(0.05, st.fuse - c.t) };
+    if (this.game.online && this.isPlayer) return;                                 // çevrimiçi istemci: sunucunun 'gr'si getirir
+    this.game.spawnGrenade(this, new THREE.Vector3(this.pos.x, this.pos.y + 0.9, this.pos.z), new THREE.Vector3(this.vel.x * 0.3, 0.5, this.vel.z * 0.3), st, null, o);
+  }
+
+  // 12.193 Bot pişirmesi: bot bombayı (görselde elinde) cook sn tutar, sonra hedef noktaya kalan fünyeyle yeniden nişan alıp atar.
+  // Bu sırada ölürse bomba kalan fünyeyle düşer (insanla aynı kural). b: { gid, cook, t, tp: hedef nokta, under, aim }
+  _botCookTick(dt) {
+    const b = this.botCook, st = WSTATS[b.gid], it = this.items[2];
+    if (!st || !it || it.id !== b.gid || it.mag <= 0 || this.veh || this.swim) { this.botCook = null; this.nadeVis = null; return; }
+    b.t += dt;
+    this.nadeVis = b.gid;
+    if (b.t < b.cook) return;
+    this.botCook = null;
+    const left = st.fuse - b.t;
+    const aim = this.game.botAimNade?.(this, st, b.tp, b.under, left) || b.aim;
+    this.yaw = aim.yaw; this.pitch = aim.pitch; this.recoilP = 0;
+    this.cd = 0; this.reloadT = 0; this.switchT = 0; this.useT = 0; this.swing = null;      // bomba elindeydi: başka iş yapmıyordu
+    this._botNade = { fuse: left, under: !!aim.under };
+    const ok = this.useGadget(b.gid);
+    this._botNade = null;
+    if (!ok) { this.cook = { t: b.t, id: b.gid, lit: true }; this._dropLit(); this.nadeVis = null; }        // atamadı (araç / su): bomba düşer
   }
 
   // fuse: kalan fünye (pişirilmişse kısa) · under: alttan atış · inHand: elde patladı (göğüs hizasında, hızsız)
   _throw(st, fuse = st.fuse, under = false, inHand = false) {
     const g = this.game, p = new THREE.Vector3(), v = new THREE.Vector3();
+    if (this._botNade) { fuse = this._botNade.fuse; under = this._botNade.under; }
     if (inHand) { this.eye(p); p.y -= 0.35; } else throwState(this, st, under, p, v, g.world);
     const o = { fuse, inHand };
     if (g.online && this.isPlayer) { o.pred = true; o.q = g.online.seq; }           // çevrimiçi: kendi bombam gecikmesiz (tahmin), sunucunun 'gr'si eşlenir
     g.spawnGrenade(this, p, v, st, null, o);
     if (!inHand) { g.sfx.shot('throw', this.pos); if (this.isPlayer) g.emit('throw', this); }
+    this.throwUnder = under;
+    if (this.brain) this.nadeVis = this.items[2]?.id || null;                      // bot: atış savruluşu boyunca elinde bomba görünsün
     if (this.isPlayer || this.human) this.backT = 0.42;                           // attıktan sonra önceki silaha dön (BattleBit gibi); bomba kalsa da
     if (this.item.mag <= 0) this.autoSwitchT = 0.35;     // bitti: birincil silaha dön
     return true;
@@ -667,11 +733,10 @@ export class Soldier {
 
   die(killer, weaponName, headshot) {
     if (!this.alive) return;
-    if (this.cook) {                                                                // pimi çekili el bombası elden düşer (kalan fünyeyle)
-      const c = this.cook, st = WSTATS[c.id];
-      this.cook = null;
-      if (st?.cook && this.item.id === c.id && this.item.mag > 0) { this.item.mag--; this.game.spawnGrenade(this, new THREE.Vector3(this.pos.x, this.pos.y + 0.9, this.pos.z), new THREE.Vector3(this.vel.x * 0.3, 0.5, this.vel.z * 0.3), st, null, { fuse: st.fuse - c.t }); }
-    }
+    if (this.cook?.lit) this._dropLit();                                            // pimi çekili bomba elden düşer (kalan fünyeyle); çekilmemişse düşmez
+    this.cook = null;
+    if (this.botCook) { this.cook = { t: this.botCook.t, id: this.botCook.gid, lit: true }; this.botCook = null; this._dropLit(); }      // 12.193: pişiren bot da
+    this.nadeVis = null;
     if (this.veh) this.game.vehicles?.exit(this);                                  // 12.177: araçta ölen kapıdan düşer (koltuk boşalır, araç sürer)
     this.alive = false; this.hp = 0;
     this.deaths++;
@@ -697,6 +762,8 @@ export class Soldier {
     this.comboT = Math.max(0, this.comboT - dt);
     if (this.autoSwitchT > 0 && (this.autoSwitchT -= dt) <= 0 && this.alive && this.cur !== 0 && this.item.mag <= 0 && this.items[0]) this.switchTo(0);
     if (this.cook) this._cookTick(dt);
+    if (this.botCook) this._botCookTick(dt);
+    if (this.throwT > 0 && (this.throwT -= dt) <= 0) { this.throwT = 0; if (this.brain && !this.botCook) this.nadeVis = null; }
     if (this.backT > 0 && (this.backT -= dt) <= 0 && !this.cook && this.stat.kind === 'throwable') {
       const b = this.backTo >= 0 && this.backTo !== this.cur && this.canEquip(this.backTo) ? this.backTo : this.cur !== 0 && this.canEquip(0) ? 0 : -1;
       if (b >= 0) this.switchTo(b);
@@ -973,7 +1040,17 @@ export class Soldier {
     const vh = this.veh && this.veh.st;
     if (vh) { const mg = !!mgAt(this.veh.def, this.seat); this._seatPose(m, p, root, vh, mg); m.refreshHold({ twist: this._seatTwist, side: 1, aimP: clamp(this.pitch + this.recoilP, -0.8, 0.8), reload, melee, drive: this.seat === 0 || mg, wheelA: mg ? 0 : -vh.steer * 2.2 }); if (this.veh.def.hidden?.[this.seat]) root.visible = false; return; }      // 12.178: tank sürücüsü gövdede görünmez, nişancı makineliyi tutar
     if (root.rotation.order !== 'XYZ') root.rotation.order = 'XYZ';
-    m.refreshHold({ sprint: Math.max(this.sprintT, swK) * (1 - pr), kick: clamp(this.flashT / 0.06, 0, 1), twist: (twist + twistY) * (1 - pr), swing, side: this.stanceT, prone: pr, aimP: clamp(this.pitch + this.recoilP, -0.8, 0.8), reload, melee });
+    // 12.193 bomba pozu: hazırlarken kol geri-yukarı (üstten) ya da aşağı-geri (alttan) kurulur, atışta ileri savrulur
+    if (!this.isPlayer) { const nv = this._nadeVisId() || null; if (nv !== this._nvPrev) { this._nvPrev = nv; this._syncWeaponModel(); } }
+    const net = this.isPlayer ? 0 : this.nadeNet | 0;
+    const litNow = !this.isPlayer && !!(net & 2 || this.botCook || this.cook?.lit);       // başkası pimi çekti: yakındaysan duyarsın (PUBG'de de pim sesi duyulur)
+    if (litNow && !this._netLit && this.pos.distanceTo(this.game.camera.position) < 14) pinSfx(this.game.sfx, this.pos);
+    this._netLit = litNow;
+    const prepOn = !!(this.cook || this.botCook || net & 1 || net & 2) && !this.veh;
+    this.nadePrepK = lerp(this.nadePrepK || 0, prepOn ? 1 : 0, Math.min(1, dt * 12));
+    const nUnder = !!(this.nadeUnder || net & 4 || (this.throwT > 0 && this.throwUnder) || this.botCook?.under);
+    const nade = this.nadePrepK > 0.01 || this.throwT > 0 ? { prep: this.nadePrepK, swing: this.throwT > 0 ? 1 - this.throwT / 0.45 : 0, under: nUnder } : null;
+    m.refreshHold({ sprint: Math.max(this.sprintT, swK) * (1 - pr), kick: clamp(this.flashT / 0.06, 0, 1), twist: (twist + twistY) * (1 - pr), swing, side: this.stanceT, prone: pr, aimP: clamp(this.pitch + this.recoilP, -0.8, 0.8), reload, melee, nade });
     if (m.zshape && pr < 0.5) this._zombiePose(m, p, root, T, ph, moveAmt, run);
   }
 }

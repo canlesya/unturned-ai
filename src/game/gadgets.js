@@ -3,6 +3,7 @@ import { createWeapon } from '../models/weapons.js';
 import { WSTATS } from './stats.js';
 import { clamp, rand } from './util.js';
 import { t as $t } from '../i18n/index.js';
+import { deafen } from './grenade.js';
 
 // Gadget mantığı: duman (küre listesi, görüşü keser), flaşbang (körlük), claymore (mayın), cephane kutusu.
 // game.smokes: [{ pos, r, rMax, life, max, group, puffs }] · game.deployables: kurulan nesneler
@@ -26,7 +27,8 @@ export function spawnSmoke(game, pos, st, owner) {
   const group = new THREE.Group();
   group.position.copy(center);
   const puffs = [];
-  for (let i = 0; i < 16; i++) {
+  const nP = life > 15 ? 22 : 16;                                   // 12.193: uzun (PUBG) duman daha çok, daha yoğun bulut
+  for (let i = 0; i < nP; i++) {
     const m = new THREE.Mesh(puffGeo, smokeMats[i % 3]);
     const dir = new THREE.Vector3(rand(-1, 1), rand(-0.45, 0.8), rand(-1, 1)).normalize();
     const off = dir.multiplyScalar(rand(0.2, 0.7) * rMax);
@@ -42,9 +44,10 @@ export function spawnSmoke(game, pos, st, owner) {
   game.alertNear?.(pos, owner.team, 30);
 }
 
+const smGrow = (sm) => (sm.max > 15 ? 2.4 : 1.3), smFade = (sm) => (sm.max > 15 ? 4 : 2);      // 12.193: 30 sn'lik dumanda 2,4 sn'de kabarır, son 4 sn'de dağılır
 function smokeR(sm) {
-  const grow = clamp((sm.max - sm.life) / 1.3, 0, 1);              // 1.3 sn'de büyür
-  const fade = clamp(sm.life / 2.0, 0, 1);                         // son 2 sn'de dağılır
+  const grow = clamp((sm.max - sm.life) / smGrow(sm), 0, 1);       // kabarma
+  const fade = clamp(sm.life / smFade(sm), 0, 1);                  // dağılma
   return sm.rMax * (0.25 + 0.75 * grow) * (0.35 + 0.65 * fade);
 }
 
@@ -58,7 +61,7 @@ export function updateSmokes(game, dt, T) {
       continue;
     }
     sm.r = smokeR(sm);
-    const k = sm.r / sm.rMax, fade = clamp(sm.life / 2.0, 0, 1);
+    const k = sm.r / sm.rMax, fade = clamp(sm.life / smFade(sm), 0, 1);
     sm.group.rotation.y += dt * 0.12;
     for (const m of sm.puffs) {
       const u = m.userData;
@@ -99,26 +102,36 @@ export function smokeDensity(game, p) {
 }
 
 // ───────────── Flaşbang ─────────────
+// 12.193 PUBG sersemletici: en etkili menzil st.radius (20 m). DOĞRUDAN (açık hat + bakış konisinde): körlük 5,5 sn (yakında) → 1 sn (20 m'de),
+// koni kenarına doğru azalır; DOLAYLI (bakmıyor / duvar arkası, st.near = 6,5 m içinde): en çok 3 sn (açık hat yoksa yarısı). Sağırlık + çınlama:
+// near × 1,6 içinde (duvar arkasından da) en çok 10 sn, uzakta yalnız doğrudan bakana kısa. Takım arkadaşı ×0,6 (kendin tam).
 export function flashBang(game, pos, owner, st) {
   game.sfx.flashbang(pos);
   game.effects.flashBurst?.(pos);
   game.alertNear?.(pos, owner.team, 40);
   const o = pos.clone(); o.y += 0.2;
+  const R = st.radius || 20, N = st.near || 6.5;
   for (const e of game.soldiers) {
     if (!e.alive) continue;
     const eye = e.eye(_a);
     const d = eye.distanceTo(pos);
-    if (d > st.radius) continue;
-    if (!game.world.clear(o, eye)) continue;
+    if (d > R) continue;
+    const los = game.world.clear(o, eye);
     const look = e.aimDir(_b);
     const to = _c.subVectors(pos, eye).normalize();
     const dot = look.dot(to);
-    const facing = dot > 0.15 ? 0.5 + 0.5 * clamp((dot - 0.15) / 0.55, 0, 1) : 0.28;   // bakmayan da biraz etkilenir
-    let t = 4.4 * facing * (0.3 + 0.7 * (1 - d / st.radius));
-    if (e.team === owner.team && e !== owner) t *= 0.6;
-    if (t < 0.35) continue;
-    e.blind(t);
-    if (e.isPlayer) game.sfx.ring?.(Math.min(4, t + 1));
+    let t = 0, ring = 0;
+    if (los && dot > 0.2) {                                                 // doğrudan: koni (≈ 55°) içinde tam, 0,2'ye doğru azalır
+      const cone = dot > 0.57 ? 1 : 0.35 + 0.65 * (dot - 0.2) / 0.37;
+      t = (5.5 - 4.5 * (d / R)) * cone;
+    }
+    if (d < N) t = Math.max(t, 3 * (1 - d / N) * (los ? 1 : 0.5) + (los ? 0.4 : 0));      // dolaylı
+    if (d < N * 1.6) ring = 10 * (1 - d / (N * 1.6)) + 1;
+    else if (t > 1.5) ring = t * 0.6;
+    const mul = e.team === owner.team && e !== owner ? 0.6 : 1;
+    t *= mul; ring *= mul;
+    if (t >= 0.35) e.blind(t);
+    if (e.isPlayer && (t >= 0.35 || ring > 1)) { game.sfx.ring?.(Math.min(10, Math.max(ring, t + 1))); deafen(game.sfx, Math.min(10, Math.max(ring, t))); game.emit('flashed', { t, ring }); }
   }
 }
 

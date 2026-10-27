@@ -525,8 +525,12 @@ export class ViewModel {
     pos.z += this.hitKick * 0.06; rx += this.hitKick * 0.18;
     // 12.144: bomba — pim çekilince (pişirme / önizleme) el geri ve yukarı kurulur; bırakınca ileri-aşağı savrulur, atılan bomba elde görünmez (cd boyunca)
     this.cookK = (this.cookK || 0) + ((s.cook ? 1 : 0) - (this.cookK || 0)) * Math.min(1, dt * 12);
-    if (this.cookK > 0.001) { pos.z += 0.09 * this.cookK; pos.y += 0.06 * this.cookK; pos.x += 0.02 * this.cookK; rx += 0.45 * this.cookK; }
-    if (this.throwT > 0) { const f = Math.sin((1 - this.throwT) * Math.PI); pos.z -= f * 0.2; pos.y -= f * 0.07; rx -= f * 0.7; }
+    this.underK = (this.underK || 0) + ((s.nadeUnder && st.kind === 'throwable' ? 1 : 0) - (this.underK || 0)) * Math.min(1, dt * 10);      // 12.193 alttan: el aşağıda, savruluş yukarı
+    const uk = this.underK, okk = 1 - uk;
+    if (this.cookK > 0.001) { const c = this.cookK; pos.z += 0.09 * c * okk + 0.04 * c * uk; pos.y += 0.06 * c * okk - 0.16 * c * uk; pos.x += 0.02 * c; rx += 0.45 * c * okk - 0.55 * c * uk; }
+    else if (uk > 0.001) { pos.y -= 0.05 * uk; rx -= 0.2 * uk; }
+    if (s.cook?.lit) { const lt = Math.min(1, (s.cook.t || 0) / 0.18); pos.x -= 0.03 * Math.sin(lt * Math.PI); }      // pim çekilişi: el kısa bir silkinme
+    if (this.throwT > 0) { const f = Math.sin((1 - this.throwT) * Math.PI); pos.z -= f * 0.2; pos.y += f * (0.1 * uk - 0.07 * okk); rx += f * (0.5 * uk - 0.7 * okk); }
     if (st.kind === 'throwable' && this.model?.children[0]) this.model.children[0].visible = !(s.cd > 0 && !s.cook);
     // sallanma (mouse)
     this.sx = lerp(this.sx || 0, -p.lookDX * 0.0006, Math.min(1, dt * 12));
@@ -773,7 +777,8 @@ export class Player {
       }
       if (this.third && kb.is('leanLeft', code)) this.side = -1;                     // 3. şahıs: eğilme tuşları omuz değiştirir (aynı zamanda yatırır)
       if (this.third && kb.is('leanRight', code)) this.side = 1;
-      if (kb.is('reload', code)) { s.startReload(); this.game.online?.edge('rl'); }
+      if (kb.is('reload', code)) { if (s.stat.kind === 'throwable') this.cookReq = true; else s.startReload(); this.game.online?.edge('rl'); }      // 12.193: bombada R = pimi çek (adımda, sunucuyla aynı sırada)
+      if (kb.is('quickNade', code) && s.alive && !s.veh && !this.wheel) this.quickNade(true);
       if (s.alive && !s.veh && kb.is('crouch', code)) { s.toggleCrouch(); this.game.online?.edge('c'); }
       if (s.alive && !s.veh && kb.is('prone', code)) { s.toggleProne(); this.game.online?.edge('p'); }
       if (s.alive && kb.is('optic', code)) { this.game.online?.edge('o'); const o = s.cycleOptic(); if (o) { this.game.hud.toast($t('hud.t.optic', { o: opticName(s.opticId) }), '#cfe6ff'); this.saveEraOptic(); } }
@@ -807,6 +812,7 @@ export class Player {
       if (code === 'Tab' || kb.is('scoreboard', code)) e.preventDefault();
       this.keys.delete(code);
       if (kb.is('vehicle', code)) this.vehLatch = false;
+      if (kb.is('quickNade', code) && this.qNade) this.qNade.held = false;
       if (kb.is('jump', code)) this.spaceLatch = false;
       if (kb.is('scoreboard', code)) this.game.hud.showScoreboard(false);
     });
@@ -827,6 +833,7 @@ export class Player {
       if (this.game.chatOpen) return;
       if (e.button === 0) { this.fireHeld = true; this.fireBuf = 0.15; this.game.online?.edge('fp'); }
       if (e.button === 2 && this.s.def.zombie) { this.zAbility(); return; }                  // zombi: sağ tık = özel güç
+      if (e.button === 2 && this.s.stat.kind === 'throwable') { this.nadeModeReq = true; this.game.online?.edge('nu'); return; }      // 12.193 PUBG: bombada sağ tık = üstten ↔ alttan
       if (e.button === 2) this.s.ads = this.game.opts.adsToggle ? !this.s.ads : true;          // Ayarlar: basılı tut ya da bir kez bas (aç-kapa)
     });
     this.on(window, 'mouseup', (e) => {
@@ -1013,6 +1020,39 @@ export class Player {
     if (g.online) g.online.markAmmo(s);
   }
 
+  // 12.193 Hızlı atış: G (masaüstü) / bomba düğmesi (dokunmatik). Bomba çekilir, çekiliş biter bitmez hazırlanır (yörünge), tuş bırakılınca atılır
+  // (kısa dokunuş = hemen at). Dokunmatikte iptal alanında bırakılırsa atılmaz (pim çekilmediyse bomba cebe döner).
+  quickNade(down) {
+    const s = this.s;
+    if (!down) { if (this.qNade) this.qNade.held = false; return; }
+    const ni = s.items.findIndex((it) => WSTATS[it.id]?.kind === 'throwable');
+    if (ni < 0 || !s.canEquip(ni) || s.veh || !s.alive) return;
+    this.qNade = { held: true, t: 0, ni, cooked: false, back: s.cur !== ni ? s.cur : -1 };
+    if (s.cur !== ni) s.switchTo(ni);
+  }
+  cancelNade() {
+    const s = this.s, q = this.qNade;
+    this.qNade = null; this.fireHeld = false;
+    if (!s.cook || s.cook.lit) return false;                                   // pimi çekildiyse iptal yok (bırakınca atılır)
+    const b = q && q.back >= 0 ? q.back : s.backTo >= 0 ? s.backTo : 0;
+    if (s.canEquip(b) && b !== s.cur) s.switchTo(b); else s.cook = null;
+    return true;
+  }
+  // her adım: hızlı atışın etkin tetiği. held: basılı sayılır, buf: yeni basış tamponu
+  nadeTick(dt) {
+    const s = this.s, q = this.qNade, R = (this._qn ||= { held: false, buf: 0 });
+    R.held = false; R.buf = 0;
+    if (!q) return R;
+    q.t += dt;
+    if (!s.alive || s.veh || q.t > 3 || (s.items[q.ni]?.mag <= 0 && !s.cook)) { this.qNade = null; return R; }
+    if (s.cur !== q.ni) { if (q.cooked || !s.canEquip(q.ni)) this.qNade = null; return R; }      // çekiliyor ya da başka silaha geçildi
+    if (s.cook) { q.cooked = true; R.held = q.held; return R; }
+    if (q.cooked) { this.qNade = null; return R; }                             // atıldı
+    R.held = true;
+    if (s.switchT <= 0 && s.cd <= 0) R.buf = 0.15;
+    return R;
+  }
+
   dispose() { this.closeWheel(); for (const [t, ev, fn, opt] of this._bound) t.removeEventListener(ev, fn, opt); this._bound = []; this.fx?.remove(); this.fxSmoke?.remove(); this.touch?.dispose(); }
 
   // 12.180 suya giriş / çıkış: giriş anında elde ateş edilemeyen silah varsa yan silaha geçilir (çıkınca eskisine döner); nişan kapanır; yüzeye çıkış nefesi
@@ -1058,13 +1098,19 @@ export class Player {
       const inp = { f, r, lean, sprint: kb.held('sprint', k) || !!(T && T.sprint), jump: (kb.held('jump', k) && !this.spaceLatch) || !!(T && T.jump), dive: kb.held('crouch', k) || !!(T && T.dive) };      // 12.180 dive: çömel BASILI (yüzerken dal)
       if (s.swim !== !!this._swimWas) this.swimEdge(s);
       if (s.fly) this.flyMove(f, r, k, dt); else applyInput(s, inp, dt);
-      if (g.online) g.online.pushInput(inp, s, this.fireHeld);
+      // 12.193 bomba: hızlı atış (G / dokunmatik bomba düğmesi) = çek + hazırla + bırakınca at; R (pişir) ve sağ tık (atış şekli) girdinin adımında (sunucu: humanTick aynı sıra)
+      const qn = this.nadeTick(dt);
+      const fHeld = this.fireHeld || qn.held, fBuf = Math.max(this.fireBuf, qn.buf);
+      if (qn.buf > 0) g.online?.edge('fp');
+      if (g.online) g.online.pushInput(inp, s, fHeld);
       if (!kb.held('jump', k)) this.spaceLatch = false;
 
       // ateş
-      if (this.locked) {
+      if (this.cookReq) { this.cookReq = false; if (s.stat.kind === 'throwable') s.startReload(); }
+      if (this.nadeModeReq) { this.nadeModeReq = false; s.toggleNadeMode(); }
+      if (this.locked || qn.held || qn.buf) {
         if (st.kind === 'melee') { if (this.fireHeld || this.fireBuf > 0) { if (s.tryFire()) this.fireBuf = 0; } }
-        else if (s.triggerUpdate(this.fireHeld, this.fireBuf)) this.fireBuf = 0;
+        else if (s.triggerUpdate(fHeld, fBuf)) this.fireBuf = 0;
       } else if (s.cook) { this.fireHeld = false; s.triggerUpdate(false, 0); }                                    // kilit gitti (Esc): pişirilen bomba bırakılır (sunucu da tetiği bırakılmış görür)
       if (g.online) g.online.markAmmo(s);                                              // bu girdinin sonundaki cephane (sunucunun ack anındakiyle karşılaştırılır, 12.138)
       // 12.180 yüzme kulacı sesi

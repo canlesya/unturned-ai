@@ -13,6 +13,7 @@ import { frTick, frPickGoal, frArrive, frAnchored, frTargetBias, frCombatMove, f
 // silah rolleri (bot davranışı)
 const SNIPERS = new Set(['sniper', 'svd', 'barrett', 'ww_sniper']);
 const LMGS = new Set(['lmg', 'pkm', 'ww_lmg', 'ww_mg']);
+const NADE_COOK = { easy: 0.2, normal: 0.5, hard: 0.75 };          // 12.193 bot bomba pişirme olasılığı
 const isFrag = (id) => id === 'grenade' || WSTATS[id]?.gtype === 'frag' && WSTATS[id]?.kind === 'throwable';      // 12.158: saplı el bombası da
 const SHOTGUNS = new Set(['shotgun', 'aa12', 'dbl']);
 SNIPERS.add('railgun'); LMGS.add('elmg'); SHOTGUNS.add('scatter');      // 12.157 Uzay modu enerji silahları
@@ -69,7 +70,8 @@ export class BotBrain {
   onMateDown(victim, killer) { if (!this.s.def.zombie) tacMateDown(this, victim, killer); }
 
   onDamaged(attacker, fromPos) {
-    this.alertT = this.game.time;
+    this.alertT = this.game.time; this.dmgT = this.game.time;
+    if (this.s.botCook) this.s.botCook.cook = Math.min(this.s.botCook.cook, this.s.botCook.t);     // 12.193: pişirirken vurulan bot bombayı hemen atar
     if (this.game.front) frDamaged(this);                                         // Cephe: mevzideki bot vurulunca çömelir
     if (attacker && attacker.alive && (!this.target || Math.random() < 0.4)) {
       this.target = attacker; this.reactT = Math.min(this.reactT, rand(0.15, 0.35)); this.lostT = 0;
@@ -226,18 +228,29 @@ export class BotBrain {
     }
     const e = this.d.err * 40, a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * e;
     tB.set(tp.x + Math.cos(a) * r, tp.y, tp.z + Math.sin(a) * r);
-    const aim = aimNade(s, st, tB, g.world, gid === 'flash' ? 6 : 3.5);
+    // 12.193: kısa mesafede (< 11 m) çoğunlukla alttan yuvarlama (köşe / kapı ardına), yoksa üstten; aynı fizik + araç gövdeleri
+    const tol = gid === 'flash' ? 6 : 3.5, vo = { vehicles: g.vehicles };
+    const aim = (dist < 11 && Math.random() < 0.8 && aimNade(s, st, tB, g.world, tol, { ...vo, under: true })) || aimNade(s, st, tB, g.world, tol, vo);
     if (!aim) return false;
     tt[s.team] = g.time;
     this.nadeReady = g.time + rand(16, 28) * tacOf(this).nadeCd;
-    if (turn && Math.abs(angleDiff(s.yaw, aim.yaw)) > 0.06) { this.pendNade = { gid, aim, t: 1.2 }; return true; }
-    return this.throwNade(gid, aim);
+    // pişirme (PUBG: 5 sn fünye): zorluğa göre bazen (kolay %20 / normal %50 / zor %75) bombayı elde tutar → inişten 0,25–0,9 sn sonra patlar
+    let cook = 0;
+    if (st.cook && isFrag(gid) && dist < 24 && s.hp > 60 && g.time - (this.dmgT ?? -99) > 2.5 && Math.random() < (NADE_COOK[this.dk] ?? 0.5)) cook = clamp(st.fuse - (aim.landT + rand(0.5, 1.2)), 0, 2.4);      // uzakta / yaralıyken / ateş altındayken pişirmez; en çok 2,4 sn      // uzakta pişirmez (pişirirken yer değiştirince yetişmeyebilir)
+    if (cook < 0.3) cook = 0;
+    if (turn && Math.abs(angleDiff(s.yaw, aim.yaw)) > 0.06) { this.pendNade = { gid, aim, t: 1.2, cook, tp: tB.clone() }; return true; }
+    return this.throwNade(gid, aim, cook, tB);
   }
 
-  throwNade(gid, aim) {
-    const s = this.s;
+  // cook > 0: bomba elde pişirilir (soldier.botCook), süre dolunca kalan fünyeyle hedefe yeniden nişan alıp atılır
+  throwNade(gid, aim, cook = 0, tp = null) {
+    const s = this.s, st = WSTATS[gid];
     s.yaw = aim.yaw; s.pitch = aim.pitch; s.recoilP = 0;
-    return s.useGadget(gid);
+    if (cook > 0 && tp && !s.botCook) { s.botCook = { gid, cook, t: 0, tp: tp.clone(), under: !!aim.under, aim }; s.nadeVis = gid; this.game.emit('pin', s); return true; }
+    s._botNade = { fuse: st.fuse, under: !!aim.under };
+    const ok = s.useGadget(gid);
+    s._botNade = null;
+    return ok;
   }
 
   sense() {
@@ -671,7 +684,7 @@ export class BotBrain {
         const pn = this.pendNade, d = angleDiff(s.yaw, pn.aim.yaw);
         s.yaw += clamp(d, -this.d.turn * 1.5 * dt, this.d.turn * 1.5 * dt);
         if ((pn.t -= dt) <= 0) this.pendNade = null;
-        else if (Math.abs(d) < 0.06) { this.pendNade = null; this.throwNade(pn.gid, pn.aim); }
+        else if (Math.abs(d) < 0.06) { this.pendNade = null; this.throwNade(pn.gid, pn.aim, pn.cook, pn.tp); }
       }
       // sakin anlarda mayın / cephane kutusu kur
       this.gadgetT -= dt * 0.5;
@@ -687,7 +700,7 @@ export class BotBrain {
       if (pm) { moveX = pm[0]; moveZ = pm[1]; speed *= pm[2]; }
       // yürüme yönüne dön, ya da son duyulan sese bak
       const ml = Math.hypot(moveX, moveZ);
-      if (this.pendNade) { moveX *= 0.3; moveZ *= 0.3; }                       // bomba atmak için dönüyor: yürüme yönüne dönmez, yavaşlar
+      if (this.pendNade || s.botCook) { moveX *= 0.3; moveZ *= 0.3; }                       // bomba atmak için dönüyor: yürüme yönüne dönmez, yavaşlar
       else if (ml > 0.1) s.yaw += clamp(angleDiff(s.yaw, yawFromDir(moveX, moveZ)), -6 * dt, 6 * dt);
       else if (this.alertPos && g.time - this.alertT < 2.5) {
         const wy = yawFromDir(this.alertPos.x - s.pos.x, this.alertPos.z - s.pos.z);

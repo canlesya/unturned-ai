@@ -574,6 +574,17 @@ function applyPose(api, w, o = {}) {
   const mz = (m.rotZ || 0), sz = (sp.rotZ || 0);
   mount.position.set(mix(mix(m.pos[0], sp.pos[0], spr), PR.pos[0], prone), mix(mix(m.pos[1], sp.pos[1], spr), PR.pos[1], prone), mix(mix(m.pos[2], sp.pos[2], spr) + kick * 0.05, PR.pos[2], prone));
   mount.rotation.set(mix(mix(m.rotX, sp.rotX, spr) + kick * 0.07, PR.rotX + aimP + kick * 0.05, prone), mix(blade + spr * sp.yaw, 0.12, prone), mix(mz, sz, spr));
+  // 12.193 bomba atışı (3. şahıs): hazırlarken kol üstten geri-yukarı / alttan aşağı-geri kurulur, atışta ileri savrulur (o.nade: prep 0..1, swing 0..1, under)
+  let nadeL = 0;
+  if (o.nade && hold === 'grenade' && !prone) {
+    const nd = o.nade, P = nd.under ? NADE_PREP_U : NADE_PREP_O, F = nd.under ? NADE_FOL_U : NADE_FOL_O;
+    let t = P, w = nd.prep;
+    if (nd.swing > 0) { const e = Math.sin(Math.min(1, nd.swing / 0.45) * Math.PI / 2); t = [mix(P[0], F[0], e), mix(P[1], F[1], e), mix(P[2], F[2], e), mix(P[3], F[3], e)]; w = 1 - Math.max(0, (nd.swing - 0.55) / 0.45); }
+    mount.position.set(mix(mount.position.x, t[0], w), mix(mount.position.y, t[1], w), mix(mount.position.z, t[2], w));
+    mount.rotation.x = mix(mount.rotation.x, t[3], w);
+    torso.rotation.y += (nd.swing > 0 ? 0.3 * (1 - nd.swing) - 0.1 : 0.3) * w * (nd.under ? 0.5 : 1);
+    nadeL = nd.under ? 0 : w * (nd.swing > 0 ? 1 - nd.swing : 1);
+  }
   if (ra) {
     mount.position.y += ra.lift * 0.03 - ra.slap * 0.015; mount.position.z += ra.slap * 0.02;
     mount.rotation.x -= ra.tilt * 0.22;
@@ -617,8 +628,13 @@ function applyPose(api, w, o = {}) {
     const tgt = fg.multiplyScalar(wt.fg).add(magT.multiplyScalar(wt.mag)).add(POUCH.clone().multiplyScalar(wt.pouch)).add(chT.multiplyScalar(wt.charge));
     poseArm(armL, tgt);
   } else if (u.gripL) poseArm(armL, toTorso(u.gripL));
+  else if (nadeL > 0.01) poseArm(armL, restL().lerp(NADE_AIM_L, nadeL));         // üstten atışta sol kol hedefi gösterir
   else poseArm(armL, restL());
 }
+// bomba pozları (gövde yerelinde x, y, z, rotX)
+const NADE_PREP_O = [0.24, 0.44, 0.14, 1.2], NADE_FOL_O = [0.1, -0.02, -0.5, -0.9];
+const NADE_PREP_U = [0.22, -0.26, 0.14, -0.9], NADE_FOL_U = [0.14, 0.08, -0.48, 0.7];
+const NADE_AIM_L = V(-0.12, 0.24, -0.44);
 
 function groundFeet(root) {
   root.position.y = 0;

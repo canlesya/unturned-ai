@@ -193,16 +193,16 @@ export const WSTATS = {
   },
   // ───────── Gadgetlar ─────────
   grenade: {
-    name: 'El Bombası', kind: 'throwable', gtype: 'frag', slot: 'gadget', desc: 'Patlayıcı bomba, 3 sn fitil. Basılı tut: pişir + yörünge; sağ tıkla bırak: alttan yuvarla.', stats: { dmg: 80, range: 40, rate: 30, control: 50, mobility: 100 },
-    count: 2, dmg: 130, radius: 7.5, fuse: 3.0, cook: true, speed: 19, rpm: 40, mag: 2, reserve: 0, move: 1.0, equip: 0.3, sound: 'throw',
+    name: 'El Bombası', kind: 'throwable', gtype: 'frag', slot: 'gadget', desc: 'Parça tesirli bomba, 5 sn fünye (PUBG). Basılı tut: yörünge · R: pimi çek (pişir) · sağ tık: üstten / alttan · G: hızlı at.', stats: { dmg: 80, range: 40, rate: 30, control: 50, mobility: 100 },
+    count: 2, dmg: 150, lethal: 3.5, edge: 95, radius: 10, vehDmg: 60, vehR: 5, fuse: 5.0, cook: true, speed: 19, rpm: 40, mag: 2, reserve: 0, move: 1.0, equip: 0.3, sound: 'throw',
   },
   smoke: {
-    name: 'Dumanlı Bomba', kind: 'throwable', gtype: 'smoke', slot: 'gadget', desc: '10 sn duman perdesi: görüşü tamamen keser.', stats: { dmg: 0, range: 40, rate: 30, control: 70, mobility: 100 },
-    count: 2, radius: 5.2, fuse: 2.2, speed: 19, rpm: 40, mag: 2, reserve: 0, move: 1.0, equip: 0.3, sound: 'throw', smokeLife: 10,
+    name: 'Dumanlı Bomba', kind: 'throwable', gtype: 'smoke', slot: 'gadget', desc: '30 sn yoğun duman perdesi (PUBG gibi uzun): görüşü tamamen keser.', stats: { dmg: 0, range: 40, rate: 30, control: 70, mobility: 100 },
+    count: 2, radius: 6, fuse: 2.0, speed: 19, rpm: 40, mag: 2, reserve: 0, move: 1.0, equip: 0.3, sound: 'throw', smokeLife: 30,
   },
   flash: {
-    name: 'Flaşbang', kind: 'throwable', gtype: 'flash', slot: 'gadget', desc: 'Bakanları kör eder, botları şaşırtır.', stats: { dmg: 0, range: 40, rate: 30, control: 70, mobility: 100 },
-    count: 2, radius: 24, fuse: 1.6, speed: 19, rpm: 40, mag: 2, reserve: 0, move: 1.0, equip: 0.3, sound: 'throw',
+    name: 'Flaşbang', kind: 'throwable', gtype: 'flash', slot: 'gadget', desc: 'Sersemletici (PUBG): 2,5 sn fünye ya da ilk değmeden 0,7 sn sonra. Bakanı 5,5 sn kör eder, yakındakini sağırlaştırır. R ile pişirilir.', stats: { dmg: 0, range: 40, rate: 30, control: 70, mobility: 100 },
+    count: 2, radius: 20, near: 6.5, fuse: 2.5, impactFuse: 0.7, cook: true, speed: 19, rpm: 40, mag: 2, reserve: 0, move: 1.0, equip: 0.3, sound: 'throw',
   },
   claymore: {
     name: 'Claymore', kind: 'mine', slot: 'gadget', desc: 'Yere kurulur; önünden geçen düşmanı patlatır.', stats: { dmg: 90, range: 25, rate: 20, control: 60, mobility: 100 },
@@ -534,8 +534,8 @@ Object.assign(WSTATS, {
     sight: [0, 0.084, 0.042], dist: 0.286, sound: 'ww_pistol', era: 'ww2',
   },
   ww_nade: {
-    name: 'Saplı El Bombası', kind: 'throwable', gtype: 'frag', slot: 'gadget', desc: 'Uzun saplı el bombası: daha uzağa atılır, 3,5 sn fitil.', stats: { dmg: 80, range: 48, rate: 30, control: 50, mobility: 100 },
-    count: 2, dmg: 130, radius: 7.5, fuse: 3.5, cook: true, speed: 21, rpm: 40, mag: 2, reserve: 0, move: 1.0, equip: 0.3, sound: 'throw', era: 'ww2',
+    name: 'Saplı El Bombası', kind: 'throwable', gtype: 'frag', slot: 'gadget', desc: 'Uzun saplı el bombası: daha uzağa atılır, 5 sn fünye (R: pişir).', stats: { dmg: 80, range: 48, rate: 30, control: 50, mobility: 100 },
+    count: 2, dmg: 150, lethal: 3.5, edge: 95, radius: 10, vehDmg: 60, vehR: 5, fuse: 5.0, cook: true, speed: 21, rpm: 40, mag: 2, reserve: 0, move: 1.0, equip: 0.3, sound: 'throw', era: 'ww2',
   },
 });
 // 12.174 Dönem nişangâhları (yalnız 1940'lar silahlarında; modern red dot / holo / ACOG yok). Liste sırası = B ile dönüş sırası, ilk öğe = varsayılan.
