@@ -98,7 +98,7 @@ function thinCollider(c) {
 }
 
 // 12.174: istemciden gelen Cephe donanımı (yalnız dize alanlar; frontLoadout listede olmayanı varsayılana düşürür) ve nişangâh tercihleri
-// (op: modern genel tercih, bilinen nişangâh; fo: dönem silahı → izinli dönem nişangâhı, cleanEraOptics)
+// (op: modern genel tercih, bilinen nişangâh; fo: silah → o silaha izinli nişangâh, cleanEraOptics; 12.190: modern silahlar da)
 const cleanFront = (f) => { if (!f || typeof f !== 'object') return undefined; const str = (v) => (typeof v === 'string' ? v.slice(0, 24) : undefined); return { primary: str(f.primary), secondary: str(f.secondary), gadget: str(f.gadget), melee: str(f.melee) }; };
 export function applyOpticPrefs(s, m) {
   if (!m || typeof m !== 'object') return;

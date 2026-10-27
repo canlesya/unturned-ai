@@ -79,6 +79,7 @@ export const MENU_CSS = `
 #menu .chip{position:relative;padding:9px 16px;background:#ffffff0b;border:1px solid var(--line);font-size:15px;font-weight:600;letter-spacing:1px;transition:background .15s,border-color .15s,color .15s,box-shadow .15s,transform .15s var(--ease);text-transform:uppercase;min-width:64px;text-align:center;color:#d5dde8}
 #menu .chip:hover{background:#ffffff1a;border-color:var(--line2);color:#fff}
 #menu .chip:active{transform:translateY(1px)}
+#menu .chip.opt{display:inline-flex;align-items:center;gap:7px;padding:7px 12px 7px 9px}#menu .chip.opt svg.oi{width:22px;height:22px;flex:none;background:#05070a;border-radius:50%}#menu .chip.opt small{opacity:.7;font-size:12px;margin-left:2px}      /* 12.190 nişangâh çipi: retikül simgesi + ad + büyütme */
 #menu .chip.on{background:linear-gradient(180deg,rgba(255,138,31,.34),rgba(255,138,31,.14));border-color:var(--acc);color:#fff;box-shadow:inset 0 -2px 0 var(--acc),0 0 14px rgba(255,138,31,.22)}
 #menu .chip.blue.on{background:rgba(74,163,255,.26);border-color:var(--blue);box-shadow:inset 0 -2px 0 var(--blue),0 0 14px rgba(74,163,255,.22)}
 #menu .chip.red.on{background:rgba(255,90,67,.26);border-color:var(--red);box-shadow:inset 0 -2px 0 var(--red),0 0 14px rgba(255,90,67,.22)}

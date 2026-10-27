@@ -18,6 +18,27 @@ import { wName, wLabel, classDesc, ztName, ztDesc, abilName, opticName, fireName
 
 const EN = (s) => String(s).replace(/Paintball/g, '<span lang="en">Paintball</span>');   // tr büyük harfte 'PAİNTBALL' olmasın (marka adı)
 const setH = (el, h) => { if (el._h !== h) { el._h = h; el.innerHTML = h; } };     // yalnız değişince yaz (her kare)
+// 12.190 büyüten mercek retikülleri (HUD #lens; R = merceğin ekran yarıçapı px, dot = kırmızı nokta çapı px, k = çizgi kalınlık çarpanı). Kırmızı = ayarlanabilir retikül rengi (--rc)
+const LENS_RET = { x2: 1, x3: 1, chev: 1 };
+function lensReticle(type, R, dot, k) {
+  const f = (v) => +v.toFixed(2), rect = (x0, y0, x1, y1, c = 'k') => `<rect class="${c}" x="${f(Math.min(x0, x1))}" y="${f(Math.min(y0, y1))}" width="${f(Math.abs(x1 - x0))}" height="${f(Math.abs(y1 - y0))}"/>`;
+  const hl = (x0, x1, y, w) => rect(x0, y - w / 2, x1, y + w / 2), vl = (y0, y1, x, w) => rect(x - w / 2, y0, x + w / 2, y1);
+  const dotC = `<circle class="r" r="${f(dot / 2)}"/>`, E = R + 1;
+  if (type === 'x2') { const w = 2.4 * k, i = R * 0.38; return hl(-E, -i, 0, w) + hl(i, E, 0, w) + vl(-E, -i, 0, w) + vl(i, E, 0, w) + dotC; }
+  if (type === 'x3') {
+    const t = 1.15 * k, w = 2.8 * k, gp = Math.max(dot * 0.9, R * 0.035), o = R * 0.62;
+    let s = hl(-o, -gp, 0, t) + hl(gp, o, 0, t) + vl(-o, -gp, 0, t) + vl(gp, o, 0, t) + hl(-E, -o, 0, w) + hl(o, E, 0, w) + vl(-E, -o, 0, w) + vl(o, E, 0, w);
+    for (const [yy, hw] of [[0.13, 0.055], [0.22, 0.042], [0.31, 0.03]]) s += hl(-R * hw, R * hw, R * yy, t);      // düşüş çentikleri (BDC)
+    return s + dotC;
+  }
+  // chev: kırmızı şevron (dolu çokgen, ucu tam (0, 0) = nişan noktası; kol kalınlığı t sabit) + siyah BDC + yan çizgiler
+  const a = R * 0.052, h = R * 0.076, t = 2.1 * k, b = Math.atan2(a, h), y0 = t / Math.sin(b), xi = Math.max(0, ((h - y0) * a) / h);
+  const chev = `<path class="r" d="M0 0L${f(a)} ${f(h)}L${f(xi)} ${f(h)}L0 ${f(y0)}L${f(-xi)} ${f(h)}L${f(-a)} ${f(h)}Z"/>`;
+  const lw = 1.15 * k;
+  let s = vl(h + R * 0.03, R * 0.52, 0, lw) + hl(-E, -R * 0.6, 0, 1.6 * k) + hl(R * 0.6, E, 0, 1.6 * k);
+  for (const [yy, hw] of [[0.17, 0.07], [0.25, 0.058], [0.33, 0.047], [0.41, 0.037], [0.49, 0.028]]) s += hl(-R * hw, R * hw, R * yy, lw);
+  return s + chev;
+}
 const NADE_SVG = '<svg class="hsi nd" viewBox="0 0 16 16"><ellipse cx="7.5" cy="10" rx="4.6" ry="5.2" fill="currentColor"/><rect x="5.6" y="2.6" width="4" height="2.6" fill="currentColor"/><path d="M9.6 3.6h3.2v3.4" fill="none" stroke="currentColor" stroke-width="1.4"/><circle cx="12.8" cy="8.4" r="1.3" fill="none" stroke="currentColor" stroke-width="1.1"/></svg>';     // 12.144: el bombası öldürmesi
 const HS_SVG = '<svg class="hsi" viewBox="0 0 16 16"><circle cx="8" cy="7" r="4.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 0v4M8 10v6M0 7h4M12 7h4" stroke="currentColor" stroke-width="1.6"/></svg>';
 const PEN_SVG = '<svg class="hsi pni" viewBox="0 0 16 16"><path d="M1 8h11.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M10.2 4.6 13.8 8l-3.6 3.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><rect x="4.4" y="3" width="1.8" height="10" rx=".6" fill="currentColor" opacity=".55"/><rect x="7.6" y="3" width="1.8" height="10" rx=".6" fill="currentColor" opacity=".55"/></svg>';     // 12.164: delip geçme öldürmesi (ok iki gövdeden geçer)
@@ -75,7 +96,7 @@ const CSS = `
 #cross .l{left:calc(-8px - var(--g,6px))}#cross .r{left:var(--g,6px)}#cross .t{top:calc(-8px - var(--g,6px))}#cross .b{top:var(--g,6px)}
 #cross .dot{width:3px;height:3px;left:-1.5px;top:-1.5px;border-radius:50%}
 #cross.ads span:not(.dot){display:none}
-#rdot{position:absolute;left:50%;top:50%;width:.62vh;height:.62vh;margin:-.31vh 0 0 -.31vh;border-radius:50%;background:#ff3a26;box-shadow:0 0 1.5px .5px #ff2a1ae6,0 0 5px 1px #ff2a1a40;display:none}
+#rdot{position:absolute;left:50%;top:50%;width:.62vh;height:.62vh;margin:-.31vh 0 0 -.31vh;border-radius:50%;background:var(--rc,#ff3a26);box-shadow:0 0 1.5px .5px color-mix(in srgb,var(--rc,#ff2a1a) 90%,transparent),0 0 5px 1px color-mix(in srgb,var(--rc,#ff2a1a) 25%,transparent);display:none}
 #hitm{position:absolute;left:50%;top:50%;width:26px;height:26px;margin:-13px 0 0 -13px;opacity:0;transition:opacity .25s}
 #hitm::before,#hitm::after{content:'';position:absolute;left:12px;top:-2px;width:2px;height:30px;background:#fff;transform:rotate(45deg)}
 #hitm::after{transform:rotate(-45deg)}
@@ -135,8 +156,8 @@ const CSS = `
 .arrow{position:absolute;left:-14px;top:-130px;width:28px;height:40px;transform-origin:14px 130px;opacity:.9;animation:ar 1.4s forwards}
 .arrow::before{content:'';position:absolute;left:0;top:0;border:14px solid transparent;border-bottom:26px solid #ff3b2f;border-top:0}
 @keyframes ar{to{opacity:0}}
-#holo{position:absolute;left:50%;top:50%;box-sizing:border-box;width:calc(9.47vh + 2px);height:calc(9.47vh + 2px);margin:calc(-4.735vh - 1px) 0 0 calc(-4.735vh - 1px);border-radius:50%;border:2px solid #ff2a1a;box-shadow:0 0 3px #ff2a1a66;display:none}
-#holo::before{content:'';position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:50%;background:#ff2a1a;box-shadow:0 0 2px #ff2a1a88}
+#holo{position:absolute;left:50%;top:50%;box-sizing:border-box;width:calc(9.47vh + 2px);height:calc(9.47vh + 2px);margin:calc(-4.735vh - 1px) 0 0 calc(-4.735vh - 1px);border-radius:50%;border:2px solid var(--rc,#ff2a1a);box-shadow:0 0 3px color-mix(in srgb,var(--rc,#ff2a1a) 40%,transparent);display:none}
+#holo::before{content:'';position:absolute;left:50%;top:50%;width:4px;height:4px;margin:-2px 0 0 -2px;border-radius:50%;background:var(--rc,#ff2a1a);box-shadow:0 0 2px color-mix(in srgb,var(--rc,#ff2a1a) 55%,transparent)}
 #holo i{display:none}      /* 12.139 (BattleBit sade): ince halka + nokta; dış işaretler kalktı (3B halkada yoktu → tam nişanda zıplıyordu). Halka orta çizgisi 9,47vh = 3B halka (r 14,5 mm, göz 0,421 m, ADS_FOV 40) */
 /* paintball halka nişangâhı (nişanda): halka = topun o anki sapması (seri atışta büyür), ortada nokta, altta 20 / 30 / 40 m düşüş çizgileri */
 #pbret{position:absolute;left:50%;top:50%;width:0;height:0;display:none;--c:#ffe014;--r:10px}
@@ -155,7 +176,19 @@ body.mob #pbdead{font-size:48px;-webkit-text-stroke:2px #10131a}
 #advig{position:absolute;inset:0;pointer-events:none;opacity:0;background:radial-gradient(ellipse at center,transparent 45%,rgba(0,0,0,.55) 100%)}
 #scope{position:absolute;inset:-9vh -9vw;display:none;transform-origin:50% 50%}   /* 12.153: ekrandan taşkın (sürgüde halka kayınca kenar açılmasın) */
 #scope .vg{position:absolute;left:50%;top:50%;width:68vh;height:68vh;margin:-34vh 0 0 -34vh;border-radius:50%;background:radial-gradient(circle,transparent 70%,rgba(0,0,0,.38) 100%)}   /* mercek içi hafif vinyet */
-#scopeblk{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none}   /* dürbüne girerken / çıkarken kısa kararma (göz merceğe yaklaşır) */
+#scopeblk{position:absolute;inset:0;background:#000;opacity:0;pointer-events:none}
+/* 12.190 büyüten mercek (2× / 3× / 4× ACOG / PSO-1, PUBG): merceği izleyen katman (--x / --y = mercek merkezinin ekran ortasından kayması, --r = mercek yarıçapı, px).
+   Dışı bulanık + koyu (masaüstü backdrop-filter; telefonda düz koyu), mercek kenarında gövde halkası + iç vinyet, retikül ince SVG (1 birim = 1 CSS px, keskin) */
+#lens{position:absolute;inset:0;display:none;--x:0px;--y:0px;--r:30vh}
+#lens .bl{position:absolute;inset:0;backdrop-filter:blur(5px) brightness(.5);-webkit-backdrop-filter:blur(5px) brightness(.5);
+  -webkit-mask-image:radial-gradient(circle at calc(50% + var(--x)) calc(50% + var(--y)),transparent calc(var(--r) - .5px),#000 calc(var(--r) + 1px));mask-image:radial-gradient(circle at calc(50% + var(--x)) calc(50% + var(--y)),transparent calc(var(--r) - .5px),#000 calc(var(--r) + 1px))}
+#lens .hs{position:absolute;left:calc(50% + var(--x));top:calc(50% + var(--y));width:calc(2 * var(--r));height:calc(2 * var(--r));transform:translate(-50%,-50%);border-radius:50%;
+  box-shadow:0 0 0 calc(var(--r) * .055) #0b0c0e,0 0 0 calc(var(--r) * .075) #1c1e21,0 0 calc(var(--r) * .2) calc(var(--r) * .11) rgba(0,0,0,.72),inset 0 0 calc(var(--r) * .16) rgba(0,0,0,.5)}
+#lens svg{position:absolute;left:calc(50% + var(--x));top:calc(50% + var(--y));overflow:visible}
+#lens .k{fill:#0a0b0c}#lens .r{fill:var(--rc,#ff2a1a);stroke:rgba(0,0,0,.5);stroke-width:.8px;paint-order:stroke}
+body.mob #lens .bl{backdrop-filter:none;-webkit-backdrop-filter:none;background:rgba(0,0,0,.6)}
+#scope .zl{position:absolute;left:calc(50% + 1.6vh);top:calc(50% + 30vh);font:600 13px/1 Bahnschrift,Arial Narrow,sans-serif;letter-spacing:1px;color:#fff;opacity:.55;display:none}
+body.mob #scope .zl{top:calc(50% + 40vh)}   /* dürbüne girerken / çıkarken kısa kararma (göz merceğe yaklaşır) */
 #scope .bl{position:absolute;inset:0;backdrop-filter:blur(10px) brightness(.3);-webkit-backdrop-filter:blur(10px) brightness(.3);
   -webkit-mask-image:radial-gradient(circle at center,transparent 35.6vh,#000 35.9vh);mask-image:radial-gradient(circle at center,transparent 35.6vh,#000 35.9vh)}
 #scope .rg{position:absolute;left:50%;top:50%;width:72.4vh;height:72.4vh;margin:-36.2vh 0 0 -36.2vh;border-radius:50%;border:.9vh solid #0d0e10;box-sizing:border-box;box-shadow:0 0 0 .25vh #2a2d31,inset 0 0 2.2vh #000c}   /* 12.153: ince halka (eski 3,4 vh kalın kasnak) */
@@ -313,8 +346,9 @@ export class Hud {
     el.id = 'hud';
     el.innerHTML = `
       <div id="scope"><div class="bl"></div><div class="vg"></div><div class="rg"></div>
-        <svg viewBox="-100 -100 200 200" class="mil"><g stroke="#000" fill="none"><path d="M-100 0H-1.6M1.6 0H100M0 -100V-1.6M0 1.6V100" stroke-width=".3"/><path d="M-100 0H-58M58 0H100M0 -100V-58M0 58V100" stroke-width="1.5"/><path d="M-5 0V0M5 0V0M-15 -1.4V1.4M15 -1.4V1.4M-25 -1.4V1.4M25 -1.4V1.4M-35 -1.4V1.4M35 -1.4V1.4M-1.4 -15H1.4M-1.4 15H1.4M-1.4 -25H1.4M-1.4 25H1.4M-1.4 -35H1.4M-1.4 35H1.4" stroke-width=".35"/><g fill="#000" stroke="none"><circle cx="-40" r=".75"/><circle cy="-40" r=".75"/><circle cx="-30" r=".75"/><circle cy="-30" r=".75"/><circle cx="-20" r=".75"/><circle cy="-20" r=".75"/><circle cx="-10" r=".75"/><circle cy="-10" r=".75"/><circle cx="10" r=".75"/><circle cy="10" r=".75"/><circle cx="20" r=".75"/><circle cy="20" r=".75"/><circle cx="30" r=".75"/><circle cy="30" r=".75"/><circle cx="40" r=".75"/><circle cy="40" r=".75"/></g></g><circle r=".55" fill="#ff3b2a"/></svg>
-        <svg viewBox="-100 -100 200 200" class="ww"><g fill="#08090a"><path d="M-101 -1.6H-13L-9.5 -0.45V0.45L-13 1.6H-101Z"/><path d="M101 -1.6H13L9.5 -0.45V0.45L13 1.6H101Z"/><path d="M-1.9 101V6.5L0 0L1.9 6.5V101Z"/></g></svg></div>
+        <svg viewBox="-100 -100 200 200" class="mil"><g stroke="#000" fill="none"><path d="M-100 0H-1.6M1.6 0H100M0 -100V-1.6M0 1.6V100" stroke-width=".3"/><path d="M-100 0H-58M58 0H100M0 -100V-58M0 58V100" stroke-width="1.5"/><path d="M-5 0V0M5 0V0M-15 -1.4V1.4M15 -1.4V1.4M-25 -1.4V1.4M25 -1.4V1.4M-35 -1.4V1.4M35 -1.4V1.4M-1.4 -15H1.4M-1.4 15H1.4M-1.4 -25H1.4M-1.4 25H1.4M-1.4 -35H1.4M-1.4 35H1.4" stroke-width=".35"/><g fill="#000" stroke="none"><circle cx="-40" r=".75"/><circle cy="-40" r=".75"/><circle cx="-30" r=".75"/><circle cy="-30" r=".75"/><circle cx="-20" r=".75"/><circle cy="-20" r=".75"/><circle cx="-10" r=".75"/><circle cy="-10" r=".75"/><circle cx="10" r=".75"/><circle cy="10" r=".75"/><circle cx="20" r=".75"/><circle cy="20" r=".75"/><circle cx="30" r=".75"/><circle cy="30" r=".75"/><circle cx="40" r=".75"/><circle cy="40" r=".75"/></g></g><circle r=".55" style="fill:var(--rc,#ff3b2a)"/></svg>
+        <svg viewBox="-100 -100 200 200" class="ww"><g fill="#08090a"><path d="M-101 -1.6H-13L-9.5 -0.45V0.45L-13 1.6H-101Z"/><path d="M101 -1.6H13L9.5 -0.45V0.45L13 1.6H101Z"/><path d="M-1.9 101V6.5L0 0L1.9 6.5V101Z"/></g></svg><b class="zl"></b></div>
+      <div id="lens"><div class="bl"></div><div class="hs"></div><svg></svg></div>
       <div id="mmwrap"><canvas id="minimap" width="236" height="168"></canvas><div id="mmname"></div></div>
       <div id="topbar">
         <div id="score"><div class="tk blue"><small id="tnB"></small><span id="tkB">0</span><div class="bar"><i id="tbB"></i></div></div><div id="timer"><span id="tm">0:00</span><small id="lim"></small></div><div class="tk red"><small id="tnR"></small><span id="tkR">0</span><div class="bar"><i id="tbR"></i></div></div></div>
@@ -777,6 +811,27 @@ export class Hud {
     $('rcsub').textContent = rt > 0 ? t('death.respawnIn') : t('death.deploying');
   }
 
+  // 12.190 büyüten mercek katmanı (#lens): merceği izler (ViewModel.lensScr), dış bulanıklık / gövde halkası tam nişana yaklaşınca, retikül cam saydamlaşırken (LENS_ON 0,3 → +0,2) gelir.
+  // Retikül ekran pikselinde çizilir (yarıçap değişince yeniden): x2 = kırmızı nokta + kenardan dört direk · x3 = ince artı + kalın dış direkler + nokta + düşüş çentikleri ·
+  // chev = ACOG / PSO kırmızı şevron (ucu = nişan noktası) + BDC merdiveni + yan çizgiler. Çizgiler masaüstünde 1,2 px, telefonda × 1,3 × nişangâh boyutu ayarı
+  lensView(p, g, ov, adsL, ads, tp) {
+    const el = this.$('lens'), ls = g.player?.vm.lensScr, ret = p.opticDef?.reticle;
+    const on = !!(p.alive && !tp && ov === 'lens' && LENS_RET[ret] && ls?.on);
+    if (on !== !!this._lensWas) { this._lensWas = on; el.style.display = on ? 'block' : 'none'; }
+    if (!on) return false;
+    const mob = document.body.classList.contains('mob'), rs = mob ? +(document.body.style.getPropertyValue('--rs') || 1) || 1 : 1;
+    const q = (v) => Math.round(v * 4) / 4, x = q(ls.x), y = q(ls.y), R = q(ls.r);
+    if (x !== this._lx || y !== this._ly) { this._lx = x; this._ly = y; el.style.setProperty('--x', x + 'px'); el.style.setProperty('--y', y + 'px'); }
+    const key = ret + '|' + R + '|' + innerHeight + '|' + rs + '|' + mob;
+    if (key !== this._lk) { this._lk = key; el.style.setProperty('--r', R + 'px'); const sv = el.querySelector('svg'); const D = 2 * R; sv.setAttribute('width', D); sv.setAttribute('height', D); sv.setAttribute('viewBox', `${-R} ${-R} ${D} ${D}`); sv.style.margin = `${-R}px 0 0 ${-R}px`; sv.innerHTML = lensReticle(ret, R, mob ? Math.max(5, innerHeight * 0.005) * rs : innerHeight * 0.0062, mob ? 1.3 * rs : 1); }
+    const o1 = clamp((ads - 0.72) / 0.26, 0, 1), o2 = clamp((adsL - 0.3) / 0.2, 0, 1);      // dış katman / retikül (LENS_ON / LENS_FADE ile aynı: retikül cam saydamlaşırken)
+    const bl = el.children[0], hs = el.children[1], sv = el.children[2];
+    const s1 = (o1 * o1 * (3 - 2 * o1)).toFixed(3), s2 = o2.toFixed(3);
+    if (bl._o !== s1) { bl._o = hs._o = s1; bl.style.opacity = s1; hs.style.opacity = s1; }
+    if (sv._o !== s2) { sv._o = s2; sv.style.opacity = s2; }
+    return o1 > 0.5;
+  }
+
   update(dt) {
     const g = this.game, p = g.playerSoldier, $ = this.$;
     if (g.world?.terrain?.waterY) (this.swim ||= new SwimHud(this)).update(dt, p);      // 12.180 nefes çubuğu
@@ -848,6 +903,7 @@ export class Hud {
     // HUD retikülü yalnız nişangâh tam oturunca (öncesinde modeldeki ışıyan nokta / halka görünür, ikisi ekran ortasında üst üste biner)
     $('rdot').style.display = p.alive && !tp && (ov === 'dot' || (ov === 'lens' && p.opticDef?.reticle === 'dot')) && ads > ADS_HUD ? 'block' : 'none';      // 12.174: öncü dürbün (reticle 'post') kendi 3B siyah retikülüyle      // 12.162: ACOG / PSO-1 de (saydam mercek + sade kırmızı nokta)
     $('holo').style.display = p.alive && !tp && ov === 'holo' && ads > ADS_HUD ? 'block' : 'none';
+    const lensOn = this.lensView(p, g, ov, adsL, ads, tp);
     $('idot').classList.toggle('on', p.alive && !tp && ov === 'none' && !!p.opticDef && ads > ADS_HUD);      // yalnız telefonda görünür (CSS body.mob)
     const sc = $('scope');
     sc.style.display = scopeOn ? 'block' : 'none';
@@ -863,7 +919,8 @@ export class Hud {
       if (sc.style.transform !== tf) sc.style.transform = tf;
     }
     $('scopeblk').style.opacity = blk.toFixed(3);
-    $('advig').style.opacity = p.alive && ov !== 'scope' && !tp ? (ads * 0.55).toFixed(2) : 0;
+    $('advig').style.opacity = p.alive && ov !== 'scope' && !lensOn && !tp ? (ads * 0.55).toFixed(2) : 0;      // 12.190: büyüten mercekte kendi vinyeti / gövde halkası var
+    if (scopeOn) { const zl = p.opticDef?.zoomMin ? '×' + (+(g.player?.zoomEff?.() || p.opticDef.zoom).toFixed(1)) : ''; const ze = sc.querySelector('.zl'); if (ze._t !== zl) { ze._t = zl; ze.textContent = zl; ze.style.display = zl ? 'block' : 'none'; } }      // 12.190 değişken büyütme göstergesi
     const stTxt = [p.prone ? t('hud.prone') : p.crouching ? t('hud.crouch') : '', p.leanT > 0.3 ? t('hud.leanR') : p.leanT < -0.3 ? t('hud.leanL') : '', st.ball ? tr('pb.ring') : p.opticDef && st.kind === 'gun' ? opticName(p.opticId) : '', st.kind === 'gun' && st.auto ? `${fireName(p.fireModeNow, true)} [X]` : ''].filter(Boolean).join(' · ');
     $('stance').textContent = stTxt;
     if (this.hitT > 0) { this.hitT -= dt; if (this.hitT <= 0) $('hitm').style.opacity = 0; }

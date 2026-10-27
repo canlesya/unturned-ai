@@ -213,7 +213,7 @@ addStrings('en', {
   'hud.wpn.shotgun': 'Shotgun', 'hud.wpn.dbl': 'Double Barrel', 'hud.wpn.sniper': 'M24 Sniper', 'hud.wpn.m79': 'M79 Launcher', 'hud.wpn.grenade': 'Frag Grenade',
   'hud.wpn.smoke': 'Smoke Grenade', 'hud.wpn.flash': 'Flashbang', 'hud.wpn.ammobox': 'Ammo Box', 'hud.wpn.medkit': 'First Aid', 'hud.wpn.knife': 'Knife',
   'hud.wpn.machete': 'Machete', 'hud.wpn.claws': 'Claws', 'hud.wpn.pbrifle': 'Paintball Rifle', 'hud.wpn.pbpistol': 'Paintball Pistol',
-  'hud.opt.iron': 'Iron Sights', 'hud.opt.reddot': 'Red Dot', 'hud.opt.holo': 'Holographic', 'hud.opt.acog': 'ACOG', 'hud.opt.scope': '4x Scope', 'hud.opt.scope6': '6x Scope', 'hud.opt.ww_peep': 'Peep Sight', 'hud.opt.ww_scout': '1.5x Scout Scope', 'hud.opt.ww_sc25': '2.5x Scope', 'hud.opt.ww_sc4': '4x Scope',
+  'hud.opt.iron': 'Iron Sights', 'hud.opt.reddot': 'Red Dot', 'hud.opt.holo': 'Holographic', 'hud.opt.acog': '4x ACOG', 'hud.opt.x2': '2x Sight', 'hud.opt.x3': '3x Sight', 'hud.opt.x6': '6x Scope', 'hud.opt.x8': '8x Scope', 'hud.opt.scope': '4x Scope', 'hud.opt.scope6': '6x Scope', 'hud.opt.ww_peep': 'Peep Sight', 'hud.opt.ww_scout': '1.5x Scout Scope', 'hud.opt.ww_sc25': '2.5x Scope', 'hud.opt.ww_sc4': '4x Scope',
   'hud.zt.walker': 'Walker', 'hud.zt.runner': 'Runner', 'hud.zt.brute': 'Brute', 'hud.zt.ghost': 'Ghost', 'hud.zt.blinker': 'Blinker',
   'hud.zt.walker.desc': 'Balanced. Rage: briefly fast and deadly.', 'hud.zt.runner.desc': 'Very fast, fragile. Dash: a burst of incredible speed.',
   'hud.zt.brute.desc': 'Very tough, hits hard. Armor: heavily reduces damage.', 'hud.zt.ghost.desc': 'Cloak: nobody sees you until you attack.',

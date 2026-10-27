@@ -24,6 +24,7 @@ import { t as $t } from '../i18n/index.js';
 import { vehCamera } from './vehicleView.js';
 import { mgAt, seatGun } from '../sim/vehicle.js';                   // 12.177 araç kamerası (sürücü içeriden / takip)
 import { wName, opticName, fireName } from '../i18n/game.js';
+import { opticSvg } from './opticIcons.js';
 
 const VM_SCALE = 0.92;
 const _q = new THREE.Quaternion(), _eu = new THREE.Euler(), _sp = new THREE.Vector3(), _sp2 = new THREE.Vector3();
@@ -184,6 +185,7 @@ export class ViewModel {
     this.feel = null; this.rk = { K: 0, Kv: 0, S: 0, Sv: 0, C: 0, Cv: 0 }; this.punch = 0; this.punchR = 0;
     this.slideT = 9; this.slideX = 0; this.cylA = 0; this.cylTo = 0; this._slLock = false;
     this.casings = [];
+    this.lensScr = { on: false, x: 0, y: 0, r: 0 };                          // 12.190: büyüten merceğin ekrandaki yeri (HUD #lens)
     this.mLight = new THREE.PointLight('#ffb35a', 0, 1.6, 2);                  // namlu ışığı: atış anında el + silah kısa parlar (hep sahnede: ışık sayısı sabit → yeniden derleme yok)
     this.root.add(this.mLight);
   }
@@ -322,7 +324,7 @@ export class ViewModel {
       const geo = new THREE.CircleGeometry(L[0], 40);
       const d = new THREE.Mesh(geo, LENS_MASK); d.renderOrder = -1;                           // derinlik maskesi: silah ağından önce çizilir
       const t = new THREE.Mesh(geo, (this._lensTint ||= LENS_TINT.clone())); t.position.z = 0.0001; t.renderOrder = 3;      // geçişte koyu cam (saydamlaşır)
-      d.add(t); d.position.set(L[1], L[2], L[3]); d.visible = false; d.frustumCulled = t.frustumCulled = false;
+      d.add(t); d.position.set(L[1], L[2], L[3]); d.visible = false; d.frustumCulled = t.frustumCulled = false; d.userData.r = L[0];
       this.lensDisc = d; this.root.add(d);
     }
   }
@@ -626,6 +628,17 @@ export class ViewModel {
       clamp((ads - 0.55) / 0.4, 0, 1) : 0;
     // 12.162: ACOG merceği adsT > LENS_ON'da saydamlaşır (derinlik maskesi); koyu cam LENS_FADE boyunca söner. Retikül red dot gibi: 3B nokta tam nişanda HUD #rdot'a geçer
     if (this.lensDisc) { const on = s.alive && s.overlay === 'lens' && s.adsT > LENS_ON; this.lensDisc.visible = on; if (on) this._lensTint.opacity = 1 - clamp((s.adsT - LENS_ON) / LENS_FADE, 0, 1); this.lensDisc.children[0].visible = on && this._lensTint.opacity > 0.004; }
+    // 12.190: büyüten merceğin (2× / 3× / 4×) ekrandaki yeri ve yarıçapı (CSS px, ekran ortasına göre): HUD #lens retikülü + dış bulanıklık / gövde halkası merceği izler.
+    // Tam nişanda nişan noktası (mercek merkezi) ekran ortasında → retikül = mermi noktası (sallanma / tepme nişan noktası çevresinde döner, merkez kaymaz)
+    const ls = this.lensScr;
+    ls.on = false;
+    if (this.lensDisc && s.alive && s.overlay === 'lens' && ads > 0.02) {
+      this.cam.updateMatrixWorld(true);
+      const W = innerWidth, H = innerHeight;
+      this.lensDisc.getWorldPosition(_sp).project(this.cam);
+      _sp2.set(this.lensDisc.userData.r, 0, 0); this.lensDisc.localToWorld(_sp2).project(this.cam);
+      ls.x = (_sp.x * W) / 2; ls.y = (-_sp.y * H) / 2; ls.r = Math.hypot(((_sp2.x - _sp.x) * W) / 2, ((_sp2.y - _sp.y) * H) / 2); ls.on = _sp.z < 1;
+    }
     this.setFade(fk * 0.5, (s.overlay === 'dot' || s.overlay === 'holo' || (s.overlay === 'lens' && s.opticDef?.reticle === 'dot')) && ads > ADS_HUD && !this.noFade ? 0 : 1);      // 12.174: öncü dürbünün siyah retikülü 3B kalır (HUD'a geçmez)      // noFade: adsalign 3B retikülü ölçer
   }
 
@@ -845,6 +858,7 @@ export class Player {
       if (!this.locked || !this.s.alive) return;
       const dir = e.deltaY > 0 ? 1 : -1, s = this.s;
       if (s.fly && this.devTools()) { this.flySpeed = Math.max(3, Math.min(120, (this.flySpeed || 13) * (dir > 0 ? 0.8 : 1.25))); this.game.hud.toast($t('hud.t.flySpeed', { n: this.flySpeed.toFixed(0) }), '#cfe6ff'); return; }       // uçarken tekerlek hız ayarlar
+      if (this.varZoomStep(dir)) return;                                                                 // 12.190: değişken dürbünde nişandayken tekerlek = büyütme (silah değiştirmez)
       const ord = slotOrder(s.items.length), n = ord.length, at = Math.max(0, ord.indexOf(s.cur));      // tuş / HUD sırasında (ana → yedek → bıçak → ekipman) döner
       for (let k = 1; k <= n; k++) { const j = ord[(at + dir * k + n * 2) % n]; if (j !== s.cur && s.canEquip(j)) { s.switchTo(j); break; } }       // boş slotları atla
     }, { passive: true });
@@ -903,7 +917,7 @@ export class Player {
     const opts = list.map((id, i) => {
       const a = -Math.PI / 2 + (i * 2 * Math.PI) / n, d = document.createElement('div');
       d.style.cssText = `position:absolute;left:calc(50% + ${Math.cos(a) * R}px);top:calc(50% + ${Math.sin(a) * R}px);transform:translate(-50%,-50%);min-width:130px;padding:10px 14px;text-align:center;background:rgba(9,13,19,.78);border:2px solid rgba(255,255,255,.2);letter-spacing:2px;text-transform:uppercase;transition:.08s`;
-      d.innerHTML = `<div style="font-size:18px;font-weight:700">${opticName(id)}</div><div style="font-size:11px;opacity:.65;margin-top:3px">${OPTICS[id].zoom ? $t('hud.zoom', { n: +this.zoomOf(OPTICS[id].zoom, OPTICS[id]).toFixed(2) }) : ''}</div>`;
+      d.innerHTML = `<div style="width:30px;height:30px;margin:0 auto 4px;background:#05070a;border-radius:50%">${opticSvg(id)}</div><div style="font-size:18px;font-weight:700">${opticName(id)}</div><div style="font-size:11px;opacity:.65;margin-top:3px">${OPTICS[id].zoom ? $t('hud.zoom', { n: +this.zoomOf(OPTICS[id].zoom, OPTICS[id]).toFixed(2) }) : ''}</div>`;
       el.appendChild(d);
       return { id, a, d };
     });
@@ -959,10 +973,9 @@ export class Player {
     if (o) { this.game.online?.send({ t: 'opt', optic: id }); this.game.hud.toast($t('hud.t.optic', { o: opticName(id) }), '#cfe6ff'); this.saveEraOptic(); }
     return o;
   }
-  // 12.174: dönem silahında seçilen nişangâh kalıcı (silah başına; menü → Cephanelik → Cephe ile aynı kayıt, frontOptics)
+  // 12.174: seçilen nişangâh kalıcı (silah başına; menü → Cephanelik ile aynı kayıt, frontOptics — 12.190'dan beri modern silahlar da)
   saveEraOptic() {
     const s = this.s, g = this.game;
-    if (!s.stat.era) return;
     g.opts.frontOptics = { ...(g.opts.frontOptics || {}), ...s.optics };
     g.opts.onPref?.({ frontOptics: g.opts.frontOptics });
   }
@@ -977,7 +990,15 @@ export class Player {
   // demir 1,15 → 1,30×, red dot / holo 1,3 → 1,60× (önce ×1,6: 1,24 / 1,48); dürbünler (4×, 6×) aynı
   // 12.163: nişangâhın kendi dokunmatik büyütmesi varsa (ACOG ×1,5 → ×1,85; genel kural onu ×2'ye çıkarıp red dot ×1,6'ya çok yaklaştırırdı) o kullanılır
   zoomOf(z, o) { return !this.touch ? z : o?.touchZoom && z === o.zoom ? o.touchZoom : z > 1 && z < 2 ? 1 + (z - 1) * 2 : z; }
-  zoomEff() { const s = this.s; return this.zoomOf(s.zoomNow || 0, s.stat.ball ? null : s.opticDef); }
+  // 12.190 değişken büyütme (PUBG 6× = 3–6×, 8× = 4–8×): nişandayken fare tekerleği 1× adımla değiştirir (nişangâh başına hatırlanır), görüntü ~0,12 sn'de yumuşak geçer
+  zoomEff() { const s = this.s, o = s.stat.ball ? null : s.opticDef; return o?.zoomMin && this._vzS ? this._vzS : this.zoomOf(s.zoomNow || 0, o); }
+  varZoomStep(dir) {
+    const s = this.s, o = s.opticDef, id = s.opticId;
+    if (!o?.zoomMin || !s.ads || s.adsT < 0.5) return false;
+    const cur = (this.vz ||= {})[id] ?? o.zoom, nx = clamp(cur + (dir > 0 ? -1 : 1), o.zoomMin, o.zoom);
+    if (nx !== cur) { this.vz[id] = nx; this.game.hud.toast($t('hud.zoom', { n: nx }), '#cfe6ff'); }
+    return true;
+  }
   // o anki görüş büyütmesi (model ile aynı eğri, 1 = yok): FOV, fare / ok tuşu / dokunmatik hassasiyeti bunu kullanır
   zoomCur() { const s = this.s, z = this.zoomEff(); return z > 1 && !this.vm.model?.userData.noAds ? lerp(1, z, adsEase(s.adsT)) : 1; }
   // Dikey FOV (derece): masaüstünde ayar doğrudan dikey FOV; dokunmatikte ayar YATAY FOV'dur (2,2:1 telefonda dikey 75° → yatay 118°, düşman küçücük kalıyordu)
@@ -1136,6 +1157,8 @@ export class Player {
     // 12.127: nişan büyütmesi DOĞRUDAN modelle aynı eğriden yazılır (eski ikinci üstel gecikme dünyayı silahın ~100 ms arkasında bırakıyordu: dürbün çıkışında ×4,6 dünyada 3B gövde); yalnız güç FOV vuruşu yumuşatılır
     this._fovAdd = (this._fovAdd || 0) + ((g.abfx?.fovAdd || 0) - (this._fovAdd || 0)) * Math.min(1, dt * 18);
     // 12.154: silah / nişangâh nişandayken değişince (adsT Soldier'da sıfırlanır) dünya kamerası eski büyütmeyi o silahın çıkış eğrisiyle söndürür → tek karede sıçrama yok
+    const od = s.opticDef, vzT = od?.zoomMin && !s.stat.ball ? (this.vz?.[s.opticId] ?? od.zoom) : 0;      // 12.190 değişken büyütme hedefi
+    this._vzS = !vzT ? 0 : !this._vzS || this._vzK !== s.opticId ? vzT : this._vzS + (vzT - this._vzS) * Math.min(1, dt * 14); this._vzK = s.opticId;
     const aimKey = s.item.id + '|' + s.opticId;
     if (aimKey !== this._aimKey) { if (this._aimKey !== undefined && this._aimAds > 0 && this._aimZ > 1) this._zTail = { z: this._aimZ, t: this._aimAds, r: this._aimRate }; this._aimKey = aimKey; }
     let zc = this.zoomCur();      // 12.162: tüm optiklerde dünya kamerası tam ekran büyür (ACOG da; eski PiP'te mercek dışı ×1,15)
@@ -1144,8 +1167,8 @@ export class Player {
     cam.fov = zoomFov(baseFov, zc) + this._fovAdd;
     cam.updateProjectionMatrix();
     const sh = g.effects.shake;
-    // 3. şahıs geçişi: dürbünle nişan alırken (scope) otomatik 1. şahsa döner
-    const wantThird = this.third && s.alive && !(s.overlay === 'scope' && s.adsT > 0.35) ? 1 : 0;
+    // 3. şahıs geçişi: dürbünle / 2×+ mercekle nişan alırken otomatik 1. şahsa döner
+    const wantThird = this.third && s.alive && !((s.overlay === 'scope' || (s.overlay === 'lens' && (s.opticDef?.zoom || 1) >= 2)) && s.adsT > 0.35) ? 1 : 0;      // 12.190: büyüten mercekte de (PUBG: nişan = birinci şahıs)
     this.thirdT += Math.sign(wantThird - this.thirdT) * Math.min(Math.abs(wantThird - this.thirdT), dt * 4.5);
     this.sideT += (this.side - this.sideT) * (1 - Math.exp(-9 * dt));
     s.stanceLeft = this.third && this.thirdT > 0.3 && this.side < 0;          // karakter modeli sol omuz duruşuna geçsin (aynalı)

@@ -1,5 +1,5 @@
 import { MAPS, DEFAULT_MAP, mapsFor } from './maps/index.js';
-import { CLASS_DEFS, WSTATS, DIFFICULTY, OPTIC_ORDER, SKIN_IDS, SKIN_WEAPONS, FRONT_KIT, FRONT_TEAM, OPTICS, OPTIC_ALLOWED, resolveOptic } from './game/stats.js';
+import { CLASS_DEFS, WSTATS, DIFFICULTY, SKIN_IDS, SKIN_WEAPONS, FRONT_KIT, FRONT_TEAM, OPTICS, OPTIC_ALLOWED, resolveOptic } from './game/stats.js';
 import './i18n/front.js';
 import { SKIN_SWATCH } from './models/skins.js';
 import './i18n/skins.js';
@@ -21,6 +21,8 @@ import { isTouch } from './game/touch.js';
 import { t, lang, setLang, onLang, LANGS } from './i18n/index.js';
 import './i18n/menu.js';
 import { getSession, setSession, clearSession, acctTok, validAcctName, apiBase, api, profileOf, maxProfile, sameProfile } from './account.js';
+import { opticSvg } from './game/opticIcons.js';
+import { RET_COLORS, setReticleColor } from './models/skins.js';
 import { mapName as mapNm, mapTag, mapDesc, modeLabel, modeDesc, modeTag, className, classDesc, weaponName, weaponDesc, diffLabel, opticLabel, todLabel, weatherLabel, statLabel, actionLabel, groupLabel, keyName } from './i18n/data.js';
 
 const KEY = 'warbyte.v2';
@@ -41,7 +43,9 @@ export const DEFAULTS = {
 export function loadPrefs() {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY) || localStorage.getItem('blockfront.v2') || localStorage.getItem('blockfront.v1') || '{}');
-    if (raw.fovMv !== 1) { if (raw.fovM === 85) raw.fovM = 80; raw.fovMv = 1; }        // telefon yatay FOV varsayılanı 85 → 80 (uzak düşman ≈ %8 büyük); eski varsayılanda kalanlar bir kez taşınır
+    if (raw.fovMv !== 1) { if (raw.fovM === 85) raw.fovM = 80; raw.fovMv = 1; }
+    if (raw.opticV !== 2) { if (raw.optic === 'acog') raw.optic = 'x2'; raw.opticV = 2; }      // 12.190: eski ACOG ×1,5 seçenler en yakın büyütmeye (2×) taşınır; ACOG artık PUBG 4×        // telefon yatay FOV varsayılanı 85 → 80 (uzak düşman ≈ %8 büyük); eski varsayılanda kalanlar bir kez taşınır
+    setReticleColor(raw.retColor);      // 12.190: retikül rengi her yüklemede uygulanır (menü, hızlı maç, çevrim içi aynı yol)
     return { ...DEFAULTS, ...raw, stats: { ...DEFAULTS.stats, ...(raw.stats || {}) }, loadouts: raw.loadouts || {}, frontLoadouts: raw.frontLoadouts && typeof raw.frontLoadouts === 'object' ? raw.frontLoadouts : {}, frontOptics: raw.frontOptics && typeof raw.frontOptics === 'object' ? raw.frontOptics : {}, skins: raw.skins && typeof raw.skins === 'object' ? raw.skins : {}, wear: cleanWear(raw.wear) || {} };      // wear: 12.167 kıyafet { c: { sınıf: kod }, all }      // skins: silah başına kaplama (tarayıcıda; hesaplıda profilde de, 12.123)
   } catch (e) { return { ...DEFAULTS }; }
 }
@@ -167,6 +171,15 @@ export function showMenu(onStart, onOnline) {
     return k === 'primary' ? K.d[p.team === 'red' ? 'red' : 'blue'] || K.d.blue : opts[0];
   }
   const fOpticOf = (w) => resolveOptic(w, p.frontOptics[w] || 'iron');
+  const mOpticOf = (w) => resolveOptic(w, p.frontOptics[w] || p.optic) || 'iron';      // 12.190: modern silahlar da silah başına (kayıt frontOptics; seçilmemiş silah genel tercihe, o da yoksa en yakın büyütmeye düşer)
+  const opticChips = (w, act) => {      // 12.190 Cephanelik nişangâh çipleri: retikül simgesi + ad + büyütme, altında kısa açıklama (PUBG gibi silah başına)
+    const ol = WSTATS[w]?.kind === 'gun' ? (OPTIC_ALLOWED[w] || []).filter((o) => OPTICS[o]) : [];
+    if (!ol.length) return '';
+    const on = act === 'fopt' ? fOpticOf(w) : mOpticOf(w), era = act === 'fopt';
+    const zl = (o) => (OPTICS[o].zoom > 1.2 && !/\d[×x]/.test(opticLabel(o)) || OPTICS[o].zoomMin ? ` <small>×${String(OPTICS[o].zoomMin ? OPTICS[o].zoomMin + '–' + OPTICS[o].zoom : OPTICS[o].zoom).replace('.', lang() === 'tr' ? ',' : '.')}</small>` : '');
+    const chips = ol.map((o) => `<button class="chip opt ${on === o ? 'on' : ''}" data-a="${act}" data-v="${o}" data-w="${w}">${opticSvg(o, 'oi')}${opticLabel(o)}${zl(o)}</button>`).join('');
+    return `<div class="pan"><h3>${t(era ? 'lo.ww.optic' : 'menu.lo.optic')} <em>${t(ol.length > 1 ? (era ? 'lo.ww.opticSub' : 'menu.lo.opticSub') : 'lo.ww.opticOne')}</em></h3><div class="row">${chips}</div><div class="hint">${t((era ? 'lo.ww.optic.' : 'lo.opt.') + on)}</div></div>`;
+  };
   const esc = (s) => String(s ?? '').replace(/[<>&"']/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c]));
 
   function bg() {
@@ -178,8 +191,8 @@ export function showMenu(onStart, onOnline) {
       const w = previewWeapon();
       if (loEra === 'front') { const fp = fCurOf('primary'); scene.showCharacter({ team: p.team === 'red' ? 'red' : 'blue', cls: p.cls, weapon: fp, optic: fOpticOf(fp), wskin: 'std' }); scene.showWeapon(null); }      // 12.174: Cephe görünümünde 1940'lar silahı + seçili dönem nişangâhı
       else {
-      scene.showCharacter({ team: p.team === 'red' ? 'red' : 'blue', cls: p.cls, weapon: loadoutOf(p.cls).primary || null, optic: p.optic, wskin: p.skins[curOf('primary')] || 'std', wear: wearCodeNow(), spin: slot === 'look' });
-      scene.showWeapon(slot !== 'look' && w && SKIN_WEAPONS.includes(w) ? { id: w, optic: p.optic, skin: p.skins[w] || 'std' } : null);      // kaplamalı silahın canlı 3B önizlemesi (kaplama değişince yalnız uniform)
+      scene.showCharacter({ team: p.team === 'red' ? 'red' : 'blue', cls: p.cls, weapon: loadoutOf(p.cls).primary || null, optic: mOpticOf(curOf('primary')), wskin: p.skins[curOf('primary')] || 'std', wear: wearCodeNow(), spin: slot === 'look' });
+      scene.showWeapon(slot !== 'look' && w && SKIN_WEAPONS.includes(w) ? { id: w, optic: mOpticOf(w), skin: p.skins[w] || 'std' } : null);      // kaplamalı silahın canlı 3B önizlemesi (kaplama değişince yalnız uniform)
       }
     } else { scene.setMode('orbit'); scene.setWorld(m, tt); }
     q('.mn-vig').className = 'mn-vig' + (screen === 'loadout' ? ' light' : screen === 'home' ? ' home' : '');
@@ -218,7 +231,7 @@ export function showMenu(onStart, onOnline) {
     return `<div class="home">
       <aside class="home-side">
         <div class="news card"><h3><span>${t('menu.news.title')}</span><em>v2.0</em></h3><ul>${Array.from({ length: NEWS_N }, (_, i) => `<li>${t('menu.news.' + i)}</li>`).join('')}</ul></div>
-        <button class="lcard card" data-a="go" data-v="loadout"><small>${t('menu.home.loadout')}</small><b>${className(p.cls)}</b><span>${p.type === 'front' ? `${weaponName(fCurOf('primary'))} · ${opticLabel(fOpticOf(fCurOf('primary')))}` : `${weaponName(prim)} · ${opticLabel(p.optic)}`}</span><i>›</i></button>
+        <button class="lcard card" data-a="go" data-v="loadout"><small>${t('menu.home.loadout')}</small><b>${className(p.cls)}</b><span>${p.type === 'front' ? `${weaponName(fCurOf('primary'))} · ${opticLabel(fOpticOf(fCurOf('primary')))}` : `${weaponName(prim)} · ${opticLabel(mOpticOf(prim))}`}</span><i>›</i></button>
       </aside>
       <div class="hero">
         <div class="kick">${t('menu.home.ready')}</div>
@@ -428,9 +441,7 @@ export function showMenu(onStart, onOnline) {
     }).join('');
     const b = weaponBars(sel), utility = !(b.dmg || b.range);
     const stats = utility ? '' : ['dmg', 'range', 'rate', 'control', 'mobility'].map((k) => `<div class="stat"><span>${statLabel(k)}</span><div class="bar"><i style="width:${Math.max(3, Math.min(100, b[k] || 0))}%"></i></div><em>${Math.round(b[k] || 0)}</em></div>`).join('');
-    const ol = WSTATS[sel]?.kind === 'gun' ? (OPTIC_ALLOWED[sel] || []).filter((o) => OPTICS[o]) : [], on = fOpticOf(sel);
-    const zl = (o) => (OPTICS[o].zoom > 1.2 ? ` <small>×${String(OPTICS[o].zoom).replace('.', lang() === 'tr' ? ',' : '.')}</small>` : '');
-    const optics = ol.length ? `<div class="pan"><h3>${t('lo.ww.optic')} <em>${t(ol.length > 1 ? 'lo.ww.opticSub' : 'lo.ww.opticOne')}</em></h3><div class="row">${ol.map((o) => `<button class="chip ${on === o ? 'on' : ''}" data-a="fopt" data-v="${o}" data-w="${sel}">${opticLabel(o)}${zl(o)}</button>`).join('')}</div><div class="hint">${t('lo.ww.optic.' + on)}</div></div>` : '';
+    const optics = opticChips(sel, 'fopt');
     return `${head('loadout')}${eraTabs()}<div class="tabs">${tabs}</div><div class="scroll"><div class="clsdesc">${t('lo.ww.hint')}</div><div class="slots">${slotBtns}</div>
       <div class="pan"><h3>${t('menu.slot.' + slot)} <em>${className(p.cls)} · ${t('lo.era.front')}</em></h3><div class="wgrid">${grid}</div></div>
       <div class="pan"><h3>${weaponName(sel)}</h3>${stats}<div class="wdesc">${weaponDesc(sel) || classDesc(p.cls)}</div></div>${optics}</div>`;
@@ -439,7 +450,7 @@ export function showMenu(onStart, onOnline) {
     if (loEra === 'front') return frontLoadoutHTML();
     const def = CLASS_DEFS[p.cls];
     const cur = curOf;
-    const icon = (id) => (scene ? `<img data-icon="${id}" ${scene.iconCache.get(id + '|' + p.optic) ? `src="${scene.iconCache.get(id + '|' + p.optic)}"` : ''} alt="">` : '');
+    const icon = (id) => { if (!scene || !id) return ''; const o = WSTATS[id]?.kind === 'gun' ? mOpticOf(id) : 'iron', c = scene.iconCache.get(id + '|' + o); return `<img data-icon="${id}" data-op="${o}" ${c ? `src="${c}"` : ''} alt="">`; };      // 12.190: ikon silahın kendi nişangâhıyla
     const look = slot === 'look';
     const opts = look ? [] : def[SLOTS.find((s) => s[0] === slot)[1]] || [];
     const sel = cur(slot);
@@ -454,7 +465,7 @@ export function showMenu(onStart, onOnline) {
     const b = weaponBars(sel);
     const utility = !(b.dmg || b.range);
     const stats = utility ? '' : ['dmg', 'range', 'rate', 'control', 'mobility'].map((k) => `<div class="stat"><span>${statLabel(k)}</span><div class="bar"><i style="width:${Math.max(3, Math.min(100, b[k] || 0))}%"></i></div><em>${Math.round(b[k] || 0)}</em></div>`).join('');
-    const optics = slot === 'primary' && !(WSTATS[sel] && WSTATS[sel].scope) ? `<div class="pan"><h3>${t('menu.lo.optic')} <em>${t('menu.lo.opticSub')}</em></h3><div class="row">${OPTIC_ORDER.map((k) => `<button class="chip ${p.optic === k ? 'on' : ''}" data-a="optic" data-v="${k}">${opticLabel(k)}</button>`).join('')}</div></div>` : '';
+    const optics = slot === 'primary' || slot === 'secondary' ? opticChips(sel, 'wopt') : '';      // 12.190: silah başına nişangâh (eski: tek genel seçim, dürbünlülerde yok)
     // kaplama çipleri (S3 silahlarında): seçili silah kartının hemen altında; renk örneği + ad, seçili olan turuncu çerçeveli
     const skins = SKIN_WEAPONS.includes(sel) ? `<div class="skins"><h4>${t('skin.title')} <em>${t('skin.sub')}</em></h4><div class="row">${SKIN_IDS.map((k) => `<button class="chip sk ${(p.skins[sel] || 'std') === k ? 'on' : ''}" data-a="skin" data-v="${k}" data-w="${sel}"><i class="sw sw-${k}" style="background:${SKIN_SWATCH[k]}"></i>${t('skin.' + k)}</button>`).join('')}</div></div>` : '';
     if (look) return `${head('loadout')}${eraTabs()}<div class="tabs">${tabs}</div><div class="scroll"><div class="clsdesc">${classDesc(p.cls)}</div><div class="slots">${slotBtns}</div>${wearHTML()}</div>`;
@@ -481,6 +492,7 @@ export function showMenu(onStart, onOnline) {
       <div class="pan"><h3>${t('menu.set.gfx')}</h3><div class="lbl">${t('menu.set.quality')}</div><div class="row">${[[1, 'low'], [1.5, 'mid'], [2, 'high']].map(([v, l]) => `<button class="chip ${p[Q_KEY] === v ? 'on' : ''}" data-a="quality" data-v="${v}">${t('menu.set.q.' + l)}</button>`).join('')}</div>
       <div class="row" style="margin-top:10px">${tog('shadows', p.shadows, t('menu.set.shadows'))}${tog('post', p.post ?? !TOUCH, t('menu.set.post'), t('menu.set.postT'))}${tog('adaptive', p.adaptive !== false, t('menu.set.adaptive'), t('menu.set.adaptiveT'))}${tog('fullscreen', p.fullscreen !== false, t('menu.set.fullscreen'), t('menu.set.fullscreenT'))}</div>
       <div class="hint">${t('menu.set.gfxHint')}</div></div>
+      <div class="pan"><h3>${t('menu.set.retc')}</h3><div class="row">${Object.entries(RET_COLORS).map(([k, c]) => `<button class="chip ${(p.retColor || 'red') === k ? 'on' : ''}" data-a="retc" data-v="${k}"><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${c};margin-right:7px;box-shadow:0 0 6px ${c}"></i>${t('menu.set.retc.' + k)}</button>`).join('')}</div><div class="hint">${t('menu.set.retcHint')}</div></div>
       <div class="pan"><h3>${t('menu.set.data')}</h3><button class="chip danger" data-a="reset">${t('menu.set.reset')}</button></div></div>`;
   }
 
@@ -694,11 +706,12 @@ export function showMenu(onStart, onOnline) {
       case 'optic': p.optic = v; scene?.iconCache.clear(); break;
       case 'loera': loEra = v === 'front' ? 'front' : 'modern'; slot = 'primary'; break;      // 12.174 Cephanelik: Modern | Cephe (1940'lar)
       case 'fpick': if ((fKit(p.cls)[slot] || []).includes(v)) fLoadoutOf(p.cls)[slot] = v; break;
-      case 'fopt': { const w = b.dataset.w; if ((OPTIC_ALLOWED[w] || []).includes(v) && OPTICS[v]) p.frontOptics[w] = v; break; }
+      case 'fopt': case 'wopt': { const w = b.dataset.w; if ((OPTIC_ALLOWED[w] || []).includes(v) && OPTICS[v]) p.frontOptics[w] = v; break; }      // 12.190 wopt: modern silah başına (aynı kayıt)
       case 'skin': { const w = b.dataset.w; if (!SKIN_WEAPONS.includes(w) || !SKIN_IDS.includes(v)) break; if (v === 'std') delete p.skins[w]; else p.skins[w] = v; pushSkins(p); break; }      // hesaplıda profile de yazılır (12.123)
       case 'quality': p[Q_KEY] = +v; break;
       case 'shadows': p.shadows = !p.shadows; break;
       case 'adaptive': p.adaptive = p.adaptive === false; break;
+      case 'retc': if (RET_COLORS[v]) { p.retColor = v; setReticleColor(v); } break;      // 12.190 retikül rengi
       case 'post': p.post = !(p.post ?? !TOUCH); break;
       case 'fullscreen': p.fullscreen = p.fullscreen === false; break;
       case 'rain': p.rainSound = !p.rainSound; break;
