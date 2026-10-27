@@ -1,5 +1,6 @@
 import { InGameSettings } from './ingameSettings.js';
 import { SwimHud } from './swimHud.js';
+import { CaptureHud } from './captureHud.js';                         // 12.191 ele geçirme göstergesi + bayrak işaretleri
 import { WSTATS, CLASS_DEFS, ZTYPES, ZT_ORDER, FRONT_KIT, OPTICS, OPTIC_ALLOWED } from './stats.js';
 import { clamp, adsEase, ADS_HUD, SCOPE_ON } from './util.js';
 import { codeLabel, slotOrder, SLOT_KEYS } from '../core/keybinds.js';
@@ -355,6 +356,7 @@ export class Hud {
       this.$('flags').appendChild(f);
       this.flagEls.push(f);
     }
+    this.cap = game.mode.objectives.length ? new CaptureHud(this) : null;
     this.mm = this.$('minimap');
     this.mmCtx = this.mm.getContext('2d');
     this.buildMinimapBase();
@@ -417,7 +419,7 @@ export class Hud {
     this.igs?.open && this.igs.render();
   }
 
-  dispose() { this._offLang?.(); this.igs?.dispose(); this.root.remove(); this.st.remove(); }
+  dispose() { this.cap?.dispose(); this._offLang?.(); this.igs?.dispose(); this.root.remove(); this.st.remove(); }
 
   // Enfekte: ölüm ekranında zombi türü seçimi (1–5)
   buildZRow() {
@@ -615,6 +617,7 @@ export class Hud {
     setTimeout(() => d.remove(), 6000);
   }
 
+  flagEvent(o, prev) { this.cap?.flagEvent(o, prev); }                    // 12.191 bayrak değişimi (game.onFlag)
   toast(text, color = '#fff') {
     const el = document.createElement('div'); el.className = 'toast'; el.textContent = text; el.style.color = color;
     this.$('toasts').appendChild(el);
@@ -798,15 +801,7 @@ export class Hud {
     $('tm').textContent = g.timeLeft === Infinity ? '∞' : `${Math.floor(tl / 60)}:${String(tl % 60).padStart(2, '0')}`;
     this.drawCompass();
     if (this.zoneT > 0) { this.zoneT -= dt; if (this.zoneT <= 0) $('zonew').style.display = 'none'; }
-    g.mode.objectives.forEach((o, i) => {
-      const f = this.flagEls[i];
-      const col = o.owner === 'blue' ? '#4aa3ff' : o.owner === 'red' ? '#ff5a43' : '#9aa0a8';
-      f.style.borderColor = col;
-      const pr = o.p;
-      const c2 = pr > 0 ? '#4aa3ff' : '#ff5a43';
-      f.querySelector('i').style.background = Math.abs(pr) > 0.02 && Math.abs(pr) < 1 ? `conic-gradient(${c2} ${Math.abs(pr) * 360}deg, transparent 0)` : 'none';
-      f.firstElementChild.style.opacity = 0.9;
-    });
+    this.cap?.update(dt);                                                   // 12.191 bayraklar: üst çubuk + alan göstergesi + dünya işaretleri (captureHud.js)
     // oyuncu durumu
     const st = p.stat, it = p.item;
     const ab = p.ability;                                                   // zombi özel gücü göstergesi
@@ -894,9 +889,6 @@ export class Hud {
     // mesaj
     let msg = '';
     if (p.alive) {
-      for (const o of g.mode.objectives) {
-        if (g.inObjective ? g.inObjective(p.pos, o) : Math.hypot(o.x - p.pos.x, o.z - p.pos.z) < o.r) { msg = o.owner === p.team && Math.abs(o.p) >= 1 ? t('hud.flagYours', { f: placeName(o.name) }) : t('hud.flagCapturing', { f: placeName(o.name) }); break; }
-      }
       if (!msg && p.stat.kind === 'medkit' && p.item.mag > 0 && g.findRevivable(p)) msg = t('hud.revive');
       if (!msg && p.item.mag <= 0 && p.stat.kind === 'gun') msg = p.item.reserve > 0 ? t('hud.emptyR', { k: codeLabel(g.binds.codes('reload')?.[0]) || 'R' }) : t('hud.emptyNone');
     }
@@ -946,14 +938,7 @@ export class Hud {
     this.updateLocation();
     x.clearRect(0, 0, this.mm.width, this.mm.height);
     x.drawImage(this.mmBase, 0, 0);
-    for (const o of g.mode.objectives) {
-      x.beginPath();
-      x.arc(this.mmX(o.x), this.mmY(o.z), 9, 0, 6.3);
-      x.fillStyle = o.owner === 'blue' ? '#4aa3ffaa' : o.owner === 'red' ? '#ff5a43aa' : '#ffffff66';
-      x.fill(); x.strokeStyle = '#fff'; x.lineWidth = 1.5; x.stroke();
-      x.fillStyle = '#fff'; x.font = 'bold 10px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
-      x.fillText(o.label || o.name[0], this.mmX(o.x), this.mmY(o.z) + 0.5);
-    }
+    this.cap?.drawMinimap(x, this.mmX, this.mmY, performance.now());     // 12.191 bayraklar: sahip + ilerleme halkası + alınıyor nabzı
     if (g.vehicles) for (const v of g.vehicles.list) {                    // 12.177 araçlar: dost / boş araç hep, düşman araç içindeki görüldüyse
       if (!v.alive || !v.st) continue;
       const occ = v.seats.filter(Boolean), tm = occ.length ? occ[0].team : v.paint;

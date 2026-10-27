@@ -388,6 +388,7 @@ export class Room {
       if (!g._pbArm) { g._pbArm = true; g.on('spawn', arm); }
     }
     if (Number.isFinite(m.frs) && g.front) { const A = Math.max(0, Math.min(g.front.n - 1, m.frs | 0)); let k = 0; while (!g.front.done && g.front.a < A && k++ < 12) g.front.shift(1, true); while (!g.front.done && g.front.a > A && k++ < 12) g.front.shift(-1, true); }   // { frs: sıra } Cephe: etkin noktayı oraya kaydır (test)
+    if (Array.isArray(m.obj) && !g.front) { const o = g.mode.objectives[m.obj[0] | 0]; if (o) { o.owner = m.obj[1] === 'red' ? 'red' : m.obj[1] === 'blue' ? 'blue' : null; o.p = Math.max(-1, Math.min(1, +m.obj[2] || 0)); } }   // 12.191 { obj:[sıra, sahip, ilerleme] } Ele Geçirme bayrağını kur (test)
     if (Array.isArray(m.frt) && g.front) { const o = g.mode.objectives.find((q) => q.id === m.frt[0]); if (o) { o.owner = m.frt[1] === 'red' ? 'red' : m.frt[1] === 'blue' ? 'blue' : null; o.p = o.owner === 'blue' ? 1 : o.owner === 'red' ? -1 : 0; } }   // { frt:[nokta, sahip] } (test)
     if (Number.isFinite(m.pld) && g.payload) { g.payload.d = Math.max(g.payload.floorD, Math.min(g.payload.end, m.pld)); g.payload.idleT = 0; }   // { pld } vagonu yol mesafesine taşı (Vagon testi)
     if (typeof m.zb === 'string' && ZTYPES[m.zb] && g.mode.infection && s.alive) {                  // { zb:tür } hemen zombi ol, güç hazır, hazırlık süresi biter (dokunmatik güç butonu testi)
@@ -445,7 +446,7 @@ export class Room {
     this._forceSlow = false;
     const sig = (this._sig ||= []);
     const all = JSON.stringify(g.soldiers.map((s) => { const sg = slowSig(s), ch = force || sig[s.id] !== sg; if (ch) sig[s.id] = sg; return packSoldier(s, ch); }));
-    const o = JSON.stringify(g.mode.objectives.map((ob) => [ob.owner === 'blue' ? 1 : ob.owner === 'red' ? 2 : 0, Math.round(ob.p * 100) / 100]));
+    const o = JSON.stringify(g.mode.objectives.map((ob) => [ob.owner === 'blue' ? 1 : ob.owner === 'red' ? 2 : 0, Math.round(ob.p * 1000) / 1000, ob.nb || 0, ob.nr || 0]));      // 12.191 + alandaki Mavi / Kırmızı sayısı (istemci HUD'u sunucunun saydığını gösterir; ilerleme 0,001 adımlı: çubuk istemcide akıcı)
     const tl = g.timeLeft === Infinity ? -1 : Math.round(g.timeLeft * 10) / 10;
     const vh = g.vehicles ? g.vehicles.pack(force) : null;                    // 12.177: yalnız değişen araçlar (duran araç yollanmaz; katılımda / 2 sn'de bir hepsi)
     const pl = (g.payload ? `"pl":${JSON.stringify(g.payload.pack())},` : '') + (g.front ? `"fr":${JSON.stringify(g.front.pack())},` : '') + (vh && vh.length ? `"vh":${JSON.stringify(vh)},` : '');      // Cephe: [etkin nokta sırası, cephe değişimi, bitti]                                   // Vagon: [yol mesafesi, iten | durduran | durum | uzatma]
