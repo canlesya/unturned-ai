@@ -246,7 +246,7 @@ if (parts.includes('menu')) {
     console.log(`      Kontroller (${tag}):`, rows.join(' · '));
     const el = await page.$('.kbrow:has-text("Knife"), .kbrow:has-text("Bıçak")');
     if (el) { await el.scrollIntoViewIfNeeded(); const box = await (await el.evaluateHandle((e) => e.closest('.pan'))).asElement().boundingBox(); await page.screenshot({ path: `${OUT}/kontroller-${tag}.png`, clip: box }); }
-    if (tag === 'yeni') check(rows.length === 4 && /(Bıçak|Knife) 3 V/.test(rows[2]) && /Gadget 4 G/.test(rows[3]), 'Kontroller: Ana 1 · Yedek 2 · Bıçak 3/V · Gadget 4/G (sıra da öyle)');
+    if (tag === 'yeni') check(rows.length === 4 && /(Bıçak|Knife) 3 V/.test(rows[2]) && /Gadget 4/.test(rows[3]) && !/Gadget 4 G/.test(rows[3]), 'Kontroller: Ana 1 · Yedek 2 · Bıçak 3/V · Gadget 4 (12.193: G artık hızlı bomba atışı; sıra da öyle)');
     else check(/(Bıçak|Knife) V/.test(rows[2]) && /Gadget 3/.test(rows[3]), 'Kontroller: eski özel atama (gadget = 3) korunuyor, bıçakta yalnız V');
     await page.close();
   }
