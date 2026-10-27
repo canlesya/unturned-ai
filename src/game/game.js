@@ -822,10 +822,35 @@ export class Game {
     return true;
   }
 
+  // 12.184 hedefin kotu: harita veriyorsa o.y (Kuzey Vadisi Baraj bayrağı baraj tepesinde, 24 m), yoksa merkezdeki zemin. Ele geçirme alanı = yarıçap + bu kotun ±8 m'si
+  // (eskiden hep arazi kotu: Baraj'da direğin yanındaki asker alamıyor, 23 m aşağıdaki kanyon tabanı alıyordu).
+  objY(o) { return Number.isFinite(o.y) ? o.y : this.world.heightAt(o.x, o.z); }
+  inObjective(p, o) { return Math.hypot(p.x - o.x, p.z - o.z) < o.r && Math.abs(p.y - this.objY(o)) < 8; }
+  // Hedef alanında yürünür nokta (bot hedefi / ileri doğuş): alanın zemin kotu hedef kotundan ±3 m'den çok sapan yerleri varsa (Baraj: kanyon tabanı, göl)
+  // yalnız hedef kotundaki hücreler; yoksa eskisi gibi dairede rastgele (null → çağıran kendisi seçer)
+  objCells(o) {
+    if (o._cells !== undefined) return o._cells;
+    o._cells = null;
+    if (!Number.isFinite(o.y) || !this.nav) return null;
+    const nav = this.nav, c = nav.cell, out = []; let bad = 0;
+    for (let z = o.z - o.r; z <= o.z + o.r; z += c) for (let x = o.x - o.r; x <= o.x + o.r; x += c) {
+      if (Math.hypot(x - o.x, z - o.z) > o.r * 0.85 || !nav.isFree(x, z)) continue;
+      if (Math.abs(this.world.groundAt(x, z) - o.y) <= 3) out.push([x, z]); else bad++;
+    }
+    if (bad && out.length) o._cells = out;
+    return o._cells;
+  }
+  objPoint(o, k = 0.8) {
+    const cl = this.objCells(o);
+    if (cl) { const [x, z] = cl[Math.floor(Math.random() * cl.length)]; return { x: x + (Math.random() - 0.5) * this.nav.cell * 0.8, z: z + (Math.random() - 0.5) * this.nav.cell * 0.8 }; }
+    const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * o.r * k;
+    return { x: o.x + Math.cos(a) * r, z: o.z + Math.sin(a) * r };
+  }
+
   _free(x, z, s) {
     if (!this.nav.isFree(x, z)) return false;
     if (this.nav.floor && this.nav.floorAt(x, z) > 0.3) return false;            // ileri doğuş platform / çatı hücresine düşmesin (doğuş y = 0: kutunun içinde kalırdı)
-    if (this.world._hits(this.world.query(x - 1, z - 1, x + 1, z + 1, (this._fq ||= [])), x, this.world.heightAt(x, z) + 0.2, z, 1.6)) return false;   // 12.168: gövde duvara / eşyaya girmesin (boş hücrenin kenarı duvara 0,1 m yakın olabilir)
+    if (this.world._hits(this.world.query(x - 1, z - 1, x + 1, z + 1, (this._fq ||= [])), x, this.world.groundAt(x, z) + 0.2, z, 1.6)) return false;   // 12.168: gövde duvara / eşyaya girmesin (boş hücrenin kenarı duvara 0,1 m yakın olabilir) · 12.184 tabliye üstünde tabliye kotunda
     return !this.soldiers.some((e) => e !== s && e.alive && Math.hypot(e.pos.x - x, e.pos.z - z) < 1.1);
   }
 
@@ -910,9 +935,10 @@ export class Game {
       if (own.length) target = this.map.big ? this.frontFlag(team, own) : pick(own);
     }
     if (target && this.canForwardSpawn(target, team)) {
+      const cl = this.objCells(target);                                             // 12.184 alan kotu karışıksa (Baraj) yalnız hedef kotundaki hücreler
       for (let k = 0; k < 14; k++) {
         const a = Math.random() * Math.PI * 2, rr = target.r * (0.25 + Math.random() * 0.6);
-        const x = target.x + Math.cos(a) * rr, z = target.z + Math.sin(a) * rr;
+        const { x, z } = cl ? this.objPoint(target) : { x: target.x + Math.cos(a) * rr, z: target.z + Math.sin(a) * rr };
         if (this._free(x, z, s)) return { x, z, ry: Math.atan2(-(target.x - x), -(target.z - z)) + (Math.random() - 0.5) * 3, forward: true };
       }
     }
@@ -1141,7 +1167,7 @@ export class Game {
     if (this.perchCache.has(key)) return this.perchCache.get(key);
     const home = this.map.spawns[team][0];
     let best = null, bs = -1e9;
-    const oc = new THREE.Vector3(o.x, this.world.heightAt(o.x, o.z) + 1.3, o.z), pe = new THREE.Vector3();
+    const oy = this.objY(o), oc = new THREE.Vector3(o.x, oy + 1.3, o.z), pe = new THREE.Vector3();
     for (let k = 0; k < 90; k++) {
       const a = Math.random() * Math.PI * 2, d = 26 + Math.random() * 40;
       const x = o.x + Math.cos(a) * d, z = o.z + Math.sin(a) * d;
@@ -1149,7 +1175,7 @@ export class Game {
       const y = this.world.heightAt(x, z);
       pe.set(x, y + 1.0, z);
       if (!this.world.clear(pe, oc)) continue;
-      const sc = (y - this.world.heightAt(o.x, o.z)) * 0.6 + d * 0.05 - Math.hypot(x - home.x, z - home.z) * 0.03 + Math.random();
+      const sc = (y - oy) * 0.6 + d * 0.05 - Math.hypot(x - home.x, z - home.z) * 0.03 + Math.random();
       if (sc > bs) { bs = sc; best = { x, z }; }
     }
     this.perchCache.set(key, best);
@@ -1951,7 +1977,7 @@ export class Game {
         let b = 0, r = 0;
         for (const s of this.soldiers) {
           if (!s.alive) continue;
-          if (Math.hypot(s.pos.x - o.x, s.pos.z - o.z) < o.r && Math.abs(s.pos.y - this.world.heightAt(o.x, o.z)) < 8) (s.team === 'blue' ? b++ : r++);
+          if (this.inObjective(s.pos, o)) (s.team === 'blue' ? b++ : r++);
         }
         const net = clamp(b - r, -3, 3);
         if (net !== 0) {

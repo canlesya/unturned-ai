@@ -895,7 +895,7 @@ export class Hud {
     let msg = '';
     if (p.alive) {
       for (const o of g.mode.objectives) {
-        if (Math.hypot(o.x - p.pos.x, o.z - p.pos.z) < o.r) { msg = o.owner === p.team && Math.abs(o.p) >= 1 ? t('hud.flagYours', { f: placeName(o.name) }) : t('hud.flagCapturing', { f: placeName(o.name) }); break; }
+        if (g.inObjective ? g.inObjective(p.pos, o) : Math.hypot(o.x - p.pos.x, o.z - p.pos.z) < o.r) { msg = o.owner === p.team && Math.abs(o.p) >= 1 ? t('hud.flagYours', { f: placeName(o.name) }) : t('hud.flagCapturing', { f: placeName(o.name) }); break; }
       }
       if (!msg && p.stat.kind === 'medkit' && p.item.mag > 0 && g.findRevivable(p)) msg = t('hud.revive');
       if (!msg && p.item.mag <= 0 && p.stat.kind === 'gun') msg = p.item.reserve > 0 ? t('hud.emptyR', { k: codeLabel(g.binds.codes('reload')?.[0]) || 'R' }) : t('hud.emptyNone');
@@ -937,7 +937,7 @@ export class Hud {
     if (!C || !p) { if (force) this.$('mmname').textContent = mn; return; }
     let best = null, bd = 1e9;
     for (const c of C) { const d = Math.hypot(c.x - p.pos.x, c.z - p.pos.z); if (d < bd) { bd = d; best = c; } }
-    const nm = best && bd < 14 ? mapText(best.name) : '';
+    const nm = best && bd < (best.r || 14) ? mapText(best.name) : '';                     // 12.184 r: haritanın verdiği bölge yarıçapı (Kuzey Vadisi)
     if (nm !== this._loc || force) { this._loc = nm; this.$('mmname').innerHTML = ''; this.$('mmname').append(mn); if (nm) { const b = document.createElement('b'); b.textContent = ' · ' + nm; this.$('mmname').append(b); } }
   }
 

@@ -1,5 +1,5 @@
 import { KK } from './surface.js';
-import { Q, footY, worldRect, pickOf, lw, ctxAdd } from '../common/kuzeyKit.js';
+import { Q, footY, worldRect, pickOf, lw, ctxAdd, wireClear } from '../common/kuzeyKit.js';
 import { house, barn, church } from './house.js';
 import { hall, silo, chimney, tank, office } from './industry.js';
 import { dam, pylon, pole } from './infra.js';
@@ -166,6 +166,8 @@ export function placeAll(cs, T, rng) {
   for (let i = 0; i <= 9; i++) {
     const x = -120 + i * -14, z = 360 - i * 12 + 6;
     if (!free([x - 0.4, x + 0.4, z - 0.4, z + 0.4], 0.3)) { pp = null; continue; }                  // 12.182: eve / yola denk gelen direk atlanır
+    const y0 = T.heightAt(x, z) - 0.3, ta = [[x - 0.8, y0 + 7.9, z], [x + 0.8, y0 + 7.9, z]];
+    if (pp && !(wireClear(cs, pp[0], ta[0], 0.02) && wireClear(cs, pp[1], ta[1], 0.02))) continue;     // 12.184 tel evin çatısından geçerdi: bu direk atlanır, tel bir sonrakine
     const a = pole(at(x, z), T, x, z);
     if (pp) for (let k = 0; k < 2; k++) wires.push([pp[k], a[k], 0.02]);
     pp = a; occ.push([x - 1, x + 1, z - 1, z + 1]);

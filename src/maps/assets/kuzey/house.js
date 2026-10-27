@@ -1,5 +1,5 @@
 import { KK } from './surface.js';
-import { Q, footY, worldRect, shade, roundCollide, lw, ctxAdd, addLoot, addDoor } from '../common/kuzeyKit.js';
+import { Q, footY, worldRect, shade, roundCollide, lw, ctxAdd, addLoot, addDoor, doorSteps } from '../common/kuzeyKit.js';
 import { furnishRoom } from '../common/kasaba-furniture.js';
 import { makeRng } from '../../builder.js';
 // 12.182 Kasaba eşya kiti Kuzey malzemesinde (yüzey sınıfları KK): yeni mezra / çiftlik evlerinde (o.furnish) oda başı eşya tarifi
@@ -146,6 +146,7 @@ export function barn(b, Tr, o) {
     b.box(0, 4.0, d / 2 + 0.05, 4.4, 0.22, 0.12, '#e6dfd0', { collide: false, kind: KK.PLANK });
     if (w >= 8) b.box(w / 2 - 0.6, 0, 0, 0.6, 1.0, 1.8, '#8b6a42', { collide: true, kind: KK.PLANK, ry: 0 });                   // yemlik (12.182: içeride, yan duvara yaslı; dışarıda havada kalıyordu)
     b.box(0, h - 0.2, 0, w - 0.6, 0.2, d - 0.6, '#6d5440', { kind: KK.PLANK });
+    doorSteps(b, Tr, x, z, ry, y0, 0, d / 2 + 0.15, 4.0, STONE, KK.STONE);                                  // 12.184 eğimde kapı eşiği 0,5–2,5 m havadaydı (girilmiyordu)
     gableRoof(b, w, d, h, roof, KK.SHEET, wall, 0.6);
     for (const [hx, hz] of (w >= 8 ? [[-w / 2 + 1.4, -d / 2 + 1.4], [-w / 2 + 2.8, -d / 2 + 1.4], [-w / 2 + 1.4, -d / 2 + 2.8]] : [[-w / 2 + 1.0, -d / 2 + 1.1]])) { b.cyl(hx, 0.6, hz, 0.6, 0.6, 1.2, '#cdb066', { rx: Q, center: true, seg: 10, collide: false }); b.collide(hx, 0, hz, 1.0, 1.15, 1.15); }   // küçük kulübede tek balya (ganimet noktaları boş kalır)
   }));
