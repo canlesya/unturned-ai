@@ -531,13 +531,22 @@ export class Vehicles {
     const me = this.g.playerSoldier;
     for (const v of this.list) {
       v.pred = !!(me && me.alive && me.veh === v && me.seat === 0);                 // tahmin yalnız canlı sürücünün kendi aracında (ölünce / inince hemen ağa döner)
-      if (v.pred || !v.buf.length) continue;
+      if (!v.buf.length) continue;
+      if (v.pred) { this.predFlags(v, v.buf[v.buf.length - 1].a[12]); continue; }
       const B = v.buf;
       let a = B[0], b = B[0];
       for (let i = 0; i < B.length; i++) { if (B[i].k <= rt) { a = B[i]; b = B[Math.min(i + 1, B.length - 1)]; } else break; }
       const t = b.k > a.k ? Math.max(0, Math.min(1, (rt - a.k) / (b.k - a.k))) : 0;
       this.applyNetState(v, a.a, b.a, t, a === b && rt > a.k ? Math.min(extrap, (rt - a.k) / 60) : 0);
     }
+  }
+
+  // 12.183: tahmin edilen (kendi sürdüğüm) aracın fiziği yerelde, ama yanma / enkaz / far YETKİLİ tarafın: en son anlık görüntüden. Eskiden hiç
+  // uygulanmıyordu → sürücü kendi aracının yandığını görmüyordu ("ARAÇ YANIYOR — İN!" yok), gece binişte sunucunun yaktığı far sürücüde kapalı
+  // görünüyor, F ters çalışıyordu. Far: F'ye basınca yerel tahmin 1 sn korunur (sunucu kenarı işleyene dek eski durum ezmesin)
+  predFlags(v, fl) {
+    v.burn = !!(fl & F_BURN); v.wreck = !!(fl & F_WRECK);
+    if (!(performance.now() - (v.lightT || -1e9) < 1000)) v.lights = !!(fl & F_LIGHT);
   }
 
   applyNetState(v, A, B, t, ex) {

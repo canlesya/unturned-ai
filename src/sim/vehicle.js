@@ -306,13 +306,21 @@ function stepHeli(v, inp, dt, T) {
     const pts = [[0, d.rotorR, d.rotorY], [0, -d.rotorR, d.rotorY], [d.rotorR * 0.8, 0, d.rotorY], [-d.rotorR * 0.9, 0, d.rotorY], [d.tailF, 0, 2.1]];
     for (const [pf, pr, pu] of pts) {
       toWorld(v, pf, pr, pu, _hp);
-      let hit = _hp.y < T.heightAt(_hp.x, _hp.z);
-      if (!hit) { const l = T.query(_hp.x - 0.1, _hp.z - 0.1, _hp.x + 0.1, _hp.z + 0.1, _tmp); for (const c of l) if (_hp.x > c.min[0] && _hp.x < c.max[0] && _hp.z > c.min[2] && _hp.z < c.max[2] && _hp.y > c.min[1] && _hp.y < c.max[1] && !c.nocar) { hit = true; break; } }
+      let hit = _hp.y < T.heightAt(_hp.x, _hp.z), hc = null;
+      if (!hit) { const l = T.query(_hp.x - 0.1, _hp.z - 0.1, _hp.x + 0.1, _hp.z + 0.1, _tmp); for (const c of l) if (_hp.x > c.min[0] && _hp.x < c.max[0] && _hp.z > c.min[2] && _hp.z < c.max[2] && _hp.y > c.min[1] && _hp.y < c.max[1] && !c.nocar) { hit = true; hc = c; break; } }
       if (!hit) continue;
       const dx = _hp.x - v.x, dz = _hp.z - v.z, L = Math.hypot(dx, dz) || 1, vn = (v.vx * dx + v.vz * dz) / L;
       const imp = Math.max(Math.hypot(v.vx, v.vz, v.vy) * 0.6, 3);
-      v.x = ox; v.z = oz; v.y = Math.max(oy, v.y);
-      v.vx -= (dx / L) * Math.max(0, vn) * 1.6; v.vz -= (dz / L) * Math.max(0, vn) * 1.6; v.vx *= 0.5; v.vz *= 0.5; v.vy = Math.max(v.vy, 1);
+      const tx = _hp.x + ox - v.x, tz = _hp.z + oz - v.z;
+      v.x = ox; v.z = oz;
+      v.vx -= (dx / L) * Math.max(0, vn) * 1.6; v.vz -= (dz / L) * Math.max(0, vn) * 1.6; v.vx *= 0.5; v.vz *= 0.5;
+      if (!hc) { v.y = Math.max(oy, v.y); v.vy = Math.max(v.vy, 1); }       // arazi: yukarı sekme
+      else if (tx > hc.min[0] && tx < hc.max[0] && tz > hc.min[2] && tz < hc.max[2]) {
+        // 12.183 kutu (ağaç gövdesi, direk, duvar): uç geri alınan konumda da içerideyse yatayda en kısa yönden dışarı itilir; dikeyde TUTULMAZ.
+        // Eskiden y tutulup vy ≥ 1 veriliyordu → pilotsuz düşen helikopter rotor ucuyla ağaç gövdesinin tepesine "asılı" kalıyor, havada sn'de ~50 can eriyordu
+        const ex0 = tx - hc.min[0], ex1 = hc.max[0] - tx, ez0 = tz - hc.min[2], ez1 = hc.max[2] - tz, m = Math.min(ex0, ex1, ez0, ez1), k = m + 0.03;
+        if (m === ex0) v.x -= k; else if (m === ex1) v.x += k; else if (m === ez0) v.z -= k; else v.z += k;
+      }
       if (imp + 2 > v.hit) v.hit = imp + 2;
       break;
     }

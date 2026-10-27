@@ -334,7 +334,7 @@ export class Game {
       const pv = this.playerSoldier.veh;
       if (pv) {                                                                    // 12.177: araçta F = far (sürücü); yolcu feneri kapalı
         if (this.playerSoldier.seat !== 0) return;
-        pv.lights = !pv.lights; this.online?.edge('vl');
+        pv.lights = !pv.lights; pv.lightT = performance.now(); this.online?.edge('vl');      // 12.183 lightT: çevrim içinde sunucunun eski far durumu bu tahmini bir süre ezmesin
         this.hud.toast($t(pv.lights ? 'veh.t.lightsOn' : 'veh.t.lightsOff'), '#ffe6a8');
         return;
       }
