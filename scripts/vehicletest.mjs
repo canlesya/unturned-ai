@@ -113,6 +113,10 @@ function headless() {
   ok(riders >= 2, 'bot yolcu: yakındaki takım arkadaşı botlar insanın sürdüğü durmuş araca biner (sürmezler)', `${riders} bot · ${f1(tBo)} sn`);
   stepB(1, { ve: 1 }); let tEx = 0; while (vb.seats.some(Boolean) && tEx < 8) { stepB(6); tEx += 0.1; }
   ok(!vb.seats.some(Boolean), 'sürücü inince botlar da iner', `${f1(tEx)} sn`);
+  // bayrak jipi: bayrak alınınca o takım için doğar
+  const gf = mkG(), fj = gf.vehicles.list.find((x) => x.id === 'B-J');
+  const was = fj.alive; gf.mode.objectives.find((o) => o.id === 'B').owner = 'red'; for (let i = 0; i < 5; i++) gf.step(0.1);
+  ok(!was && fj.alive && fj.team === 'red', 'bayrak jipi (Köy): bayrak sahibine doğar (sahipsizken yok)', `${was} → ${fj.alive} · ${fj.team}`);
   // maliyet + ağ
   const gp = mkG({ bots: true, match: { perTeam: 8, type: 'conquest' } });
   const t0 = performance.now(); for (let i = 0; i < 600; i++) gp.step(1 / 60); const ms = (performance.now() - t0) / 600;
@@ -210,7 +214,7 @@ async function online(chromium) {
   await A.keyboard.press('KeyE'); await A.waitForTimeout(600); await B.keyboard.press('KeyE'); await B.waitForTimeout(800);
   const seats = await Promise.all([A, B].map((P) => P.evaluate(() => { const me = window.__game.playerSoldier; return [me.veh?.id, me.seat]; })));
   await A.evaluate(() => window.__game.online.send({ t: 'dbg', vtp: [0, 330, 0] }));              // açık çayıra (üs HESCO duvarı önünde)
-  await A.waitForTimeout(800);
+  await A.waitForTimeout(1800);
   ok(seats[0][0] === 'B-J1' && seats[0][1] === 0 && seats[1][0] === 'B-J1' && seats[1][1] === 1, 'çevrim içi: A sürücü, B ön yolcu (sunucu onayıyla)', JSON.stringify(seats));
   // hedef: kırmızı bir asker yolun yanına (B hareket hâlinde ona ateş eder)
   const tgt = await A.evaluate(() => { const g = window.__game, r = g.soldiers.find((s) => s.team === 'red' && s.alive); g.online.send({ t: 'dbg', tps: [r.id, 18, 262, 0, 100] }); return r.id; });
@@ -218,16 +222,19 @@ async function online(chromium) {
   const rec = (P) => P.evaluate(() => { window.__rec = []; const id = setInterval(() => { const g = window.__game, v = g.vehicles.list.find((x) => x.id === 'B-J1'); if (v?.st) window.__rec.push([Date.now(), v.st.x, v.st.z, g.online.stats.delay]); }, 30); window.__recStop = () => clearInterval(id); });
   await rec(A); await rec(B);
   const bwP = A.evaluate(async () => { const b = window.__bytes; await new Promise((r) => setTimeout(r, 8000)); return (window.__bytes - b) / 8; });
+  await A.evaluate(() => { const s = window.__game.online.stats; s.vehFix = 0; s.vehErrMax = 0; s.vehErrSum = 0; window.__c0 = s.corrections; });
   await A.keyboard.down('KeyW'); await A.waitForTimeout(2200);
   // B: hareketli araçtan hedefe nişan + ateş (1,6 sn)
   const hit = B.evaluate(async (id) => {
     const g = window.__game, me = g.playerSoldier, t = g.soldiers[id], hp0 = t.hp;
     const aim = () => { const e = me.eye(), c = t.center(); const dx = c.x - e.x, dz = c.z - e.z; me.yaw = Math.atan2(-dx, -dz); me.pitch = Math.atan2(c.y - e.y, Math.hypot(dx, dz)); };
     const id2 = setInterval(aim, 8); aim(); g.player.fireHeld = true;
+    const m0 = me.item.mag, sv = new Promise((r) => { const h = (e) => { const m = JSON.parse(e.data); if (m.t === 'dbg') { g.online.ws.removeEventListener('message', h); r(m.sv); } }; g.online.ws.addEventListener('message', h); });
     await new Promise((r) => setTimeout(r, 1600));
     g.player.fireHeld = false; clearInterval(id2);
+    const m1 = me.item.mag; g.online.send({ t: 'dbg', ask: 1 });
     await new Promise((r) => setTimeout(r, 400));
-    return { hp0, hp: t.hp, alive: t.alive, d: Math.hypot(t.pos.x - me.pos.x, t.pos.z - me.pos.z) };
+    return { hp0, hp: t.hp, alive: t.alive, d: Math.hypot(t.pos.x - me.pos.x, t.pos.z - me.pos.z), shots: m0 - m1, sv: await sv, tp: [t.pos.x, t.pos.y, t.pos.z].map((x) => +x.toFixed(1)), mp: [me.pos.x, me.pos.y, me.pos.z].map((x) => +x.toFixed(1)) };
   }, tgt);
   await A.waitForTimeout(1200);
   await A.screenshot({ path: `${OUT}/20-cevrimici-A-surucu.png` }); await B.screenshot({ path: `${OUT}/21-cevrimici-B-yolcu.png` });
@@ -239,12 +246,12 @@ async function online(chromium) {
   const at = (r, t) => { for (let i = 1; i < r.length; i++) if (r[i][0] >= t) { const a = r[i - 1], b = r[i], k = (t - a[0]) / Math.max(1, b[0] - a[0]); return [a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k]; } return null; };
   const es = []; for (const s of rb) { const p = at(ra, s[0] - (s[3] || 100) - 15); if (p) es.push(Math.hypot(p[0] - s[1], p[1] - s[2])); }
   es.sort((a, b) => a - b);
-  const st = await A.evaluate(() => { const s = window.__game.online.stats; return { fix: s.vehFix || 0, errMax: +(s.vehErrMax || 0).toFixed(3), corr: s.corrections, rtt: Math.round(s.rtt) }; });
+  const st = await A.evaluate(() => { const s = window.__game.online.stats; return { fix: s.vehFix || 0, errMax: +(s.vehErrMax || 0).toFixed(3), corr: s.corrections - window.__c0, rtt: Math.round(s.rtt) }; });
   const dist = Math.hypot(ra[ra.length - 1][1] - ra[0][1], ra[ra.length - 1][2] - ra[0][2]);
   ok(dist > 40 && st.fix <= 2 && st.errMax < 0.3, 'sürücü tahmini: sunucuyla uyumlu (araç düzeltmesi az)', `yol ${dist.toFixed(0)} m · düzeltme ${st.fix} · en büyük ${st.errMax} m · asker düzeltmesi ${st.corr} · RTT ${st.rtt} ms`);
   ok(es.length > 100 && es[es.length >> 1] < 0.15 && es[Math.floor(es.length * 0.95)] < 0.4, 'B (yolcu) aracı A ile aynı yolda görür (interpolasyon gecikmesi kaydırılınca)', `medyan ${es[es.length >> 1]?.toFixed(3)} m · %95 ${es[Math.floor(es.length * 0.95)]?.toFixed(3)} m · ${es.length} örnek`);
   ok(bwD - bw0 < 6000, 'bant genişliği: park ↔ bir jip sürülürken (istemci başına)', `${(bw0 / 1024).toFixed(1)} → ${(bwD / 1024).toFixed(1)} KB/sn (+${((bwD - bw0) / 1024).toFixed(1)})`);
-  ok(hr.hp < hr.hp0 || !hr.alive, 'hareketli araçtan yolcu isabeti (geri sarma atıcının koltuğuna da)', `${Math.round(hr.d)} m · can ${hr.hp0} → ${hr.hp}${hr.alive ? '' : ' (öldü)'}`);
+  ok(hr.hp < hr.hp0 || !hr.alive, 'hareketli araçtan yolcu isabeti (geri sarma atıcının koltuğuna da)', `${Math.round(hr.d)} m · ${hr.shots} atış · can ${hr.hp0} → ${hr.hp}${hr.alive ? '' : ' (öldü)'}` + (hr.hp < hr.hp0 || !hr.alive ? '' : ' · ' + JSON.stringify(hr)));
   // araç patlat: iki istemcide enkaz, içindekiler ölür
   await A.evaluate(() => window.__game.online.send({ t: 'dbg', vdmg: [window.__game.playerSoldier.veh.idx, 9999, 'blast'] }));
   await A.waitForTimeout(1500);

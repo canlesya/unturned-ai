@@ -21,7 +21,7 @@ const CSS = `
 #vhPanel .warn{display:none;margin-top:5px;text-align:center;font-size:13px;font-weight:800;letter-spacing:3px;color:#ff6a4a;animation:vhw .5s infinite alternate}
 @keyframes vhw{to{opacity:.45}}
 #vhHit{position:absolute;left:50%;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;border:2px solid #ffb04a;transform:rotate(45deg) scale(.6);opacity:0;pointer-events:none}
-body.mob #vhPanel{zoom:.6;bottom:auto;top:calc(12px / .6);left:50%}
+body.mob #vhPanel{zoom:.6;bottom:auto;top:calc(74px / .6);left:50%}
 body.mob #vhPanel .hint{display:none}
 body.mob #vhPrompt{zoom:.75}
 `;

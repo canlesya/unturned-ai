@@ -281,7 +281,7 @@ export class BotBrain {
     }
   }
 
-  // 12.177 araç (aşama 1: botlar SÜRMEZ, yalnız insan sürücünün aracına yolcu olur). Çatışmada değilken: yakındaki (≤ 14 m) takım arkadaşı insanın
+  // 12.177 araç (aşama 1: botlar SÜRMEZ, yalnız insan sürücünün aracına yolcu olur). Çatışmada değilken: yakındaki (≤ 18 m) takım arkadaşı insanın
   // sürdüğü yavaş araçta boş yolcu koltuğu varsa ona yürür ve biner; sürücü korna çalarsa 35 m'den gelir. Sürücü inerse / araç yanarsa / batarsa
   // ya da araç yola çıktıktan sonra 4 sn durursa (varış) iner.
   board() {
@@ -293,7 +293,7 @@ export class BotBrain {
       if (!drv || !drv.human && !drv.isPlayer || drv.team !== s.team || v.burn || v.st.sunk) continue;
       if (!v.seats.some((o, i) => i > 0 && !o)) continue;
       const d = Math.hypot(v.st.x - s.pos.x, v.st.z - s.pos.z), sp = V.speed(v);
-      if ((d < 14 && sp < 3) || (v.horn && d < 35 && sp < 6)) if (d < bd) { bd = d; best = v; }
+      if ((d < 18 && sp < 3) || (v.horn && d < 35 && sp < 6)) if (d < bd) { bd = d; best = v; }
     }
     if (!best) { if (this.rideGoal) { this.rideGoal = null; this.goalT = 0; } return; }
     if (bd < best.def.hl + 1.6 && Math.abs(s.pos.y - best.st.y) < 2) {             // kapıda: ilk boş yolcu koltuğuna
@@ -303,7 +303,9 @@ export class BotBrain {
     }
     const i = best.seats.findIndex((o, k) => k > 0 && !o), sp = best.def.seat[i], side = Math.sign(sp[1]) || 1;      // boş koltuğun kapısına (gövdenin içine yol aranmaz)
     const fx = -Math.sin(best.st.yaw), fz = -Math.cos(best.st.yaw), rx = Math.cos(best.st.yaw), rz = -Math.sin(best.st.yaw), r = side * (best.def.hw + 0.9);
-    this.rideGoal = best; this.setGoal(best.st.x + fx * sp[0] + rx * r, best.st.z + fz * sp[0] + rz * r, 4, best.st.y); this.path = null;
+    const gx = best.st.x + fx * sp[0] + rx * r, gz = best.st.z + fz * sp[0] + rz * r;
+    this.rideGoal = best;
+    if (!this.goal || Math.hypot(this.goal.x - gx, this.goal.z - gz) > 1.5) this.setGoal(gx, gz, 4, best.st.y); else this.goalT = Math.max(this.goalT, 2);      // yol yeniden aranmaz (bütçe)
   }
 
   rideTick(dt) {
@@ -506,7 +508,7 @@ export class BotBrain {
     if ((s.swim || this.swimming) && this.swimOut(dt)) return;
     if (s.def.zombie) { this.updateZombie(dt); return; }
     if (s.veh) { this.rideTick(dt); return; }                                   // 12.177: yolcu bot (sürmez): yalnız nişan + ateş
-    if (g.vehicles && (this.boardT = (this.boardT ?? rand(0, 0.6)) - dt) <= 0) { this.boardT = 0.5; this.board(); }
+    if (g.vehicles && (this.boardT = (this.boardT ?? rand(0, 0.3)) - dt) <= 0) { this.boardT = 0.3; this.board(); }
     if (this.role === undefined) this.role = tacRole(this);
     if (this.atSpot && this.spot && Math.hypot(this.spot.x - s.pos.x, this.spot.z - s.pos.z) > 2.5) this.atSpot = false;
     this.t += dt;

@@ -306,7 +306,7 @@ export class Soldier {
 
   spreadNow(st) {
     const hipv = st.hip ?? 0.01, adsv = st.ads ?? 0.002;
-    const speed = Math.hypot(this.vel.x, this.vel.z);
+    const vs = Math.hypot(this.vel.x, this.vel.z), speed = this.veh ? 0 : vs;          // 12.177: araçtaki yolcu koşmuyor (koşu / hareket cezası yerine araç sarsıntısı)
     if (st.ball) return this._ballSpread(st, hipv, adsv, speed);
     // 12.153: dürbünlü keskin nişancı (st.scope): isabet yalnız dürbün oturunca (adsT 0,6 → 1 yumuşak); belde / geçişte ilk atış indirimi yok (no-scope / erken quickscope şansa kalır)
     // 12.156: insan (oyuncu / sunucudaki insan) için belden keskin nişancı anlamlı isabetsiz (st.noscope koni; eski hip 0,03 → 10 m'de gövdeye %100) ve dürbün
@@ -321,6 +321,7 @@ export class Soldier {
     if (this.blindT > 0.5) s += 0.04;
     if (this.crouching) s *= 0.7;
     if (this.swim) s += 0.03;                                          // 12.180 yüzerken (yüzeyde tabanca): dalgada sallanır
+    if (this.veh) s += Math.min(vs * 0.0008, 0.012) * (1 - this.adsT * 0.5);      // 12.177 hareketli araçtan atış: hızla artan sarsıntı (55 km/s ≈ +0,012 rad)
     s += this.bloom;                                                   // seri atışta açılma
     // duran oyuncunun ilk atışı (kısa bir aradan sonra) isabetli olsun
     if (this.sinceShot > 0.3 && speed < 1.5 && this.onGround) s *= sc ? 1 - 0.8 * sk : 0.2;

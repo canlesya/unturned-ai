@@ -163,6 +163,7 @@ export class VehicleView {
       // tekerler: dönüş (ileri hız / yarıçap), ön tekerler direksiyon
       it.spin = ((it.spin || 0) + (v.alive ? fwd : 0) * dt / 0.4) % (Math.PI * 2);
       for (const w of U.wheels) { w.w.rotation.x = -it.spin; w.piv.rotation.y = w.front ? st.steer * 1.0 : 0; w.piv.position.y = 0.4 - (v.alive ? it.sy * 0.5 : 0.08); }
+      const near = far < 70; U.steer.visible = near; U.needle.visible = near; if (U.glass) U.glass.visible = near && !it.charred;      // uzakta iç ayrıntı çizilmez
       U.steer.rotation.z = -st.steer * 2.2;
       U.needle.rotation.z = -Math.min(1, Math.abs(fwd) / d.maxF) * 2.4 + 1.2;
       const mine = me && me.veh === v && me.alive;

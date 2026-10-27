@@ -113,7 +113,7 @@ function build(team) {
     const hr = new THREE.Mesh(new THREE.CylinderGeometry(0.135, 0.135, 0.05, 10), mat('#202122')); hr.rotation.x = Math.PI / 2; hr.position.set(sx * 0.5, 0.86, -1.95); fx.add(hr);
     const tl = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.1, 0.03), TAIL); tl.position.set(sx * 0.74, 0.86, 1.81); fx.add(tl);
   }
-  const gl = new THREE.Mesh(new THREE.PlaneGeometry(1.58, 0.6), GLASS); gl.position.set(0, 1.33, -0.63); gl.rotation.x = tilt; gl.renderOrder = 3; root.add(gl);
+  const gl = new THREE.Mesh(new THREE.PlaneGeometry(1.58, 0.6), GLASS); gl.name = 'cam'; gl.position.set(0, 1.33, -0.63); gl.rotation.x = tilt; gl.renderOrder = 3; root.add(gl);
   // dönen parçalar
   JEEP.wheels.forEach(([x, z]) => {
     const piv = new THREE.Group(); piv.name = 'teker'; piv.position.set(x, 0.4, z); root.add(piv);
@@ -131,6 +131,7 @@ function build(team) {
   }
   const arms = new THREE.Group(); arms.name = 'kollar'; arms.visible = false; root.add(arms);
   const needle = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.06, 0.004), mat('#d23a22')); needle.geometry.translate(0, 0.028, 0);
+  mergeVC(fx); mergeVC(steer);                                   // çizim çağrısı: far / stop / direksiyon parçaları malzeme başına tek
   needle.name = 'ibre'; needle.position.set(JEEP.gauge[0], JEEP.gauge[1], JEEP.gauge[2] + 0.13); needle.rotation.x = -0.25; root.add(needle);
   return root;                                                   // başvurular kopyada bağlanır (şablonun userData'sı boş kalmalı: clone JSON kopyalar)
 }
@@ -142,6 +143,6 @@ export function createJeep(team) {
   const r = T.clone(true);
   const find = (n) => r.getObjectByName(n);
   const wheels = r.children.filter((c) => c.name === 'teker').map((c) => ({ piv: c, w: c.children[0], front: c.position.z < 0 }));
-  r.userData = { wheels, steer: find('direksiyon'), hands: find('eller'), arms: find('kollar'), needle: find('ibre'), fx: find('ışık'), body: find('gövde'), team: k };
+  r.userData = { wheels, steer: find('direksiyon'), hands: find('eller'), arms: find('kollar'), needle: find('ibre'), glass: find('cam'), fx: find('ışık'), body: find('gövde'), team: k };
   return r;
 }
