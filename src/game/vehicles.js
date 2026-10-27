@@ -191,12 +191,12 @@ export class Vehicles {
     const g = this.g;
     for (const v of this.list) {
       if (!v.alive) { this.deadTick(v, dt); continue; }
-      // koltuktakiler: ölen / boşalan / sürücü koltuğundaki bot çıkar
+      // koltuktakiler: ölen / boşalan / sürücü koltuğundaki (sürücü olmayan) bot çıkar
       for (let i = 0; i < v.seats.length; i++) {
         const s = v.seats[i];
         if (!s) continue;
         if (!s.alive || s.vacant || s.veh !== v) { v.seats[i] = null; if (s.veh === v) { s.veh = null; s.seat = -1; } continue; }
-        if (i === 0 && s.brain) this.exit(s);
+        if (i === 0 && s.brain && !s.brain.vd) this.exit(s);                      // 12.189: kendi bindiği araçtaki bot sürücü kalır (vehicleBots.js)
       }
       const drv = v.seats[0];
       if (!drv) {
