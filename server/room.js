@@ -130,10 +130,13 @@ export class Room {
     const v = this.vote;
     if (!v || !this.game.ended || !ws.ctx || this.clients.get(ws.ctx.id)?.ws !== ws) return;
     if (!Number.isInteger(i) || i < 0 || i >= v.opts.length) return;
-    v.votes.set(ws, i);
     const now = Date.now();
+    if (v.votes.get(ws) === i) return;                                   // 12.187: aynı oy yayın yaptırmaz
+    v.votes.set(ws, i);
     if (v.votes.size >= this.clients.size && this.resetAt - now > 3000) this.resetAt = v.ends = now + 3000;
-    this.broadcast({ t: 'votes', c: this.voteCounts(), n: this.clients.size, ms: Math.max(0, this.resetAt - now) });
+    // 12.187: yayın odada en çok 200 ms'de bir (oy seli herkese mesaj çoğaltıyordu); arada gelen oylar bir sonraki yayında
+    const bc = () => { this._voteTm = null; if (this.vote !== v) return; this._voteAt = Date.now(); this.broadcast({ t: 'votes', c: this.voteCounts(), n: this.clients.size, ms: Math.max(0, this.resetAt - this._voteAt) }); };
+    if (now - (this._voteAt || 0) >= 200) bc(); else if (!this._voteTm) this._voteTm = setTimeout(bc, 200 - (now - this._voteAt));
   }
 
   decide() {

@@ -531,7 +531,7 @@ export class Soldier {
       const v = hit.victim;
       const zb = this.def.zombie, back = !zb && this.isBehind(v);                       // zombi arkadan tek vuruş yapmaz
       const mul = (sw.kind === 'stab' ? st.stabMul : 1) * (zb ? this.zt.dmg / st.dmg * ((this.boss || (this.abActive > 0 && this.zt.ability.id === 'rage')) ? BOSS.rageDmg : 1) : 1);
-      g.effects.blood(hit.point, back ? 14 : 8, d.clone().negate());
+      if (!(v.isPlayer && !g.showSelf)) g.effects.blood(hit.point, back ? 14 : 8, d.clone().negate());      // 12.187: birinci şahısta kendi kanın kameraya çizilmez
       g.sfx.knifeHit(hit.point, back);
       v.takeDamage((back ? TUNE.backstab : st.dmg * mul) * this.dmgMul, this, 'body', this.pos, back ? st.name + ' · arkadan' : st.name);
       if (this.isPlayer) { g.effects.shake = Math.max(g.effects.shake, back ? 0.9 : 0.55); g.emit('meleehit', { flesh: true, back }); }
