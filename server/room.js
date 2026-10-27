@@ -221,7 +221,7 @@ export class Room {
   }
 
   // Şifresiz, sunucuya gönderilecek ayarlar
-  publicCfg() { const { pw, ...rest } = this.cfg; return { ...rest, locked: !!pw, official: !!this.official, swap: this.swap }; }
+  publicCfg() { const { pw, ...rest } = this.cfg; return { ...rest, locked: !!pw, official: !!this.official, swap: this.game?.swapSides ?? this.swap }; }      // 12.197 devre arasından sonra katılan şu anki tarafları alır
 
   humansOf(team) { let n = 0; for (const id of this.clients.keys()) if (this.game.soldiers[id].team === team) n++; return n; }
 
@@ -385,6 +385,7 @@ export class Room {
     if (m.kill) s.takeDamage(9999, s, 'body', s.pos, 'test'), s.protT = 0;
     if (Array.isArray(m.dmg)) { const v = g.soldiers[m.dmg[0] | 0]; if (v && v.alive && v !== s) { v.protT = 0; v.takeDamage(+m.dmg[1] || 9999, s, m.dmg[2] ? 'head' : 'body', s.pos, s.item?.name || 'test'); } }   // { dmg:[kurban, hasar, kafa?] } bu oyuncu vurmuş gibi (seri sesi testi)
     if (Array.isArray(m.tk)) { g.tickets.blue = +m.tk[0]; g.tickets.red = +m.tk[1]; }
+    if (Number.isFinite(m.tl) && g.timeLeft !== Infinity) g.timeLeft = Math.max(0, +m.tl);          // { tl: sn } kalan süre (12.197 berabere / devre arası testi)
     if (Array.isArray(m.kl)) for (const [i, n] of m.kl) { const t = g.soldiers[i | 0]; if (t && Number.isFinite(+n)) t.kills = +n; }   // { kl:[[id,öldürme]…] } skor kutusu testi
     if (m.pb) {                                                                                     // paintball silahları (mod gelmeden test): herkese tüfek + tabanca, doğunca da
       const arm = (e) => { e.items = [{ id: 'pbrifle', mag: 50, reserve: 150 }, { id: 'pbpistol', mag: 12, reserve: 48 }, { id: 'knife', mag: 1, reserve: 0 }]; e.cur = 0; e.cd = 0; e.reloadT = 0; };

@@ -753,7 +753,7 @@ export class Hud {
 
   showEnd(win, title, info, rows) {
     this.$('etitle').textContent = title;
-    this.$('etitle').style.color = win ? '#7be06f' : '#ff7b6b';
+    this.$('etitle').style.color = win == null ? '#ffd36a' : win ? '#7be06f' : '#ff7b6b';      // null: berabere (12.197)
     this.$('einfo').textContent = info;
     this.$('estats').innerHTML = rows;
     this.$('endscreen').style.display = 'flex';

@@ -52,6 +52,17 @@ export class Payload {
     m.baseZones = { blue: S.zones.blue, red: S.zones.red };
   }
 
+  // 12.197 doğma süresi çarpanı: sabit (plAtkRespawn / plDefRespawn) × uzaklık dengesi. Vagona doğuşu daha YAKIN olan takım daha geç doğar (yürüyüş farkının
+  // yarısı kadar), uzak olan daha erken: 1 + (rakibin uzaklığı − kendi uzaklığın) / plSpawnEq (80 m), 0,7–1,4 arası (0 = kapalı). Eskiden son aşamada savunan doğuşu
+  // vagona ~20 m, saldıranınki ~33 m iken savunan yine ×0,75 ile daha çabuk doğuyordu: vagon 20 maçın yarısında %87–99'da, 2:1 öldürmeyle duruyordu.
+  respawnMul(team) {
+    const base = team === ATK ? TUNE.plAtkRespawn : TUNE.plDefRespawn, k = TUNE.plSpawnEq;
+    if (!(k > 0)) return base;
+    const dOf = (tm) => { const pts = this.g.map.spawns[tm]; let s = 0; for (const q of pts) s += Math.hypot(q.x - this.p.x, q.z - this.p.z); return s / pts.length; };
+    const own = dOf(team), oth = dOf(team === ATK ? DEF : ATK);
+    return base * Math.max(0.7, Math.min(1.4, 1 + (oth - own) / k));
+  }
+
   get floorD() { return this.reached ? this.cps[this.reached - 1] : this.start; }
   get progress() { return Math.max(0, Math.min(1, (this.d - this.start) / (this.end - this.start))); }
   get nextName() { return this.def.names[Math.min(this.reached, this.def.names.length - 1)]; }
@@ -128,7 +139,7 @@ export class Payload {
   result() {
     const g = this.g;
     if (this.done) return [ATK, t('payload.winAtk')];
-    if (g.timeLeft !== Infinity && g.timeLeft <= 0 && (!this.over || this.overGrace <= 0)) return [DEF, t('payload.winDef', { pct: Math.round(this.progress * 100), name: this.nextName })];
+    if (g.timeLeft !== Infinity && g.timeLeft <= 0 && (!this.over || this.overGrace <= 0)) return [DEF, t('payload.winDef', { pct: Math.min(99, Math.floor(this.progress * 100)), name: this.nextName })];      // 12.197 durdurulan vagon '%100' yazmasın (%99,6 yuvarlanıyordu)
     return null;
   }
 

@@ -55,7 +55,7 @@ import { VT, mgAt, seatGun, heFalloff } from '../sim/vehicle.js';
 import { spaceSetup } from './space.js';
 import { NADE, nadeTick, NadeView, fragBlast, bounceSfx, aimNade } from './grenade.js';
 import { createWeapon } from '../models/weapons.js';
-import { initGadgets, updateGadgets, spawnSmoke, flashBang, smokeBlocks, smokeDensity, placeDeployable, netDeploy, netUndeploy } from './gadgets.js';
+import { initGadgets, updateGadgets, spawnSmoke, flashBang, smokeBlocks, smokeDensity, placeDeployable, netDeploy, netUndeploy, removeDeployable } from './gadgets.js';
 
 const STAT_ID = new Map(Object.entries(WSTATS).map(([k, v]) => [v, k]));      // WSTATS nesnesi → id (ağ olayları için)
 const r2 = (v) => Math.round(v * 100) / 100;
@@ -938,14 +938,22 @@ export class Game {
         cands.push({ p, dmin, sc: Math.min(dmin, 30) - pen + Math.random() * 6 });
       }
       cands.sort((a, b) => b.sc - a.sc);
+      // 12.197 görüş testi: ilk 12 yerine en iyi 24 aday, gören rakip SAYISI kadar ceza (her biri −25; eskiden tek ceza −45, küçük haritada her nokta görünürken
+      // en yakın rakibin dibine doğuluyordu) + bakış yönü: rakibin önündeki 70°'lik koni içindeki nokta ek −10. 60 m'lik haritalarda (Depo / Liman) doğuş öldürmesi %13–21 → bkz. OYUN.md 12.197
       const eye = (this._spE ||= new THREE.Vector3()), tgt = (this._spT ||= new THREE.Vector3());
       let best = null, bs = -1e9;
-      for (const c of cands.slice(0, 12)) {
-        tgt.set(c.p.x, 1.4, c.p.z);
-        const seen = others.some((e) => Math.hypot(e.pos.x - c.p.x, e.pos.z - c.p.z) < 55 && this.botSees(e.eye(eye), tgt));
-        const sc = c.sc - (seen ? 45 : 0);
+      for (const c of cands.slice(0, 24)) {
+        tgt.set(c.p.x, (c.p.y || 0) + 1.4, c.p.z);
+        let pen = 0;
+        for (const e of others) {
+          const dx = c.p.x - e.pos.x, dz = c.p.z - e.pos.z, d = Math.hypot(dx, dz);
+          if (d > 60 || !this.botSees(e.eye(eye), tgt)) continue;
+          pen += 25 + Math.max(0, 25 - d);                                           // yakından görülen daha kötü
+          if ((-Math.sin(e.yaw) * dx - Math.cos(e.yaw) * dz) / (d + 1e-6) > 0.82) pen += 10;      // rakip o yöne bakıyor
+        }
+        const sc = c.sc - pen;
         if (sc > bs) { bs = sc; best = c.p; }
-        if (!seen && c.dmin >= 14) break;                                            // sıralı listede ilk uzak + görünmeyen yeterli
+        if (!pen && c.dmin >= 18) break;                                             // sıralı listede ilk uzak + görünmeyen yeterli
       }
       const p = best || pick(pts);
       recent.push({ x: p.x, z: p.z, t: now }); if (recent.length > 8) recent.shift();
@@ -970,7 +978,7 @@ export class Game {
     }
     const pts = this.map.spawns[team];
     const free = pts.filter((p) => !this.soldiers.some((e) => e !== s && e.alive && Math.hypot(e.pos.x - p.x, e.pos.z - p.z) < 1.3));
-    if (free.length) return pick(free);
+    if (free.length) return this.safeBase(free, team);
     // noktalar dolu (kalabalık maç): rastgele bir noktanın çevresinde boş yer bul
     const base = pick(pts);
     for (let k = 0; k < 20; k++) {
@@ -978,6 +986,28 @@ export class Game {
       if (this._free(x, z, s)) return { x, z, ry: base.ry };
     }
     return base;
+  }
+
+  // 12.197 takım üs doğuşu: boş noktalardan rastgele 8 aday, düşmanın görmediği (60 m içinde göz → göğüs) ve düşmana en uzak olan seçilir.
+  // Eskiden rastgele bir noktaydı: küçük haritalarda (Liman / Depo, avlu ile hedefler arası 30 m) üsse sızan düşmanın tam önüne doğulabiliyordu.
+  safeBase(free, team) {
+    const foes = this.soldiers.filter((e) => e.alive && e.team !== team && !e.vacant);
+    if (!foes.length || free.length < 2) return pick(free);
+    const eye = (this._spE ||= new THREE.Vector3()), tgt = (this._spT ||= new THREE.Vector3());
+    let best = null, bs = -1e9;
+    for (let k = 0; k < Math.min(8, free.length); k++) {
+      const p = free[Math.floor(Math.random() * free.length)];
+      let dmin = 99, seen = 0;
+      tgt.set(p.x, (p.y || this.world.heightAt(p.x, p.z)) + 1.3, p.z);
+      for (const e of foes) {
+        const d = Math.hypot(e.pos.x - p.x, e.pos.z - p.z);
+        dmin = Math.min(dmin, d);
+        if (d < 60 && this.botSees(e.eye(eye), tgt)) seen++;
+      }
+      const sc = Math.min(dmin, 40) - seen * 30 + Math.random() * 3;
+      if (sc > bs) { bs = sc; best = p; }
+    }
+    return best || pick(free);
   }
 
   // oyuncu (offline) ya da insan (sunucu) için doğuş tercihleri; botlar için null
@@ -1338,8 +1368,10 @@ export class Game {
       else if (s.alive) { this.world.move(s, dt); V?.pushSoldier(s); this.fallCheck(s); this.swimCheck(s, dt); }
     }
     if (this.player) this.player.update(dt); else this.updateHumans(dt);
-    for (const b of this.brains) b.update(dt);
-    V?.update(dt);                                 // 12.177: sürücüsüz araç fiziği, hasar / yanma / batma, yeniden doğuş, yayaya çarpma, koltuk yerleşimi
+    // 12.197 bot beyinleri her adımda farklı bir botla başlar (döner sıra): eskiden hep Mavi botlar önce işleniyordu → adım başına 1'lik yol bütçesini
+    // hep Mavi kapıyor, aynı karede karşılıklı atışta hep Mavi önce ateş ediyordu (takım modlarında Mavi lehine sistematik kayma)
+    { const B = this.brains, n = B.length, o = n ? (this._brainRot = ((this._brainRot || 0) + 1) % n) : 0; for (let i = 0; i < n; i++) B[(o + i) % n].update(dt); }
+    V?.update(dt);                                // 12.177: sürücüsüz araç fiziği, hasar / yanma / batma, yeniden doğuş, yayaya çarpma, koltuk yerleşimi
     this.updateProjectiles(dt);
     this.paint.update(dt);
     this.pickups.update(dt);
@@ -1449,6 +1481,7 @@ export class Game {
         case 'pb': case 'pbh': this.paint.onNet(ev); break;          // paintball: top doğdu / oyuncuya isabet
         case 'pk': this.pickups.onNet(ev); break;                    // paintball: kutu alındı / yeniden belirdi
         case 'swg': if (by && by !== me) { by.swing = { t: 0, dur: ev.d, kind: ev.k, idx: 0, done: true, hv: !!ev.h }; by.comboT = ev.d + 0.38; } break;
+        case 'half': if (!!ev.s !== this.swapSides) this.halfSwap(true); break;          // 12.197 devre arası: taraflar yer değiştirdi
         case 'as': if (ev.to === me.id) { assistPop(this, this.soldiers[ev.v], ev.p); this.emit('assist', { by: me, victim: this.soldiers[ev.v], pts: ev.p }); } break;     // 12.165: kişisel asist bildirimi (sunucu yalnız ilgiliye yollar)
       }
     }
@@ -2058,7 +2091,7 @@ export class Game {
           else if (o.p <= -1 && o.owner !== 'red') o.owner = 'red';
           else if (o.owner === 'blue' && o.p <= 0) o.owner = null;
           else if (o.owner === 'red' && o.p >= 0) o.owner = null;
-          if (o.owner !== prev) this.onFlag(o, prev);
+          if (o.owner !== prev) { if (!this.front) this.capScore(o, o.owner || (prev === 'blue' ? 'red' : 'blue'), o.owner ? 100 : 50); this.onFlag(o, prev); }
         }
       }
     }
@@ -2099,7 +2132,40 @@ export class Game {
         }
       }
     }
+    if (this.mode.scoreBased && this.map.sideSwap && !this.halfDone && !this.ended) {           // 12.197 devre arası (asimetrik harita, takım çatışması): skor sınırının yarısı ya da sürenin yarısı
+      const lim = this.mode.tickets, half = Math.ceil(lim / 2), T = this.mode.time;
+      if (Math.max(this.tickets.blue, this.tickets.red) >= half && Math.max(this.tickets.blue, this.tickets.red) < lim || (T > 0 && this.timeLeft <= T / 2)) this.halfSwap();
+    }
     this.checkEnd();
+  }
+
+  // 12.197 Devre arası taraf değişimi (CS gibi): asimetrik haritada (map.sideSwap: Çöl Geçidi) takım çatışmasında taraf maçı belirliyordu (T avlusu 10 maçta 9);
+  // maçın ortasında iki takımın doğuş tarafı / üs bölgesi yer değiştirir, herkes yeni tarafında yeniden doğar (öldürme / ölüm sayılmaz, koruma 2 sn),
+  // kurulu claymore / cephane kutuları kalkar (yeni doğuşa mayın kalmasın), bot taktik haritası yeni taraflara göre yeniden kurulur.
+  // Yetkili taraf (çevrimdışı / sunucu) uygular; istemci 'half' olayıyla aynı yer değiştirmeyi yapar (geç katılan cfg.swap ile şu anki durumu alır).
+  halfSwap(net = false) {
+    const sp = this.map.spawns, bz = this.map.baseZones;
+    this.map.spawns = { ...sp, blue: sp.red, red: sp.blue };
+    if (bz) this.map.baseZones = { blue: bz.red, red: bz.blue };
+    this.swapSides = !this.swapSides; this.halfDone = true;
+    this._tac = undefined; this._tacKey = null;
+    if (!net) {
+      for (const d of [...this.deployables]) removeDeployable(this, d);
+      for (const s of this.soldiers) if (s.alive && !s.vacant) { s.zoneT = 0; this.respawn(s); }
+      this.netEvent({ e: 'half', s: this.swapSides ? 1 : 0 });
+    }
+    if (!this.headless) { this.hud.toast($t('hud.t.half'), '#ffd36a'); this.hud.popup($t('hud.popHalf'), true); this.sfx.capture?.(); }
+    this.emit('half', this);
+  }
+
+  // 12.197 Ele Geçirme hedef puanı (yetkili taraf): bayrağı alan takımın alandaki askerleri +100, tarafsızlaştıran +50 (eskiden hiç puan yoktu: skor tablosu /
+  // maç sonu yalnız öldürmeyi ölçüyordu; Cephe +100, Vagon kontrol noktası +100 veriyordu). Çevrim içi puan anlık görüntüyle istemciye gider.
+  capScore(o, team, pts) {
+    for (const s of this.soldiers) {
+      if (!s.alive || s.team !== team || !this.inObjective(s.pos, o)) continue;
+      s.score += pts;
+      if (s.isPlayer && !this.headless) this.hud.popup($t(pts >= 100 ? 'hud.popCap' : 'hud.popNeutral', { n: pts }), true);
+    }
   }
 
   onFlag(o, prev) {
@@ -2153,7 +2219,7 @@ export class Game {
     } else if (this.mode.gungame) victim.respawnT = victim.isPlayer || victim.human ? TUNE.respawnGG : rand(2.2, 3.6);
     else if (this.mode.paintball) victim.respawnT = victim.isPlayer || victim.human ? TUNE.respawnPB : rand(TUNE.respawnPB * 0.8, TUNE.respawnPB * 1.2);
     else victim.respawnT = victim.isPlayer || victim.human ? TUNE.respawn : rand(TUNE.botRespawnMin, TUNE.botRespawnMax);
-    if (this.payload) victim.respawnT *= victim.team === 'blue' ? TUNE.plAtkRespawn : TUNE.plDefRespawn;
+    if (this.payload) victim.respawnT *= this.payload.respawnMul(victim.team);                    // 12.197: sabit çarpan × doğuş → vagon uzaklık dengesi (payload.js)
     if (this.front) victim.respawnT *= this.front.respawnMul(victim.team);                                  // Cephe: doğma süresi çarpanı (admin)     // Vagon: saldıran daha çabuk, savunan biraz geç doğar (dalga dengesi)
     if (victim.isPlayer && this.player) this.player.camPos.copy(victim.eye());
   }
@@ -2184,10 +2250,10 @@ export class Game {
       const lim = this.mode.tickets;
       if (this.tickets.blue >= lim) { w = 'blue'; why = $t('end.tdmBlue', { n: lim }); }
       else if (this.tickets.red >= lim) { w = 'red'; why = $t('end.tdmRed', { n: lim }); }
-      else if (this.timeLeft <= 0) { w = this.tickets.blue >= this.tickets.red ? 'blue' : 'red'; why = $t('end.time'); }
+      else if (this.timeLeft <= 0) { w = this.tickets.blue > this.tickets.red ? 'blue' : this.tickets.red > this.tickets.blue ? 'red' : 'draw'; why = $t('end.time'); }      // 12.197 eşitlik berabere (eskiden hep Mavi kazanırdı)
     } else if (this.tickets.blue <= 0) { w = 'red'; why = $t('end.blueOut'); }
     else if (this.tickets.red <= 0) { w = 'blue'; why = $t('end.redOut'); }
-    else if (this.timeLeft <= 0) { w = this.tickets.blue >= this.tickets.red ? 'blue' : 'red'; why = $t('end.time'); }
+    else if (this.timeLeft <= 0) { const b = Math.round(this.tickets.blue), r = Math.round(this.tickets.red); w = b > r ? 'blue' : r > b ? 'red' : 'draw'; why = $t('end.time'); }
     if (!w) return;
     this.ended = true;
     this.running = false;
@@ -2201,17 +2267,17 @@ export class Game {
     if (this.payload?.done && !this._plEndShown) { this._plEndShown = true; setTimeout(() => { if (this.renderer) this.showEndScreen(w, why, net); }, 2200); return; }   // Vagon: önce kapının patlaması görünsün
     document.exitPointerLock?.();
     const me = this.playerSoldier;
-    const win = w === me.team;
+    const draw = w === 'draw', win = !draw && w === me.team;                       // 12.197 berabere: takımlı modda süre bitince skor / bilet eşit
     const list = this.soldiers.filter((s) => (this.ffa ? !s.vacant : s.team === me.team)).sort((a, b) => b.score - a.score);
     const xp = Math.round(me.score + (win ? 300 : 80));
     const inf = this.mode.infection;
-    const wname = this.ffa ? (this.soldiers.find((s) => s.team === w)?.name || '') : inf ? (w === 'red' ? t('match.zombies') : t('match.humans')) : TEAMS[w].name;
+    const wname = this.ffa ? (this.soldiers.find((s) => s.team === w)?.name || '') : inf ? (w === 'red' ? t('match.zombies') : t('match.humans')) : TEAMS[w]?.name || '';
     const gg = this.mode.gungame, best = list[0] ? t('match.teamBest', { name: list[0].name, score: list[0].score }) : '';
     const tb = Math.max(0, Math.round(this.tickets.blue)), tr = Math.max(0, Math.round(this.tickets.red));
     const sub = this.front ? t('front.endSub', { b: this.front.owned('blue'), r: this.front.owned('red'), n: this.front.n, sh: this.front.shifts, tb, tr, best: list[0].name, score: list[0].score }) : this.payload ? t('payload.endSub', { pct: Math.round(this.payload.progress * 100), cp: this.payload.reached, best: list[0].name, score: list[0].score }) : this.ffa ? `${t('match.rank')}: ${ffaRanking(this.soldiers, gg).slice(0, 3).map((s, i) => `${i + 1}. ${s.name} (${gg ? t('match.lvl') : ''}${ffaMetric(s, gg)})`).join(' · ')}` : `${t(inf ? 'match.humZom' : 'match.blueRed', { b: tb, r: tr })} · ${best}`;
     const rows = `<div class="mvp"><div class="st"><b>${me.kills}</b><small>${t('match.kills')}</small></div><div class="st"><b>${me.assists || 0}</b><small>${t('match.assists')}</small></div><div class="st"><b>${me.deaths}</b><small>${t('match.deaths')}</small></div><div class="st"><b>${me.score}</b><small>${t('match.score')}</small></div><div class="st"><b>+${xp}</b><small>${t('match.xp')}</small></div></div><small style="opacity:.75">${sub}</small>`;
     this.opts.onMatchEnd?.({ score: me.score, kills: me.kills, assists: me.assists || 0, deaths: me.deaths, win });
-    this.hud.showEnd(win, win ? t('match.victory') : t('match.defeat'), this.ffa ? t('match.wonFfa', { why }) : t('match.won', { why, team: wname }), rows);
+    this.hud.showEnd(draw ? null : win, draw ? t('match.draw') : win ? t('match.victory') : t('match.defeat'), this.ffa ? t('match.wonFfa', { why }) : draw ? t('match.drawWhy', { why }) : t('match.won', { why, team: wname }), rows);
     if (!this.opts.editor) { this.endFlow?.dispose(); this.endFlow = new EndFlow(this, net); }
   }
 

@@ -15,7 +15,7 @@ export const TUNE = {
   captureRate: 0.073, bleed: BLEED_S,
   // 12.191 captureRate 0,085 → 0,073: ele geçirme sayacı artık kare hızından bağımsız (game.updateMode); sunucudaki (60 Hz) eski etkin hız 0,085 × 6/7 ≈ 0,073 korunur
   sightDay: 130, sightSunset: 105, sightNight: 62,
-  plSpeed: 1.0, plCrowd: 0.25, plRadius: 3.5, plBackDelay: 20, plBackSpeed: 0.35, plBonus: 120, plOverGrace: 1.5, plSupply: 0.08, plAtkRespawn: 1.0, plDefRespawn: 0.75,   // Vagon modu: taban hız (m/sn), ek iten başına +%, itme yarıçapı, geri kayma bekleme / hız, kontrol noktası süre ödülü, uzatma payı, vagon yanı ikmal, doğma süresi çarpanı (12.150: botlar vagonu gerçekten oynayınca saldıran 1,0 / savunan 0,75 — savunan doğuşu raydan uzak)
+  plSpeed: 1.0, plCrowd: 0.25, plRadius: 3.5, plBackDelay: 20, plBackSpeed: 0.35, plBonus: 120, plOverGrace: 1.5, plSupply: 0.08, plAtkRespawn: 1.0, plDefRespawn: 0.65, plSpawnEq: 80,   // Vagon modu: taban hız (m/sn), ek iten başına +%, itme yarıçapı, geri kayma bekleme / hız, kontrol noktası süre ödülü, uzatma payı, vagon yanı ikmal, doğma süresi çarpanı (12.150: botlar vagonu gerçekten oynayınca saldıran 1,0 / savunan 0,75 — savunan doğuşu raydan uzak)
   spaceGrav: 0.36, spaceJump: 0.86, spaceAir: 3.4,                  // 12.157 Uzay modu: yer çekimi çarpanı (Dünya'nın ~1/3'ü), zıplama hızı çarpanı (zirve ≈ 2 m, havada ≈ 1,7 sn), havada yön denetimi (normal 2,2)
 };
 Object.assign(TUNE, { frCapMul: 0.25, frLean: 0, frHqMul: 0.7, frBleed: 1, frRespawn: 1.0, frStartLock: 25, frShiftLock: 10 });      // Cephe Hattı (12.161): ele geçirme hızı çarpanı, yeni etkin noktanın eski sahibine yatıklığı (çubuk), karargâh ele geçirme çarpanı, nokta farkı başına kanama, doğma süresi çarpanı (iki taraf aynı)
@@ -134,7 +134,7 @@ export function balanceSections() {
       { id: 'payload', name: 'Vagon', preview: { kind: 'icon', icon: 'flag' }, fields: [
         f('mode.plTime', 'Saldırı ilk süresi', 60, 1800, 30, 'sn'), f('tune.plBonus', 'Kontrol noktası süre ödülü', 0, 600, 10, 'sn'),
         f('tune.plSpeed', 'Vagon taban hızı (1 kişi)', 0.2, 4, 0.05, 'm/sn'), f('tune.plCrowd', 'Ek iten başına hız', 0, 1, 0.05, '×'), f('tune.plRadius', 'İtme yarıçapı', 1.5, 8, 0.1, 'm'),
-        f('tune.plBackDelay', 'Geri kayma bekleme', 0, 60, 1, 'sn'), f('tune.plBackSpeed', 'Geri kayma hızı', 0, 3, 0.05, 'm/sn'), f('tune.plOverGrace', 'Uzatma payı', 0, 10, 0.5, 'sn'), f('tune.plSupply', 'Vagon yanı ikmal (2 sn)', 0, 1, 0.01, '×'), f('tune.plAtkRespawn', 'Saldıran doğma süresi çarpanı', 0.2, 3, 0.05, '×'), f('tune.plDefRespawn', 'Savunan doğma süresi çarpanı', 0.2, 3, 0.05, '×')] },
+        f('tune.plBackDelay', 'Geri kayma bekleme', 0, 60, 1, 'sn'), f('tune.plBackSpeed', 'Geri kayma hızı', 0, 3, 0.05, 'm/sn'), f('tune.plOverGrace', 'Uzatma payı', 0, 10, 0.5, 'sn'), f('tune.plSupply', 'Vagon yanı ikmal (2 sn)', 0, 1, 0.01, '×'), f('tune.plAtkRespawn', 'Saldıran doğma süresi çarpanı', 0.2, 3, 0.05, '×'), f('tune.plDefRespawn', 'Savunan doğma süresi çarpanı', 0.2, 3, 0.05, '×'), f('tune.plSpawnEq', 'Doğuş uzaklık dengesi (0 kapalı; küçük = güçlü)', 0, 200, 5, 'm')] },
       { id: 'space', name: 'Uzay', preview: { kind: 'icon', icon: 'planet' }, fields: [      // 12.157
         f('tune.spaceGrav', 'Yer çekimi çarpanı', 0.1, 1, 0.01, '×'), f('tune.spaceJump', 'Zıplama hızı çarpanı', 0.5, 1.5, 0.01, '×'), f('tune.spaceAir', 'Havada yön denetimi', 0.5, 10, 0.1)] },
       { id: 'front', name: 'Cephe', preview: { kind: 'icon', icon: 'flag' }, fields: [
