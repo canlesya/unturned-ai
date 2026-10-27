@@ -9,7 +9,7 @@ import { fallHeight } from '../sim/fall.js';
 import { packVehState, applyVehState, stepVehicle } from '../sim/vehicle.js';
 
 // Diğer oyuncuların gösterim gecikmesi (interpolasyon tamponu) ağın titremesine göre uyarlanır (12.137):
-// en az 6 adım = 100 ms (20 Hz snapshot'ta iki örnek arası), titreşimli bağlantıda en çok 15 adım = 250 ms (lag compensation HN=40 içinde).
+// en az 6 adım = 100 ms (20 Hz snapshot'ta iki örnek arası), titreşimli bağlantıda en çok 15 adım = 250 ms (lag compensation HN=60 içinde; 12.187).
 // Canlı ölçüm: doğrudan bağlantıda (RTT p50 30 ms) snapshot'ların %8'i en hızlı gelişe göre > 50 ms geç → sabit 100 ms tamponda saniyede ~1 donma.
 const INTERP_MIN = 6, INTERP_MAX = 15;
 const EXTRAP_MAX = 6;                  // tampon yine de boşalırsa en çok 100 ms hızla ileri tahmin (sonra son konumda bekler)
@@ -368,6 +368,7 @@ export class NetClient {
     const t = b.k > a.k ? Math.max(0, Math.min(1, (rt - a.k) / (b.k - a.k))) : 0;
     // tampon boşaldı (snapshot geç kaldı): son hızla en çok EXTRAP_MAX adım ileri tahmin; yerdeyken dikey tahmin yok
     const last = S[S.length - 1], over = a === last ? rt - last.k : 0, ex = over > 0 ? Math.min(over, EXTRAP_MAX) / SIM_HZ : 0;
+    if (over > EXTRAP_MAX) this.rt = last.k + EXTRAP_MAX;             // 12.187: bekleme anında ekranda görünen an (son + 100 ms ileri tahmin) atışta vt olarak gider; eski: rt ilerlemeye devam ediyordu → sunucu hedefi görünmeyen bir ana sarıyordu
     this.stats.frames++;
     if (over > 0) { this.stats.extrap++; if (over > EXTRAP_MAX) this.stats.hold++; }
     const me = g.playerSoldier;

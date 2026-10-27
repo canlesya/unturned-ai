@@ -8,6 +8,8 @@ import { Room } from './room.js';
 import { officialList, reloadOfficial } from './officialStore.js';
 import { DEFAULT_PORT, makeRoomCode, cleanName } from '../src/net/protocol.js';
 import { MapBuilder } from '../src/maps/builder.js';
+import { MAPS } from '../src/maps/index.js';
+import { Game } from '../src/game/game.js';
 import { useBalance } from '../src/game/balance.js';
 import { cleanSkins } from '../src/game/stats.js';
 import { cleanWear } from '../src/game/wearIds.js';
@@ -63,16 +65,30 @@ const server = http.createServer(async (req, res) => {
   }
   serveStatic(req, res);
 });
-const wss = new WebSocketServer({ server, maxPayload: 4096 });
+// 12.187: permessage-deflate (tarayıcı kendiliğinden anlaşır; eski istemci / vekil desteklemezse sıkıştırmasız sürer → protokol aynı).
+// Snapshot JSON'u bağlam sürdürmeyle ~8–9× küçülür (Kuzey 16v16 4,6 KB → ~0,5 KB, Çöl Geçidi 10 kişi 1,45 KB → ~0,18 KB): 3–4 TCP
+// segmenti yerine tek segment → kayıplı Wi-Fi'de yeniden gönderim takılması ihtimali düşer, mobilde bant ~%88 azalır. Seviye 1 (~0,05 ms / mesaj).
+// maxPayload açılmış boyuta da uygulanır (sıkıştırma bombası yok). Kapatmak: BF_DEFLATE=0
+const DEFLATE = process.env.BF_DEFLATE !== '0' && { zlibDeflateOptions: { level: 1, memLevel: 8 }, threshold: 200, concurrencyLimit: 16 };
+const wss = new WebSocketServer({ server, maxPayload: 4096, perMessageDeflate: DEFLATE });
 
+const MSG_CAP = +process.env.BF_MSG_CAP || 1500;
 function err(ws, msg) { ws.send(JSON.stringify({ t: 'err', msg })); }
 
 wss.on('connection', (ws, req) => {
   ws.ctx = null;                 // { room, id }
   ws.pwFails = 0;
   ws.ip = ipOf(req);             // ban / atma engeli (moderation.js)
+  ws.msgN = 0; ws.msgT = Date.now(); ws.missed = 0;
+  ws.on('pong', () => { ws.missed = 0; });
   ws.on('message', (data) => {
+    ws.missed = 0;
     if (ws.dead) return;         // atıldı / banlandı: kapanana dek hiçbir şey işlenmez
+    // 12.187: bağlantı başına mesaj seli sınırı. Gerçek istemci ~65 mesaj/sn (60 girdi + ping / olay); 5 sn'lik takılmadan sonraki yığın da
+    // 2 sn'lik pencerede ~450. 2 sn'de 1500'ü aşan bağlantı kapanır (her mesaj JSON ayrıştırma + kuyruk işi: tek istemci odanın adımını yavaşlatmasın)
+    const nowM = Date.now();
+    if (nowM - ws.msgT > 2000) { ws.msgT = nowM; ws.msgN = 0; }
+    if (++ws.msgN > MSG_CAP) { ws.dead = true; console.log(`[sel] ${ws.ip} çok fazla mesaj, bağlantı kapatıldı`); try { ws.close(4008, 'flood'); } catch { /* yok say */ } return; }
     let m;
     try { m = JSON.parse(data); } catch { return; }
     if (!m || typeof m.t !== 'string') return;
@@ -102,6 +118,7 @@ wss.on('connection', (ws, req) => {
     }
     if (m.t === 'create') {
       if ([...rooms.values()].filter((r) => !r.official).length >= MAX_ROOMS) return err(ws, 'Sunucu dolu, sonra tekrar dene');
+      if (!createOk(ws.ip)) return err(ws, 'Çok hızlı oda kuruyorsun, biraz bekle');
       let code; do code = makeRoomCode(); while (rooms.has(code) || /^OFC\d/.test(code));            // OFC* resmi sunuculara ayrılmış
       const owner = playerName(m);
       useBalance(currentBalance());                     // yeni oda: güncel sınırlarla doğrulanır
@@ -124,6 +141,18 @@ wss.on('connection', (ws, req) => {
   ws.on('close', () => { if (ws.ctx) { ws.ctx.room.activate(); ws.ctx.room.leave(ws.ctx.id, ws); } });
   ws.on('error', () => {});
 });
+
+// 12.187: IP başına oda kurma sınırı (dakikada BF_CREATE_RATE, varsayılan 8). Yeni oda kurmak olay döngüsünü ~40-60 ms tutuyor (12.137):
+// tek kişi açıp kapattığı bağlantılarla saniyede oda kurarsa dolu odalardaki herkes takılırdı. Yerel (vekilsiz loopback) test bağlantıları muaf.
+const CREATE_RATE = +process.env.BF_CREATE_RATE || 8, creates = new Map();
+function createOk(ip) {
+  if (!ip || ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1') return true;
+  const now = Date.now(), t = (creates.get(ip) || []).filter((x) => now - x < 60000);
+  if (t.length >= CREATE_RATE) { creates.set(ip, t); return false; }
+  t.push(now); creates.set(ip, t);
+  if (creates.size > 5000) for (const [k, v] of creates) if (!v.length || now - v[v.length - 1] > 60000) creates.delete(k);      // bellek: eski kayıtlar
+  return true;
+}
 
 // Kim: hesap (geçerli jeton) ya da misafir; ad anahtarı + IP (ban / moderatör yetkisi bununla)
 function identify(ws, m) {
@@ -165,6 +194,20 @@ function enter(ws, room, m) {
   console.log(`[${room.code}] ${c.name} katıldı (${room.humanCount} oyuncu)`);
 }
 
+// 12.187: her haritayı açılışta bir kez kur (dinlemeye başlamadan). Bir haritanın süreçteki İLK kurulumu önbellek / JIT yüzünden pahalı
+// (ölçüm, scripts/newgamecost.mjs: Batı Cephesi 2,7 sn, Kuzey 0,7 sn, Kasaba 0,56 sn; sonrakiler 1–70 ms): oyun sırasında ilk kez o haritaya
+// dönen oda (boş resmi oda dönüşü, yeni oyuncu odası) tüm süreci kilitleyip DOLU odalardaki herkese yarım–üç saniyelik donma yaşatıyordu.
+// Kapatmak: BF_WARM=0
+function warmMaps() {
+  if (process.env.BF_WARM === '0') return;
+  const t0 = performance.now(), only = { newyork: 'inf', boyakulesi: 'pb', ormankale: 'pb', maden: 'payload', cephe: 'front', yorunge: 'space' };
+  for (const [id, m] of Object.entries(MAPS)) {
+    if (m.dev) continue;
+    try { const g = new Game(null, { headless: true, map: id, tod: 'day', weather: 'clear', diff: 'normal', bots: true, match: { perTeam: 4, type: only[id] || 'conquest', time: 600 } }); g.step(1 / 60); g.dispose(); } catch (e) { console.error('[ısınma]', id, e.message); }
+  }
+  console.log(`[ısınma] haritalar hazır (${Math.round(performance.now() - t0)} ms)`);
+}
+
 // Resmi odalar (admin panelinden yönetilir): açık olanlar kurulur, kapatılan / silinen kapanır, değişen sonraki maçta (boşsa hemen) uygulanır
 function syncOfficial() {
   useBalance(currentBalance());
@@ -178,6 +221,7 @@ function syncOfficial() {
     else if (r.official) { r.activate(); r.setOfficial(o); }
   }
 }
+warmMaps();
 syncOfficial();
 // systemctl kill -s HUP warbyte: data/official.json'ı yeniden oku → değişen oda boşsa hemen, oyuncu varsa sonraki maçta (kimse düşmez)
 process.on('SIGHUP', () => { try { reloadOfficial(); syncOfficial(); console.log('[resmi] official.json yeniden yüklendi (SIGHUP)'); } catch (e) { console.error('[resmi] yeniden yükleme hatası', e); } });
@@ -186,6 +230,19 @@ process.on('SIGHUP', () => { try { reloadOfficial(); syncOfficial(); console.log
 // Saniyede EN ÇOK BİR oda (12.137): yeni maç kurmak olay döngüsünü oda başına ~40-60 ms tutuyor; 8 boş oda aynı saniyede dönünce
 // dolu odadaki oyuncular 10 dakikada bir 170-230 ms snapshot boşluğu yaşıyordu (canlı ölçüm). Sırayla dönünce zamanları da kendiliğinden ayrışır.
 setInterval(() => { const now = Date.now(); for (const r of rooms.values()) if (r.official && r.idleTick(now)) break; }, 1000);
+
+// 12.187: kopuk bağlantı bekçisi. Telefon ağ değiştirince / Wi-Fi düşünce eski TCP bağlantısı FIN göndermeden kalır; sunucu yazdıkça
+// çekirdek yeniden gönderim süresi (Linux'ta ~15 dk) dolana dek "odada" görünür: asker ortada hareketsiz durur, yuva dolu, aynı ad yeniden
+// girince "Ali 2" olur. WebSocket ping çerçevesine tarayıcı arka plandaki sekmede de kendiliğinden yanıt verir (JS zamanlayıcısı gerekmez).
+// 10 sn'de bir ping; 3 ping (≈ 30 sn) boyunca ne yanıt ne mesaj gelirse bağlantı kesilir → yuva bota döner.
+const PING_MS = +process.env.BF_PING_MS || 10000;
+setInterval(() => {
+  for (const ws of wss.clients) {
+    if (ws.missed >= 3) { console.log(`[bağlantı] yanıt yok, kesildi: ${ws.ctx ? ws.ctx.room.clients.get(ws.ctx.id)?.name || '?' : ws.ip}`); ws.terminate(); continue; }
+    ws.missed++;
+    try { ws.ping(); } catch { /* yok say */ }
+  }
+}, PING_MS);
 
 // boş oyuncu odalarını temizle (resmi odalar hariç)
 setInterval(() => {

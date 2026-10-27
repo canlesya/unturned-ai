@@ -296,7 +296,7 @@ export class Game {
       this.hud = nullSink();
       this.killfx = nullSink();
       this.playerSoldier = null;
-      this.HN = 40;                                            // lag compensation geçmişi (adım)
+      this.HN = 60;                                            // lag compensation geçmişi (adım). 12.187: 40 → 60 (geri sarma en çok 57 adım = 0,95 sn; yüksek ping + titreşim tamponu + takılma sonrası kuyrukta isabet kırpılmasın)
       this.histBuf = new Float32Array(this.HN * this.soldiers.length * 9);
       this.running = true;
       if (opts.bots === false) {                               // botsuz oda: slotlar oyuncu gelene kadar boş
@@ -609,6 +609,7 @@ export class Game {
   pastPos(s, vt) {
     if (!this.histBuf) return null;
     const N = this.soldiers.length, T = this.tick, t = Math.max(T - (this.HN - 3), Math.min(T, vt)), i0 = Math.floor(t), f = t - i0, i1 = Math.min(T, i0 + 1);
+    if (t < 1) return null;                                          // 12.187: maçın ilk adımları (tampon henüz dolmadı; negatif indeks NaN konum verirdi)
     const b = this.histBuf, k = s.id, o0 = (i0 % this.HN) * N * 9 + k * 9, o1 = (i1 % this.HN) * N * 9 + k * 9;
     return new THREE.Vector3(b[o0] + (b[o1] - b[o0]) * f, b[o0 + 1] + (b[o1 + 1] - b[o0 + 1]) * f, b[o0 + 2] + (b[o1 + 2] - b[o0 + 2]) * f);
   }
@@ -1339,6 +1340,14 @@ export class Game {
 
   netEvent(ev) { if (this.headless) this.netEvents.push(ev); }
 
+  // 12.187: nokta birinci şahıstaki yerel oyuncunun gövdesinde mi (kendi kanı kameranın dibinde ekranı kaplayan kırmızı kutular olarak çiziliyordu;
+  // isabeti hasar göstergesi / ekran kızarması anlatır). Sunucu atış anında hedefi geri sardığından yatayda 1,2 m pay. 3. şahısta kan görünür.
+  ownBody(p) {
+    const me = this.playerSoldier;
+    if (!me || !me.alive || this.showSelf) return false;
+    return Math.hypot(p.x - me.pos.x, p.z - me.pos.z) < 1.2 && p.y > me.pos.y - 0.3 && p.y < me.pos.y + 2.2;
+  }
+
   // ───── çevrimiçi istemci: sunucu olayları ─────
   onNetEvents(list) {
     const me = this.playerSoldier, V = THREE.Vector3;
@@ -1347,13 +1356,17 @@ export class Game {
       switch (ev.e) {
         case 'sh': {                                  // başkasının atışı: iz, kıvılcım/kan, namlu alevi, ses
           if (!by || by === me) break;
-          const st = (ev.vm ? VT.tank.mg : WSTATS[by.item.id]) || {}, o = new V(...ev.o), p = new V(...ev.p);      // vm: 12.178 tank makinelisi
+          const st = (ev.vm ? VT.tank.mg : WSTATS[by.item.id]) || {}, p = new V(...ev.p);      // vm: 12.178 tank makinelisi
+          // 12.187: iz / alev atıcının GÖRÜNEN namlusundan. Sunucunun namlusu (ev.o) atıcının şimdiki yeri; burada atıcı interpolasyonla ~100–250 ms
+          // geride çizilir → yana yürüyerek ateş edenin izi silahının 0,6–1,4 m yanından çıkıyordu. Vuruş noktası (p) aynı kalır.
+          let o = new V(...ev.o);
+          if (!ev.vm && by.alive && by.model?.weapon && o.distanceToSquared(by.pos) < 25) o = by.muzzleWorld(new V());
           const dir = p.clone().sub(o).normalize();
           this.effects.tracer(o, p, st.tracer);
-          if (ev.k === 'f') this.effects.blood(p, 7, dir.clone().negate());
+          if (ev.k === 'f' && !this.ownBody(p)) this.effects.blood(p, 7, dir.clone().negate());
           else if (ev.k === 'w' && ev.ws) this.effects.splash(p);                                                       // 12.180 suya isabet
           else if (ev.k === 'w') { const n = new V(...ev.n); if (ev.vh) this.effects.spark(p, 6, n, '#ffe7b0'); else { this.effects.spark(p, 4, n); this.effects.dust(p, n); this.effects.decal(p, n); } }      // vh: araç gövdesi (12.177)
-          if (ev.b) for (let i = 0; i + 2 < ev.b.length; i += 3) this.effects.blood(new V(ev.b[i], ev.b[i + 1], ev.b[i + 2]), 7, dir.clone().negate());     // 12.164: delip geçilen askerler
+          if (ev.b) for (let i = 0; i + 2 < ev.b.length; i += 3) { const bp = new V(ev.b[i], ev.b[i + 1], ev.b[i + 2]); if (!this.ownBody(bp)) this.effects.blood(bp, 7, dir.clone().negate()); }     // 12.164: delip geçilen askerler
           if (ev.tw) { const tp = new V(ev.tw[0], ev.tw[1], ev.tw[2]), tn = new V(ev.tw[3], ev.tw[4], ev.tw[5]); this.effects.spark(tp, 3, tn); this.effects.decal(tp, tn); }     // 12.164: ince levha geçişi
           if (ev.m) { this.effects.muzzle(o, dir); this.sfx.shot(st.sound, by.pos); by.flashT = 0.06; if (st.charge) by.railT = 0; }      // 12.160 railT: ray tüfeği şarjı 3. şahısta (yeni ağ alanı yok)
           break;
@@ -1491,6 +1504,7 @@ export class Game {
   rewind(shooter, vt) {
     const N = this.soldiers.length, T = this.tick;                   // en son kaydedilen adım (etiket = adım sonrası tick)
     const t = Math.max(T - (this.HN - 3), Math.min(T, vt));
+    if (t < 1) return () => {};                                      // 12.187: maçın ilk adımları (tampon dolmadı): geri sarma yok
     const i0 = Math.floor(t), f = t - i0, i1 = Math.min(T, i0 + 1);
     const b = this.histBuf, a0 = (i0 % this.HN) * N * 9, a1 = (i1 % this.HN) * N * 9;
     const saved = [];
@@ -1681,7 +1695,7 @@ export class Game {
         const pt = origin.clone().addScaledVector(dir, ht); pts.push(pt);
         const f = ht <= r0 ? 1 : lerpClamp(1, st.minMul, (ht - r0) / (r1 - r0));
         const zm = zone === 'head' ? TUNE.headMul : zone === 'legs' ? TUNE.legMul : 1;
-        this.effects.blood(pt, 7, dir.clone().negate());
+        if (!(e.isPlayer && !this.showSelf)) this.effects.blood(pt, 7, dir.clone().negate());      // 12.187: birinci şahısta kendi kanın kameraya çizilmez
         const wm = ht > woodT ? TUNE.woodMul : 1, tm = ht > thinT ? TUNE.penWallMul : 1;
         if (wm < 1 && !woodShown) { woodShown = true; woodFx(); }
         // çevrimiçi istemcide hasar yok: sunucu hesaplar, sonucu olay olarak yollar (aynı ışın, aynı geri sarılmış konumlar → aynı hedefler)
