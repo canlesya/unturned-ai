@@ -44,6 +44,7 @@ import { EndFlow } from './endFlow.js';
 import { t as $t } from '../i18n/index.js';
 import { placeName, banText } from '../i18n/game.js';                                                         // oyun içi sözlük (hud. / death. / end. …)
 import { Payload } from './payload.js';
+import { ObjFx } from './objFx.js';                                  // 12.191 bayrak direği + zemin halkası (yalnız istemci)
 import { Front } from './front.js';                                  // Cephe modu (12.158)
 import { Vehicles } from './vehicles.js';                            // 12.177 araçlar (Kuzey Vadisi: jip)
 import { VehicleView } from './vehicleView.js';
@@ -308,6 +309,7 @@ export class Game {
     }
     this.hud = new Hud(this);
     this.killfx = new KillFx(this);                                                // vuruş / öldürme hissi (kendi katmanı)
+    this.objFx = this.mode.objectives.length && !opts.editor ? new ObjFx(this) : null;   // 12.191 bayrak direği (bez ilerlemeyle iner / çıkar) + alan sınırı halkası
     if (this.online) this.chat = new Chat(this);                                   // sohbet yalnızca çevrimiçi odalarda
     this.player = new Player(this, this.playerSoldier, this.settings);
     this.nadeView = new NadeView(this);                                            // 12.144: bomba yörünge önizlemesi + pişirme göstergesi
@@ -827,6 +829,11 @@ export class Game {
   // (eskiden hep arazi kotu: Baraj'da direğin yanındaki asker alamıyor, 23 m aşağıdaki kanyon tabanı alıyordu).
   objY(o) { return Number.isFinite(o.y) ? o.y : this.world.heightAt(o.x, o.z); }
   inObjective(p, o) { return Math.hypot(p.x - o.x, p.z - o.z) < o.r && Math.abs(p.y - this.objY(o)) < 8; }
+  // 12.191 ele geçirme hızı (çubuk birimi / sn, + Mavi'ye): alandaki fark (en çok 3) × TUNE.captureRate (× Cephe çarpanı). updateMode ve HUD aynı işlevi kullanır.
+  capRate(o, b = o.nb || 0, r = o.nr || 0) {
+    if (this.front && !this.front.capturable(o)) return 0;
+    return clamp(b - r, -3, 3) * TUNE.captureRate * (this.front ? this.front.capMul(o) : 1);
+  }
   // Hedef alanında yürünür nokta (bot hedefi / ileri doğuş): alanın zemin kotu hedef kotundan ±3 m'den çok sapan yerleri varsa (Baraj: kanyon tabanı, göl)
   // yalnız hedef kotundaki hücreler; yoksa eskisi gibi dairede rastgele (null → çağıran kendisi seçer)
   objCells(o) {
@@ -1575,6 +1582,7 @@ export class Game {
     this.nadeView?.draw();
     const now = performance.now(), dt = Math.min(0.1, (now - (this._rT || now)) / 1000); this._rT = now;
     this._vmLightUpdate(dt);
+    this.objFx?.frame(dt);
     const post = this.post?.on && this.post.begin() ? this.post : null;      // begin() false: hedef sürücü sınırını aşıyor → doğrudan ekrana (12.151)
     const uw = this.world.terrain?.waterY ? (this.underwater ||= new Underwater(this)) : null;      // 12.180 su altı görünümü (sis + ton + boğuk ses; su vermeyen haritada yok)
     uw?.begin(dt);
@@ -1985,18 +1993,18 @@ export class Game {
     this.capT -= dt;
     if (this.capT <= 0) {
       const step = 0.1;
-      this.capT = step;
+      this.capT = Math.max(0, this.capT + step);                                   // 12.191 biriktirerek: eskiden "= step" → 60 Hz'de 7 adımda bir (0,117 sn), 30 Hz'de 4 adımda bir; gerçek hız kare hızına bağlıydı, HUD tahmini tutmazdı
       for (const o of this.mode.objectives) {
-        if (this.front && !this.front.capturable(o)) continue;                     // Cephe: yalnız etkin nokta (zincirin geri kalanı kilitli)
         let b = 0, r = 0;
         for (const s of this.soldiers) {
           if (!s.alive) continue;
           if (this.inObjective(s.pos, o)) (s.team === 'blue' ? b++ : r++);
         }
-        const net = clamp(b - r, -3, 3);
-        if (net !== 0) {
+        o.nb = b; o.nr = r;                                                        // 12.191 alandaki sayılar (HUD + snapshot: istemci aynı sayıyı gösterir)
+        const rate = this.capRate(o);                                              // Cephe: yalnız etkin nokta (zincirin geri kalanı kilitli → 0)
+        if (rate !== 0) {
           const prev = o.owner;
-          o.p = clamp(o.p + net * TUNE.captureRate * (this.front ? this.front.capMul(o) : 1) * step, -1, 1);
+          o.p = clamp(o.p + rate * step, -1, 1);
           if (o.p >= 1 && o.owner !== 'blue') o.owner = 'blue';
           else if (o.p <= -1 && o.owner !== 'red') o.owner = 'red';
           else if (o.owner === 'blue' && o.p <= 0) o.owner = null;
@@ -2046,14 +2054,9 @@ export class Game {
   }
 
   onFlag(o, prev) {
-    const mine = this.playerSoldier?.team;
     this.emit('flag', { o, prev });
     if (this.headless || this.front) return;                                      // Cephe: bildirim front.js'te (cephe kayması)
-    if (o.owner) {
-      const good = o.owner === mine;
-      this.hud.toast($t(good ? 'hud.t.captured' : 'hud.t.lost', { f: placeName(o.name) }), good ? '#7ec8ff' : '#ff8a7a');
-      this.sfx.capture();
-    } else if (prev) this.hud.toast($t('hud.t.neutral', { f: placeName(o.name) }), '#cfd3d8');
+    this.hud.flagEvent?.(o, prev);                                               // 12.191: bildirim ("A — Radar Tepesi ele geçirildi") + öldürme akışı + kazanma / kaybetme sesi (captureHud.js)
   }
 
   // ───── Silah Yarışı ─────
@@ -2194,7 +2197,7 @@ export class Game {
     this.abfx?.dispose();
     this.chat?.dispose();
     this.killfx.dispose();
-    this.hud.dispose();
+    this.hud.dispose(); this.objFx?.dispose();
     this.sfx.dispose?.();
     this.post?.dispose();
     this.renderer.dispose();

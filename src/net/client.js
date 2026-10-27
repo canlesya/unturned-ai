@@ -183,7 +183,9 @@ export class NetClient {
     if (m.pl && g.payload) g.payload.applyNet(m.pl);                           // Vagon: konum + durum (gösterim netFrame'de yumuşar)
     if (m.fr && g.front) g.front.applyNet(m.fr);                               // Cephe: etkin sektör (doğuş aşaması + şerit)
     if (m.vh && g.vehicles) g.vehicles.netSnap(m.k, m.vh);                     // 12.177: değişen araçlar (araç başına tampon; gösterim interpolate'te)
-    m.o.forEach((o, i) => { const ob = g.mode.objectives[i]; if (!ob) return; const prev = ob.owner; ob.owner = o[0] === 1 ? 'blue' : o[0] === 2 ? 'red' : null; ob.p = o[1]; if (ob.owner !== prev) g.onFlag?.(ob, prev); });
+    // 12.191 bayraklar: [sahip, ilerleme, alandaki Mavi, Kırmızı]; ilk snapshot (geç katılım) bildirim / ses çıkarmaz, yalnız durumu kurar
+    const first = !this._oSeen, at = performance.now(); this._oSeen = true;
+    m.o.forEach((o, i) => { const ob = g.mode.objectives[i]; if (!ob) return; const prev = ob.owner; ob.owner = o[0] === 1 ? 'blue' : o[0] === 2 ? 'red' : null; ob.p = o[1]; ob.nb = o[2] || 0; ob.nr = o[3] || 0; ob._at = at; if (first) ob.pd = ob.p; else if (ob.owner !== prev) g.onFlag?.(ob, prev); });
     this.reconcile(m.me);
   }
 
