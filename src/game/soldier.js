@@ -822,11 +822,15 @@ export class Soldier {
   // 12.177 araçta oturuş (yalnız görsel): kalça / bacaklar aracın yönünde (eğim + yatış dahil), gövde bakışa döner (±1,3 rad), kollar silahta ya da direksiyonda
   _seatPose(m, p, root, vh, mg = false) {
     const angDiff = (a, b) => ((a - b + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+    // 12.192 _seatRel: gövdenin araca göre yaw'ı (vehicleView her karede kökü aracın ÇİZİLEN gövdesine bu açıyla oturtur). Kule nişancısı kapakta
+    // bakışla döner; helikopter kapı nişancısı kapıya dönük oturur (bacaklar kapıda), gövdesi / kolları makineliyle yay içinde burulur
+    const door = mg && this.veh.def.heli ? -this.veh.def.mg.arc[this.seat] * Math.PI / 2 : null;
+    this._seatRel = door != null ? door : mg ? angDiff(this.yaw, vh.yaw) : 0;
     root.rotation.order = 'YXZ';
-    root.rotation.set(vh.pitch, mg ? this.yaw : vh.yaw, vh.roll);                 // kule nişancısı kapakta bakışla döner
+    root.rotation.set(vh.pitch, vh.yaw + this._seatRel, vh.roll);
     root.position.y = this.pos.y + (m.groundOffset ?? 0) - 0.28;
-    this.bodyYaw = vh.yaw;
-    this._seatTwist = mg ? 0 : this.seat === 0 ? clamp(angDiff(this.yaw, vh.yaw), -0.5, 0.5) * 0.4 : clamp(angDiff(this.yaw, vh.yaw), -1.3, 1.3);
+    this.bodyYaw = vh.yaw + this._seatRel;
+    this._seatTwist = door != null ? clamp(angDiff(this.yaw, vh.yaw + door), -1.3, 1.3) : mg ? 0 : this.seat === 0 ? clamp(angDiff(this.yaw, vh.yaw), -0.5, 0.5) * 0.4 : clamp(angDiff(this.yaw, vh.yaw), -1.3, 1.3);
     for (const lg of [p.legs.L, p.legs.R]) {
       lg.hip.rotation.x = 1.42; lg.knee.rotation.x = -1.32; lg.hip.rotation.z = (lg === p.legs.R ? 1 : -1) * 0.06;
       if (lg.foot) lg.foot.rotation.x = -0.1;
@@ -899,14 +903,19 @@ export class Soldier {
     const fwdV = vx * -Math.sin(this.bodyYaw) + vz * -Math.cos(this.bodyYaw);
     const sideV = vx * Math.cos(this.bodyYaw) + vz * -Math.sin(this.bodyYaw);
     const c = this.crouchT;
-    this.airT = lerp(this.airT || 0, this.onGround ? 0 : 1, Math.min(1, dt * 10));
+    // 12.192 geliştirici uçuşu (L): eskiden havadaki asker gibi donmuş "koşarak zıplama" pozu (bir diz karında) → süzülme: bacaklar hafif bükük sarkık,
+    // adım döngüsü yok, ileri uçuşta gövde uçuş yönüne hafif yatar
+    const fly = !!this.fly;
+    this.airT = lerp(this.airT || 0, fly ? 0.3 : this.onGround ? 0 : 1, Math.min(1, dt * 10));
     this.sprintT = lerp(this.sprintT || 0, this.sprinting && fwdV > 2 ? 1 : 0, Math.min(1, dt * 8));
-    const moveAmt = clamp(spd / 1.3, 0, 1) * (1 - this.airT);
+    const moveAmt = fly ? 0 : clamp(spd / 1.3, 0, 1) * (1 - this.airT);
+    this.flyLean = lerp(this.flyLean || 0, fly ? clamp(fwdV / 13, -0.3, 1) * 0.35 : 0, Math.min(1, dt * 5));
+    if (this.flyLean) root.rotation.x -= this.flyLean;
     const run = clamp((spd - 3.4) / 3.0, 0, 1);
     const sideBlend = spd > 0.3 ? Math.abs(sideV) / (Math.abs(fwdV) + Math.abs(sideV) + 1e-4) : 0;
     const dir = fwdV < -0.4 && Math.abs(fwdV) > Math.abs(sideV) ? -1 : 1;
     const stride = lerp(1.55, 2.3, run) * (1 - 0.15 * c);                 // bir tam adım döngüsü (m)
-    this.walkPhase += dir * (spd / stride) * Math.PI * 2 * dt * (this.onGround ? 1 : 0.2);
+    this.walkPhase += dir * (spd / stride) * Math.PI * 2 * dt * (fly ? 0 : this.onGround ? 1 : 0.2);
     const ph = this.walkPhase;
     const amp = lerp(0.46, 0.86, run) * (1 - 0.5 * c) * (1 - 0.55 * sideBlend) * (dir < 0 ? 0.75 : 1);
     const flexMax = lerp(0.55, 1.4, run) * (1 - 0.4 * c);
@@ -938,6 +947,7 @@ export class Soldier {
       lg.hip.rotation.z = sideSign * 0.3 * Math.sin(phi) * sideBlend * moveAmt + sg * 0.05 * stanceK;   // yan adımda bacak açılması + duruşta hafif dışa açık
       lg.hip.position.y = 0.88 - 0.27 * c - idleLow;
       lg.hip.position.x = sg * (0.105 + 0.04 * stanceK);
+      if (fly) { const L = lg === p.legs.L; lg.hip.rotation.x = L ? 0.22 : 0.06; lg.knee.rotation.x = L ? -0.42 : -0.26; lg.hip.rotation.z = sg * 0.05; lg.hip.position.y = 0.88; if (lg.foot) lg.foot.rotation.x = 0.35; }      // 12.192 süzülme: sarkık bacaklar
     }
 
     // gövde: öne eğim, hafif burulma, ağırlık aktarımı, nefes
