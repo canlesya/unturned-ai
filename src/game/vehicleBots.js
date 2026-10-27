@@ -5,7 +5,7 @@
 // oyunda ve sunucuda (çevrim içi odalarda botlar sunucuda koşar) aynı fizik; istemciler aracı anlık görüntüden görür.
 //
 // VNav: araç ızgarası (3 m hücre, harita başına bir kez, modül önbelleği: sunucuda odalar paylaşır). 1 m'lik engel ızgarası (araç gövdesini
-// durduran kutular: zeminden > 0,65 m, < 2,6 m'de başlayan; dik yamaç > ~32°, derin su) → uzaklık dönüşümü → her hücrenin en yakın engele
+// durduran kutular: zeminden > 0,65 m, < 2,6 m'de başlayan; dik yamaç > ~27°, derin su) → uzaklık dönüşümü → her hücrenin en yakın engele
 // (yamaç kenarı dahil: yol seti) açıklığı. Maliyet: asfalt / toprak yol 1, banket 1,4, arazi 2,4 + eğim; engele yakın hücre pahalı. A* (ağırlıklı) jip 1,6 m, tank
 // 2,3 m açıklık ister (tank köy sokaklarına girmez). Rota 3 m'lik noktalar; sürüş ileri bakışlı izleme (pure pursuit).
 import { mgAt, gunPose, toLocal2, toWorld } from '../sim/vehicle.js';
