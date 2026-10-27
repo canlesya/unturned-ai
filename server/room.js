@@ -315,6 +315,7 @@ export class Room {
       vt: Number.isFinite(m.vt) ? m.vt : null,
       sd: m.sd ? 1 : 0, tl: m.tl ? 1 : 0,                                            // 12.159: fener (eski istemci yollamaz → kapalı)
       ve: m.ve ? 1 : 0, vs: Math.round(num(m.vs, 0, 4)), vl: m.vl ? 1 : 0,         // 12.177 araç: bin / in, koltuk (1–4), far
+      dn: m.dn ? 1 : 0,                                                              // 12.179 helikopter: alçal
       co: Array.isArray(m.co) && m.co.length === 3 && m.co.every(Number.isFinite) ? m.co.map((v) => Math.max(-4.5, Math.min(4.5, v))) : null,
     });
   }

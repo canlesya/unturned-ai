@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createJeep, JEEP_MATS } from '../models/jeep.js';
 import { createTank, setTracks } from '../models/tank.js';
+import { createHeli, HELI_MATS } from '../models/heli.js';
 import { toWorld, gunPose } from '../sim/vehicle.js';
 import { SIM_DT } from '../net/protocol.js';
 import { waterYAt } from '../sim/swim.js';
@@ -18,6 +19,7 @@ const CHAR = new THREE.MeshStandardMaterial({ color: '#1f1c1a', flatShading: tru
 // türe göre efekt noktaları (yerel f, r, u): farlar, egzoz [f, r, u, yukarı mı], toz (palet / arka teker), hasar dumanı (motor), motor sesi [taban Hz, devir aralığı]
 const FXP = {
   jip: { lights: [[2.02, -0.5, 0.86], [2.02, 0.5, 0.86]], exh: [[-2.0, -0.55, 0.38, 0]], dust: [[-1.2, -0.81], [-1.2, 0.81]], hood: [1.35, 0, 1.05], eng: [34, 70], vol: 0.32, inVol: 0.16 },
+  heli: { lights: [[2.62, 0, 0.75]], exh: [[-1.95, -0.55, 2.95, 1], [-1.95, 0.55, 2.95, 1]], dust: [], hood: [-0.6, 0, 3.0], eng: [7, 13], vol: 0.7, inVol: 0.28, rotor: true },
   tank: { lights: [[3.02, -1.3, 1.55], [3.02, 1.3, 1.55]], exh: [[-3.25, -1.0, 1.62, 1], [-3.25, 1.0, 1.62, 1]], dust: [[-2.8, -1.42], [-2.8, 1.42], [2.5, -1.42], [2.5, 1.42]], hood: [-1.8, 0, 1.85], eng: [19, 36], vol: 0.5, inVol: 0.2, clank: true },
 };
 
@@ -116,13 +118,14 @@ export class VehicleView {
     const team = v.paint || null;
     if (!it.model || it.team !== team) {
       if (it.model) this.group.remove(it.model);
-      const m = v.type === 'tank' ? createTank(team) : createJeep(team);
+      const m = v.def.heli ? createHeli(team) : v.type === 'tank' ? createTank(team) : createJeep(team);
+      if (m.userData.blur) { m.userData.blur.material = HELI_MATS.BLUR.clone(); m.userData.blur.userData.beam = true; }      // rotor bulanıklığı araç başına (kömürleşmez)
       const lens = JEEP_MATS.LENS.clone(), tail = JEEP_MATS.TAIL.clone();              // farlar araç başına (açık / kapalı)
       m.userData.fx.traverse((o) => { if (o.material === JEEP_MATS.LENS) o.material = lens; else if (o.material === JEEP_MATS.TAIL) o.material = tail; });
       m.userData.lens = lens; m.userData.tail = tail;
       if (this.beamMat) {
         const beams = [];
-        for (const L of FXP[v.type].lights) { const b = new THREE.Mesh(this.beamGeo, this.beamMat); b.position.set(L[1], L[2], -L[0]); b.rotation.y = Math.PI; b.rotation.x = 0.08; b.scale.set(2.4, 1.4, 14); b.frustumCulled = false; b.renderOrder = 5; b.visible = false; b.userData.beam = true; m.add(b); beams.push(b); }
+        for (const L of FXP[fxk(v)].lights) { const b = new THREE.Mesh(this.beamGeo, this.beamMat); b.position.set(L[1], L[2], -L[0]); b.rotation.y = Math.PI; b.rotation.x = 0.08; b.scale.set(2.4, 1.4, 14); b.frustumCulled = false; b.renderOrder = 5; b.visible = false; b.userData.beam = true; m.add(b); beams.push(b); }
         m.userData.beams = beams;
       }
       this.group.add(m);
@@ -168,7 +171,20 @@ export class VehicleView {
       if (it.sinkT) { it.sinkT += dt; m.position.y -= Math.min(1.5, it.sinkT * 0.35); if (!v.alive && !v.wreck) it.sinkT = 0; }
       U.body.position.y = v.alive ? it.sy * 0.4 : 0;
       const mine = me && me.veh === v && me.alive;
-      if (U.tank) {
+      if (U.heli) {
+        // 12.179 rotorlar (devirle), bulanıklık diski, kapı makineleri (nişancının bakışı; yay içinde), rotor rüzgârı (alçakta toz / su)
+        const rpm = st.rpm || 0;
+        U.rotor.rotation.y += rpm * 26 * dt; U.tailRotor.rotation.x += rpm * 48 * dt;
+        U.blur.material.opacity = Math.max(0, rpm - 0.45) * 0.3; U.blur.visible = rpm > 0.45;
+        const M = v.def.mg;
+        U.doors.forEach((dg, i) => {
+          const seat = M.seats[i], side = M.arc[seat], gn = v.seats[seat], rest = -side * Math.PI / 2;
+          let rel = gn ? ((gn.yaw - st.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI : rest;
+          const dd = ((rel - rest + Math.PI * 3) % (Math.PI * 2)) - Math.PI; rel = rest + Math.max(-M.arcW, Math.min(M.arcW, dd));
+          dg.rotation.y = rel; U.doorGuns[i].rotation.x = gn ? Math.max(-0.7, Math.min(0.4, gn.pitch)) : -0.2;
+        });
+        if (v.alive && rpm > 0.5 && far < 160) this.wash(it, v, st, rpm, dt);
+      } else if (U.tank) {
         // 12.178 kule / top / nişancı halkası; paletler (sol / sağ hız: ileri ± dönüş · yarım iz) + yol tekerleri; top geri tepmesi
         U.turret.rotation.y = ((st.tyaw - st.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
         it.rec = Math.max(0, (it.rec || 0) - dt * 2.2);
@@ -205,13 +221,13 @@ export class VehicleView {
       this.lights.forEach((l, i) => {
         const o = lit[i];
         if (!o || o.far > 180) { l.intensity = 0; return; }
-        const L0 = FXP[o.it.v.type].lights[0];
+        const L0 = FXP[fxk(o.it.v)].lights[0];
         toWorld(o.st, L0[0] + 0.1, 0, L0[2], _p); l.position.set(_p.x, _p.y, _p.z);
         toWorld(o.st, L0[0] + 12, 0, -1.2, _p); l.target.position.set(_p.x, _p.y, _p.z); l.target.updateMatrixWorld();
         l.intensity = g.night ? 160 : 60;
       });
     }
-    for (const o of lit) if (o.far < 400) for (const L of FXP[o.it.v.type].lights) { toWorld(o.st, L[0], L[1], L[2], _p); this.glow.still(_p.x, _p.y, _p.z, g.night ? 0.9 : 0.45, 1, 0.93, 0.75, g.night ? 0.9 : 0.5); }
+    for (const o of lit) if (o.far < 400) for (const L of FXP[fxk(o.it.v)].lights) { toWorld(o.st, L[0], L[1], L[2], _p); this.glow.still(_p.x, _p.y, _p.z, g.night ? 0.9 : 0.45, 1, 0.93, 0.75, g.night ? 0.9 : 0.5); }
     // 12.178 tank mermileri: parlak çekirdek + ince duman izi
     for (const sh of this.V.shells) { this.glow.still(sh.x, sh.y, sh.z, 0.55, 1, 0.82, 0.5, 1); if (Math.random() < 0.6) this.smoke.emit(sh.x, sh.y, sh.z, 0, 0.2, 0, 0.6, 0.15, 0.5, 0.7, 0.7, 0.7, 0.25, 0, 1); }
     this.smoke.update(dt, scale); this.glow.update(dt, scale);
@@ -223,7 +239,7 @@ export class VehicleView {
     const occ = v.seats.some(Boolean) || (this.g.online && v.alive && (Math.abs(st.thr) > 0.01 || sp > 0.3));
     if (v.alive) {
       // egzoz (arka sol altı): rölantide seyrek, gazda yoğun
-      const X = FXP[v.type];
+      const X = FXP[fxk(v)];
       if (occ && (it.exT -= dt) <= 0) { it.exT = 0.09 / (0.4 + Math.abs(st.thr)); for (const e of X.exh) { toWorld(st, e[0], e[1], e[2], _p); const k = e[3] ? 1.6 : 0.35; S.emit(_p.x, _p.y, _p.z, st.vx * 0.3 + (rnd() - 0.5) * 0.3, k, st.vz * 0.3 + (rnd() - 0.5) * 0.3, e[3] ? 1.6 : 1.1, e[3] ? 0.3 : 0.18, e[3] ? 1.3 : 0.7, 0.36, 0.36, 0.36, 0.28 + Math.abs(st.thr) * 0.2, -0.2); } }
       // toz / su: arka tekerlerden
       if (sp > (X.clank ? 1.2 : 2.5) && !st.air && (it.duT -= dt) <= 0) {
@@ -256,10 +272,10 @@ export class VehicleView {
     const cand = [];
     for (const it of this.items) {
       const v = it.v; if (!v.alive || !v.st) continue;
-      const st = this.pose(v), sp = Math.hypot(st.vx, st.vz), act = v.seats.some(Boolean) || sp > 0.5 || Math.abs(st.thr) > 0.01;
+      const st = this.pose(v), sp = Math.hypot(st.vx, st.vz), act = v.seats.some(Boolean) || sp > 0.5 || Math.abs(st.thr) > 0.01 || st.rpm > 0.05;
       if (!act) continue;
       const d = Math.hypot(st.x - L.x, st.y - L.y, st.z - L.z);
-      if (d < 160) cand.push({ v, st, d, sp });
+      if (d < (v.def.heli ? 500 : 160)) cand.push({ v, st, d, sp });
     }
     cand.sort((a, b) => a.d - b.d);
     while (this.voices.length < Math.min(3, cand.length)) this.voices.push(this.mkEngine(c, sfx));
@@ -269,11 +285,11 @@ export class VehicleView {
       const d = o.v.def, fwd = Math.abs(o.st.vx * -Math.sin(o.st.yaw) + o.st.vz * -Math.cos(o.st.yaw)), r = Math.min(1, fwd / d.maxF);
       const gear = r < 0.22 ? 0 : r < 0.48 ? 1 : r < 0.75 ? 2 : 3, g0 = [0, 0.22, 0.48, 0.75][gear], g1 = [0.22, 0.48, 0.75, 1.05][gear];
       const rpm = 0.22 + 0.78 * Math.min(1, (r - g0) / (g1 - g0)) * (0.55 + 0.45 * Math.min(1, gear / 2)), load = Math.min(1, Math.abs(o.st.thr));
-      const E = FXP[o.v.type], f = E.eng[0] + rpm * E.eng[1];
+      const E = FXP[fxk(o.v)], rr = E.rotor ? (o.st.rpm || 0) : rpm, f = E.eng[0] + rr * E.eng[1];      // helikopter: testere ≈ pal geçişi (≈ 20 Hz "pat-pat")
       vo.o1.frequency.setTargetAtTime(f, t, 0.05); vo.o2.frequency.setTargetAtTime(f * 0.5, t, 0.05); vo.nf.frequency.setTargetAtTime(160 + rpm * 500, t, 0.08);
       vo.lp.frequency.setTargetAtTime(260 + rpm * 900 + load * 700, t, 0.06);
       const inside = me && me.veh === o.v;
-      const gain = (inside ? E.inVol : E.vol) * (0.55 + 0.45 * load) / (1 + (o.d / 22) ** 1.5);
+      const gain = E.rotor ? (inside ? E.inVol : E.vol) * Math.min(1, rr * 1.2) / (1 + (o.d / 60) ** 1.4) : (inside ? E.inVol : E.vol) * (0.55 + 0.45 * load) / (1 + (o.d / 22) ** 1.5);
       if (vo.cl) vo.cl.gain.setTargetAtTime(E.clank ? Math.min(1, o.sp / 5) * 0.9 : 0, t, 0.08);      // paletli: bakla tıkırtısı
       vo.g.gain.setTargetAtTime(gain, t, 0.06);
       if (vo.pan) { const dx = o.st.x - L.x, dz = o.st.z - L.z, R = sfx.listener.right; vo.pan.pan.setTargetAtTime(o.d > 1 ? Math.max(-1, Math.min(1, (dx * R.x + dz * R.z) / o.d)) * 0.7 : 0, t, 0.05); }
@@ -302,6 +318,19 @@ export class VehicleView {
     a.type = b.type = 'square'; a.frequency.value = 392; b.frequency.value = 494; lp.type = 'lowpass'; lp.frequency.value = 1700; g.gain.value = 0;
     a.connect(lp); b.connect(lp); lp.connect(g); g.connect(sfx.sfxBus); a.start(); b.start();
     return { a, b, lp, g, nodes: [a, b, lp, g] };
+  }
+
+  // 12.179 rotor rüzgârı: helikopterin altındaki zeminde (≤ 14 m) dışa savrulan toz halkası, su üstünde serpinti
+  wash(it, v, st, rpm, dt) {
+    const T = this.g.terrain, gy = T ? T.heightAt(st.x, st.z) : 0, alt = st.y - gy;
+    if (alt > 14 || (it.waT = (it.waT || 0) - dt) > 0) return;
+    it.waT = 0.05;
+    const wy = waterYAt(T, st.x, st.z), wet = wy > -1e9 && wy > gy, k = (1 - alt / 14) * rpm, y0 = wet ? wy : gy;
+    for (let i = 0; i < 4; i++) {
+      const a = Math.random() * Math.PI * 2, r = 2 + Math.random() * 3, vx = Math.cos(a), vz = Math.sin(a);
+      if (wet) this.smoke.emit(st.x + vx * r, y0 + 0.1, st.z + vz * r, vx * 7 * k, 1.2, vz * 7 * k, 0.9, 0.3, 1.6, 0.85, 0.9, 0.95, 0.45 * k, 2, 1.2);
+      else this.smoke.emit(st.x + vx * r, y0 + 0.2, st.z + vz * r, vx * 8 * k, 0.6, vz * 8 * k, 1.6, 0.5, 2.6, 0.58, 0.52, 0.42, 0.32 * k, -0.1, 1.1);
+    }
   }
 
   // 12.178 tank topu ateşi (her istemcide 'ts' / çevrimdışı fireCannon): namlu alevi + duman halkası + yer tozu + geri tepme + kamera sarsıntısı + ses
@@ -336,6 +365,8 @@ export class VehicleView {
   }
 }
 
+const fxk = (v) => (v.def.heli ? 'heli' : v.type);
+
 // ── araç kamerası (Player.update'ten; ele alındıysa true) ──
 // Sürücü: 'third' (varsayılan, takip: aracın arkasında, bakışla döner, duvara girmez) ya da 'first' (koltukta, aracın eğim / yatışıyla, içi görünür).
 // Yolcu: normal asker kamerası (koltuktaki göz; silahla nişan) → false.
@@ -362,10 +393,11 @@ export function vehCamera(P, dt) {
     cam.quaternion.copy(_q).multiply(_q2);
     P.bodyVisible = false; P._vcs = null;
   } else {
-    toWorld({ ...st, pitch: 0, roll: 0 }, tk ? v.def.turret.f : 0, 0, tk ? 3.0 : 1.7, _p);
+    const hl = !!v.def.heli;
+    toWorld({ ...st, pitch: 0, roll: 0 }, tk ? v.def.turret.f : 0, 0, tk ? 3.0 : hl ? 2.6 : 1.7, _p);
     const pv = _w.set(_p.x, _p.y, _p.z), pit = Math.max(-0.75, Math.min(0.55, s.pitch)) - (tk ? 0 : 0.16);      // tank: kamera bakışı = nişan (artı = bakış yönü)
     const dx = -Math.sin(s.yaw) * Math.cos(pit), dy = Math.sin(pit), dz = -Math.cos(s.yaw) * Math.cos(pit);
-    const D = tk ? 10.5 : 7.2, des = _v.set(pv.x - dx * D, pv.y - dy * D + (tk ? 1.0 : 0.8), pv.z - dz * D);
+    const D = tk ? 10.5 : hl ? 14 : 7.2, des = _v.set(pv.x - dx * D, pv.y - dy * D + (tk ? 1.0 : hl ? 2.2 : 0.8), pv.z - dz * D);
     if (tk) { cam.fov = P.baseFov() / (s.ads ? 1.6 : 1); cam.updateProjectionMatrix(); }
     const dir = des.clone().sub(pv), len = dir.length(); dir.multiplyScalar(1 / len);
     const h = g.world.raycast(pv, dir, len + 0.3, _h);

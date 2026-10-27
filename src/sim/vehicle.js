@@ -47,9 +47,32 @@ export const VT = {
     // kule: dikey eksen gövde merkezinden ileri tf (m), kule üstü / yükseklik; ana top: pivot yüksekliği, namlu boyu, açı sınırları, dönüş hızları
     turret: { f: -0.35, y0: 1.75, y1: 2.55, hw: 1.3, hl: 1.55, pivot: 2.18, len: 4.3, gunMin: -0.12, gunMax: 0.32, yawRate: 0.95, pitchRate: 0.6 },
     cannon: { reload: 4.5, speed: 150, grav: 9, dmg: 300, radius: 5.5, name: 'Tank topu' },
-    mg: { seat: 1, name: 'Tank makinelisi', dmg: 24, rpm: 600, range: [60, 170], minMul: 0.6, hip: 0.012, tracer: '#ffd37a', sound: 'pkm', vmg: true },
+    mg: { seats: [1], name: 'Tank makinelisi', dmg: 24, rpm: 600, range: [60, 170], minMul: 0.6, hip: 0.012, tracer: '#ffd37a', sound: 'pkm', vmg: true },
+  },
+  // 12.179 HELİKOPTER (nakliye; helipadlerde doğar): pilot + iki yan kapı nişancısı (makineli, kapının yönünde ±78° yay) + kabinde yolcu (kendi silahı).
+  // Arcade uçuş (öğrenilebilir): rotor pilot binince ~3 sn'de döner, kaldırma rotorla; W / S ileri / geri, A / D yana kayma, burun FAREYLE (bakış yaw'ı;
+  // sınırlı hızla döner), Boşluk yüksel, C / Ctrl alçal, girdi yokken havada asılı kalır. Yükseklik sınırı yok (savaş alanı sınırı geçerli). Pilotsuz
+  // rotor söner → düşer. Gövde / kuyruk / rotor ucu çarpışması hasar; sert iniş hasar; can bitince havada patlar, enkaz düşer.
+  'heli-n': {
+    name: 'Helikopter', hp: 600, seats: 4, heli: true,
+    hl: 2.5, hw: 1.25, top: 2.7, clear: 0.55,
+    wb: 3.0, tr: 2.4, wheelR: 0,                                   // kızak noktaları (iniş zemini / eğim)
+    maxF: 46, maxB: 14, maxS: 16, climb: 9, descend: 7, acc: 9, vacc: 12, yawRate: 1.5, spinUp: 3.2, rotorR: 6.6, rotorY: 3.25, tailF: -7.6,
+    maxR: 14, accel: 9, brake: 9, roll: 1, drag: 0.0012, steerMax: 1, steerRate: 3, grip: 6, gripHand: 6, slide: 0.9, climbK: 1,
+    // koltuklar: 0 pilot (kokpit sağ ön), 1 sol kapı nişancısı, 2 sağ kapı nişancısı, 3 kabin yolcusu (arkaya bakar)
+    seat: [[1.55, 0.42, 0.95], [-0.25, -0.95, 0.95], [-0.25, 0.95, 0.95], [-1.15, 0, 0.95]],
+    blastMul: 1.2, bulletMul: 0.15, atMul: 1.6, ramMin: 6, ramMul: 16, mass: 2, wade: 1.3, stepUp: 0.6,
+    hitSafe: 4.5, hitMul: 26, landSafe: 5, landMul: 60,             // çarpma / iniş: bu hızın üstü hasar (÷ kütle 2: 10 m/sn sert iniş ≈ 150, 30 m'den düşüş ≈ 750 → patlar)
+    burnAt: 0.25, burnRate: 12, boom: [9, 150],
+    respawn: 50, wreck: 12, idleRespawn: 150,
+    parts: [[-0.32, 0.32, 1.55, 2.35, 2.4, 7.9]],                    // ek çarpışma / vuruş kutuları (yerel: x0, x1, y0, y1, z0, z1; z = geri): kuyruk kirişi
+    mg: { seats: [1, 2], arc: { 1: -1, 2: 1 }, arcW: 1.36, name: 'Kapı makinelisi', dmg: 22, rpm: 700, range: [60, 170], minMul: 0.6, hip: 0.014, tracer: '#ffd37a', sound: 'pkm', vmg: true },
   },
 };
+VT['heli-s'] = VT['heli-n'];                                       // saldırı helikopteri ayrı model gelene dek aynı nakliye helikopteri
+
+// koltuğun makinelisi (yoksa null): tank nişancısı, helikopter kapı nişancıları
+export const mgAt = (def, seat) => (def?.mg && def.mg.seats.includes(seat) ? def.mg : null);
 
 const STEP_UP = 0.55;           // teker zemini: bu kadar yukarıdaki kutu tepesine çıkılır (bordür, kütük, tabliye ağzı)
 export const VEH_G = 15;         // yer çekimi (askerlerle aynı TUNE.gravity varsayılanı; araç his ayarı ayrı tutulur)
@@ -84,7 +107,7 @@ export function groundAt(world, x, z, ref, up = STEP_UP) {
 
 export function makeVehicle(type, x, y, z, yaw) {
   const d = VT[type];
-  return { type, def: d, x, y, z, yaw, pitch: 0, roll: 0, vx: 0, vy: 0, vz: 0, steer: 0, air: false, thr: 0, brk: 0, sunk: false, hit: 0, land: 0, wl: [0, 0, 0, 0], tyaw: yaw, gp: 0 };
+  return { type, def: d, x, y, z, yaw, pitch: 0, roll: 0, vx: 0, vy: 0, vz: 0, steer: 0, air: false, thr: 0, brk: 0, sunk: false, hit: 0, land: 0, wl: [0, 0, 0, 0], tyaw: yaw, gp: 0, rpm: 0 };
 }
 
 // Dört teker zemini (sıra: ön sol, ön sağ, arka sol, arka sağ) → w[0..3]
@@ -118,6 +141,7 @@ export function stepVehicle(v, inp, dt, world) {
   const d = v.def, T = world;
   v.hit = 0; v.land = 0;
   if (!(dt > 1e-5)) return;                                       // çevrimdışı kare adımı 0 olabilir (bölme yok)
+  if (d.heli) return stepHeli(v, inp, dt, world);
   const f = inp && !v.sunk ? Math.max(-1, Math.min(1, inp.f || 0)) : 0, rr = inp && !v.sunk ? Math.max(-1, Math.min(1, inp.r || 0)) : 0, hand = !inp || !!inp.b || v.sunk;
   v.thr = f; v.brk = hand ? 1 : 0;
   const s0 = Math.sin(v.yaw), c0 = Math.cos(v.yaw);
@@ -226,13 +250,100 @@ export function stepVehicle(v, inp, dt, world) {
 }
 const _tmp2 = [], _tmp4 = [0, 0, 0, 0];
 
+// ── 12.179 helikopter adımı ──
+// inp: { f, r, u (yüksel), d (alçal), yw (burun hedefi = pilotun bakışı) } ya da null (pilot yok: rotor söner).
+const _hp = { x: 0, y: 0, z: 0 };
+function heliGround(v, T, d) {
+  const s = Math.sin(v.yaw), c = Math.cos(v.yaw), fx = -s, fz = -c, rx = c, rz = -s, hf = d.wb / 2, ht = d.tr / 2, w = v.wl;
+  let k = 0, g = -1e9;
+  for (const f of [hf, -hf]) for (const r of [-ht, ht]) { const h = groundAt(T, v.x + fx * f + rx * r, v.z + fz * f + rz * r, v.y + 0.25, 0.35); w[k++] = h; if (h > g) g = h; }
+  return g;
+}
+function stepHeli(v, inp, dt, T) {
+  const d = v.def, pilot = !!inp && !v.sunk;
+  v.rpm = Math.max(0, Math.min(1, v.rpm + (pilot ? 1 : -0.7) * dt / d.spinUp));
+  const lift = Math.max(0, Math.min(1, (v.rpm - 0.6) / 0.3));
+  const f = pilot ? Math.max(-1, Math.min(1, inp.f || 0)) : 0, rr = pilot ? Math.max(-1, Math.min(1, inp.r || 0)) : 0, up = pilot ? (inp.u ? 1 : 0) - (inp.d ? 1 : 0) : 0;
+  v.thr = Math.max(Math.abs(f), Math.abs(up)) * (up < 0 ? -1 : 1); v.brk = 0;
+  const g0 = heliGround(v, T, d), onG = !v.air;
+  // burun: pilotun bakışına (havada tam, yerde yavaş)
+  if (pilot && lift > 0.3 && Number.isFinite(inp.yw)) { const dy = ((inp.yw - v.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI, rate = d.yawRate * (onG ? 0.35 : 1) * lift; v.yaw += Math.max(-rate * dt, Math.min(rate * dt, dy)); v.steer = Math.max(-1, Math.min(1, dy * 2)); }
+  else v.steer *= 0.9;
+  const s0 = Math.sin(v.yaw), c0 = Math.cos(v.yaw), fx = -s0, fz = -c0, rx = c0, rz = -s0;
+  let vF = v.vx * fx + v.vz * fz, vR = v.vx * rx + v.vz * rz;
+  if (lift > 0 && !(onG && up <= 0)) {
+    const tF = f > 0 ? f * d.maxF : f * d.maxB, tR = rr * d.maxS, a = d.acc * lift * dt;
+    vF += Math.max(-a, Math.min(a, tF - vF)); vR += Math.max(-a * 1.3, Math.min(a * 1.3, tR - vR));
+    const alt = v.y - g0, tY = up > 0 ? d.climb : up < 0 ? -Math.min(d.descend, 1.4 + alt * 0.7) : 0, va = d.vacc * dt;      // yere yaklaşınca alçalış kendiliğinden yavaşlar (yumuşak iniş ≤ 1,4 m/sn)
+    v.vy += Math.max(-va, Math.min(va, tY - v.vy)) * lift - VEH_G * (1 - lift) * dt;
+    v.air = true;
+  } else if (onG) { vF *= Math.exp(-6 * dt); vR *= Math.exp(-6 * dt); v.vy = Math.min(0, v.vy); }
+  else v.vy -= VEH_G * (1 - lift * 0.95) * dt;                     // rotor yavaş / pilot yok: düşer
+  v.vx = fx * vF + rx * vR; v.vz = fz * vF + rz * vR;
+  const sp = Math.hypot(v.vx, v.vz), dg = d.drag * sp * dt; v.vx *= 1 - dg; v.vz *= 1 - dg;
+  if (v.vy < -40) v.vy = -40;
+  // su: kızaklar suya değerse sürüklenme; gövde batarsa motor boğulur
+  const dep = submerged(T.terrain, v.x, v.y, v.z);
+  if (dep > 0.05) { const k = Math.exp(-dep * 2 * dt); v.vx *= k; v.vz *= k; if (dep > d.wade) v.sunk = true; }
+  const ox = v.x, oy = v.y, oz = v.z;
+  v.x += v.vx * dt; v.y += v.vy * dt; v.z += v.vz * dt;
+  // gövde ↔ kutular (tüm yükseklik): itilir, çarpma hızı
+  for (let it = 0; it < 3; it++) {
+    const list = T.query(v.x - 3, v.z - 3, v.x + 3, v.z + 3, _tmp2);
+    let any = false;
+    const lo = v.y + d.clear + 0.05, hi = v.y + d.top;
+    for (const c of list) {
+      if (c.max[1] <= lo || c.min[1] >= hi || c.nocar) continue;
+      const m = obbBox(v, c); if (!m) continue;
+      any = true; v.x += m.nx * (m.d + 0.002); v.z += m.nz * (m.d + 0.002);
+      const vn = v.vx * m.nx + v.vz * m.nz;
+      if (vn < 0) { v.vx -= m.nx * vn * 1.3; v.vz -= m.nz * vn * 1.3; if (-vn > v.hit) v.hit = -vn; }
+    }
+    if (!any) break;
+  }
+  // rotor ucu + kuyruk ucu: kutuya ya da araziye değerse geri sekme + çarpma (rotor çarpması gövdeden sert)
+  if (v.air) {
+    const pts = [[0, d.rotorR, d.rotorY], [0, -d.rotorR, d.rotorY], [d.rotorR * 0.8, 0, d.rotorY], [-d.rotorR * 0.9, 0, d.rotorY], [d.tailF, 0, 2.1]];
+    for (const [pf, pr, pu] of pts) {
+      toWorld(v, pf, pr, pu, _hp);
+      let hit = _hp.y < T.heightAt(_hp.x, _hp.z);
+      if (!hit) { const l = T.query(_hp.x - 0.1, _hp.z - 0.1, _hp.x + 0.1, _hp.z + 0.1, _tmp); for (const c of l) if (_hp.x > c.min[0] && _hp.x < c.max[0] && _hp.z > c.min[2] && _hp.z < c.max[2] && _hp.y > c.min[1] && _hp.y < c.max[1] && !c.nocar) { hit = true; break; } }
+      if (!hit) continue;
+      const dx = _hp.x - v.x, dz = _hp.z - v.z, L = Math.hypot(dx, dz) || 1, vn = (v.vx * dx + v.vz * dz) / L;
+      const imp = Math.max(Math.hypot(v.vx, v.vz, v.vy) * 0.6, 3);
+      v.x = ox; v.z = oz; v.y = Math.max(oy, v.y);
+      v.vx -= (dx / L) * Math.max(0, vn) * 1.6; v.vz -= (dz / L) * Math.max(0, vn) * 1.6; v.vx *= 0.5; v.vz *= 0.5; v.vy = Math.max(v.vy, 1);
+      if (imp + 2 > v.hit) v.hit = imp + 2;
+      break;
+    }
+  }
+  const b = T.bounds;
+  if (b) { v.x = Math.max(b.minX + 2, Math.min(b.maxX - 2, v.x)); v.z = Math.max(b.minZ + 2, Math.min(b.maxZ - 2, v.z)); }
+  // zemin: kızaklar (arazi / çatı / heliped)
+  const g = heliGround(v, T, d);
+  if (v.y <= g) {
+    const vin = -v.vy;
+    if (v.air) { v.land = Math.max(0, vin) + Math.max(0, Math.hypot(v.vx, v.vz) - 9) * 0.5; }
+    v.y = g; if (v.vy < 0) v.vy = 0;
+    if (up <= 0 || lift < 0.9) { v.air = false; }
+  } else if (!v.air && v.y > g + 0.3) v.air = true;
+  if (!v.air) { v.y = g; v.vy = Math.max(0, v.vy); }
+  // eğim / yatış: yerde kızaklardan, havada ivme / girdiden (burun ileri gidişte aşağı, yana kaymada yatar)
+  const w = v.wl;
+  const tp = !v.air ? Math.atan2((w[0] + w[1]) / 2 - (w[2] + w[3]) / 2, d.wb) : -f * 0.2 * lift - (vF / d.maxF) * 0.08;
+  const tr = !v.air ? Math.atan2((w[1] + w[3]) / 2 - (w[0] + w[2]) / 2, d.tr) : -rr * 0.22 * lift - v.steer * 0.12;
+  const kk = 1 - Math.exp(-4 * dt);
+  v.pitch += (tp - v.pitch) * kk; v.roll += (tr - v.roll) * kk;
+  if (v.yaw > Math.PI) v.yaw -= Math.PI * 2; else if (v.yaw < -Math.PI) v.yaw += Math.PI * 2;
+}
+
 // Duruyor mu (uyku): sürücüsüz, yerde, hızsız
-export const vehicleAtRest = (v) => !v.air && Math.abs(v.vx) + Math.abs(v.vz) < 0.03 && Math.abs(v.vy) < 0.05;
+export const vehicleAtRest = (v) => !v.air && Math.abs(v.vx) + Math.abs(v.vz) < 0.03 && Math.abs(v.vy) < 0.05 && !(v.rpm > 0);      // helikopter rotoru da durmalı
 
 // Ağ / uzlaştırma için tam durum (kesinlik: 3 hane)
 const q3 = (x) => Math.round(x * 1000) / 1000;
-export function packVehState(v) { const a = [q3(v.x), q3(v.y), q3(v.z), q3(v.yaw), q3(v.pitch), q3(v.roll), q3(v.vx), q3(v.vy), q3(v.vz), q3(v.steer), v.air ? 1 : 0]; if (v.def.turret) a.push(q3(v.tyaw), q3(v.gp)); return a; }
-export function applyVehState(v, a) { v.x = a[0]; v.y = a[1]; v.z = a[2]; v.yaw = a[3]; v.pitch = a[4]; v.roll = a[5]; v.vx = a[6]; v.vy = a[7]; v.vz = a[8]; v.steer = a[9]; v.air = !!a[10]; if (a.length > 12) { v.tyaw = a[11]; v.gp = a[12]; } }
+export function packVehState(v) { const a = [q3(v.x), q3(v.y), q3(v.z), q3(v.yaw), q3(v.pitch), q3(v.roll), q3(v.vx), q3(v.vy), q3(v.vz), q3(v.steer), v.air ? 1 : 0]; if (v.def.turret) a.push(q3(v.tyaw), q3(v.gp)); else if (v.def.heli) a.push(q3(v.rpm)); return a; }
+export function applyVehState(v, a) { v.x = a[0]; v.y = a[1]; v.z = a[2]; v.yaw = a[3]; v.pitch = a[4]; v.roll = a[5]; v.vx = a[6]; v.vy = a[7]; v.vz = a[8]; v.steer = a[9]; v.air = !!a[10]; if (a.length > 12) { v.tyaw = a[11]; v.gp = a[12]; } else if (a.length > 11) v.rpm = a[11]; }
 
 // 12.178 namlu ucu ve yönü (dünya): kule ekseni gövdede (tf ileri), kule yaw dünyada, top açısı kule eğimine eklenir
 export function gunPose(v, outP, outD) {
@@ -271,7 +382,15 @@ export function rayVehicle(v, o, dir, maxT, out) {
   };
   let h = box([-d.hw, d.clear, -d.hl], [d.hw, d.top, d.hl]);
   const tu = d.turret;
-  if (tu) { const z = -tu.f, k = box([-tu.hw, tu.y0, z - tu.hl], [tu.hw, tu.y1, z + tu.hl]); if (k && (!h || k[0] < h[0])) h = k; }      // kule (gövde ekseninde yaklaşık kare)
+  if (tu) {                                                         // 12.179: kule kutusu kuleyle döner (ışın kule ekseninde kule açısı kadar geri döndürülür)
+    const z = -tu.f, ry = (v.tyaw ?? v.yaw) - v.yaw, c = Math.cos(ry), s = Math.sin(ry);
+    const sv = [lo[0], lo[1], lo[2]], sd = [ld[0], ld[1], ld[2]];
+    const px = lo[0], pz = lo[2] - z; lo[0] = px * c - pz * s; lo[2] = px * s + pz * c + z;
+    const dx = ld[0], dz = ld[2]; ld[0] = dx * c - dz * s; ld[2] = dx * s + dz * c;
+    const k = box([-tu.hw, tu.y0, z - tu.hl], [tu.hw, tu.y1, z + tu.hl]); if (k && (!h || k[0] < h[0])) h = k;
+    lo[0] = sv[0]; lo[2] = sv[2]; ld[0] = sd[0]; ld[2] = sd[2];
+  }
+  for (const P of d.parts || []) { const k = box([P[0], P[2], P[4]], [P[1], P[3], P[5]]); if (k && (!h || k[0] < h[0])) h = k; }      // ek parçalar (helikopter kuyruğu)
   if (!h) return -1;
   if (out) { out.ax = h[1]; out.sg = h[2]; }
   return h[0];

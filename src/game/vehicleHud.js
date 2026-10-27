@@ -2,7 +2,7 @@ import { t } from '../i18n/index.js';
 import '../i18n/vehicle.js';
 import { codeLabel } from '../core/keybinds.js';
 import * as THREE from 'three';
-import { gunPose } from '../sim/vehicle.js';
+import { gunPose, mgAt } from '../sim/vehicle.js';
 
 // 12.177 araç HUD'u (yalnız tarayıcı): yaklaşınca binme ipucu ("E · Jip · Sür / Bin"), araçtayken panel: ad, can çubuğu, hız (sürücü),
 // 4 koltuk (benimki turuncu, dolu = takım rengi + ad), tuş ipuçları, yanma / su uyarısı; araca isabette küçük turuncu işaret + metal tıkırtısı.
@@ -64,7 +64,7 @@ export class VehicleHud {
     if (n) this.set(this.pr, 'prt', t('veh.prompt', { k: g.player?.touch ? '⟲' : this.key('vehicle'), n: t('veh.' + n.v.type), s: n.seat === 0 ? t('veh.drive') : t('veh.ride') + ' (' + t('veh.seat.' + n.seat).toLowerCase() + ')' }), 'innerHTML');
     this.set(this.p.style, 'pd', v ? 'block' : 'none', 'display');
     this.reticle(v && v.st && me.seat === 0 && v.def.cannon ? v : null);
-    const am = (this._am ||= this.g.hud.root.querySelector('#ammo')), hideAm = !!(v && (me.seat === 0 || v.def.mg?.seat === me.seat));      // sürücü / makineli: kendi silahının cephanesi anlamsız
+    const am = (this._am ||= this.g.hud.root.querySelector('#ammo')), hideAm = !!(v && (me.seat === 0 || mgAt(v.def, me.seat)));      // sürücü / makineli: kendi silahının cephanesi anlamsız
     if (am) this.set(am.style, 'amv', hideAm ? 'hidden' : '', 'visibility');
     if (!v || !v.st) return;
     const d = v.def, hp = Math.max(0, v.hp / d.hp);
@@ -74,19 +74,25 @@ export class VehicleHud {
     this.set(this.q.hp.style, 'hpw', Math.round(hp * 100) + '%', 'width');
     this.set(this.q.hp.style, 'hpc', hp > 0.5 ? '#7fd36a' : hp > d.burnAt ? '#ffc94a' : '#ff5a3a', 'background');
     this.q.seats.forEach((el, i) => this.set(el.style, 'sd' + i, i < v.seats.length ? '' : 'none', 'display'));
-    const c = d.cannon, gunner = d.mg && me.seat === d.mg.seat;
+    const c = d.cannon, gunner = !!mgAt(d, me.seat);
     this.set(this.q.gun.style, 'gd', c && (me.seat === 0 || gunner) ? 'block' : 'none', 'display');
     if (c && me.seat === 0) { this.set(this.q.gunT, 'gt', v.rl > 0 ? t('veh.reload', { n: v.rl.toFixed(1) }) : t('veh.ready')); this.set(this.q.gunB.style, 'gw', Math.round((1 - v.rl / c.reload) * 100) + '%', 'width'); }
     else if (gunner) { this.set(this.q.gunT, 'gt', t('veh.mg')); this.set(this.q.gunB.style, 'gw', '100%', 'width'); }
+    if (d.heli) {                                                         // 12.179 helikopter: rotor devri + irtifa (zeminden)
+      const alt = Math.max(0, v.st.y - g.world.heightAt(v.st.x, v.st.z)), r = Math.round((v.st.rpm || 0) * 100);
+      this.set(this.q.gun.style, 'gd', 'block', 'display');
+      this.set(this.q.gunT, 'gt', t('veh.heliBar', { r, h: Math.round(alt) }));
+      this.set(this.q.gunB.style, 'gw', r + '%', 'width');
+    }
     v.seats.forEach((o, i) => {
       const el = this.q.seats[i], mine = o === me;
       this.set(el, 's' + i, `<b>${i + 1}</b>${o ? o.name : t('veh.empty')}`, 'innerHTML');
       this.set(el, 'sc' + i, mine ? 'me' : '', 'className');
       this.set(el.style, 'sb' + i, o && !mine ? (o.team === 'blue' ? 'rgba(74,163,255,.25)' : 'rgba(255,90,67,.25)') : '', 'background');
     });
-    const hk = c ? (me.seat === 0 ? 'veh.hint.tank' : 'veh.hint.gunner') : me.seat === 0 ? 'veh.hint.drv' : 'veh.hint.pas';
+    const hk = d.heli ? (me.seat === 0 ? 'veh.hint.heli' : gunner ? 'veh.hint.gunner' : 'veh.hint.pas') : c ? (me.seat === 0 ? 'veh.hint.tank' : 'veh.hint.gunner') : me.seat === 0 ? 'veh.hint.drv' : 'veh.hint.pas';
     this.set(this.q.hint, 'hint', t(hk, { f: this.key('flashlight'), v: this.key('vehCam'), e: this.key('vehicle'), n: v.seats.length }), 'innerHTML');
-    const w = v.burn ? t('veh.burn') : v.st.sunk ? t('veh.sunk') : '';
+    const w = v.burn ? t('veh.burn') : v.st.sunk ? t('veh.sunk') : d.heli && me.seat === 0 && (v.st.rpm || 0) < 0.85 ? t('veh.rotor') : '';
     this.set(this.q.warn, 'w', w); this.set(this.q.warn.style, 'wd', w ? 'block' : 'none', 'display');
   }
 
