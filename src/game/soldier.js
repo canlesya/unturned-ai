@@ -102,7 +102,7 @@ export class Soldier {
   // zıplama çarpanı: zombiler insandan yüksek zıplar; vuruş kutusu ölçeği (model ölçeğiyle aynı)
   get jumpMul() { return this.def.zombie ? (this.boss ? BOSS.jump : this.zt.jump || 1) : 1; }
   zombieMaxHp() {
-    if (!this.boss) return this.zt.hp;
+    if (!this.boss) return Math.round(this.zt.hp * (this.game.hordeMul ? this.game.hordeMul() : 1));      // 12.196: insanlar sayıca üstünse normal zombi daha dayanıklı doğar
     const n = this.game.mode.total || 12, k = this.game.bossCount || 1, eff = n - (k - 1) * BOSS.secondOffset;       // 2 boss'luysa eşdeğer oyuncu sayısı daha düşük
     return Math.round(BOSS.hp * BOSS.growth ** (eff - 10));                                                         // oyuncu sayısı arttıkça üstel artar (insanların ateş gücü de artar)
   }

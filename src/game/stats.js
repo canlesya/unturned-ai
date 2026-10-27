@@ -13,24 +13,27 @@ export const ZOMBIE = {
   lives: 1,           // normal zombi: bu kadar kez ölünce insana döner
   bossCount: [1, 2],  // 16 kişiden azsa 1, 16 ve üstüyse 2 boss
   bossSplit: 16,
+  horde: 0, hordeMax: 1,   // 12.196 sürü dayanıklılığı (game.hordeMul)
+  spawnMin: 38,            // m: zombi en yakın insandan en az bu kadar uzakta doğar (görüşte doğmaz)
 };
 // Boss zombi: dev canlı, çok hızlı, kalıcı öfkeli (hız ×1.25 ve hasar ×1.4 pasif), hasarın %30'unu yok sayar; tek gücü Gölge Sıçrayışı (ışınlanma + kısa görünmezlik).
 // Boss'un öldürdüğü insan NORMAL zombi olur. Boss 3 kez ölünce insana döner.
 export const BOSS = {
-  hp: 1400, growth: 1.18, secondOffset: 7,   // can = hp × growth^(eşdeğer oyuncu − 10); 2 boss'ta eşdeğer = oyuncu − secondOffset
-  speed: 1.2, dmg: 46, lives: 3, armor: 0.7, respawn: 9, scale: [1.6, 1.4, 1.6], jump: 1.35,       // scale = model (ve vuruş kutusu) ölçeği x/y/z · jump = zıplama çarpanı
+  hp: 900, growth: 1.18, secondOffset: 7,   // can = hp × growth^(eşdeğer oyuncu − 10); 2 boss'ta eşdeğer = oyuncu − secondOffset
+  speed: 1.2, dmg: 34, lives: 3, armor: 0.7, respawn: 9, scale: [1.6, 1.4, 1.6], jump: 1.35,       // scale = model (ve vuruş kutusu) ölçeği x/y/z · jump = zıplama çarpanı
   rageSpd: 1.25, rageDmg: 1.4,
 };
 export const ZBOSS = { label: 'BOSS', desc: 'Dev can, çok hızlı, öfkeli.', hp: 0, get speed() { return BOSS.speed; }, get dmg() { return BOSS.dmg; }, scale: 1.0, eye: '#ff2a1a', skin: '#8a5e55',
   ability: { id: 'shadow', label: 'Gölge Sıçrayışı', cd: 7, dur: 2, range: 15 } };
+// 12.196: normal zombi canı ×1,6 ve pençesi güçlendi (Yürüyen 2 vuruşta öldürür), boss zayıfladı (can 1400→900, pençe 46→34) — boss tek başına maçı taşıyor, normal zombi yem gibiydi.
 // Zombi türleri: can / hız çarpanı (insan 1.0) / pençe hasarı / model ölçeği / göz rengi / özel güç (tuş: F ya da sağ tık)
 // Güçler: rage = hız+hasar artışı · burst = kısa süre çok hızlı koşu · shield = az hasar alma · cloak = görünmezlik (saldırınca/hasar alınca biter) · blink = ileri ışınlanma
 export const ZTYPES = {
-  walker:  { label: 'Yürüyen',   desc: 'Dengeli. Öfke: kısa süre hızlı ve ölümcül.',            hp: 190, speed: 1.24, dmg: 32, scale: 1.1, jump: 1.18,  eye: '#d6ff6a', skin: '#86a273', ability: { id: 'rage',   label: 'Öfke',          cd: 14, dur: 4 }, w: 30 },
-  runner:  { label: 'Koşucu',    desc: 'Çok hızlı, kırılgan. Atılış: kısa süre inanılmaz hız.', hp: 140, speed: 1.45, dmg: 28, scale: 1.04, jump: 1.28, eye: '#ffd24a', skin: '#a3ad72', ability: { id: 'burst',  label: 'Atılış',        cd: 10, dur: 2.5 }, w: 25 },
-  brute:   { label: 'Dev',       desc: 'Çok dayanıklı, ağır vurur. Zırh: hasarı büyük ölçüde azaltır.', hp: 460, speed: 1.1, dmg: 46, scale: 1.28, jump: 1.1, eye: '#ff5a3c', skin: '#7a8a68', ability: { id: 'shield', label: 'Zırh',          cd: 16, dur: 5 }, w: 15 },
-  ghost:   { label: 'Hayalet',   desc: 'Görünmezlik: saldırana kadar kimse seni görmez.',        hp: 150, speed: 1.3, dmg: 32, scale: 1.12, jump: 1.18,  eye: '#7ad7ff', skin: '#93bcc6', ability: { id: 'cloak',  label: 'Görünmezlik',   cd: 16, dur: 6 }, w: 15 },
-  blinker: { label: 'Işınlanan', desc: 'Işınlanma: baktığın yönde 14 m öteye sıçrar.',          hp: 170, speed: 1.27, dmg: 32, scale: 1.12, jump: 1.18,  eye: '#d58aff', skin: '#9c88b8', ability: { id: 'blink',  label: 'Işınlanma',     cd: 8,  dur: 0, range: 14 }, w: 15 },
+  walker:  { label: 'Yürüyen',   desc: 'Dengeli. Öfke: kısa süre hızlı ve ölümcül.',            hp: 300, speed: 1.24, dmg: 50, scale: 1.1, jump: 1.18,  eye: '#d6ff6a', skin: '#86a273', ability: { id: 'rage',   label: 'Öfke',          cd: 14, dur: 4 }, w: 30 },
+  runner:  { label: 'Koşucu',    desc: 'Çok hızlı, kırılgan. Atılış: kısa süre inanılmaz hız.', hp: 220, speed: 1.45, dmg: 40, scale: 1.04, jump: 1.28, eye: '#ffd24a', skin: '#a3ad72', ability: { id: 'burst',  label: 'Atılış',        cd: 10, dur: 2.5 }, w: 25 },
+  brute:   { label: 'Dev',       desc: 'Çok dayanıklı, ağır vurur. Zırh: hasarı büyük ölçüde azaltır.', hp: 700, speed: 1.1, dmg: 60, scale: 1.28, jump: 1.1, eye: '#ff5a3c', skin: '#7a8a68', ability: { id: 'shield', label: 'Zırh',          cd: 16, dur: 5 }, w: 15 },
+  ghost:   { label: 'Hayalet',   desc: 'Görünmezlik: saldırana kadar kimse seni görmez.',        hp: 240, speed: 1.3, dmg: 42, scale: 1.12, jump: 1.18,  eye: '#7ad7ff', skin: '#93bcc6', ability: { id: 'cloak',  label: 'Görünmezlik',   cd: 16, dur: 6 }, w: 15 },
+  blinker: { label: 'Işınlanan', desc: 'Işınlanma: baktığın yönde 14 m öteye sıçrar.',          hp: 270, speed: 1.27, dmg: 40, scale: 1.12, jump: 1.18,  eye: '#d58aff', skin: '#9c88b8', ability: { id: 'blink',  label: 'Işınlanma',     cd: 8,  dur: 0, range: 14 }, w: 15 },
 };
 export const ZT_ORDER = Object.keys(ZTYPES);
 export function randomZType(rng = Math.random) {
@@ -325,7 +328,7 @@ export function makeLoadout(cls, team, choice = {}, rng = Math.random) {
 // Zombi sınıfı: menüde/sınıf seçiminde görünmez (numaralandırılamaz), yalnızca enfekte olunca atanır. Tek silah: pençe.
 Object.defineProperty(CLASS_DEFS, 'zombie', {
   enumerable: false,
-  value: { label: 'Zombi', hp: 190, speed: 1.24, zombie: true, primary: { blue: 'claws', red: 'claws' }, gadget: ['claws', 0], desc: 'Pençeli enfekte',
+  value: { label: 'Zombi', hp: 300, speed: 1.24, zombie: true, primary: { blue: 'claws', red: 'claws' }, gadget: ['claws', 0], desc: 'Pençeli enfekte',
     primaryOptions: ['claws'], secondaryOptions: [], gadgetOptions: [], meleeOptions: ['claws'], defaults: { primary: { blue: 'claws', red: 'claws' }, secondary: 'claws', gadget: 'claws', melee: 'claws' } },
 });
 

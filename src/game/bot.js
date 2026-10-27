@@ -19,6 +19,10 @@ SNIPERS.add('railgun'); LMGS.add('elmg'); SHOTGUNS.add('scatter');      // 12.15
 
 // Enfekte insan botları ayarları: crowd = aynı hedefe kilitli her ek kişi için isabet düşüşü · desync = yeni hedefte ek tepki gecikmesi (sn) · kite = bu mesafeden yakına gelen zombiden geri çekilir
 export const INF_BOT = { crowd: 0.12, desync: 0.3, kite: 9, kiteBoss: 14, kiteSpeed: 0.8 };
+// 12.196 Enfekte zombi botları: spread = aynı insanı kovalayan her ek zombi için hedef puanına +m (tek sıra koşmasın, insanları böler) ·
+// lone = hedefin 7 m yakınındaki her ek insan için +m (yalnız kalanı / kenardakini seçer) · stick = mevcut hedefe sadakat (m) ·
+// pack = kalabalık gruba (≥ packN insan) yalnız saldırmaz: görüş dışında packR m içinde en çok packWait sn sürü bekler, yanına zombi gelince birlikte dalar
+export const INF_Z = { spread: 6, lone: 3, stick: 4, pack: 1, packN: 3, packR: 40, packWait: 5, blinkLos: 1 };
 
 const NOIT = { id: '', mag: 0, reserve: 0 };                       // Silah Yarışı'nda eşya listesi 2 yuvalı: olmayan yuva boş sayılır
 const tA = new THREE.Vector3(), tB = new THREE.Vector3(), tC = new THREE.Vector3();
@@ -142,6 +146,13 @@ export class BotBrain {
   }
 
   // Aynı hedefe kilitli diğer bot sayısı (en çok 8)
+  // hedefin 7 m yakınındaki diğer canlı insanlar (zombi botu: kalabalık grup mu, yalnız mı)
+  guards(tg) {
+    let n = 0;
+    for (const e of this.game.soldiers) if (e !== tg && e.alive && e.team === tg.team && Math.hypot(e.pos.x - tg.pos.x, e.pos.z - tg.pos.z) < 7) n++;
+    return n;
+  }
+
   crowd(tg) {
     let n = 0;
     for (const b of this.game.brains) if (b !== this && b.target === tg && b.s.alive) n++;
@@ -248,6 +259,7 @@ export class BotBrain {
     let best = null, bd = 1e9;
     for (const e of g.soldiers) {
       if (!e.alive || e.team === s.team || e.protT > 0.5) continue;
+      if (e.def.zombie && g.graceLeft > 0) continue;                                        // 12.196 hazırlık süresinde donuk zombiye önceden nişan alınmaz (boss'un ilk canı serbest kalır kalmaz eriyordu)
       if (e.cloaked && Math.hypot(e.pos.x - s.pos.x, e.pos.z - s.pos.z) > 6) continue;       // görünmez zombi yakına gelmeden fark edilmez
       const tc = e.center(tC);
       const dx = tc.x - eye.x, dz = tc.z - eye.z;
@@ -351,7 +363,7 @@ export class BotBrain {
     const s = this.s, ab = s.ability;
     if (!ab || s.abT > 0 || s.abActive > 0) return;
     const id = ab.id;
-    if (id === 'blink') { if (!near && dist > 16 && dist < 40 && Math.random() < 0.05) s.useAbility(); }
+    if (id === 'blink') { if ((!near && dist > 16 && dist < 40 && Math.random() < 0.05) || (INF_Z.blinkLos && near && los && dist > 8 && dist < 20 && Math.random() < 0.08)) s.useAbility(); }      // 12.196: görüşteki hedefe de ışınlanarak atılır (kurşun yağmurunu kısaltır)
     else if (id === 'shadow') { if (dist > 9 && dist < 40 && Math.random() < 0.06) s.useAbility(); }          // boss: sık sıçrayıp görünmez yaklaşır          // uzaktan ışınlanarak yaklaşır
     else if (id === 'cloak') { if (dist > 10 && dist < 50 && Math.random() < 0.04) s.useAbility(); }
     else if (id === 'shield') { if ((dist < 14 && Math.random() < 0.05) || s.hp < s.maxHp * 0.6) s.useAbility(); }
@@ -364,13 +376,28 @@ export class BotBrain {
     this.t += dt; this.senseT -= dt;
     if (this.senseT <= 0) {
       this.senseT = 0.3 + Math.random() * 0.15;
-      let best = null, bd = 1e9;
+      let best = null, bs = 1e9, bd = 1e9;
+      const Z = INF_Z, smart = !s.boss;
       for (const e of g.soldiers) {
         if (!e.alive || e.team === s.team || e.protT > 1) continue;
         const d = Math.hypot(e.pos.x - s.pos.x, e.pos.z - s.pos.z);
-        if (d < bd) { bd = d; best = e; }
+        let sc = d;
+        if (smart && d > 6) {                                             // dibindeki insandan vazgeçmez
+          if (Z.spread) sc += this.crowd(e) * Z.spread;
+          if (Z.lone) sc += this.guards(e) * Z.lone;
+          if (Z.stick && e === this.target) sc -= Z.stick;
+        }
+        if (sc < bs) { bs = sc; bd = d; best = e; }
       }
+      if (best !== this.target) this.packT = 0;
       this.target = best; this.tDist = bd;
+      // sürü bekleme kararı (görüş dışı + kalabalık hedef + yanımda zombi yok)
+      this.packHold = false;
+      if (Z.pack && best && smart && bd > 22 && bd < Z.packR && (this.packT || 0) < Z.packWait && this.guards(best) + 1 >= Z.packN) {
+        let allies = 0;
+        for (const o of g.soldiers) if (o !== s && o.alive && o.team === s.team && Math.hypot(o.pos.x - s.pos.x, o.pos.z - s.pos.z) < 10) allies++;
+        if (!allies && !g.losClear(best.eye(tA), s.center(tC))) this.packHold = true;
+      }
     }
     const tg = this.target && this.target.alive ? this.target : null;
     let moveX = 0, moveZ = 0, speed = TUNE.walkSpeed * s.spd * (s.stat.move || 1);
@@ -399,7 +426,11 @@ export class BotBrain {
           this.path = g.nav.findPath(s.pos.x, s.pos.z, tg.pos.x, tg.pos.z, 1.15, s.pos.y);        // zombi 1.15 m basamağa kadar sıçrayarak çıkar
           this.repathT = rand(1.4, 2.6);
         }
-        if (this.path && this.path.length) {
+        if (this.packHold) {                                   // sürü bekler: yerinde dur, hedefe dön (görünmüyor)
+          this.packT = (this.packT || 0) + dt;
+          s.yaw += clamp(angleDiff(s.yaw, want), -5 * dt, 5 * dt);
+          moveX = 0; moveZ = 0;
+        } else if (this.path && this.path.length) {
           let wp = this.path[0];
           while (this.path.length > 1 && Math.hypot(wp.x - s.pos.x, wp.z - s.pos.z) < 0.9) { this.path.shift(); wp = this.path[0]; }
           const wd = Math.hypot(wp.x - s.pos.x, wp.z - s.pos.z);

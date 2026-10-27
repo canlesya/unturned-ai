@@ -154,7 +154,8 @@ export function balanceSections() {
       ...Object.keys(ZTYPES).map((k) => ({ id: k, name: ZTYPES[k].label, preview: { kind: 'zombie', zt: k }, fields: [
         f(`zt.${k}.hp`, 'Can', 10, 2000, 5), f(`zt.${k}.speed`, 'Hız çarpanı', 0.5, 2.5, 0.01, '×'), f(`zt.${k}.dmg`, 'Hasar', 1, 300)] })),
       { id: 'rules', name: 'Kurallar', preview: { kind: 'icon', icon: 'skull' }, fields: [
-        f('zombie.respawn', 'Zombi yeniden doğma', 1, 30, 0.5, 'sn'), f('zombie.grace', 'Başlangıç bekleme', 0, 60, 1, 'sn'), f('zombie.lives', 'Zombi can hakkı', 1, 10)] },
+        f('zombie.respawn', 'Zombi yeniden doğma', 1, 30, 0.5, 'sn'), f('zombie.grace', 'Başlangıç bekleme', 0, 60, 1, 'sn'), f('zombie.lives', 'Zombi can hakkı', 1, 10),
+        f('zombie.horde', 'Sürü dayanıklılığı (insan/zombi oranı başına can)', 0, 1, 0.01, '×'), f('zombie.hordeMax', 'Sürü can çarpanı üst sınırı', 1, 4, 0.05, '×'), f('zombie.spawnMin', 'Zombi doğuşu insandan en az', 10, 80, 1, 'm')] },
     ] },
   ];
 }
