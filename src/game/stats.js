@@ -42,8 +42,8 @@ export function randomZType(rng = Math.random) {
 export const WSTATS = {
   // ───────── Tüfekler ─────────
   ak47: {
-    name: 'AK-47', kind: 'gun', slot: 'primary', desc: 'Yüksek hasarlı klasik tüfek, tepmesi güçlü.', stats: { dmg: 70, range: 68, rate: 58, control: 42, mobility: 66 },
-    auto: true, dmg: 34, rpm: 600, mag: 30, reserve: 120, reload: 1.8, equip: 0.3,
+    name: 'AK-47', kind: 'gun', slot: 'primary', desc: 'Yüksek hasarlı klasik tüfek, tepmesi güçlü.', stats: { dmg: 66, range: 70, rate: 62, control: 42, mobility: 66 },
+    auto: true, dmg: 32, rpm: 650, mag: 30, reserve: 120, reload: 1.8, equip: 0.3,
     hip: 0.0085, ads: 0.0012, kickV: 0.017, kickH: 0.006, range: [35, 110], minMul: 0.6, zoom: 1.25, move: 0.95,
     sight: [0, 0.117, -0.1], dist: 0.28, dot: true, sound: 'rifle',
   },
@@ -54,9 +54,9 @@ export const WSTATS = {
     sight: [0, 0.1165, -0.14], dist: 0.28, dot: true, sound: 'rifle',
   },
   scarh: {
-    name: 'SCAR-H', kind: 'gun', slot: 'primary', desc: 'Ağır 7.62 tüfek: az mermi, çok hasar.', stats: { dmg: 82, range: 78, rate: 50, control: 38, mobility: 58 },
-    auto: true, dmg: 40, rpm: 520, mag: 20, reserve: 100, reload: 1.9, equip: 0.32,
-    hip: 0.009, ads: 0.001, kickV: 0.02, kickH: 0.007, range: [40, 130], minMul: 0.65, zoom: 1.4, move: 0.94,
+    name: 'SCAR-H', kind: 'gun', slot: 'primary', desc: 'Ağır 7.62 tüfek: az mermi, çok hasar.', stats: { dmg: 76, range: 74, rate: 46, control: 38, mobility: 58 },
+    auto: true, dmg: 36, rpm: 480, mag: 20, reserve: 100, reload: 1.9, equip: 0.32,
+    hip: 0.009, ads: 0.001, kickV: 0.02, kickH: 0.007, range: [35, 120], minMul: 0.65, zoom: 1.4, move: 0.94,
     sight: [0, 0.135, -0.1], dist: 0.28, dot: true, sound: 'battle',
   },
   aug: {
@@ -66,9 +66,9 @@ export const WSTATS = {
     sight: [0, 0.125, -0.1], dist: 0.28, dot: true, sound: 'carbine',
   },
   g36: {
-    name: 'G36', kind: 'gun', slot: 'primary', desc: 'Hafif ve isabetli, taşıma saplı tüfek.', stats: { dmg: 60, range: 72, rate: 70, control: 72, mobility: 68 },
-    auto: true, dmg: 30, rpm: 750, mag: 30, reserve: 150, reload: 1.7, equip: 0.3,
-    hip: 0.0075, ads: 0.0008, kickV: 0.0115, kickH: 0.0045, range: [40, 120], minMul: 0.62, zoom: 1.5, move: 1.0,
+    name: 'G36', kind: 'gun', slot: 'primary', desc: 'Hafif ve isabetli, taşıma saplı tüfek.', stats: { dmg: 60, range: 78, rate: 64, control: 72, mobility: 68 },
+    auto: true, dmg: 30, rpm: 680, mag: 30, reserve: 150, reload: 1.7, equip: 0.3,
+    hip: 0.0075, ads: 0.0008, kickV: 0.0115, kickH: 0.0045, range: [45, 130], minMul: 0.62, zoom: 1.5, move: 1.0,
     sight: [0, 0.135, -0.1], dist: 0.28, dot: true, sound: 'carbine',
   },
   ak74u: {
@@ -79,20 +79,20 @@ export const WSTATS = {
   },
   // ───────── SMG ─────────
   mp5: {
-    name: 'MP5', kind: 'gun', slot: 'primary', desc: 'Dengeli SMG, yakın-orta mesafede çok etkili.', stats: { dmg: 44, range: 42, rate: 82, control: 66, mobility: 82 },
-    auto: true, dmg: 22, rpm: 820, mag: 30, reserve: 150, reload: 1.5, equip: 0.28,
+    name: 'MP5', kind: 'gun', slot: 'primary', desc: 'Dengeli SMG, yakın-orta mesafede çok etkili.', stats: { dmg: 50, range: 42, rate: 82, control: 66, mobility: 82 },
+    auto: true, dmg: 25, rpm: 820, mag: 30, reserve: 150, reload: 1.5, equip: 0.28,
     hip: 0.0085, ads: 0.0014, kickV: 0.009, kickH: 0.0045, range: [20, 70], minMul: 0.5, zoom: 1.25, move: 1.05,
     sight: [0, 0.0845, -0.08], dist: 0.28, dot: true, sound: 'smg',
   },
   vector: {
-    name: 'Vector', kind: 'gun', slot: 'primary', desc: 'Çok yüksek atış hızı; şarjör hızla erir.', stats: { dmg: 36, range: 34, rate: 100, control: 55, mobility: 84 },
-    auto: true, dmg: 19, rpm: 1100, mag: 25, reserve: 125, reload: 1.4, equip: 0.28,
+    name: 'Vector', kind: 'gun', slot: 'primary', desc: 'Çok yüksek atış hızı; şarjör hızla erir.', stats: { dmg: 40, range: 34, rate: 100, control: 55, mobility: 84 },
+    auto: true, dmg: 21, rpm: 1100, mag: 25, reserve: 125, reload: 1.4, equip: 0.28,
     hip: 0.009, ads: 0.0016, kickV: 0.007, kickH: 0.0045, range: [18, 60], minMul: 0.45, zoom: 1.25, move: 1.05,
     sight: [0, 0.09, -0.1], dist: 0.28, dot: true, sound: 'vector',
   },
   p90: {
-    name: 'P90', kind: 'gun', slot: 'primary', desc: '50 mermilik şarjör, düşük tepme.', stats: { dmg: 40, range: 44, rate: 86, control: 80, mobility: 84 },
-    auto: true, dmg: 20, rpm: 900, mag: 50, reserve: 150, reload: 1.8, equip: 0.28,
+    name: 'P90', kind: 'gun', slot: 'primary', desc: '50 mermilik şarjör, düşük tepme.', stats: { dmg: 40, range: 44, rate: 90, control: 80, mobility: 84 },
+    auto: true, dmg: 20, rpm: 960, mag: 50, reserve: 150, reload: 1.8, equip: 0.28,
     hip: 0.0085, ads: 0.0013, kickV: 0.0075, kickH: 0.004, range: [22, 75], minMul: 0.5, zoom: 1.25, move: 1.05,
     sight: [0, 0.103, -0.08], dist: 0.28, dot: true, sound: 'p90',
   },
@@ -104,8 +104,8 @@ export const WSTATS = {
   },
   // ───────── Pompalılar ─────────
   shotgun: {
-    name: 'Pompalı', kind: 'gun', slot: 'primary', desc: 'Klasik pompalı: yakın mesafede ölümcül.', stats: { dmg: 88, range: 18, rate: 14, control: 40, mobility: 66 },
-    auto: false, dmg: 11, pellets: 9, rpm: 70, mag: 6, reserve: 30, reload: 2.7, reloadStyle: 'shell', shell: 0.45, equip: 0.32,
+    name: 'Pompalı', kind: 'gun', slot: 'primary', desc: 'Klasik pompalı: yakın mesafede ölümcül.', stats: { dmg: 94, range: 18, rate: 14, control: 40, mobility: 66 },
+    auto: false, dmg: 13, pellets: 9, rpm: 70, mag: 6, reserve: 30, reload: 2.7, reloadStyle: 'shell', shell: 0.45, equip: 0.32,
     hip: 0.05, ads: 0.032, kickV: 0.04, kickH: 0.01, range: [12, 32], minMul: 0.15, zoom: 1.15, move: 0.97,
     sight: [0, 0.0845, -0.03], dist: 0.28, dot: true, sound: 'shotgun',
   },
@@ -123,14 +123,14 @@ export const WSTATS = {
   },
   // ───────── Tabancalar ─────────
   pistol: {
-    name: 'Glock 17', kind: 'gun', slot: 'secondary', desc: 'Hafif, hızlı çekilen yedek silah.', stats: { dmg: 40, range: 32, rate: 62, control: 66, mobility: 95 },
-    auto: false, dmg: 24, rpm: 420, mag: 15, reserve: 60, reload: 1.0, equip: 0.2,
+    name: 'Glock 17', kind: 'gun', slot: 'secondary', desc: 'Hafif, hızlı çekilen yedek silah.', stats: { dmg: 42, range: 32, rate: 62, control: 66, mobility: 95 },
+    auto: false, dmg: 25, rpm: 420, mag: 15, reserve: 60, reload: 1.0, equip: 0.2,
     hip: 0.006, ads: 0.0016, kickV: 0.018, kickH: 0.004, range: [15, 55], minMul: 0.5, zoom: 1.2, move: 1.05,
     sight: [0, 0.0913, -0.02], dist: 0.28, dot: true, sound: 'pistol',
   },
   m1911: {
-    name: 'M1911', kind: 'gun', slot: 'secondary', desc: '.45 klasik: daha sert vurur, şarjör küçük.', stats: { dmg: 50, range: 30, rate: 56, control: 60, mobility: 92 },
-    auto: false, dmg: 32, rpm: 380, mag: 8, reserve: 48, reload: 1.0, equip: 0.2,
+    name: 'M1911', kind: 'gun', slot: 'secondary', desc: '.45 klasik: daha sert vurur, şarjör küçük.', stats: { dmg: 56, range: 30, rate: 46, control: 60, mobility: 92 },
+    auto: false, dmg: 34, rpm: 300, mag: 8, reserve: 48, reload: 1.0, equip: 0.2,
     hip: 0.006, ads: 0.0015, kickV: 0.022, kickH: 0.005, range: [14, 50], minMul: 0.5, zoom: 1.2, move: 1.05,
     sight: [0, 0.09, -0.02], dist: 0.28, dot: true, sound: 'pistol45',
   },
@@ -141,9 +141,9 @@ export const WSTATS = {
     sight: [0, 0.098, -0.02], dist: 0.28, dot: true, sound: 'magnum',
   },
   revolver: {
-    name: 'Revolver', kind: 'gun', slot: 'secondary', desc: '6 atış, ağır hasar; yavaş doldurulur.', stats: { dmg: 88, range: 55, rate: 30, control: 28, mobility: 88 },
-    auto: false, dmg: 62, rpm: 130, mag: 6, reserve: 36, reload: 1.7, equip: 0.25,
-    hip: 0.008, ads: 0.001, kickV: 0.06, kickH: 0.01, range: [25, 85], minMul: 0.65, zoom: 1.2, move: 1.0,
+    name: 'Revolver', kind: 'gun', slot: 'secondary', desc: '6 atış, ağır hasar; yavaş doldurulur.', stats: { dmg: 88, range: 48, rate: 26, control: 28, mobility: 88 },
+    auto: false, dmg: 62, rpm: 110, mag: 6, reserve: 36, reload: 1.7, equip: 0.25,
+    hip: 0.008, ads: 0.001, kickV: 0.06, kickH: 0.01, range: [20, 70], minMul: 0.65, zoom: 1.2, move: 1.0,
     sight: [0, 0.1, -0.02], dist: 0.28, dot: true, sound: 'revolver',
   },
   // ───────── Keskin nişancılar ─────────
@@ -154,14 +154,14 @@ export const WSTATS = {
     sight: [0, 0.14, 0.12], dist: 0.06, sound: 'sniper', scope: true, tracer: '#cfe8ff', adsTime: 0.25,
   },
   svd: {
-    name: 'SVD', kind: 'gun', slot: 'primary', desc: 'Yarı otomatik DMR: hızlı takip atışı, 3x dürbün.', stats: { dmg: 66, range: 88, rate: 38, control: 52, mobility: 50 },
-    auto: false, dmg: 62, rpm: 260, mag: 10, reserve: 40, reload: 2.2, equip: 0.35,
-    hip: 0.02, ads: 0.0005, kickV: 0.03, kickH: 0.005, range: [70, 220], minMul: 0.75, zoom: 3, move: 0.93,
-    sight: [0, 0.12, -0.06], dist: 0.05, sound: 'dmr', tracer: '#ffe9a0',
+    name: 'SVD', kind: 'gun', slot: 'primary', desc: 'Yarı otomatik DMR: hızlı takip atışı, 3x dürbün.', stats: { dmg: 66, range: 88, rate: 32, control: 52, mobility: 50 },
+    auto: false, dmg: 62, rpm: 220, mag: 10, reserve: 40, reload: 2.2, equip: 0.35,
+    hip: 0.03, ads: 0.0005, kickV: 0.03, kickH: 0.005, range: [70, 220], minMul: 0.75, zoom: 3, move: 0.93,
+    sight: [0, 0.12, -0.06], dist: 0.05, sound: 'dmr', tracer: '#ffe9a0', adsTime: 0.16,
   },
   barrett: {
-    name: 'Barrett .50', kind: 'gun', slot: 'primary', desc: 'Anti-materyel: tek atışta kıyma, çok ağır.', stats: { dmg: 100, range: 100, rate: 12, control: 30, mobility: 26 },
-    auto: false, dmg: 135, rpm: 80, mag: 5, reserve: 15, reload: 2.7, equip: 0.4,
+    name: 'Barrett .50', kind: 'gun', slot: 'primary', desc: 'Anti-materyel: tek atışta kıyma, çok ağır.', stats: { dmg: 100, range: 100, rate: 9, control: 30, mobility: 26 },
+    auto: false, dmg: 135, rpm: 60, mag: 5, reserve: 15, reload: 2.7, equip: 0.4,
     hip: 0.04, noscope: 0.11, ads: 0.0002, kickV: 0.085, kickH: 0.01, range: [180, 400], minMul: 0.9, zoom: 6, move: 0.8,
     sight: [0, 0.15, 0.1], dist: 0.06, sound: 'barrett', scope: true, tracer: '#ffd2a0', adsTime: 0.32,
   },
@@ -170,13 +170,13 @@ export const WSTATS = {
     name: 'M249 LMG', kind: 'gun', slot: 'primary', desc: '100 mermi, bastırma ateşi.', stats: { dmg: 50, range: 62, rate: 72, control: 40, mobility: 36 },
     auto: true, dmg: 25, rpm: 720, mag: 100, reserve: 200, reload: 3.5, equip: 0.35,
     hip: 0.011, ads: 0.0028, kickV: 0.011, kickH: 0.008, range: [35, 100], minMul: 0.55, zoom: 1.3, move: 0.85,
-    sight: [0, 0.138, -0.1], dist: 0.28, dot: true, sound: 'lmg', tracer: '#ff8a6a',
+    sight: [0, 0.138, -0.1], dist: 0.28, dot: true, sound: 'lmg', tracer: '#ff8a6a', adsTime: 0.2,
   },
   pkm: {
     name: 'PKM', kind: 'gun', slot: 'primary', desc: 'Ağır makineli: 7.62 mm, güçlü ama hantal.', stats: { dmg: 64, range: 70, rate: 62, control: 30, mobility: 30 },
     auto: true, dmg: 32, rpm: 650, mag: 100, reserve: 200, reload: 3.6, equip: 0.35,
     hip: 0.013, ads: 0.0032, kickV: 0.016, kickH: 0.01, range: [40, 120], minMul: 0.58, zoom: 1.3, move: 0.82,
-    sight: [0, 0.14, -0.1], dist: 0.28, dot: true, sound: 'pkm', tracer: '#ff8a6a',
+    sight: [0, 0.14, -0.1], dist: 0.28, dot: true, sound: 'pkm', tracer: '#ff8a6a', adsTime: 0.22,
   },
   // ───────── Fırlatıcılar (gadget yuvası) ─────────
   rpg: {
@@ -223,8 +223,8 @@ export const WSTATS = {
     swings: ['rl', 'lr', 'stab'], swingT: 0.36, stabT: 0.44, stabMul: 1.3,
   },
   machete: {
-    name: 'Satır', kind: 'melee', slot: 'melee', desc: 'Uzun menzil, ağır ve geniş savurma.', stats: { dmg: 70, range: 62, rate: 62, control: 70, mobility: 96 },
-    dmg: 70, reach: 2.5, rpm: 100, mag: 1, reserve: 0, move: 1.05, equip: 0.26, sound: 'knife',
+    name: 'Satır', kind: 'melee', slot: 'melee', desc: 'Uzun menzil, ağır ve geniş savurma.', stats: { dmg: 62, range: 56, rate: 62, control: 70, mobility: 96 },
+    dmg: 62, reach: 2.3, rpm: 100, mag: 1, reserve: 0, move: 1.05, equip: 0.26, sound: 'knife',
     swings: ['rl', 'lr', 'diag'], swingT: 0.46, stabT: 0.5, stabMul: 1.2,
   },
   claws: {
@@ -250,8 +250,8 @@ export const WSTATS = {
     sight: [0, 0.204, 0.062], dist: 0.28, dot: true, sound: 'marker', adsLow: [0.12, -0.062, -0.163],
   },
   pbpistol: {
-    name: 'Paintball Tabancası', kind: 'gun', slot: 'secondary', desc: 'Yarı otomatik: 3 isabette oyundan çıkarır, top daha çabuk düşer.', stats: { dmg: 70, range: 34, rate: 56, control: 70, mobility: 95 },
-    auto: false, ball: true, dmg: 34, head: 1.5, legs: 1, speed: 66, grav: 6, life: 3, rpm: 400, mag: 12, reserve: 48, reload: 1.5, equip: 0.2,
+    name: 'Paintball Tabancası', kind: 'gun', slot: 'secondary', desc: 'Yarı otomatik: 3 isabette oyundan çıkarır, top daha çabuk düşer.', stats: { dmg: 70, range: 34, rate: 44, control: 70, mobility: 95 },
+    auto: false, ball: true, dmg: 34, head: 1.5, legs: 1, speed: 66, grav: 6, life: 3, rpm: 300, mag: 12, reserve: 48, reload: 1.5, equip: 0.2,
     hip: 0.012, ads: 0.0045, bloom: 0.006, bloomMax: 0.03, bloomRec: 0.07, kickV: 0.012, kickH: 0.003, range: [45, 70], minMul: 1, zoom: 1.15, move: 1.05,
     sight: [0, 0.104, 0.03], dist: 0.28, dot: true, sound: 'pbpistol', adsLow: [0.11, -0.104, -0.172],
   },
@@ -448,16 +448,16 @@ Object.assign(WSTATS, {
     sight: [0, 0.14, 0.12], dist: 0.06, sound: 'sprail', scope: true, noscope: 0.09, tracer: '#9fe2ff', adsTime: 0.25, space: true, charge: true,      // 12.156 kuralları: nefes / belden isabetsizlik / artısız bel (overlay 'scope')
   },
   scatter: {
-    name: 'Dağıtıcı', kind: 'gun', slot: 'primary', desc: 'Enerji pompalısı: yakında geniş yelpaze, hücre şarjörüyle dolar.', stats: { dmg: 86, range: 18, rate: 18, control: 42, mobility: 68 },
-    auto: false, dmg: 12, pellets: 8, rpm: 85, mag: 6, reserve: 30, reload: 2.2, equip: 0.32,
+    name: 'Dağıtıcı', kind: 'gun', slot: 'primary', desc: 'Enerji pompalısı: yakında geniş yelpaze, hücre şarjörüyle dolar.', stats: { dmg: 92, range: 18, rate: 18, control: 42, mobility: 68 },
+    auto: false, dmg: 15, pellets: 8, rpm: 85, mag: 6, reserve: 30, reload: 2.2, equip: 0.32,
     hip: 0.048, ads: 0.031, kickV: 0.038, kickH: 0.01, range: [12, 30], minMul: 0.15, zoom: 1.15, move: 0.97,
     sight: [0, 0.09, -0.03], dist: 0.28, dot: true, sound: 'spscatter', tracer: '#ffb347', space: true,
   },
   elmg: {
-    name: 'Enerji Makineli', kind: 'gun', slot: 'primary', desc: '90 atımlık güç hücresi, bastırma ateşi; uzun seride namlu kanatları kızarır.', stats: { dmg: 50, range: 66, rate: 74, control: 44, mobility: 38 },
-    auto: true, dmg: 24, rpm: 720, mag: 90, reserve: 270, reload: 3.4, equip: 0.4,
+    name: 'Enerji Makineli', kind: 'gun', slot: 'primary', desc: '90 atımlık güç hücresi, bastırma ateşi; uzun seride namlu kanatları kızarır.', stats: { dmg: 52, range: 66, rate: 74, control: 44, mobility: 38 },
+    auto: true, dmg: 25, rpm: 720, mag: 90, reserve: 270, reload: 3.4, equip: 0.4,
     hip: 0.011, ads: 0.0014, kickV: 0.0105, kickH: 0.0055, range: [40, 110], minMul: 0.6, zoom: 1.35, move: 0.9,
-    sight: [0, 0.128, -0.1], dist: 0.28, dot: true, sound: 'spelmg', tracer: '#ff6a3a', space: true, heat: true,
+    sight: [0, 0.128, -0.1], dist: 0.28, dot: true, sound: 'spelmg', tracer: '#ff6a3a', space: true, heat: true, adsTime: 0.2,
   },
 });
 Object.assign(OPTIC_ALLOWED, { laser: ['iron', 'reddot', 'holo', 'acog'], plasma: ['iron', 'reddot', 'holo'], epistol: ['iron', 'reddot'], railgun: ['scope'], scatter: ['iron', 'reddot', 'holo'], elmg: ['iron', 'reddot', 'holo', 'acog'] });
@@ -510,8 +510,8 @@ Object.assign(WSTATS, {
     sight: [0, 0.084, 0.042], dist: 0.286, sound: 'ww_smgb', era: 'ww2',
   },
   ww_smgr: {
-    name: 'Katlanır HMK', kind: 'gun', slot: 'primary', desc: 'Katlanır dipçikli hafif makineli: yavaş atış, kontrolü kolay.', stats: { dmg: 44, range: 40, rate: 62, control: 74, mobility: 84 },
-    auto: true, dmg: 23, rpm: 540, mag: 32, reserve: 160, reload: 1.9, equip: 0.28,
+    name: 'Katlanır HMK', kind: 'gun', slot: 'primary', desc: 'Katlanır dipçikli hafif makineli: yavaş atış, kontrolü kolay.', stats: { dmg: 48, range: 40, rate: 68, control: 74, mobility: 84 },
+    auto: true, dmg: 25, rpm: 600, mag: 32, reserve: 160, reload: 1.9, equip: 0.28,
     hip: 0.009, ads: 0.0015, kickV: 0.008, kickH: 0.004, range: [18, 62], minMul: 0.45, zoom: 1.2, move: 1.05,
     sight: [0, 0.083, 0.006], dist: 0.32, sound: 'ww_smgr', era: 'ww2',
   },
@@ -519,13 +519,13 @@ Object.assign(WSTATS, {
     name: 'Hafif Makineli Tüfek', kind: 'gun', slot: 'primary', desc: 'Çatallı ağır destek tüfeği: 20\'lik şarjör, güçlü mermi.', stats: { dmg: 74, range: 76, rate: 58, control: 40, mobility: 38 },
     auto: true, dmg: 38, rpm: 520, mag: 20, reserve: 140, reload: 2.4, equip: 0.4,
     hip: 0.012, ads: 0.0013, kickV: 0.017, kickH: 0.0075, range: [55, 140], minMul: 0.65, zoom: 1.3, move: 0.88,
-    sight: [0, 0.098, 0.05], dist: 0.286, sound: 'ww_lmg', tracer: '#ff9a6a', era: 'ww2',
+    sight: [0, 0.098, 0.05], dist: 0.286, sound: 'ww_lmg', tracer: '#ff9a6a', era: 'ww2', adsTime: 0.2,
   },
   ww_mg: {
-    name: 'Ağır Makineli', kind: 'gun', slot: 'primary', desc: 'Şeritli ağır makineli: çok yüksek atış hızı, 50\'lik tambur, sert tepme.', stats: { dmg: 62, range: 70, rate: 96, control: 28, mobility: 30 },
-    auto: true, dmg: 28, rpm: 1150, mag: 50, reserve: 150, reload: 3.2, equip: 0.45,
+    name: 'Ağır Makineli', kind: 'gun', slot: 'primary', desc: 'Şeritli ağır makineli: çok yüksek atış hızı, 50\'lik tambur, sert tepme.', stats: { dmg: 54, range: 70, rate: 96, control: 28, mobility: 30 },
+    auto: true, dmg: 24, rpm: 1150, mag: 50, reserve: 150, reload: 3.2, equip: 0.45,
     hip: 0.016, ads: 0.0022, kickV: 0.013, kickH: 0.009, range: [45, 130], minMul: 0.6, zoom: 1.3, move: 0.84,
-    sight: [0, 0.094, -0.18], dist: 0.42, sound: 'ww_mg', tracer: '#ff8a5a', era: 'ww2',
+    sight: [0, 0.094, -0.18], dist: 0.42, sound: 'ww_mg', tracer: '#ff8a5a', era: 'ww2', adsTime: 0.22,
   },
   ww_pistol: {
     name: 'Tabanca', kind: 'gun', slot: 'secondary', desc: 'Yedi mermilik subay tabancası.', stats: { dmg: 48, range: 30, rate: 54, control: 62, mobility: 94 },

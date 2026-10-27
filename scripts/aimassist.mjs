@@ -1,5 +1,5 @@
 // Dokunmatik nişan yardımı ölçümü (Pixel 7 yatay, touch=1, botlar donuk): yana koşan hedef (5,6 m/sn)
-//  A) M4, Geliştirici Atölyesi, 20 m, nişanda, başta 4° kaçık → son 1,5 sn ortalama açı hatası (°) + hedef üstünde kalma oranı
+//  A) M4, Geliştirici Atölyesi, 20 m, nişanda, başta 4° kaçık → son 1,5 sn ortalama açı hatası (°) + hedef üstünde kalma oranı (12.198: ads / ates / parmak / parmakYok)
 //  B) Paintball tüfeği, Boya Kulesi, 22 m, nişanda + tetik basılı 3 sn → isabet / atılan top
 //   node scripts/aimassist.mjs [url=http://127.0.0.1:5180]      (sonuç satırı: A_err, A_on, B_hit)
 import { chromium, devices } from 'playwright';
@@ -54,21 +54,37 @@ const ERR = () => { const g = window.__game, me = g.playerSoldier, f = window.__
   const dp = Math.atan2(c.y - e.y, Math.hypot(c.x - e.x, c.z - e.z)) - me.pitch, d = Math.hypot(c.x - e.x, c.z - e.z);
   return { a: Math.hypot(dy, dp), on: Math.abs(dy) * d < 0.35 && Math.abs(dp) * d < 0.6 }; };
 
-// A) M4
-{
+// A) M4 — 12.198: dört durum. ads = yalnız nişan basılı (parmak yok) · ates = nişan + tetik basılı (parmak yok) · parmak = nişan + benzetilmiş insan
+//    parmağı (150 ms gecikmeli hedef açısına 3/sn kazançla döner, lookT her kare) · parmakYok = aynı parmak, nişan yardımı KAPALI (masaüstü kıyası)
+const AMODES = (process.env.AMODES || 'ads,ates,parmak,parmakYok').split(',');
+for (const mode of AMODES) {
   const { page, errs } = await setup(`${BASE}/?autostart=4v4&map=dev&type=tdm&debug=1&nolock=1&touch=1`);
-  const r = await page.evaluate(async ([SC, ER]) => {
+  const r = await page.evaluate(async ([SC, ER, mode]) => {
     const SCENE = eval(SC), ERR = eval(ER); SCENE(20, 0.07); if (!window.__sceneOk) return null;
-    const me = window.__game.playerSoldier; me.ads = true;
-    const errs = [], ons = [], t0 = performance.now();
-    await new Promise((res) => { const tick = () => { window.__mv(); const t = performance.now() - t0; if (t > 500) { const e = ERR(); errs.push(e.a); ons.push(e.on); } if (t < 2000) requestAnimationFrame(tick); else res(); }; requestAnimationFrame(tick); });
-    me.ads = false;
+    const g = window.__game, me = g.playerSoldier, p = g.player, T = p.touch; me.ads = true;
+    if (mode === 'parmakYok') T.cfg.aim = false;
+    if (mode === 'ates') { me.item.mag = 999; me.item.reserve = 999; p.fireHeld = true; }
+    const hist = [], errs = [], ons = [], t0 = performance.now(); let last = t0;
+    await new Promise((res) => { const tick = () => {
+      window.__mv(); const now = performance.now(), t = now - t0, dt = Math.min(0.05, (now - last) / 1000); last = now;
+      if (mode === 'parmak' || mode === 'parmakYok') {                                   // insan parmağı: gecikmeli hedef yönüne sınırlı kazançla
+        const f = window.__f, e = me.eye(), c = f.center(e.clone());
+        hist.push([now, Math.atan2(-(c.x - e.x), -(c.z - e.z))]);
+        while (hist.length > 1 && hist[1][0] < now - 150) hist.shift();
+        let d = hist[0][1] - me.yaw; d -= Math.round(d / (2 * Math.PI)) * 2 * Math.PI;
+        me.yaw += d * (1 - Math.exp(-3 * dt)); T.lookT = now;
+      }
+      if (mode === 'ates' && me.item.mag < 5) me.item.mag = 999;
+      if (t > 500) { const e = ERR(); errs.push(e.a); ons.push(e.on); }
+      if (t < 2000) requestAnimationFrame(tick); else res(); }; requestAnimationFrame(tick); });
+    me.ads = false; p.fireHeld = false; T.cfg.aim = true;
     return { err: errs.reduce((a, b) => a + b, 0) / errs.length * 57.3, on: ons.filter(Boolean).length / ons.length, n: errs.length };
-  }, [SCENE.toString(), ERR.toString()]);
-  check(!!r, 'A açık sahne bulundu'); if (!r) process.exit(1);
-  out.A_err = r.err.toFixed(2); out.A_on = Math.round(r.on * 100);
-  console.log(`A) M4 20 m yana koşan hedef: ortalama hata ${r.err.toFixed(2)}° · hedef üstünde %${Math.round(r.on * 100)} (${r.n} kare)`);
-  check(!errs.length, `A sayfa hatası yok ${errs[0] || ''}`);
+  }, [SCENE.toString(), ERR.toString(), mode]);
+  check(!!r, `A/${mode} açık sahne bulundu`); if (!r) process.exit(1);
+  const k = mode === 'ads' ? 'A' : 'A_' + mode;
+  out[k + (mode === 'ads' ? '_err' : '_err')] = r.err.toFixed(2); out[k + '_on'] = Math.round(r.on * 100);
+  console.log(`A/${mode}) M4 20 m yana koşan hedef: ortalama hata ${r.err.toFixed(2)}° · hedef üstünde %${Math.round(r.on * 100)} (${r.n} kare)`);
+  check(!errs.length, `A/${mode} sayfa hatası yok ${errs[0] || ''}`);
   await page.close();
 }
 // B) paintball

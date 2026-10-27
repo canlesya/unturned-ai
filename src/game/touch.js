@@ -317,7 +317,7 @@ export class TouchControls {
   // ── Nişan yardımı (her sim adımında, Player.update'ten) ──
   // Aday: canlı düşman, göğsü nişangâha açısal olarak yakın (koni = 4° + gövde açısı, nişanda büyütmeyle daralır), 90 m'den yakın, gerçekten
   // görünür (game.botSees: duvar, duman, yaprak / çalı). (a) Sürtünme: üstündeyken parmak bakışı en çok %45 yavaşlar. (b) Mıknatıs: oyuncu
-  // hareket ediyor / ateş ediyor / nişanda / parmakla bakıyorsa hedefe yumuşakça döner (hata ile orantılı, sınırlı hız: asla ani kilit yok;
+  // hareket ediyor / ateş ediyor / parmakla bakıyorsa (12.198: yalnız nişan basılı tutmak yetmez) hedefe yumuşakça döner (hata ile orantılı, sınırlı hız: asla ani kilit yok;
   // uzakta zayıf). (c) Nişana girişte 0,18 sn daha güçlü çekiş. Çevrimiçinde de çalışır: yaw / pitch zaten istemciden gönderiliyor.
   // v2: koni ≈ 6,3° + gövde açısı, daha güçlü çekiş (≈75°/sn tavan), (d) takip: aynı hedef karede ne kadar açı kaydırdıysa nişangâh onun
   // büyük kısmıyla birlikte döner (koşan düşmanda geride kalmaz), (e) topçu silah (paintball): nişan noktası topun düşüşü + hedefin hızıyla öne alınır.
@@ -360,11 +360,14 @@ export class TouchControls {
     this.aaSlow = 1 - Math.min(0.65, 0.55 * str * bw);
     const prev = this._trk; this._trk = { o: best.o, ay: best.ay, ap: best.ap };
     const looking = performance.now() - (this.lookT || 0) < 150;
-    if (!(Math.abs(this.f) + Math.abs(this.r) > 0.1 || p.fireHeld || s.ads || looking)) return;
+    // 12.198: yalnız nişan basılıyken (parmak / hareket / ateş yok) mıknatıs ve takip yok — nişana girişteki 0,22 sn çekiş + sürtünme kalır.
+    // Eskiden yalnız nişanı basılı tutmak 20 m'de 5,6 m/sn yana koşan hedefi %100 izliyordu (ortalama hata 0,2°): masaüstü oyuncuya karşı otomatik nişan.
+    const active = Math.abs(this.f) + Math.abs(this.r) > 0.1 || p.fireHeld || looking;
+    if (!(active || (s.ads && this._snapT > 0))) return;
     let ty = 0, tpch = 0;                                                             // takip: hedefin bu karedeki açısal kayması (en çok 2 rad/sn)
     if (prev && prev.o === best.o) {
       let d = best.ay - prev.ay; d -= Math.round(d / (2 * Math.PI)) * 2 * Math.PI;
-      const f = Math.min(0.95, 0.85 * str * (0.5 + 0.5 * bw)), lim = 2.5 * dt;
+      const f = Math.min(0.85, 0.75 * str * (0.5 + 0.5 * bw)), lim = 2.5 * dt;      // 12.198: takip payı %85 → %75 (tavan 0,95 → 0,85): oyuncu da parmağıyla izlemeli
       ty = Math.max(-lim, Math.min(lim, d * f)); tpch = Math.max(-lim, Math.min(lim, (best.ap - prev.ap) * f));
     }
     const k = 1 - Math.exp(-(this._snapT > 0 ? 12 : ads ? 7 : 5) * str * Math.max(0.45, bw) * dt), cap = 1.3 * dt;    // en çok ≈75°/sn; koni kenarında da çeker

@@ -336,7 +336,9 @@ export class Soldier {
     if (this.veh) s += Math.min(vs * 0.0008, 0.012) * (1 - this.adsT * 0.5);      // 12.177 hareketli araçtan atış: hızla artan sarsıntı (55 km/s ≈ +0,012 rad)
     s += this.bloom;                                                   // seri atışta açılma
     // duran oyuncunun ilk atışı (kısa bir aradan sonra) isabetli olsun
-    if (this.sinceShot > 0.3 && speed < 1.5 && this.onGround) s *= sc ? 1 - 0.8 * sk : 0.2;
+    // 12.198: saçmalı silahta (pompalı / çift namlu / AA-12 / dağıtıcı) indirim yok — desen hep aynı (eski ×0,2 duran ilk atışı tek kurşun gibi toplayıp
+    // pompalıyı 15 m'de tek atış yapıyordu; menzil yalnız hasar düşüşüne kalıyordu)
+    if (this.sinceShot > 0.3 && speed < 1.5 && this.onGround && !st.pellets) s *= sc ? 1 - 0.8 * sk : 0.2;
     return s + this.botExtraSpread;
   }
 
