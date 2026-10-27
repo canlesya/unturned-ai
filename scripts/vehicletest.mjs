@@ -48,11 +48,11 @@ function headless() {
   const s3 = s.seat, drvEmpty = !v.seats[0];
   step(1, { vs: 1 }); step(1);
   ok(s3 === 2 && drvEmpty && s.seat === 0, 'koltuk değiştir: 3 → arka sol, sürücü boşalır, 1 → sürücü', `${s3} → ${s.seat}`);
-  // köprü + sığ geçit
-  put(v, 0, 62, 0); step(1); let maxY = -99; step(480, (i) => { maxY = Math.max(maxY, v.st.y); return { f: 0.8 }; });
-  ok(v.st.z < -15 && maxY > 6 && !v.st.sunk, 'Taş Köprü: tabliyeden (6,2 m) nehri geçer', `z ${f1(v.st.z)} · en yüksek ${f2(maxY)}`);
+  // 12.182: eski nehir hattı kuru — Kavşak (eski Taş Köprü) ve Doğu Geçidi yolundan kesintisiz geçilir
+  put(v, 0, 62, 0); step(1); let minY0 = 99; step(480, (i) => { minY0 = Math.min(minY0, v.st.y); return { f: 0.8 }; });
+  ok(v.st.z < -15 && minY0 > 1 && !v.st.sunk, 'Kavşak: eski nehir hattını (çayır) yoldan kesintisiz geçer', `z ${f1(v.st.z)} · en alçak ${f2(minY0)}`);
   put(v, 336, 20, 0.05); step(1); let minY = 99; step(780, () => { minY = Math.min(minY, v.st.y); return { f: 1 }; });
-  ok(v.st.z < -105 && minY < -0.2 && !v.st.sunk, 'Doğu sığ geçidi: sudan geçer (batmaz)', `z ${f1(v.st.z)} · en alçak ${f2(minY)}`);
+  ok(v.st.z < -105 && minY > 1 && !v.st.sunk, 'Doğu Geçidi (toprak yol): eski geçit yerinden geçer, su yok', `z ${f1(v.st.z)} · en alçak ${f2(minY)}`);
   // savaş alanı sınırı: araçla dışarı → 10 sn sonra ölüm, boş araç dışarıda 15 sn sonra yenilenir
   put(v, 770, 300, 0); step(1);
   let tOut = 0; while (s.alive && tOut < 13) { step(6); tOut += 0.1; }
@@ -64,8 +64,8 @@ function headless() {
   ok(v.alive && Math.hypot(v.st.x - v.spawn.x, v.st.z - v.spawn.z) < 0.5, 'yeniden doğuş (doğuş yerinde)', `${f1(tR)} sn`);
   // derin su: batar, içindeki iner, araç gider
   s.pos.set(v.st.x + 2, v.st.y, v.st.z); step(1, { ve: 1 }); step(1);
-  put(v, -100, 62, 0); step(1); let tS = 0, exitAt = -1; while (v.alive && tS < 14) { step(6, { f: 0.6 }); tS += 0.1; if (exitAt < 0 && !s.veh) exitAt = tS; }
-  ok(!v.alive && exitAt > 0 && s.alive, 'derin nehir: motor boğulur → sürücü iner (yüzme su ajanında) → araç birkaç sn sonra gider', `iniş ${f1(exitAt)} sn · araç gitti ${f1(tS)} sn`);
+  put(v, 742, -62, 0); step(1); let tS = 0, exitAt = -1; while (v.alive && tS < 14) { step(6, { f: 0.6 }); tS += 0.1; if (exitAt < 0 && !s.veh) exitAt = tS; }
+  ok(!v.alive && exitAt > 0 && s.alive, 'derin su (baraj gölü): motor boğulur → sürücü iner (yüzme su ajanında) → araç birkaç sn sonra gider', `iniş ${f1(exitAt)} sn · araç gitti ${f1(tS)} sn`);
   while (!v.alive) g.step(0.2);
   // hasar
   const red = g.soldiers.find((e) => e.team === 'red'); red.vacant = false; red.spawn({ x: v.st.x + 30, z: v.st.z, ry: 0 }, 0); g.world.settle(red); red.protT = 0;
@@ -203,13 +203,13 @@ function headlessTank() {
   const j2 = V.list.find((x) => x.id === 'B-J3'); put(j2, 0, t.st.z - 7.5, Math.PI / 2); put(t, 0, t.st.z, 0); step(1, { yw: 0 });
   const jz = j2.st.z; step(150, { f: 1, yw: 0 });
   ok(jz - j2.st.z > 3, 'tank yolundaki jipi iter (kütle)', `jip ${f1(jz - j2.st.z)} m itildi · tank hızı ${f1(V.speed(t))}`);
-  // köprü + geçit + derin su
-  put(t, 0, 66, 0); step(1); let maxY = -99; step(780, () => { maxY = Math.max(maxY, t.st.y); return { f: 0.8, yw: 0 }; });
-  ok(t.st.z < -15 && maxY > 6 && !t.st.sunk, 'tank Taş Köprü\'den geçer', `z ${f1(t.st.z)} · en yüksek ${f2(maxY)}`);
+  // 12.182: eski nehir hattı (Kavşak / Doğu Geçidi) kuru + derin su yalnız baraj gölünde
+  put(t, 0, 66, 0); step(1); let minY0 = 99; step(780, () => { minY0 = Math.min(minY0, t.st.y); return { f: 0.8, yw: 0 }; });
+  ok(t.st.z < -15 && minY0 > 1 && !t.st.sunk, 'tank Kavşak\'tan (eski Taş Köprü yeri) kesintisiz geçer', `z ${f1(t.st.z)} · en alçak ${f2(minY0)}`);
   put(t, 336, 20, 0.05); step(1); let minY = 99; step(1500, () => { minY = Math.min(minY, t.st.y); return { f: 1, yw: 0.05 }; });
-  ok(t.st.z < -105 && !t.st.sunk, 'tank doğu sığ geçidinden geçer', `z ${f1(t.st.z)} · en alçak ${f2(minY)}`);
-  put(t, -100, 62, 0); step(1); let tS = 0, out = -1; while (t.alive && tS < 14) { step(6, { f: 0.7, yw: 0 }); tS += 0.1; if (out < 0 && !s.veh) out = tS; }
-  ok(!t.alive && out > 0 && s.alive, 'tank derin nehirde batar (sürücü çıkar, yüzer)', `iniş ${f1(out)} sn · araç gitti ${f1(tS)} sn`);
+  ok(t.st.z < -105 && !t.st.sunk, 'tank Doğu Geçidi toprak yolundan geçer', `z ${f1(t.st.z)} · en alçak ${f2(minY)}`);
+  put(t, 742, -62, 0); step(1); let tS = 0, out = -1; while (t.alive && tS < 14) { step(6, { f: 0.7, yw: 0 }); tS += 0.1; if (out < 0 && !s.veh) out = tS; }
+  ok(!t.alive && out > 0 && s.alive, 'tank derin suda (baraj gölü) batar (sürücü çıkar, yüzer)', `iniş ${f1(out)} sn · araç gitti ${f1(tS)} sn`);
   // el bombası araçtan seker
   const jj = V.list.find((x) => x.id === 'B-J1'); put(jj, 50, 300, 0); g.step(1 / 60);
   const thrower = g.soldiers.find((o) => o.team === 'blue' && o !== s && o !== gunner); thrower.vacant = false; thrower.spawn({ x: 44, z: 300, ry: 0 }, 0); g.world.settle(thrower);
@@ -578,7 +578,7 @@ async function onlineHeli(chromium) {
   const fall = await A.evaluate(() => { clearInterval(window.__fi); return window.__fall; }), pilotDied = fall.some((f) => !f[3]), fallH = Math.max(...fall.map((f) => f[1]));
   const boom = await Promise.all([A, B].map((P) => P.evaluate(() => { const g = window.__game, v = g.vehicles.list.find((x) => x.id === 'B-H1'), me = g.playerSoldier; return { wreck: v.wreck, alive: v.alive, me: me.alive }; })));
   await B.screenshot({ path: `${OUT}/../heli/22-cevrimici-dusus${tag ? '-vekil' : ''}.png` });
-  ok(boom.every((b) => !b.alive) && pilotDied, 'pilot havada inerse: helikopter düşüp patlar (iki istemcide), atlayan pilot düşüp ölür' + tag, `${JSON.stringify(boom)} · pilot ${fallH.toFixed(0)} m'den düştü`);
+  ok(boom.every((b) => !b.alive) && pilotDied, 'pilot havada inerse: helikopter düşüp patlar (iki istemcide), atlayan pilot düşüp ölür' + tag, `${JSON.stringify(boom)} · pilot ${fallH.toFixed(0)} m'den düştü${pilotDied ? '' : ' · ' + JSON.stringify(fall.slice(0, 8))}`);
   ok(!A.errs.length && !B.errs.length, 'çevrim içi helikopter: sayfa hatası yok' + tag, [...A.errs, ...B.errs].slice(0, 2).join(' | '));
   await browser.close();
 }

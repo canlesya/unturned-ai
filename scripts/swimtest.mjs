@@ -1,5 +1,5 @@
-// Yüzme testi (12.180). Bölüm 1 (çevrimdışı, tarayıcısız): node scripts/swimtest.mjs
-//   kıyıdan suya giriş · yüzme hızı · dalma / yüzeye çıkış (kaldırma) · nefes → boğulma · kıyıdan çıkış · köprüden / yüksekten suya iniş hasarsız ·
+// Yüzme testi (12.180; 12.182: ortadaki nehir kalktı → bütün su denetimleri baraj gölünde). Bölüm 1 (çevrimdışı, tarayıcısız): node scripts/swimtest.mjs
+//   sahanlıktan suya giriş · yüzme hızı · dalma / yüzeye çıkış (kaldırma) · nefes → boğulma · kenara tutunup çıkış · baraj yüzüne çıkılmaz · yüksekten suya iniş hasarsız ·
 //   sınır kuralı suda da · göl merdiveninden çıkış · yüzerken silah kuralı · mermi suda durur · suya düşen bot kıyıya çıkar · botlar suya girmez
 // Bölüm 2 (çevrim içi, tarayıcı): ONLINE=1 URL=http://127.0.0.1:5347 SRV=ws://127.0.0.1:8893 node scripts/swimtest.mjs
 //   (sunucu: PORT=8893 ADMIN_PORT=8894 BF_DATA=/tmp/wb-swim BF_DEBUG=1 node server/index.js) — yüzme tahmini düzeltmesi küçük, ikinci istemci yüzeni doğru görür
@@ -26,14 +26,16 @@ if (!process.env.ONLINE || process.env.ONLINE === 'both') {
   const yawTo = (dx, dz) => Math.atan2(-dx, -dz);
   const run = (secs, inp, each) => { for (let i = 0; i < secs / DT; i++) { g.step(DT); if (!me.alive) return i * DT; applyInput(me, { f: 0, r: 0, lean: 0, sprint: false, jump: false, dive: false, ...inp }, DT); if (each && each(i * DT) === false) return i * DT; } return secs; };
 
-  // 1 kıyıdan suya giriş (x 100: kıyı z −50 → nehir ortası z −15), yüzme hızı
-  place(100, null, -52); me.yaw = yawTo(0, 1); me.pitch = 0;
+  // 12.182: su yalnız baraj gölünde (yüzey 20 m). LX / LZ göl ortası (oynanır alan içinde), ex = merdiven sahanlığı çıkış noktası
+  const LW = 20, LX = 742, LZ = -62, ex = g.map.swimExits?.[0];
+  // 1 sahanlıktan suya giriş (merdiven alt sahanlığı → doğu, göle), yüzme hızı
+  place(ex[0], ex[1] + 0.05, ex[2]); me.onGround = true; me.yaw = yawTo(1, 0); me.pitch = 0;
   let tSwim = null, minEye = 1e9, sp = [], minY = 1e9;
-  run(14, { f: 1 }, (t) => { if (me.swim && tSwim == null) tSwim = t; if (me.swim) { minEye = Math.min(minEye, me.pos.y + me.eyeY - me.wY); if (t - tSwim > 2) sp.push(Math.hypot(me.vel.x, me.vel.z)); } minY = Math.min(minY, me.pos.y); });
+  run(14, { f: 1 }, (t) => { if (me.swim && tSwim == null) tSwim = t; if (me.swim) { if (t - tSwim > 3) minEye = Math.min(minEye, me.pos.y + me.eyeY - me.wY); if (t - tSwim > 2) sp.push(Math.hypot(me.vel.x, me.vel.z)); } minY = Math.min(minY, me.pos.y); });
   const spd = sp.reduce((a, b) => a + b, 0) / (sp.length || 1);
-  ok(tSwim != null && me.swim && !me.under, '1a kıyıdan derin suya yürüyerek girilir (görünmez engel yok) → yüzer', `giriş ${tSwim?.toFixed(1)} sn, z ${me.pos.z.toFixed(1)}, ayak ${me.pos.y.toFixed(2)} (yatak ${T.heightAt(me.pos.x, me.pos.z).toFixed(2)})`);
+  ok(tSwim != null && me.swim && !me.under, '1a merdiven sahanlığından derin göle yürüyerek girilir (görünmez engel yok) → yüzer', `giriş ${tSwim?.toFixed(1)} sn, z ${me.pos.z.toFixed(1)}, ayak ${me.pos.y.toFixed(2)} (yatak ${T.heightAt(me.pos.x, me.pos.z).toFixed(2)})`);
   ok(spd > 1.9 && spd < 2.6, '1b yüzme hızı ~2,3 m/sn (koşu yok)', `${spd.toFixed(2)} m/sn`);
-  ok(minEye > 0.08, '1c yüzeyde baş suyun üstünde (göz > su)', `göz − su en az ${minEye.toFixed(2)} m · en alçak ayak ${minY.toFixed(2)}`);
+  ok(minEye > 0.08, '1c yüzeyde baş suyun üstünde (göz > su; sahanlıktan düşüşten 3 sn sonra)', `göz − su en az ${minEye.toFixed(2)} m · en alçak ayak ${minY.toFixed(2)}`);
   // 2 dalma (C basılı) / bırakınca yüzeye çıkış
   const y0 = me.pos.y; let tUnder = null;
   run(2.5, { dive: true }, (t) => { if (me.under && tUnder == null) tUnder = t; });
@@ -48,36 +50,34 @@ if (!process.env.ONLINE || process.env.ONLINE === 'both') {
   me.pitch = -0.9; yb = me.pos.y; run(1.5, { f: 1 }); me.pitch = 0;
   ok(me.pos.y < yb - 0.6 && me.under, '3 su altında bakış yönünde dalınır (aşağı bak + ileri)', `${(yb - me.pos.y).toFixed(2)} m indi`);
   // 4 nefes → boğulma (dipte C basılı)
-  place(100, -2.9, -20); me.air = SWIM.breath; let tAir0 = null, firstDmg = null, hp0 = me.hp, dmgN = 0, lastHp = me.hp;
+  place(LX, LW - 2.9, LZ); me.air = SWIM.breath; let tAir0 = null, firstDmg = null, hp0 = me.hp, dmgN = 0, lastHp = me.hp;
   const tDie = run(40, { dive: true }, (t) => { if (me.air <= 0 && tAir0 == null) tAir0 = t; if (me.hp < lastHp) { dmgN++; if (firstDmg == null) firstDmg = t; } lastHp = me.hp; });
   const kfOk = me.alive === false;
   ok(tAir0 != null && Math.abs(tAir0 - SWIM.breath) < 0.5, '4a su altında nefes ~18 sn', `${tAir0?.toFixed(1)} sn`);
   ok(firstDmg != null && firstDmg > SWIM.breath && kfOk && tDie > 26 && tDie < 30, '4b nefes bitince saniyede 10 boğulma hasarı → ölüm', `ilk hasar ${firstDmg?.toFixed(1)} sn, ${dmgN} vuruş, ölüm ${tDie.toFixed(1)} sn`);
   // yüzeye çıkınca nefes dolar
-  place(100, -1.4, -20); me.air = 2; run(5.2, {});
+  place(LX, LW - 1.4, LZ); me.air = 2; run(5.2, {});
   ok(me.air >= SWIM.breath - 0.01 && me.hp === me.maxHp, '4c yüzeyde nefes ~5 sn\'de dolar, hasar yok', `nefes ${me.air.toFixed(1)}`);
-  // 5 kıyıdan çıkış: nehir ortasından güney kıyısına (z −50 tarafı) yüz, çık, kuru yerde dur
-  place(100, -1.4, -18); me.yaw = yawTo(0, -1);
+  // 5 kenardan çıkış: gölde yüzen, merdiven sahanlığına (su + 0,3 m) yüzüp tutunarak çıkar, kuru yerde durur
+  place(ex[0] + 8, LW - 1.4, ex[2] + 1.5); me.yaw = yawTo(ex[0] - me.pos.x, ex[2] - me.pos.z);
   let tOut = null;
-  run(30, { f: 1 }, (t) => { if (tOut == null && !me.swim && me.onGround && me.pos.y > 0.3) tOut = t; if (tOut != null && t > tOut + 1.5) return false; });
-  ok(tOut != null && !me.swim && me.pos.y > 0.3, '5a sığ kıyıdan yürüyerek çıkılır', `${tOut?.toFixed(1)} sn, z ${me.pos.z.toFixed(1)}, y ${me.pos.y.toFixed(2)}`);
-  // 5b taş köprü ayağı / dik kıyı: yüksek kenara tırmanılmaz (köprü tabliyesine sudan çıkılmaz)
-  place(0, -1.4, -2); me.yaw = yawTo(1, 0); run(10, { f: 1 });
-  ok(me.pos.y < 2, '5b köprü ayağına / tabliyeye sudan çıkılmaz (≤ 1,15 m kenar kuralı)', `y ${me.pos.y.toFixed(2)} x ${me.pos.x.toFixed(1)}`);
-  // 6 köprüden atla / yüksekten suya iniş hasarsız; karada aynı yükseklik öldürür (kontrol)
-  const bridge = g.map.objectives.find((o) => o.id === 'C');
-  place(0, 6.25, 9); me.onGround = true; me.yaw = yawTo(1, 0); let land = 0; const hpB = me.hp;
-  let top = 0; run(8, { f: 1, jump: true }, () => { if (me.landH > land) land = me.landH; top = Math.max(top, me.pos.y); });     // korkuluğa (1 m) zıplayıp üstünden nehre
-  ok(me.alive && me.hp === hpB && me.swim, '6a Taş Köprü\'den (korkuluk üstünden) nehre atlayış hasarsız', `can ${me.hp}, iniş ${land.toFixed(2)} m, en yüksek ${top.toFixed(2)}, şimdi ayak ${me.pos.y.toFixed(2)} (tabliye ${bridge?.y})`);
-  place(60, 30, -6); me.onGround = false; run(5, {});
-  ok(me.alive && me.hp === me.maxHp, '6b 30 m\'den derin nehre düşüş hasarsız', `can ${me.hp}, ayak ${me.pos.y.toFixed(2)}`);
+  run(30, { f: 1 }, (t) => { if (tOut == null) me.yaw = yawTo(ex[0] - me.pos.x, ex[2] - me.pos.z); if (tOut == null && !me.swim && me.onGround && me.pos.y > LW + 0.2) tOut = t; if (tOut != null && t > tOut + 1.0) return false; });
+  ok(tOut != null && !me.swim && me.pos.y > LW + 0.2, '5a gölden merdiven sahanlığına tutunup çıkılır (kuru yerde durur)', `${tOut?.toFixed(1)} sn, z ${me.pos.z.toFixed(1)}, y ${me.pos.y.toFixed(2)}`);
+  // 5b baraj menba yüzü (4 m): yüksek kenara sudan tırmanılmaz (merdiven dışında)
+  place(ex[0] + 3, LW - 1.4, ex[2] + 30); me.yaw = yawTo(-1, 0); run(10, { f: 1 });
+  ok(me.pos.y < LW + 1, '5b baraj duvarına (merdiven dışı) sudan çıkılmaz (≤ 1,15 m kenar kuralı)', `y ${me.pos.y.toFixed(2)} x ${me.pos.x.toFixed(1)}`);
+  // 6 yüksekten suya iniş hasarsız; karada aynı yükseklik öldürür (kontrol)
+  const hpB = me.hp; let land = 0;
+  place(LX, LW + 4.3, LZ); me.onGround = false; run(6, {}, () => { if (me.landH > land) land = me.landH; });
+  ok(me.alive && me.hp === hpB && me.swim, '6a baraj tepesi kotundan (24 m) göle atlayış hasarsız', `can ${me.hp}, iniş ${land.toFixed(2)} m, şimdi ayak ${me.pos.y.toFixed(2)}`);
+  place(LX + 6, LW + 30, LZ + 4); me.onGround = false; run(5, {});
+  ok(me.alive && me.hp === me.maxHp, '6b 30 m\'den derin göle düşüş hasarsız', `can ${me.hp}, ayak ${me.pos.y.toFixed(2)}`);
   place(150, T.heightAt(150, 200) + 30, 200); me.onGround = false; run(4, {});
   ok(!me.alive, '6c kontrol: karada 30 m düşüş öldürür');
-  // 7 sınır kuralı suda da: savaş alanı dışında (x −780) yüzerken 10 sn → ölüm
-  place(-780, -1.4, 12); let tO = run(14, {});
-  ok(!me.alive && tO > 9.5 && tO < 10.7, '7 savaş alanı dışında yüzen 10 sn sonra ölür', `${tO.toFixed(2)} sn, x ${me.pos.x.toFixed(0)} (sınır ${KZ_PLAY.minX})`);
+  // 7 sınır kuralı suda da: savaş alanı dışında (x 782, gölün doğusu) yüzerken 10 sn → ölüm
+  place(782, LW - 1.4, -66); let tO = run(14, {});
+  ok(!me.alive && tO > 9.5 && tO < 10.7, '7 savaş alanı dışında yüzen 10 sn sonra ölür', `${tO.toFixed(2)} sn, x ${me.pos.x.toFixed(0)} (sınır ${KZ_PLAY.maxX})`);
   // 8 baraj gölü: merdivenden çıkış
-  const ex = g.map.swimExits?.[0];
   ok(!!ex, '8a baraj gölü çıkış noktası (merdiven) var', JSON.stringify(ex));
   if (ex) {
     place(ex[0] + 14, 20 - 1.4, ex[2] - 6); me.yaw = yawTo(ex[0] - me.pos.x, ex[2] - me.pos.z);
@@ -86,7 +86,7 @@ if (!process.env.ONLINE || process.env.ONLINE === 'both') {
     ok(climbed != null && me.pos.y > 23.9, '8b gölden merdiven sahanlığına tutunup çıkılır, basamaklardan baraj tepesine (24 m)', `çıkış ${climbed?.toFixed(1)} sn, y ${me.pos.y.toFixed(2)}`);
   }
   // 9 silah kuralı: yüzeyde tüfek yok / tabanca var (nişan yok), su altında hiçbiri
-  place(100, -1.4, -20); run(0.5, {});
+  place(LX, LW - 1.4, LZ); run(0.5, {});
   me.switchTo(0); run(0.8, {}); const rifle = me.tryFire();
   const sec = me.items.findIndex((it) => it && (it.id === 'pistol' || /m1911|deagle|revolver|mac10/.test(it.id)));
   me.switchTo(sec); run(0.8, {}); me.cd = 0; const pistol = me.tryFire(); me.ads = true; run(0.5, {}); const ads = me.adsT;
@@ -95,31 +95,31 @@ if (!process.env.ONLINE || process.env.ONLINE === 'both') {
   // 10 mermi suda durur: yüzeydeki başa isabet, 2 m derindekine yok
   {
     const shooter = foe; shooter.alive = true; shooter.protT = 0;
-    shooter.pos.set(100, T.heightAt(100, -55), -55); shooter.vel.set(0, 0, 0);
+    shooter.pos.set(ex[0], ex[1] + 0.02, ex[2]); shooter.vel.set(0, 0, 0); shooter.onGround = true;        // merdiven sahanlığında
     const st = { ...shooter.stat, range: [40, 80], dmg: 30, minMul: 1, pen: null, pellets: 1 };
     const shoot = (tgt) => { const o = shooter.eye(new THREE.Vector3()), d = tgt.clone().sub(o).normalize(); const hp0 = me.hp; g.shootRay(shooter, o, d, st, o.clone()); return hp0 - me.hp; };
-    place(100, -1.4, -25); run(0.2, {}); me.protT = 0;
+    place(ex[0] + 14, LW - 1.4, ex[2]); run(0.2, {}); me.protT = 0;
     const hSurf = shoot(new THREE.Vector3(me.pos.x, me.pos.y + 1.66, me.pos.z));
-    place(100, -3.0, -25); me.protT = 0; me.vel.set(0, 0, 0); me.pos.y = -3.0; const hDeep = shoot(new THREE.Vector3(me.pos.x, me.pos.y + 1.0, me.pos.z));
+    place(ex[0] + 14, LW - 3.0, ex[2]); me.protT = 0; me.vel.set(0, 0, 0); me.pos.y = LW - 3.0; const hDeep = shoot(new THREE.Vector3(me.pos.x, me.pos.y + 1.0, me.pos.z));
     ok(hSurf > 0 && hDeep === 0, '10 mermi su yüzeyinden 1,5 m sonra durur (yüzeydeki baş vurulur, dalan korunur)', `yüzey ${hSurf} · 2 m derin ${hDeep}`);
     park(shooter); shooter.protT = 1e9;
   }
   // 11 bot görüşü: dalan bot görüşünden saklı, yüzeydeki görünür
   {
-    const a = new THREE.Vector3(100, T.heightAt(100, -55) + 1.6, -55);
-    const surf = g.botSees(a, new THREE.Vector3(100, -0.25, -25)), deep = g.botSees(a, new THREE.Vector3(100, -2.0, -25));
+    const a = new THREE.Vector3(ex[0], ex[1] + 1.6, ex[2]);
+    const surf = g.botSees(a, new THREE.Vector3(ex[0] + 14, LW - 0.25, ex[2])), deep = g.botSees(a, new THREE.Vector3(ex[0] + 14, LW - 2.0, ex[2]));
     ok(surf && !deep, '11 bot görüşü: yüzeydeki yüzücüyü görür, dalanı görmez', `yüzey ${surf} · dalan ${deep}`);
   }
-  // 12 suya düşen bot kıyıya çıkar (gerçek BotBrain), nehrin farklı yerlerinde
+  // 12 suya düşen bot merdivene yüzüp çıkar (gerçek BotBrain), gölün farklı yerlerinde
   {
     const { BotBrain } = await import('../src/game/bot.js');
-    const spots = [[100, -20], [-150, 40], [260, -72], [-400, -18]], res = [];
+    const spots = [[728, -48], [746, -74], [738, -36], [752, -58]], res = [];
     me.alive = false; me.respawnT = 1e9; me.pos.set(0, -50, 900);
     for (const [x, z] of spots) {
-      const b = foe; b.alive = true; b.hp = b.maxHp; b.protT = 1e9; b.pos.set(x, -1.4, z); b.vel.set(0, 0, 0); b.air = SWIM.breath;
+      const b = foe; b.alive = true; b.hp = b.maxHp; b.protT = 1e9; b.pos.set(x, LW - 1.4, z); b.vel.set(0, 0, 0); b.air = SWIM.breath;
       const br = new BotBrain(g, b, 'normal'); br.pickGoal = () => {}; br.goal = null;
       let tOut = null, maxD = 0;
-      for (let i = 0; i < 60 / DT; i++) { g.step(DT); br.update(DT); maxD = Math.max(maxD, b.wDepth || 0); if (!b.swim && !br.swimming && b.onGround && tOut == null) { tOut = i * DT; break; } }
+      for (let i = 0; i < 60 / DT; i++) { g.step(DT); br.update(DT); maxD = Math.max(maxD, b.wDepth || 0); if (!b.swim && !br.swimming && b.onGround && b.pos.y > LW + 0.2 && tOut == null) { tOut = i * DT; break; } }
       res.push({ x, z, t: tOut == null ? null : +tOut.toFixed(1), y: +b.pos.y.toFixed(2), free: g.nav.isFree(b.pos.x, b.pos.z) });
     }
     if (ex) {
@@ -131,7 +131,7 @@ if (!process.env.ONLINE || process.env.ONLINE === 'both') {
     park(foe);
     ok(res.every((r) => r.t != null && r.t < 45), '12 suya düşen bot en yakın kıyıya / merdivene yüzüp çıkar', JSON.stringify(res));
   }
-  // 13 botlar suya kendiliğinden girmez: 8v8 botlu maç 150 sn (nehir iki yakada çatışma)
+  // 13 botlar suya kendiliğinden girmez: 8v8 botlu maç 150 sn
   {
     const g2 = new Game(null, { headless: true, map: 'kuzey', tod: 'day', weather: 'clear', diff: 'normal', match: { perTeam: 8, type: 'conquest', time: 900 } });
     let swimS = 0, wade = 0, maxD = 0, who = new Set();
@@ -153,11 +153,11 @@ if (process.env.ONLINE) {
   await B.goto(`${URL0}/?online=${code}&name=Izleyen&server=${encodeURIComponent(SRV)}&debug=1&nolock=1&nologin=1&shadows=0`);
   await B.waitForFunction('window.__game && window.__game.running', null, { timeout: 240000 });
   await A.waitForTimeout(3000);
-  // A nehre (x 100, z −20) ışınlanır, 8 sn yüzer (ileri), 3 sn dalar, sonra bırakır; tahmin hataları ölçülür
+  // A baraj gölüne ışınlanır, 8 sn yüzer (ileri), 3 sn dalar, sonra bırakır; tahmin hataları ölçülür
   const r = await A.evaluate(async () => {
     const g = window.__game, me = g.playerSoldier, n = g.online, P = g.player;
-    n.send({ t: 'dbg', tpy: [100, -1.4, -30] });
-    for (let i = 0; i < 60 && Math.abs(me.pos.z + 30) > 1; i++) await new Promise((r) => setTimeout(r, 50));
+    n.send({ t: 'dbg', tpy: [742, 18.6, -70] });
+    for (let i = 0; i < 60 && Math.abs(me.pos.z + 70) > 1; i++) await new Promise((r) => setTimeout(r, 50));
     await new Promise((r) => setTimeout(r, 800));
     me.yaw = Math.PI; n.stats.errMax = 0; const c0 = n.stats.corrections, e0 = n.stats.errSum || 0, sw = [];
     P.keys.add('KeyW');
@@ -169,7 +169,7 @@ if (process.env.ONLINE) {
     await new Promise((r) => setTimeout(r, 4000));
     return { corr: n.stats.corrections - c0, errSum: +((n.stats.errSum || 0) - e0).toFixed(3), errMax: +(n.stats.errMax || 0).toFixed(3), swimFrac: sw.reduce((a, b) => a + b, 0) / sw.length, under, yDive: +yDive.toFixed(2), y: +me.pos.y.toFixed(2), z: +me.pos.z.toFixed(1), air: me.air, id: me.id };
   });
-  ok(r.swimFrac > 0.9 && r.under && r.y > -1.6, '14a çevrim içi: yüzer, C ile dalar, bırakınca yüzeye çıkar (istemci tahmini)', JSON.stringify(r));
+  ok(r.swimFrac > 0.9 && r.under && r.y > 18.4, '14a çevrim içi: yüzer, C ile dalar, bırakınca yüzeye çıkar (istemci tahmini)', JSON.stringify(r));
   ok(r.corr <= 3 && r.errSum < 0.5, '14b yüzme tahmini düzeltmesi düşük (sunucu = istemci aynı kod)', `düzeltme ${r.corr}, toplam hata ${r.errSum} m, en büyük ${r.errMax} m`);
   // B, A'yı yüzerken görür: konumu suda, model yüzme pozunda
   await A.evaluate(() => { window.__game.player.keys.add('KeyW'); });
@@ -190,7 +190,7 @@ if (process.env.ONLINE) {
   const d = await A.evaluate(async () => {
     const g = window.__game, me = g.playerSoldier, n = g.online, P = g.player;
     P.keys.delete('KeyW');
-    n.send({ t: 'dbg', hp: 100 }); n.send({ t: 'dbg', tpy: [100, -3.0, -20] });
+    n.send({ t: 'dbg', hp: 100 }); n.send({ t: 'dbg', tpy: [742, 17.0, -62] });
     await new Promise((r) => setTimeout(r, 400));
     P.keys.add('KeyC');
     let minAir = 99, hp20 = null; const t0 = performance.now();

@@ -19,7 +19,7 @@ for (const team of ['blue', 'red']) for (const f of m.objectives) {
 }
 m.stats.paths = paths;
 const out = {
-  N, S, h, sf, roads: m.roadGraph, river: L.RIVER, lake: L.LAKE, fords: L.FORDS, bridges: L.BRIDGES, dam: L.DAM, flags: m.objectives, hq: L.HQ, pads: L.PADS,
+  N, S, h, sf, roads: m.roadGraph, river: [], lake: L.LAKE, fords: [], bridges: [], dam: L.DAM, flags: m.objectives, hq: L.HQ, pads: L.PADS,
   spawns: m.spawns, helipads: L.HELIPADS, vehicles: L.VEHICLES, tdm: L.TDM_AREA, callouts: L.CALLOUTS, forest: L.FOREST_ZONES, fields: L.FIELDS, hedges: L.HEDGES, loot: m.lootSpots, big, wires: m.wires.map(([a, b]) => [a[0], a[2], b[0], b[2]]),
   stats: m.stats,
 };

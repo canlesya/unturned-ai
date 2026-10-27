@@ -5,7 +5,7 @@ import fs from 'fs';
 const prof = process.argv[2] || 'masaustu', OUT = process.argv[3] || '/tmp/wb-buyuk/perf', URL0 = process.env.URL || 'http://127.0.0.1:5391';
 fs.mkdirSync(OUT, { recursive: true });
 const { defaultBrowserType, ...px } = devices['Pixel 7 landscape'] || devices['Pixel 7'];
-const browser = await chromium.launch({ args: ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu'] });
+const browser = await chromium.launch({ headless: !process.env.HEADFUL, args: ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu'] });
 const ctx = await browser.newContext(prof === 'pixel7' ? { ...px, locale: 'tr-TR' } : { viewport: { width: 1600, height: 900 }, locale: 'tr-TR' });
 const page = await ctx.newPage();
 const errs = []; page.on('pageerror', (e) => errs.push(e.message));

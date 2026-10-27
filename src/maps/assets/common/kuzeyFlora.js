@@ -67,24 +67,24 @@ export const FLORA = {
   },
   birch: {
     h: [10, 16], trunkR: 0.02, trunkH: 0.5, crown: [0.68, 0.2],
-    L0: () => merge([trunk(0.022, 0.01, 0.92, C('#ddd8cc'), 8), trunk(0.0235, 0.022, 0.18, C('#3a3530'), 8),
-      blob(0.16, 0.03, 0.62, 0.02, C('#7f9a45'), 1, 1, 1.2), blob(0.13, -0.08, 0.76, -0.04, C('#8aa34b'), 0, 2, 1.25), blob(0.12, 0.07, 0.82, 0.07, C('#94ad50'), 0, 3, 1.2), blob(0.1, -0.02, 0.5, 0.09, C('#7a9442'), 0, 4)]),
+    L0: (low) => merge([trunk(0.022, 0.01, 0.92, C('#ddd8cc'), 8), trunk(0.0235, 0.022, 0.18, C('#3a3530'), 8),
+      blob(0.16, 0.03, 0.62, 0.02, C('#7f9a45'), low ? 0 : 1, 1, 1.2), blob(0.13, -0.08, 0.76, -0.04, C('#8aa34b'), 0, 2, 1.25), blob(0.12, 0.07, 0.82, 0.07, C('#94ad50'), 0, 3, 1.2), blob(0.1, -0.02, 0.5, 0.09, C('#7a9442'), 0, 4)]),
     L1: () => merge([trunk(0.02, 0.012, 0.6, C('#cfcabd'), 4), blob(0.2, 0, 0.68, 0, C('#86a049'), 0, 1, 1.3)]),
   },
   oak: {
     h: [11, 17], trunkR: 0.035, trunkH: 0.38, crown: [0.62, 0.3],
-    L0: () => merge([trunk(0.045, 0.022, 0.55, C('#4e3d2b'), 9),
-      blob(0.24, 0, 0.6, 0, C('#5d7536'), 1, 1, 0.85), blob(0.18, 0.17, 0.66, 0.06, C('#66803a'), 0, 2, 0.9), blob(0.17, -0.15, 0.68, -0.08, C('#56702f'), 0, 3, 0.9), blob(0.15, 0.03, 0.84, -0.04, C('#6d8740'), 0, 4, 0.9)]),
+    L0: (low) => merge([trunk(0.045, 0.022, 0.55, C('#4e3d2b'), 9),
+      blob(0.24, 0, 0.6, 0, C('#5d7536'), low ? 0 : 1, 1, 0.85), blob(0.18, 0.17, 0.66, 0.06, C('#66803a'), 0, 2, 0.9), blob(0.17, -0.15, 0.68, -0.08, C('#56702f'), 0, 3, 0.9), blob(0.15, 0.03, 0.84, -0.04, C('#6d8740'), 0, 4, 0.9)]),
     L1: () => merge([trunk(0.04, 0.025, 0.45, C('#4c3e2c'), 4), blob(0.32, 0, 0.66, 0, C('#5f7736'), 0, 1, 0.8)]),
   },
   bush: {
     h: [1.2, 2.2], trunkR: 0, trunkH: 0, crown: [0.42, 0.45],
-    L0: () => merge([blob(0.42, 0, 0.38, 0, C('#56693a'), 1, 1, 0.8), blob(0.3, 0.28, 0.32, 0.1, C('#617540'), 0, 2, 0.8), blob(0.28, -0.22, 0.3, -0.16, C('#4d6034'), 0, 3, 0.8)]),
+    L0: (low) => merge([blob(0.42, 0, 0.38, 0, C('#56693a'), low ? 0 : 1, 1, 0.8), blob(0.3, 0.28, 0.32, 0.1, C('#617540'), 0, 2, 0.8), blob(0.28, -0.22, 0.3, -0.16, C('#4d6034'), 0, 3, 0.8)]),
     L1: () => merge([blob(0.5, 0, 0.38, 0, C('#56693a'), 0, 1, 0.75)]),
   },
   rock: {
     h: [1.4, 4.5], trunkR: 0, trunkH: 0, crown: null,
-    L0: () => { const g = blob(0.5, 0, 0.3, 0, C('#7a776f'), 1, 4, 0.62); return merge([g]); },
+    L0: (low) => { const g = blob(0.5, 0, 0.3, 0, C('#7a776f'), low ? 0 : 1, 4, 0.62); return merge([g]); },
     L1: () => merge([blob(0.5, 0, 0.3, 0, C('#76736b'), 0, 4, 0.62)]),
   },
 };
@@ -119,7 +119,7 @@ export class Forest {
     this.chunk = chunk; this.big = chunk * (quality === 'low' ? 2 : 3);
     const keep = quality === 'low' ? 0.6 : 0.85;                       // uzak kademede seyreltme (karışık sırayla: orman dokusu bozulmaz)
     this.mat = makeFloraMaterial(true); this.rockMat = makeFloraMaterial(false);
-    const geo = {}; for (const k in FLORA) geo[k] = [FLORA[k].L0(), FLORA[k].L1()];
+    const geo = {}; for (const k in FLORA) geo[k] = [FLORA[k].L0(quality === 'low'), FLORA[k].L1()];        // 12.182 telefonda yakın kademe yaprak küreleri ayrıntı 0
     this.near = []; this.far = [];
     const M = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), sc = new THREE.Vector3(), p = new THREE.Vector3();
     const mat4 = (t, k) => { const s = t.s, wide = k === 'rock' ? (t.w || 1.3) : 1; return M.compose(p.set(t.x, t.y - (k === 'rock' ? s * 0.12 : 0.15), t.z), q.setFromEuler(e.set(k === 'rock' ? t.tilt || 0 : 0, t.ry, 0)), sc.set(s * wide, s, s * (k === 'rock' ? (t.d || 1.1) : 1))).clone(); };
@@ -140,7 +140,7 @@ export class Forest {
       const kinds = {}; for (const t of list) (kinds[t.k] ||= []).push(t);
       for (const k in kinds) {
         const arr = kinds[k].map((t, i) => [t, ((Math.round(t.x * 13 + t.z * 7) * 2654435761) >>> 0) / 4294967296]).sort((a, b) => a[1] - b[1]).map((q) => q[0]);
-        const n = Math.max(1, Math.round(arr.length * (k === 'rock' || k === 'bush' ? keep * 0.7 : keep)));
+        const n = Math.max(1, Math.round(arr.length * (k === 'rock' || k === 'bush' ? keep * (quality === 'low' ? 0.42 : 0.95) : keep)));   // 12.182 telefonda uzak çalı / kaya daha seyrek
         const im = new THREE.InstancedMesh(geo[k][1], k === 'rock' ? this.rockMat : this.mat, n);
         const base = arr.slice(0, n).map((t) => mat4(t, k)), nk = arr.slice(0, n).map((t) => Math.floor(t.x / chunk) + ',' + Math.floor(t.z / chunk));
         base.forEach((m, i) => im.setMatrixAt(i, m));

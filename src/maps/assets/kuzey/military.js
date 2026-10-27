@@ -63,16 +63,16 @@ export function hesco(b, T, x0, z0, x1, z1, rows = 2) {
 }
 
 export function watchtower(b, T, o) {
-  const { x, z, h = 7.5 } = o, y0 = T.heightAt(x, z) - 0.2, P = 3.2;
+  const { x, z, h = 7.5 } = o, P = 3.2, steps = Math.ceil(h / 0.3), sx0 = -P / 2 - 0.3 - steps * 0.26;
+  const fy = footY(T, x + sx0, x + P / 2, z - P / 2, z + P / 2), y0 = fy.max + 0.05;                 // 12.182 taban en yüksek noktada; direkler / merdiven araziye iner
   b.obj(o.id || `kule:${Math.round(x)}:${Math.round(z)}`, () => b.with(x, y0, z, 0, () => {
-    for (const sx of [-1, 1]) for (const sz of [-1, 1]) b.box(sx * (P / 2 - 0.15), 0, sz * (P / 2 - 0.15), 0.25, h + 2.4, 0.25, '#6a5039', { kind: KK.PLANK });
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const px = sx * (P / 2 - 0.15), pz = sz * (P / 2 - 0.15), g = T.heightAt(x + px, z + pz) - 0.3 - y0; b.box(px, g, pz, 0.25, h + 2.4 - g, 0.25, '#6a5039', { kind: KK.PLANK }); }
     b.box(0, h - 0.2, 0, P, 0.2, P, '#6a5039', { kind: KK.PLANK, tag: 'plat' });
     for (const [ax, az, w, d] of [[0, P / 2 - 0.05, P, 0.1], [0, -P / 2 + 0.05, P, 0.1], [P / 2 - 0.05, 0, 0.1, P - 0.2]]) b.box(ax, h, az, w, 1.0, d, '#7a5d43', { kind: KK.PLANK });
     b.box(-P / 2 + 0.05, h, 0.7, 0.1, 1.0, P - 1.6, '#7a5d43', { kind: KK.PLANK });
     b.box(0, h + 2.4, 0, P + 0.6, 0.15, P + 0.6, '#4f5649', { kind: KK.SHEET });
     // merdiven (batı yüzü, dik; açıklıktan platforma)
-    const steps = Math.ceil(h / 0.3);
-    b.stairs(-P / 2 - 0.3 - steps * 0.26, -0.8 + 0.0, 0, '+x', 0.8, steps, h / steps, 0.26, '#5b4636', { deco: false });
+    b.stairs(sx0, -0.8 + 0.0, 0, '+x', 0.8, steps, h / steps, 0.26, '#5b4636', { deco: false, base: fy.min - 0.3 - y0 });
   }));
 }
 
@@ -89,7 +89,7 @@ export function radarTower(b, T, o) {
     roundCollide(b, rx, H + 0.4, rz, 1.8, 1.4);
     b.ico(rx, H + 3.3, rz, 2.3, '#eeeeea', { detail: 2 });
     roundCollide(b, rx, H + 1.8, rz, 2.05, 3.7);
-    b.cyl(-2.6, H + 1.4, -2.6, 0.08, 0.1, 9, '#5b5f62', { seg: 5, collide: false, kind: KK.METAL });
+    b.cyl(-2.6, H + 0.4, -2.6, 0.08, 0.1, 10, '#5b5f62', { seg: 5, collide: false, kind: KK.METAL });       // 12.182 direk çatı plağından çıkar (havada başlamıyordu)
     b.cyl(-2.6, H + 10.4, -2.6, 0.2, 0.2, 0.3, '#c0392b', { seg: 6, collide: false, o: { glow: true, emissive: '#ff3b2a', emissiveIntensity: 1.2 } });
     // iç merdiven: zemin → 7 m sahanlık (doğu) → çatı ağzı (iki kol, ayrı şeritler)
     b.stairs(-2.4, -1.8, 0, '+x', 0.9, 14, 0.5, 0.3, '#77726a', { deco: false });

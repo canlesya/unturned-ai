@@ -1,6 +1,6 @@
 // Kuzey Vadisi (12.172) denetimi (başsız, tarayıcısız): node --expose-gc scripts/kuzeytest.mjs
 // 12 su (12.180): botlar suya girmez, suya düşen bot kıyıya çıkar
-// 1 kurulum süresi / bellek (sunucu yolu) · 2 sunucu = istemci (çarpışma / görüş / doğuş / ganimet karması) · 3 doğuşlar · 4 bayraklara yol · 5 köprü + baraj tepesi
+// 1 kurulum süresi / bellek (sunucu yolu) · 2 sunucu = istemci (çarpışma / görüş / doğuş / ganimet karması) · 3 doğuşlar · 4 bayraklara yol · 5 eski nehir hattı (Kavşak / Değirmen) + baraj tepesi
 // yürüyüşü · 6 savaş alanı sınırı (10 sn → ölüm, içeride ölmez, botlar dışarı gitmez) · 7 sızıntı (rastgele yürüyüş: harita dışı / arazi altı / kutu içi / derin su)
 // · 8 ganimet noktaları (bina içi, boş) · 9 kapıdan bina içine yol · 10 bot görüşü: buğday / çalı çiti / ağaç tepesi keser, açıkta görür · 11 hayvan / ses yalnız istemci
 import * as THREE from 'three';
@@ -32,7 +32,7 @@ const paths = [];
 for (const team of ['blue', 'red']) for (const f of S.objectives) { const s = S.spawns[team][0], q = nav.findPath(s.x, s.z, f.x, f.z); paths.push(q ? 1 : 0); }
 ok(paths.every(Boolean), '4 her iki üsten 7 bayrağa yol var', paths.join(''));
 
-// 5 yürüyüş: fizik adımıyla düz yürü (köprü tabliyesi / baraj tepesi), hiç suya / araziye düşmeden karşıya geçmeli
+// 5 yürüyüş: fizik adımıyla düz yürü (12.182: eski nehir hattı kuru çayır — Kavşak / Değirmen yolu; baraj tepesi), hiç suya düşmeden karşıya geçmeli
 function walk(x, z, vx, vz, secs) {
   const s = { pos: new THREE.Vector3(x, T.heightAt(x, z) + 0.05, z), vel: new THREE.Vector3(), height: 1.78, onGround: true, fallSafe: true };
   let minY = 1e9;
@@ -40,9 +40,11 @@ function walk(x, z, vx, vz, secs) {
   return { x: s.pos.x, z: s.pos.z, y: s.pos.y, minY };
 }
 const B = walk(0, 60, 0, -5.6, 22);
-ok(B.z < -45 && B.minY > 0.5, '5a Taş Köprü yürünür (güney → kuzey)', `son z ${B.z.toFixed(1)}, en alçak y ${B.minY.toFixed(2)}`);
+ok(B.z < -45 && B.minY > 0.5 && T.waterY(0, 9) === -Infinity, '5a Kavşak: eski Taş Köprü yeri kuru, yol kesintisiz yürünür (güney → kuzey)', `son z ${B.z.toFixed(1)}, en alçak y ${B.minY.toFixed(2)}`);
 const Wb = walk(-470, 20, 0, -5.6, 22);
-ok(Wb.z < -85 && Wb.minY > 0.5, '5b Demir Köprü yürünür', `son z ${Wb.z.toFixed(1)}, en alçak y ${Wb.minY.toFixed(2)}`);
+ok(Wb.z < -85 && Wb.minY > 0.5 && T.waterY(-470, -31) === -Infinity, '5b Değirmen: eski Demir Köprü yeri kuru, yol yürünür', `son z ${Wb.z.toFixed(1)}, en alçak y ${Wb.minY.toFixed(2)}`);
+{ let wet = 0; for (let x = -790; x <= 700; x += 4) for (let z = -790; z <= 790; z += 4) if (T.waterY(x, z) > -1e9) wet++;
+  ok(wet === 0, '5d 12.182: baraj gölü dışında (x ≤ 700) hiç su yok (ortadaki nehir kalktı)', `${wet} ıslak nokta`); }
 const D = walk(696.6, 20, 0, -5.6, 32);
 ok(D.z < -130 && D.minY > 20, '5c baraj tepesi yürünür (24 m)', `son z ${D.z.toFixed(1)}, en alçak y ${D.minY.toFixed(2)}`);
 
@@ -129,10 +131,10 @@ ok(D.z < -130 && D.minY > 20, '5c baraj tepesi yürünür (24 m)', `son z ${D.z.
   let swimS = 0;
   for (let i = 0; i < 120 * 30; i++) { g.step(1 / 30); for (const s of g.soldiers) if (s.alive && s.swim) swimS += 1 / 30; }
   ok(swimS === 0, '12a botlar suya girmez (16 bot, 120 sn)', `yüzme ${swimS.toFixed(1)} bot·sn`);
-  const b = g.soldiers.find((s) => s.alive); b.protT = 1e9; b.pos.set(-150, -1.4, 40); b.vel.set(0, 0, 0); b.brain.goal = null;
+  const b = g.soldiers.find((s) => s.alive); b.protT = 1e9; b.pos.set(732, 18.6, -52); b.vel.set(0, 0, 0); b.brain.goal = null;       // 12.182: tek su baraj gölü
   let tOut = null;
   for (let i = 0; i < 45 * 30 && tOut == null; i++) { g.step(1 / 30); if (!b.swim && !b.brain.swimming && b.onGround && i > 5) tOut = i / 30; }
-  ok(tOut != null && b.alive, '12b derin suya düşen bot kıyıya yüzüp çıkar', `${tOut?.toFixed(1)} sn, (${b.pos.x.toFixed(0)}, ${b.pos.y.toFixed(1)}, ${b.pos.z.toFixed(0)})`);
+  ok(tOut != null && b.alive, '12b baraj gölüne düşen bot merdivene yüzüp çıkar', `${tOut?.toFixed(1)} sn, (${b.pos.x.toFixed(0)}, ${b.pos.y.toFixed(1)}, ${b.pos.z.toFixed(0)})`);
 }
 // 11 istemci görselleri sunucuda kurulmaz
 ok(!S.fx && !!V.fx && !S.veg, '11 hayvan / ot / ses / gece ışığı yalnız istemcide (sunucuda fx yok)');

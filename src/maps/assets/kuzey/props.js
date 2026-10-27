@@ -27,14 +27,16 @@ export function stoneWall(b, T, x0, z0, x1, z1, h = 1.1, color = '#8a8274') {
       const t = (i + 0.5) / n, x = ax ? x0 + (x1 - x0) * t : x0, z = ax ? z0 : z0 + (z1 - z0) * t, s = len / n;
       const ys = [-0.5, 0, 0.5].map((k) => T.heightAt(ax ? x + k * s : x, ax ? z : z + k * s)), lo = Math.min(...ys), hi = Math.max(...ys);
       b.box(x, lo - 0.3, z, ax ? s + 0.02 : 0.55, hi - lo + 0.3 + h, ax ? 0.55 : s + 0.02, i % 2 ? color : shade(color, 0.95), { kind: KK.STONE });
-      b.box(x, hi + h, z, ax ? s + 0.04 : 0.62, 0.1, ax ? 0.62 : s + 0.04, shade(color, 1.12), { collide: false, kind: KK.STONE });
+      b.box(x, hi + h, z, ax ? s + 0.04 : 0.62, 0.1, ax ? 0.62 : s + 0.04, shade(color, 1.12), { kind: KK.STONE });      // 12.182 kapak taşı da katı (görünen = çarpışma)
     }
   });
 }
 
 // kütük yığını (eksen x ya da z), uzunluk len, 3 sıra piramit; çarpışma dış zarf (kademeli 3 kutu)
 export function logStack(b, T, x, z, axis = 'x', len = 6, rows = 3, r = 0.28) {
-  const y0 = T.heightAt(x, z) - 0.05, ax = axis === 'x';
+  const ax = axis === 'x', hw = rows * r * 1.05;
+  let y0 = 1e9; for (const f of [-0.5, 0, 0.5]) for (const e of [-hw, 0, hw]) y0 = Math.min(y0, T.heightAt(x + (ax ? f * len : e), z + (ax ? e : f * len)));
+  y0 -= 0.05;                                                                                     // 12.182 eğimde en alçak noktaya oturur
   b.obj(`kütük:${Math.round(x)}:${Math.round(z)}`, () => b.with(x, y0, z, ax ? 0 : Q, () => {
     for (let row = 0; row < rows; row++) {
       const n = rows - row, y = r + row * r * 1.72;
@@ -49,20 +51,26 @@ export function logStack(b, T, x, z, axis = 'x', len = 6, rows = 3, r = 0.28) {
 }
 
 export function crate(b, T, x, z, s = 1.1, ry = 0, color = '#8f6c45') {
-  const y = T.heightAt(x, z) - 0.02;
-  b.box(x, y, z, s, s, s, color, { kind: KK.PLANK, ry: Math.round(ry / Q) * Q });
-  b.box(x, y + s * 0.45, z, s + 0.02, s * 0.1, s + 0.02, shade(color, 0.75), { collide: false, kind: KK.PLANK });
+  const y = Math.min(T.heightAt(x - s / 2, z - s / 2), T.heightAt(x + s / 2, z + s / 2), T.heightAt(x - s / 2, z + s / 2), T.heightAt(x + s / 2, z - s / 2)) - 0.04;   // 12.182 eğimde köşesi havada kalmaz
+  b.obj(`sandık:${Math.round(x * 10)}:${Math.round(z * 10)}`, () => {
+    b.box(x, y, z, s, s, s, color, { kind: KK.PLANK, ry: Math.round(ry / Q) * Q });
+    b.box(x, y + s * 0.45, z, s + 0.06, s * 0.1, s + 0.06, shade(color, 0.75), { collide: false, kind: KK.PLANK });
+  });
 }
 export function barrel(b, T, x, z, color = '#3f6a8a') {
-  const y = T.heightAt(x, z) - 0.02;
-  b.cyl(x, y, z, 0.32, 0.32, 0.92, color, { seg: 10, collide: false, kind: KK.METAL });
-  roundCollide(b, x, y, z, 0.32, 0.92);
-  for (const k of [0.2, 0.7]) b.cyl(x, y + k, z, 0.335, 0.335, 0.04, shade(color, 0.7), { seg: 10, collide: false, kind: KK.METAL });
+  const y = Math.min(T.heightAt(x - 0.3, z), T.heightAt(x + 0.3, z), T.heightAt(x, z - 0.3), T.heightAt(x, z + 0.3)) - 0.03;
+  b.obj(`varil:${Math.round(x * 10)}:${Math.round(z * 10)}`, () => {
+    b.cyl(x, y, z, 0.32, 0.32, 0.92, color, { seg: 10, collide: false, kind: KK.METAL });
+    roundCollide(b, x, y, z, 0.32, 0.92);
+    for (const k of [0.2, 0.7]) b.cyl(x, y + k, z, 0.335, 0.335, 0.04, shade(color, 0.7), { seg: 10, collide: false, kind: KK.METAL });
+  });
 }
 export function hayBale(b, T, x, z, ry = 0) {
-  const y = T.heightAt(x, z) - 0.05, ax = Math.round(ry / Q) & 1;
-  b.cyl(x, y + 0.65, z, 0.65, 0.65, 1.25, '#cdb066', { rx: ax ? 0 : Q, rz: ax ? Q : 0, center: true, seg: 10, collide: false, kind: KK.PLANK });
-  b.collide(x, y, z, ax ? 1.2 : 1.05, 1.2, ax ? 1.05 : 1.2);
+  const y = Math.min(T.heightAt(x - 0.5, z), T.heightAt(x + 0.5, z), T.heightAt(x, z - 0.5), T.heightAt(x, z + 0.5)) - 0.05, ax = Math.round(ry / Q) & 1;
+  b.obj(`saman:${Math.round(x * 10)}:${Math.round(z * 10)}`, () => {
+    b.cyl(x, y + 0.65, z, 0.65, 0.65, 1.25, '#cdb066', { rx: ax ? 0 : Q, rz: ax ? Q : 0, center: true, seg: 10, collide: false, kind: KK.PLANK });
+    b.collide(x, y, z, ax ? 1.2 : 1.12, 1.28, ax ? 1.12 : 1.2);
+  });
 }
 export function streetLamp(b, T, x, z, ry = 0) {
   const y = T.heightAt(x, z) - 0.1;
@@ -77,11 +85,13 @@ export function streetLamp(b, T, x, z, ry = 0) {
 }
 // yol bariyeri (beton New Jersey tipi), eksen hizalı
 export function jersey(b, T, x, z, ax = 'x', n = 3) {
-  for (let i = 0; i < n; i++) {
-    const px = ax === 'x' ? x + (i - (n - 1) / 2) * 3.1 : x, pz = ax === 'x' ? z : z + (i - (n - 1) / 2) * 3.1, y = T.heightAt(px, pz) - 0.05;
+  b.obj(`bariyer:${Math.round(x)}:${Math.round(z)}`, () => { for (let i = 0; i < n; i++) {
+    const px = ax === 'x' ? x + (i - (n - 1) / 2) * 3.1 : x, pz = ax === 'x' ? z : z + (i - (n - 1) / 2) * 3.1;
+    let y = 1e9; for (const f of [-1.5, 0, 1.5]) for (const e of [-0.3, 0.3]) y = Math.min(y, T.heightAt(px + (ax === 'x' ? f : e), pz + (ax === 'x' ? e : f)));
+    y -= 0.05;                                                                                    // 12.182 eğimde uçları havada kalmaz
     b.box(px, y, pz, ax === 'x' ? 3 : 0.6, 0.85, ax === 'x' ? 0.6 : 3, '#a7a59d', { kind: KK.CONC });
-    b.box(px, y + 0.85, pz, ax === 'x' ? 3 : 0.3, 0.1, ax === 'x' ? 0.3 : 3, '#b3b1a9', { collide: false, kind: KK.CONC });
-  }
+    b.box(px, y + 0.85, pz, ax === 'x' ? 3 : 0.3, 0.1, ax === 'x' ? 0.3 : 3, '#b3b1a9', { kind: KK.CONC });
+  } });
 }
 // araç enkazı / park etmiş araç (vehicles.js modelleri; arazi kotuna oturur). ry serbest değil: 90°'nin katı (çarpışma kutuları)
 export function wreck(b, T, x, z, ry = 0, kind = 'car', color = '#6e5a4a') {
