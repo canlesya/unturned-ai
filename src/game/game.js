@@ -1356,7 +1356,7 @@ export class Game {
     }
     if (this.player) this.player.update(dt); else this.updateHumans(dt);
     (this.crowd ||= new SoldierGrid()).rebuild(this.soldiers);                 // 12.203 asker ızgarası (bot ayrışması: 3 × 3 komşu hücre, eskiden herkes × herkes)
-    this.pathBudget = Math.max(1, Math.ceil(this.brains.length / 80));        // 12.203 adım başına yol bulma: 80 bota 1 (128v128'de 4; eskiden hep 1 → ortalama 80 bot yol bekliyordu)
+    this.pathBudget = Math.max(1, Math.ceil(this.brains.length / 80)); this.pathMs = 0;        // 12.203 adım başına yol bulma: 80 bota 1 (128v128'de 4; eskiden hep 1 → ortalama 80 bot yol bekliyordu), toplam ≤ 3 ms (bot.js)
     // 12.197 bot beyinleri her adımda farklı bir botla başlar (döner sıra): eskiden hep Mavi botlar önce işleniyordu → adım başına 1'lik yol bütçesini
     // hep Mavi kapıyor, aynı karede karşılıklı atışta hep Mavi önce ateş ediyordu (takım modlarında Mavi lehine sistematik kayma)
     { const B = this.brains, n = B.length, o = n ? (this._brainRot = ((this._brainRot || 0) + 1) % n) : 0, k = (this._stepN = (this._stepN || 0) + 1); for (let i = 0; i < n; i++) B[(o + i) % n].tick(dt, k); }      // 12.203 tick: kademeli beyin (bot.js)

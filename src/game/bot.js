@@ -551,10 +551,11 @@ export class BotBrain {
     }
     this.repathT -= dt;
     if (!this.path || this.repathT <= 0) {
-      if (g.pathBudget > 0) {
+      if (g.pathBudget > 0 && !(g.pathMs > 3)) {                                  // 12.203: adım başına yol sayısı + süre sınırı (3 ms dolunca sıradaki adıma; uzun yollar üst üste binip adımı kilitlemesin)
         g.pathBudget--;
-        const tgt = this.via || this.goal;
+        const tgt = this.via || this.goal, t0 = performance.now();
         this.path = g.nav.findPath(s.pos.x, s.pos.z, tgt.x, tgt.z, 0.7, s.pos.y, tgt.y);
+        g.pathMs = (g.pathMs || 0) + performance.now() - t0;
         if (this.path && g.nav.threadDoors) g.nav.threadDoors(this.path, s.pos.x, s.pos.z);      // 12.184 Kuzey Vadisi: kapıdan kapı ekseninde geç (pervaza takılma)
         this.repathT = g.map.big && !this.target && this.path && this.path.length > 8 ? rand(6, 9) : rand(2.5, 4);      // 12.203 büyük harita: uzun yolda daha seyrek yeniden yol (128v128'de yol isteği bütçeyi aşıyordu)
         if (!this.path) { this.goal = null; this.via = null; return null; }

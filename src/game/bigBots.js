@@ -13,21 +13,33 @@
 // iki takımı da hep ortadaki bayrağa çekiyordu. Harita varlıklarına dokunmadan, yalnız takım planı:
 //  · NİYET AĞIRLIĞI: her takımın her bayrağa 0,6–1,5 arası ağırlığı var; 60–120 sn'de bir yeniden çekilir (evre), arada her görev dağıtımında kayar.
 //    Saldırı puanı ağırlığa bölünür → takımların birincil hedefi maçtan maça ve maç içinde değişir.
-//  · YORGUNLUK: son dakikalarda çok ölümün olduğu bayrak (150 m içi, yarı ömür ~100 sn) puanında geriye düşer → çatışma alanı zamanla kayar.
-//  · EKSENLER: mangal sayısına göre 1 / 2 / 3 saldırı ekseni (6+ / 12+ mangal), mangallar ağırlıkla paylaşılır; az mangalda (10v10) eskisi gibi tek eksen (temas).
+//  · ODAK: her evrede takımın bir odak bayrağı (sahibi olmadığı, çatışma ısısı düşük olan daha olası): puanı ÷ 2,5 → iki takım aynı bayrağa kilitlenmez.
+//  · YORGUNLUK: son dakikalarda çok ölümün olduğu bayrak (150 m içi, yarı ömür ~100 sn) puanında geriye düşer (ölüm başına +%6, en çok 24 ölüm) → çatışma alanı zamanla kayar.
+//  · EKSENLER: mangal sayısına göre 1 / 2 / 3 saldırı ekseni (10+ / 12+ mangal), mangallar ağırlıkla paylaşılır; 32v32'ye kadar (8 mangal) eskisi gibi tek eksen
+//    (yoğunluk: iki eksende 32v32 öldürme sayısı ~%15 düşüyordu); orada çatışma yeri zamanla kayar (odak + yorgunluk).
 //  · KANAT: aynı hedefe giden 3+ mangalın her üçüncüsü kanat (sol / sağ): yolu 70–130 m yandan dolanan bir ara noktadan geçer (bot.pickGoal → flankVia).
 //  · SAVUNMA: tehdit altındaki bayrağa düşman sayısına göre mangal (12+ mangalda 4 düşmana 1; en çok mangalların üçte biri).
 import * as THREE from 'three';
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+// 12.203 takım planı ayarları (ölçüm: scripts/scalesim.mjs, BIG_<ad>=değer ile denenir)
+export const BIG = { wMin: 0.6, wSpan: 0.9, focus: 2.5, fatigue: 0.06, fatigueCap: 24, phaseMin: 60, phaseSpan: 60, ax2: 10, ax3: 12 };
 
-// takımın niyet ağırlıkları (evre başında yeniden çekilir, arada kayar) + kanat görevleri
+// takımın niyet ağırlıkları (evre başında yeniden çekilir, arada kayar) + evrenin ODAK bayrağı (sahibi olmadığı bayraklardan, çatışma ısısı düşük olan
+// daha olası; saldırı puanı ÷ BIG.focus) + kanat görevleri. Odak alınınca evre hemen yenilenir.
 function plan(g, team) {
-  const P = ((g._bigPlan ||= {})[team] ||= { w: {}, until: -1, flank: [], phase: 0 });
+  const P = ((g._bigPlan ||= {})[team] ||= { w: {}, until: -1, flank: [], phase: 0, focus: null });
   const t = g.time || 0, objs = g.mode.objectives;
-  if (t >= P.until) { P.until = t + 60 + Math.random() * 60; P.phase++; for (const o of objs) P.w[o.id] = 0.6 + Math.random() * 0.9; }
-  else for (const o of objs) P.w[o.id] = clamp((P.w[o.id] ?? 1) + (Math.random() - 0.5) * 0.16, 0.5, 1.6);
+  const fo = P.focus && objs.find((o) => o.id === P.focus);
+  if (t >= P.until || (fo && fo.owner === team)) {
+    P.until = t + BIG.phaseMin + Math.random() * BIG.phaseSpan; P.phase++;
+    for (const o of objs) P.w[o.id] = BIG.wMin + Math.random() * BIG.wSpan;
+    const H = heatDecay(g), C = objs.filter((o) => o.owner !== team && o.id !== P.focus);
+    let sum = 0; const wts = C.map((o) => (sum += 1 / (1 + (H[o.id] || 0) / 6)));
+    const r = Math.random() * sum, k = wts.findIndex((w) => w >= r);
+    P.focus = C.length ? C[Math.max(0, k)].id : null;
+  } else for (const o of objs) P.w[o.id] = clamp((P.w[o.id] ?? 1) + (Math.random() - 0.5) * 0.16, 0.5, 1.6);
   return P;
 }
 // bayrak başına çatışma ısısı (150 m içindeki ölüm sayısı, üstel sönüm); Game.onKill → bigKill
@@ -65,7 +77,7 @@ function tasks(g, team, P) {
   // saldırı puanı: önümden uzaklık (sahipsiz × 0,8) + 0,6 × düşman kitlesine uzaklık → düşmanın bulunduğu / yöneldiği, önümdeki bayrak öne (temas);
   // 12.203: ÷ takımın niyet ağırlığı × (1 + yorgunluk) → birincil hedef maç içinde değişir, çok kanlı bayrak bir süre geriye düşer
   const heat = heatDecay(g);
-  const att = objs.filter((o) => o.owner !== team).map((o) => ({ o, d: (Math.min(...anchors.map((q) => dist(q, o))) * (o.owner ? 1 : 0.8) + 0.6 * dMass(o)) / (P.w[o.id] ?? 1) * (1 + 0.035 * Math.min(24, heat[o.id] || 0)) })).sort((a, b) => a.d - b.d);
+  const att = objs.filter((o) => o.owner !== team).map((o) => ({ o, d: (Math.min(...anchors.map((q) => dist(q, o))) * (o.owner ? 1 : 0.8) + 0.6 * dMass(o)) / (P.w[o.id] ?? 1) / (o.id === P.focus ? BIG.focus : 1) * (1 + BIG.fatigue * Math.min(BIG.fatigueCap, heat[o.id] || 0)) })).sort((a, b) => a.d - b.d);
   return { def: out, front, att: att.map((a) => a.o) };
 }
 
@@ -105,7 +117,7 @@ export function assignSquadsBig(g) {
     const A = T.att, flank = new Array(nSq).fill(0);
     if (!A.length) { for (const sq of [...free]) { next[sq] = T.front || objs[0]; free.delete(sq); } }
     else {
-      const axes = Math.min(A.length, many ? 3 : nSq >= 6 ? 2 : 1);
+      const axes = Math.min(A.length, nSq >= BIG.ax3 ? 3 : nSq >= BIG.ax2 ? 2 : 1);
       const N = free.size;
       if (axes === 1) {
         const nP = N <= 2 ? N : Math.round(N * 0.67);                               // az mangalda hepsi birincil hedefe (yoğunluk: dağılırsa kimse karşılaşmıyor)

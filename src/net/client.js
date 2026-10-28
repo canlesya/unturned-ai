@@ -380,12 +380,17 @@ export class NetClient {
       const B = PS[id]; if (!B || !B.length) continue;
       const s = g.soldiers[id];
       if (!s || s === me) continue;
+      // seyrek gelen asker (uzak: 5 Hz) aralığı kadar geriden gösterilir (iki örnek hep arada: ileri tahmin + geri sıçrama yok); gecikme yumuşak değişir
+      // (kare başı en çok 0,25 adım: nişan konisine girip 20 Hz'e geçen asker ileri sıçramaz). Her snapshot'ta gelen askerde ek gecikme 0 (eskisi gibi).
+      const gapN = B.length >= 4 ? B[B.length - 2] - B[B.length - 4] : SNAP_EVERY, lagW = Math.max(0, Math.min(10, gapN - SNAP_EVERY));
+      s._ilag = s._ilag == null ? lagW : s._ilag + Math.max(-0.25, Math.min(0.25, lagW - s._ilag));
+      const rts = rt - s._ilag;
       let ia = 0;
-      for (let j = 0; j < B.length; j += 2) { if (B[j] <= rt) ia = j; else break; }
+      for (let j = 0; j < B.length; j += 2) { if (B[j] <= rts) ia = j; else break; }
       const ka = B[ia], pa = B[ia + 1], ib = Math.min(ia + 2, B.length - 2), kb = B[ib], pb = B[ib + 1];
-      const tt = kb > ka ? Math.max(0, Math.min(1, (rt - ka) / (kb - ka))) : 0;
+      const tt = kb > ka ? Math.max(0, Math.min(1, (rts - ka) / (kb - ka))) : 0;
       // son örnek geride: aralığı kadar (en çok 14 adım), en az EXTRAP_MAX ileri tahmin; sonra bekler
-      const gap = ia >= 2 ? ka - B[ia - 2] : SNAP_EVERY, ov = ia === B.length - 2 ? rt - ka : 0;
+      const gap = ia >= 2 ? ka - B[ia - 2] : SNAP_EVERY, ov = ia === B.length - 2 ? rts - ka : 0;
       const exs = ov > 0 ? Math.min(ov, Math.max(EXTRAP_MAX, Math.min(14, gap))) / SIM_HZ : 0;
       this.applyState(s, pa, false);
       if (exs && pa.a) s.pos.set(pa.x + pa.vx * exs, pa.y + (pa.f & F_GROUND ? 0 : pa.vy * exs), pa.z + pa.vz * exs);

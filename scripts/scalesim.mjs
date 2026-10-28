@@ -8,6 +8,7 @@ import { Game } from '../src/game/game.js';
 import { MAPS } from '../src/maps/index.js';
 import { LIMITS } from '../src/game/balance.js';
 import { BotBrain } from '../src/game/bot.js';
+let BIG = null; try { ({ BIG } = await import('../src/game/bigBots.js')); } catch { /* yok */ }
 import { NavGrid } from '../src/game/nav.js';
 import { packSoldier } from '../src/net/protocol.js';
 let interestPick = null;
@@ -21,7 +22,8 @@ const secs = +(process.argv[4] || 180);
 const sd = +(process.argv[5] || 1);
 const type = process.env.TYPE || MAPS[map]?.only?.[0] || 'conquest';
 const PROF = process.env.PROF !== '0';
-LIMITS.maxPerTeam = Math.max(LIMITS.maxPerTeam, per);                       // önce sürümünde sınır 32: ölçüm için açılır
+LIMITS.maxPerTeam = Math.max(LIMITS.maxPerTeam, per);
+if (BIG) for (const [k, v] of Object.entries(process.env)) if (k.startsWith('BIG_') && k.slice(4) in BIG) BIG[k.slice(4)] = +v;      // takım planı denemesi                       // önce sürümünde sınır 32: ölçüm için açılır
 
 let seed = sd * 7919 + 13;
 for (let k = 0; k < 3; k++) { seed = Math.imul(seed ^ (seed >>> 16), 0x85ebca6b) >>> 0; seed = Math.imul(seed ^ (seed >>> 13), 0xc2b2ae35) >>> 0; seed = (seed ^ (seed >>> 16)) >>> 0; }
@@ -76,7 +78,7 @@ game.respawn = (s, first) => {
 
 const dt = 1 / 60;                                                            // sunucu adımı (SIM_HZ 60)
 const steps = [], snapAll = [], snapIm = [], snapAllZ = [], snapImZ = [];
-let errors = 0, n = 0, pathWait = 0, pathWaitN = 0, squadObj = 0, squadN = 0, flankN = 0;
+let errors = 0, n = 0, pathWait = 0, pathWaitN = 0, squadObj = 0, squadN = 0, flankN = 0, evN = 0, evB = 0;
 const deflate = (str) => zlib.deflateRawSync(Buffer.from(str), { level: 1 }).length;
 const s0 = now();
 try {
@@ -84,6 +86,7 @@ try {
     const t = now();
     game.step(dt);
     steps.push((now() - t) * 1000);
+    if (game.netEvents.length) { evN += game.netEvents.length; if (n % 3 === 0) evB += JSON.stringify(game.netEvents).length * 3; game.netEvents.length = 0; }      // sunucunun herkese yolladığı olaylar (atış izi / ses / öldürme)
     if (n % 60 === 30) {                                                      // yol bekleyen bot (hedefi var, yolu yok)
       for (const b of game.brains) if (b.s.alive && !b.s.veh && b.goal && !b.path) pathWait++;
       pathWaitN++;
@@ -145,6 +148,7 @@ const res = {
   kills: nk, kpm: +(nk / (n * dt / 60)).toFixed(1), vehKillPct: +(kills.filter((k) => k[4]).length / Math.max(1, nk) * 100).toFixed(0),
   dist: { cells50: cells.size, entropy50: +ent(cells).toFixed(2), regions: regs.size, regionEntropy: +ent(regs).toFixed(2), regions5, top3Pct: +(top * 100).toFixed(0), topRegions: regList.slice(0, 8), winTop },
   spawn: { n: spawnQA.n, overlap: spawnQA.overlap, blocked: spawnQA.blocked, indoor: spawnQA.indoor, indoorAt: spawnQA.indoorAt, minDMed: +([...spawnQA.minD].sort((a, b) => a - b)[spawnQA.minD.length >> 1] || 0).toFixed(1), spawnKill, spawnKillPct: +(spawnKill / Math.max(1, nk) * 100).toFixed(1) },
+  ev: { perSec: +(evN / (n * dt)).toFixed(1), KBs: +(evB / (n * dt) / 1024).toFixed(1) },
   snap: { allB: Math.round(avg(snapAll)), allZ: Math.round(avg(snapAllZ)), imB: Math.round(avg(snapIm)), imZ: Math.round(avg(snapImZ)), allKBs: +(avg(snapAllZ) * 20 / 1024).toFixed(1), imKBs: snapImZ.length ? +(avg(snapImZ) * 20 / 1024).toFixed(1) : null },
   tickets: { blue: Math.round(game.tickets.blue), red: Math.round(game.tickets.red) },
   owners: objs.map((o) => `${o.id}:${o.owner ? o.owner[0] : '-'}`).join(' '),

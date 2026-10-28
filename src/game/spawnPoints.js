@@ -109,12 +109,12 @@ export class SpawnSet {
   }
 
   // en iyi nokta: boş (1,3 m'de canlı asker yok), son 2,5 sn'de 2,2 m içinde doğan yok; adaylardan (en çok 10) düşmanın görmediği
-  // (göz → göğüs; küçük haritada 60 m, büyükte 110 m) ve düşmana uzak (40 / 70 m'de doyar) olan; aynı noktaya yığılma cezası.
+  // (göz → göğüs; küçük haritada 60 m, büyükte 110 m) ve düşmana uzak (40 / 50 m'de doyar) olan; aynı noktaya yığılma cezası.
   choose(team, s, near = 'base', list = null) {
     const g = this.g, now = g.time || 0, P = list || this.points(team, near);
     const R = this.recent; while (R.length && now - R[0].t > 2.5) R.shift();
     const busy = (p) => R.some((r) => (r.x - p.x) ** 2 + (r.z - p.z) ** 2 < 4.8) || g.soldiers.some((e) => e !== s && e.alive && Math.abs(e.pos.x - p.x) < 1.3 && Math.abs(e.pos.z - p.z) < 1.3 && Math.hypot(e.pos.x - p.x, e.pos.z - p.z) < 1.3);
-    const big = !!g.map.big, see = big ? 110 : 60, cap = big ? 70 : 40;
+    const big = !!g.map.big, see = big ? 110 : 60, cap = big ? 50 : 40;      // uzaklık puanı cap m'de doyar (büyük harita 70 → 50: doğan çatışmadan çok uzak düşüp tempo düşmesin)
     const foes = g.soldiers.filter((e) => e.alive && e.team !== team && !e.vacant);
     const free = [];
     for (const p of P) if (!busy(p)) free.push(p);

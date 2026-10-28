@@ -9,7 +9,7 @@ import zlib from 'node:zlib';
 const URL = process.env.WS || 'ws://127.0.0.1:8787';
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 let fail = 0; const check = (ok, msg) => { console.log((ok ? 'OK    ' : 'HATA  ') + msg); if (!ok) fail++; };
-const open = () => new Promise((res) => { const ws = new WebSocket(URL); ws.msgs = []; ws.bytes = 0; ws.on('message', (d) => { ws.bytes += d.length; const m = JSON.parse(d); if (m.t === 'snap') { m._len = d.length; if (ws.msgs.length % 5 === 0) m._z = zlib.deflateRawSync(d, { level: 1 }).length; ws.msgs.push(m); } else if (m.t === 'welcome') ws.welcome = m; }); ws.on('open', () => res(ws)); });
+const open = () => new Promise((res) => { const ws = new WebSocket(URL); ws.msgs = []; ws.bytes = 0; ws.on('message', (d) => { ws.bytes += d.length; const m = JSON.parse(d); if (m.t === 'ev') { ws.evB = (ws.evB || 0) + d.length; ws.evN = (ws.evN || 0) + (m.l?.length || 0); } if (m.t === 'snap') { m._len = d.length; if (ws.msgs.length % 5 === 0) m._z = zlib.deflateRawSync(d, { level: 1 }).length; ws.msgs.push(m); } else if (m.t === 'welcome') ws.welcome = m; }); ws.on('open', () => res(ws)); });
 
 async function room(cfg, secs, act) {
   const a = await open();
@@ -51,6 +51,8 @@ const firstKl = [], lastKl = [];
 for (const m of S) for (const p of m.s) if (p.kl !== undefined) { if (firstKl[p.i] === undefined) firstKl[p.i] = p.kl; lastKl[p.i] = p.kl; }
 for (let i = 0; i < N; i++) if (lastKl[i] !== undefined) (lastKl[i] >= firstKl[i] ? slowOk++ : slowBad++);
 check(slowBad === 0 && slowOk > 200, `yavaş alanlar (skor) tutarlı: ${slowOk} asker`);
+const evKB = (A.evB || 0) / 15 / 1024;
+console.log(`      128v128: olay mesajları ~${evKB.toFixed(0)} KB/sn ham (${((A.evN || 0) / 15).toFixed(0)} olay/sn: atış izi / ses / öldürme; ilgi alanı dışı, herkese)`);
 console.log(`      128v128: snapshot başına ort. ${avgN.toFixed(0)} / 256 asker · istemci başına ham ${kb.toFixed(0)} KB/sn, sıkıştırılmış (tek tek deflate, üst sınır) ~${kbz.toFixed(0)} KB/sn`);
 
 // 2) küçük oda: herkes her snapshot'ta
