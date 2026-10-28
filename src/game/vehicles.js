@@ -56,7 +56,7 @@ export class Vehicles {
     for (const d of [...(game.map.vehicles || []), ...motoSpawnsFor(game.map), ...extraSpawnsFor(game.map, game.mode.perTeam), ...(game.map.emplacements || [])]) {      // 12.213 sabit yuvalar en sonda (harita verisi: sunucu = istemci)      // 12.204: motorlar listenin sonunda · 12.206 ek araçlar en sonda (perTeam'den: sıra sunucu = istemci)
       if (!VT[d.type]) continue;
       const yaw = d.ry + Math.PI;                                     // veri: bakış (sin ry, cos ry) → asker yaw kuralı (−sin, −cos)
-      const v = { idx: this.list.length, id: d.id, type: d.type, def: VT[d.type], spawn: { x: d.x, z: d.z, y: d.y, yaw, team: d.team, tower: d.tower },
+      const v = { idx: this.list.length, id: d.id, type: d.type, def: VT[d.type], spawn: { x: d.x, z: d.z, y: d.y, yaw, team: d.team, tower: d.tower, flag: d.flag },
         st: null, hp: 0, alive: false, wreck: false, seats: new Array(VT[d.type].seats).fill(null), team: null, paint: null,
         burn: false, deadT: 0, respawnT: 0, sunkT: 0, idleT: 0, lastHit: null, lastHitT: -99, lastDriver: null, lastDriverT: -99,
         lights: false, horn: false, sleep: false, sig: '', ramT: new Map(), pred: false, buf: [], rl: 0 };

@@ -46,7 +46,7 @@ ok(E.length === M.emplacements.length && E.every((v) => v.alive), `${E.length} y
 for (const v of E) if (v.spawn.tower) { const t = M.towers.find((q) => q.id === v.spawn.tower); ok(Math.abs(v.st.y - t.top) < 0.01, `${v.id}: kule tepesinde (y ${v.st.y.toFixed(2)})`); }
 const hv = E.find((v) => v.spawn.tower), gunner = game.soldiers.find((s) => s.team === 'blue' && s !== me);
 V.enter(gunner, hv, 0);
-ok(gunner.veh === hv && Math.abs(gunner.pos.y - (hv.st.y + 0.1)) < 0.05, `nişancı koltukta (ayak ${(gunner.pos.y - hv.st.y).toFixed(2)} m)`);
+ok(gunner.veh === hv && Math.abs(gunner.pos.y - (hv.st.y + hv.def.seat[0][2] - 0.5)) < 0.05, `nişancı koltukta (ayak ${(gunner.pos.y - hv.st.y).toFixed(2)} m)`);
 {
   const st = hv.st, fx = -Math.sin(st.yaw), fz = -Math.cos(st.yaw), c = gunner.center(new THREE.Vector3());
   const o = new THREE.Vector3(c.x + fx * 30, c.y, c.z + fz * 30), d = new THREE.Vector3(c.x - o.x, 0, c.z - o.z).normalize();

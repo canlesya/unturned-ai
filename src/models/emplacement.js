@@ -4,8 +4,8 @@ import { box, cyl, cylY, mergeVC } from '../core/geo.js';
 // 12.213 sabit silah yuvası modelleri (ağır makineli M2 benzeri .50 cal tripodlu + çelik kalkan; TOW benzeri güdümlü tanksavar tripodu).
 // Konvansiyon: ileri = −Z, yukarı = +Y; kök = dönme ekseninin tabanı (yuvanın zemini). Kök silahın yönüyle döner (st.yaw); 'ayak' grubu (tripod)
 // yuvanın yönünde sabit kalır (vehicleView: ayak.rotation.y = base − yaw); 'silah' grubu nişancının bakışıyla yükselir (pitch).
-// Vuruş kutuları (sim/emplacement.js) bu ölçülerle aynı: HMG gövde 0,24 × 0,24 × 0,84 (0,98–1,24 m) + kalkan 0,88 × 0,62 × 0,06 (0,38–0,44 m önde);
-// TOW tüp + dürbün 0,26 × 0,38 × 1,56 (1,04–1,42 m).
+// Vuruş kutuları (sim/emplacement.js) bu ölçülerle aynı: HMG alıcı 0,22 × 0,18 × 0,8 (0,89–1,07 m) + kalkan 0,88 × 0,54 × 0,06 (0,38–0,44 m önde) + fişek kutusu;
+// TOW tüp 0,24 × 0,24 × 1,56 (1,06–1,30 m) + soldaki dürbün.
 const OLIVE = '#4b5238', DK = '#1c1d1f', STEEL = '#3a3e40', WOOD = '#6d5440';
 const cache = {};
 
@@ -26,24 +26,24 @@ function buildHmg() {
   mergeVC(base);
   // dönen kısım: pintle, kalkan, cephane sandığı (tabure), nişancı tabure
   const turn = new THREE.Group(); turn.name = 'dönen'; body.add(turn);
-  cylY(turn, 0.035, 0.035, 0.36, STEEL, [0, 0.8, 0], 6);
-  box(turn, [0.88, 0.62, 0.06], OLIVE, [0, 0.93, -0.41]);                         // kalkan (0,62–1,24 m)
-  box(turn, [0.88, 0.04, 0.07], '#3b4130', [0, 1.22, -0.41]);                     // üst kenar
-  for (const sx of [-1, 1]) box(turn, [0.04, 0.62, 0.07], '#3b4130', [sx * 0.42, 0.93, -0.41]);
-  for (const [x, z] of [[-0.12, 0.66], [0.12, 0.66], [-0.12, 0.9], [0.12, 0.9]]) cylY(turn, 0.018, 0.018, 0.54, DK, [x, 0.27, z], 4);      // tabure ayakları
-  box(turn, [0.36, 0.05, 0.34], WOOD, [0, 0.56, 0.78]);                           // tabure (nişancı oturağı 0,6 m)
+  cylY(turn, 0.035, 0.035, 0.3, STEEL, [0, 0.77, 0], 6);
+  box(turn, [0.88, 0.54, 0.06], OLIVE, [0, 0.89, -0.41]);                         // kalkan (0,62–1,16 m)
+  box(turn, [0.88, 0.04, 0.07], '#3b4130', [0, 1.14, -0.41]);                     // üst kenar
+  for (const sx of [-1, 1]) box(turn, [0.04, 0.54, 0.07], '#3b4130', [sx * 0.42, 0.89, -0.41]);
+  for (const [x, z] of [[-0.12, 0.66], [0.12, 0.66], [-0.12, 0.9], [0.12, 0.9]]) cylY(turn, 0.018, 0.018, 0.68, DK, [x, 0.34, z], 4);      // tabure ayakları
+  box(turn, [0.36, 0.05, 0.34], WOOD, [0, 0.7, 0.78]);                            // yüksek tabure (oturak 0,72 m)
   mergeVC(turn);
   // silah (yükselir): alıcı, namlu, soğutma gömleği, tutamaklar, fişek kutusu
-  const gun = new THREE.Group(); gun.name = 'silah'; gun.position.set(0, 1.1, 0); body.add(gun);
-  box(gun, [0.22, 0.22, 0.8], '#26282a', [0, 0, 0.02]);
+  const gun = new THREE.Group(); gun.name = 'silah'; gun.position.set(0, 0.98, 0); body.add(gun);
+  box(gun, [0.18, 0.16, 0.7], '#26282a', [0, 0, 0.02]);
   cyl(gun, 0.03, 0.035, 1.15, '#151617', [0, 0.02, -0.95], 8);
   cyl(gun, 0.055, 0.055, 0.5, '#2b2d2f', [0, 0.02, -0.6], 8);                   // namlu gömleği (delikli kılıf)
   box(gun, [0.07, 0.07, 0.12], '#0e0e0f', [0, 0.02, -1.55]);                       // ağız
-  box(gun, [0.2, 0.18, 0.28], '#3b4a32', [-0.21, -0.02, 0.0]);                     // fişek kutusu
-  box(gun, [0.06, 0.08, 0.04], '#3b4a32', [-0.13, 0.04, 0.0]);                     // besleme
-  for (const sx of [-1, 1]) box(gun, [0.03, 0.12, 0.03], '#111', [sx * 0.07, -0.05, 0.45]);
-  box(gun, [0.18, 0.03, 0.05], '#111', [0, -0.11, 0.45]);
-  box(gun, [0.02, 0.08, 0.02], '#111', [0, 0.15, -0.25]);                          // arpacık
+  box(gun, [0.18, 0.16, 0.26], '#3b4a32', [-0.2, -0.02, 0.0]);                      // fişek kutusu
+  box(gun, [0.04, 0.06, 0.04], '#3b4a32', [-0.1, 0.03, 0.0]);                      // besleme
+  for (const sx of [-1, 1]) box(gun, [0.03, 0.1, 0.03], '#111', [sx * 0.06, -0.03, 0.4]);
+  box(gun, [0.16, 0.03, 0.05], '#111', [0, -0.08, 0.4]);
+  box(gun, [0.02, 0.06, 0.02], '#111', [0, 0.11, -0.22]);                          // arpacık
   mergeVC(gun);
   const fx = new THREE.Group(); fx.name = 'ışık'; root.add(fx);
   return root;
@@ -65,8 +65,9 @@ function buildAtgm() {
   cyl(gun, 0.12, 0.12, 1.52, '#4a5236', [0, 0, 0], 12);                           // fırlatma tüpü (1,06–1,30 m)
   cyl(gun, 0.13, 0.13, 0.08, '#2c3022', [0, 0, -0.72], 12);
   cyl(gun, 0.13, 0.13, 0.08, '#2c3022', [0, 0, 0.72], 12);
-  box(gun, [0.1, 0.12, 0.42], '#2a2c2e', [0, 0.18, 0.18]);                         // nişan dürbünü (1,30–1,42 m)
-  box(gun, [0.08, 0.08, 0.04], '#6fa8c8', [0, 0.18, -0.04]);
+  box(gun, [0.1, 0.12, 0.42], '#2a2c2e', [-0.21, 0.04, 0.18]);                     // nişan dürbünü (tüpün solu, 1,16–1,28 m)
+  box(gun, [0.08, 0.08, 0.04], '#6fa8c8', [-0.21, 0.04, -0.04]);
+  box(gun, [0.1, 0.05, 0.05], '#2a2c2e', [-0.15, 0.04, 0.18]);                      // dürbün kelepçesi
   for (const sx of [-1, 1]) box(gun, [0.03, 0.1, 0.03], '#111', [sx * 0.08, -0.16, 0.45]);
   mergeVC(gun);
   const fx = new THREE.Group(); fx.name = 'ışık'; root.add(fx);

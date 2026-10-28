@@ -24,7 +24,7 @@ function headless() {
   const mkG = (o = {}) => new Game(null, { headless: true, map: 'kuzey', tod: 'day', weather: 'clear', diff: 'normal', bots: false, match: { perTeam: 4, type: 'conquest' }, ...o });
   const g = mkG(), V = g.vehicles;
   { // 12.200: 36 araç — üs 10 jip + 4 tank + 4 helikopter, bayrak 13 jip (bayrak alınınca), yol kenarı 5 tarafsız jip (baştan)
-    const VL = V ? V.list.filter((v) => !v.def.moto) : [];      // 12.204: motorlar ayrı (scripts/mototest.mjs)
+    const VL = V ? V.list.filter((v) => !v.def.moto && !v.def.fixed) : [];      // 12.213: sabit yuvalar ayrı (scripts/towertest.mjs)      // 12.204: motorlar ayrı (scripts/mototest.mjs)
     const flagN = g.map.vehicles.filter((d) => VT[d.type] && !VT[d.type].moto && String(d.team).startsWith('flag:')).length, all = g.map.vehicles.filter((d) => VT[d.type] && !VT[d.type].moto).length;
     ok(V && VL.length === all && all >= 36 && VL.filter((v) => v.alive).length === all - flagN, 'kurulum: üs jip / tank / helikopter + tarafsız yol jipleri maç başında hazır, bayrak jipleri bayrak alınınca (12.200: 36 araç)', V ? `${VL.length} / ${VL.filter((v) => v.alive).length} · bayrak ${flagN}` : 'yok');
   }

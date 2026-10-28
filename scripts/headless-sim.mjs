@@ -19,7 +19,7 @@ game.on('flag', () => flagEvents++);
 const VS = game.vehicles ? { kills: 0, vehKills: 0, vwKills: 0, vwBy: {}, tankKills: 0, jeepKills: 0, heliKills: 0, tankLives: 0, tankDeaths: 0, booms: 0, tankBy: {}, tankHits: {}, atShots: 0, board: [] } : null;
 if (VS) {
   const V = game.vehicles, ok0 = game.onKill.bind(game);
-  const VW = new Set(); for (const d of Object.values(VT)) for (const n of [d.name, d.cannon?.name, d.mg?.name, d.nose?.name, d.rockets?.name]) if (n) VW.add(n);      // araç silahı adları (türden bağımsız)
+  const VW = new Set(); for (const d of Object.values(VT)) for (const n of [d.name, d.cannon?.name, d.mg?.name, d.nose?.name, d.rockets?.name, d.atgm?.name]) if (n) VW.add(n);      // 12.213 tanksavar füzesi      // araç silahı adları (türden bağımsız)
   for (const v of V.list) if (v.alive) { v._sT = 0; if (v.def.cannon) VS.tankLives++; }
   game.onKill = (killer, victim, w, hs) => {
     if (killer && killer !== victim && VW.has(w)) { VS.vwKills++; VS.vwBy[w] = (VS.vwBy[w] || 0) + 1; }
@@ -42,6 +42,7 @@ let steps = 0;
 try {
   for (; steps < secs * 30 && !game.ended; steps++) {
     game.step(dt);
+    if (VS && steps % 30 === 0) for (const v of game.vehicles.list) if (v.def.fixed && v.seats[0]) { VS.empUp = (VS.empUp || 0) + 1; (VS.empBy ||= {})[v.type] = (VS.empBy[v.type] || 0) + 1; }      // 12.213 yuva-sn (kullanılan)
     if (VS && steps % 30 === 0) for (const v of game.vehicles.list) if (v.def.cannon && v.alive) { VS.tankUp = (VS.tankUp || 0) + 1; if (v.seats[0]) VS.tankDrv = (VS.tankDrv || 0) + 1; }      // tank-sn: sahada / sürücülü
   }
 } catch (e) { errors++; console.log('HATA:', e.stack); }
@@ -57,6 +58,7 @@ console.log(`öldürme toplamı ${S.reduce((a, s) => a + s.kills, 0)} · geçers
 if (VS) {
   const med = (a) => (a.length ? [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)] : NaN);
   console.log(`araçlar: tank doğuşu ${VS.tankLives} · tank ölümü ${VS.tankDeaths} · tank leşi ${VS.tankKills} (tank ömrü başına ${(VS.tankKills / Math.max(1, VS.tankLives)).toFixed(1)}) · jip ${VS.jeepKills} · helikopter ${VS.heliKills} · araçtan leş %${Math.round(100 * VS.vehKills / Math.max(1, VS.kills))} (araç silahıyla %${Math.round(100 * VS.vwKills / Math.max(1, VS.kills))} ${JSON.stringify(VS.vwBy)}) · patlayan araç ${VS.booms} · tank-sn sahada ${VS.tankUp || 0} / sürücülü ${VS.tankDrv || 0}`);
+  if (game.vehicles.list.some((v) => v.def.fixed)) console.log(`sabit yuvalar: ${game.vehicles.list.filter((v) => v.def.fixed).length} · kullanılan yuva-sn ${VS.empUp || 0} ${JSON.stringify(VS.empBy || {})} · patlayan yuva ${game.vehicles.list.filter((v) => v.def.fixed && (v.spawnN || 0) > 1).length}`);      // 12.213
   console.log(`tankı öldüren: ${JSON.stringify(VS.tankBy)} · tanka düşman isabeti: ${JSON.stringify(VS.tankHits)} · piyade RPG atışı ${VS.atShots} · ilk binişe dek (doğuştan, medyan) ${med(VS.board).toFixed?.(1)} sn`);
   if (process.env.OUT) (await import('node:fs')).writeFileSync(process.env.OUT, JSON.stringify({ ...VS, flags: flagEvents, total: S.reduce((a, s) => a + s.kills, 0) }));
 }
