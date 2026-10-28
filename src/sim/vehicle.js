@@ -317,7 +317,8 @@ function stepHeli(v, inp, dt, T) {
   const s0 = Math.sin(v.yaw), c0 = Math.cos(v.yaw), fx = -s0, fz = -c0, rx = c0, rz = -s0;
   let vF = v.vx * fx + v.vz * fz, vR = v.vx * rx + v.vz * rz;
   if (lift > 0 && !(onG && up <= 0)) {
-    const tF = Math.max(-d.maxB, Math.min(d.maxF, (f > 0 ? f * d.maxF : f * d.maxB) + (v.air ? nAcc : 0))), tR = rr * d.maxS, a = d.acc * lift * dt;
+    // 12.201 S (geri) burun aşağıyken önce burnun itişini söndürür: tam S = burun aşağı + yerinde asılı (hover'da aşağıya ateş); burun düzken geri gider
+    const nA = v.air ? nAcc : 0, tF = Math.max(-d.maxB, Math.min(d.maxF, f > 0 ? f * d.maxF + nA : f < 0 && nA > 0 ? nA * (1 + f) * Math.min(1, nA / 3) + (f * d.maxB + nA) * (1 - Math.min(1, nA / 3)) : f * d.maxB + nA)), tR = rr * d.maxS, a = d.acc * lift * dt;
     vF += Math.max(-a, Math.min(a, tF - vF)); vR += Math.max(-a * 1.3, Math.min(a * 1.3, tR - vR));
     const alt = v.y - g0, tY = up > 0 ? d.climb : up < 0 ? -Math.min(d.descend, 1.4 + alt * 0.7) : 0, va = d.vacc * dt;      // yere yaklaşınca alçalış kendiliğinden yavaşlar (yumuşak iniş ≤ 1,4 m/sn)
     v.vy += Math.max(-va, Math.min(va, tY - v.vy)) * lift - VEH_G * (1 - lift) * dt;

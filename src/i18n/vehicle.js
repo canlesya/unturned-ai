@@ -12,7 +12,7 @@ addStrings('tr', {
   'veh.hint.tank': '<b>W A S D</b> sür · <b>Fare</b> kule (top −10°…+20°) · <b>Sol tık</b> ana top · <b>Sağ tık</b> yakınlaştır · <b>{v}</b> dürbün / takip · <b>{f}</b> far · <b>1–{n}</b> koltuk · <b>{e}</b> in',
   'veh.hint.gunner': '<b>Sol tık</b> makineli · <b>Fare</b> nişan · <b>Sağ tık</b> yakınlaştır · <b>1–{n}</b> koltuk · <b>{e}</b> in',
   'veh.heli-n': 'HELİKOPTER', 'veh.heli-s': 'HELİKOPTER', 'veh.heliBar': 'ROTOR %{r} · İRTİFA {h} m', 'veh.rotor': 'ROTOR HIZLANIYOR…',
-  'veh.hint.heli': '<b>Sol tık</b> burun topu · <b>{q} / orta tık</b> roket · <b>Sağ tık</b> yakınlaştır · <b>Fare</b> burun (yön + eğim; aşağı eğ = öne hızlan) · <b>Boşluk</b> yüksel · <b>C / Ctrl</b> alçal · <b>W S</b> ileri / geri · <b>A D</b> yana · <b>{v}</b> kamera · <b>{f}</b> far · <b>1–{n}</b> koltuk · <b>{e}</b> in (havada atlarsan düşersin)',
+  'veh.hint.heli': '<b>Sol tık</b> burun topu · <b>{q} / orta tık</b> roket · <b>Sağ tık</b> yakınlaştır · <b>Fare</b> burun (yön + eğim; aşağı eğ = öne hızlan) · <b>Boşluk</b> yüksel · <b>C / Ctrl</b> alçal · <b>W S</b> ileri / geri (burun aşağıyken S = yerinde asılı) · <b>A D</b> yana · <b>{v}</b> kamera · <b>{f}</b> far · <b>1–{n}</b> koltuk · <b>{e}</b> in (havada atlarsan düşersin)',
   'tc.n.down': 'Alçal',
   'agroup.4': 'Araç', 'tc.n.veh': 'Araca bin / in', 'tc.n.vcam': 'Araç kamerası', 'tc.n.seat': 'Koltuk değiştir',
 });
@@ -27,7 +27,7 @@ addStrings('en', {
   'veh.hint.tank': '<b>W A S D</b> drive · <b>Mouse</b> turret (gun −10°…+20°) · <b>Left click</b> main gun · <b>Right click</b> zoom · <b>{v}</b> sight / chase · <b>{f}</b> lights · <b>1–{n}</b> seat · <b>{e}</b> exit',
   'veh.hint.gunner': '<b>Left click</b> machine gun · <b>Mouse</b> aim · <b>Right click</b> zoom · <b>1–{n}</b> seat · <b>{e}</b> exit',
   'veh.heli-n': 'HELICOPTER', 'veh.heli-s': 'HELICOPTER', 'veh.heliBar': 'ROTOR {r}% · ALT {h} m', 'veh.rotor': 'ROTOR SPINNING UP…',
-  'veh.hint.heli': '<b>Left click</b> nose gun · <b>{q} / middle click</b> rockets · <b>Right click</b> zoom · <b>Mouse</b> nose (turn + pitch; nose down = speed up) · <b>Space</b> climb · <b>C / Ctrl</b> descend · <b>W S</b> fwd / back · <b>A D</b> strafe · <b>{v}</b> camera · <b>{f}</b> light · <b>1–{n}</b> seat · <b>{e}</b> exit (jumping out in the air = fall)',
+  'veh.hint.heli': '<b>Left click</b> nose gun · <b>{q} / middle click</b> rockets · <b>Right click</b> zoom · <b>Mouse</b> nose (turn + pitch; nose down = speed up) · <b>Space</b> climb · <b>C / Ctrl</b> descend · <b>W S</b> fwd / back (nose down + S = hover) · <b>A D</b> strafe · <b>{v}</b> camera · <b>{f}</b> light · <b>1–{n}</b> seat · <b>{e}</b> exit (jumping out in the air = fall)',
   'agroup.4': 'Vehicle', 'action.vehicle': 'Enter / exit vehicle', 'action.vehCam': 'Vehicle camera (inside / chase)', 'action.vehAlt': 'Helicopter rockets (hold) · middle click too',
   'set.grp.4': 'Vehicle', 'set.act.vehicle': 'Enter / exit vehicle', 'set.act.vehCam': 'Vehicle camera (inside / chase)', 'set.act.vehAlt': 'Helicopter rockets (hold) · middle click too',      // oyun içi Kontroller (Esc → Ayarlar)
   'tc.n.veh': 'Enter / exit vehicle', 'tc.n.vcam': 'Vehicle camera', 'tc.n.seat': 'Switch seat',
