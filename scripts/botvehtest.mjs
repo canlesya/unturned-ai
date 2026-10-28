@@ -128,6 +128,9 @@ function headless() {
     let nose = 0, rockets = 0;
     const mg = V.mgFire.bind(V); V.mgFire = (s, held, dt) => { const r = mg(s, held, dt); if (r) { if (s.seat === 0) nose++; else gunFire++; } return r; };
     const fr = V.fireRocket.bind(V); V.fireRocket = (vv, by) => { const r = fr(vv, by); if (r) rockets++; return r; };
+    // 12.201 burun topu mermileri: çıkış pitch'i + yere / hedefe düştüğü yerin en yakın düşmana uzaklığı (burun artıyı izler, koni aşağı)
+    const noseP = [], noseMiss = [], sr = g.shootRay.bind(g);
+    g.shootRay = (sh, o, d, ...a) => { if (sh.veh?.def.heli && sh.seat === 0) { noseP.push(Math.asin(d.y)); const r = g.world.raycast(o, d, 400, {}), L = r ? r.t : 400, P = { x: o.x + d.x * L, z: o.z + d.z * L }; noseMiss.push(Math.min(...[E1, E2].map((e) => Math.hypot(e.pos.x - P.x, e.pos.z - P.z)))); } return sr(sh, o, d, ...a); };
     S.run(260, (t) => {
       if (tIn < 0 && v.seats[0]) { tIn = t; P = v.seats[0]; }
       nGun = Math.max(nGun, (v.seats[1] ? 1 : 0) + (v.seats[2] ? 1 : 0));
@@ -148,6 +151,8 @@ function headless() {
     ok(minAgl > 12 && maxAgl < 120, 'helikopter: seyir / yörüngede güvenli irtifa (yere / ağaca inmez)', `zeminden ${f1(minAgl)}–${f1(maxAgl)} m`);
     ok(gunFire > 0 && E1.deaths + E2.deaths > 0, 'helikopter: kapı nişancıları bayraktaki düşmana ateş eder, öldürür', `${gunFire} mermi · düşman ölümü ${E1.deaths + E2.deaths}`);
     ok(nose > 0, 'helikopter: pilot saldırı dalışında burun topunu kullanır (12.188 API: mgFire koltuk 0)', `${nose} burun mermisi · ${rockets} roket (roket yalnız araca / 2+ kişilik kümeye)`);
+    const np = noseP.length ? noseP.reduce((a, b) => a + b, 0) / noseP.length : 0, near = noseMiss.filter((m) => m < 6).length;
+    ok(noseP.length > 0 && np < -0.15 && near >= noseP.length * 0.3, 'helikopter: bot pilot (12.201 nişan sistemi) burun topuyla AŞAĞIDAKİ hedefe sıkar', `çıkış pitch ort. ${np.toFixed(3)} rad (${(np * 57.3).toFixed(1)}°) · en dik ${(Math.min(...noseP) * 57.3).toFixed(1)}° · ${near}/${noseP.length} mermi düşmanın 6 m yakınına`);
     ok(inBase === 0, 'helikopter: düşman üssüne girmez', `${inBase} adım`);
     ok(tLand > 0 && padD < 30 && v.alive, 'helikopter: hasar alınca (%50) helipade döner, iner, pilot iner', tLand > 0 ? `${f1(tLand - tDmg)} sn · pada ${f1(padD)} m · can ${Math.round(v.hp)}/${Math.round(hpAtDmg)}` : `inmedi · durumlar ${[...states].join(',')}`);
     ok(S.impact.sum < 60, 'helikopter: çarpma / sert iniş hasarı yok', `${S.impact.n} olay / ${f1(S.impact.sum)}`);

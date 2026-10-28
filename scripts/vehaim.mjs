@@ -80,6 +80,17 @@ await ev(() => { window.__shots.length = 0; window.__game.player.fireHeld = true
 await shot('03-heli-burun-asagi-ates', 1300);
 await ev(() => { window.__game.player.fireHeld = false; });
 R.heliShots = await ev(() => window.__pitchStats());
+// yandan bakış (yalnız görüntü: çizimden hemen önce kamera helikopterin soluna, 60 m yana) — burun eğimi + izlerin yere inişi
+await ev(() => {
+  const g = window.__game, r = g.renderer, rr = r.render.bind(r);
+  r.render = (sc, cam) => { const S = window.__side; if (S && cam === g.camera) { const v = g.playerSoldier.veh?.st; if (v) { cam.position.set(v.x + 34, v.y - 14, v.z - 78); cam.lookAt(v.x + 34, v.y - 22, v.z); cam.fov = 62; cam.updateProjectionMatrix(); } } return rr(sc, cam); };
+});
+await ev(() => { window.__side = true; window.__shots.length = 0; window.__game.player.fireHeld = true; });
+await shot('03y-heli-burun-asagi-ates-yandan', 700);
+await ev(() => { window.__game.player.fireHeld = false; window.__side = false; });
+await ev(() => { window.__game.player.vehCam = 'first'; window.__game.player.fireHeld = true; });
+await shot('03k-heli-kokpit-burun-asagi-ates', 900);
+await ev(() => { window.__game.player.fireHeld = false; window.__game.player.vehCam = 'third'; });
 console.log('  heli burun', R.heliNose, 'atış', JSON.stringify(R.heliShots));
 if (after) {
   ok(R.heliNose < -0.3, `heli burnu bakışla eğildi (pitch ${R.heliNose})`);
