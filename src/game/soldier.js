@@ -324,7 +324,7 @@ export class Soldier {
 
   spreadNow(st) {
     const hipv = st.hip ?? 0.01, adsv = st.ads ?? 0.002;
-    const vs = Math.hypot(this.vel.x, this.vel.z), speed = this.veh ? 0 : vs;          // 12.177: araçtaki yolcu koşmuyor (koşu / hareket cezası yerine araç sarsıntısı)
+    const vs = Math.hypot(this.vel.x, this.vel.z), speed = this.veh || this.fly ? 0 : vs;          // 12.177: araçtaki yolcu koşmuyor (koşu / hareket cezası yerine araç sarsıntısı) · 12.199e geliştirici uçuşu: duruyor gibi
     if (st.ball) return this._ballSpread(st, hipv, adsv, speed);
     // 12.153: dürbünlü keskin nişancı (st.scope): isabet yalnız dürbün oturunca (adsT 0,6 → 1 yumuşak); belde / geçişte ilk atış indirimi yok (no-scope / erken quickscope şansa kalır)
     // 12.156: insan (oyuncu / sunucudaki insan) için belden keskin nişancı anlamlı isabetsiz (st.noscope koni; eski hip 0,03 → 10 m'de gövdeye %100) ve dürbün
@@ -334,7 +334,7 @@ export class Soldier {
     const sk = sc ? smooth01((this.adsT - a0) / (1 - a0)) : this.adsT;
     let s = lerp(hum ? st.noscope ?? hipv : hipv, adsv, sk);
     s += Math.min(speed * 0.0007, 0.0045) * (1 - this.adsT * 0.65);   // hareket cezası
-    if (!this.onGround) s += AIR_SPREAD * (1 - this.adsT * 0.5);            // havadayken (zıplarken) atış çok dağılır
+    if (!(this.onGround || this.fly)) s += AIR_SPREAD * (1 - this.adsT * 0.5);            // havadayken (zıplarken) atış çok dağılır
     if (this.firedSprinting || speed > sprintSpeed()) s += SPRINT_SPREAD * (1 - this.adsT);   // koşarken (Shift) atış serbest ama isabetsiz
     if (this.blindT > 0.5) s += 0.04;
     if (this.crouching) s *= 0.7;
@@ -344,17 +344,17 @@ export class Soldier {
     // duran oyuncunun ilk atışı (kısa bir aradan sonra) isabetli olsun
     // 12.198: saçmalı silahta (pompalı / çift namlu / AA-12 / dağıtıcı) indirim yok — desen hep aynı (eski ×0,2 duran ilk atışı tek kurşun gibi toplayıp
     // pompalıyı 15 m'de tek atış yapıyordu; menzil yalnız hasar düşüşüne kalıyordu)
-    if (this.sinceShot > 0.3 && speed < 1.5 && this.onGround && !st.pellets) s *= sc ? 1 - 0.8 * sk : 0.2;
+    if (this.sinceShot > 0.3 && speed < 1.5 && (this.onGround || this.fly) && !st.pellets) s *= sc ? 1 - 0.8 * sk : 0.2;
     return s + this.botExtraSpread;
   }
 
   // Paintball topu: her topta doğal sapma (ilk top da tam isabetli değil) + seri atışta büyüyen açılma (bloom). Nişan / çömelme / durma ikisini de küçültür.
   // Tamamen durum + tohumlu rastgele (Paint.rngFor) → istemci tahmini ile sunucu aynı yöne atar.
   _ballSpread(st, hipv, adsv, speed) {
-    const a = this.adsT, still = speed < 1.5 && this.onGround;
+    const a = this.adsT, still = speed < 1.5 && (this.onGround || this.fly);
     let s = lerp(hipv, adsv, a) * (still ? 0.8 : 1) * (this.crouching || this.prone ? 0.75 : 1);
     s += Math.min(speed * 0.0011, 0.007) * (1 - a * 0.5);                                   // koşarken / yürürken top dağılır
-    if (!this.onGround) s += AIR_SPREAD * (1 - a * 0.5);
+    if (!(this.onGround || this.fly)) s += AIR_SPREAD * (1 - a * 0.5);
     if (this.firedSprinting || speed > sprintSpeed()) s += SPRINT_SPREAD * (1 - a);
     if (this.blindT > 0.5) s += 0.04;
     s += this.bloom * (1 - a * 0.25) * (this.crouching || this.prone ? 0.7 : 1) * (still ? 0.9 : 1);
