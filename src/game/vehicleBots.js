@@ -229,7 +229,7 @@ export function vbBoard(b) {
   const trip = Math.hypot(dest.x - s.pos.x, dest.z - s.pos.z);
   let best = null, bd = 1e9;
   for (const v of V.list) {
-    if (!v.alive || !v.st || v.burn || v.st.sunk || v.seats.some(Boolean) || g.time < (v.botBad || 0)) continue;
+    if (!v.alive || !v.st || v.def.fixed || v.burn || v.st.sunk || v.seats.some(Boolean) || g.time < (v.botBad || 0)) continue;
     const ab = abandoned(v);                                                      // 12.212 terk edilmiş (sürülmüş, doğuşundan uzakta, boş)
     if (v.team && v.team !== s.team && !(ab && v.idleT > VBOT.aband.foe)) continue;      // 12.200 tarafsız (yol kenarı) araç: herkes · 12.212 düşmanın terk ettiği araç: bir süre sonra herkes
     if (!botMayTake(g, v, s.team)) continue;                                      // 12.200 yeni doğan araç / insanlara ayrılan araç

@@ -13,7 +13,7 @@ export function wLabel(name) {
   if (!byName) { byName = {}; for (const [id, s] of Object.entries(WSTATS)) byName[s.name] = id; }
   const id = WSTATS[name] ? name : byName[name];
   if (id) return wName(id) + suf;
-  const sp = { 'İntihar': 'hud.kf.suicide', 'Kuyuya düştü': 'hud.kf.pit', 'Kuyuya düşürdü': 'hud.kf.pushed', 'Düşman üssü': 'hud.kf.base', 'Düştü': 'hud.kf.fell', 'Savaş alanı': 'hud.kf.oob', 'Boğuldu': 'hud.kf.drown', 'Tank topu': 'veh.kf.tankgun', 'Roket': 'veh.kf.rocket', 'Tank makinelisi': 'veh.kf.tankmg', 'Kapı makinelisi': 'veh.kf.doormg', 'Jip makinelisi': 'veh.kf.jeepmg', 'Burun topu': 'veh.kf.nose', 'Jip': 'veh.kf', 'Tank': 'veh.kf.tank', 'Helikopter': 'veh.kf.heli', 'Motor': 'veh.kf.moto' }[name];
+  const sp = { 'İntihar': 'hud.kf.suicide', 'Kuyuya düştü': 'hud.kf.pit', 'Kuyuya düşürdü': 'hud.kf.pushed', 'Düşman üssü': 'hud.kf.base', 'Düştü': 'hud.kf.fell', 'Savaş alanı': 'hud.kf.oob', 'Boğuldu': 'hud.kf.drown', 'Tank topu': 'veh.kf.tankgun', 'Roket': 'veh.kf.rocket', 'Tank makinelisi': 'veh.kf.tankmg', 'Kapı makinelisi': 'veh.kf.doormg', 'Jip makinelisi': 'veh.kf.jeepmg', 'Burun topu': 'veh.kf.nose', 'Ağır makineli': 'veh.kf.hmg', 'Tanksavar füzesi': 'veh.kf.atgm', 'Tanksavar': 'veh.kf.atpost', 'Jip': 'veh.kf', 'Tank': 'veh.kf.tank', 'Helikopter': 'veh.kf.heli', 'Motor': 'veh.kf.moto' }[name];
   return (sp ? t(sp) : name) + suf;
 }
 export const classDesc = (id) => tf(`class.${id}.desc`, CLASS_DEFS[id]?.desc || '');

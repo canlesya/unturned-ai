@@ -79,6 +79,7 @@ function driveable(id) {
   { const ids = (g.map.vehicles || []).map((d) => d.id), dup = ids.filter((x, i) => ids.indexOf(x) !== i); ok(!dup.length, `${id}: araç doğuş kimlikleri benzersiz`, dup.join(', ') || `${ids.length}`); }
   let nb = 0;
   for (const v of V.list) {
+    if (v.def.fixed) continue;                                                     // 12.213 sabit yuvalar (kule / mevzi; scripts/towertest.mjs)
     if (!v.alive) { ok(false, `${id} ${v.id}: doğmadı`); continue; }
     const m = measure(g.world, v.st);
     out.spawns.push({ map: id, id: v.id, type: v.type, x: +v.st.x.toFixed(1), z: +v.st.z.toFixed(1), ...m });
@@ -90,7 +91,7 @@ function driveable(id) {
   const SG = g.map.sight || [], SP = Object.values(g.map.spawns || {}).flat().filter((p) => p && Number.isFinite(p.x));
   let nc = 0;
   for (const v of V.list) {
-    if (!v.alive || v.def.heli) continue;
+    if (!v.alive || v.def.heli || v.def.fixed) continue;
     const st = v.st, d = v.def, why = [];
     for (const q of SG) {
       const L = toLocal2(st, q[0], q[2]), dh = Math.hypot(Math.max(0, Math.abs(L.f) - d.hl), Math.max(0, Math.abs(L.r) - d.hw));
@@ -101,7 +102,7 @@ function driveable(id) {
       if (obbBox(st, c, 0.5)) { why.push(`yapı 0,5 m [${c.min.map((x) => x.toFixed(1))}]..[${c.max.map((x) => x.toFixed(1))}]`); break; }
     }
     for (const p of SP) { const L = toLocal2(st, p.x, p.z); if (Math.abs(L.f) < d.hl + 0.8 && Math.abs(L.r) < d.hw + 0.8) { why.push(`piyade doğuşu (${p.x.toFixed(1)}, ${p.z.toFixed(1)})`); break; } }
-    for (const o of V.list) if (o !== v && o.alive && !o.def.heli && Math.hypot(o.spawn.x - v.spawn.x, o.spawn.z - v.spawn.z) < d.hl + o.def.hl) { why.push(`araç ${o.id} üst üste`); break; }
+    for (const o of V.list) if (o !== v && o.alive && !o.def.heli && !o.def.fixed && Math.hypot(o.spawn.x - v.spawn.x, o.spawn.z - v.spawn.z) < d.hl + o.def.hl) { why.push(`araç ${o.id} üst üste`); break; }
     if (why.length) { nc++; ok(false, `${id} ${v.id} doğuş açıklığı`, why.join(' · ')); }
   }
   // 12.206 helikopter doğuşu: rotor çemberi (13 m) içinde gövdenin 0,6 m üstüne çıkan kutu / yaprak yok, piyade doğuşu pistte değil, iki helikopter 20 m'den yakın değil
@@ -164,7 +165,7 @@ function driveable(id) {
   // rastgele yerleşim: aynı doğuş yordamı her yerde zemine oturtuyor mu (model)
   if (process.env.RAND !== '0') {
     const A = g.map.playArea || g.map.bounds;
-    for (const type of [...new Set(V.list.map((v) => v.type))]) {
+    for (const type of [...new Set(V.list.filter((v) => !v.def.fixed).map((v) => v.type))]) {
       const st0 = [], R = { n: 0, wheel: 0, air: 0, hull: 0, box: 0, maxW: 0, maxH: 0, worst: null };
       for (let k = 0; k < 4000 && R.n < 300; k++) {
         const x = A.minX + 10 + Math.random() * (A.maxX - A.minX - 20), z = A.minZ + 10 + Math.random() * (A.maxZ - A.minZ - 20);

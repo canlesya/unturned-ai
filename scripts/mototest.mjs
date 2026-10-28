@@ -48,7 +48,7 @@ function headless() {
       const wy = T.waterY ? T.waterY(st.x, st.z) : -Infinity; if (wy > st.y - 0.05) why.push('su');
       for (const c of W.query(st.x - 2, st.z - 2, st.x + 2, st.z + 2, [])) { if (c.nocar || c.max[1] <= st.y + 0.12 || c.min[1] >= st.y + 2.4) continue; if (obbBox({ ...st, def: { ...v.def, hl: v.def.hl + 0.3, hw: v.def.hw + 0.3 } }, c)) { why.push('kutu'); break; } }
       for (const sp of g.map.sight || []) if (Math.hypot(sp[0] - st.x, sp[2] - st.z) < sp[3] + 1.2 && sp[1] - sp[3] < st.y + 2.4) { why.push('ağaç'); break; }
-      for (const o of V.list) if (o !== v && !o.def.moto && o.spawn && Math.hypot(o.spawn.x - v.spawn.x, o.spawn.z - v.spawn.z) < 9) { why.push('araç ' + o.id); break; }
+      for (const o of V.list) if (o !== v && !o.def.moto && !o.def.fixed && o.spawn && Math.hypot(o.spawn.x - v.spawn.x, o.spawn.z - v.spawn.z) < 9) { why.push('araç ' + o.id); break; }
       if (why.length) bad.push(v.id + ':' + why.join('/'));
     }
     ok(!bad.length, 'motor yerleri: zeminde, düz, ayak izinde kutu / ağaç / su / başka araç doğuşu yok', bad.join(' ') || `${motos.length} yer`);

@@ -17,7 +17,7 @@ import { clamp } from './util.js';
 import { mapName } from '../i18n/data.js';
 import { mapText, placeName } from '../i18n/game.js';
 import { squadOn, squadMates, SP } from './squad.js';
-import { vehIconDraw, vehIconSvg } from './vehIcons.js';
+import { vehIconDraw, vehIconSvg, empMark } from './vehIcons.js';
 import { PCOL } from './pings.js';
 import { HEAT_SEC } from './heat.js';
 import { codeLabel } from '../core/keybinds.js';
@@ -495,6 +495,7 @@ export class BigMap {
       if (!v.alive || !v.st) continue;
       const occ = v.seats.filter(Boolean), tm = occ.length ? occ[0].team : v.paint;
       if (tm && tm !== team && !occ.some((o) => g.time - (o.spottedT ?? -99) < 2.5)) continue;
+      if (v.def.fixed) { empMark(x, X(v.st.x), Y(v.st.z), v, tm, occ.length, D); continue; }      // 12.213 sabit yuva simgesi
       x.save(); x.translate(X(v.st.x), Y(v.st.z)); x.rotate(-v.st.yaw);
       const w = Math.max(4.5 * D, 2.4 * this.s), h = Math.max(8 * D, 4.4 * this.s);
       x.fillStyle = tm === 'blue' ? '#4aa3ff' : tm === 'red' ? '#ff5a43' : '#d8d4c4'; x.strokeStyle = occ.some((o) => o.team === team && o.squad === me.squad && sqOn) ? PCOL.sq : occ.length ? '#fff' : '#0009'; x.lineWidth = 1.5 * D;

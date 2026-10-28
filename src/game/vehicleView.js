@@ -8,6 +8,8 @@ import { waterYAt } from '../sim/swim.js';
 import { SEAT_DROP } from './vehicles.js';
 import { createMoto } from '../models/moto.js';                     // 12.204 arazi motosikleti
 import { MOTO_FX, motoFrame } from './motorbike.js';
+import { createEmplacement } from '../models/emplacement.js';         // 12.213 sabit yuvalar
+import { arcPitch } from '../sim/emplacement.js';
 
 // ───── Araç görünümü (12.177; yalnız tarayıcı) ─────
 // Model (takım rengine göre şablon kopyası), görsel süspansiyon (dikey ivme + eğim / yatış gecikmesi: yaylı gövde), teker dönüşü + ön teker
@@ -26,6 +28,7 @@ const FXP = {
   heli: { lights: [[2.62, 0, 0.75]], exh: [[-1.95, -0.55, 2.95, 1], [-1.95, 0.55, 2.95, 1]], dust: [], hood: [-0.6, 0, 3.0], eng: [7, 13], vol: 0.7, inVol: 0.28, rotor: true },
   tank: { lights: [[3.02, -1.3, 1.55], [3.02, 1.3, 1.55]], exh: [[-3.25, -1.0, 1.62, 1], [-3.25, 1.0, 1.62, 1]], dust: [[-2.8, -1.42], [-2.8, 1.42], [2.5, -1.42], [2.5, 1.42]], hood: [-1.8, 0, 1.85], eng: [19, 36], vol: 0.5, inVol: 0.2, clank: true },
   moto: MOTO_FX,                                                       // 12.204 (game/motorbike.js): tek far, sağ egzoz, arka teker tozu, tiz motor
+  hmg: { lights: [], exh: [], dust: [], hood: [0, 0, 1.0], eng: [0, 0], vol: 0, inVol: 0 }, atgm: { lights: [], exh: [], dust: [], hood: [0, 0, 1.1], eng: [0, 0], vol: 0, inVol: 0 },      // 12.213 sabit yuva: ışık / egzoz / motor yok
 };
 
 class Puffs {
@@ -151,7 +154,7 @@ export class VehicleView {
     const team = v.paint || null;
     if (!it.model || it.team !== team) {
       if (it.model) this.group.remove(it.model);
-      const m = v.def.heli ? createHeli(team) : v.type === 'tank' ? createTank(team) : v.def.moto ? createMoto(team) : createJeep(team);
+      const m = v.def.fixed ? createEmplacement(v.type) : v.def.heli ? createHeli(team) : v.type === 'tank' ? createTank(team) : v.def.moto ? createMoto(team) : createJeep(team);      // 12.213
       if (m.userData.blur) { m.userData.blur.material = HELI_MATS.BLUR.clone(); m.userData.blur.userData.beam = true; }      // rotor bulanıklığı araç başına (kömürleşmez)
       const lens = JEEP_MATS.LENS.clone(), tail = JEEP_MATS.TAIL.clone();              // farlar araç başına (açık / kapalı)
       m.userData.fx.traverse((o) => { if (o.material === JEEP_MATS.LENS) o.material = lens; else if (o.material === JEEP_MATS.TAIL) o.material = tail; });
@@ -248,6 +251,9 @@ export class VehicleView {
         if (v.alive) { const w = yr * 1.3; it.sL = (it.sL || 0) + (fwd - w) * dt; it.sR = (it.sR || 0) + (fwd + w) * dt; }
         if (far < 90 && v.alive) setTracks(m, it.sL || 0, it.sR || 0);
         U.links.visible = U.rw.visible = far < 260;
+      } else if (U.emp) {                                               // 12.213 sabit yuva: tripod yuvanın yönünde sabit, silah nişancının bakışıyla yükselir
+        U.base.rotation.y = (((st.base ?? st.yaw) - st.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+        const gn = v.seats[0]; U.gun.rotation.x = gn ? arcPitch(d, gn.pitch) : 0;
       } else if (U.moto) motoFrame(it, v, st, dt, fwd, yr, far);      // 12.204 motor: yatma / devrilme / teker / çatal
       else {
         // tekerler: dönüş (ileri hız / yarıçap), ön tekerler direksiyon
@@ -332,7 +338,7 @@ export class VehicleView {
     const L = sfx.listener.pos, me = this.g.playerSoldier;
     const cand = [];
     for (const it of this.items) {
-      const v = it.v; if (!v.alive || !v.st) continue;
+      const v = it.v; if (!v.alive || !v.st || v.def.fixed) continue;      // 12.213 sabit yuvada motor sesi yok
       const st = this.pose(v), sp = Math.hypot(st.vx, st.vz), act = v.seats.some(Boolean) || sp > 0.5 || Math.abs(st.thr) > 0.01 || st.rpm > 0.05;
       if (!act) continue;
       const d = Math.hypot(st.x - L.x, st.y - L.y, st.z - L.z);
@@ -445,6 +451,13 @@ export function vehCamera(P, dt) {
   const view = g.vehView, st = view ? view.pose(v) : v.st, mode = P.vehCam || 'third';
   const sh = g.effects.shake || 0, jx = (Math.random() - 0.5) * sh * 0.05, jy = (Math.random() - 0.5) * sh * 0.05;
   const tk = !!v.def.turret;
+  if (v.def.fixed) {                                                   // 12.213 sabit yuva: nişancının gözünden (silah yayında), sağ tık yakınlaştırır
+    const e = s.eye(_w); cam.position.set(e.x, e.y, e.z);
+    _e.set(s.pitch + jy, s.yaw + jx, 0, 'YXZ'); cam.quaternion.setFromEuler(_e);
+    cam.fov = P.baseFov() / P.zoomCur(); cam.updateProjectionMatrix();
+    P.bodyVisible = false; P._vcs = null; P._vcam = 'first'; s.shotOff = null;
+    return true;
+  }
   if (tk && mode === 'first') {                                      // 12.178 tank: nişancı dürbünü (kulenin sol önünde, kuleyle döner); sağ tık yakınlaştırır
     const tu = v.def.turret, cy = Math.cos(st.tyaw), sy = Math.sin(st.tyaw);
     toWorld(st, tu.f, 0, tu.y1 + 0.32, _p);

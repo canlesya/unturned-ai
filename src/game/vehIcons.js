@@ -7,8 +7,11 @@ const P = {
   heli: [['M3 8.6C3 6.1 5.5 5 8.5 5h4.6l2.2 2.8H22v1.7h-6.6C14 11.6 12 12.2 9 12.2H7.2C4.6 12.2 3 10.7 3 8.6z'], ['M1.5 2.2h19.5v1.2H1.5z'], ['M10.6 3.3h1.5v1.8h-1.5z'],
     ['M5 13.4h9.6v1.1H5z'], ['M6.6 12h1v1.5h-1z'], ['M11.6 12h1v1.5h-1z'], ['M21.4 5.6h1.2v5.6h-1.2z']],
   moto: [[circ(4.8, 10.4, 2.9), 1], [circ(19.2, 10.4, 2.9), 1], ['M4.2 10.2L8.6 5.6h6.2l4.9 4.6-1 .9-4.4-4H9.3L5.2 11.2z'], ['M7.6 4.2h6.8v1.5H7.6z'], ['M15.6 2.6h3v1.3h-3z'], ['M16.4 3.6l1.2-.2 2.2 6.8-1.2.3z']],
+  // 12.213 sabit yuvalar: ağır makineli (tripod + kalkan + uzun namlu), tanksavar (tripod + kalın tüp)
+  hmg: [['M3 7.6h11v2H3z'], ['M14 8h9v1.2h-9z'], ['M8.4 4.2h1.6v7h-1.6z'], ['M8.6 10.6L4 14h1.8l3.6-2.6z'], ['M9.8 10.6L14 14h-1.8l-3.6-2.6z'], ['M2.6 9.6h4v1.4h-4z']],
+  atgm: [['M2 6.2h17v3.4H2z'], ['M19 5.6h3v4.6h-3z'], ['M6 3.6h5v2.2H6z'], ['M10 9.4h1.4v2h-1.4z'], ['M10.2 11L5 14.4h1.9l4-2.8z'], ['M11.2 11l5.2 3.4h-1.9l-4-2.8z']],
 };
-export const vehKind = (v) => { const d = v?.def || {}; return d.heli ? 'heli' : d.moto ? 'moto' : d.cannon || d.tracked ? 'tank' : 'jip'; };
+export const vehKind = (v) => { const d = v?.def || {}; return d.fixed ? (d.atgm ? 'atgm' : 'hmg') : d.heli ? 'heli' : d.moto ? 'moto' : d.cannon || d.tracked ? 'tank' : 'jip'; };
 const _p2 = {};
 // canvas: x.save(); x.translate(sol üst); x.scale(k); vehIconDraw(x, v); x.restore() — renk x.fillStyle / x.strokeStyle
 export function vehIconDraw(x, v) {
@@ -17,4 +20,15 @@ export function vehIconDraw(x, v) {
 }
 export function vehIconSvg(v, cls = 'hsi vi') {
   return `<svg class="${cls}" viewBox="0 0 24 15">${P[vehKind(v)].map(([d, st]) => st ? `<path d="${d}" fill="none" stroke="currentColor" stroke-width="1.5"/>` : `<path d="${d}" fill="currentColor"/>`).join('')}</svg>`;
+}
+
+// 12.213 harita (M / mini harita) sabit yuva işareti: koyu yuvarlak rozet içinde yuva simgesi; dolu (kullanan) = takım rengi, boş = açık gri
+export function empMark(x, px, py, v, tm, occ, D = 1) {
+  const r = 9 * D;
+  x.save(); x.translate(px, py);
+  x.beginPath(); x.arc(0, 0, r, 0, Math.PI * 2); x.fillStyle = 'rgba(12,16,20,.78)'; x.fill();
+  x.lineWidth = 1.6 * D; x.strokeStyle = occ ? (tm === 'blue' ? '#4aa3ff' : tm === 'red' ? '#ff5a43' : '#fff') : 'rgba(255,255,255,.55)'; x.stroke();
+  const k = (r * 1.5) / 24; x.translate(-12 * k, -7.5 * k); x.scale(k, k);
+  x.fillStyle = occ ? (tm === 'blue' ? '#8cc6ff' : tm === 'red' ? '#ff9a88' : '#fff') : '#d8d4c4'; vehIconDraw(x, v);
+  x.restore();
 }

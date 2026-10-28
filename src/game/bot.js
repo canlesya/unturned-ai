@@ -11,6 +11,7 @@ import { SWIM, waterYAt } from '../sim/swim.js';
 import { vbBoard, vbRelease, vbDrive, vbRideOk, vbCrew } from './vehicleBots.js';           // 12.189 bot sürücüler
 import { squadFollow } from './squad.js';                                            // 12.202 manga botu lideri izler
 import { frTick, frPickGoal, frArrive, frAnchored, frTargetBias, frCombatMove, frStuck, frDamaged } from './frontBots.js';     // 12.158 Cephe modu
+import { empBoard, empRide } from './empBots.js';                                          // 12.213 sabit silah yuvaları
 import { flankVia } from './bigBots.js';                                                    // 12.203 büyük harita kanat mangalı
 
 // silah rolleri (bot davranışı)
@@ -98,8 +99,10 @@ export class BotBrain {
     if (nav.nearestNode) {                                                      // NavGridML: hedefi istenen kattaki en yakın yürünür düğüme al
       const n = nav.nearestNode(x, z, Number.isFinite(y) ? y : this.s.pos.y, 8);
       if (n >= 0) { const i = (n / nav.K) | 0; x = nav.cx(i); z = nav.cz(i); gy = nav.lf[n]; }
-    } else if (nav.blocked[nav.idx(x, z)]) { const i = nav.nearestFree(x, z, 8); if (i >= 0) { x = nav.cx(i); z = nav.cz(i); } }      // hedef duvarın / kutunun içindeyse en yakın serbest noktaya al (yoksa bot orada boşuna bekler)
+    } else if (Number.isFinite(y) && nav.towerAt?.(x, z, y)) gy = y;            // 12.213 Kuzey Vadisi: gözetleme kulesinin platformu (KuzeyNav ikinci kat)
+    else if (nav.blocked[nav.idx(x, z)]) { const i = nav.nearestFree(x, z, 8); if (i >= 0) { x = nav.cx(i); z = nav.cz(i); } }      // hedef duvarın / kutunun içindeyse en yakın serbest noktaya al (yoksa bot orada boşuna bekler)
     this.goal = new THREE.Vector3(x, gy, z);
+    if (gy && nav.towers) this.goal.tw = true;
     this.goalT = time;
     this.path = null; this.repathT = 0;
   }
@@ -129,7 +132,7 @@ export class BotBrain {
     if (!obj) return;
     if (s.cls === 'sniper' && g.perch) {
       const pp = g.perch(obj, s.team);
-      if (pp) { this.setGoal(pp.x, pp.z, rand(25, 45)); this.perching = true; return; }
+      if (pp) { this.setGoal(pp.x, pp.z, rand(25, 45), pp.y); this.perching = true; return; }      // 12.213 pp.y: kule platformu
     }
     this.perching = false;
     if (s.cls === 'medic') {
@@ -399,6 +402,7 @@ export class BotBrain {
   board() {
     const s = this.s, g = this.game, V = g.vehicles;
     if (this.target || s.hp < 30) return;
+    if (empBoard(this)) return;                                                  // 12.213 boş ağır makineli / tanksavar yuvasına (empBots.js)
     if (vbCrew(this) || vbBoard(this)) return;                                   // 12.189: çağrıldığı koltuğa / boş araca sürücü olarak yürüyor, biniyor
     let best = null, bd = 1e9;
     for (const v of V.list) {
@@ -571,7 +575,7 @@ export class BotBrain {
     const s = this.s, g = this.game;
     if (!this.goal) return null;
     if (this.via && Math.hypot(this.via.x - s.pos.x, this.via.z - s.pos.z) < 3.5) { this.via = null; this.path = null; this.repathT = 0; }
-    const gd = Math.hypot(this.goal.x - s.pos.x, this.goal.z - s.pos.z) + (g.nav.nearestNode ? Math.max(0, Math.abs(this.goal.y - s.pos.y) - 1.2) * 3 : 0);   // katlı: hedef katta değilse varılmış sayılmaz
+    const gd = Math.hypot(this.goal.x - s.pos.x, this.goal.z - s.pos.z) + (g.nav.nearestNode || this.goal.tw ? Math.max(0, Math.abs(this.goal.y - s.pos.y) - 1.2) * 3 : 0);      // 12.213 kule tepesi hedefi: platform kotunda değilse varılmamış   // katlı: hedef katta değilse varılmış sayılmaz
     if (gd < 1.8 && !this.via) {
       this.holdT -= dt;
       if (this.perching) { if (this.spot) tacHold(this, dt); else { s.crouching = true; if (this.holdT <= 0) this.holdT = 3; } } else if (g.payload && this.plRole) plArrive(this); else if (g.front && this.frRole) frArrive(this, dt); else if (this.holdT <= 0) { this.holdT = rand(2, 5); if (g.nav.nearestNode && Math.random() < 0.6) this.pickGoal(); else this.setGoal(this.goal.x + rand(-6, 6), this.goal.z + rand(-6, 6), g.map.big ? Math.max(this.goalT, 2) : 10, this.goal.y); }      // 12.189 büyük harita: bekleme hedefin süresini yenilemez (eskiden her 2–5 sn'de 10 sn'ye dönüp bot bayrakta sonsuza dek kalıyordu)      // katlı haritada yeni dolaşma noktası (kat değiştirsin)
@@ -661,7 +665,7 @@ export class BotBrain {
     if (!s.alive) return;
     if ((s.swim || this.swimming) && this.swimOut(dt)) return;
     if (s.def.zombie) { this.updateZombie(dt); return; }
-    if (s.veh) { if (s.seat === 0 && this.vd) vbDrive(this, dt); else this.rideTick(dt); return; }     // 12.177 yolcu bot: nişan + ateş · 12.189 sürücü bot: vehicleBots.js
+    if (s.veh) { if (s.veh.def.fixed) empRide(this, dt); else if (s.seat === 0 && this.vd) vbDrive(this, dt); else this.rideTick(dt); return; }      // 12.213 yuvadaki bot     // 12.177 yolcu bot: nişan + ateş · 12.189 sürücü bot: vehicleBots.js
     if (g.vehicles && (this.boardT = (this.boardT ?? rand(0, 0.3)) - dt) <= 0) { this.boardT = 0.3; this.board(); }
     if (this.rideGoal && this.rideTo && !this.target) {                     // araca doğrudan yürü (≤ 18 m: yol ızgarası araçları bilmez, 2 m hücrede kapı noktası kaba)
       const dx = this.rideTo.x - s.pos.x, dz = this.rideTo.z - s.pos.z, d = Math.hypot(dx, dz), k = Math.min(1, dt * 10), sp = d > 0.4 ? TUNE.walkSpeed * s.spd : 0;
