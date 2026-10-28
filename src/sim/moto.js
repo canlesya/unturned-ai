@@ -23,7 +23,7 @@ export const MOTO = {
   seat: [[0.04, 0, 0.86], [-0.6, 0, 0.93]], horn: true, seatKey: [null, 'veh.seat.moto1'],
   blastMul: 1.7, bulletMul: 0.55, hmgMul: 0.9, atMul: 1.8, ramMin: 7, ramMul: 6,
   burnAt: 0.25, burnRate: 10, boom: [3.5, 60],
-  respawn: 15, wreck: 5, idleRespawn: 60,                    // patlayınca ~20 sn'de (enkaz 5 + 15) yeniden doğar; boş bırakılınca 60 sn
+  respawn: 15, wreck: 5, idleRespawn: 45,                    // patlayınca ~20 sn'de (enkaz 5 + 15) yeniden doğar; boş bırakılınca 45 sn (12.212: 60 → 45)
   mass: 0.35, wade: 0.95, stall: 0.5, stepUp: 0.42,
   hitSafe: 7, hitMul: 2, landSafe: 11, landMul: 4,           // çarpma / iniş hasarı (÷ kütle 0,35): 15 m/sn duvar ≈ 46, 23 m/sn ≈ 94 (yanmaz), 28+ m/sn yanar
   tipHit: 7.5, crashHit: 12.5, crashLand: 13, crashTilt: 0.75, tipSlope: 0.6, tipT: 1.1, fallT: 2.4, launch: 1.2,

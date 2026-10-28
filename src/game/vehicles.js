@@ -6,6 +6,7 @@ import { TUNE } from './balance.js';
 import { motoSpawnsFor } from '../maps/motoSpawns.js';                   // 12.204 arazi motosikleti doğuşları (haritanın araç listesine eklenir)
 import { motoAfterStep } from './motorbike.js';
 import { extraSpawnsFor } from '../maps/vehScale.js';             // 12.206 oyuncu sayısına göre ek araçlar (üste)
+import { submerged } from '../sim/swim.js';             // 12.212 terk edilen araç suda mı
 
 // ───── Araçlar (12.177) ─────
 // Yönetici: haritanın araç doğuş verisinden (map.vehicles; yalnız VT'de tanımlı türler, yalnız Ele Geçirme) araçları kurar. YETKİLİ taraf (çevrimdışı
@@ -40,6 +41,10 @@ export function armorAt(v, pos) {
   if (rn > Math.abs(fn)) return A.s;
   return fn >= 0 ? A.f : A.r;
 }
+
+// 12.212 terk edilen araç: hold = bu kadar yakında yaya insan varken (her takım) yenilenme beklenir · fast = kötü durumda (alan dışı / suda / devrik /
+// sıkışmış) yenilenme (sn) · tilt = devrik sayılan yatış / eğim (rad)
+export const ABAND = { hold: 40, fast: 15, tilt: 0.75 };
 
 // 12.206 koltuk önceliği: insan (çevrimdışı oyuncu, sunucuda insan, istemcide netHuman) bottan öncelikli
 export const isHuman = (o) => !!(o && (o.isPlayer || o.human || o.netHuman));
@@ -78,7 +83,7 @@ export class Vehicles {
     const S = v.spawn, W = this.g.world;
     if (!first) {                                                     // doğuş yeri dolu (asker / araç) → bekle
       for (const s of this.g.soldiers) if (s.alive && Math.hypot(s.pos.x - S.x, s.pos.z - S.z) < 3.2) return false;
-      for (const o of this.list) if (o !== v && o.alive && Math.hypot(o.st.x - S.x, o.st.z - S.z) < (v.def.moto && o.def.moto ? 2.2 : 4.5)) return false;      // 12.204: motorlar yan yana (2,6 m) dizilir
+      for (const o of this.list) if (o !== v && o.alive && Math.hypot(o.st.x - S.x, o.st.z - S.z) < (v.def.moto && o.def.moto ? 2.2 : 4.5)) { o.blockT = this.g.time; return false; }      // 12.212 tıkayan boş araç terk sayacına girer      // 12.204: motorlar yan yana (2,6 m) dizilir
     }
     v.st = makeVehicle(v.type, S.x, groundAt(W, S.x, S.z, W.heightAt(S.x, S.z) + 1), S.z, S.yaw);
     stepVehicle(v.st, null, 1 / 60, W); stepVehicle(v.st, null, 1 / 60, W);      // zemine otur (eğim / yatış)
@@ -274,11 +279,15 @@ export class Vehicles {
       v.burn = v.hp > 0 && v.hp < v.def.hp * v.def.burnAt && !this.godVeh(v);      // 12.207 ölümsüz araç yanmaz
       if (v.burn) { v.hp -= v.def.burnRate * dt; if (v.hp <= 0) { this.destroy(v, this.killerOf(v)); continue; } }
       // boş bırakılan araç: doğuşundan uzaktaysa (ya da savaş alanı dışında) bir süre sonra yenilenir
-      const A = g.map.playArea, out = A && (v.st.x < A.minX || v.st.x > A.maxX || v.st.z < A.minZ || v.st.z > A.maxZ);
-      if (!occ.length && (out || Math.hypot(v.st.x - v.spawn.x, v.st.z - v.spawn.z) > 25)) {
-        v.idleT += dt;
-        if (v.idleT > (out ? 15 : v.def.idleRespawn)) { this.destroy(v, null, true); continue; }
-      } else v.idleT = 0;
+      // 12.212 (Battlefield: terk edilen araç kendini imha eder, üste yeniden çıkar): def.idleRespawn (jip 50 / motor 45 / tank, helikopter 60 sn);
+      // yakınında (ABAND.hold m) yaya insan varken ya da bir bot ona yürürken sayaç durur. Kötü durumda (alan dışı, suda, devrik / dik yamaçta,
+      // bot takılıp bıraktı) ABAND.fast sn. Doğuşunun dibinde olsa da başka aracın doğuşunu tıkıyorsa (trySpawn → blockT) sayılır.
+      const A = g.map.playArea, st = v.st, out = A && (st.x < A.minX || st.x > A.maxX || st.z < A.minZ || st.z > A.maxZ);
+      if (!occ.length && (out || g.time - (v.blockT ?? -99) < 2 || Math.hypot(st.x - v.spawn.x, st.z - v.spawn.z) > 25)) {
+        if ((v.abT = (v.abT ?? 0) - dt) <= 0) { v.abT = 0.5; v.abBad = this.abandonBad(v, out); v.abWait = !v.abBad && this.abandonWait(v); }
+        if (!v.abWait) v.idleT += dt;
+        if (v.idleT > (v.abBad ? ABAND.fast : v.def.idleRespawn)) { this.destroy(v, null, true); continue; }
+      } else { v.idleT = 0; v.abT = 0; }
       // sahipsiz bayrak aracı: hiç kullanılmamış (doğuşunda), bayrak el değiştirdiyse yeni sahibine boyanır
       if (!occ.length && !v.lastDriver && typeof v.spawn.team === 'string' && v.spawn.team.startsWith('flag:')) { const t = this.spawnTeam(v); if (t && t !== v.team) { v.team = t; v.paint = t; } }
       for (const s of occ) this.place(s);
@@ -306,6 +315,19 @@ export class Vehicles {
     if (!v.st && !v.spawnN) { this.trySpawn(v); return; }             // bayrak aracı: bayrak alınınca ilk doğuş
     v.respawnT -= dt;
     if (v.respawnT <= 0) this.trySpawn(v);
+  }
+
+  // 12.212 terk edilen araç: kötü durumda mı (çabuk yenilenir) · beklesin mi (yakında insan yaya / ona yürüyen bot)
+  abandonBad(v, out) {
+    const st = v.st;
+    return !!(out || st.sunk || submerged(this.g.world.terrain, st.x, st.y + 0.3, st.z) > 0.2 || (!v.def.heli && (Math.abs(st.pitch) > ABAND.tilt || Math.abs(st.roll) > ABAND.tilt))
+      || this.g.time - (v.stuckT ?? -1e9) < 90);
+  }
+  abandonWait(v) {
+    const g = this.g, st = v.st;
+    if (v.botRes && v.botRes.s?.alive && g.time < v.botResT) return true;
+    for (const s of g.soldiers) if (s.alive && !s.veh && isHuman(s) && Math.hypot(s.pos.x - st.x, s.pos.z - st.z) < ABAND.hold) return true;
+    return false;
   }
 
   killerOf(v) { return v.lastHit && this.g.time - v.lastHitT < 15 ? v.lastHit : null; }

@@ -30,6 +30,9 @@ export const VBOT = {
   clr: { jip: 1.6, tank: 2.3, moto: MOTO_BOT.clr },                   // rota açıklığı (m)
   wait: [1.2, 7],                                 // binince bekleme: en az / yolcu yürürken en çok (sn)
   stuck: { t: 1.6, rev: 1.4, max: 5, noProg: 35 },
+  // 12.212 terk edilmiş araç (sürülmüş, doğuşundan > 25 m, boş): daha yakın hedefe de alınır (trip), daha uzaktan yürünür (reach, hedefin %60'ı),
+  // düşmanın bıraktığı araç foe sn boş kaldıktan sonra her takıma açık (Battlefield: boş araca herkes biner)
+  aband: { trip: { jip: 110, tank: 90, heli: 180, moto: 90 }, reach: 80, foe: 12 },
   // tank topu (zorluk): ilk nişan hatası (rad, her atışta yeniden), hareketli hedefe öncü oranı, ek bekleme (dolumdan sonra), tepki (sn), menzil;
   // inf: piyadeye karşı hata çarpanı / ek bekleme / menzil · 12.200: piyadeye hata × 1,8 → 2,4 / ek bekleme 2 → 3 sn (normal; kolay / zor orantılı):
   // başsız ölçümde öldürmelerin ~%22'si tek başına bot tank topundandı (tank ölümü başına ~6–10 leş)
@@ -226,18 +229,20 @@ export function vbBoard(b) {
   const trip = Math.hypot(dest.x - s.pos.x, dest.z - s.pos.z);
   let best = null, bd = 1e9;
   for (const v of V.list) {
-    if (!v.alive || !v.st || v.burn || v.st.sunk || v.seats.some(Boolean) || (v.team && v.team !== s.team) || g.time < (v.botBad || 0)) continue;      // 12.200 tarafsız (yol kenarı) araç: herkes
+    if (!v.alive || !v.st || v.burn || v.st.sunk || v.seats.some(Boolean) || g.time < (v.botBad || 0)) continue;
+    const ab = abandoned(v);                                                      // 12.212 terk edilmiş (sürülmüş, doğuşundan uzakta, boş)
+    if (v.team && v.team !== s.team && !(ab && v.idleT > VBOT.aband.foe)) continue;      // 12.200 tarafsız (yol kenarı) araç: herkes · 12.212 düşmanın terk ettiği araç: bir süre sonra herkes
     if (!botMayTake(g, v, s.team)) continue;                                      // 12.200 yeni doğan araç / insanlara ayrılan araç
     if (v.botRes && v.botRes !== b && v.botRes.s.alive && g.time < v.botResT) continue;
-    const k = kindOf(v); if (trip < (k === 'moto' ? motoTrip(g) : VBOT.trip[k])) continue;
+    const k = kindOf(v); if (trip < (ab ? VBOT.aband.trip[k] : k === 'moto' ? motoTrip(g) : VBOT.trip[k])) continue;
     if (k === 'moto' && !motoBotOk(g, s, v, busy(g, s.team, 'moto'))) continue;      // 12.204: insan yakındaysa bekle, takımın motorlarının hepsini alma
     if (k === 'heli' && (v.st.air || !heliOk(g, s, b))) continue;                 // helikopter: yerdeyken, takımda pilot sınırı / zorluk
     if (k === 'tank' && busy(g, s.team, 'tank') >= VBOT.tanks(teamN(g, s.team))) continue;      // tank: takım büyüklüğüne göre en çok bot tankçı
     if (v.hp < v.def.hp * 0.45) continue;
     const d = Math.hypot(v.st.x - s.pos.x, v.st.z - s.pos.z);
-    if (d > VBOT.reach || d > trip * 0.35) continue;
+    if (ab ? d > VBOT.aband.reach || d > trip * 0.6 : d > VBOT.reach || d > trip * 0.35) continue;
     if (g.soldiers.some((e) => e.alive && e.team === s.team && (e.human || e.isPlayer) && !e.veh && Math.hypot(e.pos.x - v.st.x, e.pos.z - v.st.z) < VBOT.humanNear)) continue;
-    const sc = d - (k === 'tank' ? 15 : k === 'heli' ? 30 : 0);                  // 12.200 helikopter önce (jip bol: eskiden yakındaki jipler kapılınca pilot / nişancı kalmıyordu)
+    const sc = d - (k === 'tank' ? 15 : k === 'heli' ? 30 : 0) - (ab ? 10 : 0);  // 12.200 helikopter önce (jip bol: eskiden yakındaki jipler kapılınca pilot / nişancı kalmıyordu) · 12.212 terk edilen önce
     if (sc < bd) { bd = sc; best = v; }
   }
   if (!best) return false;
@@ -245,6 +250,7 @@ export function vbBoard(b) {
   recruit(b, best);
   return true;
 }
+const abandoned = (v) => !!v.lastDriver && Math.hypot(v.st.x - v.spawn.x, v.st.z - v.spawn.z) > 25;
 // 12.200 araç kapma kuralı (her araç türü, motosiklet dahil: türe bakmaz). Kullanıcı: "direkt botlar alıp kaçıyor". (1) Araç doğduktan sonra
 // VBOT.grab.grace sn hiçbir bot binmez (oyuncu doğuşta aracı görüp yürüyebilsin). (2) Takımda (araçta olmayan) insan oyuncu varken her doğuş grubunun
 // (aynı doğuş takımı / bayrağı + aynı tür) en düşük sıralı ceil(n × share) aracı (en çok insan sayısı kadar) insanlara ayrılır (hiç sürülmemiş ve
@@ -421,6 +427,7 @@ export function vbExit(b, why = '?') {
   const s = b.s, V = b.game.vehicles, S = stat(b.game);
   S.exit[why] = (S.exit[why] || 0) + 1;
   const vd = b.vd; if (vd && s.veh) { (S.trips ||= []).push({ k: vd.kind, why, t: +vd.t.toFixed(1), d: Math.round(vd.odo || 0), rev: vd.stuck, dest: vd.dest?.id, left: vd.end ? Math.round(Math.hypot(vd.end.x - s.veh.st.x, vd.end.z - s.veh.st.z)) : -1 }); if (S.trips.length > 200) S.trips.shift(); }
+  if (s.veh && (why === 'takıldı' || why === 'ilerlemedi')) { s.veh.stuckT = b.game.time; s.veh.botBad = b.game.time + 60; }      // 12.212 sıkışan araç: botlar almaz, çabuk yenilenir (Vehicles.abandonBad)
   if (s.veh) V.exit(s);
   b.vd = null; b.goalT = 0; b.path = null; b.target = null;
 }
