@@ -2152,3 +2152,8 @@ Kullanıcı: "bence oyundaki hologramlar yakınlaştırmalar için PUBG'yi refer
 
 ### 12.199b Yüzüstü serbest bakış ±70° → ±50°
 - Kullanıcı: ±70° serbest bakış fazla geldi. `src/sim/prone.js` `PRONE_LOOK` 50°'ye indi (istemci, sunucu, bot, mobil aynı sabiti kullanır); gövde dönüşü 90°/sn ve bekleyen istek (toplam 180°) aynı. `scripts/pronenet.mjs` beklentileri 50°'ye güncellendi.
+
+### 12.199c Gece yıldızları / ay kameraya bağlı gök küresi
+- Kullanıcı (Kuzey Vadisi gece): yıldızlar haritanın ortasında, dağların önünde bir kubbe gibi duruyordu. Sebep: yıldız noktaları ve ay dünya merkezinde 480 m'lik sabit bir kürede kurulmuştu (küçük haritalara göre); kilometrelik haritada oyuncu kürenin dışından bakıyordu.
+- `src/maps/environment.js`: yıldızlar ve ay `onBeforeRender`'da kameranın konumuna taşınır (gök küresi gibi, yön değişmez), gök kubbesinden hemen sonra (`renderOrder -999`) derinlik yazmadan / sınamadan çizilir → dağ / ağaç / bina hep önünde, gök her yere yayılır. Uçarken de gök oyuncuyla gelir. Bulutlar aynı kaldı.
+- Ölçüm: `/tmp/wb-stars/after-tablo.png` (Kuzey 4 bakış + 120 m yukarıdan, Çöl Geçidi 4 bakış), `after-kuzey-9.png` (ay). Sayfa hatası 0.

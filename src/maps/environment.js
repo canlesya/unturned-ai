@@ -135,10 +135,16 @@ export function setupEnvironment(scene, renderer, { shadowSize = 85, sunPos: sun
       pos[i * 3] = Math.cos(a) * r * 480; pos[i * 3 + 1] = Math.abs(u) * 480 * 0.9 + 20; pos[i * 3 + 2] = Math.sin(a) * r * 480;
     }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
-    scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: '#dfe8ff', size: 2.2, sizeAttenuation: false, fog: false })));
-    const moon = new THREE.Mesh(new THREE.SphereGeometry(14, 14, 10), new THREE.MeshBasicMaterial({ color: '#f1f5ff', fog: false }));
-    moon.position.set(sunPos[0], sunPos[1], sunPos[2]).normalize().multiplyScalar(430);
-    scene.add(moon);
+    // 12.199c: yıldız / ay kameraya bağlı gök küresi (eskiden dünya merkezinde 480 m'lik küre: büyük haritada (Kuzey Vadisi) haritanın ortasında
+    // dağların önünde bir kubbe gibi duruyordu). Gök kubbesinden hemen sonra, derinlik yazmadan çizilir → dağ / ağaç / bina hep önünde
+    const follow = (o, base) => {
+      o.frustumCulled = false; o.renderOrder = -999; o.matrixAutoUpdate = false;
+      o.onBeforeRender = (r, sc, cam) => { o.matrixWorld.makeTranslation(cam.matrixWorld.elements[12] + base.x, cam.matrixWorld.elements[13] + base.y, cam.matrixWorld.elements[14] + base.z); };
+      scene.add(o);
+    };
+    follow(new THREE.Points(g, new THREE.PointsMaterial({ color: '#dfe8ff', size: 2.2, sizeAttenuation: false, fog: false, depthWrite: false, depthTest: false })), new THREE.Vector3());
+    const moon = new THREE.Mesh(new THREE.SphereGeometry(14, 14, 10), new THREE.MeshBasicMaterial({ color: '#f1f5ff', fog: false, depthWrite: false, depthTest: false }));
+    follow(moon, new THREE.Vector3(sunPos[0], sunPos[1], sunPos[2]).normalize().multiplyScalar(430));
   }
   // ışıyan malzemeler (lamba / pencere): çağrıldığında sahnedekileri günün saatine göre ayarlar
   const applyGlow = (root = scene) => root.traverse((o) => {
