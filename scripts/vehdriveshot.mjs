@@ -11,7 +11,7 @@ const page = await (await browser.newContext({ viewport: { width: 1280, height: 
 await page.goto(`${URL0}/?autostart=4v4&map=kuzey&type=conquest&dev=1&debug=1&nolock=1&nologin=1&tod=day&weather=clear`);
 await page.waitForFunction('window.__game && window.__game.running', null, { timeout: 300000 });
 await page.waitForTimeout(2500);
-const P = [[-200.1, -616.5, 'jip'], [-192, -619.5, 'moto']];
+const P = [[-178.4, -630.6, 'jip'], [-206.2, -612.5, 'moto']];      // yarmanın en derin yeri: L3 ağı fiziğin 4 / 3 m üstünde (eski lodLift 2,5 m'de kırpılıyordu)
 await page.evaluate(async (P) => {
   const g = window.__game, VS = await import('/src/sim/vehicle.js'), W = g.world;
   g.devGod = true; g.playerSoldier.fly = true; g.hud.root.style.display = 'none'; g.player.vm.render = () => {};
@@ -47,7 +47,7 @@ const shot = async (nm, cam) => {
   console.log(nm, TAG, m.join(' | '));
 };
 // yol yarması boyunca (yol yönü ≈ (−0,78, 0,63)), yüksekten
-await shot('uzak-900m-L3', [-200 - 0.78 * 900, 25 + 110, -616 + 0.63 * 900, -196, 25.6, -618, 2.2]);
-await shot('uzak-650m-L2', [-200 - 0.78 * 650, 25 + 70, -616 + 0.63 * 650, -196, 25.6, -618, 3]);
-await shot('orta-330m-L1', [-200 - 0.78 * 330, 25 + 30, -616 + 0.63 * 330, -196, 25.6, -618, 6]);
+await shot('uzak-900m-L3', [-200 - 0.78 * 900, 25 + 110, -616 + 0.63 * 900, -192, 26.5, -621, 2.2]);
+await shot('uzak-650m-L2', [-200 - 0.78 * 650, 25 + 70, -616 + 0.63 * 650, -192, 26.5, -621, 3]);
+await shot('orta-330m-L1', [-200 - 0.78 * 330, 25 + 30, -616 + 0.63 * 330, -192, 26.5, -621, 6]);
 await browser.close();
