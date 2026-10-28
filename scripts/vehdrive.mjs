@@ -42,6 +42,7 @@ await page.evaluate(async () => {
     }
     orig();
     if (S.cap) return;
+    if (S.skip > 0) { S.skip--; return; }                                   // kamera yeni hedefe ışınlandı: ilk kareler ölçülmez (kademe bir kare gecikir)
     S.frames++;
     for (const it of g.vehView.items) {
       const v = it.v, st = v.st, m = it.model, d = v.def;
@@ -82,7 +83,7 @@ const pick = () => page.evaluate((prev) => {
 const t0 = Date.now(); let k = 0, shotI = 0;
 while (Date.now() - t0 < SECS * 1000) {
   const D = DS[k++ % DS.length], idx = await pick();
-  await page.evaluate(([i, D]) => { window.__S.tgt = i; window.__S.D = D; }, [idx, D]);
+  await page.evaluate(([i, D]) => { window.__S.tgt = i; window.__S.D = D; window.__S.skip = 4; }, [idx, D]);
   const tEnd = Date.now() + 5000;
   while (Date.now() < tEnd) {
     await page.waitForTimeout(250);
@@ -101,7 +102,7 @@ while (Date.now() - t0 < SECS * 1000) {
       await page.waitForTimeout(400);
       await page.screenshot({ path: `${OUT}/${nm}-yakin.png` });
       console.log('görüntü', nm, JSON.stringify(cap));
-      await page.evaluate(() => { const g = window.__game, S = window.__S; g.render = g._oRender; g._camHold = null; S.cap = null; S.capN++; S.lastCap = performance.now(); if (!g.online) g.simulate = true; else g.vehicles.netInterp = S._ni; });
+      await page.evaluate(() => { const g = window.__game, S = window.__S; g.render = g._oRender; g._camHold = null; S.cap = null; S.capN++; S.lastCap = performance.now(); S.skip = 4; if (!g.online) g.simulate = true; else g.vehicles.netInterp = S._ni; });
       break;
     }
   }

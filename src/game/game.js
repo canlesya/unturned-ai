@@ -1719,8 +1719,8 @@ export class Game {
     this.sun.target.position.set(tx, ty, tz);
     this.sun.position.set(tx + this.sunOff.x, ty + this.sunOff.y, tz + this.sunOff.z);
     this.remoteTorch?.update(this._rdt ?? 0.016);
-    if (this.vehView) { this.vehView.frame(this._rdt ?? 0.016); this.vehHud.update(); }
     if (this.map.fx) this.map.fx.update(performance.now() / 1000, this.camera, this);            // harita efektleri (New York: ateş ışığı titremesi, duman / kıvılcım zamanı)
+    if (this.vehView) { this.vehView.frame(this._rdt ?? 0.016); this.vehHud.update(); }      // 12.209 araçlar arazi kademesinden SONRA (çizilen zemin kenedi bu karenin kademesiyle)
     this.paint.draw();
     this.pickups.draw();
     this.nadeView?.draw();

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { createJeep, JEEP_MATS } from '../models/jeep.js';
 import { createTank, setTracks } from '../models/tank.js';
 import { createHeli, HELI_MATS } from '../models/heli.js';
-import { toWorld, gunPose } from '../sim/vehicle.js';
+import { toWorld, gunPose, groundAt } from '../sim/vehicle.js';
 import { SIM_DT } from '../net/protocol.js';
 import { waterYAt } from '../sim/swim.js';
 import { SEAT_DROP } from './vehicles.js';
@@ -118,20 +118,31 @@ export class VehicleView {
     return o;
   }
 
-  // 12.200 uzak ayrıntı kademesinde çizilen arazi fiziğin üstündeyse (kaba ızgara yol yatağını / çukuru doldurur) model o kadar kaldırılır: uzaktaki
-  // araç "yerin altında" görünmesin. Ayak izinin 9 noktasında (köşe, kenar ortası, merkez) en büyük fark; yakında (L0 = fizik) 0. Yalnız görünüm.
-  lodLift(st, d, far) {
-    const tm = this.g.map.fx?.tm;
-    if (!tm?.renderedHeightAt || far < 150 || (d.heli && st.air)) return 0;
-    const T = this.g.world, s = Math.sin(st.yaw), c = Math.cos(st.yaw);
-    if (st.y - T.heightAt(st.x, st.z) > 0.6) return 0;                      // köprü / baraj / çatı üstünde: arazi ağıyla ilgisi yok
-    let lift = 0;
-    for (const a of [-1, 0, 1]) for (const b of [-1, 0, 1]) {
-      const f = a * d.hl, r = b * d.hw, x = st.x - s * f + c * r, z = st.z - c * f - s * r;
-      const dh = tm.renderedHeightAt(x, z) - T.heightAt(x, z);
-      if (dh > lift) lift = dh;
+  // 12.209 ÇİZİLEN zemin kenedi (her mesafe, her durum: yerde / havada / çevrim içi ara değerleme): modelin o karedeki (konum + eğim + yatış +
+  // görsel süspansiyon + motor yatışı) teker temas noktaları ve gövde altı, çizilen zeminin altına inmesin. Çizilen zemin = arazi ağının o anki
+  // kademesi (TerrainMesh.renderedHeightAt; uzak kademede yol yarması / çukur kabaca dolar, fiziğin 18 m'ye dek üstüne çıkar) ya da tekerin
+  // bastığı kutu tepesi (köprü / bordür: fizikle aynı ağ). En çok gömülen nokta kadar model kaldırılır. 12.200 lodLift'in yerine: o yalnız
+  // ayak izinin arazi farkına bakıyordu (fiziğe göre), 150 m'den yakında / havada / zeminden 0,6 m yukarıda hiç çalışmıyordu, 2,5 m'de
+  // kırpılıyordu ve kademe bir kare geriden geliyordu → uzak motor / jip yarmada 3–5 m, sıçrayan motor 0,9 m arazinin içinde görünüyordu.
+  // Yalnız görünüm (fizik / ağ / vuruş kutusu değişmez). Uçan helikopter, batan / suya gömülen araç hariç.
+  groundLift(it, v, st, d, m) {
+    if ((d.heli && st.air) || it.sinkT || st.sunk) return 0;
+    const W = this.g.world, tm = this.g.map.fx?.tm, R = tm?.renderedHeightAt ? (x, z) => tm.renderedHeightAt(x, z) : (x, z) => W.heightAt(x, z);
+    const up = d.stepUp ?? 0.55, M = (m.updateMatrix(), m.matrix), tr = d.moto ? 0 : d.tr / 2, hf = d.wb / 2;
+    let sink = -1e9;
+    const F = d.tracked ? [hf, hf / 2, 0, -hf / 2, -hf] : [hf, -hf];
+    for (const f of F) for (const r of tr ? [-tr, tr] : [0]) {                         // teker / palet / kızak temas noktası (yerel u = 0)
+      _w.set(r, 0, -f).applyMatrix4(M);
+      const h = W.heightAt(_w.x, _w.z), gp = groundAt(W, _w.x, _w.z, _w.y + 0.05, up), gy = gp > h + 0.01 ? gp : R(_w.x, _w.z);
+      if (gy - _w.y > sink) sink = gy - _w.y;
     }
-    return Math.min(2.5, lift);
+    const hr = d.moto ? [0] : [-d.hw * 0.9, 0, d.hw * 0.9];                            // gövde altı (motor yatar: yalnız orta hat)
+    for (const f of [-d.hl * 0.9, 0, d.hl * 0.9]) for (const r of hr) {
+      _w.set(r, d.clear, -f).applyMatrix4(M);
+      const gy = R(_w.x, _w.z);
+      if (gy - _w.y > sink) sink = gy - _w.y;
+    }
+    return Math.max(0, Math.min(25, sink - (v.alive ? 0 : 0.14)));                     // enkaz bilerek 0,12 m oturur
   }
 
   ensure(it) {
@@ -207,7 +218,7 @@ export class VehicleView {
         it.svr += (-K * it.sr - C * it.svr + Math.max(-30, Math.min(30, yr * fwd)) * 0.0022) * dt; it.sr += it.svr * dt;
         it.sy = Math.max(-0.12, Math.min(0.12, it.sy)); it.sp = Math.max(-0.07, Math.min(0.07, it.sp)); it.sr = Math.max(-0.07, Math.min(0.07, it.sr));
       }
-      m.position.set(st.x, st.y + (v.alive ? it.sy * 0.6 : -0.12) + this.lodLift(st, d, far), st.z);
+      m.position.set(st.x, st.y + (v.alive ? it.sy * 0.6 : -0.12), st.z);
       m.rotation.order = 'YXZ';
       m.rotation.set(st.pitch + (v.alive ? it.sp : 0.03), st.yaw, st.roll + (v.alive ? it.sr : -0.04));
       if (it.sinkT) { it.sinkT += dt; m.position.y -= Math.min(1.5, it.sinkT * 0.35); if (!v.alive && !v.wreck) it.sinkT = 0; }
@@ -253,6 +264,7 @@ export class VehicleView {
           U.jgun.rotation.x = gn ? Math.max(d.mg.elev[0], Math.min(d.mg.elev[1], gn.pitch)) : -0.05;
         }
       }
+      m.position.y += it.lift = this.groundLift(it, v, st, d, m);      // 12.209 çizilen zeminin üstünde (motor yatışı / süspansiyon dahil)
       this.seatRiders(it, v);
       this.setCharred(it, !v.alive && v.wreck);
       // ışıklar

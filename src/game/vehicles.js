@@ -1,4 +1,4 @@
-import { VT, makeVehicle, stepVehicle, toWorld, toLocal2, obbBox, rayVehicle, packVehState, applyVehState, vehicleAtRest, groundAt, gunPose, mgAt, seatGun, shellVel, shellAdvance, heFalloff, noseDir, mgPitch, rocketDir } from '../sim/vehicle.js';
+import { VT, makeVehicle, stepVehicle, toWorld, toLocal2, obbBox, rayVehicle, packVehState, applyVehState, vehicleAtRest, groundAt, restY, gunPose, mgAt, seatGun, shellVel, shellAdvance, heFalloff, noseDir, mgPitch, rocketDir } from '../sim/vehicle.js';
 import { dirFromAngles } from './util.js';
 import * as THREE from 'three';
 import { R as SR } from './collision.js';
@@ -815,6 +815,10 @@ export class Vehicles {
     const la = (x, y) => x + (((y - x + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * t;
     st.x = L(1) + A[7] * ex; st.y = L(2); st.z = L(3) + A[9] * ex; st.yaw = la(A[4], B[4]); st.pitch = L(5); st.roll = L(6);
     st.vx = A[7]; st.vy = A[8]; st.vz = A[9]; st.steer = L(10); st.thr = A[13]; st.air = !!(fl & F_AIR); st.sunk = !!(fl & F_SUNK);
+    // 12.209 yerdeki uzak aracın y'si sunucunun formülüyle zemine kenetlenir (restY = stepCar'ın gövde kotu): anlık görüntüler arası doğrusal
+    // ara değerleme tepe / çukur üstünde zemini keser, tampon boşalınca x / z hızla ileri tahmin edilip y edilmiyordu (yokuşta araç zemine
+    // gömülüyordu). Havada: zeminin altına inmez. Helikopter / batmış araç hariç (kendi kuralları).
+    if (!v.def.heli && !st.sunk) { const gy = restY(st, this.g.world); st.y = st.air ? Math.max(st.y, gy) : gy; }
     if (A.length > 15 && B.length > 15) { if (v.def.moto) { st.fall = A[15]; st.fallK = A[16]; } else if (v.def.turret) { st.tyaw = la(A[15], B[15]); st.gp = L(16); v.rl = A[17]; } else if (v.def.heli) { st.rpm = L(15); if (A.length > 16) { v.rk = A[16]; v.rkR = A[17]; } } }
     if (v.alive && !was) { v.spawnN = (v.spawnN || 0) + 1; this.g.emit('vehspawn', v); }
   }
