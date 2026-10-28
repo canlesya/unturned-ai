@@ -104,7 +104,7 @@ export class VehicleHud {
     // binme ipucu
     const n = !v && me.alive && !g.ended ? V.near(me) : null;
     this.set(this.pr.style, 'prd', n ? 'block' : 'none', 'display');
-    if (n) this.set(this.pr, 'prt', t('veh.prompt', { k: g.player?.touch ? '⟲' : this.key('vehicle'), n: (n.v.def.moto ? MOTO_ICON : '') + t('veh.' + n.v.type), s: n.seat === 0 ? t('veh.drive') : t('veh.ride') + ' (' + t(n.v.def.seatKey?.[n.seat] || 'veh.seat.' + n.seat).toLowerCase() + ')' }), 'innerHTML');
+    if (n) this.set(this.pr, 'prt', t('veh.prompt', { k: g.player?.touch ? '⟲' : this.key('vehicle'), n: (n.v.def.moto ? MOTO_ICON : '') + t('veh.' + n.v.type), s: (n.evict ? t(n.v.yieldReq?.s === me ? 'veh.yieldWait' : 'veh.evict') + ' · ' : '') + (n.seat === 0 ? t('veh.drive') : t('veh.ride') + ' (' + t(n.v.def.seatKey?.[n.seat] || 'veh.seat.' + n.seat).toLowerCase() + ')') }), 'innerHTML');      // 12.206 sürücü / yolcu bot: "botu indir · sür"
     this.set(this.p.style, 'pd', v ? 'block' : 'none', 'display');
     this.aimHud(v && v.st ? v : null, me);
     const am = (this._am ||= this.g.hud.root.querySelector('#ammo')), hideAm = !!(v && (me.seat === 0 || mgAt(v.def, me.seat)));      // sürücü / makineli: kendi silahının cephanesi anlamsız

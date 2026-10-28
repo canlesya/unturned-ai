@@ -40,6 +40,10 @@ export function armorAt(v, pos) {
   return fn >= 0 ? A.f : A.r;
 }
 
+// 12.206 koltuk önceliği: insan (çevrimdışı oyuncu, sunucuda insan, istemcide netHuman) bottan öncelikli
+export const isHuman = (o) => !!(o && (o.isPlayer || o.human || o.netHuman));
+export const isBot = (o) => !!(o && !isHuman(o) && !o.vacant);
+
 export class Vehicles {
   // Haritada kullanılabilir araç doğuşu var mı (yoksa yönetici kurulmaz → diğer haritalarda davranış aynı)
   static wanted(game) { return !!([...(game.map.vehicles || []), ...motoSpawnsFor(game.map)].some((d) => VT[d.type]) && game.mode.type === 'conquest'); }
@@ -108,9 +112,12 @@ export class Vehicles {
   hiddenSeat(s) { return !!(s.veh && s.veh.def.hidden?.[s.seat]); }
 
   // ── binme / inme ──
-  // Askerin binebileceği en yakın araç + koltuk (yoksa null). Dolu araca yalnız aynı takım; sürücü koltuğu boşsa önce o
+  // Askerin binebileceği en yakın araç + koltuk (yoksa null). Dolu araca yalnız aynı takım; sürücü koltuğu boşsa önce o.
+  // 12.206 (Battlefield: insan bottan öncelikli): insan oyuncu için sürücü koltuğunda takım arkadaşı BOT varsa koltuk 0 + evict (bot arkaya geçer ya
+  // da iner); araç doluysa yolcu koltuğundaki bot yer açar. Dönen { v, seat, evict? }
   near(s) {
     if (!s.alive || s.veh || s.def.zombie) return null;
+    const hum = isHuman(s);
     let best = null, bd = ENTER_R;
     for (const v of this.list) {
       if (!v.alive || !v.st || v.st.sunk) continue;
@@ -119,9 +126,11 @@ export class Vehicles {
       if (dist > bd || Math.abs(s.pos.y - v.st.y) > 2.2) continue;
       const occ = this.occupants(v);
       if (occ.length && occ[0].team !== s.team) continue;
-      const seat = v.seats[0] ? v.seats.findIndex((o) => !o) : 0;
+      let seat = v.seats[0] ? v.seats.findIndex((o) => !o) : 0, evict = null;
+      if (hum && v.seats[0] && isBot(v.seats[0])) { seat = 0; evict = v.seats[0]; }                 // sürücü bot: sürücü ol
+      else if (hum && seat < 0) { const k = v.seats.findIndex((o, i) => i > 0 && o && isBot(o)); if (k > 0) { seat = k; evict = v.seats[k]; } }      // dolu: bot yolcu yer açar
       if (seat < 0) continue;
-      best = { v, seat }; bd = dist;
+      best = evict ? { v, seat, evict } : { v, seat }; bd = dist;
     }
     return best;
   }
@@ -129,8 +138,31 @@ export class Vehicles {
   toggle(s) {
     if (s.veh) return this.exit(s);
     const n = this.near(s);
+    if (n?.evict) return this.claim(s, n.v, n.seat);
     if (n) this.enter(s, n.v, n.seat);
     return !!n;
+  }
+
+  // 12.206 insan oyuncu bottan koltuk alır (yetkili tarafta; çevrim içinde sunucu, girdi 've'). Araç hareketliyse (> 2,5 m/sn) ya da helikopter havadaysa
+  // önce istek: bot sürücü fren yapar (vehicleBots vbDrive v.yieldReq), durunca takas kendiliğinden olur (6 sn içinde, oyuncu hâlâ kapıdaysa).
+  // Bot: boş yolcu koltuğu varsa oraya geçer (önce makineli: jip / tank makinelisi, helikopter kapısı), yoksa iner. Sürücü durumu (vd) temizlenir.
+  claim(s, v, seat) {
+    if (this.g.online) return false;
+    const b = v.seats[seat];
+    if (!b || !isBot(b) || b.team !== s.team || !v.alive) return false;
+    if (this.speed(v) > 2.5 || (v.def.heli && v.st.air)) { v.yieldReq = { s, seat, t: this.g.time }; this.g.emit('vehyield', { s, v }); return true; }
+    v.yieldReq = null;
+    const free = v.seats.map((o, i) => i).filter((i) => i !== 0 && i !== seat && !v.seats[i]);
+    free.sort((a, c) => (mgAt(v.def, c) ? 1 : 0) - (mgAt(v.def, a) ? 1 : 0));
+    const br = b.brain;
+    if (br) { if (br.vd) { const S = this.g.vbStats; if (S) S.exit.insan = (S.exit.insan || 0) + 1; } br.vd = null; br.vRes = null; br.vRide = null; br.path = null; br.goalT = 0; br.vstopT = 0; br.rodeMoved = false; }
+    if (free.length) {
+      v.seats[seat] = null; v.seats[free[0]] = b; b.seat = free[0]; b.ads = false; b.adsT = 0;
+      if (seat === 0) v.horn = false;
+      this.place(b); this.g.emit('vehseat', { s: b, v, seat: free[0] });
+    } else this.exit(b);
+    v.taken = (v.taken || 0) + 1;
+    return this.enter(s, v, seat);
   }
 
   enter(s, v, seat) {
@@ -247,6 +279,13 @@ export class Vehicles {
       // sahipsiz bayrak aracı: hiç kullanılmamış (doğuşunda), bayrak el değiştirdiyse yeni sahibine boyanır
       if (!occ.length && !v.lastDriver && typeof v.spawn.team === 'string' && v.spawn.team.startsWith('flag:')) { const t = this.spawnTeam(v); if (t && t !== v.team) { v.team = t; v.paint = t; } }
       for (const s of occ) this.place(s);
+      // 12.206 bekleyen "botu indir" isteği: araç durunca (oyuncu hâlâ kapıdaysa) takas
+      const Y = v.yieldReq;
+      if (Y) {
+        const n = g.time - Y.t > 6 || !Y.s.alive || Y.s.veh ? null : this.near(Y.s);
+        if (!n || n.v !== v || !n.evict) v.yieldReq = null;
+        else if (this.speed(v) <= 2.5 && !(v.def.heli && v.st.air)) this.claim(Y.s, v, n.seat);
+      }
     }
     this.collideVehicles();
     this.ramSoldiers(dt);

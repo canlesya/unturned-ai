@@ -23,7 +23,7 @@ export const VBOT = {
   // humanNear2: bu bekleme sırasında / ayrılmış araçta insan takım arkadaşı bu kadar yakındaysa (yürüyerek geliyor) bot almaz ·
   // hold: takımda insan oyuncu varken her doğuş grubunun (aynı doğuş takımı + aynı tür) bir kısmı bu kadar sn insanlara ayrılır ·
   // share: ayrılan oran (yukarı yuvarlanır; en çok insan sayısı kadar). Değerler OYUN.md 12.200.
-  grab: { grace: 8, humanNear2: 30, hold: 40, share: 0.5 },
+  grab: { grace: 8, humanNear2: 30, hold: 40, share: 0.5, keepR: 150 },      // 12.206 keepR: ayrılan araç, insan bu kadar yakındayken (ya da ölüyken) hold'dan sonra da ayrılı
   park: { jip: 42, tank: 12, moto: MOTO_BOT.park },                    // bayrak merkezine bu kadar kala durur
   speed: { jip: [17, 10], tank: [10, 7], moto: MOTO_BOT.speed },        // hedef hız: yolda / arazide (m/sn)
   clr: { jip: 1.6, tank: 2.3, moto: MOTO_BOT.clr },                   // rota açıklığı (m)
@@ -206,6 +206,8 @@ export function vbBoard(b) {
     if (!v.alive || !v.st || v.burn || v.st.sunk || v.seats[0] || v.botRes !== b || g.time > v.botResT) { vbRelease(b); return false; }
     const dx = v.st.x - s.pos.x, dz = v.st.z - s.pos.z;
     const L = toLocal2(v.st, s.pos.x, s.pos.z), edge = Math.hypot(Math.max(0, Math.abs(L.f) - v.def.hl), Math.max(0, Math.abs(L.r) - v.def.hw));
+    // 12.206 araca yürürken insan takım arkadaşı araca bottan yakın (15 m içinde) geldiyse ayırmayı bırak (insan öncelikli)
+    if (edge > 3 && g.soldiers.some((e) => e.alive && e.team === s.team && humanOf(e) && !e.veh && Math.hypot(e.pos.x - v.st.x, e.pos.z - v.st.z) < Math.min(15, edge))) { v.botBad = g.time + 20; vbRelease(b); return false; }
     if (edge < 1.9 && Math.abs(s.pos.y - v.st.y) < 2.2) {
       if (V.enter(s, v, 0)) { stat(g).enter++; b.vd = { state: 'wait', t: 0, kind: kindOf(v), stuck: 0, prog: 1e9, progT: 0 }; b.rideGoal = null; b.rideTo = null; b.target = null; }
       v.botRes = null; b.vRes = null;
@@ -243,27 +245,33 @@ export function vbBoard(b) {
   return true;
 }
 // 12.200 araç kapma kuralı (her araç türü, motosiklet dahil: türe bakmaz). Kullanıcı: "direkt botlar alıp kaçıyor". (1) Araç doğduktan sonra
-// VBOT.grab.grace sn hiçbir bot binmez (oyuncu doğuşta aracı görüp yürüyebilsin) ve bu sırada aracın humanNear2 m içinde insan takım arkadaşı
-// varsa da almaz. (2) Takımda (araçta olmayan) insan oyuncu varken her doğuş grubunun (aynı doğuş takımı / bayrağı + aynı tür) en düşük sıralı
-// ceil(n × share) aracı (en çok insan sayısı kadar) hold sn insanlara ayrılır; hiç sürülmemiş ve doğuşunda duruyorsa. Süre dolunca botlar alabilir
-// (araç boşa yatmaz). Çevrimdışı oyunda oyuncu da insan sayılır.
+// VBOT.grab.grace sn hiçbir bot binmez (oyuncu doğuşta aracı görüp yürüyebilsin). (2) Takımda (araçta olmayan) insan oyuncu varken her doğuş grubunun
+// (aynı doğuş takımı / bayrağı + aynı tür) en düşük sıralı ceil(n × share) aracı (en çok insan sayısı kadar) insanlara ayrılır (hiç sürülmemiş ve
+// doğuşunda duruyorsa). Çevrimdışı oyunda oyuncu da insan sayılır.
+// 12.206 kullanıcı: "botlar araba alıyor diye araçsız kalıyorum" — 12.200'deki ayrım yalnız aracın doğuşundan sonraki 40 sn'ydi: maçın 5. dakikasında
+// üste doğan oyuncu araçların hepsini botlarda buluyordu. Artık: (a) araçtan bağımsız, insan takım arkadaşı aracın humanNear2 (30 m) içinde yayaysa
+// bot almaz (her zaman); (b) ayrılan araçlar süre dolunca DA ayrılı kalır — yalnız hold sn geçmiş VE insanların hepsi canlı + aracın keepR (150 m)
+// dışındaysa botlara açılır (ölü / doğmayı bekleyen insan buraya doğabilir). Bunun üstüne insan, bot sürücüyü E ile indirebilir (Vehicles.claim).
 const humanOf = (e) => (e.human || e.isPlayer) && !e.vacant;
 export function botMayTake(g, v, team) {
   const G = VBOT.grab, age = g.time - (v.spawnT ?? -1e9);
   const fresh = (u) => u.alive && u.st && !u.lastDriver && Math.hypot(u.st.x - u.spawn.x, u.st.z - u.spawn.z) < 6;
   if (fresh(v) && age < G.grace) return false;
-  let H = 0;
+  let H = 0, near = false;
   for (const e of g.soldiers) {
-    if (e.team !== team || !humanOf(e)) continue;
-    if (e.alive && !e.veh && (fresh(v) && age < G.hold) && Math.hypot(e.pos.x - v.st.x, e.pos.z - v.st.z) < G.humanNear2) return false;
-    if (!e.veh) H++;
+    if (e.team !== team || !humanOf(e) || e.veh) continue;
+    H++;
+    if (!e.alive) { near = true; continue; }
+    const d = Math.hypot(e.pos.x - v.st.x, e.pos.z - v.st.z);
+    if (d < G.humanNear2) return false;
+    if (d < G.keepR) near = true;
   }
-  if (!H || !fresh(v) || age >= G.hold) return true;
+  if (!H || !fresh(v) || (age >= G.hold && !near)) return true;
   let n = 0, before = 0;
   for (const u of g.vehicles.list) {
     if (u.type !== v.type || u.spawn.team !== v.spawn.team) continue;
     n++;
-    if (u.idx < v.idx && fresh(u) && g.time - (u.spawnT ?? -1e9) < G.hold) before++;
+    if (u.idx < v.idx && fresh(u)) before++;
   }
   return before >= Math.min(H, Math.ceil(n * G.share));
 }
@@ -370,6 +378,8 @@ export function vbDrive(b, dt) {
   if (!v.alive || v.burn || st.sunk || st.stall || ((vd.kind === 'jip' || vd.kind === 'moto') && v.hp < d.hp * 0.33)) { vbExit(b, st.stall ? 'su' : 'hasar'); return; }       // yanıyor / batıyor (jip: yanmadan önce) → in
   inp.f = 0; inp.r = 0; inp.b = false;
   if (d.cannon) tankGun(b, dt, inp); else { inp.yw = st.yaw; inp.pt = 0; }
+  // 12.206 insan takım arkadaşı "botu indir / sür" dedi (Vehicles.claim, araç hareketliydi): fren, durunca yönetici koltukları takas eder
+  if (v.yieldReq && g.time - v.yieldReq.t < 6 && !(d.heli && st.air)) { inp.f = 0; inp.r = 0; inp.b = true; inp.u = false; inp.d = false; v.horn = false; V.drive(v, inp, dt); return; }
   if (vd.kind === 'heli') { heliDrive(b, dt, inp); return; }
   const sp = V.speed(v);
   if (vd.state === 'wait') {
