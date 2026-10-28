@@ -9,6 +9,7 @@ import { tacRole, tacPickGoal, tacHold, tacAim, tacMayFire, tacFired, tacCombatM
 import { plTick, plPickGoal, plArrive, plAnchored, plTargetBias, plCombatMove, plStuck } from './payloadBots.js';
 import { SWIM, waterYAt } from '../sim/swim.js';
 import { vbBoard, vbRelease, vbDrive, vbRideOk, vbCrew } from './vehicleBots.js';           // 12.189 bot sürücüler
+import { squadFollow } from './squad.js';                                            // 12.202 manga botu lideri izler
 import { frTick, frPickGoal, frArrive, frAnchored, frTargetBias, frCombatMove, frStuck, frDamaged } from './frontBots.js';     // 12.158 Cephe modu
 
 // silah rolleri (bot davranışı)
@@ -106,6 +107,7 @@ export class BotBrain {
     if (g.mode.infection) { this.huddle(); return; }      // Enfekte: insan botlar zombiye koşmaz, birbirine yakın durup birlikte savunur
     if (g.front) { frPickGoal(this); return; }            // Cephe: rol planı (frontBots.js): mevzi / nokta savunması · nokta saldırısı / kanat / nişancı
     if (g.payload) { plPickGoal(this); return; }          // Vagon: rol planı (payloadBots.js): eskort / öncü / yan · durdurucu / siper / yan
+    if (squadFollow(this)) return;                       // 12.202 manga: insan liderin yakınına (ara sıra; bayrak görevi sonra sürer)
     if (tacPickGoal(this)) return;                       // 12.152: nişancı mevzisi / pusu noktası (botTactics.js)
     if (!objs.length) { this.roam(); return; }       // takım çatışması: haritada dolaş, düşmana yönel
     const sq = g.squadGoal(s);

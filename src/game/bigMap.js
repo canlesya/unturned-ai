@@ -311,9 +311,11 @@ export class BigMap {
       x.textAlign = 'center'; x.textBaseline = 'middle'; x.lineJoin = 'round';
       const D = this.dpr, big = Math.max(11, Math.min(15, s * 4)), sm = Math.max(9, Math.min(12, s * 3));
       const flagsAt = g.mode.objectives.map((o) => [X(o.x), Y(o.z)]);
+      const basesAt = g.ffa || g.mode.infection ? [] : ['blue', 'red'].map((tm) => this.baseAt(tm)).filter(Boolean).map((b) => [X(b.x), Y(b.z)]);      // üs simgesinin altındaki ad ("Kırmızı Üs") simgede
       for (const cl of g.map.callouts) {
         const px = X(cl.x), py = Y(cl.z), nm = mapText(cl.name);
-        if (!cl.major && flagsAt.some(([fx, fy]) => Math.hypot(fx - px, fy - py) < 18 * D)) continue;       // bayrağın üstündeki ad bayrak etiketinde
+        if (!cl.major && flagsAt.some(([fx, fy]) => Math.hypot(fx - px, fy - py) < 18 * D)) continue;
+        if (basesAt.some(([fx, fy]) => Math.hypot(fx - px, fy - py) < 30 * D)) continue;       // bayrağın üstündeki ad bayrak etiketinde
         x.font = `${cl.major ? 800 : 600} ${(cl.major ? big : sm) * D}px Bahnschrift, Arial Narrow, sans-serif`;
         x.lineWidth = 3 * D; x.strokeStyle = 'rgba(12,10,6,.78)'; x.fillStyle = cl.major ? '#fff6dc' : 'rgba(255,248,226,.86)';
         x.strokeText(nm, px, py); x.fillText(nm, px, py);

@@ -948,9 +948,9 @@ export class Game {
     return { x: o.x + Math.cos(a) * r, z: o.z + Math.sin(a) * r };
   }
 
-  _free(x, z, s) {
+  _free(x, z, s, rel = false) {
     if (!this.nav.isFree(x, z)) return false;
-    if (this.nav.floor && this.nav.floorAt(x, z) > 0.3) return false;            // ileri doğuş platform / çatı hücresine düşmesin (doğuş y = 0: kutunun içinde kalırdı)
+    if (this.nav.floor && this.nav.floorAt(x, z) > (rel ? this.world.heightAt(x, z) : 0) + 0.3) return false;      // 12.202 rel: arazinin üstündeki kat (insanın seçtiği bayrak; eskiden yüksek arazideki bayrak hiç doğuş vermiyordu: Çöl Geçidi Uzun A)            // ileri doğuş platform / çatı hücresine düşmesin (doğuş y = 0: kutunun içinde kalırdı)
     if (this.world._hits(this.world.query(x - 1, z - 1, x + 1, z + 1, (this._fq ||= [])), x, this.world.groundAt(x, z) + 0.2, z, 1.6)) return false;   // 12.168: gövde duvara / eşyaya girmesin (boş hücrenin kenarı duvara 0,1 m yakın olabilir) · 12.184 tabliye üstünde tabliye kotunda
     return !this.soldiers.some((e) => e !== s && e.alive && Math.hypot(e.pos.x - x, e.pos.z - z) < 1.1);
   }
@@ -1052,7 +1052,7 @@ export class Game {
       for (let k = 0; k < (ctl ? 24 : 14) && cands.length < want; k++) {
         const a = Math.random() * Math.PI * 2, rr = target.r * (0.25 + Math.random() * 0.6);
         const { x, z } = cl ? this.objPoint(target) : { x: target.x + Math.cos(a) * rr, z: target.z + Math.sin(a) * rr };
-        if (this._free(x, z, s)) cands.push({ x, z, ry: Math.atan2(-(target.x - x), -(target.z - z)) + (Math.random() - 0.5) * 3, forward: true });
+        if (this._free(x, z, s, !!ctl)) cands.push({ x, z, ry: Math.atan2(-(target.x - x), -(target.z - z)) + (Math.random() - 0.5) * 3, forward: true });
       }
       if (cands.length) return cands.length > 1 ? this.safePick(cands, team) : cands[0];
     }

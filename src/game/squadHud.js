@@ -54,7 +54,7 @@ export class SquadHud {
     const key = list.map((s) => `${s.id}:${s.name}:${s.cls}:${st(s)}`).join('|') + '|' + me.squad + '|' + (ld?.id ?? -1) + '|' + lang() + '|' + (g.bigMap?.open ? 1 : 0);
     if (key !== this.key) {
       this.key = key;
-      this.p.style.display = g.bigMap?.mode === 'map' ? 'none' : '';
+      this.p.style.display = g.bigMap?.open ? 'none' : '';      // büyük harita / ölüm doğuş ekranı açıkken gizli (ekranı kaplıyorlar)
       this.p.innerHTML = `<h4>${t('sq.title', { n: squadName(me.squad) })}<span>${list.length}/4</span></h4>` + list.map((s) => {
         const dead = !s.alive, hp = Math.max(0, Math.min(100, s.hp / (s.maxHp || 100) * 100));
         return `<div class="r ${s === me ? 'me' : ''} ${dead ? 'dead' : ''}"><b class="ld">${s === ld ? '★' : ''}</b><span class="nm">${esc(s.name)}</span><small>${className(s.cls)}</small>${dead ? `<span class="st">${t('sq.dead')}</span>` : s.veh ? `<span class="st v">${t('sq.inVeh')}</span>` : `<i class="hp"><u style="width:${hp.toFixed(0)}%"></u></i>`}</div>`;

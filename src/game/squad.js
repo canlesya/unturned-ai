@@ -94,3 +94,22 @@ export function mateSpawnPoint(g, s, m) {
   }
   return { x: m.pos.x, z: m.pos.z, y: m.pos.y, ry: yaw, squad: true };
 }
+
+// Manga botu liderini biraz izler (BotBrain.pickGoal; Cephe / Vagon / Enfekte rol planlarından ve araçtan sonra, mevzi / bayrak seçiminden önce).
+// Lider insansa (oyuncu): 14 m'den uzaksa %50 olasılıkla onun 4–9 m yakınına (arkası / yanları) yürür; bayrak görevi seçiminin yerini yalnız o hedef
+// süresince alır (8–14 sn), sonra her zamanki görev mantığı. Lider botsa yalnız bayraksız modda (TDM: haritada dolaşma) ve 25 m'den uzakken %25.
+export function squadFollow(b) {
+  const g = b.game, s = b.s;
+  if (!squadOn(g) || s.veh || b.perching) return false;
+  const ld = squadLeader(g, s.team, s.squad);
+  if (!ld || ld === s || !ld.alive || ld.veh) return false;
+  const hum = isHuman(ld), d = Math.hypot(ld.pos.x - s.pos.x, ld.pos.z - s.pos.z);
+  if (hum ? d < 14 || d > 160 || Math.random() > 0.5 : g.mode.objectives.length || d < 25 || Math.random() > 0.25) return false;
+  const B = g.map.bounds, a = ld.yaw + (Math.random() - 0.5) * 2.6, r = 4 + Math.random() * 5;      // arkası ±75°
+  let x = Math.max(B.minX + 2, Math.min(B.maxX - 2, ld.pos.x + Math.sin(a) * r)), z = Math.max(B.minZ + 2, Math.min(B.maxZ - 2, ld.pos.z + Math.cos(a) * r));
+  const vi = g.nav?.nearestFree ? g.nav.nearestFree(x, z, 8) : -1;
+  if (vi >= 0) { x = g.nav.cx(vi); z = g.nav.cz(vi); }
+  b.setGoal(x, z, 8 + Math.random() * 6, ld.pos.y);
+  b.followT = g.time;
+  return true;
+}
