@@ -319,7 +319,7 @@ export class Game {
     }
     this.hud = new Hud(this);
     this.killfx = new KillFx(this);                                                // vuruş / öldürme hissi (kendi katmanı)
-    if (FarSoldiers.wanted(this) && opts.lod !== false && !/[?&]lod=0/.test(globalThis.location?.search || '')) this.farView = new FarSoldiers(this);      // 12.203 kalabalık / büyük harita: uzak asker vekili + seyrek poz (?lod=0 kapalı)
+    if (FarSoldiers.wanted(this) && opts.lod !== false && !globalThis.__noLod) this.farView = new FarSoldiers(this);      // 12.203 kalabalık / büyük harita: uzak asker vekili + seyrek poz (?lod=0 kapalı)
     this.objFx = this.mode.objectives.length && !opts.editor ? new ObjFx(this) : null;   // 12.191 bayrak direği (bez ilerlemeyle iner / çıkar) + alan sınırı halkası
     if (this.online) this.chat = new Chat(this);                                   // sohbet yalnızca çevrimiçi odalarda
     this.player = new Player(this, this.playerSoldier, this.settings);

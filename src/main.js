@@ -11,6 +11,7 @@ import { mapName, modeLabel } from './i18n/data.js';
 import { acctTok, getSession } from './account.js';
 
 const q = new URLSearchParams(location.search);
+if (q.get('lod') === '0') globalThis.__noLod = true;                     // 12.203 ölçüm: uzak asker LOD'u kapalı (çevrim içi adres replaceState ile değişse de kalır)
 const loading = document.getElementById('loading');
 let game = null;
 // Çevrimdışı maçlar da admin panelindeki denge ayarlarını kullanır (sunucuya ulaşılamazsa koddaki varsayılanlar)
