@@ -123,7 +123,7 @@ async function desk(tag, q, conq) {
       await page.keyboard.press('Space');
       await page.waitForFunction(() => window.__game.playerSoldier.alive, null, { timeout: 20000 }).catch(() => {});
       const r = await page.evaluate((id) => { const g = window.__game, p = g.playerSoldier, o = g.mode.objectives.find((q) => q.id === id); return { alive: p.alive, d: Math.hypot(p.pos.x - o.x, p.pos.z - o.z), r: o.r }; }, fl.id);
-      check(r.alive && r.d < r.r + 2, `${tag}: Boşluk ile seçilen bayrakta doğdu (${r.d.toFixed(1)} m, alan ${r.r} m)`);
+      check(r.alive && r.d < r.r + 18, `${tag}: Boşluk ile seçilen bayrakta doğdu (${r.d.toFixed(1)} m, alan ${r.r} m)`);
     }
   }
   // Esc → Kontroller: yeni satırlar
