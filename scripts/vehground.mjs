@@ -9,7 +9,7 @@
 import { Game } from '../src/game/game.js';
 import { MAPS } from '../src/maps/index.js';
 import { MapBuilder } from '../src/maps/builder.js';
-import { VT, toWorld, groundAt, makeVehicle, stepVehicle, obbBox } from '../src/sim/vehicle.js';
+import { VT, toWorld, toLocal2, groundAt, makeVehicle, stepVehicle, obbBox } from '../src/sim/vehicle.js';
 import * as THREE from 'three';
 import fs from 'node:fs';
 
@@ -48,6 +48,19 @@ export function measure(W, st) {
 const bad = (m) => m.wheel > 0.12 || m.air > 0.3 || m.hull > 0.08 || m.box > 0.1;
 const desc = (m) => `gömülme ${f2(m.wheel)} · havada ${f2(m.air)} · gövde altı zemin ${f2(m.hull)} · kutu ${f2(m.box)}${m.boxId && m.box > 0.1 ? ' ' + m.boxId : ''}`;
 
+// 12.200 uzak kademe batması: arazi ağının l kademesinde (TerrainMesh: 200 m yığın, adım 1 / 2 / 4 / 10 hücre, köşegen a–d) çizilen yükseklik − fizik,
+// aracın ayak izinin 9 noktasında en büyük (m; > 0 = araç ağın içinde görünür)
+function lodSink(T) {
+  const ST = [1, 2, 4, 10], CH = 200, cpc = CH / T.cell;
+  const rh = (x, z, l) => {
+    const ci = Math.floor((x - T.minX) / CH), cj = Math.floor((z - T.minZ) / CH), s = ST[l], i0 = ci * cpc, j0 = cj * cpc;
+    const u = ((x - T.minX) / T.cell - i0) / s, v = ((z - T.minZ) / T.cell - j0) / s, i = Math.floor(u), j = Math.floor(v), fu = u - i, fv = v - j;
+    const H = (a, b) => T.h[(j0 + b * s) * T.nx + i0 + a * s], a = H(i, j), b = H(i + 1, j), c = H(i, j + 1), dd = H(i + 1, j + 1);
+    return fu >= fv ? a + (b - a) * fu + (dd - b) * fv : a + (dd - c) * fu + (c - a) * fv;
+  };
+  return (st, d, l) => { let m = 0; const sn = Math.sin(st.yaw), c = Math.cos(st.yaw); for (const a of [-1, 0, 1]) for (const b of [-1, 0, 1]) { const x = st.x - sn * a * d.hl + c * b * d.hw, z = st.z - c * a * d.hl - sn * b * d.hw; m = Math.max(m, rh(x, z, l) - T.heightAt(x, z)); } return m; };
+}
+
 function driveable(id) {
   const M = MAPS[id];
   if (!M || (M.only && !M.only.includes('conquest'))) return;
@@ -69,6 +82,37 @@ function driveable(id) {
     if (bad(m)) { nb++; ok(false, `${id} ${v.id} (${v.type}) doğuş ${f2(v.st.x)}, ${f2(v.st.z)}`, desc(m)); }
   }
   ok(nb === 0, `${id}: ${V.list.length} doğuş noktasında araç zeminde (teker / palet yere değer, gövde arazide / yapıda değil)`, `kötü ${nb}`);
+  // 12.200 doğuş açıklığı: ağaç tepesi / çalı (bot görüş küreleri = görünen yaprak) gövdeye girmiyor, yapı / ağaç gövdesi 0,5 m'den yakın değil,
+  // piyade doğuşu aracın üstünde değil, iki araç doğuşu üst üste değil (helikopter pisti hariç)
+  const SG = g.map.sight || [], SP = Object.values(g.map.spawns || {}).flat().filter((p) => p && Number.isFinite(p.x));
+  let nc = 0;
+  for (const v of V.list) {
+    if (!v.alive || v.def.heli) continue;
+    const st = v.st, d = v.def, why = [];
+    for (const q of SG) {
+      const L = toLocal2(st, q[0], q[2]), dh = Math.hypot(Math.max(0, Math.abs(L.f) - d.hl), Math.max(0, Math.abs(L.r) - d.hw));
+      if (dh < q[3] - 0.3 && q[1] - q[3] < st.y + d.top - 0.2 && q[1] + q[3] > st.y + d.clear) { why.push(`yaprak [${q.map((x) => x.toFixed(1))}]`); break; }
+    }
+    for (const c of g.world.query(st.x - 8, st.z - 8, st.x + 8, st.z + 8, [])) {
+      if (c.max[1] <= st.y + (d.stepUp ?? 0.55) + 0.02 || c.min[1] >= st.y + d.top || c.nocar) continue;
+      if (obbBox(st, c, 0.5)) { why.push(`yapı 0,5 m [${c.min.map((x) => x.toFixed(1))}]..[${c.max.map((x) => x.toFixed(1))}]`); break; }
+    }
+    for (const p of SP) { const L = toLocal2(st, p.x, p.z); if (Math.abs(L.f) < d.hl + 0.8 && Math.abs(L.r) < d.hw + 0.8) { why.push(`piyade doğuşu (${p.x.toFixed(1)}, ${p.z.toFixed(1)})`); break; } }
+    for (const o of V.list) if (o !== v && o.alive && !o.def.heli && Math.hypot(o.spawn.x - v.spawn.x, o.spawn.z - v.spawn.z) < d.hl + o.def.hl) { why.push(`araç ${o.id} üst üste`); break; }
+    if (why.length) { nc++; ok(false, `${id} ${v.id} doğuş açıklığı`, why.join(' · ')); }
+  }
+  // 12.200 uzaktan görünüm: arazi ağının uzak kademeleri (L1 4 m · L2 8 m · L3 20 m ızgara; 190 / 430 / 820 m'den sonra) fiziğin üstüne çıkarsa
+  // araç ağın içinde görünür (kullanıcı: "bazı araçlar yerin altında"). Bilgi: her doğuşta kademe başına en büyük batma (ayak izinin 9 noktası).
+  // Görünüm düzeltmesi (vehicleView.lodLift) aynı formülle modeli kaldırır; gerçek GPU ölçümü vehgroundshot.mjs.
+  const TT = g.world.terrain;
+  if (TT?.h && TT.nx) {
+    const T = TT;
+    const sinkL = lodSink(T);
+    const L = [1, 2, 3].map((l) => { const a = V.list.filter((v) => v.alive && !v.def.heli).map((v) => sinkL(v.st, v.def, l)); return { l, max: Math.max(...a), n15: a.filter((x) => x > 0.15).length, n: a.length }; });
+    out.lod = L;
+    console.log(`     uzak kademede ağın içinde görünen doğuş (> 0,15 m): ${L.map((q) => `L${q.l} ${q.n15}/${q.n} (en çok ${f2(q.max)} m)`).join(' · ')} → vehicleView.lodLift kaldırır`);
+  }
+  ok(nc === 0, `${id}: ${V.list.filter((v) => !v.def.heli).length} kara aracı doğuşu açık (ağaç tepesi / yapı / piyade doğuşu / araç üst üste değil)`, `kötü ${nc}`);
   // yeniden doğuş: sessiz yok et → sayaç → aynı yordam
   let nr = 0;
   for (const v of V.list) V.destroy(v, null, true);
@@ -188,6 +232,7 @@ function play(id, secs) {
   const g = new Game(null, { headless: true, map: id, tod: 'day', weather: 'clear', diff: 'normal', match: { perTeam: 10, type: 'conquest' } });
   const V = g.vehicles; if (!V) { g.dispose?.(); return; }
   const hits = new Map(); let n = 0, nb = 0;
+  const TT = g.world.terrain, sinkL = TT?.h && TT.nx ? lodSink(TT) : null, LS = [0, 0, 0, 0], LM = [0, 0, 0, 0], LW = [null, null, null, null];
   for (let i = 0; i < secs * 30 && !g.ended; i++) {
     g.step(1 / 30);
     if (i % 30) continue;
@@ -195,6 +240,7 @@ function play(id, secs) {
       if (!v.st || (!v.alive && !v.wreck) || v.st.sunk || (v.def.heli && v.st.air)) continue;
       if (!v.alive && v.def.heli) continue;
       n++;
+      if (sinkL && v.st.y - TT.heightAt(v.st.x, v.st.z) < 0.6) for (const l of [1, 2, 3]) { const k = sinkL(v.st, v.def, l); if (k > 0.15) LS[l]++; if (k > LM[l]) { LM[l] = k; LW[l] = { id: v.id, type: v.type, x: +v.st.x.toFixed(1), z: +v.st.z.toFixed(1), yaw: +v.st.yaw.toFixed(3), sink: +k.toFixed(2) }; } }
       const m = measure(g.world, v.st);
       if (!bad(m)) continue;
       nb++;
@@ -205,7 +251,8 @@ function play(id, secs) {
   }
   const L = [...hits.values()].sort((a, b) => b.n - a.n);
   for (const e of L.slice(0, 20)) console.log(`     ${e.id} (${e.x}, ${e.z}) ×${e.n} ${e.drv ? 'sürücülü' : e.wreck ? 'enkaz' : 'boş'} · ${desc(e.m)}`);
-  out.play = { samples: n, bad: nb, list: L };
+  out.play = { samples: n, bad: nb, list: L, lod: { n15: LS, max: LM, worst: LW } };
+  if (sinkL) console.log(`     oynanışta uzak kademede ağın içinde görünen (> 0,15 m): ${[1, 2, 3].map((l) => `L${l} %${(100 * LS[l] / Math.max(1, n)).toFixed(1)} (en çok ${f2(LM[l])} m)`).join(' · ')} → vehicleView.lodLift kaldırır`);
   ok(nb / Math.max(1, n) < 0.01, `${id} oynanış (${secs} sn, 10v10 botlu): ${n} araç ölçümünde gömülü / gövdesi arazide / yapıda ${nb}`, `%${(100 * nb / Math.max(1, n)).toFixed(2)}`);
   g.dispose?.();
 }

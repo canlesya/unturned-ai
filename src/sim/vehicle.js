@@ -30,7 +30,7 @@ export const VT = {
     mg: { seats: [1], name: 'Jip makinelisi', dmg: 22, rpm: 650, range: [60, 170], minMul: 0.6, hip: 0.013, tracer: '#ffd37a', sound: 'pkm', vmg: true, elev: [-0.35, 0.55], heat: 0.022, cool: 0.45, mz: [1.35, 0.34] },
     blastMul: 1.6, bulletMul: 0.12, hmgMul: 0.5, ramMin: 5.5,              // patlama hasarı çarpanı, mermi hasarı çarpanı, yayaya çarpma hasarının başladığı hız (m/sn)
     burnAt: 0.25, burnRate: 9, boom: [6, 110],                 // can oranı bu altındaysa yanar (sn başına can), patlama [yarıçap, hasar]
-    respawn: 30, wreck: 8, idleRespawn: 120,                   // yeniden doğuş (sn), enkaz süresi, boş bırakılınca (doğuştan uzakta) yenilenme
+    respawn: 20, wreck: 8, idleRespawn: 90,                    // yeniden doğuş (sn), enkaz süresi, boş bırakılınca (doğuştan uzakta) yenilenme · 12.200: 30 → 20 / 120 → 90 (jip bol ve çabuk: yürüyüş az)
     atMul: 1.6, mass: 1, wade: 1.1, ramMul: 16, stepUp: 0.55,  // tanksavar (RPG / tank topu) çarpanı, kütle (araç itişmesi), boğulma derinliği, çarpma hasarı / (m/sn), tırmanılan basamak
   },
   // 12.178 TANK: paletli (yerinde döner, kaymaz, yavaş), kule bakışla döner (dengeli: gövde dönse de nişan kalır), ana top (patlayıcı, mermi düşüşü,
@@ -49,7 +49,7 @@ export const VT = {
     // RPG (armorMul 1,3): ön 160 × 1,3 × 1,25 = 260 → 4 · yan 351 → 3 · arka 520 → 2 isabet; tank topu (375): ön 3 · yan / arka 2 atış
     armor: { f: 1, s: 1.35, r: 2.0 },
     burnAt: 0.2, burnRate: 14, boom: [8, 140],
-    respawn: 45, wreck: 10, idleRespawn: 150,
+    respawn: 60, wreck: 10, idleRespawn: 150,                  // 12.200 yeniden doğuş 45 → 60 sn (tank patlayınca sahada daha uzun yok; Battlefield'da da ağır zırh en geç gelen)
     // kule: dikey eksen gövde merkezinden ileri tf (m), kule üstü / yükseklik; ana top: pivot yüksekliği, namlu boyu, açı sınırları, dönüş hızları
     turret: { f: -0.35, y0: 1.75, y1: 2.55, hw: 1.3, hl: 1.55, pivot: 2.18, len: 4.3, gunMin: -0.12, gunMax: 0.32, yawRate: 0.95, pitchRate: 0.6 },
     // 12.188 ana top (HE): askere iç yarıçap (inner) içinde tam hasar, dışa doğru (1 − t)^1,5 ile radius'ta sıfır (100 canlı asker ~5,3 m'ye dek ölür);
@@ -293,8 +293,11 @@ const _tmp2 = [], _tmp4 = [0, 0, 0, 0];
 const _hp = { x: 0, y: 0, z: 0 };
 function heliGround(v, T, d) {
   const s = Math.sin(v.yaw), c = Math.cos(v.yaw), fx = -s, fz = -c, rx = c, rz = -s, hf = d.wb / 2, ht = d.tr / 2, w = v.wl;
+  // 12.200 gövde kotu = kızak uçlarının ŞU ANKİ eğim / yatışla yere değdiği kot (en yüksek temas). Eskiden dört ucun en yüksek zemini alınıp gövde
+  // sonra eğime yatırılıyordu → yamaçta duran helikopter 0,3–0,9 m havada asılı görünüyordu (vehground: rastgele 300 noktanın ~%30'u). Yatay gövdede eskisiyle aynı.
+  const sp = Math.sin(v.pitch || 0), sr = Math.sin(v.roll || 0) * Math.cos(v.pitch || 0);
   let k = 0, g = -1e9;
-  for (const f of [hf, -hf]) for (const r of [-ht, ht]) { const h = groundAt(T, v.x + fx * f + rx * r, v.z + fz * f + rz * r, v.y + 0.25, 0.35); w[k++] = h; if (h > g) g = h; }
+  for (const f of [hf, -hf]) for (const r of [-ht, ht]) { const o = f * sp + r * sr, h = groundAt(T, v.x + fx * f + rx * r, v.z + fz * f + rz * r, v.y + o + 0.25, 0.35); w[k++] = h; if (h - o > g) g = h - o; }
   return g;
 }
 function stepHeli(v, inp, dt, T) {

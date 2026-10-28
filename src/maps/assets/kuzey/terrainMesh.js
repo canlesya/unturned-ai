@@ -175,6 +175,22 @@ export class TerrainMesh {
   }
 
   // kamera konumuna göre yığın kademeleri (her karede ucuz: 64 yığın)
+  // 12.200 ÇİZİLEN arazinin yüksekliği (yığının o anki ayrıntı kademesinde: L1 4 m, L2 8 m, L3 20 m ızgara; köşegen a–d, fizikle aynı üçgenleme).
+  // Uzak kademede yol yatağı / çukur kabaca ara değerlenip fiziğin (2 m) ÜSTÜNE çıkabilir → orada duran araç "yerin altında" görünür; araç görünümü
+  // (vehicleView) aradaki farkı modele ekler. Kademe yoksa (yığın henüz kurulmadı) fizik yüksekliği.
+  renderedHeightAt(x, z) {
+    const T = this.T, ci = Math.floor((x - T.minX) / CHUNK), cj = Math.floor((z - T.minZ) / CHUNK);
+    const ch = ci >= 0 && cj >= 0 && ci < this.nc && cj < this.nc ? this.chunks[cj * this.nc + ci] : null;
+    if (!ch || ch.lod <= 0) return T.heightAt(x, z);
+    const s = STRIDES[ch.lod], i0 = ch.ci * this.cpc, j0 = ch.cj * this.cpc, n = this.cpc / s;
+    let u = ((x - T.minX) / T.cell - i0) / s, v = ((z - T.minZ) / T.cell - j0) / s;
+    u = Math.max(0, Math.min(n - 1e-4, u)); v = Math.max(0, Math.min(n - 1e-4, v));
+    const i = Math.floor(u), j = Math.floor(v), fu = u - i, fv = v - j;
+    const H = (a, b) => T.h[(j0 + b * s) * T.nx + i0 + a * s];
+    const a = H(i, j), b = H(i + 1, j), c = H(i, j + 1), d = H(i + 1, j + 1);
+    return fu >= fv ? a + (b - a) * fu + (d - b) * fv : a + (d - c) * fu + (c - a) * fv;
+  }
+
   update(cam, force = false) {
     const D = this.lodD;
     for (const ch of this.chunks) {

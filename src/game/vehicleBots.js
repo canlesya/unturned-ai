@@ -11,12 +11,18 @@
 import { mgAt, gunPose, toLocal2, toWorld } from '../sim/vehicle.js';
 import { clamp, rand, angleDiff, yawFromDir } from './util.js';
 import * as THREE from 'three';
+import { WSTATS } from './stats.js';
 
 export const VBOT = {
   trip: { jip: 200, tank: 150, heli: 300 },       // bu kadar uzak hedefe araçla gider
   tanks: (per) => (per >= 12 ? 2 : 1),            // takımda aynı anda en çok bot tankçı
   reach: 75,                                      // boş araca en çok bu kadar yürür
   humanNear: 22,                                  // aracın bu kadar yakınında insan takım arkadaşı varsa bot almaz (oyuncu binmeye gidiyor olabilir)
+  // 12.200 araç kapma kuralı (her araç türü; tür listesi yok): yeni doğan araca botlar hemen binmez. grace: doğuştan sonra bekleme (sn) ·
+  // humanNear2: bu bekleme sırasında / ayrılmış araçta insan takım arkadaşı bu kadar yakındaysa (yürüyerek geliyor) bot almaz ·
+  // hold: takımda insan oyuncu varken her doğuş grubunun (aynı doğuş takımı + aynı tür) bir kısmı bu kadar sn insanlara ayrılır ·
+  // share: ayrılan oran (yukarı yuvarlanır; en çok insan sayısı kadar). Değerler OYUN.md 12.200.
+  grab: { grace: 8, humanNear2: 45, hold: 40, share: 0.5 },
   park: { jip: 42, tank: 12 },                    // bayrak merkezine bu kadar kala durur
   speed: { jip: [17, 10], tank: [10, 7] },        // hedef hız: yolda / arazide (m/sn)
   clr: { jip: 1.6, tank: 2.3 },                   // rota açıklığı (m)
@@ -215,7 +221,8 @@ export function vbBoard(b) {
   const trip = Math.hypot(dest.x - s.pos.x, dest.z - s.pos.z);
   let best = null, bd = 1e9;
   for (const v of V.list) {
-    if (!v.alive || !v.st || v.burn || v.st.sunk || v.seats.some(Boolean) || v.team !== s.team || g.time < (v.botBad || 0)) continue;
+    if (!v.alive || !v.st || v.burn || v.st.sunk || v.seats.some(Boolean) || (v.team && v.team !== s.team) || g.time < (v.botBad || 0)) continue;      // 12.200 tarafsız (yol kenarı) araç: herkes
+    if (!botMayTake(g, v, s.team)) continue;                                      // 12.200 yeni doğan araç / insanlara ayrılan araç
     if (v.botRes && v.botRes !== b && v.botRes.s.alive && g.time < v.botResT) continue;
     const k = kindOf(v); if (trip < VBOT.trip[k]) continue;
     if (k === 'heli' && (v.st.air || !heliOk(g, s, b))) continue;                 // helikopter: yerdeyken, takımda pilot sınırı / zorluk
@@ -232,6 +239,55 @@ export function vbBoard(b) {
   recruit(b, best);
   return true;
 }
+// 12.200 araç kapma kuralı (her araç türü, motosiklet dahil: türe bakmaz). Kullanıcı: "direkt botlar alıp kaçıyor". (1) Araç doğduktan sonra
+// VBOT.grab.grace sn hiçbir bot binmez (oyuncu doğuşta aracı görüp yürüyebilsin) ve bu sırada aracın humanNear2 m içinde insan takım arkadaşı
+// varsa da almaz. (2) Takımda (araçta olmayan) insan oyuncu varken her doğuş grubunun (aynı doğuş takımı / bayrağı + aynı tür) en düşük sıralı
+// ceil(n × share) aracı (en çok insan sayısı kadar) hold sn insanlara ayrılır; hiç sürülmemiş ve doğuşunda duruyorsa. Süre dolunca botlar alabilir
+// (araç boşa yatmaz). Çevrimdışı oyunda oyuncu da insan sayılır.
+const humanOf = (e) => (e.human || e.isPlayer) && !e.vacant;
+export function botMayTake(g, v, team) {
+  const G = VBOT.grab, age = g.time - (v.spawnT ?? -1e9);
+  const fresh = (u) => u.alive && u.st && !u.lastDriver && Math.hypot(u.st.x - u.spawn.x, u.st.z - u.spawn.z) < 6;
+  if (fresh(v) && age < G.grace) return false;
+  let H = 0;
+  for (const e of g.soldiers) {
+    if (e.team !== team || !humanOf(e)) continue;
+    if (e.alive && !e.veh && (fresh(v) && age < G.hold) && Math.hypot(e.pos.x - v.st.x, e.pos.z - v.st.z) < G.humanNear2) return false;
+    if (!e.veh) H++;
+  }
+  if (!H || !fresh(v) || age >= G.hold) return true;
+  let n = 0, before = 0;
+  for (const u of g.vehicles.list) {
+    if (u.type !== v.type || u.spawn.team !== v.spawn.team) continue;
+    n++;
+    if (u.idx < v.idx && fresh(u) && g.time - (u.spawnT ?? -1e9) < G.hold) before++;
+  }
+  return before >= Math.min(H, Math.ceil(n * G.share));
+}
+
+// 12.200 tanksavar donanımı (bot, doğuşta; yalnız zırhlı araçlı haritada). Kök neden "tankı patlatamıyorlar": botların donanımı rastgele seçiliyordu
+// (makeLoadout choice.random) → mühendisin yalnız ¼'ü RPG alıyordu; 10v10'da takım başına ~1 RPG'li bot (başsız ölçüm: 600 sn'de piyadeden 0–6 roket).
+// Kural: (1) mühendis bot düşmanın zırhlı aracı varken her zaman, yokken %60 RPG taşır; (2) düşmanın canlı zırhlı aracı varken takımdaki RPG'li sayısı
+// want'ın altındaysa doğan taarruz / ağır destek botu mühendise geçer (Battlefield'da oyuncuların tanka karşı sınıf değiştirmesi gibi).
+// want = 1 + 2 × düşman zırhlı araç, en çok takımın %30'u. Sağlıkçı / keskin nişancı rolünü bırakmaz.
+export const AT_KIT = { want: (armor, n) => Math.min(Math.ceil(n * 0.3), 1 + 2 * armor), idle: 0.6, from: ['assault', 'heavy'] };
+export function botAtLoadout(g, s) {
+  const V = g.vehicles;
+  if (!V || !s.brain || s.def.zombie || g.mode.fixed || !V.list.some((v) => v.def.armor)) return;
+  let armor = 0;
+  for (const v of V.list) if (v.alive && v.def.armor && V.teamOf(v) && V.teamOf(v) !== s.team) armor++;
+  const rpg = (e) => e.items?.[2]?.id === 'rpg';
+  if (s.cls !== 'engineer') {
+    if (!armor || !AT_KIT.from.includes(s.cls)) return;
+    let n = 0, have = 0;
+    for (const e of g.soldiers) if (e.team === s.team && !e.vacant && e !== s) { n++; if (rpg(e)) have++; }
+    if (have >= AT_KIT.want(armor, n + 1)) return;
+    s.setClass('engineer');
+    g.emit('botcls', s);
+  } else if (!armor && Math.random() > AT_KIT.idle) return;
+  if (!rpg(s)) { const n = WSTATS.rpg.count || 1; s.items[2] = { id: 'rpg', mag: 1, reserve: n - 1 }; }
+}
+
 // Mürettebat çağrısı: sürücü / pilot aracı ayırınca yakındaki boştaki takım arkadaşlarını (önce aynı mangal) koltuklara çağırır: helikopter 2 kapı
 // nişancısı + kabin, tank nişancı, jip 3 yolcu. (Eskiden yolcular yalnız bekleyen araca kendileri geliyordu; üste herkes jip / tank alıp gittiği için
 // helikopterin nişancısı hiç gelmiyordu.)

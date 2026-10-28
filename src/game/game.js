@@ -49,7 +49,7 @@ import { ObjFx } from './objFx.js';                                  // 12.191 b
 import { Front } from './front.js';                                  // Cephe modu (12.158)
 import { Vehicles } from './vehicles.js';                            // 12.177 araçlar (Kuzey Vadisi: jip)
 import { assignSquadsBig, perchBig, spawnFlagBig } from './bigBots.js';           // 12.189 büyük harita bot çatışma akışı
-import { vnav } from './vehicleBots.js';                                         // 12.189 bot sürücüler (araç ızgarası)
+import { vnav, botAtLoadout } from './vehicleBots.js';                                         // 12.189 bot sürücüler (araç ızgarası)
 import { VehicleView } from './vehicleView.js';
 import { VehicleHud } from './vehicleHud.js';
 import { VT, mgAt, seatGun, heFalloff } from '../sim/vehicle.js';
@@ -1028,6 +1028,7 @@ export class Game {
     }
     const pt = s.def.zombie && this.infPool ? this.pickZombieSpawn(s, first) : this.pickSpawn(s.team, s);
     s.spawn(pt, first ? TUNE.firstProtect : TUNE.spawnProtect);
+    if (s.brain && this.vehicles) botAtLoadout(this, s);              // 12.200 zırhlı araçlı haritada bot tanksavar donanımı (vehicleBots.js)
     this.world.settle(s);
     if (pt.y > s.pos.y + 0.3) s.pos.y = pt.y;                          // kat doğuşu (kale güvertesi): settle yalnız zemine / alçak engele oturtur
     s.zoneT = 0;

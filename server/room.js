@@ -89,6 +89,7 @@ export class Room {
     this.resetAt = 0; this.vote = null;
     this.gameAt = Date.now();                                          // boş oda harita değişimi bu andan sayılır
     this.game.on('end', (e) => this.onEnd(e));
+    this.game.on('botcls', () => this.broadcast({ t: 'roster', roster: this.roster() }));      // 12.200 bot sınıf değiştirdi (tanksavar): istemciler modeli / sınıfı güncellesin
   }
 
   // Maç bitti: sonuç ekranı süresi başlar. Resmi odada 3 seçenekli oylama (harita + gün saati + hava), oyuncu odasında aynı ayarla devam

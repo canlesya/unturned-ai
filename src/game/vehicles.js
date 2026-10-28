@@ -19,11 +19,21 @@ const F_ALIVE = 1, F_AIR = 2, F_BURN = 4, F_LIGHT = 8, F_HORN = 16, F_SUNK = 32,
 export const VEH_FLAGS = { F_ALIVE, F_AIR, F_BURN, F_LIGHT, F_HORN, F_SUNK, F_WRECK };
 const r2 = (v) => Math.round(v * 100) / 100, r3 = (v) => Math.round(v * 1000) / 1000;
 
-// 12.200 yönlü zırh: patlama noktasının gövdeye göre yeri (yerel f / r, gövde boyuna oranla) → ön / yan (üst dahil) / arka çarpanı (def.armor)
+// 12.200 yönlü zırh (Battlefield: tank önden güçlü, yandan zayıf, arkadan (motor) en zayıf): patlama noktasının gövdeye göre yeri → def.armor çarpanı.
+// Gövde: yerel f / r'nin gövde boyuna oranı (ön / yan / arka). Gövde tepesinin üstü: kule yüzü kendi yönüne göre (kule önü = ön, yanı / arkası = yan),
+// kulenin üstü / güverte (helikopter roketi, havadan) = yan. 'at' (RPG, tank topu, roket) ve 'blast' (el bombası) aynı tabloyu kullanır.
+const _ta = { x: 0, y: 0, z: 0 };
 export function armorAt(v, pos) {
-  const A = v.def.armor, d = v.def; if (!A) return 1;
-  const L = toLocal2(v.st, pos.x, pos.z), fn = L.f / d.hl, rn = Math.abs(L.r) / d.hw;
-  if (pos.y > v.st.y + d.top - 0.15 && Math.abs(fn) < 1 && rn < 1) return A.s;          // üstten (helikopter roketi, havan): yan zırhı kadar
+  const d = v.def, A = d.armor; if (!A) return 1;
+  const st = v.st, tu = d.turret, up = pos.y - st.y;
+  if (up > d.top - 0.15) {
+    if (!tu || up > tu.y1 - 0.12) return A.s;
+    const c = toWorld(st, tu.f, 0, 0, _ta), dx = pos.x - c.x, dz = pos.z - c.z, ty = st.tyaw ?? st.yaw;
+    const f = -dx * Math.sin(ty) - dz * Math.cos(ty), r = dx * Math.cos(ty) - dz * Math.sin(ty);
+    if (Math.abs(f) > tu.hl + 0.6 || Math.abs(r) > tu.hw + 0.6) return A.s;            // kulenin dışında güverte (üstten)
+    return f > 0 && f / tu.hl > Math.abs(r) / tu.hw ? A.f : A.s;
+  }
+  const L = toLocal2(st, pos.x, pos.z), fn = L.f / d.hl, rn = Math.abs(L.r) / d.hw;
   if (rn > Math.abs(fn)) return A.s;
   return fn >= 0 ? A.f : A.r;
 }
@@ -68,7 +78,7 @@ export class Vehicles {
     v.st.vx = v.st.vz = v.st.vy = 0;
     v.hp = v.def.hp; v.alive = true; v.wreck = false; v.burn = false; v.deadT = 0; v.sunkT = 0; v.idleT = 0;
     v.team = team; v.paint = team; v.lights = false; v.horn = false; v.sleep = false; v.lastHit = null; v.lastDriver = null; v.rl = 0; v.dmgLog = null; v.rk = v.def.rockets?.n; v.rkT = v.rkR = 0;
-    v.seats.fill(null); v.spawnN = (v.spawnN || 0) + 1;
+    v.seats.fill(null); v.spawnN = (v.spawnN || 0) + 1; v.spawnT = this.g.time;      // 12.200 spawnT: botların araç kapma beklemesi (vehicleBots.botMayTake)
     this.g.emit('vehspawn', v);
     return true;
   }

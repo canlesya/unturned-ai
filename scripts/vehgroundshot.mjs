@@ -9,7 +9,7 @@ fs.mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch({ headless: false, args: ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu'] });
 const page = await (await browser.newContext({ viewport: { width: 1280, height: 760 }, locale: 'tr-TR' })).newPage();
 const errs = []; page.on('pageerror', (e) => errs.push(e.message));
-await page.goto(`${URL0}/?autostart=16v16&map=kuzey&type=conquest&dev=1&debug=1&nolock=1&tod=day&weather=clear`);
+await page.goto(`${URL0}/?autostart=16v16&map=kuzey&type=conquest&dev=1&debug=1&nolock=1&nologin=1&tod=day&weather=clear`);
 await page.waitForFunction('window.__game && window.__game.running', null, { timeout: 240000 });
 await page.evaluate(() => {
   const g = window.__game, me = g.playerSoldier;
@@ -37,23 +37,29 @@ for (const v of list) {
     const m = await page.evaluate(([p, t, fov]) => { const g = window.__game; g._cam = { p, t, fov }; return true; }, [p, [v.x, v.y + 0.8, v.z], fov]);
     await page.waitForTimeout(nm === 'yakin' ? 900 : 1400);
     // çizilen arazi ağı yüksekliği: kamera konumundan aşağı ışın (yalnız arazi ağı) — teker noktalarında
-    const meas = await page.evaluate(async (id) => {
-      const THREE = window.__T3 ||= await import('/node_modules/.vite/deps/three.js');
-      const g = window.__game, V = g.vehicles, veh = V.list.find((q) => q.id === id), st = veh.st, d = veh.def;
-      const grp = g.map.fx?.terrainMesh?.group || g.scene.getObjectByName('kuzey-arazi');
-      if (!grp || !THREE) return null;
-      const rc = new THREE.Raycaster(), out = [];
+    const meas = await page.evaluate((id) => {
+      // çizilen arazi (yığının o anki kademesi; TerrainMesh ızgarası, köşegen a–d) − fizik yüksekliği, teker / palet noktalarında + ortada;
+      // lift: modelin çizildiği kot − aracın fizik kotu (12.200 vehicleView.lodLift; eski kodda 0)
+      const g = window.__game, V = g.vehicles, veh = V.list.find((q) => q.id === id), st = veh.st, d = veh.def, tm = g.map.fx?.tm, T = tm.T, S = [1, 2, 4, 10], CH = 200;
+      const rh = (x, z) => {
+        const ci = Math.floor((x - T.minX) / CH), cj = Math.floor((z - T.minZ) / CH), ch = tm.chunks[cj * tm.nc + ci];
+        if (!ch || ch.lod <= 0) return [T.heightAt(x, z), ch?.lod ?? -1];
+        const s = S[ch.lod], i0 = ch.ci * tm.cpc, j0 = ch.cj * tm.cpc, u = ((x - T.minX) / T.cell - i0) / s, v = ((z - T.minZ) / T.cell - j0) / s;
+        const i = Math.floor(u), j = Math.floor(v), fu = u - i, fv = v - j, H = (a, b) => T.h[(j0 + b * s) * T.nx + i0 + a * s];
+        const a = H(i, j), b = H(i + 1, j), c = H(i, j + 1), dd = H(i + 1, j + 1);
+        return [fu >= fv ? a + (b - a) * fu + (dd - b) * fv : a + (dd - c) * fu + (c - a) * fv, ch.lod];
+      };
+      const out = []; let lod = -1;
       for (const [f, r] of [[d.wb / 2, -d.tr / 2], [d.wb / 2, d.tr / 2], [-d.wb / 2, -d.tr / 2], [-d.wb / 2, d.tr / 2], [0, 0]]) {
-        const x = st.x - Math.sin(st.yaw) * f + Math.cos(st.yaw) * r, z = st.z - Math.cos(st.yaw) * f - Math.sin(st.yaw) * r;
-        rc.set(new THREE.Vector3(x, st.y + 30, z), new THREE.Vector3(0, -1, 0));
-        const h = rc.intersectObject(grp, true).filter((q) => q.object.visible)[0];
-        out.push(h ? +(h.point.y - g.world.heightAt(x, z)).toFixed(2) : null);
+        const x = st.x - Math.sin(st.yaw) * f + Math.cos(st.yaw) * r, z = st.z - Math.cos(st.yaw) * f - Math.sin(st.yaw) * r, q = rh(x, z);
+        out.push(+(q[0] - g.world.heightAt(x, z)).toFixed(2)); lod = q[1];
       }
-      return out;
+      const it = g.vehView?.items?.find((q) => q.v === veh), my = it?.model?.position.y;
+      return { lod, meshMinusPhys: out, lift: my != null ? +(my - st.y).toFixed(2) : null };
     }, v.id);
     const file = `${OUT}/${v.id}-${nm}.png`;
     await page.screenshot({ path: file });
-    res.push({ id: v.id, type: v.type, view: nm, meshMinusPhys: meas });
+    res.push({ id: v.id, type: v.type, view: nm, ...meas });
     console.log(v.id, nm, JSON.stringify(meas));
   }
 }
