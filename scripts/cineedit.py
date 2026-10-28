@@ -2,12 +2,13 @@
 # sinema şeridi, oyunun yazı stiliyle (Arial Narrow Bold Italic = Mac'te HUD yazısı, turuncu #ff8a1f) başlık kartları, açılış / kapanış logosu,
 # ses: çekimlerin oyun sesi + scripts/cinemusic.mjs müziği. ffmpeg'e ham kare akıtılır (libx264, 60 fps).
 #   python3 scripts/cineedit.py full tr   ·  full en  ·  short tr  ·  vert tr      (çıktı /tmp/wb-cine/)
-import sys, os, json, math, subprocess, wave
+import sys, os, io, json, math, subprocess, wave
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 CUT, LANG = (sys.argv[1] if len(sys.argv) > 1 else 'full'), (sys.argv[2] if len(sys.argv) > 2 else 'tr')
-ROOT = os.environ.get('SHOTS', '/tmp/wb-cine/shots'); OUTD = os.environ.get('OUTD', '/tmp/wb-cine')
+WAR = CUT in ('gece', 'tank', 'yogun')                  # 12.221 savaş videoları (/tmp/wb-cine2): gece saldırısı · tank savaşı · yoğun savaş
+ROOT = os.environ.get('SHOTS', '/tmp/wb-cine2/shots' if WAR else '/tmp/wb-cine/shots'); OUTD = os.environ.get('OUTD', '/tmp/wb-cine2' if WAR else '/tmp/wb-cine')
 HERE = os.path.dirname(os.path.abspath(__file__))
 FPS, SR = 60, 48000
 VERT = CUT == 'vert'
@@ -22,12 +23,20 @@ TXT = {
     'kule': ('KULELER VE SABİT SİLAHLAR', None), 'keskin': ('KESKİN NİŞANCI', None), 'manga': ('MANGAN İLE SAVAŞ', 'ARKADAŞININ YANINDA DOĞ'),
     'bayrak': ('BAYRAKLARI ELE GEÇİR, SAVUN', None), 'gece': ('GÜNDÜZ · GÜN BATIMI · GECE', None), 'tarayici': ('TARAYICIDA, İNDİRMEDEN', None),
     'end1': 'warbyte.io', 'end2': 'TARAYICIDA ÜCRETSİZ OYNA', 'arac': ('HELİKOPTER · TANK · JİP · MOTOR', None),
+    'sub-gece': 'GECE SALDIRISI', 'sub-tank': 'TANK SAVAŞI', 'sub-yogun': 'YOĞUN SAVAŞ',
+    'w-burun': ('BURUN TOPU · ROKET', None), 'w-kapi': ('KAPI NİŞANCISI', None), 'w-gece': ('GECE OPERASYONU', None),
+    'w-tank': ('TANK TOPU', None), 'w-rpg': ('RPG', None), 'w-c4': ('C4', None), 'w-kule': ('AĞIR MAKİNELİ', None),
+    'w-128': ("128'E 128", None), 'w-hava': ('HAVADAN DESTEK', None), 'w-zirh': ('ZIRHLI SAVAŞ', None), 'w-at': ('TANKSAVAR', None),
   },
   'en': {
     'kv': 'NORTH VALLEY', 'big': ('128 VS 128 MASSIVE BATTLES', None), 'heli': ('HELICOPTERS', None), 'tank': ('TANKS', None), 'jip': ('JEEPS', None), 'motor': ('DIRT BIKES', None),
     'kule': ('WATCHTOWERS AND MOUNTED GUNS', None), 'keskin': ('SNIPERS', None), 'manga': ('FIGHT WITH YOUR SQUAD', 'SPAWN ON YOUR SQUADMATES'),
     'bayrak': ('CAPTURE AND HOLD THE FLAGS', None), 'gece': ('DAY · SUNSET · NIGHT', None), 'tarayici': ('IN YOUR BROWSER. NO DOWNLOAD.', None),
     'end1': 'warbyte.io', 'end2': 'PLAY FREE IN YOUR BROWSER', 'arac': ('HELICOPTERS · TANKS · JEEPS · BIKES', None),
+    'sub-gece': 'NIGHT STRIKE', 'sub-tank': 'TANK WARFARE', 'sub-yogun': 'ALL-OUT WAR',
+    'w-burun': ('NOSE CANNON · ROCKETS', None), 'w-kapi': ('DOOR GUNNER', None), 'w-gece': ('NIGHT OPS', None),
+    'w-tank': ('TANK CANNON', None), 'w-rpg': ('RPG', None), 'w-c4': ('C4', None), 'w-kule': ('HEAVY MACHINE GUN', None),
+    'w-128': ('128 VS 128', None), 'w-hava': ('AIR SUPPORT', None), 'w-zirh': ('ARMORED WARFARE', None), 'w-at': ('ANTI-TANK', None),
   },
 }[LANG]
 
@@ -48,7 +57,7 @@ P = {
     ('gold/manga', 0.3, 5.5, 'x', 'manga', 0.5, 3.4),
     ('gold/bayrak', 0.3, 5.5, 'cut', 'bayrak', 0.5, 3.2),
     ('night/gece-tank', 0.3, 5.0, 'x', 'gece', 0.6, 3.0),
-    ('gold/patlama', -1, 5.6, 'cut', None, 0, 0),
+    ('gold/patlama', -3, 5.6, 'cut', None, 0, 0),
     ('gold/kapanis', 0.3, 6.0, 'x', 'tarayici', 1.6, 3.6),
   ],
   'short': [
@@ -63,13 +72,15 @@ P = {
     ('gold/durbun', 0.4, 2.0, 'cut', 'keskin', 0.2, 1.7),
     ('gold/bayrak', 0.5, 2.2, 'cut', 'bayrak', 0.2, 1.9),
     ('night/gece-tank', 0.5, 2.0, 'cut', None, 0, 0),
-    ('gold/patlama', -1, 3.4, 'cut', None, 0, 0),
+    ('gold/patlama', -3, 3.4, 'cut', None, 0, 0),
   ],
 }
 P['vert'] = P['short']
+# 12.221 savaş videoları: kurgu planı ayrı dosyada (çekim sonuçlarına göre: patlama karesi vb.) — scripts/cinewar.json
+if WAR: P.update({k: [tuple(x) for x in v] for k, v in json.load(open(os.path.join(HERE, 'cinewar.json'))).items() if not k.startswith('_')})
 PLAN = P['short' if VERT else CUT]
-TITLE = 3.4 if CUT == 'full' else 2.6          # açılış logosu (ilk çekimin üstünde)
-ENDC = 5.0 if CUT == 'full' else 3.0           # kapanış kartı (siyah)
+TITLE = 3.4 if CUT == 'full' else 3.0 if WAR else 2.6          # açılış logosu (ilk çekimin üstünde)
+ENDC = 5.0 if CUT == 'full' else 4.2 if WAR else 3.0           # kapanış kartı (siyah)
 XF = 0.35
 
 def meta(name):
@@ -89,8 +100,8 @@ def read_wav(p):
 clips, t = [], 0.0
 for i, (name, tin, dur, tr, tk, ts, td) in enumerate(PLAN):
     m = meta(name)
-    if tin < 0:                                                            # patlama: patlamadan 3 sn önce başla
-        tin = max(0, m['boomAt'] / FPS - 3.0)
+    if tin < 0:                                                            # patlama: patlamadan -tin sn önce başla (12.221; eski kurgu -3)
+        tin = max(0, m['boomAt'] / FPS + tin) if m.get('boomAt', -1) > 0 else 0.3
     maxd = m['frames'] / FPS - tin
     dur = min(dur, maxd - 0.02)
     ov = XF if tr == 'x' and clips else 0
@@ -154,11 +165,11 @@ def endcard(scale=1.0):
     return im
 
 SC = 0.82 if VERT else 1.0
-CARDS = {k: card(*TXT[k], scale=SC, center=VERT) for k in ('big', 'heli', 'tank', 'jip', 'motor', 'kule', 'keskin', 'manga', 'bayrak', 'gece', 'tarayici', 'arac') if True}
+CARDS = {k: card(*TXT[k], scale=SC * (0.8 if k.startswith('w-') else 1), center=VERT) for k in ('big', 'heli', 'tank', 'jip', 'motor', 'kule', 'keskin', 'manga', 'bayrak', 'gece', 'tarayici', 'arac') + tuple(k for k in TXT if k.startswith('w-'))}
 MAXW = W - 60 if VERT else W - 240                                          # uzun satır kadraja sığsın (dikey: tam genişlik, yatay: sol boşluk 120)
 for k, im in list(CARDS.items()):
     if im.width > MAXW: CARDS[k] = im.resize((MAXW, int(im.height * MAXW / im.width)), Image.LANCZOS)
-LOGO = logo(0.62 if VERT else 1.0, TXT['kv']); END = endcard(0.62 if VERT else 0.9)
+LOGO = logo(0.62 if VERT else 1.0, TXT['sub-' + CUT] if WAR else TXT['kv']); END = endcard(0.62 if VERT else 0.9)
 
 def ease(x): x = min(1, max(0, x)); return x * x * (3 - 2 * x)
 def put(base, im, x, y, a):
@@ -183,6 +194,20 @@ def scope_mask(w, h):
     d.ellipse([cx - 3, cy - 3, cx + 3, cy + 3], fill=(200, 30, 20, 230))
     return m
 SCOPE = scope_mask(W, H)
+# 12.221 burun topu nişangâhı (pilot bakışı): oyunun HUD'u kapalı, yalnız ince halka + nokta + yan çentikler (metin / sayı yok)
+def nose_mask(w, h):
+    m = Image.new('RGBA', (w, h), (0, 0, 0, 0)); d = ImageDraw.Draw(m)
+    cx, cy, r = w // 2, int(h * 0.5), 46; c = (255, 214, 160, 150); c2 = (255, 138, 31, 210)
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=c, width=2)
+    for a in (0, 90, 180, 270):
+        x, y = math.cos(math.radians(a)), math.sin(math.radians(a)); d.line([cx + x * (r + 8), cy + y * (r + 8), cx + x * (r + 30), cy + y * (r + 30)], fill=c, width=2)
+    d.ellipse([cx - 3, cy - 3, cx + 3, cy + 3], fill=c2)
+    for sgn in (-1, 1):                                                       # yatay çizgi uçları (ufuk)
+        d.line([cx + sgn * 150, cy, cx + sgn * 230, cy], fill=(255, 214, 160, 90), width=2); d.line([cx + sgn * 150, cy, cx + sgn * 150, cy + 10], fill=(255, 214, 160, 90), width=2)
+    vg = Image.new('L', (w, h), 0); dv = ImageDraw.Draw(vg); dv.rectangle([0, 0, w, h], fill=255); dv.ellipse([-w * 0.1, -h * 0.25, w * 1.1, h * 1.25], fill=0)
+    vg = vg.filter(ImageFilter.GaussianBlur(90)); vig = Image.new('RGBA', (w, h), (0, 0, 0, 0)); vig.putalpha(vg.point(lambda v: int(v * 0.55)))
+    return Image.alpha_composite(vig, m)
+NOSE = nose_mask(W, H)
 
 cache = {}
 def shot_frame(c, k):
@@ -195,6 +220,7 @@ def shot_frame(c, k):
     sc = c['m']['ov'][idx]['scope'] if idx < len(c['m']['ov']) else 0
     im = im.convert('RGBA')
     if sc: im.alpha_composite(SCOPE)
+    if '/g-burun' in c['name'] or c['name'].endswith('/burun') or (idx < len(c['m']['ov']) and c['m']['ov'][idx].get('nose')): im.alpha_composite(NOSE)
     return im
 
 LB = 0 if VERT else 96                                                      # sinema şeridi (≈ 2,2:1)
@@ -274,14 +300,18 @@ def write_wav(p, a):
     with wave.open(p, 'wb') as w:
         w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR); w.writeframes((np.clip(a, -1, 1) * 32767).astype(np.int16).tobytes())
 
-tag = {'full': 'warbyte-tanitim', 'short': 'warbyte-tanitim-30sn', 'vert': 'warbyte-tanitim-dikey'}[CUT] + ('' if LANG == 'tr' else '-en')
+tag = {'full': 'warbyte-tanitim', 'short': 'warbyte-tanitim-30sn', 'vert': 'warbyte-tanitim-dikey', 'gece': 'warbyte-gece-saldirisi', 'tank': 'warbyte-tank-savasi', 'yogun': 'warbyte-yogun-savas'}[CUT] + ('' if LANG == 'tr' else '-en')
 BUILD = f'{OUTD}/build'; os.makedirs(BUILD, exist_ok=True)
 # müzik işaretleri
-cues = dict(dur=TOTAL, bpm=100, pulse=0.0, drums=clips[1]['start'] if len(clips) > 1 else 3, end=end_start,
+cues = dict(dur=TOTAL, bpm={'gece': 92, 'tank': 104, 'yogun': 124}.get(CUT, 100), pulse=0.0, drums=clips[1]['start'] if len(clips) > 1 else 3, end=end_start,
             hits=[{'t': 0.35, 'ch': [26, 38, 45, 50, 57]}] + [{'t': c['start'] + c['ts']} for c in clips if c['text']] + [{'t': end_start, 'big': True}],
             risers=[], brk=None)
+BRK = os.environ.get('BRK')                                                 # 12.221: davulun sustuğu yavaş çekim klibi (varsayılan: adı 'patlama' ile biten)
 for c in clips:
-    if c['name'].endswith('patlama'):
+    if WAR and c['m'].get('boomAt', -1) > 0 and not c['name'].endswith(BRK or '\0'):     # savaş videoları: her patlamada vuruş
+        b0 = c['start'] + c['m']['boomAt'] / FPS - c['tin']
+        if c['start'] <= b0 < c['start'] + c['dur']: cues['hits'].append({'t': b0, 'ch': [26, 38, 45]})
+    if c['name'].endswith(BRK or 'patlama'):
         b0 = c['start'] + (c['m']['boomAt'] / FPS - c['tin'] if c['m']['boomAt'] > 0 else 2.5)
         cues['risers'].append([max(0, c['start'] - 1.6), c['start']]); cues['brk'] = [c['start'], c['start'] + c['dur']]
         cues['hits'].append({'t': b0, 'big': True, 'ch': [26, 38, 45, 50]})
@@ -292,12 +322,47 @@ subprocess.run(['node', f'{HERE}/cinemusic.mjs', f'{BUILD}/cues-{CUT}.json', mw]
 aw = f'{BUILD}/ses-{tag}.wav'; write_wav(aw, build_audio(mw))
 
 out = f'{OUTD}/{tag}.mp4'
-ff = subprocess.Popen(['ffmpeg', '-y', '-loglevel', 'error', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', f'{W}x{H}', '-r', str(FPS), '-i', '-', '-i', aw,
+ONLYPOSTER = WAR and os.environ.get('ONLYPOSTER')                          # 12.221: yalnız kapağı yeniden üret (video / küçük / kareler dokunulmaz)
+ff = None if ONLYPOSTER else subprocess.Popen(['ffmpeg', '-y', '-loglevel', 'error', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', f'{W}x{H}', '-r', str(FPS), '-i', '-', '-i', aw,
                        '-c:v', 'libx264', '-preset', 'medium', '-crf', '17', '-pix_fmt', 'yuv420p', '-profile:v', 'high', '-movflags', '+faststart',
                        '-c:a', 'aac', '-b:a', '192k', '-shortest', out], stdin=subprocess.PIPE)
-for k in range(NF):
+for k in range(0 if ONLYPOSTER else NF):
     ff.stdin.write(frame(k).tobytes())
     if k % 600 == 0: print(f'  {k}/{NF}', flush=True)
-ff.stdin.close(); ff.wait()
+if ff: ff.stdin.close(); ff.wait()
 json.dump({'out': out, 'total': TOTAL, 'clips': [{'name': c['name'], 'start': round(c['start'], 2), 'dur': round(c['dur'], 2), 'text': c['text']} for c in clips]}, open(f'{BUILD}/{tag}.json', 'w'), indent=1)
 print('çıktı', out, f'{TOTAL:.1f} sn')
+
+# ── 12.221 savaş videoları: telefon kopyası (kucuk/, ≤ 30 MB: 1080p60, iki geçişli ~2,5–3 Mbps), kare özeti, kapak (1280 × 720) ──
+if WAR and not ONLYPOSTER:
+    KD = f'{OUTD}/kucuk'; os.makedirs(KD, exist_ok=True)
+    small = f'{KD}/{tag}.mp4'
+    vb = int(min(3000, max(1800, 28.5 * 8 * 1024 / TOTAL - 128)))          # kbit/sn: 28,5 MB hedef (ses 128k)
+    pl = f'{BUILD}/2pass-{tag}'
+    for ps in (1, 2):
+        subprocess.run(['ffmpeg', '-y', '-loglevel', 'error', '-i', out, '-c:v', 'libx264', '-preset', 'slow', '-b:v', f'{vb}k', '-maxrate', f'{int(vb * 1.5)}k', '-bufsize', f'{vb * 2}k',
+                        '-pass', str(ps), '-passlogfile', pl, '-pix_fmt', 'yuv420p', '-profile:v', 'high', '-movflags', '+faststart', '-r', '60']
+                       + (['-an', '-f', 'mp4', '/dev/null'] if ps == 1 else ['-c:a', 'aac', '-b:a', '128k', small]), check=True)
+    print('küçük', small, f'{os.path.getsize(small) / 1048576:.1f} MB', f'{vb} kbit/sn')
+    # kare özeti: her ~2,4 sn'den bir kare, 4 sütun
+    n = max(8, int(TOTAL / 2.4)); cols = 4; tw, th = 480, 270
+    rows = (n + cols - 1) // cols; sheet = Image.new('RGB', (cols * tw, rows * (th + 20)), (12, 14, 18)); dr = ImageDraw.Draw(sheet); ft = font(F_B, 15)
+    for i in range(n):
+        t = (i + 0.5) * TOTAL / n
+        png = subprocess.run(['ffmpeg', '-loglevel', 'error', '-ss', f'{t:.2f}', '-i', out, '-frames:v', '1', '-f', 'image2pipe', '-vcodec', 'png', '-'], capture_output=True).stdout
+        im = Image.open(io.BytesIO(png)).convert('RGB').resize((tw, th), Image.LANCZOS)
+        cl = next((c['name'].split('/')[1] for c in clips if c['start'] <= t < c['start'] + c['dur']), 'kart')
+        x, y = (i % cols) * tw, (i // cols) * (th + 20); sheet.paste(im, (x, y + 20)); dr.text((x + 6, y + 2), f'{t:5.1f} sn  {cl}', fill=ORANGE2, font=ft)
+    sheet.save(f'{OUTD}/{tag}-kareler.jpg', quality=86)
+if WAR:
+    # kapak: POSTER="çekim:sn" (yoksa ilk patlamalı çekimde patlamadan 0,4 sn sonra) + logo + alt başlık
+    pc = os.environ.get('POSTER')
+    if pc: pn, pt = pc.rsplit(':', 1); m = meta(pn if '/' in pn else f"{CUT}/{pn}"); pidx = int(float(pt) * FPS)
+    else:
+        cb = next((c for c in clips if c['m'].get('boomAt', -1) > 0), clips[len(clips) // 2]); m = cb['m']; pidx = (m['boomAt'] + 24) if m.get('boomAt', -1) > 0 else m['frames'] // 2
+    pim = Image.open(f"{m['dir']}/f{min(m['frames'] - 1, pidx):06d}.jpg").convert('RGBA')
+    grad = Image.new('L', (1, 256)); grad.putdata([int(max(0, (i - 120) / 136) ** 1.6 * 215) for i in range(256)]); grad = grad.resize(pim.size)
+    shade = Image.new('RGBA', pim.size, (0, 0, 0, 255)); shade.putalpha(grad); pim = Image.alpha_composite(pim, shade)
+    lg = logo(0.78, TXT['sub-' + CUT]); pim.alpha_composite(lg, ((pim.width - lg.width) // 2, pim.height - lg.height - 40))
+    pim.convert('RGB').resize((1280, 720), Image.LANCZOS).save(f'{OUTD}/{tag}-poster.jpg', quality=90)
+    print('kapak', f'{OUTD}/{tag}-poster.jpg')

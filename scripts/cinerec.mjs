@@ -3,13 +3,19 @@
 // keskin nişancıyı kule platformuna). Her çekim OUT/<oturum>/<NN-ad>/f*.jpg + meta.json + ses.wav.
 //   (vite :5204 açıkken) SESSION=gold node scripts/cinerec.mjs     · SESSION=night · ONLY=heli,tank (yalnız bu çekimler)
 import { openCine, grab } from './cinelib.mjs';
+import { installScenes, installFinders } from './cinescenes.mjs';
 import fs from 'fs';
 
-const SESSION = process.env.SESSION || 'gold', ROOT = process.env.OUT || '/tmp/wb-cine/shots', OUT = `${ROOT}/${SESSION}`;
+// 12.221 savaş videoları: SESSION=gece (gece saldırısı, 64v64) · tank (tank savaşı, gündüz 64v64) · yogun (128v128 yoğun savaş); OUT=/tmp/wb-cine2/shots
+const SESSION = process.env.SESSION || 'gold', TAKE = process.env.TAKE || '', ROOT = process.env.OUT || (['gece', 'gecek', 'tank', 'yogun'].includes(process.env.SESSION) ? '/tmp/wb-cine2/shots' : '/tmp/wb-cine/shots'), OUT = `${ROOT}/${SESSION}${TAKE}`;      // TAKE=2: ikinci çekim (aynı plan, başka tohum)
 const ONLY = process.env.ONLY ? process.env.ONLY.split(',') : null;
 const CFG = {
   gold: { per: 128, tod: 'sunset', hour: 17.6, warm: 38, seed: 1217, audio: 600 },
   night: { per: 64, tod: 'night', warm: 70, seed: 4242, audio: 240 },
+  gece: { per: 64, tod: 'night', warm: 45, seed: +(process.env.SEED || 2211), audio: 600, expo: 1.5, scenes: true },
+  gecek: { per: 64, tod: 'night', warm: 45, seed: +(process.env.SEED || 4411), audio: 400, expo: 1.5, scenes: true },
+  tank: { per: 64, tod: process.env.TOD || 'sunset', hour: +(process.env.HOUR || 18.9), warm: 40, seed: +(process.env.SEED || 2212), audio: 600, scenes: true },
+  yogun: { per: 128, tod: 'day', hour: +(process.env.HOUR || 0), warm: 45, seed: +(process.env.SEED || 2213), audio: 600, scenes: true },
 }[SESSION];
 // çekimler: ad, kare (60 fps), bekleme (oyun sn), yönlendirme (bir kez), ring: hedef araç patlayana dek kaydet
 const SHOTS = {
@@ -34,16 +40,81 @@ const SHOTS = {
     { n: 'gece-tank', f: 360, wait: 60 },
     { n: 'gece-genis', f: 360, wait: 60 },
   ],
+  // 12.221 steer: yönlendirme (dizi olabilir; resteer: her denemede yeniden) · tick: her sim adımında CS[tick]() · ring: ringV (yoksa v) patlayana dek, sonra after kare
+  gece: [
+    { n: 'g-acilis', f: 480, steer: ['strike', 'convoy'], tick: 'keepStrike', gap: 0 },
+    { n: 'g-yaklasma', f: 300, gap: 1 },
+    { n: 'g-burun1', f: 420, wait: 60, gap: 0 },
+    { n: 'g-tepe', f: 360, wait: 30, gap: 1 },
+    { n: 'g-kapi1', f: 420, wait: 30, gap: 1 },
+    { n: 'g-yer1', f: 420, gap: 1 },
+    { n: 'g-patlama', f: 1300, wait: 40, ring: true, tries: 5, after: 220, maxF: 1000 },
+    { n: 'g-burun2', f: 360, wait: 40, gap: 1 },
+    { n: 'g-kapi2', f: 360, wait: 30, gap: 1 },
+    { n: 'g-dalis', f: 300, wait: 40, gap: 1 },
+    { n: 'g-yer2', f: 300, gap: 1 },
+    { n: 'g-patlama2', f: 1300, wait: 40, ring: true, tries: 5, after: 220, maxF: 1000, steer: 'convoy' },
+    { n: 'g-burun3', f: 360, wait: 40, gap: 1 },
+    { n: 'g-enkaz', f: 360, gap: 1 },
+    { n: 'g-kapanis', f: 480 },
+  ],
+  // ek gece çekimi: kapı nişancısı + burun (yeniden çekim)
+  gecek: [
+    { n: 'g-yaklasma', f: 300, steer: ['strike', 'convoy'], tick: 'keepStrike', gap: 1 },
+    { n: 'g-kapi1', f: 420, wait: 60, gap: 1 },
+    { n: 'g-burun1', f: 420, wait: 40, gap: 1 },
+    { n: 'g-kapi2', f: 420, wait: 40, gap: 1 },
+    { n: 'g-patlama', f: 1300, wait: 40, ring: true, tries: 4, after: 220, maxF: 1000, steer: 'convoy' },
+    { n: 'g-kapi3', f: 420, wait: 40, gap: 1 },
+    { n: 'g-burun2', f: 420, wait: 40, gap: 1 },
+    { n: 'g-patlama2', f: 1300, wait: 40, ring: true, tries: 4, after: 220, maxF: 1000, steer: 'convoy' },
+    { n: 'g-kapi4', f: 420, wait: 40, gap: 1 },
+    { n: 'g-kapanis', f: 480, wait: 20 },
+  ],
+  tank: [
+    { n: 't-acilis', f: 360, steer: 'duel', tick: 'holdDuel', gap: 0 },
+    { n: 't-duel', f: 1500, ring: true, tries: 1, after: 230, maxF: 1300, ringB: true, gap: 0 },
+    { n: 't-enkaz', f: 330 },
+    { n: 't-isabet', f: 1600, steer: 'duel', ring: true, tries: 1, after: 260, maxF: 1400, ringB: true, gap: 0 },
+    { n: 't-enkaz2', f: 300 },
+    { n: 't-kule', f: 1500, steer: 'duel', ring: true, tries: 1, after: 220, maxF: 1300, ringB: true, gap: 0 },
+    { n: 't-gecis1', f: 300, wait: 60 },
+    { n: 't-yan', f: 300, wait: 60 },
+    { n: 't-atgm', f: 1300, steer: 'atgm', resteer: true, tick: 'holdAt', ring: true, tries: 3, after: 220, maxF: 900, wait: 2 },
+    { n: 't-atgm2', f: 1300, steer: 'atgm', resteer: true, ring: true, tries: 3, after: 220, maxF: 900, wait: 2 },
+    { n: 't-rpgdogal', f: 1300, ring: true, tries: 4, after: 200, maxF: 600, wait: 80 },
+    { n: 't-kuleB', f: 1500, steer: 'duel', tick: 'holdDuel', ring: true, tries: 1, after: 220, maxF: 1300, ringB: false, gap: 0 },
+    { n: 't-gecis2', f: 300, wait: 60 },
+    { n: 'kule', f: 330, wait: 90 },
+    { n: 't-kapanis', f: 480 },
+  ],
+  yogun: [
+    { n: 'acilis', f: 360 },
+    { n: 'genis', f: 360 },
+    { n: 'manga', f: 300, wait: 60 },
+    { n: 'g-tepe', f: 360, wait: 90, steer: ['strike', 'convoy'], tick: 'keepStrike', gap: 0 },
+    { n: 'g-burun1', f: 360, wait: 60, gap: 1 },
+    { n: 'g-patlama', f: 1300, wait: 60, ring: true, tries: 4, after: 200, maxF: 1000 },
+    { n: 'genis2', f: 300, wait: 30 },
+    { n: 'g-dalis', f: 300, wait: 40 },
+    { n: 'g-patlama2', f: 1300, wait: 60, ring: true, tries: 4, after: 200, maxF: 1000, steer: 'convoy' },
+    { n: 'manga2', f: 300, wait: 60 },
+    { n: 't-duel', f: 1500, steer: 'duel', tick: 'holdDuel', ring: true, tries: 1, after: 220, maxF: 1300, ringB: true },
+    { n: 't-atgm', f: 1300, steer: 'atgm', resteer: true, tick: 'holdAt', ring: true, tries: 3, after: 220, maxF: 900, wait: 2 },
+    { n: 'patlama', f: 1500, wait: 90, ring: true, tries: 6 },
+    { n: 'kapanis', f: 420 },
+  ],
 }[SESSION];
 
 fs.mkdirSync(OUT, { recursive: true });
 const { browser, page, errs } = await openCine({ per: CFG.per, tod: CFG.tod, seed: CFG.seed, audio: CFG.audio });
+const T0 = Date.now();
 await page.evaluate(({ hour }) => {
   const g = window.__game;
   if (hour) g.map.fx.setHour(hour, g);
   g.sfx.setVolume(0.9);
   const S = (window.CS = { used: new Set(), booms: [] });
-  g.on('vehboom', (e) => S.booms.push({ v: e.v, t: g.time }));
+  g.on('vehboom', (e) => S.booms.push({ v: e.v, t: g.time, f: (window.__ov || []).length }));      // f: çekimin kaçıncı karesinde (12.221: patlama karesi tam)
   const VL = () => g.vehicles.list;
   const drv = (v) => v.alive && v.st && v.seats[0] && !v.def.fixed && !v.seats[0].isPlayer;
   const sp = (v) => Math.hypot(v.st.vx, v.st.vz);
@@ -153,8 +224,19 @@ await page.evaluate(({ hour }) => {
     'gece-genis'() { const L = hot().filter((c) => near(c[0], c[1], 60) >= 10); const c = L[0]; return c && { p: { x: c[0], z: c[1] }, type: 'wide', r: 60, h: 25, w: 0.05, fov: 48 }; },
   };
 }, { hour: CFG.hour || 0 });
+if (CFG.scenes) {
+  await page.evaluate(installScenes);
+  await page.evaluate(installFinders);
+  await page.evaluate(({ expo }) => {
+    const g = window.__game, S = window.CS;
+    if (expo) g.renderer.toneMappingExposure = expo;                                 // gece okunur olsun (yalnız kayıtta; oyunun ayarı değil)
+    S.find.manga2 = S.find.manga;
+    Object.assign(S.steer, { convoy: () => S.convoy(4), duel: () => S.duel(), rpg: () => S.rpgSetup(false), c4: () => S.rpgSetup(true), atgm: () => S.atgmSetup(), strike: (() => { const old = S.steer.strike; return () => (S.strike('blue') || old()); })() });
+  }, { expo: CFG.expo || 0 });
+}
 
-const skip = (s) => page.evaluate((s) => window.__game.cine.skip(s), s);
+// ileri sarma: her adımda CS.tick (sahne yönlendirmesi sürsün)
+const skip = (s) => page.evaluate((s) => { const g = window.__game, C = window.CS; for (let t = 0; t < s && !g.ended; t += 1 / 30) { C?.tick?.(); g.step(1 / 30); } }, s);
 console.log(`[${SESSION}] ${CFG.per}v${CFG.per} ${CFG.tod} — ısınma ${CFG.warm} sn`);
 await skip(CFG.warm);
 
@@ -165,9 +247,12 @@ for (const S of SHOTS) {
   if (ONLY && !ONLY.includes(S.n)) continue;
   const dir = `${OUT}/${String(fi).padStart(2, '0')}-${S.n}`;
   fs.rmSync(dir, { recursive: true, force: true });
-  if (S.steer) console.log(' yönlendirme', S.steer, JSON.stringify(await page.evaluate((k) => window.CS.steer[k](), S.steer)));
+  const steer = async () => { for (const k of [].concat(S.steer || [])) console.log(' yönlendirme', k, JSON.stringify(await page.evaluate((k) => window.CS.steer[k](), k))); };
+  if (S.tick) await page.evaluate((k) => { const C = window.CS; C.tick = C[k]; }, S.tick);
+  if (S.steer && !S.resteer) await steer();
   let info = null, waited = 0;
   for (let tries = 0; tries < (S.tries || 1); tries++) {
+    if (S.resteer) { await steer(); waited = 0; }
     for (;;) {
       info = await page.evaluate((n) => {
         const g = window.__game, C = window.CS, o = C.find[n]();
@@ -175,7 +260,7 @@ for (const S of SHOTS) {
         const sh = g.cine.cut({ dur: 1e9, ...o });
         if (!sh) return null;
         if (o.v) C.used.add(o.v); if (o.s) C.used.add(o.s);
-        C.cur = o; C.boom0 = C.booms.length;
+        C.cur = o; C.boom0 = C.booms.length; C.ringV = o.ringV || (n.startsWith('t-') && o.v2 ? o.v2 : null) || o.v;
         return { type: o.type, v: o.v ? `${o.v.type}#${o.v.idx} ${o.v.team} hp${Math.round(o.v.hp)}` : null, s: o.s ? `${o.s.cls}#${o.s.id}` : null, flag: o.flag || null, t: Math.round(g.time) };
       }, S.n);
       if (info || waited >= (S.wait || 0)) break;
@@ -187,15 +272,16 @@ for (const S of SHOTS) {
     const a0 = await page.evaluate(() => window.__aud?.cur() || 0);
     console.log(` ${S.n}: ${JSON.stringify(info)} (bekleme ${waited} sn)`);
     let n = 0, boomAt = -1;
-    const hook = S.n === 'keskin' || S.n === 'durbun' ? '(g) => window.CS.hold()' : null;
+    const hook = S.n === 'keskin' || S.n === 'durbun' ? '(g) => window.CS.hold()' : '(g) => window.CS.tick && window.CS.tick()';
+    if (S.ringB) await page.evaluate(() => { const C = window.CS; if (C.dB) C.ringV = C.dB; });
     if (!S.ring) n = await grab(page, dir, 0, S.f, { onFrame: hook });
     else {
       while (n < S.f) {
-        n = await grab(page, dir, n, 30);
-        const st = await page.evaluate(() => { const C = window.CS, v = C.cur.v; return { boom: C.booms.slice(C.boom0).some((b) => b.v === v), alive: !!v?.alive, hp: Math.round(v?.hp || 0) }; });
-        if (st.boom && boomAt < 0) { boomAt = n; console.log(`  PATLADI kare ${n}`); }
-        if (boomAt >= 0 && n - boomAt >= 230) break;
-        if (boomAt < 0 && (!st.alive || n >= 900)) break;                                  // başka nedenle gitti / 15 sn'de patlamadı → sonraki aday
+        n = await grab(page, dir, n, 30, { onFrame: hook });
+        const st = await page.evaluate(() => { const C = window.CS, v = C.ringV || C.cur.v, b = C.booms.slice(C.boom0).find((b) => b.v === v); return { boom: !!b, f: b ? b.f : -1, alive: !!v?.alive, hp: Math.round(v?.hp || 0) }; });
+        if (st.boom && boomAt < 0) { boomAt = st.f >= 0 && st.f <= n ? st.f : n; console.log(`  PATLADI kare ${boomAt}`); }
+        if (boomAt >= 0 && n - boomAt >= (S.after || 230)) break;
+        if (boomAt < 0 && (!st.alive || n >= (S.maxF || 900))) break;                      // başka nedenle gitti / süre içinde patlamadı → sonraki aday
       }
     }
     const ov = await page.evaluate(() => window.__ov);
@@ -203,7 +289,7 @@ for (const S of SHOTS) {
     const m = { n: S.n, dir, frames: n, boomAt, info, a0, a1, ov };
     fs.writeFileSync(`${dir}/meta.json`, JSON.stringify(m));
     if (!S.ring || boomAt >= 0) { meta.push(m); break; }
-    console.log(`  patlamadı (${n} kare), yeni aday`);
+    console.log(`  patlamadı (${n} kare), yeni aday`, await page.evaluate(() => { const C = window.CS, f = (v) => v ? `${v.type}#${v.idx} hp${Math.round(v.hp)} ${v.alive ? '' : 'ölü'}` : '-'; return `hedef ${f(C.ringV)} A ${f(C.dA)} B ${f(C.dB)}`; }));
     fs.rmSync(dir, { recursive: true, force: true });
     await skip(3);
   }
@@ -219,6 +305,6 @@ if (hasAud) for (const m of meta) {
 const prev = (() => { try { return JSON.parse(fs.readFileSync(`${OUT}/oturum.json`, 'utf8')).shots || []; } catch (e) { return []; } })();
 const all = [...prev.filter((p) => !meta.some((m) => m.n === p.n)), ...meta.map(({ ov, ...r }) => r)].sort((a, b) => a.dir.localeCompare(b.dir));
 fs.writeFileSync(`${OUT}/oturum.json`, JSON.stringify({ session: SESSION, cfg: CFG, shots: all }, null, 1));
-console.log('çekimler', meta.map((m) => `${m.n}:${m.frames}`).join(' '));
+console.log('çekimler', meta.map((m) => `${m.n}:${m.frames}`).join(' '), `(${Math.round((Date.now() - T0) / 1000)} sn)`);
 if (errs.length) console.log('sayfa hataları:', [...new Set(errs)].slice(0, 6));
 await browser.close();

@@ -4,7 +4,7 @@ import { chromium } from 'playwright';
 import fs from 'fs';
 
 export const W = 1920, H = 1080;
-export async function openCine({ url = 'http://127.0.0.1:5204', per = 24, tod = 'sunset', weather = 'clear', seed, extra = '', audio = 0 } = {}) {
+export async function openCine({ url = process.env.CINE_URL || 'http://127.0.0.1:5209', per = 24, tod = 'sunset', weather = 'clear', seed, extra = '', audio = 0 } = {}) {
   const browser = await chromium.launch({ headless: false, args: ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu', '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows', `--window-size=${W},${H + 120}`] });
   const ctx = await browser.newContext({ viewport: { width: W, height: H }, deviceScaleFactor: 1, locale: 'tr-TR' });
   await ctx.addInitScript(({ sd, aud }) => {
@@ -69,7 +69,7 @@ export async function grab(page, dir, start, n, { dt = 1 / 60, q = 0.93, batch =
         g.cine.frame(dt);
         out.push(g.canvas.toDataURL('image/jpeg', q));
         if (window.__aud) await window.__aud.adv(dt);
-        (window.__ov ||= []).push({ scope: g.cine.overlay.scope, ts: +g.cine.timeScale.toFixed(3), at: window.__aud ? +window.__aud.cur().toFixed(4) : 0 });
+        (window.__ov ||= []).push({ scope: g.cine.overlay.scope, nose: g.cine.overlay.nose || 0, ts: +g.cine.timeScale.toFixed(3), at: window.__aud ? +window.__aud.cur().toFixed(4) : 0 });
       }
       return out;
     }, { m, dt, q, hook: onFrame || null });
