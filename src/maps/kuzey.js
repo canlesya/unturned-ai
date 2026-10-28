@@ -24,8 +24,9 @@ import { KuzeyNav } from './kuzeyNav.js';
 // Arazi (2 m ızgara, yollar / köy sokakları / baraj gölü / alanlar; 12.182 ortadaki nehir yok), bölgelerde varlıklar (içine girilen binalar), orman + çalı çiti + kaya + devrik ağaç + buğday,
 // su, gök / bulut / pus, maç boyu değişen gün ışığı, hayvanlar, ortam sesi, gece ışıkları; araç doğuş / heliped / yol ağı / ganimet noktası VERİSİ.
 // Görsel katmanlar (arazi ağı, orman, su, atmosfer) yalnız tarayıcıda kurulur (MapBuilder.noVisual: sunucu yalnız arazi + çarpışma + yerleşim).
-export const KZ_HOURS = { day: 10.5, sunset: 18.9 };
-export const KZ_CYCLE = { day: [9.6, 13.4], sunset: [16.4, 19.8] };          // maç boyunca saat (başlangıç → maç sonu); gece sabit
+export const KZ_HOURS = { day: 10.5, sunset: 18.8 };
+// 12.220 gün batımı maçı 16:24'te (güneş 30°, mavi gök, gri sis = ikindi) başlıyordu, turuncu ancak son dakikalarda geliyordu → 18:12 (altın saat, güneş ~13°) → 19:30 (güneş ufukta)
+export const KZ_CYCLE = { day: [9.6, 13.4], sunset: [18.2, 19.5] };          // maç boyunca saat (başlangıç → maç sonu); gece sabit
 export const KZ_PLAY = { minX: -765, maxX: 765, minZ: -792, maxZ: 792, t: 10 };   // savaş alanı (dışında 10 sn geri sayım → ölüm); sert sınır KZ_BOUNDS
 export function buildKuzey() {
   const t0 = (typeof performance !== 'undefined' ? performance : Date).now();
@@ -75,7 +76,8 @@ export function buildKuzey() {
   const env = {
     ...D, clouds: 0,
     grade: { exposure: 1.0, tint: [1.01, 1.0, 0.98], sat: 1.04, contrast: 1.06, vig: 0.14, bloom: 0.1, thr: 1.6 },
-    sunset: { sky: S.sky, fog: [S.fog[0], S.fog[1] / D.fog[1], S.fog[2] / D.fog[2]], sun: S.sun, hemi: S.hemi, cloud: '#ffc2a0', sunPos: S.sunPos },
+    sunset: { sky: S.sky, fog: [S.fog[0], S.fog[1] / D.fog[1], S.fog[2] / D.fog[2]], sun: S.sun, hemi: S.hemi, cloud: '#ffc2a0', sunPos: S.sunPos,
+      grade: { exposure: 1.04, tint: [1.05, 0.99, 0.92], sat: 1.1, contrast: 1.04, vig: 0.18, bloom: 0.18, thr: 1.15 } },          // 12.220 sıcak ton (yalnız Yüksek + son işleme)
     night: { fog: ['#101a33', 0.3, 0.45], sunPos: [-60, 90, -40] },
   };
   const map = {
@@ -248,7 +250,7 @@ function makeFx(map, T, cs, veg, occ) {
       game0 = game;
       cyc = game.tod !== 'night' && Number.isFinite(game.mode?.time) && game.mode.time > 0 ? KZ_CYCLE[game.tod] || null : null;
       hour = cyc ? cyc[0] : KZ_HOURS[game.tod] ?? KZ_HOURS.day;
-      if (game.tod === 'night') { atm.setNight(water); life.setLight(1); } else if (cyc) this.setHour(hour, game); else { atm.setHour(hour, this.weather !== 'clear' ? game : null, water, true); life.setLight(lightOf(hour)); }   // 12.184 sabit saatte de yağmur / sis gök + güneşe uygulanır
+      if (game.tod === 'night') { atm.setNight(water); life.setLight(1); } else if (cyc) this.setHour(hour, game); else { atm.setHour(hour, this.weather !== 'clear' || game.tod === 'sunset' ? game : null, water, true); life.setLight(lightOf(hour)); }   // 12.220 sabit saatli gün batımı da (yöne bağlı sis / gök)   // 12.184 sabit saatte de yağmur / sis gök + güneşe uygulanır
       if (game.tod === 'night') life.setSmokeColor(new THREE.Color('#3a4258'), 0.55);
       if (this.weather === 'rain') grass.mesh.userData.U.uWind.value = 1.8;
       // hayvanlar silah sesinden ürker (sfx.shot / explosion kancası; çevrim içinde uzak oyuncuların atışları da buradan geçer)

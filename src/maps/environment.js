@@ -39,6 +39,37 @@ export function todEnv(env = {}, sunPos, tod = 'day') {
   };
 }
 
+// 12.220 yöne bağlı sis rengi (gün batımı): güneşe doğru bakınca sis sıcak (turuncu / pembe), sırtını dönünce soğuk (mor). Bütün yerleşik malzemelerin
+// sis parçasına eklenir (ShaderChunk), değerler tek bir paylaşılan nesnede: kopyalanan malzeme tekdüzeleri (UniformsUtils.clone) THREE nesnesi olmayan
+// {x,y,z,w}'yi kopyalamaz, başvuruyu paylaşır → her karede / saatte malzeme dolaşmadan bir yerden güncellenir. Varsayılan sıfır (yön yok) → sis aynen eskisi;
+// yalnız haritanın istediği gün batımında açılır (şimdilik Kuzey Vadisi). Maliyet: parça başına bir normalize + iki karışım.
+export const FOG_SUN = { dir: { x: 0, y: 0, z: 0 }, warm: { x: 0, y: 0, z: 0, w: 0 }, cool: { x: 0, y: 0, z: 0, w: 0 } };
+export function setFogSun(dir = null, warm = null, warmK = 0, cool = null, coolK = 0) {
+  const D = FOG_SUN.dir, W = FOG_SUN.warm, C = FOG_SUN.cool;
+  if (dir) { D.x = dir.x; D.y = dir.y; D.z = dir.z; } else D.x = D.y = D.z = 0;
+  if (warm) { W.x = warm.r; W.y = warm.g; W.z = warm.b; } W.w = warm ? warmK : 0;
+  if (cool) { C.x = cool.r; C.y = cool.g; C.z = cool.b; } C.w = cool ? coolK : 0;
+}
+(function patchFog() {
+  const SC = THREE.ShaderChunk;
+  if (SC.fog_pars_fragment.includes('fogTint')) return;
+  SC.fog_pars_vertex = SC.fog_pars_vertex.replace('varying float vFogDepth;', 'varying float vFogDepth; varying vec3 vFogV;');
+  SC.fog_vertex = SC.fog_vertex.replace('vFogDepth = - mvPosition.z;', 'vFogDepth = - mvPosition.z; vFogV = mvPosition.xyz;');
+  SC.fog_pars_fragment = SC.fog_pars_fragment.replace('varying float vFogDepth;', `varying float vFogDepth; varying vec3 vFogV;
+  uniform vec3 fogSunDir; uniform vec4 fogWarm, fogCool;
+  vec3 fogTint(vec3 fc) {
+    float sl = length(fogSunDir.xz); if (sl < 1e-4) return fc;
+    vec3 d = normalize((vec4(vFogV, 0.0) * viewMatrix).xyz);                 // görüş uzayı → dünya (dönüşün tersi = devriği)
+    float hl = length(d.xz), s = hl > 1e-4 ? dot(d.xz / hl, fogSunDir.xz / sl) : 0.0, g = max(dot(d, fogSunDir), 0.0);
+    fc = mix(fc, fogCool.rgb, fogCool.a * smoothstep(0.15, -0.85, s));
+    return mix(fc, fogWarm.rgb, fogWarm.a * clamp(0.65 * smoothstep(-0.2, 1.0, s) + 0.5 * pow(g, 6.0), 0.0, 1.0));
+  }`);
+  SC.fog_fragment = SC.fog_fragment.replace('mix( gl_FragColor.rgb, fogColor, fogFactor )', 'mix( gl_FragColor.rgb, fogTint( fogColor ), fogFactor )');
+  const add = (u) => { if (u && u.fogColor && !u.fogSunDir) Object.assign(u, { fogSunDir: { value: FOG_SUN.dir }, fogWarm: { value: FOG_SUN.warm }, fogCool: { value: FOG_SUN.cool } }); };
+  add(THREE.UniformsLib.fog);
+  for (const k in THREE.ShaderLib) add(THREE.ShaderLib[k].uniforms);
+})();
+
 // Gök kubbesi: yöne bağlı degrade (ufuk = sky[2] ≈ sis rengi, 30° = sky[1], tepe = sky[0]) + güneş diski ve halesi. Kamera ile döner, hep en uzakta (z = w),
 // sahne ışığı / sis yok; hava durumu (yağmur, şimşek) scene.backgroundIntensity ile parlaklığı değiştirir. env: true → yansıma haritası için (ufkun altı zemin rengi, disk daha parlak)
 function skyDome(E, sunDir, tod, ground, env = false) {
@@ -47,14 +78,17 @@ function skyDome(E, sunDir, tod, ground, env = false) {
   const m = new THREE.ShaderMaterial({
     uniforms: {
       top: { value: col(E.sky[0]) }, mid: { value: col(E.sky[1]) }, hor: { value: col(E.sky[2]) }, ground: { value: col(ground) },
+      horA: { value: col(E.sky[2]) }, midA: { value: col(E.sky[1]) }, anti: { value: 0 },          // 12.220 güneşin karşısındaki ufuk / orta renk (anti = 0: yok)
       sunC: { value: sunC }, sunDir: { value: sunDir.clone() }, disk: { value: night ? 0 : env ? 14 : 5 }, halo: { value: night ? 0.12 : tod === 'sunset' ? 0.75 : 0.32 }, uI: { value: 1 }, desat: { value: env ? 0.8 : 0 }, gain: { value: env ? envGain(E, ground) : 1 },
     },
     vertexShader: /* glsl */ `varying vec3 vDir; void main(){ vDir = position; vec4 p = projectionMatrix * vec4(mat3(viewMatrix) * position, 1.0); gl_Position = p.xyww; }`,
     fragmentShader: /* glsl */ `
-      uniform vec3 top, mid, hor, ground, sunC, sunDir; uniform float disk, halo, uI, desat, gain; varying vec3 vDir;
+      uniform vec3 top, mid, hor, ground, sunC, sunDir, horA, midA; uniform float disk, halo, uI, desat, gain, anti; varying vec3 vDir;
       void main(){
         vec3 d = normalize(vDir); float y = d.y;
-        vec3 c = mix(mix(hor, mid, smoothstep(-0.02, 0.16, y)), top, smoothstep(0.12, 0.55, y));
+        vec3 h = hor, m = mid;
+        if (anti > 0.0) { float sh = dot(normalize(d.xz + 1e-5), normalize(sunDir.xz + 1e-5)), w = anti * smoothstep(0.25, -0.85, sh); h = mix(hor, horA, w); m = mix(mid, midA, w * 0.8); }
+        vec3 c = mix(mix(h, m, smoothstep(-0.02, 0.16, y)), top, smoothstep(0.12, 0.55, y));
         c = mix(c, ground, smoothstep(0.0, -0.08, y)) * gain;
         float s = max(dot(d, sunDir), 0.0);
         c += min(gain, 3.0) * sunC * (halo * (0.25 * pow(s, 5.0) + 0.5 * pow(s, 48.0)) + disk * smoothstep(0.99955, 0.99975, s));
@@ -84,6 +118,7 @@ function envGain(E, ground) {
 export function setupEnvironment(scene, renderer, { shadowSize = 85, sunPos: sunPos0 = [60, 90, 40], env: envOpt = {}, tod = 'day' } = {}) {
   const T = todEnv(envOpt, sunPos0, tod);
   const E = T.E, sunPos = T.sunPos;
+  setFogSun();                                                                                   // 12.220 yöne bağlı sis: önceki maçtan (Kuzey gün batımı) kalmasın
   const sunDir = new THREE.Vector3(...sunPos).normalize();
   const dome = skyDome(E, sunDir, tod, E.fog[0]);
   scene.background = null;
