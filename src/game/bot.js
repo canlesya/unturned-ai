@@ -11,7 +11,7 @@ import { SWIM, waterYAt } from '../sim/swim.js';
 import { vbBoard, vbRelease, vbDrive, vbRideOk, vbCrew } from './vehicleBots.js';           // 12.189 bot sürücüler
 import { squadFollow } from './squad.js';                                            // 12.202 manga botu lideri izler
 import { frTick, frPickGoal, frArrive, frAnchored, frTargetBias, frCombatMove, frStuck, frDamaged } from './frontBots.js';     // 12.158 Cephe modu
-import { flankVia, bigGuardGoal, guardCombatMove, guardLeash } from './bigBots.js';                                                    // 12.203 büyük harita kanat mangalı
+import { flankVia, bigGuardGoal, guardCombatMove, guardLeash, bigTacGoal } from './bigBots.js';                                                    // 12.203 büyük harita kanat mangalı
 
 // silah rolleri (bot davranışı)
 const SNIPERS = new Set(['sniper', 'svd', 'barrett', 'ww_sniper']);
@@ -115,6 +115,7 @@ export class BotBrain {
     if (g.payload) { plPickGoal(this); return; }          // Vagon: rol planı (payloadBots.js): eskort / öncü / yan · durdurucu / siper / yan
     if (squadFollow(this)) return;                       // 12.202 manga: insan liderin yakınına (ara sıra; bayrak görevi sonra sürer)
     if (g.map.big && (this.guard || this.respond) && bigGuardGoal(this)) return;      // 12.208 nöbet (bayrak çevresinde siper) / saldırı altındaki bayrağa koşma (bigBots.js)
+    if (g.map.big && objs.length && bigTacGoal(this)) return;                  // 12.208 yoğunluk yönlendirmesi / saldırıda siperden sipere (bigBots.js)
     if (tacPickGoal(this)) return;                       // 12.152: nişancı mevzisi / pusu noktası (botTactics.js)
     if (!objs.length) { this.roam(); return; }       // takım çatışması: haritada dolaş, düşmana yönel
     const sq = g.squadGoal(s);

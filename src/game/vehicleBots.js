@@ -678,6 +678,80 @@ function avoidBase(g, team, x0, z0, x1, z1) {
   return best;
 }
 
+// 12.208 helikopter görevi: DEVRİYE (kendi bayrakları, ön hattakinden başlayarak sırayla patrolT sn yörünge) · SALDIRI TURU (strikeEvery sn'de bir:
+// mangalların saldırdığı / ön hatta en yakın düşman bayrağı; strikeR yarıçap, alçak irtifa, kısa aralıklı dalış + roket + top; 3 dalış ya da strikeT sn
+// sonra geri çekilme → devriye). Kendi bayrağı yoksa / büyük harita değilse eski kural (mangal bayrağı).
+function heliGoal(b) {
+  const g = b.game, vd = b.vd, team = b.s.team, objs = g.mode.objectives;
+  if (!g.map.big || !objs.length) return tripDest(b);
+  if (vd.strikeAt == null) vd.strikeAt = g.time + rand(HELI.strikeFirst[0], HELI.strikeFirst[1]);
+  if (vd.mode === 'strike') {
+    const o = vd.strikeO;
+    if (o && o.owner !== team && (vd.dives || 0) < 3) return o;
+    heliEgress(b);
+  }
+  const foe = team === 'blue' ? 'red' : 'blue', fh = g.map.spawns[foe][0];
+  if (vd.mode !== 'strike' && g.time > vd.strikeAt && (vd.state === 'cruise' || vd.state === 'orbit') && b.s.veh.hp > b.s.veh.def.hp * 0.7) {
+    // hedef: mangal hedefi düşman / sahipsiz bayraksa o, yoksa kendi önümüze (üsse göre) en yakın düşman bayrağı
+    const sq = g.squadGoal?.(b.s);
+    const E = objs.filter((o) => o.owner && o.owner !== team);
+    let o = sq && sq.owner === foe ? sq : null;
+    if (!o && E.length) { const own = objs.filter((q) => q.owner === team), A = own.length ? own : [g.map.spawns[team][0]]; o = E.map((q) => [Math.min(...A.map((a) => Math.hypot(a.x - q.x, a.z - q.z))) + Math.random() * 60, q]).sort((x, y) => x[0] - y[0])[0][1]; }
+    if (o) { vd.mode = 'strike'; vd.strikeO = o; vd.dives = 0; vd.strikeT0 = g.time; stat(g).strikes = (stat(g).strikes || 0) + 1; if (vd.state === 'orbit') vd.state = 'cruise'; return o; }
+    vd.strikeAt = g.time + 15;
+  }
+  vd.mode = 'patrol';
+  const own = objs.filter((o) => o.owner === team).sort((a, c) => Math.hypot(a.x - fh.x, a.z - fh.z) - Math.hypot(c.x - fh.x, c.z - fh.z));
+  if (!own.length) return tripDest(b);
+  if (vd.pNext) { vd.pNext = false; vd.pIdx = (vd.pIdx || 0) + 1; }
+  return own[(vd.pIdx || 0) % Math.min(own.length, 3)];                    // en öndeki 3 kendi bayrağı arasında
+}
+function heliEgress(b) {
+  const g = b.game, vd = b.vd;
+  vd.mode = 'patrol'; vd.strikeO = null; vd.dives = 0; vd.atk = null;
+  vd.strikeAt = g.time + rand(HELI.strikeEvery[0], HELI.strikeEvery[1]);
+  if (vd.state === 'orbit') vd.state = 'cruise';
+  vd.pNext = false; vd.pIdx = 0;                                              // geri çekilme: en öndeki kendi bayrağına
+}
+// RPG / roket tehdidi: düşmanın havadaki roketi helikoptere doğru (≤ 140 m, 25°'lik koni) ya da elinde roketatar olan düşman yaya threatR içinde
+// helikopteri görüyor → evade sn: tırman + tehditten uzağa tam hız (saldırı turundaysa tur biter). true = bu adım kaçış girdisi verildi.
+const _hv = new THREE.Vector3(), _hw = new THREE.Vector3();
+function heliEvade(b, dt, inp) {
+  const g = b.game, vd = b.vd, s = b.s, v = s.veh, st = v.st;
+  if (!(vd.evT > 0) && g.time >= (vd.evChk || 0)) {
+    vd.evChk = g.time + 0.3;
+    let th = null;
+    for (const p of g.projectiles) {
+      if (p.type !== 'rocket' || !p.owner || p.owner.team === s.team || p.owner.veh === v) continue;
+      const dx = st.x - p.pos.x, dy = st.y - p.pos.y, dz = st.z - p.pos.z, L = Math.hypot(dx, dy, dz);
+      if (L > 140) continue;
+      const vl = p.vel.length() || 1;
+      if ((dx * p.vel.x + dy * p.vel.y + dz * p.vel.z) / (L * vl) > 0.9) { th = p.pos; break; }
+    }
+    if (!th) {
+      _hv.set(st.x, st.y, st.z);
+      for (const e of g.soldiers) {
+        if (!e.alive || e.team === s.team || e.veh) continue;
+        const it = e.items?.[e.cur]; if (!it || WSTATS[it.id]?.kind !== 'launcher' || it.id === 'm79') continue;
+        if (Math.hypot(e.pos.x - st.x, e.pos.z - st.z) > HELI.threatR) continue;
+        if (!g.botSees(e.eye ? e.eye(_hw) : _hw.set(e.pos.x, e.pos.y + 1.6, e.pos.z), _hv)) continue;
+        th = e.pos; break;
+      }
+    }
+    if (th) { vd.evT = HELI.evade; vd.evX = th.x; vd.evZ = th.z; stat(g).evade = (stat(g).evade || 0) + 1; vd.atk = null; if (vd.mode === 'strike') { vd.dives = (vd.dives || 0) + 1; } }
+  }
+  if (!(vd.evT > 0)) return false;
+  vd.evT -= dt;
+  const dx = st.x - vd.evX, dz = st.z - vd.evZ, L = Math.hypot(dx, dz) || 1;
+  const side = (vd.evSide ||= Math.random() < 0.5 ? 1 : -1);
+  inp.yw = yawFromDir(dx / L - dz / L * 0.5 * side, dz / L + dx / L * 0.5 * side);
+  inp.f = HELI.maxF; inp.u = true; inp.d = false; inp.pt = 0;
+  V_mgOff(g, s, dt);
+  if (vd.evT <= 0) vd.evSide = 0;
+  return true;
+}
+const V_mgOff = (g, s, dt) => g.vehicles.mgFire(s, false, dt);
+
 function heliDrive(b, dt, inp) {
   const s = b.s, g = b.game, V = g.vehicles, v = s.veh, st = v.st, vd = b.vd, d = v.def, T = g.map.terrain || g.world.terrain;
   inp.u = false; inp.d = false; inp.f = 0; inp.r = 0; inp.pt = 0; s.gunAim = null;      // 12.201: burun düz (pt), burun topu nişanı yalnız saldırıda
@@ -782,21 +856,21 @@ function heliAttack(b, dt, inp, gnd) {
   if (!vd.atk) {
     if (g.time < (vd.atkNext ?? (vd.atkNext = g.time + rand(4, 10))) || agl < 26) return false;
     vd.atkNext = g.time + 1.5;
-    const eye = _he.set(st.x, st.y + 0.6, st.z);
+    const eye = _he.set(st.x, st.y + 0.6, st.z), SO = vd.mode === 'strike' ? vd.strikeO : null;
     let best = null, bs = 1e9;
     for (const o of V.list) {
       if (!o.alive || !o.st || o === v || o.def.heli) continue;
       const tm = V.teamOf(o); if (!tm || tm === s.team || !o.seats.some(Boolean)) continue;
       const d = Math.hypot(o.st.x - st.x, o.st.z - st.z); if (d < 70 || d > 230) continue;
       if (!g.botSees(eye, _ht.set(o.st.x, o.st.y + 1, o.st.z))) continue;
-      const sc = d - 120; if (sc < bs) { bs = sc; best = { v: o }; }
+      const sc = d - 120 - (SO && Math.hypot(o.st.x - SO.x, o.st.z - SO.z) < SO.r + 60 ? 90 : 0); if (sc < bs) { bs = sc; best = { v: o }; }
     }
     for (const e of g.soldiers) {
       if (!e.alive || e.team === s.team || e.veh || e.protT > 0.5) continue;
       const d = Math.hypot(e.pos.x - st.x, e.pos.z - st.z); if (d < 70 || d > 230) continue;
       if (!g.botSees(eye, e.center(_ht))) continue;
       let n = 0; for (const q of g.soldiers) if (q.alive && q.team === e.team && Math.hypot(q.pos.x - e.pos.x, q.pos.z - e.pos.z) < 7) n++;
-      const sc = d - (n >= 2 ? 60 : 0); if (sc < bs) { bs = sc; best = { s: e, n }; }
+      const sc = d - (n >= 2 ? 60 : 0) - (SO && Math.hypot(e.pos.x - SO.x, e.pos.z - SO.z) < SO.r + 40 ? 90 : 0); if (sc < bs) { bs = sc; best = { s: e, n }; }      // 12.208 saldırı turu: hedef bayraktakiler önce
     }
     if (!best) return false;
     vd.atk = { ...best, t: 0, react: rand(0.4, 0.9) * (b.dk === 'easy' ? 1.8 : b.dk === 'hard' ? 0.7 : 1) };
@@ -819,7 +893,7 @@ function heliAttack(b, dt, inp, gnd) {
   // 12.206 roket (oyuncu pilotla aynı sistem): roketler nişanın noktasına (gunAim.P = hedef) yakınsar → burun konisi hedefi kapsayınca (rocketAimFor
   // kırpmadı) araca / kalabalığa; eskiden burun hedefe TAM oturana dek (yaw + pitch < 0,05) beklenirdi
   const RA = on && RK ? V.rocketAimFor(v, s, (vd._ra ||= {})) : null;
-  s.vw = RA && !RA.c && (A.v || A.n >= 2) ? 1 : 0;
+  s.vw = RA && !RA.c && (A.v || A.n >= 2 || vd.mode === 'strike') ? 1 : 0;      // 12.208 saldırı turunda tek askere de roket
   if (s.vw && (vd.rkT = (vd.rkT || 0) - dt) <= 0) { if (V.fireRocket(v, s)) vd.rkT = b.dk === 'hard' ? 0.25 : b.dk === 'easy' ? 0.9 : 0.45; }
   return true;
 }
