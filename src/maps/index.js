@@ -80,9 +80,9 @@ MAPS.yorunge = {      // 12.157 Uzay modu
   desc: 'Ay yüzeyinde maden / araştırma üssü: ortada içine girilen cam kubbeli Merkez Modül (asma kat), hava kilidi koridorları, kuzeyde krater tarlası, güneş panelleri ve çatısına çıkılan anten istasyonu, güneyde iniş pisti ve küçük mekik. Düşük yer çekiminde yüksek platformlar ve köprüler; kaya sırtları doğal siper. Gökte Dünya.',
   build: () => buildYorunge(),
 };
-MAPS.kuzey = {      // 12.172 büyük harita (araçlar ileride): yalnız Ele Geçirme + Takım Çatışması
+MAPS.kuzey = {      // 12.172 büyük harita: yalnız Ele Geçirme + Takım Çatışması (12.219: ikisi de bütün haritada, araçlı)
   id: 'kuzey', name: 'Kuzey Vadisi', tag: 'Dev · 1,6 km · 7 bayrak · 128v128', thumb: '/img/kuzey.jpg', only: ['conquest', 'tdm'],
-  desc: '1,6 km\'lik DEV harita (Vadi\'den ayrı): Alplere benzer dağlarla çevrili, mezralar, çiftlikler ve korularla dolu vadi; güneyde Mavi, kuzeyde Kırmızı üs. Yedi bayrak: Radar Tepesi, Köy, Kavşak, Fabrika, Baraj, Çiftlik, Kereste Kampı. Ele geçirilen bayraktan / ön hattan doğulur. Orman, çalılık, çalı çiti, yıkık ev, kum torbası mevzisi ve buğday tarlalarında saklan; barajın gölünde yüzülür.',
+  desc: '1,6 km\'lik DEV harita (Vadi\'den ayrı): Alplere benzer dağlarla çevrili, mezralar, çiftlikler ve korularla dolu vadi; güneyde Mavi, kuzeyde Kırmızı üs. Yedi bayrak: Radar Tepesi, Köy, Kavşak, Fabrika, Baraj, Çiftlik, Kereste Kampı. Ele geçirilen bayraktan / ön hattan doğulur. Orman, çalılık, çalı çiti, yıkık ev, kum torbası mevzisi ve buğday tarlalarında saklan; barajın gölünde yüzülür. Takım Çatışması da bütün haritada ve araçlı oynanır (bayrak araçları tarafsız).',
   build: () => buildKuzey(),
 };
 export const DEFAULT_MAP = 'kasaba';

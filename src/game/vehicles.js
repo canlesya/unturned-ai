@@ -55,10 +55,12 @@ export const ABAND = { hold: 40, fast: 15, tilt: 0.75 };
 // 12.206 koltuk önceliği: insan (çevrimdışı oyuncu, sunucuda insan, istemcide netHuman) bottan öncelikli
 export const isHuman = (o) => !!(o && (o.isPlayer || o.human || o.netHuman));
 export const isBot = (o) => !!(o && !isHuman(o) && !o.vacant);
+export const VEH_MODES = ['conquest', 'tdm'];                     // 12.219 araçlı modlar (araç verisi olan haritada)
 
 export class Vehicles {
   // Haritada kullanılabilir araç doğuşu var mı (yoksa yönetici kurulmaz → diğer haritalarda davranış aynı)
-  static wanted(game) { return !!([...(game.map.vehicles || []), ...motoSpawnsFor(game.map)].some((d) => VT[d.type]) && game.mode.type === 'conquest'); }
+  // 12.219 Ele Geçirme + Takım Çatışması (Kuzey Vadisi TDM: bütün harita, araçlı; araç verisi yalnız Kuzey'de). Diğer modlar Kuzey'de seçilemez.
+  static wanted(game) { return !!([...(game.map.vehicles || []), ...motoSpawnsFor(game.map)].some((d) => VT[d.type]) && VEH_MODES.includes(game.mode.type)); }
 
   constructor(game) {
     this.g = game;
@@ -76,16 +78,18 @@ export class Vehicles {
   }
 
   // Doğuşun takımı: 'blue' / 'red' ya da 'flag:X' → bayrağın sahibi (sahipsizse araç yok)
+  // 12.219 bayraksız modda (TDM) bayrak araçları TARAFSIZ (yol araçları gibi: ilk binen alır, boş kalınca kendi doğuşunda yenilenir)
   spawnTeam(v) {
     const t = v.spawn.team;
     if (t === 'blue' || t === 'red') return t;
     if (typeof t === 'string' && t.startsWith('flag:')) return this.g.mode.objectives.find((o) => o.id === t.slice(5))?.owner || null;
     return null;
   }
+  flagless() { return !this.g.mode.objectives.length; }
 
   trySpawn(v, first = false) {
     const team = this.spawnTeam(v);
-    if (!team && v.spawn.team) return false;
+    if (!team && v.spawn.team && !this.flagless()) return false;
     const S = v.spawn, W = this.g.world;
     if (v.def.fixed) {                                                // 12.213 sabit yuva: yerinde kurulur (kule tepesi kotu veride), asker / araç beklemez
       v.st = makeVehicle(v.type, S.x, Number.isFinite(S.y) ? S.y : W.heightAt(S.x, S.z), S.z, S.yaw);

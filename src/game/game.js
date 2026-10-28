@@ -52,7 +52,8 @@ import { SoldierGrid } from './crowd.js';                                  // 12
 import { SpawnSet } from './spawnPoints.js';                               // 12.203 doğuş noktaları
 import { FarSoldiers } from './farSoldiers.js';                              // 12.203 uzak asker LOD'u (istemci)
 import { initSupply, updateSupply, useCrate, crateToast } from './supply.js';                         // 12.208 ikmal kutuları
-import { assignSquadsBig, perchBig, spawnFlagBig, bigKill, bigGuardTick, bigDensityTick } from './bigBots.js';           // 12.189 büyük harita bot çatışma akışı
+import { assignSquadsBig, perchBig, spawnFlagBig, bigKill, bigGuardTick, bigDensityTick } from './bigBots.js';
+import { bigTdmOn, assignSquadsTdm, tdmKill, tdmBotSpawn, tdmFrontSpawn } from './bigTdm.js';                              // 12.219 büyük harita TDM (bütün harita + araçlar)           // 12.189 büyük harita bot çatışma akışı
 import { towerPerch } from './empBots.js';                                         // 12.213 kule tepesi nişancı mevzisi           // 12.189 büyük harita bot çatışma akışı
 import { vnav, botAtLoadout } from './vehicleBots.js';                                         // 12.189 bot sürücüler (araç ızgarası)
 import { VehicleView } from './vehicleView.js';
@@ -849,7 +850,8 @@ export class Game {
   spawnOptions(team = this.playerSoldier.team) {
     const out = [{ id: 'base', name: 'Üs', ok: true }];
     if (!this.front) {                                                              // Cephe: ileri doğuş yok (doğuş hattı sektörle kayar)
-      if (this.map.big) out.push({ id: 'front', name: 'Ön hat', ok: this.mode.objectives.some((o) => this.canForwardSpawn(o, team)), label: '▲' });   // 12.172 büyük harita: düşmana en yakın sahip olunan bayrak
+      if (this.map.big && !this.mode.objectives.length && bigTdmOn(this)) out.push({ id: 'front', name: 'Ön hat', ok: true, label: '▲' });   // 12.219 Kuzey TDM: çatışma bölgesinin gerisi (bigTdm.tdmFrontSpawn; yoksa üs)
+      else if (this.map.big) out.push({ id: 'front', name: 'Ön hat', ok: this.mode.objectives.some((o) => this.canForwardSpawn(o, team)), label: '▲' });   // 12.172 büyük harita: düşmana en yakın sahip olunan bayrak
       for (const o of this.mode.objectives) out.push({ id: o.id, name: o.name, ok: this.canForwardSpawn(o, team), label: o.label || o.name[0] });
     }
     const me = this.playerSoldier;                                                  // 12.202 manga arkadaşları (Cephe / Vagon / TDM'de de)
@@ -1068,12 +1070,14 @@ export class Game {
         const side = vehSidePoint(this, s, v);
         if (side) return side;
       }
-    } else if (ctl && ctl.spawnChoice === 'front') target = this.front ? null : this.frontFlag(team);
+    } else if (ctl && ctl.spawnChoice === 'front' && bigTdmOn(this)) { const p = tdmFrontSpawn(this, team, s); if (p) return p; }      // 12.219
+    else if (ctl && ctl.spawnChoice === 'front') target = this.front ? null : this.frontFlag(team);
     else if (ctl && ctl.spawnChoice !== 'base') target = this.front ? null : this.mode.objectives.find((o) => o.id === ctl.spawnChoice);
     else if (s && !ctl && !this.front && Math.random() < (this.map.big ? 0.9 : 0.35)) {                 // 12.172 büyük harita: botlar çoğunlukla ön hattan doğar
       const own = this.mode.objectives.filter((o) => o.owner === team && this.canForwardSpawn(o, team));
       if (own.length) target = this.map.big ? (spawnFlagBig(this, s, own) || (Math.random() < 0.5 ? this.frontFlag(team, own) : null)) : pick(own);      // 12.189: mangal hedefine en yakın bayrak (yoksa yarı yarıya ön hat / üs: araç)
     }
+    if (!target && s && !ctl && bigTdmOn(this)) { const p = tdmBotSpawn(this, s); if (p) return p; }      // 12.219 Kuzey TDM: bot manga arkadaşının yanında (yoksa üs)
     // 12.203 ileri doğuş: bayrağın doğuş havuzundan (alan + kenarı; büyük haritada bayrağın arkası da) düşmanın görmediği, boş, son doğuşlardan uzak nokta.
     // Eskiden alanın içinde 14 rastgele deneme (görüş denetimi yok): 128v128'de aynı bayrağa doğan onlarca bot direğin dibinde, düşmanın gözü önünde.
     const SPS = this.spawnSet;      // (SP = manga doğuş durumu, squad.js)
@@ -1275,7 +1279,7 @@ export class Game {
 
   assignSquads() {
     const objs = this.front ? this.front.activeList() : this.mode.objectives;  // Cephe: yalnız etkin nokta
-    if (!objs.length) return;
+    if (!objs.length) { if (bigTdmOn(this)) assignSquadsTdm(this); return; }      // 12.219 Kuzey TDM: ortak çatışma bölgeleri (bayrak yok)
     if (this.map.big && !this.front) { assignSquadsBig(this); return; }       // 12.189 büyük harita: cephe görevleri (bigBots.js)
     for (const team of ['blue', 'red']) {
       const nSq = Math.ceil(this.soldiers.filter((s) => s.team === team).length / 4);
@@ -2332,7 +2336,8 @@ export class Game {
     if (pn) kev.pn = pn; if (pc > 1) kev.pc = pc;
     this.netEvent(kev);
     if (!this.mode.infection) for (const b of this.brains) b.onMateDown?.(victim, killer);
-    if (this.map.big && this.mode.objectives.length && killer && killer !== victim) bigKill(this, victim);      // 12.203 bayrak çatışma ısısı (yorgunluk: kanlı bayrak bir süre geriye düşer)          // 12.152: yakındaki takım arkadaşları düştüğü yere bakar / araştırır
+    if (this.map.big && this.mode.objectives.length && killer && killer !== victim) bigKill(this, victim);
+    else if (killer && killer !== victim && bigTdmOn(this)) tdmKill(this, victim);      // 12.219 TDM bölge ısısı (yorgunluk)      // 12.203 bayrak çatışma ısısı (yorgunluk: kanlı bayrak bir süre geriye düşer)          // 12.152: yakındaki takım arkadaşları düştüğü yere bakar / araştırır
     this.hud.killFeed(killer, victim, weapon, hs, pn);
     this.heat?.add(victim.pos.x, victim.pos.z, 3, this.time);
     if (killer && killer.isPlayer && killer !== victim) this.killfx.kill(victim, weapon, hs, undefined, { pn, pc });

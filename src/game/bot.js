@@ -12,7 +12,8 @@ import { vbBoard, vbRelease, vbDrive, vbRideOk, vbCrew, vnavFree } from './vehic
 import { squadFollow } from './squad.js';                                            // 12.202 manga botu lideri izler
 import { frTick, frPickGoal, frArrive, frAnchored, frTargetBias, frCombatMove, frStuck, frDamaged } from './frontBots.js';     // 12.158 Cephe modu
 import { empBoard, empRide } from './empBots.js';                                          // 12.213 sabit silah yuvaları
-import { flankVia, bigGuardGoal, guardCombatMove, guardLeash, bigTacGoal } from './bigBots.js';                                                    // 12.203 büyük harita kanat mangalı
+import { flankVia, bigGuardGoal, guardCombatMove, guardLeash, bigTacGoal } from './bigBots.js';
+import { tdmHuntGoal } from './bigTdm.js';                                                                     // 12.219 Kuzey TDM: bölgede av                                                    // 12.203 büyük harita kanat mangalı
 
 // silah rolleri (bot davranışı)
 const SNIPERS = new Set(['sniper', 'svd', 'barrett', 'ww_sniper']);
@@ -137,8 +138,9 @@ export class BotBrain {
     if (g.map.big && (this.guard || this.respond) && bigGuardGoal(this)) return;      // 12.208 nöbet (bayrak çevresinde siper) / saldırı altındaki bayrağa koşma (bigBots.js)
     if (g.map.big && objs.length && bigTacGoal(this)) return;                  // 12.208 yoğunluk yönlendirmesi / saldırıda siperden sipere (bigBots.js)
     if (tacPickGoal(this)) return;                       // 12.152: nişancı mevzisi / pusu noktası (botTactics.js)
-    if (!objs.length) { this.roam(); return; }       // takım çatışması: haritada dolaş, düşmana yönel
     const sq = g.squadGoal(s);
+    if (!objs.length && !(sq && g.map.big)) { this.roam(); return; }       // takım çatışması: haritada dolaş, düşmana yönel
+    if (!objs.length && tdmHuntGoal(this, sq)) return;                   // 12.219 Kuzey TDM: mangal hedefi = ortak çatışma bölgesi (bigTdm.js); bölgede ara sıra en yakın düşmana
     let obj = sq || null;
     if (!obj) {
       let bs = -1;

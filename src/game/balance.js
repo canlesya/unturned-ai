@@ -21,7 +21,7 @@ export const TUNE = {
 Object.assign(TUNE, { frCapMul: 0.25, frLean: 0, frHqMul: 0.7, frBleed: 1, frRespawn: 1.0, frStartLock: 25, frShiftLock: 10 });      // Cephe Hattı (12.161): ele geçirme hızı çarpanı, yeni etkin noktanın eski sahibine yatıklığı (çubuk), karargâh ele geçirme çarpanı, nokta farkı başına kanama, doğma süresi çarpanı (iki taraf aynı)
 // Oyun modu sınırları (oda kurulumu + menü)
 export const LIMITS = { maxPerTeam: 32, dmMax: 10, dmKills: 40, infMin: 4, infMax: 24, pbMin: 2, pbMax: 12, pbKills: 30, plTime: 300, time: 900 };
-// 12.203 büyük harita (Kuzey Vadisi) takım başına sınırı: Ele Geçirme 128v128, Takım Çatışması (köy alt alanı, 280 × 240 m) 64v64. Diğer haritalar maxPerTeam (32).
+// 12.203 büyük harita (Kuzey Vadisi) takım başına sınırı: Ele Geçirme 128v128, Takım Çatışması (12.219: bütün harita, araçlı) 64v64. Diğer haritalar maxPerTeam (32).
 LIMITS.maxPerTeamBig = 128; LIMITS.maxPerTeamBigTdm = 64;
 export const BIG_MAPS = ['kuzey'];
 export function maxPerFor(map, type) {
@@ -132,7 +132,7 @@ export function balanceSections() {
     { id: 'classes', label: 'Sınıflar', icon: 'users', items: CLASS_IDS.map((c) => ({ id: c, name: CLASS_DEFS[c].label, preview: { kind: 'char', cls: c }, fields: classFields(c) })) },
     { id: 'modes', label: 'Oyun modları', icon: 'flag', items: [
       { id: 'limits', name: 'Mod sınırları', preview: { kind: 'icon', icon: 'flag' }, fields: [
-        f('mode.maxPerTeam', 'Takım başına en çok oyuncu', 1, 32), f('mode.maxPerTeamBig', 'Büyük harita (Kuzey Vadisi) Ele Geçirme en çok', 8, 128), f('mode.maxPerTeamBigTdm', 'Büyük harita Takım Çatışması en çok', 8, 128), f('mode.dmMax', 'Ölüm maçı / silah yarışı en çok', 2, 16),
+        f('mode.maxPerTeam', 'Takım başına en çok oyuncu', 1, 32), f('mode.maxPerTeamBig', 'Büyük harita (Kuzey Vadisi) Ele Geçirme en çok', 8, 128), f('mode.maxPerTeamBigTdm', 'Büyük harita Takım Çatışması (bütün harita, araçlı) en çok', 8, 128), f('mode.dmMax', 'Ölüm maçı / silah yarışı en çok', 2, 16),
         f('mode.dmKills', 'Ölüm maçı öldürme hedefi', 5, 200), f('mode.infMin', 'Enfekte en az oyuncu', 2, 24, 2), f('mode.infMax', 'Enfekte en çok oyuncu', 4, 32, 2),
         f('mode.pbKills', 'Paintball eleme hedefi', 5, 200), f('mode.pbMin', 'Paintball en az oyuncu', 2, 12), f('mode.pbMax', 'Paintball en çok oyuncu', 2, 16),
         f('mode.time', 'Varsayılan maç süresi', 60, 3600, 30, 'sn'), f('tune.captureRate', 'Bayrak ele geçirme hızı', 0.01, 0.5, 0.001), f('tune.bleed', 'Bilet kanaması aralığı', 1, 60, 1, 'sn')] },
