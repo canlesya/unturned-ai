@@ -111,11 +111,12 @@ export class VehicleHud {
     if (am) this.set(am.style, 'amv', hideAm ? 'hidden' : '', 'visibility');
     if (!v || !v.st) return;
     const d = v.def, hp = Math.max(0, v.hp / d.hp);
-    this.set(this.q.nm, 'nm', (d.moto ? MOTO_ICON : '') + t('veh.' + v.type), 'innerHTML');
+    const god = V.godVeh(v);                                                 // 12.207 geliştirici ölümsüzlüğü (O): araç da ölümsüz
+    this.set(this.q.nm, 'nm', (d.moto ? MOTO_ICON : '') + t('veh.' + v.type) + (god ? ` <small style="color:#7fc8ff;font-size:11px;letter-spacing:2px">· ${t('veh.god')}</small>` : ''), 'innerHTML');
     const spd = Math.round(Math.hypot(v.st.vx, v.st.vz) * 3.6);
     this.set(this.q.spd, 'spd', me.seat === 0 ? `${spd}<small>${t('veh.kmh')}</small>` : '', 'innerHTML');
     this.set(this.q.hp.style, 'hpw', Math.round(hp * 100) + '%', 'width');
-    this.set(this.q.hp.style, 'hpc', hp > 0.5 ? '#7fd36a' : hp > d.burnAt ? '#ffc94a' : '#ff5a3a', 'background');
+    this.set(this.q.hp.style, 'hpc', god ? '#7fc8ff' : hp > 0.5 ? '#7fd36a' : hp > d.burnAt ? '#ffc94a' : '#ff5a3a', 'background');
     this.q.seats.forEach((el, i) => this.set(el.style, 'sd' + i, i < v.seats.length ? '' : 'none', 'display'));
     const c = d.cannon, gunner = !!mgAt(d, me.seat), G = seatGun(d, me.seat);
     this.set(this.q.gun.style, 'gd', c && me.seat === 0 || G ? 'block' : 'none', 'display');
@@ -124,7 +125,7 @@ export class VehicleHud {
     else if (G && d.rockets && me.seat === 0) {                           // 12.206 pilot: seçili silah (burun topu / roket kapsülü) + roket sayısı / dolum
       const R = d.rockets, n = v.rk ?? R.n, ld = (v.rkR || 0) > 0, rkSel = me.vw === 1;
       hot = !rkSel && !!me.vhot;
-      const rkTxt = ld ? t('veh.rkLoad', { n: v.rkR.toFixed(1) }) : t('veh.rkN', { n, m: R.n });
+      const rkTxt = ld ? t('veh.rkLoad', { n: v.rkR.toFixed(1) }) : me.infAmmo ? t('veh.rkN', { n, m: '∞' }) : t('veh.rkN', { n, m: R.n });      // 12.207 geliştirici: kapsül bitmez
       this.set(this.q.ws[0], 'ws0', `${t('veh.nose')}${me.vhot ? ' · ' + t('veh.hot') : ''}<small>${this.key('vehAlt')}</small>`, 'innerHTML');
       this.set(this.q.ws[1], 'ws1', `${rkTxt}<small>${this.key('vehAlt')}</small>`, 'innerHTML');
       this.set(this.q.ws[0], 'wc0', rkSel ? '' : 'on', 'className'); this.set(this.q.ws[1], 'wc1', rkSel ? 'on' : '', 'className');

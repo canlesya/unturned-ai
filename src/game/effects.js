@@ -83,6 +83,14 @@ export class Effects {
     for (let i = 0; i < n; i++) this._part(p, '#b3170f', rand(0.03, 0.07) * k, normal, v, 0.6 + Math.random() * 0.4, 12);
   }
 
+  // 12.207 küçük patlamalı mermi (heli burun topu 20 mm HE): kısa ateş çakması + koyu duman + toprak; hafif (dakikada 750 atış)
+  miniBlast(p, normal) {
+    const k = this._far(p), v = Math.sqrt(k);
+    for (let i = 0; i < 4; i++) this._part(p, i % 2 ? '#ff9a3a' : '#ffd27a', rand(0.1, 0.2) * k, normal, 5 * v, rand(0.15, 0.25), 2);
+    for (let i = 0; i < 3; i++) this._part(p, '#5a5650', rand(0.18, 0.32) * k, normal, 1.4 * v, rand(0.5, 0.8), -1);
+    for (let i = 0; i < 2; i++) this._part(p, '#8a7a5a', rand(0.06, 0.12) * k, normal, 6 * v, rand(0.4, 0.6), 12);
+  }
+
   dust(p, normal) {
     const k = this._far(p), v = 1.6 * Math.sqrt(k);
     for (let i = 0; i < 3; i++) this._part(p, '#b7a98a', rand(0.05, 0.1) * k, normal, v, 0.5, 2);

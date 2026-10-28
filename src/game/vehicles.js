@@ -93,6 +93,8 @@ export class Vehicles {
   get(i) { return this.list[i] || null; }
   driver(v) { return v.seats[0]; }
   occupants(v) { return v.seats.filter(Boolean); }
+  // 12.207 geliştirici ölümsüzlüğü (O; çevrimdışı g.devGod, sunucuda BF_DEBUG { god } → s.devGod): oyuncunun içinde olduğu araç hasar almaz, yanmaz, patlamaz
+  godVeh(v) { const g = this.g; return v.seats.some((s) => s && ((s.isPlayer && g.devGod) || s.devGod)); }
   speed(v) { return v.st ? Math.hypot(v.st.vx, v.st.vz) : 0; }
   teamOf(v) { const o = v.seats.find(Boolean); return o ? o.team : v.team; }
 
@@ -269,7 +271,7 @@ export class Vehicles {
         if (v.sunkT > 6) { this.destroy(v, null, true); continue; }
       }
       // yanma: can eşiğin altında → can erir → patlar
-      v.burn = v.hp > 0 && v.hp < v.def.hp * v.def.burnAt;
+      v.burn = v.hp > 0 && v.hp < v.def.hp * v.def.burnAt && !this.godVeh(v);      // 12.207 ölümsüz araç yanmaz
       if (v.burn) { v.hp -= v.def.burnRate * dt; if (v.hp <= 0) { this.destroy(v, this.killerOf(v)); continue; } }
       // boş bırakılan araç: doğuşundan uzaktaysa (ya da savaş alanı dışında) bir süre sonra yenilenir
       const A = g.map.playArea, out = A && (v.st.x < A.minX || v.st.x > A.maxX || v.st.z < A.minZ || v.st.z > A.maxZ);
@@ -313,7 +315,7 @@ export class Vehicles {
   // 12.188 dost ateşi (askerdeki kuralla aynı): takım arkadaşının mermisi / patlaması dost araca (boş dost araç dahil) işlemez; kendi
   // bindiği araca kendi patlaması × TUNE.selfBlast (dibindeki duvara top atan tankçı aracını hafif hırpalar). Çarpma / iniş hasarı hep işler.
   damage(v, amount, attacker, kind = 'bullet', name) {
-    if (!v.alive || !(amount > 0) || this.g.online) return;
+    if (!v.alive || !(amount > 0) || this.g.online || this.godVeh(v)) return;      // 12.207 geliştirici ölümsüzlüğü
     const d = v.def, team = this.teamOf(v);
     let a = amount * (kind === 'bullet' ? d.bulletMul : kind === 'hmg' ? d.hmgMul ?? d.bulletMul : kind === 'blast' ? d.blastMul : kind === 'at' ? d.atMul ?? d.blastMul : 1);
     const mate = !!(attacker && kind !== 'impact' && !this.g.ffa && team && attacker.team === team);
@@ -571,7 +573,7 @@ export class Vehicles {
         if (!sh.auth) { sh.done = true; continue; }                      // istemci: patlamayı sunucunun 'tsb' olayı çizer
         g.netEvent({ e: 'tsb', id: sh.id, i: sh.v.idx, w: sh.w ? 1 : undefined, by: sh.by ? sh.by.id : -1, p: [r2(p.x), r2(p.y), r2(p.z)], n: [r2(n.x), r2(n.y), r2(n.z)] });
         const owner = sh.by || this.driver(sh.v);
-        if (owner) g.explode(new THREE.Vector3(p.x, p.y, p.z), c.radius, c.dmg, owner, c.name, undefined, 'at', { he: true, inner: c.inner, vehInner: c.vehInner, n: new THREE.Vector3(n.x, n.y, n.z) });
+        if (owner) g.explode(new THREE.Vector3(p.x, p.y, p.z), c.radius, c.dmg, owner, c.name, undefined, 'at', { he: true, inner: c.inner, vehInner: c.vehInner, vdmg: c.vdmg, n: new THREE.Vector3(n.x, n.y, n.z) });      // 12.207 vdmg: araca ayrı hasar (heli roketi)
         continue;
       }
     }
@@ -711,7 +713,7 @@ export class Vehicles {
     if (v.rk == null) v.rk = R.n;
     if (v.rk <= 0) return false;
     const st = v.st, A = this.rocketAimFor(v, by, (this._fra ||= {})), o = { x: A.o.x, y: A.o.y, z: A.o.z }, d = A.d;
-    v.rk--; v.rkT = R.rate; if (v.rk <= 0) v.rkR = R.reload;
+    if (!by?.infAmmo) v.rk--; v.rkT = R.rate; if (v.rk <= 0) v.rkR = R.reload;      // 12.207 geliştirici: kapsül bitmez
     const id = ++this.shellN, vel = { vx: d.x * R.speed + st.vx, vy: d.y * R.speed + st.vy, vz: d.z * R.speed + st.vz };
     this.addShell({ id, v, by, w: R, x: o.x, y: o.y, z: o.z, ...vel, t: 0, auth: true });
     this.g.netEvent({ e: 'ts', id, i: v.idx, w: 1, by: by ? by.id : -1, o: [r2(o.x), r2(o.y), r2(o.z)], d: [r2(vel.vx), r2(vel.vy), r2(vel.vz)] });

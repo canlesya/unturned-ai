@@ -82,15 +82,18 @@ export const VT = {
     respawn: 50, wreck: 12, idleRespawn: 150,
     parts: [[-0.32, 0.32, 1.55, 2.35, 2.4, 7.9]],                    // ek çarpışma / vuruş kutuları (yerel: x0, x1, y0, y1, z0, z1; z = geri): kuyruk kirişi
     // 12.201 kapı makinelisi dünyaya göre −1,45 rad'a (83°) dek aşağı (eski −1,25): havadan dik aşağı
-    mg: { seats: [1, 2], arc: { 1: -1, 2: 1 }, arcW: 1.36, name: 'Kapı makinelisi', dmg: 22, rpm: 700, range: [60, 170], minMul: 0.6, hip: 0.014, tracer: '#ffd37a', sound: 'pkm', vmg: true, elev: [-1.45, 0.45], zoom: 1.4, heat: 0.02, cool: 0.45 },
+    mg: { seats: [1, 2], arc: { 1: -1, 2: 1 }, arcW: 1.36, name: 'Kapı makinelisi', dmg: 34, vdmg: 22, rpm: 700, range: [70, 200], minMul: 0.75, hip: 0.014, tracer: '#ffd37a', sound: 'pkm', vmg: true, elev: [-1.45, 0.45], zoom: 1.4, heat: 0.02, cool: 0.45 },
     // 12.188 pilot silahları (BF4: tek başına uçan pilot da ateş eder): burun topu (sol tık; burnun baktığı yöne sabit, 20 mm: hmg → jipe / helikoptere
     // ağır, tanka işlemez) + güdümsüz roket kapsülleri (sağ tık; 2 × 7, sırayla, HE sıçramalı; boşalınca dolum)
     // 12.201 burun topu burna bağlı ama sınırlı serbest nişan konisi (cone: aşağı, yukarı, yana rad): artının noktasına (gy / gp) bu koni içinde döner;
     // nişan yoksa (eski istemci) burnun yönünde −0,05. Sağ tık ×1,5 yakınlaştırma. Roketler burnun TAM yönünde (dp 0).
-    nose: { seats: [0], fixed: true, f: 3.55, u: 0.72, dp: -0.05, cone: [-0.26, 0.14, 0.17], zoom: 1.5, name: 'Burun topu', dmg: 20, rpm: 750, range: [80, 220], minMul: 0.6, hip: 0.006, tracer: '#ffb35a', sound: 'pkm', vmg: true, vk: 'hmg', heat: 0.016, cool: 0.4 },
+    // 12.207 (BF saldırı helikopteri: burun topu piyadeyi 1–2 isabette öldürür, küçük patlamalı mermi): askere 55 (gövde 2, kafa 1 isabet; menzil düşüşü
+    // 120 → 300 m'de × 0,8) + isabet noktasında küçük sıçrama (splash: 2,5 m, iç 0,5 m, 40; doğrudan vurulan askere eklenmez) · araca vdmg 20 (eskisi gibi).
+    // Kapı makinelisi askere 34 (3–4 mermi; menzil 70 → 200 m × 0,75), araca vdmg 22 (eskisi gibi). Roket: 210 / iç 2,5 m / 8,5 m (askere), araca vdmg 170.
+    nose: { seats: [0], fixed: true, f: 3.55, u: 0.72, dp: -0.05, cone: [-0.26, 0.14, 0.17], zoom: 1.5, name: 'Burun topu', dmg: 55, vdmg: 20, splash: { r: 2.5, inner: 0.5, dmg: 40 }, rpm: 750, range: [120, 300], minMul: 0.8, hip: 0.006, tracer: '#ffb35a', sound: 'pkm', vmg: true, vk: 'hmg', heat: 0.016, cool: 0.4 },
     // 12.206 roketler artının noktasına yakınsar (burun topuyla aynı nokta; yerçekimi + helikopterin hızı telafi: rocketDir), burnun konisinde (cone =
     // burun topununki) kırpılır; minAim: kapsülden bu kadar yakın nişan bu uzaklığa uzatılır (dibindeki yere roket atıp kendini vurmasın)
-    rockets: { name: 'Roket', n: 14, rate: 0.2, reload: 6, speed: 125, grav: 3, dmg: 130, radius: 5.5, inner: 1.2, vehInner: 0.4, prox: 0, dp: 0, cone: [-0.26, 0.14, 0.17], minAim: 8, pods: [[1.75, -1.62, 0.6], [1.75, 1.62, 0.6]] },
+    rockets: { name: 'Roket', n: 14, rate: 0.2, reload: 6, speed: 125, grav: 3, dmg: 210, vdmg: 170, radius: 8.5, inner: 2.5, vehInner: 0.4, prox: 0, dp: 0, cone: [-0.26, 0.14, 0.17], minAim: 8, pods: [[1.75, -1.62, 0.6], [1.75, 1.62, 0.6]] },
   },
 };
 VT['heli-s'] = VT['heli-n'];                                       // saldırı helikopteri ayrı model gelene dek aynı nakliye helikopteri

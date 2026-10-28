@@ -898,7 +898,7 @@ export class Hud {
     const wn = wName(it.id);
     setH($('wname'), EN(p.reloadT > 0 ? `${wn} · ${t('hud.reloading')}` : p.useT > 0 ? `${wn} · ${t('hud.using')}` : wn));
     $('mag').textContent = it.mag;
-    $('res').textContent = st.kind === 'throwable' || st.kind === 'medkit' || st.kind === 'melee' ? '' : '/ ' + it.reserve;
+    $('res').textContent = st.kind === 'melee' ? '' : p.infAmmo ? '/ ∞' : st.kind === 'throwable' || st.kind === 'medkit' ? '' : '/ ' + it.reserve;      // 12.207 geliştirici: sınırsız cephane
     const slotKey = p.items.map((x, i) => x.id + (i === p.cur ? '*' : '') + (p.canEquip(i) ? '' : '-')).join(',') + SLOT_KEYS.map((a) => g.binds?.codes(a)[0]).join();
     if (slotKey !== this._slotKey) {                                         // yalnız değişince yeniden yaz (dil değişince applyLang sıfırlar)
       this._slotKey = slotKey;
