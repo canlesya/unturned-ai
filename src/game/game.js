@@ -51,6 +51,7 @@ import { Vehicles } from './vehicles.js';                            // 12.177 a
 import { SoldierGrid } from './crowd.js';                                  // 12.203 asker ızgarası (kalabalık maç)
 import { SpawnSet } from './spawnPoints.js';                               // 12.203 doğuş noktaları
 import { FarSoldiers } from './farSoldiers.js';                              // 12.203 uzak asker LOD'u (istemci)
+import { initSupply, updateSupply } from './supply.js';                         // 12.208 ikmal kutuları
 import { assignSquadsBig, perchBig, spawnFlagBig, bigKill, bigGuardTick, bigDensityTick } from './bigBots.js';           // 12.189 büyük harita bot çatışma akışı
 import { vnav, botAtLoadout } from './vehicleBots.js';                                         // 12.189 bot sürücüler (araç ızgarası)
 import { VehicleView } from './vehicleView.js';
@@ -231,6 +232,7 @@ export class Game {
     this.payload = this.mode.payload && this.map.payload ? new Payload(this) : null;   // Vagon modu: ray + vagon + aşamalı doğuşlar (payload.js)
     this.front = this.mode.front && this.map.front ? new Front(this) : null;           // Cephe modu: sektörler + aşamalı doğuşlar (front.js)
     this.vehicles = Vehicles.wanted(this) ? new Vehicles(this) : null;              // 12.177: araç doğuşu olan haritada (Ele Geçirme) araçlar; diğer haritalarda null → davranış aynı
+    initSupply(this);                                                              // 12.208 ikmal kutuları (araçlı büyük harita)
     if (this.vehicles && !opts.online && opts.bots !== false && !opts.editor) vnav(this);   // 12.189 bot sürücü araç ızgarası: kurulumda (harita başına bir kez, ~0,3 sn; maç ortasında sunucu takılmasın)
     this.spawnChoice = 'base';
 
@@ -1465,7 +1467,8 @@ export class Game {
     updateGadgets(this, dt, this.time);
     this.squadT -= dt;
     if (this.squadT <= 0) { this.squadT = this.map.big ? 12 : 18; this.assignSquads(); }      // 12.189 büyük harita: 40 → 12 sn (görev değişmezse botların hedefi değişmez)
-    if (this.map.big && !this.front && !this.online) { bigGuardTick(this); bigDensityTick(this); }       // 12.208 saldırı altındaki bayrağa yakındaki botlar koşar
+    if (this.map.big && !this.front && !this.online) { bigGuardTick(this); bigDensityTick(this); }
+    updateSupply(this, dt);       // 12.208 saldırı altındaki bayrağa yakındaki botlar koşar
     this.weather.update(dt);
     this.updateMode(dt);
     this.updateBaseZones(dt);
@@ -1520,7 +1523,7 @@ export class Game {
           break;
         }
         case 'hm': if (ev.by === me.id) this.emit('hitmark', { zone: ev.hd ? 'head' : 'body', dead: !!ev.dead, pn: ev.pn || 0 }); break;
-        case 'vhm': if (ev.by === me.id) this.emit('vehhit', { v: this.vehicles?.get(ev.i), dmg: ev.d }); break;                 // 12.177: araca isabet (yalnız atıcıya)
+        case 'vhm': if (ev.by === me.id) this.emit('vehhit', { v: this.vehicles?.get(ev.i), dmg: ev.d, zone: ev.z || '', hp: ev.h != null ? ev.h / 100 : null, name: ev.n }); break;                 // 12.177: araca isabet (yalnız atıcıya)
         case 'vx': this.vehicles?.netBoom(ev); break;
         case 'ts': this.vehicles?.netShell(ev); break;                                                                          // 12.178 tank topu ateşledi
         case 'tsb': this.vehicles?.netShellBoom(ev); break;                                                                     // tank mermisi patladı                                                                          // 12.177: araç patladı / battı

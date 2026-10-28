@@ -49,7 +49,7 @@ export const VT = {
     blastMul: 0.3, bulletMul: 0, hmgMul: 0, atMul: 1.25, ramMin: 2.5, ramMul: 40, mass: 4, wade: 1.6, stepUp: 0.8,
     // 12.200 yönlü zırh (Battlefield: önden 3–4 RPG, arkadan 2): patlamanın gövdeye göre yeri → ön × f, yan / üst × s, arka × r ('at' + 'blast').
     // RPG (armorMul 1,3): ön 160 × 1,3 × 1,25 = 260 → 4 · yan 351 → 3 · arka 520 → 2 isabet; tank topu (375): ön 3 · yan / arka 2 atış
-    armor: { f: 1, s: 1.35, r: 2.0 },
+    armor: { f: 1, s: 1.35, r: 2.0, t: 2.0 },      // 12.208 t: üst (kule tavanı / güverte; havadan roket, C4) = arka kadar zayıf (eskiden yan 1,35)
     burnAt: 0.2, burnRate: 14, boom: [8, 140],
     respawn: 60, wreck: 10, idleRespawn: 150,                  // 12.200 yeniden doğuş 45 → 60 sn (tank patlayınca sahada daha uzun yok; Battlefield'da da ağır zırh en geç gelen)
     // kule: dikey eksen gövde merkezinden ileri tf (m), kule üstü / yükseklik; ana top: pivot yüksekliği, namlu boyu, açı sınırları, dönüş hızları

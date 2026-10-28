@@ -127,6 +127,8 @@ function vComp(N, need) {
   let main = 0; for (let i = 1; i < size.length; i++) if (size[i] > size[main]) main = i;
   return (K[need] = { cm, main });
 }
+// 12.208 bu nokta jip / tank geçebilen yol ızgarasında mı (bot tanksavar mayını yeri)
+export function vnavFree(g, x, z) { if (!g.vehicles) return false; const N = vnav(g), k = vIdx(N, x, z); return k >= 0 && N.clr[k] >= VBOT.clr.jip; }
 function vNear(N, x, z, need, maxR) {
   const C = vComp(N, need), ok = (k) => N.clr[k] >= need && C.cm[k] === C.main;
   const k0 = vIdx(N, x, z);
@@ -288,13 +290,14 @@ export function botAtLoadout(g, s) {
   if (!V || !s.brain || s.def.zombie || g.mode.fixed || !V.list.some((v) => v.def.armor)) return;
   let armor = 0;
   for (const v of V.list) if (v.alive && v.def.armor && V.teamOf(v) && V.teamOf(v) !== s.team) armor++;
-  const rpg = (e) => e.items?.[2]?.id === 'rpg' || (e.cls === 'engineer' && e.brain && armor);      // mühendis bot doğunca RPG alacak (henüz doğmamış olan da sayılır)
+  const rpg = (e) => e.items?.[2]?.id === 'rpg' || e.items?.[2]?.id === 'law' || (e.cls === 'engineer' && e.brain && armor);      // mühendis bot doğunca RPG alacak (henüz doğmamış olan da sayılır)
   if (s._atCls && !armor) { const c = s._atCls; s._atCls = null; s.setClass(c); g.emit('botcls', s); return; }      // düşman zırhı kalmadı: eski sınıfına döner
   if (s.cls !== 'engineer') {
     if (!armor || !AT_KIT.from.includes(s.cls)) return;
     let n = 0, have = 0;
     for (const e of g.soldiers) if (e.team === s.team && !e.vacant && e !== s) { n++; if (rpg(e)) have++; }
     if (have >= AT_KIT.want(armor, n + 1)) return;
+    if (s.cls === 'assault') { s.items[2] = { id: 'law', mag: 1, reserve: 0 }; return; }      // 12.208 taarruz sınıfını bırakmaz: hafif roketatar (LAW) alır
     s._atCls = s.cls; s.setClass('engineer');
     g.emit('botcls', s);
   } else if (!armor && Math.random() > AT_KIT.idle) return;

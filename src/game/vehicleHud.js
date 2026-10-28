@@ -62,6 +62,9 @@ const CSS = `
 #vhState.hot{color:#ff6a4a}
 #vhPanel .gun i b.hot{background:#ff5a3a}
 #vhArm{position:absolute;left:50%;top:calc(50% + 22px);transform:translateX(-50%);font:700 11px Bahnschrift,Rajdhani,sans-serif;letter-spacing:3px;color:#cfd4da;opacity:0;pointer-events:none;text-shadow:0 1px 2px #000}
+#vhTgt{position:absolute;left:50%;top:calc(50% + 46px);transform:translateX(-50%);min-width:190px;padding:5px 9px 6px;background:rgba(10,14,18,.62);border:1px solid rgba(255,176,74,.55);border-radius:3px;font:700 12px Bahnschrift,Rajdhani,sans-serif;letter-spacing:1px;color:#f1e6d2;text-shadow:0 1px 2px #000;pointer-events:none;opacity:0;text-align:center}
+#vhTgt .bar{height:6px;margin-top:4px;background:rgba(255,255,255,.14);position:relative}#vhTgt .bar i{position:absolute;left:0;top:0;bottom:0;background:#ff7a3a}
+#vhTgt .z{color:#ffb04a}#vhTgt .z.w{color:#ff4a2a}#vhTgt small{display:block;font-weight:600;font-size:10px;color:#cfd6dd;margin-top:3px}
 #vhHit{position:absolute;left:50%;top:50%;width:18px;height:18px;margin:-9px 0 0 -9px;border:2px solid #ffb04a;transform:rotate(45deg) scale(.6);opacity:0;pointer-events:none}
 body.mob #vhPanel{zoom:.6;bottom:auto;top:calc(74px / .6);left:50%}
 body.mob #vhPanel .hint{display:none}body.mob #vhPanel .wsel small{display:none}
@@ -87,7 +90,8 @@ export class VehicleHud {
     this.sight = document.createElement('div'); this.sight.id = 'vhSight'; this.sight.innerHTML = '<i class="h"></i><i class="h2"></i><i class="v"></i><b></b>';
     this.state = document.createElement('div'); this.state.id = 'vhState';
     this.arm = document.createElement('div'); this.arm.id = 'vhArm'; this.arm.textContent = t('veh.armor');
-    root.append(this.sight, this.pr, this.p, this.hit, this.gunEl, this.aim, this.nose, this.rkEl, this.state, this.arm);
+    this.tgt = document.createElement('div'); this.tgt.id = 'vhTgt';                // 12.208 vurduğun aracın can çubuğu + isabet bölgesi + kalan isabet tahmini
+    root.append(this.sight, this.pr, this.p, this.hit, this.gunEl, this.aim, this.nose, this.rkEl, this.state, this.arm, this.tgt);
     this.q = { nm: this.p.querySelector('.nm'), spd: this.p.querySelector('.spd'), hp: this.p.querySelector('.hp i'), seats: [...this.p.querySelectorAll('.seats div')], hint: this.p.querySelector('.hint'), warn: this.p.querySelector('.warn'), gun: this.p.querySelector('.gun'), gunT: this.p.querySelector('.gun span'), gunB: this.p.querySelector('.gun i b'), wsel: this.p.querySelector('.wsel'), ws: [...this.p.querySelectorAll('.wsel b')] };
     this._k = {};
     game.on('vehhit', (e) => this.onHit(e));
@@ -236,10 +240,23 @@ export class VehicleHud {
       this.g.sfx._tone?.({ gain: 0.08, dur: 0.1, f0: 2600, f1: 3400, type: 'triangle', att: 0.001 });
       return;
     }
+    this.target(e);
     this.hit.getAnimations?.().forEach((a) => a.cancel());
     this.hit.animate([{ opacity: 1, transform: 'rotate(45deg) scale(1.1)' }, { opacity: 0, transform: 'rotate(45deg) scale(.7)' }], { duration: 220, easing: 'ease-out' });
     this.g.sfx._tone?.({ gain: 0.12, dur: 0.07, f0: 1700, f1: 1300, type: 'triangle', att: 0.001 });
   }
 
-  dispose() { for (const e of [this.pr, this.p, this.hit, this.gunEl, this.aim, this.nose, this.rkEl, this.sight, this.state, this.arm]) e.remove(); }
+  // 12.208 hedef araç paneli: ad · can % + çubuk · bölge (ÖN / YAN / ARKA ×2 / ÜST ×2 zayıf nokta / ALT) · "≈n isabet daha" (bu isabetin hasarıyla)
+  target(e) {
+    const v = e.v; if (!v?.def) return;
+    const me = this.g.playerSoldier; if (me && me.veh === v) return;
+    const hp = e.hp != null ? e.hp : Math.max(0, v.hp) / v.def.hp, rem = hp * v.def.hp;
+    const Z = { f: ['ÖN ZIRH', ''], s: ['YAN', ''], r: ['ARKA · ZAYIF NOKTA ×2', 'w'], t: ['ÜST · ZAYIF NOKTA ×2', 'w'], b: ['ALT (MAYIN)', 'w'] }[e.zone] || null;
+    const n = e.dmg > 0 && rem > 0 ? Math.ceil(rem / e.dmg) : 0;
+    this.tgt.innerHTML = `${t('veh.' + v.type)} · ${Math.round(hp * 100)}%${Z ? ` · <span class="z ${Z[1]}">${Z[0]}</span>` : ''}<div class="bar"><i style="width:${Math.round(hp * 100)}%"></i></div><small>${e.dead || rem <= 0 ? 'İMHA EDİLDİ' : `−${Math.round(e.dmg)} · ≈${n} isabet daha`}</small>`;
+    this.tgt.getAnimations?.().forEach((a) => a.cancel());
+    this.tgt.animate([{ opacity: 1 }, { opacity: 1, offset: 0.8 }, { opacity: 0 }], { duration: 3200, easing: 'linear' });
+  }
+
+  dispose() { for (const e of [this.tgt, this.pr, this.p, this.hit, this.gunEl, this.aim, this.nose, this.rkEl, this.sight, this.state, this.arm]) e.remove(); }
 }

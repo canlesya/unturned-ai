@@ -8,7 +8,7 @@ import { aimNade } from './grenade.js';
 import { tacRole, tacPickGoal, tacHold, tacAim, tacMayFire, tacFired, tacCombatMove, tacStrafeDir, tacHear, tacMateDown, tacOf } from './botTactics.js';
 import { plTick, plPickGoal, plArrive, plAnchored, plTargetBias, plCombatMove, plStuck } from './payloadBots.js';
 import { SWIM, waterYAt } from '../sim/swim.js';
-import { vbBoard, vbRelease, vbDrive, vbRideOk, vbCrew } from './vehicleBots.js';           // 12.189 bot sürücüler
+import { vbBoard, vbRelease, vbDrive, vbRideOk, vbCrew, vnavFree } from './vehicleBots.js';           // 12.189 bot sürücüler
 import { squadFollow } from './squad.js';                                            // 12.202 manga botu lideri izler
 import { frTick, frPickGoal, frArrive, frAnchored, frTargetBias, frCombatMove, frStuck, frDamaged } from './frontBots.js';     // 12.158 Cephe modu
 import { flankVia, bigGuardGoal, guardCombatMove, guardLeash, bigTacGoal } from './bigBots.js';                                                    // 12.203 büyük harita kanat mangalı
@@ -774,6 +774,10 @@ export class BotBrain {
         if (isFrag(gid) || gid === 'flash') this.gadgetT = 2;                                  // el bombası / flaş: aşağıda (tryNade, kendi bekleme süresi)
         else if (gid === 'smoke' && s.hp < s.maxHp * 0.55 && dist > 8 && dist < 40) { s.pitch = Math.max(s.pitch, 0.25); if (s.useGadget('smoke')) this.gadgetT = rand(18, 30); }
         else if (atm) this.gadgetT = 0.5;                                                       // 12.200: roketi atFire atar
+        else if (gid === 'c4' && tg.veh?.alive && tg.veh.st && !s.veh && s.items[2].mag > 0) {      // 12.208 C4: araçtaki düşmanın dibindeyse yapıştır (yoksa 2 sn sonra yeniden bak)
+          const v = tg.veh, dv = Math.hypot(v.st.x - s.pos.x, v.st.z - s.pos.z) - Math.max(v.def.hl, v.def.hw);
+          if (dv < 1.8) { s.yaw = yawFromDir(v.st.x - s.pos.x, v.st.z - s.pos.z); if (s.useGadget('c4')) { this.gadgetT = rand(2, 4); (g.atStats ||= { shots: 0 }).c4 = ((g.atStats.c4) || 0) + 1; } } else this.gadgetT = 0.5;
+        }
         else if ((gid === 'rpg' || gid === 'm79') && dist > 14 && dist < (gid === 'rpg' ? 70 : 55) && Math.random() < 0.5) {
           if (gid === 'm79') s.pitch = Math.max(s.pitch, 0.0044 * dist);
           if (s.useGadget(gid)) this.gadgetT = rand(10, 16);
@@ -843,6 +847,7 @@ export class BotBrain {
       if (this.gadgetT <= 0) {
         const gi = s.items[2] || NOIT;
         if (gi.id === 'claymore' && gi.mag > 0 && this.goal && Math.hypot(this.goal.x - s.pos.x, this.goal.z - s.pos.z) < 7) { if (s.useGadget('claymore')) this.gadgetT = rand(25, 50); else this.gadgetT = 3; }
+        else if (gi.id === 'atmine' && gi.mag > 0 && g.vehicles && this.goal && Math.hypot(this.goal.x - s.pos.x, this.goal.z - s.pos.z) < 7 && g.mode.objectives.some((o) => o.owner === s.team && Math.hypot(o.x - s.pos.x, o.z - s.pos.z) < o.r + 60) && vnavFree(g, s.pos.x, s.pos.z)) { if (s.useGadget('atmine')) this.gadgetT = rand(30, 60); else this.gadgetT = 3; }      // 12.208 kendi bayrağında araç geçebilen yere mayın
         else if (gi.id === 'ammobox' && gi.mag > 0 && s.items[0].reserve < WSTATS[s.items[0].id].reserve * 0.5) { if (s.useGadget('ammobox')) this.gadgetT = rand(30, 60); else this.gadgetT = 3; }
         else this.gadgetT = 4;
       }

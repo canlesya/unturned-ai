@@ -28,17 +28,18 @@ const r2 = (v) => Math.round(v * 100) / 100, r3 = (v) => Math.round(v * 1000) / 
 const _ta = { x: 0, y: 0, z: 0 };
 export function armorAt(v, pos) {
   const d = v.def, A = d.armor; if (!A) return 1;
-  const st = v.st, tu = d.turret, up = pos.y - st.y;
+  const st = v.st, tu = d.turret, up = pos.y - st.y, T = A.t ?? A.s;          // 12.208 üst (kule tavanı / motor güvertesi) = A.t (zayıf nokta)
+  const Z = (z, m) => { v._lastZone = z; return m; };
   if (up > d.top - 0.15) {
-    if (!tu || up > tu.y1 - 0.12) return A.s;
+    if (!tu || up > tu.y1 - 0.12) return Z('t', T);
     const c = toWorld(st, tu.f, 0, 0, _ta), dx = pos.x - c.x, dz = pos.z - c.z, ty = st.tyaw ?? st.yaw;
     const f = -dx * Math.sin(ty) - dz * Math.cos(ty), r = dx * Math.cos(ty) - dz * Math.sin(ty);
-    if (Math.abs(f) > tu.hl + 0.6 || Math.abs(r) > tu.hw + 0.6) return A.s;            // kulenin dışında güverte (üstten)
-    return f > 0 && f / tu.hl > Math.abs(r) / tu.hw ? A.f : A.s;
+    if (Math.abs(f) > tu.hl + 0.6 || Math.abs(r) > tu.hw + 0.6) return Z('t', T);            // kulenin dışında güverte (üstten)
+    return f > 0 && f / tu.hl > Math.abs(r) / tu.hw ? Z('f', A.f) : Z('s', A.s);
   }
   const L = toLocal2(st, pos.x, pos.z), fn = L.f / d.hl, rn = Math.abs(L.r) / d.hw;
-  if (rn > Math.abs(fn)) return A.s;
-  return fn >= 0 ? A.f : A.r;
+  if (rn > Math.abs(fn)) return Z('s', A.s);
+  return fn >= 0 ? Z('f', A.f) : Z('r', A.r);
 }
 
 // 12.206 koltuk önceliği: insan (çevrimdışı oyuncu, sunucuda insan, istemcide netHuman) bottan öncelikli
@@ -318,8 +319,10 @@ export class Vehicles {
     let a = amount * (kind === 'bullet' ? d.bulletMul : kind === 'hmg' ? d.hmgMul ?? d.bulletMul : kind === 'blast' ? d.blastMul : kind === 'at' ? d.atMul ?? d.blastMul : 1);
     const mate = !!(attacker && kind !== 'impact' && !this.g.ffa && team && attacker.team === team);
     if (mate) { if (attacker.veh !== v || kind === 'bullet' || kind === 'hmg') return; a *= TUNE.selfBlast; }
-    if (attacker && attacker !== this.driver(v) && attacker.isPlayer) this.g.emit('vehhit', { v, dmg: a, dead: v.hp - a <= 0, armor: a <= 0 });
-    else if (attacker?.human && !mate) this.g.netEvent({ e: 'vhm', by: attacker.id, i: v.idx, d: Math.round(a) });
+    const zn = kind === 'at' || kind === 'blast' ? v._lastZone || '' : '';      // 12.208 isabet bölgesi (HUD: ARKA / ÜST zayıf nokta)
+    v._lastZone = '';
+    if (attacker && attacker !== this.driver(v) && attacker.isPlayer) this.g.emit('vehhit', { v, dmg: a, dead: v.hp - a <= 0, armor: a <= 0, zone: zn, hp: Math.max(0, v.hp - a) / d.hp, name });
+    else if (attacker?.human && !mate) this.g.netEvent({ e: 'vhm', by: attacker.id, i: v.idx, d: Math.round(a), z: zn, h: Math.round(Math.max(0, v.hp - a) / d.hp * 100), n: name });
     if (!(a > 0)) return;                                                 // zırh: hasar yok (yalnız isabet geri bildirimi "zırh")
     const foe = !!(attacker && attacker.team !== team);
     if (foe) {
