@@ -311,11 +311,16 @@ export const CLASS_DEFS = {
 
 // Yükleme: ana silah / yedek / gadget / yakın dövüş. choice geçersiz ya da sınıfa uygun değilse varsayılan;
 // choice.random=true ise (botlar) seçeneklerden rastgele.
+// 12.214 bot (choice.random) ana silah ağırlıkları: sınıf → { silah: ağırlık } (yazılmayan 1). Mühendis botu: AK-74U yarı yarıya, pompalılar (3 tür) diğer
+// yarı — ölçüm: bütün pompalılar eşit olasılıkta iken mühendis botları Kasaba'da 2,4 / Çöl Geçidi TDM'de 4,9 leş (taarruz 9,3 / 7,9), tane başına isabet %2–4
+export const BOT_PRIMARY_W = { engineer: { ak74u: 3 } };
 export function makeLoadout(cls, team, choice = {}, rng = Math.random) {
   const def = CLASS_DEFS[cls], d = def.defaults;
   if (def.zombie) return [{ id: 'claws', mag: 1, reserve: 0 }];
   const pickOpt = (opts, want, dflt) => (choice.random ? opts[Math.floor(rng() * opts.length)] : opts.includes(want) ? want : dflt);
-  const primary = pickOpt(def.primaryOptions, choice.primary, d.primary[team] || d.primary.blue);
+  const W = choice.random && BOT_PRIMARY_W[cls];
+  const pickW = (opts) => { let t = 0; for (const o of opts) t += W[o] ?? 1; let r = rng() * t; for (const o of opts) { r -= W[o] ?? 1; if (r < 0) return o; } return opts[opts.length - 1]; };
+  const primary = W ? pickW(def.primaryOptions) : pickOpt(def.primaryOptions, choice.primary, d.primary[team] || d.primary.blue);
   const secondary = pickOpt(def.secondaryOptions, choice.secondary, d.secondary);
   const gadget = pickOpt(def.gadgetOptions, choice.gadget, d.gadget);
   const melee = pickOpt(def.meleeOptions, choice.melee, d.melee);
