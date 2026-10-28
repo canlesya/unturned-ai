@@ -127,7 +127,30 @@ async function desk(tag, q, conq) {
   await ctx.close();
 }
 
-await desk('kuzey', 'autostart=8v8&map=kuzey&type=conquest', true);
+// Kontroller: ana menü + oyun içi (Esc → Kontroller), Türkçe ve İngilizce
+for (const lang of ['tr', 'en']) {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 810 } });
+  await ctx.addInitScript((l) => { localStorage.setItem('warbyte.lang', l); if (!localStorage.getItem('warbyte.acct')) localStorage.setItem('warbyte.acct', JSON.stringify({ kind: 'guest' })); }, lang);      // misafir: giriş ekranı açılmasın
+  const page = await ctx.newPage(), errs = []; page.on('pageerror', (e) => errs.push(e.message));
+  await page.goto(`${base}/?debug=1`);
+  await page.waitForSelector('.mn-nav[data-v=controls]', { timeout: 60000 }); await page.waitForTimeout(800);
+  await page.click('.mn-nav[data-v=controls]'); await page.waitForTimeout(600);
+  const rows = await page.evaluate(() => [...document.querySelectorAll('.kbrow')].map((r) => r.textContent.replace(/\s+/g, ' ').trim()));
+  const want = lang === 'tr' ? [/Büyük harita.*M/, /İşaret koy.*I/, /Takım seçimi.*K/] : [/Big map.*M/, /Place marker.*I/, /Team select.*K/];
+  for (const re of want) check(rows.some((r) => re.test(r)), `menü Kontroller (${lang}): ${re}`);
+  await page.screenshot({ path: `${OUT}/kontroller-menu-${lang}.png` });
+  await page.goto(`${base}/?autostart=3v3&map=colgecidi&type=tdm&debug=1&nolock=1`);
+  await page.waitForFunction(() => window.__game?.running && window.__game.time > 1, null, { timeout: 120000 });
+  await page.keyboard.press('Escape'); await page.waitForTimeout(500);
+  await page.click('#bCtl').catch(() => {}); await page.waitForTimeout(600);
+  const txt = await page.evaluate(() => [...document.querySelectorAll('.kb')].map((r) => r.textContent.replace(/\s+/g, ' ').trim()));
+  for (const re of want) check(txt.some((r) => re.test(r)), `Esc → Kontroller (${lang}): ${re}`);
+  await page.screenshot({ path: `${OUT}/kontroller-oyun-${lang}.png` });
+  check(!errs.length, `Kontroller (${lang}): sayfa hatası yok ${errs.slice(0, 2).join(' | ')}`);
+  await ctx.close();
+}
+
+await desk('kuzey','autostart=8v8&map=kuzey&type=conquest', true);
 await desk('cg', 'autostart=6v6&map=colgecidi&type=conquest', true);
 await desk('cg-tdm', 'autostart=6v6&map=colgecidi&type=tdm', false);
 
