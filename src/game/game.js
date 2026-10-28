@@ -51,7 +51,7 @@ import { Vehicles } from './vehicles.js';                            // 12.177 a
 import { SoldierGrid } from './crowd.js';                                  // 12.203 asker ızgarası (kalabalık maç)
 import { SpawnSet } from './spawnPoints.js';                               // 12.203 doğuş noktaları
 import { FarSoldiers } from './farSoldiers.js';                              // 12.203 uzak asker LOD'u (istemci)
-import { initSupply, updateSupply } from './supply.js';                         // 12.208 ikmal kutuları
+import { initSupply, updateSupply, useCrate, crateToast } from './supply.js';                         // 12.208 ikmal kutuları
 import { assignSquadsBig, perchBig, spawnFlagBig, bigKill, bigGuardTick, bigDensityTick } from './bigBots.js';           // 12.189 büyük harita bot çatışma akışı
 import { towerPerch } from './empBots.js';                                         // 12.213 kule tepesi nişancı mevzisi           // 12.189 büyük harita bot çatışma akışı
 import { vnav, botAtLoadout } from './vehicleBots.js';                                         // 12.189 bot sürücüler (araç ızgarası)
@@ -580,7 +580,7 @@ export class Game {
     else if (s.alive) { this.world.move(s, dt); V?.pushSoldier(s); this.fallCheck(s); this.swimCheck(s, dt); }
     if (!s.alive) return;
     s.yaw = inp.yw; s.pitch = Math.max(-1.5, Math.min(1.5, inp.pt));
-    if (V && inp.ve) V.toggle(s);                                     // 12.177: E (bin / in) · 1–4 koltuk
+    if (V && inp.ve) { if (!V.toggle(s)) useCrate(this, s); }         // 12.177: E (bin / in) · 1–4 koltuk · 12.216 yanında araç yoksa ikmal kutusu (RPG al / ikmal)
     else if (V && inp.vs && s.veh) V.seatTo(s, inp.vs - 1);
     if (inp.w !== s.cur) s.switchTo(inp.w);
     if (s.veh) { this.vehTick(h, inp, dt); return; }
@@ -1559,6 +1559,7 @@ export class Game {
         case 'dep': netDeploy(this, ev); break;
         case 'depx': netUndeploy(this, ev.id); break;
         case 'ammo': if (ev.v === me.id) { this.hud.toast($t('hud.t.ammo'), '#9be07a'); this.sfx.deploy(me.pos); } break;
+        case 'kit': if (ev.v === me.id) crateToast(this, { act: ev.a, old: ev.o || null }); break;      // 12.216 ikmal kutusu (E): RPG alındı / dolduruldu / dolu / düşmanın
         case 'rld': if (by && by !== me) { by.reloadStyle = ev.s; by.reloadTotal = by.reloadT = ev.t; by.reloadEmpty = !!ev.em; by.shellT = ev.sh; by.rlId = by.item?.id; } break;      // 12.195: süre Soldier.update'te yalnız görüntü için akar (silah değişince biter)
         case 'inf': {                                // bir insan zombi oldu: takım + sınıf (model) değişir
           const v = this.soldiers[ev.v]; if (!v) break;

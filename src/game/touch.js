@@ -19,6 +19,7 @@ import '../i18n/touch.js';
 import { wName, opticName } from '../i18n/game.js';
 import { OPTIC_ICON, OPTIC_MAG } from './opticIcons.js';
 import { proneClamp } from '../sim/prone.js';
+import { nearCrate, useCrate } from './supply.js';                     // 12.216 ikmal kutusu (araç düğmesi)
 
 const KEY = 'warbyte.touch';
 const DEF = { joy: 'fixed', fire: 'fixed', leftFire: true, opacity: 0.8, sens: 1, adsSens: 0.75, gyro: 'off', gyroSens: 1, gyroInvX: false, gyroInvY: false, aim: true, aimStr: 1, retSz: 1, layout: {} };
@@ -417,7 +418,7 @@ export class TouchControls {
     if (!down) { if (id === 'jump') this.jump = false; return; }
     if (id === 'pause') { g.togglePause(); return; }
     if (!s.alive) return;
-    if (id === 'veh') { const V = g.vehicles; if (V && (s.veh || V.near(s))) { if (g.online) g.online.edge('ve'); else V.toggle(s); } return; }      // 12.177
+    if (id === 'veh') { const V = g.vehicles; if (V && (s.veh || V.near(s) || nearCrate(g, s))) { if (g.online) g.online.edge('ve'); else if (!V.toggle(s)) useCrate(g, s); } return; }      // 12.177 · 12.216 ikmal kutusu (RPG al)
     if (id === 'vcam') { if (s.veh) { p.vehCam = p.vehCam === 'first' ? 'third' : 'first'; } return; }
     if (id === 'seat') { const v = s.veh; if (v) { for (let k = 1; k <= v.seats.length; k++) { const n = (s.seat + k) % v.seats.length; if (!v.seats[n]) { if (g.online) g.online.edges.vs = n + 1; else g.vehicles.seatTo(s, n); break; } } } return; }
     if (s.veh && (id === 'crouch' || id === 'swap' && s.seat === 0 || id === 'nade' || id === 'third')) return;      // araçta çömelme / ekipman yok
@@ -608,7 +609,7 @@ export class TouchControls {
     }
     this.b.third.classList.toggle('on', !!p.third);
     {                                                                                      // 12.177 araç butonları: bin / in yalnız araç yanında ya da içindeyken; kamera sürücüde; koltuk araçta
-      const V = g.vehicles, inV = !!s.veh, near = !inV && V ? !!V.near(s) : false, drv = inV && s.seat === 0;
+      const V = g.vehicles, inV = !!s.veh, near = !inV && V ? !!(V.near(s) || nearCrate(g, s)) : false, drv = inV && s.seat === 0;      // 12.216 ikmal kutusu yanında da (dokun = RPG al / ikmal)
       const key = (inV ? 1 : 0) | (near ? 2 : 0) | (drv ? 4 : 0) | (inV && s.veh.def.heli ? 8 : 0) | (inV && (s.veh.def.cannon || s.veh.def.rockets) ? 16 : 0);
       if (key !== this._vk) {
         this._vk = key;

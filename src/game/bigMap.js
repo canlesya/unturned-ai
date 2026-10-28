@@ -17,7 +17,8 @@ import { clamp } from './util.js';
 import { mapName } from '../i18n/data.js';
 import { mapText, placeName } from '../i18n/game.js';
 import { squadOn, squadMates, SP } from './squad.js';
-import { vehIconDraw, vehIconSvg, empMark } from './vehIcons.js';
+import { vehIconDraw, vehIconSvg, empMark, empDownMark, supMark } from './vehIcons.js';
+import { crateOpen } from './supply.js';                              // 12.216 ikmal kutusu simgesi
 import { PCOL } from './pings.js';
 import { HEAT_SEC } from './heat.js';
 import { codeLabel } from '../core/keybinds.js';
@@ -491,7 +492,9 @@ export class BigMap {
       x.strokeText(nm, px, py + r + 10 * D); x.fillText(nm, px, py + r + 10 * D);
     }
     // araçlar (mini haritayla aynı kural: dost / boş hep, düşman görüldüyse)
+    if (g.supply) { let n = 0; for (const c of g.supply) { supMark(x, X(c.x), Y(c.z), crateOpen(c, team), D); n++; } this.supN = n; }      // 12.216 ikmal kutuları (RPG + cephane; düşmanınki soluk)
     if (g.vehicles) for (const v of g.vehicles.list) {
+      if (v.def.fixed && (!v.alive || !v.st)) { empDownMark(x, X(v.spawn.x), Y(v.spawn.z), v, D); continue; }      // 12.216 yok edilmiş yuva: yeniden kuruluyor
       if (!v.alive || !v.st) continue;
       const occ = v.seats.filter(Boolean), tm = occ.length ? occ[0].team : v.paint;
       if (tm && tm !== team && !occ.some((o) => g.time - (o.spottedT ?? -99) < 2.5)) continue;

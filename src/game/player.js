@@ -21,6 +21,7 @@ import { swimCanFire } from '../sim/swim.js';
 import { LEAN_ROLL } from './soldier.js';
 import { TUNE } from './balance.js';
 import { TouchControls, isTouch } from './touch.js';
+import { nearCrate, useCrate } from './supply.js';                     // 12.216 ikmal kutusu E
 import { ScopeBreath } from './breath.js';
 import { norm, codeLabel, slotOrder } from '../core/keybinds.js';
 import { t as $t } from '../i18n/index.js';
@@ -988,7 +989,7 @@ export class Player {
       if (kb.is('wheel', code) && s.alive && !this.wheel && !s.veh) this.openWheel();
       // 12.177 araç: E bin / in (yanında ya da içindeyken; değilse E sağa eğilmedir), V kamera (sürücü), 1–4 koltuk
       const V = this.game.vehicles;
-      if (V && s.alive && kb.is('vehicle', code) && (s.veh || V.near(s))) { this.vehLatch = true; if (this.game.online) this.game.online.edge('ve'); else V.toggle(s); }
+      if (V && s.alive && kb.is('vehicle', code) && (s.veh || V.near(s) || nearCrate(this.game, s))) { this.vehLatch = true; if (this.game.online) this.game.online.edge('ve'); else if (!V.toggle(s)) useCrate(this.game, s); }      // 12.216 ikmal kutusu: E = RPG al / anında ikmal (araç önce)
       if (V && s.alive && kb.is('vehAlt', code) && this.pilotArmed()) this.vehWeapon();      // 12.206 helikopter pilotu: Q = burun topu ↔ roket (seçili silah sol tıkla)
       if (V && s.veh && kb.is('vehCam', code)) { this.vehCam = this.vehCam === 'first' ? 'third' : 'first'; this.game.hud.toast($t(this.vehCam === 'first' ? 'veh.t.camFirst' : 'veh.t.camThird'), '#cfe6ff'); }
       if (kb.is('third', code) && s.alive && !s.veh) this.toggleThird();
