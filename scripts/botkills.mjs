@@ -71,6 +71,7 @@ function run(sd) {
   const born = new Map();
   const onSpawn = (s) => { const r = rec(s); if (!r) return; r.lives++; born.set(s, { t: g.time, tg: null }); };
   g.on('spawn', onSpawn);
+  g.on('vehseat', ({ s }) => { const r = rec(s); if (r) r.seatMoves = (r.seatMoves || 0) + 1; });      // 12.214 yolcu → makineli koltuğu
   for (const s of g.soldiers) if (s.alive) onSpawn(s);
   const ok0 = g.onKill.bind(g);
   g.onKill = (killer, victim, w, hs) => {
@@ -175,7 +176,7 @@ const cols = [
   ['ateş%', (r) => pctT(r, 'fireT')], ['sürücü%', (r) => pctT(r, 'drvT')], ['nişancı%', (r) => pctT(r, 'gunT')], ['yolcu%', (r) => pctT(r, 'rideT')], ['araçta boş%', (r) => pctT(r, 'rideIdleT')],
   ['mevzi%', (r) => pctT(r, 'spotT')], ['hedefte bekl%', (r) => pctT(r, 'waitT')], ['yürüyüş%', (r) => pctT(r, 'walkGoalT')], ['takılma%', (r) => pctT(r, 'stuckT')], ['duruş%', (r) => pctT(r, 'idleT')],
   ['su%', (r) => pctT(r, 'swimT')], ['seyrek beyin%', (r) => pctT(r, 'lazyT')], ['bayrakta%', (r) => pctT(r, 'objT')], ['yürüdü m/dk', (r) => (60 * r.walk) / Math.max(1, r.aliveT)],
-  ['düşman m', (r) => r.foeDavg], ['ilk hedef sn', (r) => r.ftMed], ['hedefsiz ölüm', (r) => r.livesNoTg], ['araca mermi', (r) => r.shotsAtVeh], ['araç hasarı', (r) => r.dmgVeh], ['araçtan leş', (r) => r.kVeh],
+  ['düşman m', (r) => r.foeDavg], ['ilk hedef sn', (r) => r.ftMed], ['hedefsiz ölüm', (r) => r.livesNoTg], ['araca mermi', (r) => r.shotsAtVeh], ['araç hasarı', (r) => r.dmgVeh], ['araçtan leş', (r) => r.kVeh], ['koltuk değişimi', (r) => r.seatMoves || 0],
 ];
 const tally = (a, f) => { const o = {}; for (const r of a) { const k = f(r); o[k] = (o[k] || 0) + 1; } return Object.entries(o).sort((x, y) => y[1] - x[1]).map(([k, v]) => `${k} ${v}`).join(' · '); };
 const K = recs.map((r) => r.kills), totalK = K.reduce((a, b) => a + b, 0), simT = runs.reduce((a, r) => a + r.simS, 0);
