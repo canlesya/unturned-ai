@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { setFogSun } from '../../environment.js';
 
 // Kuzey Vadisi atmosferi (12.172, yalnız görsel):
 // - Gün saati anahtar kareleri (KEYS): güneş yüksekliği / rengi, gök (tepe / orta / ufuk), yarımküre ışığı, sis rengi / mesafesi, pus miktarı.
@@ -15,10 +16,17 @@ export const KEYS = [
   [11, 46, '#fff3e2', 2.55, '#4683c8', '#93bde0', '#cddfea', '#bcd8ff', '#6b6248', 1.15, '#c9d8e3', 120, 1650, 0.08],
   [14, 50, '#fff5e8', 2.6, '#4383c9', '#91bbe0', '#cadcea', '#bcd8ff', '#6b6248', 1.15, '#c7d6e2', 130, 1700, 0.0],
   [16.8, 28, '#ffe6bf', 2.35, '#4a7bb8', '#a2bfd8', '#e2dcc8', '#c3cfe2', '#615845', 1.0, '#d3d3c9', 100, 1500, 0.12],
-  [18.6, 9, '#ffa75a', 2.1, '#33467c', '#cf8d63', '#ffc287', '#ffb88f', '#4a3b36', 0.78, '#cfa286', 70, 1550, 0.35],
-  [19.6, 1, '#ff7f45', 1.1, '#202a55', '#8f5d64', '#e9895d', '#c0889a', '#382d33', 0.6, '#a58c84', 55, 1250, 0.5],
+  // 12.220 gün batımı: 17,8 altın saat eklendi; 18,6 / 19,6 daha doygun turuncu ufuk, mor-mavi tepe, şeftali sis (eskisi gri-kahve), sıcak ve daha güçlü ortam ışığı
+  [17.8, 17, '#ffb76a', 2.35, '#3a5392', '#de9b6c', '#ffc88a', '#ffcca2', '#5c4c3e', 0.98, '#dca282', 95, 1750, 0.18],
+  [18.6, 9, '#ff9c4f', 2.25, '#2c3b78', '#e2834f', '#ffb673', '#ffb98f', '#54413a', 0.92, '#dc976e', 80, 1700, 0.28],
+  [19.6, 1, '#ff7442', 1.35, '#1d2556', '#b0625c', '#f38a55', '#d8949a', '#40323a', 0.74, '#bd7f6c', 60, 1400, 0.42],
   [20.4, -5, '#9a86c0', 0.35, '#0f1632', '#3e3858', '#8c5a5c', '#6a6c9a', '#24222c', 0.5, '#5d4f5c', 35, 700, 0.6],
 ];
+// 12.220 alçak güneş katsayısı (28° üstü 0, 15° altı 1): yöne bağlı sis / Venüs kuşağı / bulut altı turuncusu yalnız gün batımında (gündüz döngüsü değişmez)
+const low = (alt) => Math.max(0, Math.min(1, (28 - alt) / 13));
+const ANTI_HOR = new THREE.Color('#d79da2'), ANTI_MID = new THREE.Color('#8d88b4'), ANTI_FOG = new THREE.Color('#8a83aa');
+const _w = new THREE.Color(), _k = new THREE.Color(), _l = (c) => 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b, FOG_L = _l(new THREE.Color('#dc976e'));
+const dim = (s) => Math.min(1.05, _l(s.fog[0]) / FOG_L);                    // saat ilerledikçe (19,6+) karşı taraf da kararır
 const lerpC = (a, b, t, out) => out.set(a).lerp(_c2.set(b), t);
 const _c2 = new THREE.Color();
 export function sampleHour(h) {
@@ -160,13 +168,18 @@ export class Atmosphere {
       sc.traverse((o) => { if (o.isHemisphereLight) { o.color.copy(s.hemi[0]); o.groundColor.copy(s.hemi[1]); o.intensity = s.hemi[2]; } });
       if (sc.fog && !weatherFog) { sc.fog.color.copy(s.fog[0]); sc.fog.near = s.fog[1]; sc.fog.far = s.fog[2]; }
       if (game.renderer) game.renderer.toneMappingExposure = s.alt < 4 ? 1.08 : 1.0;
+      // 12.220 alçak güneş: güneşe doğru sis sıcak / ışıyan, karşısı soğuk mor; gök kubbesinde güneşin karşısında pembe-lila kuşak (Venüs kuşağı). Yağmur / sis: kapalı
+      const k = wet ? 0 : low(s.alt);
+      if (dome) { const U = dome.material.uniforms; U.anti.value = k; U.horA.value.copy(ANTI_HOR).multiplyScalar(dim(s)); U.midA.value.copy(ANTI_MID).multiplyScalar(dim(s)); if (k > 0) U.halo.value = 0.75 + 0.45 * k; }
+      if (k > 0) setFogSun(d, _w.copy(s.sun).lerp(s.fog[0], 0.4).multiplyScalar(1.02), 0.6 * k, _k.copy(ANTI_FOG).multiplyScalar(dim(s)), 0.75 * k); else setFogSun();
     }
     const cu = this.clouds.userData.U;
     cu.uSun.value.copy(d); cu.uSunC.value.copy(s.sun);
     cu.uLit.value.copy(s.sun).lerp(new THREE.Color('#ffffff'), s.alt > 15 ? 0.75 : 0.25);
     cu.uShade.value.copy(s.sky[1]).lerp(s.hemi[1], 0.35).multiplyScalar(s.alt > 10 ? 1.0 : 0.8);
+    { const k = this.wet ? 0 : low(s.alt); if (k > 0) { cu.uLit.value.lerp(_w.copy(s.sun).lerp(s.sky[2], 0.3).multiplyScalar(1.12), k); cu.uShade.value.lerp(_k.copy(s.sun).lerp(s.sky[0], 0.45).multiplyScalar(0.85), 0.8 * k); } }   // 12.220 bulutların alt yüzü turuncu-pembe (alçak güneş alttan aydınlatır)
     cu.uHor.value.copy(s.sky[2]);
-    if (this.wet) { cu.uLit.value.lerp(new THREE.Color('#9aa2ab'), 0.6); cu.uShade.value.multiplyScalar(0.72); cu.uSunC.value.multiplyScalar(0.3); cu.uCov.value = 0.3; } else cu.uCov.value = 0.46;   // 12.184 yağmur: kapalı, gri bulut
+    if (this.wet) { cu.uLit.value.lerp(new THREE.Color('#9aa2ab'), 0.6 + 0.3 * low(s.alt)); cu.uShade.value.multiplyScalar(0.72); cu.uSunC.value.multiplyScalar(0.3 - 0.15 * low(s.alt)); cu.uCov.value = 0.3; } else cu.uCov.value = 0.46;   // 12.184 yağmur: kapalı, gri bulut
     this.clouds.visible = this.wet !== 'fog';                                                      // sisli havada bulut tabakası sisin üstünde koyu leke gibi kalıyordu
     if (this.mist) { this.mist.U.uCol.value.copy(s.fog[0]).lerp(new THREE.Color('#ffffff'), 0.25); this.mist.U.uSunC.value.copy(s.sun); this.mist.U.uSun.value.copy(d); this.setMistAmt(s.mist); }
     if (water) for (const m of water.mats) { const U = m.userData.U; U.uSky.value.copy(s.sky[1]); U.uHor.value.copy(s.sky[2]); U.uSunC.value.copy(s.sun); U.uSun.value.copy(d); }

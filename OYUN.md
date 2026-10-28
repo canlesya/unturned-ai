@@ -2533,3 +2533,36 @@ Kullanıcı: "bence oyundaki hologramlar yakınlaştırmalar için PUBG'yi refer
 - **Testler**: `vite build` OK, `vehspawnsink` (10 / 32 / 64) OK, `vehspawnview` çevrimdışı 10v10 + 64v64 ve çevrim içi 32v32 OK, `mototest` 32 OK, `vehicletest` 99 OK, `nettest` OK, `towertest` OK, `vehground kuzey` PER=10 hepsi OK. PER=32 / 128'de 5 / 13 HATA var: ek araç doğuşunun yanında piyade doğuşu var (doğuş açıklığı). `online`'da da aynı sayıda, bu işle ilgisi yok. `vehdrive-hl` HATA: sürüşte jip gövde altı 0,26 m (online'da 0,72 m, %0,23); fizik, doğuşla ilgisi yok; ayrı iş.
 - Görseller `/tmp/wb-vsink/`: `goruntu/tablo.jpg` (B-J1 jip, B-T1 tank, B-M1 motor; terk → doğuş +5 sn; 11 m ve 150 m; önce / sonra), `goruntu/once/`, `goruntu/sonra/`, GPU ölçüm çıktıları `once-off-10/`, `sonra-off-10/`, `sonra-off-64/`, `once-on-32/`, `sonra-on-32/` (`olcum.json` + gömülü doğuş görüntüleri).
 - Diğer haritalar: sürülen araç yalnız Kuzey Vadisi'nde (Ele Geçirme). Kasaba / Askeri Üs vb.'de dekor araç var, onlar `vehground` dekor taramasında (değişmedi).
+
+### 12.220 Kuzey Vadisi gün batımı: maç ikindide başlıyordu; turuncu ufuk, yöne bağlı sis, Venüs kuşağı, turuncu bulut altı
+- **Neden turuncu gelmiyordu** (ölçüm, Metal GPU): Kuzey'de gün batımı maçı gün döngüsüyle `KZ_CYCLE.sunset = [16.4, 19.8]` oynanıyordu. Maç başında saat 16:24, güneş 29°, gök mavi (`#497cba`), sis gri (`#d2d3cc`), güneş neredeyse beyaz (`#ffe8c4`): yani ikindi. Turuncu ancak son 3-4 dakikada geliyordu. Geç saatte bile sis gri-kahve (`#a58c84` / `#cfa286`) ve tek renkti (Three sisi yönsüzdür). Uzak dağlar sisin %80'ini aldığı için kahve-gri bir duvar gibi duruyordu. Ortam ışığı (yarımküre 0,6-0,78) zemini çamur rengine boğuyordu. Ortak ön ayarı (Çöl Geçidi / Kasaba) kullanan haritalarda sorun yok (güneş 15°, doygun gök).
+- **Döngü**: `KZ_CYCLE.sunset = [18.2, 19.5]`. Maç 18:12'de başlıyor (altın saat, güneş ~13°), 19:30'da bitiyor (güneş ufukta, pencere ışıkları yanık). Sabit saat (süresiz maç) için `KZ_HOURS.sunset = 18.8`. Gündüz döngüsü değişmedi.
+- **Anahtar kareler** (`assets/kuzey/atmosphere.js` KEYS): 17:48 altın saat karesi eklendi. 18:36 ve 19:36 kareleri yeniden ayarlandı: doygun turuncu ufuk, mor-mavi tepe, şeftali / turuncu sis (eskisi gri-kahve), daha güçlü ve sıcak ortam ışığı (0,92 / 0,74). Gölgede kalan asker okunur kalıyor.
+- **Yöne bağlı sis (yeni, ortak mekanizma, varsayılan kapalı)**: `environment.js` `FOG_SUN` / `setFogSun`. Three sis parçalarına (`ShaderChunk` fog_*) görüş yönü eklendi:
+  - Güneşe doğru bakınca sis sıcak turuncu (güneş rengi + sis); güneş çevresinde ışıma var.
+  - Sırtını dönünce sis soğuk mor (`#8a83aa`).
+  - Değerler tek bir paylaşılan nesnede duruyor. `UniformsUtils.clone`, THREE nesnesi olmayan `{x,y,z,w}`'yi kopyalamıyor, başvuruyu paylaşıyor. Bu yüzden bütün malzemeler (yerleşik, Kuzey arazi / su / pus / duman, cephe efektleri) tek yerden güncelleniyor; malzeme dolaşmak gerekmiyor.
+  - Yön sıfırken (varsayılan; her `setupEnvironment` sıfırlıyor) sis eskisiyle bit bit aynı. Çöl Geçidi ve Kasaba gün batımı, gündüz ve gece kareleri önce / sonra piksel farkı ~0.
+  - Kuzey arazisinin kendi sis kodu da `fogTint` kullanıyor (`terrainMat.js`, önbellek anahtarı v3).
+- **Gök kubbesi**: güneşin karşısındaki ufukta pembe-lila Venüs kuşağı (`horA` / `midA` / `anti`; diğer haritalarda `anti = 0`). Alçak güneşte güneş halesi 0,75'ten 1,2'ye çıkıyor.
+- **Bulutlar**: alçak güneşte alt yüz turuncu-pembe. Yağmurda kapalı gri kalıyor; alçak güneşte gri karışım daha güçlü, turuncu sızmıyor.
+- **Şiddet**: yöne bağlı sis, Venüs kuşağı ve turuncu bulut altı yalnız alçak güneşte açık (`low(alt)`: 28° üstünde 0, 15° altında 1), yağmur / siste kapalı. Gündüz döngüsü (9,6-13,4) etkilenmiyor.
+- **Renk düzeltmesi**: `env.sunset.grade` sıcak ton (tint 1,05 / 0,99 / 0,92, doygunluk 1,1, parıltı 0,18). Yalnız Yüksek kalite + son işlemede uygulanıyor. Telefonda son işleme kapalı ama döngü, anahtar kareler ve sis aynı.
+- **Okunurluk** (`scripts/sunsetshot.mjs` `oku-*`): 22 m öndeki kırmızı asker, aynı kare askerli ve askersiz çekiliyor. Asker ile tam arkası arasındaki ortalama CIELAB farkı (dE), önce → sonra:
+  - Güneşe karşı 15,9 → 20,7
+  - Sırt 30,0 → 38,6
+  - Maç sonu güneşe karşı 27,0 → 27,2
+  - Maç sonu sırt 42,3 → 44,5
+  - Pixel 7: 18,8 → 18,6 ve 21,0 → 21,8
+  - Hiçbir bakışta düşmedi.
+- **Başarım**: çizim çağrısı ve üçgen sayısı aynı (yeni ağ yok). GPU kare süresi (40 çizim + glFinish, 4 bakış, 3 tur sırayla) önce 14,1 ms, sonra 13,9 ms ortalama; fark gürültü içinde. Parça başına bir normalize ve iki karışım ekleniyor.
+- **Görseller** `/tmp/wb-sunset/`:
+  - `tablo-1-kuzey-mac-basi.jpg` (8 bakış)
+  - `tablo-2-kuzey-mac-sonu.jpg`
+  - `tablo-3-kuzey-pixel7.jpg`
+  - `tablo-4-colgecidi-kasaba.jpg` (değişmedi)
+  - `tablo-5-haller.jpg` (gündüz / gece / yağmur / sis)
+  - `tablo-6-siluet.jpg` (üst sıra önce, alt sıra sonra)
+  - Tek tek kareler `once/`, `sonra/`
+  - Okunurluk `*/okunurluk.json`
+- **Testler**: `vite build` OK, `combattest` OK. Cephe (özel sis gölgelendiricili) haritası açılıyor, gölgelendirici hatası yok.

@@ -117,9 +117,9 @@ export function makeTerrainMaterial(outer = false) {
   #else
     float fogFactor = smoothstep(fogNear, fogFar, vFogDepth);
   #endif
-  gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, clamp(fogFactor, 0.0, 1.0));
+  gl_FragColor.rgb = mix(gl_FragColor.rgb, fogTint(fogColor), clamp(fogFactor, 0.0, 1.0));      // 12.220 yöne bağlı sis rengi (environment.js)
 #endif`);
   };
-  m.customProgramCacheKey = () => 'kuzey-terrain-v2' + (outer ? 'o' : '');
+  m.customProgramCacheKey = () => 'kuzey-terrain-v3' + (outer ? 'o' : '');
   return m;
 }
