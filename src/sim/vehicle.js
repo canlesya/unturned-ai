@@ -32,7 +32,7 @@ export const VT = {
     mg: { seats: [1], name: 'Jip makinelisi', dmg: 22, rpm: 650, range: [60, 170], minMul: 0.6, hip: 0.013, tracer: '#ffd37a', sound: 'pkm', vmg: true, elev: [-0.5, 0.7], rel: true, zoom: 1.4, heat: 0.022, cool: 0.45, mz: [1.35, 0.34] },
     blastMul: 1.6, bulletMul: 0.12, hmgMul: 0.5, ramMin: 5.5,              // patlama hasarı çarpanı, mermi hasarı çarpanı, yayaya çarpma hasarının başladığı hız (m/sn)
     burnAt: 0.25, burnRate: 9, boom: [6, 110],                 // can oranı bu altındaysa yanar (sn başına can), patlama [yarıçap, hasar]
-    respawn: 20, wreck: 8, idleRespawn: 90,                    // yeniden doğuş (sn), enkaz süresi, boş bırakılınca (doğuştan uzakta) yenilenme · 12.200: 30 → 20 / 120 → 90 (jip bol ve çabuk: yürüyüş az)
+    respawn: 20, wreck: 8, idleRespawn: 50,                    // yeniden doğuş (sn), enkaz süresi, boş bırakılınca (doğuştan uzakta) yenilenme · 12.200: 30 → 20 / 120 → 90 (jip bol ve çabuk: yürüyüş az) · 12.212 terk 90 → 50
     atMul: 1.6, mass: 1, wade: 1.1, ramMul: 16, stepUp: 0.55,  // tanksavar (RPG / tank topu) çarpanı, kütle (araç itişmesi), boğulma derinliği, çarpma hasarı / (m/sn), tırmanılan basamak
   },
   // 12.178 TANK: paletli (yerinde döner, kaymaz, yavaş), kule bakışla döner (dengeli: gövde dönse de nişan kalır), ana top (patlayıcı, mermi düşüşü,
@@ -51,7 +51,7 @@ export const VT = {
     // RPG (armorMul 1,3): ön 160 × 1,3 × 1,25 = 260 → 4 · yan 351 → 3 · arka 520 → 2 isabet; tank topu (375): ön 3 · yan / arka 2 atış
     armor: { f: 1, s: 1.35, r: 2.0 },
     burnAt: 0.2, burnRate: 14, boom: [8, 140],
-    respawn: 60, wreck: 10, idleRespawn: 150,                  // 12.200 yeniden doğuş 45 → 60 sn (tank patlayınca sahada daha uzun yok; Battlefield'da da ağır zırh en geç gelen)
+    respawn: 60, wreck: 10, idleRespawn: 60,                   // 12.212 terk 150 → 60 · 12.200 yeniden doğuş 45 → 60 sn (tank patlayınca sahada daha uzun yok; Battlefield'da da ağır zırh en geç gelen)
     // kule: dikey eksen gövde merkezinden ileri tf (m), kule üstü / yükseklik; ana top: pivot yüksekliği, namlu boyu, açı sınırları, dönüş hızları
     // 12.201 top açısı gövdeye göre −10°…+20° (Battlefield tankı; eski −7°…+18°), gövdenin o yöndeki eğimi + yatışı eklenir (bodyPitchAlong)
     turret: { f: -0.35, y0: 1.75, y1: 2.55, hw: 1.3, hl: 1.55, pivot: 2.18, len: 4.3, gunMin: -0.175, gunMax: 0.35, yawRate: 0.95, pitchRate: 0.6 },
@@ -79,7 +79,7 @@ export const VT = {
     blastMul: 1.2, bulletMul: 0.15, hmgMul: 0.4, atMul: 1.6, ramMin: 6, ramMul: 16, mass: 2, wade: 1.3, stepUp: 0.6,
     hitSafe: 4.5, hitMul: 26, landSafe: 5, landMul: 60,             // çarpma / iniş: bu hızın üstü hasar (÷ kütle 2: 10 m/sn sert iniş ≈ 150, 30 m'den düşüş ≈ 750 → patlar)
     burnAt: 0.25, burnRate: 12, boom: [9, 150],
-    respawn: 50, wreck: 12, idleRespawn: 150,
+    respawn: 50, wreck: 12, idleRespawn: 60,                   // 12.212 terk 150 → 60
     parts: [[-0.32, 0.32, 1.55, 2.35, 2.4, 7.9]],                    // ek çarpışma / vuruş kutuları (yerel: x0, x1, y0, y1, z0, z1; z = geri): kuyruk kirişi
     // 12.201 kapı makinelisi dünyaya göre −1,45 rad'a (83°) dek aşağı (eski −1,25): havadan dik aşağı
     mg: { seats: [1, 2], arc: { 1: -1, 2: 1 }, arcW: 1.36, name: 'Kapı makinelisi', dmg: 34, vdmg: 22, rpm: 700, range: [70, 200], minMul: 0.75, hip: 0.014, tracer: '#ffd37a', sound: 'pkm', vmg: true, elev: [-1.45, 0.45], zoom: 1.4, heat: 0.02, cool: 0.45 },
