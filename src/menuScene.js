@@ -6,6 +6,7 @@ import { createCharacter } from './models/character.js';
 import { createWeapon, WEAPONS } from './models/weapons.js';
 import { applySkin } from './models/skins.js';
 import { createItem, ITEMS } from './models/items.js';
+import { gpuInfo } from './gpuCheck.js';
 
 // Menü arka planı: seçili haritanın canlı dönen kuş bakışı + sınıf/silah vitrini + silah ikonları.
 // Tek WebGL tuvali kullanır; oyun başlarken dispose() edilmelidir.
@@ -22,12 +23,13 @@ const SRGB = Uint8Array.from({ length: 256 }, (_, i) => { const v = i / 255; ret
 export class MenuScene {
   constructor(canvas) {
     this.canvas = canvas;
-    const r = (this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false, preserveDrawingBuffer: false }));
-    r.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+    this.soft = gpuInfo().soft;                     // 12.222 yazılım WebGL: kenar yumuşatma / gölge yok, düşük çözünürlük, ~30 FPS (menü tepkisiz kalmasın)
+    const r = (this.renderer = new THREE.WebGLRenderer({ canvas, antialias: !this.soft, alpha: false, preserveDrawingBuffer: false }));
+    r.setPixelRatio(this.soft ? 0.6 : Math.min(devicePixelRatio, 1.5));
     r.setSize(innerWidth, innerHeight, false);
     r.toneMapping = THREE.NeutralToneMapping;
     r.outputColorSpace = THREE.SRGBColorSpace;
-    r.shadowMap.enabled = true;
+    r.shadowMap.enabled = !this.soft;
     r.shadowMap.type = THREE.PCFShadowMap;
     this.mode = 'orbit';
     this.t = Math.random() * 6;
@@ -85,6 +87,7 @@ export class MenuScene {
 
   // Mod değişiminin zorladığı haritaları (ör. Enfekte → New York) boşta önceden kurar: o moda ilk geçişte de arka plan anında değişir.
   prefetch(ids) {
+    if (this.soft) return;                         // 12.222 yazılım WebGL: boşta harita ön kurulumu yok
     this._pre = ids.filter((id) => MAPS[id]).slice(0, 3);
     const go = () => {
       if (!this.running) return;
@@ -219,6 +222,7 @@ export class MenuScene {
   loop(now) {
     if (!this.running) return;
     this.raf = requestAnimationFrame(this.loop);
+    if (this.soft && now - this._last < 30) return;                                 // 12.222 yazılım WebGL: ~30 FPS yeter
     const dt = Math.min(0.05, (now - this._last) / 1000); this._last = now;
     this.t += dt;
     const r = this.renderer;

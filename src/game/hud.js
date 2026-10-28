@@ -19,6 +19,10 @@ import { MOTO_ICON } from './motorbike.js';                                  // 
 import { vehIconSvg, empMark, empDownMark, supMark } from './vehIcons.js';
 import { crateOpen } from './supply.js';                                                      // 12.216 ikmal kutusu (mini harita)                                 // 12.205 doğuş listesinde araçtaki arkadaşın aracı
 
+// 12.222 her karede aynı metni / genişliği yeniden yazma (textContent ataması değişmese de düğümü değiştirir → stil + yerleşim yeniden hesaplanır)
+const tx = (e, v) => { if (!e) return; v = String(v); if (e.textContent !== v) e.textContent = v; };
+const sw = (e, v) => { if (!e) return; if (e._w !== v) { e._w = v; e.style.width = v; } };
+
 const EN = (s) => String(s).replace(/Paintball/g, '<span lang="en">Paintball</span>');   // tr büyük harfte 'PAİNTBALL' olmasın (marka adı)
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const setH = (el, h) => { if (el._h !== h) { el._h = h; el.innerHTML = h; } };     // yalnız değişince yaz (her kare)
@@ -856,25 +860,25 @@ export class Hud {
     if (g.mode.infection) this.drawBosses();
     let kb = g.tickets.blue, kr = g.tickets.red;
     if (g.ffa) [kb, kr] = this.ffaScore(p);                           // herkes-tek: sol = sen, sağ = lider (sen öndeysen ikinci)
-    $('tkB').textContent = Math.max(0, Math.round(kb));
-    $('tkR').textContent = Math.max(0, Math.round(kr));
+    tx($('tkB'), Math.max(0, Math.round(kb)));
+    tx($('tkR'), Math.max(0, Math.round(kr)));
     if (!g.ffa && g.mode.objectives.length && !g.front) {           // bayrak kanaması (Cephe modunda yok: frontHud): daha çok bayrağı olan takım, farkı kadar rakip bileti 5 sn'de eksiltir
       const nb = g.mode.objectives.filter((o) => o.owner === 'blue').length, nr = g.mode.objectives.filter((o) => o.owner === 'red').length;
       const bb = nr > nb ? nr - nb : 0, br = nb > nr ? nb - nr : 0;
-      $('tnB').textContent = t('hud.blue') + (bb ? ` ▼${bb}` : '');
-      $('tnR').textContent = t('hud.red') + (br ? ` ▼${br}` : '');
+      tx($('tnB'), t('hud.blue') + (bb ? ` ▼${bb}` : ''));
+      tx($('tnR'), t('hud.red') + (br ? ` ▼${br}` : ''));
       const mine = p.team === 'blue' ? bb : br, key = mine + ':' + (p.team === 'blue' ? br : bb);
       if (key !== this._bleedKey) {
         this._bleedKey = key;
         if (mine) this.toast(t('hud.bleedLose', { n: mine, s: TUNE.bleed }), '#ff8a6a');
         else if (p.team === 'blue' ? br : bb) this.toast(t('hud.bleedWin'), '#9fe6a8');
       }
-    } else if (!g.ffa && !g.mode.infection) { $('tnB').textContent = t('hud.blue'); $('tnR').textContent = t('hud.red'); }
-    $('tbB').style.width = clamp((kb / this.maxTk) * 100, 0, 100) + '%';
-    $('tbR').style.width = clamp((kr / this.maxTk) * 100, 0, 100) + '%';
+    } else if (!g.ffa && !g.mode.infection) { tx($('tnB'), t('hud.blue')); tx($('tnR'), t('hud.red')); }
+    sw($('tbB'), clamp((kb / this.maxTk) * 100, 0, 100) + '%');
+    sw($('tbR'), clamp((kr / this.maxTk) * 100, 0, 100) + '%');
     const tl = Math.max(0, Math.ceil(g.timeLeft));
-    $('lim').textContent = g.mode.scoreBased ? t('hud.first', { n: g.mode.tickets }) : '';
-    $('tm').textContent = g.timeLeft === Infinity ? '∞' : `${Math.floor(tl / 60)}:${String(tl % 60).padStart(2, '0')}`;
+    tx($('lim'), g.mode.scoreBased ? t('hud.first', { n: g.mode.tickets }) : '');
+    tx($('tm'), g.timeLeft === Infinity ? '∞' : `${Math.floor(tl / 60)}:${String(tl % 60).padStart(2, '0')}`);
     this.drawCompass();
     if (this.zoneT > 0) { this.zoneT -= dt; if (this.zoneT <= 0) $('zonew').style.display = 'none'; }
     this.cap?.update(dt);                                                   // 12.191 bayraklar: üst çubuk + alan göstergesi + dünya işaretleri (captureHud.js)
@@ -891,15 +895,15 @@ export class Hud {
       $('abn').innerHTML = act ? `${an} <span class="sec">${p.abActive.toFixed(1)}</span>s` : rdy ? `${an} · ${t('hud.ready')}` : `${an} · ${Math.ceil(p.abT)}s`;
       $('abbar').style.width = (act ? p.abActive / ab.dur * 100 : rdy ? 100 : (1 - p.abT / ab.cd) * 100) + '%';
     } else abEl.style.display = 'none';
-    $('hpnum').innerHTML = `${Math.max(0, Math.ceil(p.hp))}<small>HP</small>`;
+    setH($('hpnum'), `${Math.max(0, Math.ceil(p.hp))}<small>HP</small>`);
     $('hpfill').style.width = clamp((p.hp / p.maxHp) * 100, 0, 100) + '%';
     $('hpfill').style.background = p.hp < 30 ? 'linear-gradient(90deg,#d63a2e,#f06a4a)' : 'linear-gradient(90deg,#3ecf5b,#7be06f)';
     const ztk = p.def.zombie && !p.boss ? ZT_ORDER.find((z) => ZTYPES[z] === p.zt) : null;
     setH($('clsname'), EN(g.mode.gungame ? t('hud.ggLevel', { n: p.ggLevel + 1, m: g.mode.killLimit }) : g.mode.paintball ? t('hud.pbElim', { n: p.kills, m: g.mode.killLimit }) : g.mode.infection ? (p.def.zombie ? `${p.boss ? 'BOSS' : className('zombie') + ' · ' + ztName(ztk || 'walker')} · ${'♥'.repeat(Math.max(0, p.zLives))}` : `${className(p.cls)} · ${t('hud.humans')}`) : g.ffa ? className(p.cls) : `${className(p.cls)} · ${teamName(p.team)}`));      // herkes tek modlarda takım adı yok (f0… çevrilmiyordu)
     const wn = wName(it.id);
     setH($('wname'), EN(p.reloadT > 0 ? `${wn} · ${t('hud.reloading')}` : p.useT > 0 ? `${wn} · ${t('hud.using')}` : wn));
-    $('mag').textContent = it.mag;
-    $('res').textContent = st.kind === 'melee' ? '' : p.infAmmo ? '/ ∞' : st.kind === 'throwable' || st.kind === 'medkit' ? '' : '/ ' + it.reserve;      // 12.207 geliştirici: sınırsız cephane
+    tx($('mag'), it.mag);
+    tx($('res'), st.kind === 'melee' ? '' : p.infAmmo ? '/ ∞' : st.kind === 'throwable' || st.kind === 'medkit' ? '' : '/ ' + it.reserve);      // 12.207 geliştirici: sınırsız cephane
     const slotKey = p.items.map((x, i) => x.id + (i === p.cur ? '*' : '') + (p.canEquip(i) ? '' : '-')).join(',') + SLOT_KEYS.map((a) => g.binds?.codes(a)[0]).join();
     if (slotKey !== this._slotKey) {                                         // yalnız değişince yeniden yaz (dil değişince applyLang sıfırlar)
       this._slotKey = slotKey;
@@ -946,7 +950,7 @@ export class Hud {
     $('advig').style.opacity = p.alive && ov !== 'scope' && !lensOn && !tp ? (ads * 0.55).toFixed(2) : 0;      // 12.190: büyüten mercekte kendi vinyeti / gövde halkası var
     if (scopeOn) { const zl = p.opticDef?.zoomMin ? '×' + (+(g.player?.zoomEff?.() || p.opticDef.zoom).toFixed(1)) : ''; const ze = sc.querySelector('.zl'); if (ze._t !== zl) { ze._t = zl; ze.textContent = zl; ze.style.display = zl ? 'block' : 'none'; } }      // 12.190 değişken büyütme göstergesi
     const stTxt = [p.prone ? t('hud.prone') : p.crouching ? t('hud.crouch') : '', p.leanT > 0.3 ? t('hud.leanR') : p.leanT < -0.3 ? t('hud.leanL') : '', st.ball ? tr('pb.ring') : p.opticDef && st.kind === 'gun' ? opticName(p.opticId) : '', st.kind === 'gun' && st.auto ? `${fireName(p.fireModeNow, true)} [X]` : ''].filter(Boolean).join(' · ');
-    $('stance').textContent = stTxt;
+    tx($('stance'), stTxt);
     if (this.hitT > 0) { this.hitT -= dt; if (this.hitT <= 0) $('hitm').style.opacity = 0; }
     if (this.vigT > 0) { this.vigT -= dt; if (this.vigT <= 0) $('vig').style.opacity = 0; }
     $('vig').style.opacity = p.alive && p.hp < 30 ? 0.55 : $('vig').style.opacity;

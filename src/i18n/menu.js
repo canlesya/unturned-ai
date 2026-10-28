@@ -2,6 +2,7 @@
 import { addStrings } from './index.js';
 
 addStrings('tr', {
+  'menu.gpu.title': 'Donanım hızlandırma kapalı', 'menu.gpu.body': 'Tarayıcın oyunu ekran kartı yerine işlemcide çiziyor ({r}); bu yüzden menü ve oyun takılıyor. Ayarlar → Sistem → <b>"Kullanılabilir olduğunda grafik hızlandırmayı kullan"</b> seçeneğini aç ve tarayıcıyı yeniden başlat. Şimdilik kalite otomatik düşürüldü.', 'menu.gpu.close': 'Kapat',
   'menu.tagline': 'TAKIM SAVAŞI · TARAYICIDA', 'menu.version': 'WARBYTE v2.0 · yerel ve çevrimiçi, botlu', 'menu.tipLabel': 'İpucu:',
   'menu.tip.0': 'Bayrağın çevresinde kal; yanında sıhhiye varsa canın yenilenir.', 'menu.tip.1': 'Gece ya da gün batımında <b>F</b> ile fenerini aç.',
   'menu.tip.2': 'Keskin nişancılar uzak bayrakları gören yüksek noktalara yerleşir.', 'menu.tip.3': 'Düşman üssüne girersen birkaç saniye sonra can kaybedersin.',
@@ -87,6 +88,7 @@ addStrings('tr', {
 });
 
 addStrings('en', {
+  'menu.gpu.title': 'Hardware acceleration is off', 'menu.gpu.body': 'Your browser is drawing the game on the CPU instead of the graphics card ({r}), which makes the menu and the game stutter. Open Settings → System → turn on <b>"Use graphics acceleration when available"</b> and restart the browser. Quality has been lowered automatically for now.', 'menu.gpu.close': 'Close',
   'menu.tagline': 'TEAM WARFARE · IN YOUR BROWSER', 'menu.version': 'WARBYTE v2.0 · local and online, with bots', 'menu.tipLabel': 'Tip:',
   'menu.tip.0': 'Stay near the flag; a medic nearby regenerates your health.', 'menu.tip.1': 'At night or sunset, press <b>F</b> to turn on your flashlight.',
   'menu.tip.2': 'Snipers settle on high ground that overlooks distant flags.', 'menu.tip.3': 'Step into the enemy base and you start losing health after a few seconds.',

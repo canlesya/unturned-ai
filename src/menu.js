@@ -12,6 +12,7 @@ import { frontTickets } from './game/match.js';                          // Ceph
 import { MENU_CSS } from './menuStyle.js';
 import { loadEdits, clearEdits } from './game/mapEditor.js';
 import { MenuScene } from './menuScene.js';
+import { gpuInfo } from './gpuCheck.js';
 import { WEATHERS } from './game/weather.js';
 import { NetClient } from './net/client.js';
 import { defaultServerUrl, healthUrl } from './net/protocol.js';
@@ -141,6 +142,17 @@ export function showMenu(onStart, onOnline) {
     <main class="mn-stage" id="mnStage"></main>
     <div class="mn-foot"><span id="mnTip"></span><span id="mnVer"></span></div><div class="mn-auth" id="mnAuth" hidden></div>`;
   const q = (s) => el.querySelector(s);
+  {                                                                                          // 12.222 yazılım WebGL uyarısı (donanım hızlandırma kapalı)
+    const gi = gpuInfo();
+    let shut = false; try { shut = sessionStorage.getItem('wb_gpuwarn') === '1'; } catch (e) { /* yok say */ }
+    if (gi.soft && !shut) {
+      const w = document.createElement('div'); w.className = 'mn-gpuwarn'; w.id = 'mnGpuWarn';
+      const r = (gi.renderer.match(/SwiftShader|Microsoft Basic Render(?: Driver)?|llvmpipe|softpipe/i)?.[0] || gi.renderer || 'SwiftShader').replace(/[<>&"]/g, '').slice(0, 60);
+      w.innerHTML = `<b>${t('menu.gpu.title')}</b><span>${t('menu.gpu.body', { r })}</span><button type="button">${t('menu.gpu.close')}</button>`;
+      w.querySelector('button').onclick = () => { w.remove(); try { sessionStorage.setItem('wb_gpuwarn', '1'); } catch (e) { /* yok say */ } };
+      el.appendChild(w);
+    }
+  }
   const stage = q('#mnStage'), nav = q('#mnNav');
   let scene = null;
   try { scene = new MenuScene(q('#mnBg')); } catch (e) { console.warn('menü sahnesi açılamadı', e); }

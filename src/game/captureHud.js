@@ -168,13 +168,13 @@ export class CaptureHud {
   drawWidget(z, me) {
     const w = this.w, E = this.e, show = me.alive && (z || this.flash || this.left);
     w.classList.toggle('on', !!show);
-    if (!show) { this.state = ''; w.dataset.st = ''; return; }
+    if (!show) { this.state = ''; if (w.dataset.st) w.dataset.st = ''; return; }      // 12.222 gizliyken her karede öznitelik yazma
     const fl = this.flash, o = fl ? fl.o : z || this.left.o, my = me.team;
     let s;
     if (fl) s = { k: fl.k, col: fl.k === 'lost' ? TXT[my === 'blue' ? 'red' : 'blue'] : fl.k === 'captured' ? TXT[my] : NEU, sub: t(fl.k === 'captured' ? 'cap.sub.capNow' : fl.k === 'lost' ? 'cap.sub.lostNow' : 'cap.sub.neuNow'), eta: null, f: -1 };
     else if (!z) s = { k: 'left', col: '#c3c8cf', sub: Math.abs(o.pd) > 0.02 && Math.abs(o.pd) < 0.999 ? t('cap.sub.keep') : t('cap.sub.left'), eta: null, f: -1 };
     else s = this.status(o, me);
-    this.state = s.k; w.dataset.st = s.k;
+    this.state = s.k; if (w.dataset.st !== s.k) w.dataset.st = s.k;
     w.classList.toggle('ctd', s.k === 'contested'); w.classList.toggle('left', s.k === 'left');
     setS(w, '--sc', s.col);
     setS(w, '--oc', o.owner ? COL[o.owner] : '#9aa0a8');

@@ -66,6 +66,10 @@ export const MENU_CSS = `
 #menu .mn-foot #mnTip{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #menu .mn-foot b{color:var(--acc2)}
 #menu .mn-foot #mnVer{flex:none;opacity:.8}
+#menu .mn-gpuwarn{position:absolute;left:50%;top:84px;transform:translateX(-50%);z-index:20;width:min(720px,calc(100% - 32px));box-sizing:border-box;display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:12px 16px;background:rgba(120,24,16,.94);border:1px solid #ff7a5c;border-radius:6px;color:#fff;font-size:13px;line-height:1.45;box-shadow:0 6px 24px rgba(0,0,0,.5)}
+#menu .mn-gpuwarn b{color:#ffd0c2;letter-spacing:1px}
+#menu .mn-gpuwarn span{flex:1 1 100%}
+#menu .mn-gpuwarn button{margin-left:auto;padding:5px 14px;background:#fff;color:#601208;border:0;border-radius:4px;font-weight:700;cursor:pointer}
 #menu .scroll{overflow-y:auto;padding-right:10px;flex:1;min-height:0;scrollbar-width:thin;scrollbar-color:#ffffff33 transparent;overscroll-behavior:contain}
 #menu .scroll::-webkit-scrollbar{width:6px}#menu .scroll::-webkit-scrollbar-thumb{background:#ffffff2a}
 
