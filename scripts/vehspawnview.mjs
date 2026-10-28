@@ -85,10 +85,10 @@ const start = (i, sc) => page.evaluate(([i, sc]) => {
   S.born.delete(i);
   if (sc === 'bayrak') {
     const f = v.spawn.team.slice(5), oi = g.mode.objectives.findIndex((o) => o.id === f), cur = g.mode.objectives[oi].owner, nt = cur === 'blue' ? 'red' : 'blue';
-    if (on) { g.online.send({ t: 'dbg', obj: [oi, null, 0] }); return { oi, nt }; }
+    if (on) { if ((S.flip ||= new Set()).has(oi)) return null; S.flip.add(oi); g.online.send({ t: 'dbg', obj: [oi, null, 0] }); return { oi, nt }; }      // çevrim içi: bayrağın öteki araçları aynı ele geçirmede doğar (ilk aracı izlenir)
     v.alive = false; v.wreck = false; v.st = null; v.spawnN = 0; g.mode.objectives[oi].owner = null; return { oi, nt };
   }
-  if (!V.spawnTeam(v)) return null;                                   // sahipsiz bayrağın aracı yok
+  if (!V.spawnTeam(v) && v.spawn.team) return null;                   // sahipsiz bayrağın aracı yok (tarafsız yol aracı: team null → doğar)
   if (sc === 'ilk') { if (on) return null; v.alive = false; v.wreck = false; v.st = null; V.trySpawn(v, true); return {}; }
   if (on) { g.online.send({ t: 'dbg', vrs: [i, sc === 'terk' ? 1 : 0] }); return {}; }
   if (!v.alive) V.trySpawn(v, true);
