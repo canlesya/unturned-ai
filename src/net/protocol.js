@@ -50,7 +50,8 @@ export function packSoldier(s, slow = true) {
     a: s.alive ? 1 : 0, hp: Math.round(s.hp),
     f: packFlags(s), l: s.leanDir, c: s.cur,
   };
-  if (s.veh) o.v = s.veh.idx * 4 + s.seat + 1;                         // 12.177: araçta (araç sırası · 4 + koltuk + 1); yoksa alan yazılmaz → diğer haritalarda paket aynı
+  if (s.veh) o.v = s.veh.idx * 4 + s.seat + 1;
+  if (s.prone && Number.isFinite(s.pBody)) o.pb = q3(s.pBody);                // 12.199 yüzüstü gövde yönü (bakıştan ayrı; yalnız yatarken yazılır)                         // 12.177: araçta (araç sırası · 4 + koltuk + 1); yoksa alan yazılmaz → diğer haritalarda paket aynı
   if (slow) {
     o.mh = s.maxHp; o.gl = s.ggLevel; o.zt = s.def.zombie ? ZT_ORDER.indexOf(s.ztype) + 1 : 0; o.bs = s.boss ? 1 : 0; o.zl = s.zLives;
     o.it = s.items.map((it) => it.id);

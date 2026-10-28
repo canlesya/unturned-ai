@@ -102,6 +102,7 @@ export class NetClient {
     this.send({
       t: 'in', q, f: inp.f, r: inp.r, l: inp.lean, s: inp.sprint ? 1 : 0, j: inp.jump ? 1 : 0, dn: inp.dive ? 1 : undefined, a: s.ads ? 1 : 0, w: s.cur,
       yw: +s.yaw.toFixed(4), pt: +s.pitch.toFixed(4), c: e.c | 0, p: e.p | 0, u: e.u | 0,
+      pb: s.prone && Number.isFinite(s.pBody) ? +s.pBody.toFixed(4) : undefined,      // 12.199 yüzüstü gövde yönü (sunucu ≤ 2×90°/sn kabul eder)
       fh: fireHeld ? 1 : 0, fp: e.fp | 0, rl: e.rl | 0, fm: e.fm | 0, o: e.o | 0, ab: e.ab | 0, nu: e.nu ? 1 : undefined, vt: +this.rt.toFixed(2),
       sd: s.stanceLeft ? 1 : 0, tl: s.flashOn ? 1 : undefined,                      // 12.159: fener açık (yalnız açıkken yollanır; yoksa sunucu kapalı sayar)
       ve: e.ve ? 1 : undefined, vs: e.vs || undefined, vl: e.vl ? 1 : undefined,    // 12.177 araç kenar olayları (yalnız basılınca)
@@ -386,6 +387,7 @@ export class NetClient {
       s.vel.set(pa.vx, pa.vy, pa.vz);
       s.yaw = lerpAngle(pa.yw, pb.yw, t);
       s.pitch = lerp(pa.pt, pb.pt, t);
+      s.pBody = pa.pb !== undefined ? lerpAngle(pa.pb, pb.pb ?? pa.pb, t) : s.yaw;     // 12.199 yüzüstü gövde yönü (yoksa bakış)
     }
     if (g.vehicles) { g.vehicles.netInterp(rt, EXTRAP_MAX / SIM_HZ); g.vehicles.placeAll(); }      // 12.177: araçlar (kendi sürdüğüm hariç) + koltuktakiler
   }

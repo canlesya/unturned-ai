@@ -18,6 +18,7 @@ import { t } from '../i18n/index.js';
 import '../i18n/touch.js';
 import { wName, opticName } from '../i18n/game.js';
 import { OPTIC_ICON, OPTIC_MAG } from './opticIcons.js';
+import { proneClamp } from '../sim/prone.js';
 
 const KEY = 'warbyte.touch';
 const DEF = { joy: 'fixed', fire: 'fixed', leftFire: true, opacity: 0.8, sens: 1, adsSens: 0.75, gyro: 'off', gyroSens: 1, gyroInvX: false, gyroInvY: false, aim: true, aimStr: 1, retSz: 1, layout: {} };
@@ -362,6 +363,7 @@ export class TouchControls {
     const k = 1 - Math.exp(-(this._snapT > 0 ? 12 : ads ? 7 : 5) * str * Math.max(0.45, bw) * dt), cap = 1.3 * dt;    // en çok ≈75°/sn; koni kenarında da çeker
     const my = Math.max(-cap, Math.min(cap, best.ey * k)), mp = Math.max(-cap, Math.min(cap, best.ep * k * 0.75));
     s.yaw += my + ty; s.pitch = Math.max(-1.5, Math.min(1.5, s.pitch + mp + tpch));
+    proneClamp(s);                                                                    // 12.199 yüzüstü bakış sınırı (nişan yardımı da aşamaz)
   }
 
   // HUD'daki silah yuvaları (#slots .slot): dokununca o silaha geç
@@ -480,6 +482,7 @@ export class TouchControls {
       const k = c.gyroSens;
       if (Math.abs(pitch) < 1.35) s.yaw += dy * k * (c.gyroInvX ? -1 : 1);           // tam yukarı / aşağı bakarken yaw kararsız
       s.pitch = Math.max(-1.5, Math.min(1.5, s.pitch + dp * k * (c.gyroInvY ? -1 : 1)));
+      proneClamp(s);                                                                  // 12.199 yüzüstü bakış sınırı (jiroskop)
     };
     addEventListener('deviceorientation', this._gy);
   }

@@ -31,6 +31,7 @@ import { rand, pick, clamp } from './util.js';
 import { TEAMS } from '../core/palette.js';
 import { nullSink } from '../sim/nullSink.js';
 import { applyInput } from '../sim/input.js';
+import { proneLook, bodyYawOf } from '../sim/prone.js';
 import { fallDamage, fallApplies, FALL } from '../sim/fall.js';
 import { breathTick, waterYAt } from '../sim/swim.js';
 import { Underwater } from './underwater.js';
@@ -561,6 +562,7 @@ export class Game {
     if (inp.u) s.standUp();
     if (inp.c) s.toggleCrouch();
     if (inp.p) s.toggleProne();
+    proneLook(s, dt, { pb: inp.pb });                                 // 12.199 yüzüstü: bakış gövdeye göre ±70°, gövde ≤ 90°/sn (istemcinin gövde yönü pb doğrulanır)
     if (inp.rl) s.startReload();
     if (inp.fm) s.toggleFireMode();
     if (inp.ab) s.useAbility();
@@ -1371,6 +1373,7 @@ export class Game {
     // 12.197 bot beyinleri her adımda farklı bir botla başlar (döner sıra): eskiden hep Mavi botlar önce işleniyordu → adım başına 1'lik yol bütçesini
     // hep Mavi kapıyor, aynı karede karşılıklı atışta hep Mavi önce ateş ediyordu (takım modlarında Mavi lehine sistematik kayma)
     { const B = this.brains, n = B.length, o = n ? (this._brainRot = ((this._brainRot || 0) + 1) % n) : 0; for (let i = 0; i < n; i++) B[(o + i) % n].update(dt); }
+    for (const s of this.soldiers) if (!s.human && s !== this.playerSoldier) proneLook(s, dt);      // 12.199 yüzüstü bot: hedefe dönüş de gövde hızıyla (beyin yaw'ı ister, sınır uygular)
     V?.update(dt);                                // 12.177: sürücüsüz araç fiziği, hasar / yanma / batma, yeniden doğuş, yayaya çarpma, koltuk yerleşimi
     this.updateProjectiles(dt);
     this.paint.update(dt);
@@ -1556,7 +1559,7 @@ export class Game {
     const N = this.soldiers.length, base = (this.tick % this.HN) * N * 9, b = this.histBuf;
     for (let i = 0; i < N; i++) {
       const s = this.soldiers[i], o = base + i * 9;
-      b[o] = s.pos.x; b[o + 1] = s.pos.y; b[o + 2] = s.pos.z; b[o + 3] = s.yaw; b[o + 4] = s.height; b[o + 5] = s.proneT;
+      b[o] = s.pos.x; b[o + 1] = s.pos.y; b[o + 2] = s.pos.z; b[o + 3] = bodyYawOf(s); b[o + 4] = s.height; b[o + 5] = s.proneT;
       b[o + 6] = s.leanOff.x; b[o + 7] = s.leanOff.y; b[o + 8] = s.leanOff.z;
     }
   }
@@ -1573,11 +1576,11 @@ export class Game {
       const s = this.soldiers[i];
       if (s === shooter || !s.alive) continue;
       const o0 = a0 + i * 9, o1 = a1 + i * 9;
-      saved.push([s, s.pos.x, s.pos.y, s.pos.z, s.yaw, s.height, s.proneT, s.leanOff.x, s.leanOff.y, s.leanOff.z]);
+      saved.push([s, s.pos.x, s.pos.y, s.pos.z, s.yaw, s.height, s.proneT, s.leanOff.x, s.leanOff.y, s.leanOff.z, s.pBody]);
       const L = (k) => b[o0 + k] + (b[o1 + k] - b[o0 + k]) * f;
-      s.pos.set(L(0), L(1), L(2)); s.yaw = L(3); s.height = L(4); s.proneT = L(5); s.leanOff.set(L(6), L(7), L(8));
+      s.pos.set(L(0), L(1), L(2)); s.yaw = L(3); s.height = L(4); s.proneT = L(5); s.leanOff.set(L(6), L(7), L(8)); s.pBody = L(3);      // 12.199: [3] = gövde yönü (yüzüstünde pBody)
     }
-    return () => { for (const [s, x, y, z, yaw, h, pr, lx, ly, lz] of saved) { s.pos.set(x, y, z); s.yaw = yaw; s.height = h; s.proneT = pr; s.leanOff.set(lx, ly, lz); } };
+    return () => { for (const [s, x, y, z, yaw, h, pr, lx, ly, lz, pb] of saved) { s.pos.set(x, y, z); s.yaw = yaw; s.height = h; s.proneT = pr; s.leanOff.set(lx, ly, lz); s.pBody = pb; } };
   }
 
   // Grafik kademesi (Ayarlar → Grafik: Düşük / Orta / Yüksek = çözünürlük çarpanı 1 / 1,5 / 2). Telefonda gölge haritası hep 1024 (gölge zaten varsayılan kapalı).
@@ -1661,7 +1664,7 @@ export class Game {
     if (dist2 > rad * rad) return null;
     if (e.proneT > 0.5) {
       // yatan oyuncu: gövde yaw boyunca uzanır (eksen hizalı kutu), kafa önde
-      const fx = -Math.sin(e.yaw), fz = -Math.cos(e.yaw), ax = Math.abs(fx), az = Math.abs(fz);
+      const by = bodyYawOf(e), fx = -Math.sin(by), fz = -Math.cos(by), ax = Math.abs(fx), az = Math.abs(fz);      // 12.199: gövde yönü (bakış değil)
       const hx = ax * 0.82 + az * 0.27, hz = az * 0.82 + ax * 0.27;
       const hxp = px + fx * 0.72, hzp = pz + fz * 0.72;
       const th = rayBox(o, d, [hxp - 0.17, py + 0.1, hzp - 0.17], [hxp + 0.17, py + 0.5, hzp + 0.17], maxT);

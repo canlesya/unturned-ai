@@ -576,7 +576,7 @@ function applyPose(api, w, o = {}) {
   const PR = { pos: [0.1, 0.62, 0.02], rotX: Math.PI / 2 };
   const mz = (m.rotZ || 0), sz = (sp.rotZ || 0);
   mount.position.set(mix(mix(m.pos[0], sp.pos[0], spr), PR.pos[0], prone), mix(mix(m.pos[1], sp.pos[1], spr), PR.pos[1], prone), mix(mix(m.pos[2], sp.pos[2], spr) + kick * 0.05, PR.pos[2], prone));
-  mount.rotation.set(mix(mix(m.rotX, sp.rotX, spr) + kick * 0.07, PR.rotX + aimP + kick * 0.05, prone), mix(blade + spr * sp.yaw, 0.12, prone), mix(mz, sz, spr));
+  mount.rotation.set(mix(mix(m.rotX, sp.rotX, spr) + kick * 0.07, PR.rotX + aimP + kick * 0.05, prone), mix(blade + spr * sp.yaw, 0.12, prone) + (o.pLook || 0), mix(mz, sz, spr));      // 12.199 pLook: yüzüstü bakışın gövdeden kalan kısmı (yatık gövdede mount y = dünya dikeyi)
   // 12.193 bomba atışı (3. şahıs): hazırlarken kol üstten geri-yukarı / alttan aşağı-geri kurulur, atışta ileri savrulur (o.nade: prep 0..1, swing 0..1, under)
   let nadeL = 0;
   if (o.nade && hold === 'grenade' && !prone) {

@@ -16,6 +16,7 @@ import { fpHand, handBasis, zombieColors } from '../models/fpHands.js';
 import { box } from '../core/geo.js';
 import { clamp, lerp, V3, adsEase, ADS_HUD, zoomFov, SCOPE_ON, dirFromAngles } from './util.js';
 import { applyInput } from '../sim/input.js';
+import { proneLook, proneClamp } from '../sim/prone.js';
 import { swimCanFire } from '../sim/swim.js';
 import { LEAN_ROLL } from './soldier.js';
 import { TUNE } from './balance.js';
@@ -1178,9 +1179,10 @@ export class Player {
   baseFov() { const f = this.set.fov; if (!this.touch) return f; const a = this.game.camera.aspect || 16 / 9; return (2 * Math.atan(Math.tan((f * Math.PI) / 360) / a) * 180) / Math.PI; }
 
   look(dx, dy) {
-    const s = this.s;
+    const s = this.s, y0 = s.yaw;
     s.yaw -= dx;
     s.pitch = clamp(s.pitch - dy, -1.5, 1.5);
+    proneClamp(s, true, y0);                                     // 12.199 yüzüstü: bakış gövdeye göre ±70° (taşan kısım gövdeyi sonraki adımlarda döndürür)
   }
 
   // 12.177 araçtaki girdi: sürücü → gaz / direksiyon / fren (Boşluk) / korna (sol tık) aracı bir adım sürer (çevrimdışı yetkili, çevrim içi tahmin);
@@ -1302,6 +1304,7 @@ export class Player {
       const lean = (kb.held('leanRight', k) && !this.vehLatch ? 1 : 0) - (kb.held('leanLeft', k) ? 1 : 0);                 // 3. şahısta da Q/E yatar (ve omuzu değiştirir) · 12.177: araca binme / inme E'si basılıyken eğilmez
       const inp = { f, r, lean, sprint: kb.held('sprint', k) || !!(T && T.sprint), jump: (kb.held('jump', k) && !this.spaceLatch) || !!(T && T.jump), dive: kb.held('crouch', k) || !!(T && T.dive) };      // 12.180 dive: çömel BASILI (yüzerken dal)
       if (s.swim !== !!this._swimWas) this.swimEdge(s);
+      proneLook(s, dt, { pend: true });                                                // 12.199 yüzüstü: gövde ≤ 90°/sn döner, bakış sınırda (sunucu humanTick aynı sıra)
       if (s.fly) this.flyMove(f, r, k, dt); else applyInput(s, inp, dt);
       // 12.193 bomba: hızlı atış (G / dokunmatik bomba düğmesi) = çek + hazırla + bırakınca at; R (pişir) ve sağ tık (atış şekli) girdinin adımında (sunucu: humanTick aynı sıra)
       const qn = this.nadeTick(dt);

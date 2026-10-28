@@ -15,6 +15,7 @@ import { throwState, pinSfx } from './grenade.js';
 import { mgAt } from '../sim/vehicle.js';
 import { spaceTp } from './space.js';
 import { SWIM, swimCanFire, waterYAt } from '../sim/swim.js';
+import { bodyYawOf, PRONE_LOOK } from '../sim/prone.js';
 
 const _v = new THREE.Vector3();
 const _d = new THREE.Vector3();
@@ -33,6 +34,8 @@ const SPRINT_SPREAD = 0.085, AIR_SPREAD = 0.075, sprintSpeed = () => TUNE.walkSp
 export const EYE_STAND = 1.62;
 export const EYE_CROUCH = 1.16;
 export const EYE_PRONE = 0.42;
+// 12.199 yüzüstü bakış payı: üst gövde %30, silah kalanı (gövde + silah = bakış), baş gövdeye ek %60 (yüz bakış yönünde)
+const PL_TORSO = 0.3, PL_HEAD = 0.6;
 
 export { makeLoadout };
 // Eski ad: seçim yoksa sınıf varsayılanı
@@ -51,7 +54,7 @@ export class Soldier {
     this.height = H_STAND;
     this.onGround = true;
     this.crouching = false; this.crouchT = 0;
-    this.prone = false; this.proneT = 0;
+    this.prone = false; this.proneT = 0; this.pBody = 0; this.pPend = 0;      // 12.199 yüzüstü gövde yönü / bekleyen dönüş (sim/prone.js)
     this.leanDir = 0; this.leanT = 0; this.leanK = 0; this.leanOff = new THREE.Vector3(); this._leanRoom = LEAN_OFF;
     this.optic = isPlayer ? (game.opts?.optic || 'reddot') : BOT_OPTICS[Math.floor(Math.random() * BOT_OPTICS.length)];
     this.optics = isPlayer ? cleanEraOptics(game.opts?.frontOptics) : {};      // 12.174: silah başına nişangâh (12.190: modern silahlar da; uzak askerlerde ağdan 'op')
@@ -195,7 +198,7 @@ export class Soldier {
     if (this.veh) this.game.vehicles?.release(this);                              // 12.177: koltuk kaydı kalmasın
     this.pos.set(point.x, 0, point.z);
     this.vel.set(0, 0, 0);
-    this.yaw = point.ry; this.pitch = 0; this.recoilP = 0;
+    this.yaw = point.ry; this.pitch = 0; this.recoilP = 0; this.pBody = point.ry; this.pPend = 0;
     this.alive = true; this.deadT = 0; this.spawnN = (this.spawnN || 0) + 1;     // spawnN: ağ istemcisi yeniden doğmayı fark etsin
     if (this.def.zombie) { this.maxHp = this.zombieMaxHp(); this.abT = 2.5; this.abActive = 0; this.cloakNet = false; }    // türüne göre can; güç kısa bir bekleme ile başlar
     this.hp = this.maxHp;
@@ -631,7 +634,7 @@ export class Soldier {
 
   // saldıran, kurbanın arkasında mı? (kurbanın baktığı yön ile saldırana olan yön)
   isBehind(v) {
-    const fx = -Math.sin(v.yaw), fz = -Math.cos(v.yaw);
+    const vy = bodyYawOf(v), fx = -Math.sin(vy), fz = -Math.cos(vy);      // 12.199: yüzüstünde sırt = gövde yönü
     let dx = v.pos.x - this.pos.x, dz = v.pos.z - this.pos.z;
     const l = Math.hypot(dx, dz) || 1; dx /= l; dz /= l;
     return fx * dx + fz * dz > 0.475;                    // 12.194: CS2 sırttan bıçak konisi (≈ 61,6°; eski 0,55 ≈ 56,6°)
@@ -958,13 +961,25 @@ export class Soldier {
     root.position.set(this.pos.x, this.pos.y + (m.groundOffset ?? m.root.position.y), this.pos.z);
     // Bacaklar (root) bakış yönüne gecikmeli döner; gövde (silah) hep bakış yönünde kalır: yerinde dönerken ayaklar takip eder, koşarken hızla hizalanır
     const angDiff = (a, b) => ((a - b + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
-    if (this.bodyYaw === undefined || !this.alive || this.proneT > 0.2) this.bodyYaw = this.yaw;
-    const spd0 = Math.hypot(this.vel.x, this.vel.z), maxTw = spd0 > 0.6 ? 0.35 : 0.85;
-    let dY = angDiff(this.yaw, this.bodyYaw);
-    if (Math.abs(dY) > maxTw) { this.bodyYaw += dY - Math.sign(dY) * maxTw; dY = Math.sign(dY) * maxTw; }
-    this.bodyYaw += dY * Math.min(1, dt * (spd0 > 0.6 ? 8 : 2.2));
+    // 12.199 yüzüstü: gövde sim'in gövde yönünü (pBody: yerel / bot sim, uzak oyuncu ağdan 'pb') izler — bakışa anında dönmez, sınırı aşan bakışta
+    // ≤ 90°/sn döner (sim/prone.js). Kalkarken bakışa ≤ 6 rad/sn yetişir (ayakta gecikme kuralı 0,85 rad'lık sıçrama yapmasın)
+    const by0 = this.bodyYaw, pOk = this.prone && Number.isFinite(this.pBody);
+    if (this.bodyYaw === undefined || !this.alive) this.bodyYaw = this.yaw;
+    else if (pOk) this.bodyYaw += angDiff(this.pBody, this.bodyYaw) * Math.min(1, dt * (this.proneT < 0.99 ? 8 : 20));
+    else if (this.proneT > 0.2) this.bodyYaw += clamp(angDiff(this.yaw, this.bodyYaw), -6 * dt, 6 * dt);
+    else {
+      const spd0 = Math.hypot(this.vel.x, this.vel.z), maxTw = spd0 > 0.6 ? 0.35 : 0.85;
+      let dY = angDiff(this.yaw, this.bodyYaw);
+      if (Math.abs(dY) > maxTw) { this.bodyYaw += dY - Math.sign(dY) * maxTw; dY = Math.sign(dY) * maxTw; }
+      this.bodyYaw += dY * Math.min(1, dt * (spd0 > 0.6 ? 8 : 2.2));
+    }
     const twistY = angDiff(this.yaw, this.bodyYaw);
-    root.rotation.y = this.bodyYaw;
+    const pLook = clamp(twistY, -PRONE_LOOK, PRONE_LOOK) * this.proneT;                // yüzüstü bakış farkı: gövde / baş / silah bu kadar yana döner
+    const turnV = by0 !== undefined && dt > 0 ? angDiff(this.bodyYaw, by0) / dt : 0;     // gövde dönüş hızı (rad/sn): yerinde sürünerek dönüş adımı
+    // 12.199: kök her karede sıfırdan kurulur. Sıra 'YXZ' (createCharacter): önce yön, sonra eğim gövdenin KENDİ ekseninde (yatma / ölüm / yüzme / uçuş eğimi
+    // baktığı yöne). Koltuktan (_seatPose / vehicleView.seatRiders) kalan yatış (z) ve 'XYZ' sırası askeri inişten sonra kalıcı yana yatırıyordu
+    root.rotation.order = 'YXZ';
+    root.rotation.set(0, this.bodyYaw, 0);
     if (!this.alive) {
       const k = Math.min(1, this.deadT * 3.2);
       root.rotation.x = this.deadDir * k * (Math.PI / 2) * 0.96;
@@ -974,7 +989,7 @@ export class Soldier {
     const pr = this.proneT;
     root.rotation.x = -(Math.PI / 2) * pr;
     if (pr > 0.001) {
-      const fx0 = -Math.sin(this.yaw), fz0 = -Math.cos(this.yaw);
+      const fx0 = -Math.sin(this.bodyYaw), fz0 = -Math.cos(this.bodyYaw);              // 12.199: gövde yönünde uzanır (vuruş kutusu da bodyYawOf)
       root.position.x -= fx0 * 0.82 * pr; root.position.z -= fz0 * 0.82 * pr; root.position.y += 0.17 * pr;
     }
     // 12.180 yüzme pozu: konumdan (uzak oyuncu da: ek ağ alanı yok). Gövde göğüs çevresinde öne yatar (yüzerken ~70°, suda dururken ~17°), baş suyun üstünde,
@@ -1007,7 +1022,8 @@ export class Soldier {
     const sideBlend = spd > 0.3 ? Math.abs(sideV) / (Math.abs(fwdV) + Math.abs(sideV) + 1e-4) : 0;
     const dir = fwdV < -0.4 && Math.abs(fwdV) > Math.abs(sideV) ? -1 : 1;
     const stride = lerp(1.55, 2.3, run) * (1 - 0.15 * c);                 // bir tam adım döngüsü (m)
-    this.walkPhase += dir * (spd / stride) * Math.PI * 2 * dt * (fly ? 0 : this.onGround ? 1 : 0.2);
+    const turnSpd = Math.min(1.6, Math.abs(turnV) * 0.9) * pr;                        // yüzüstü yerinde dönüş: ayaklar ~0,9 m yarıçapta süpürür → sürünme adımı
+    this.walkPhase += dir * (Math.max(spd, turnSpd) / stride) * Math.PI * 2 * dt * (fly ? 0 : this.onGround ? 1 : 0.2);
     const ph = this.walkPhase;
     const amp = lerp(0.46, 0.86, run) * (1 - 0.5 * c) * (1 - 0.55 * sideBlend) * (dir < 0 ? 0.75 : 1);
     const flexMax = lerp(0.55, 1.4, run) * (1 - 0.4 * c);
@@ -1029,7 +1045,7 @@ export class Soldier {
       knee = lerp(knee, crKnee - flex * 0.4 * moveAmt, c);
       hip = lerp(hip, airHip, this.airT);
       knee = lerp(knee, airKnee, this.airT);
-      const crawlAmt = clamp(spd / 0.8, 0, 1);
+      const crawlAmt = clamp(Math.max(spd, turnSpd) / 0.8, 0, 1);
       hip = lerp(hip, Math.sin(phi) * 0.2 * crawlAmt, pr);
       knee = lerp(knee, -Math.max(0, Math.cos(phi)) * 0.35 * crawlAmt, pr);
       lg.hip.rotation.x = hip;
@@ -1037,6 +1053,7 @@ export class Soldier {
       if (lg.foot) lg.foot.rotation.x = -(hip + knee) * (1 - 0.4 * moveAmt) * (1 - pr);    // ayak yere paralel (duruşta tam, yürürken kısmen: topuk/burun kalkar)
       const sg = lg === p.legs.R ? 1 : -1;
       lg.hip.rotation.z = sideSign * 0.3 * Math.sin(phi) * sideBlend * moveAmt + sg * 0.05 * stanceK;   // yan adımda bacak açılması + duruşta hafif dışa açık
+      if (turnSpd > 0.01) lg.hip.rotation.z += Math.sin(phi) * 0.22 * clamp(turnSpd / 0.8, 0, 1) - sg * 0.1 * pr;      // 12.199 yüzüstü dönüş: bacaklar yana itip çekerek sürünür
       lg.hip.position.y = 0.88 - 0.27 * c - idleLow;
       lg.hip.position.x = sg * (0.105 + 0.04 * stanceK);
       if (fly) { const L = lg === p.legs.L; lg.hip.rotation.x = L ? 0.22 : 0.06; lg.knee.rotation.x = L ? -0.42 : -0.26; lg.hip.rotation.z = sg * 0.05; lg.hip.position.y = 0.88; if (lg.foot) lg.foot.rotation.x = 0.35; }      // 12.192 süzülme: sarkık bacaklar
@@ -1047,7 +1064,7 @@ export class Soldier {
     const lean = -(0.03 * moveAmt + 0.17 * run * moveAmt) - 0.09 * c - 0.07 * stanceK;
     const aimP = clamp(this.pitch + this.recoilP, -0.9, 0.9) * 0.7;
     p.torso.rotation.x = (aimP + lean) * (1 - pr);
-    p.torso.rotation.z = Math.sin(ph) * 0.035 * moveAmt * (1 + run) * (1 - pr) - this.leanK * LEAN_TORSO + Math.sin(T * 0.9 + this.id) * 0.012 * stanceK;
+    p.torso.rotation.z = Math.sin(ph) * 0.035 * moveAmt * (1 + run) * (1 - pr) - this.leanK * LEAN_TORSO + Math.sin(T * 0.9 + this.id) * 0.012 * stanceK + PL_TORSO * pLook;      // 12.199 yüzüstü: üst gövde bakışa doğru yerde yana döner (yatık kökte yerel z = dünya dikeyi)
     p.torso.position.x = this.leanK * LEAN_SHIFT;      // 12.166: gerçekleşen eğilme (leanK) → model kafası vuruş kutusu / göz kaymasıyla aynı yerde
     p.torso.position.y = 1.17 - 0.27 * c + breathe - idleLow;
     p.head.rotation.x = (-lean * 0.7 - aimP * 0.25) * (1 - pr);
@@ -1061,7 +1078,7 @@ export class Soldier {
       p.torso.rotation.x = lerp(p.torso.rotation.x, 0, swK);
       p.head.rotation.x = lerp(p.head.rotation.x, -0.55 * clamp(Math.hypot(this.vel.x, this.vel.z) / 1.6, 0, 1), swK);
     }
-    p.head.rotation.z = this.leanK * 0.2;
+    p.head.rotation.z = this.leanK * 0.2 + PL_HEAD * pLook;
     root.position.y -= (0.018 + 0.035 * run) * moveAmt * Math.sin(ph) ** 2;    // adım sırasında hafif çökme
     const twist = Math.sin(ph) * (0.05 + 0.08 * run) * moveAmt;
     const swing = Math.sin(ph + Math.PI) * moveAmt * (0.5 + 0.5 * run);
@@ -1074,7 +1091,6 @@ export class Soldier {
     if (this.swing) melee = { kind: this.swing.kind, k: clamp(this.swing.t / this.swing.dur, 0, 1), hv: !!this.swing.hv };
     const vh = this.veh && this.veh.st;
     if (vh) { const mg = !!mgAt(this.veh.def, this.seat); this._seatPose(m, p, root, vh, mg); m.refreshHold({ twist: this._seatTwist, side: 1, aimP: clamp(this.pitch + this.recoilP, -0.8, 0.8), reload, melee, drive: this.seat === 0 || mg, wheelA: mg ? 0 : -vh.steer * 2.2 }); if (this.veh.def.hidden?.[this.seat]) root.visible = false; return; }      // 12.178: tank sürücüsü gövdede görünmez, nişancı makineliyi tutar
-    if (root.rotation.order !== 'XYZ') root.rotation.order = 'XYZ';
     // 12.193 bomba pozu: hazırlarken kol geri-yukarı (üstten) ya da aşağı-geri (alttan) kurulur, atışta ileri savrulur
     if (!this.isPlayer) { const nv = this._nadeVisId() || null; if (nv !== this._nvPrev) { this._nvPrev = nv; this._syncWeaponModel(); } }
     const net = this.isPlayer ? 0 : this.nadeNet | 0;
@@ -1085,7 +1101,7 @@ export class Soldier {
     this.nadePrepK = lerp(this.nadePrepK || 0, prepOn ? 1 : 0, Math.min(1, dt * 12));
     const nUnder = !!(this.nadeUnder || net & 4 || (this.throwT > 0 && this.throwUnder) || this.botCook?.under);
     const nade = this.nadePrepK > 0.01 || this.throwT > 0 ? { prep: this.nadePrepK, swing: this.throwT > 0 ? 1 - this.throwT / 0.45 : 0, under: nUnder } : null;
-    m.refreshHold({ sprint: Math.max(this.sprintT, swK) * (1 - pr), kick: clamp(this.flashT / 0.06, 0, 1), twist: (twist + twistY) * (1 - pr), swing, side: this.stanceT, prone: pr, aimP: clamp(this.pitch + this.recoilP, -0.8, 0.8), reload, melee, nade });
+    m.refreshHold({ sprint: Math.max(this.sprintT, swK) * (1 - pr), kick: clamp(this.flashT / 0.06, 0, 1), twist: (twist + twistY) * (1 - pr), swing, side: this.stanceT, prone: pr, pLook: (1 - PL_TORSO) * pLook, aimP: clamp(this.pitch + this.recoilP, -0.8, 0.8), reload, melee, nade });
     if (m.zshape && pr < 0.5) this._zombiePose(m, p, root, T, ph, moveAmt, run);
   }
 }
