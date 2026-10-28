@@ -36,12 +36,16 @@ if (VS) {
   const sr = game.spawnRocket.bind(game);
   game.spawnRocket = (o, ...a) => { if (!o.veh) VS.atShots++; return sr(o, ...a); };
 }
+const DEF = { n: 0, k: 0, empty: 0 };
 const dt = 1 / 30;
 const s0 = performance.now();
 let steps = 0;
 try {
   for (; steps < secs * 30 && !game.ended; steps++) {
     game.step(dt);
+    if (steps % 30 === 0 && game.mode.objectives.length) {      // 12.208 ele geçirilmiş bayrakta savunan (kendi takımından r + 30 m içinde canlı yaya) ortalaması
+      for (const o of game.mode.objectives) if (o.owner) { let n = 0; for (const s of game.soldiers) if (s.alive && !s.veh && s.team === o.owner && Math.hypot(s.pos.x - o.x, s.pos.z - o.z) < o.r + 30) n++; DEF.n += n; DEF.k++; if (!n) DEF.empty++; }
+    }
     if (VS && steps % 30 === 0) for (const v of game.vehicles.list) if (v.def.cannon && v.alive) { VS.tankUp = (VS.tankUp || 0) + 1; if (v.seats[0]) VS.tankDrv = (VS.tankDrv || 0) + 1; }      // tank-sn: sahada / sürücülü
   }
 } catch (e) { errors++; console.log('HATA:', e.stack); }
@@ -60,6 +64,7 @@ if (VS) {
   console.log(`tankı öldüren: ${JSON.stringify(VS.tankBy)} · tanka düşman isabeti: ${JSON.stringify(VS.tankHits)} · piyade RPG atışı ${VS.atShots} · ilk binişe dek (doğuştan, medyan) ${med(VS.board).toFixed?.(1)} sn`);
   if (process.env.OUT) (await import('node:fs')).writeFileSync(process.env.OUT, JSON.stringify({ ...VS, flags: flagEvents, total: S.reduce((a, s) => a + s.kills, 0) }));
 }
+if (DEF.k) console.log(`savunma: ele geçirilmiş bayrakta ort. ${(DEF.n / DEF.k).toFixed(2)} kendi askeri (r + 30 m) · boş bayrak oranı %${Math.round(100 * DEF.empty / DEF.k)}` + (game.vbStats ? ` · heli saldırı turu ${game.vbStats.strikes || 0} · heli kaçış ${game.vbStats.evade || 0} · tank mevzi ${game.vbStats.tankPost || 0} / eşlik ${game.vbStats.tankEsc || 0}` : '') + (VS ? ` · tanka isabet: ${JSON.stringify(VS.tankHits)}` : ''));
 const ok = errors === 0 && bad.length === 0 && (type !== 'conquest' || flagEvents > 0);
 console.log(ok ? 'sonuç: OK' : 'sonuç: HATA');
 process.exit(ok ? 0 : 1);

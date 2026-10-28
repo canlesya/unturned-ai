@@ -11,7 +11,7 @@ import { SWIM, waterYAt } from '../sim/swim.js';
 import { vbBoard, vbRelease, vbDrive, vbRideOk, vbCrew } from './vehicleBots.js';           // 12.189 bot sürücüler
 import { squadFollow } from './squad.js';                                            // 12.202 manga botu lideri izler
 import { frTick, frPickGoal, frArrive, frAnchored, frTargetBias, frCombatMove, frStuck, frDamaged } from './frontBots.js';     // 12.158 Cephe modu
-import { flankVia } from './bigBots.js';                                                    // 12.203 büyük harita kanat mangalı
+import { flankVia, bigGuardGoal, guardCombatMove, guardLeash } from './bigBots.js';                                                    // 12.203 büyük harita kanat mangalı
 
 // silah rolleri (bot davranışı)
 const SNIPERS = new Set(['sniper', 'svd', 'barrett', 'ww_sniper']);
@@ -77,7 +77,7 @@ export class BotBrain {
     if (inv < 0) return;
     this.alertT = this.game.time;
     this.alertPos = (this.alertPos || new THREE.Vector3()).copy(pos);
-    if (!this.target && Math.random() < inv && this.goalT > 3 && !(this.game.payload && plAnchored(this)) && !(this.game.front && frAnchored(this))) this.setGoal(pos.x + rand(-6, 6), pos.z + rand(-6, 6), 8, pos.y);
+    if (!this.target && Math.random() < inv && this.goalT > 3 && !(this.game.payload && plAnchored(this)) && !(this.game.front && frAnchored(this)) && guardLeash(this, pos.x, pos.z)) this.setGoal(pos.x + rand(-6, 6), pos.z + rand(-6, 6), 8, pos.y);
   }
 
   onMateDown(victim, killer) { if (!this.s.def.zombie) tacMateDown(this, victim, killer); }
@@ -114,6 +114,7 @@ export class BotBrain {
     if (g.front) { frPickGoal(this); return; }            // Cephe: rol planı (frontBots.js): mevzi / nokta savunması · nokta saldırısı / kanat / nişancı
     if (g.payload) { plPickGoal(this); return; }          // Vagon: rol planı (payloadBots.js): eskort / öncü / yan · durdurucu / siper / yan
     if (squadFollow(this)) return;                       // 12.202 manga: insan liderin yakınına (ara sıra; bayrak görevi sonra sürer)
+    if (g.map.big && (this.guard || this.respond) && bigGuardGoal(this)) return;      // 12.208 nöbet (bayrak çevresinde siper) / saldırı altındaki bayrağa koşma (bigBots.js)
     if (tacPickGoal(this)) return;                       // 12.152: nişancı mevzisi / pusu noktası (botTactics.js)
     if (!objs.length) { this.roam(); return; }       // takım çatışması: haritada dolaş, düşmana yönel
     const sq = g.squadGoal(s);
@@ -386,7 +387,7 @@ export class BotBrain {
     } else if (this.target) {
       this.lostT += 0.22;
       if (this.lostT > 0.5) {
-        if (this.lastKnown && !(g.payload && plAnchored(this)) && !(g.front && frAnchored(this)) && !this.spot) this.setGoal(this.lastKnown.x, this.lastKnown.z, 6, this.lastKnown.y);
+        if (this.lastKnown && !(g.payload && plAnchored(this)) && !(g.front && frAnchored(this)) && !this.spot && guardLeash(this, this.lastKnown.x, this.lastKnown.z)) this.setGoal(this.lastKnown.x, this.lastKnown.z, 6, this.lastKnown.y);
         if (this.lastKnown && this.target?.alive && Math.hypot(this.target.vel.x, this.target.vel.z) < 2) { this.nadeSpot = this.lastKnown.clone(); this.nadeSpotT = g.time; }   // siper arkasında durdu (kamp): oraya bomba düşünülebilir
         this.target = null;
       }
@@ -792,7 +793,8 @@ export class BotBrain {
       const kite = g.mode.infection && tg.def && tg.def.zombie && !(g.map.perches && s.pos.y > 0.8);      // platformdaki insan geri çekilmez, yüksekten ateş eder
       s.crouching = false;
       const plm = g.payload && !kite ? plCombatMove(this, dt, nx, nz) : g.front && !kite ? frCombatMove(this, dt, nx, nz) : null;      // Cephe: mevzideki bot yerinden kopmaz, çömel-kalk      // Vagon: eskort / durdurucu yarıçaptan, siperdeki siperinden kopmaz
-      const tcm = !plm && !kite && !inf && s.cur !== 3 && st.kind !== 'melee' ? tacCombatMove(this, dist, tg) : null;      // 12.152 rol: nişancı / pusucu yerinde, taarruzcu yaklaşır, canı az geri çekilir
+      const gcm = !plm && !kite && this.guard && s.cur !== 3 && st.kind !== 'melee' ? guardCombatMove(this, dt, dist) : null;      // 12.208 nöbetçi mevzisinden kopmaz
+      const tcm = !plm && !gcm && !kite && !inf && s.cur !== 3 && st.kind !== 'melee' ? tacCombatMove(this, dist, tg) : null;      // 12.152 rol: nişancı / pusucu yerinde, taarruzcu yaklaşır, canı az geri çekilir
       if (atm && !plm) {                                         // 12.200 tanksavar: menzile yaklaş (uzakta koşar), yakında yana kayarak dur, çok yakında (< 14 m) geri çekil
         const k = dist > AT_BOT.approach ? 0.95 : dist < 14 ? -0.7 : 0, st2 = dist > AT_BOT.approach ? 0.15 : 0.45;
         moveX = nx * k + (-nz) * this.strafeDir * st2; moveZ = nz * k + nx * this.strafeDir * st2; speed *= dist > AT_BOT.approach ? 0.9 : 0.55;
@@ -801,6 +803,7 @@ export class BotBrain {
           const pm = this.followGoal(dt); if (pm && pm[2] > 0) { moveX = pm[0]; moveZ = pm[1]; }
         }
       } else if (plm) { moveX = plm[0]; moveZ = plm[1]; speed *= plm[2]; }
+      else if (gcm) { moveX = gcm[0]; moveZ = gcm[1]; speed *= gcm[2]; s.crouching = gcm[3]; }
       else if (tcm) { moveX = nx * tcm[0] + (-nz) * this.strafeDir * tcm[1]; moveZ = nz * tcm[0] + nx * this.strafeDir * tcm[1]; speed *= tcm[2]; s.crouching = tcm[3]; }
       else if (kite) {                                           // zombiye karşı: yaklaşınca geri çekilerek ateş et, uzaktayken yerinde dur
         s.crouching = false;

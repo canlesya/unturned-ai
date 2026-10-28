@@ -317,7 +317,7 @@ function recruit(b, v) {
     // 12.200 nişancısız kalkmayan araç (helikopter) önceliklidir: başka (jip / tank) koltuğuna çağrılmış ama henüz binmemiş botu da alır. Araç 20 → 36
     // olunca üsteki boştaki botların hepsi jip yolcusu çağrılıyor, helikopter nişancı bulamayıp hiç kalkmıyordu ("nişancısız" iniş)
     const steal = k === 'heli' && o.vRide && o.vRide.v !== v && kindOf(o.vRide.v) !== 'heli';
-    if (o === b || !q.alive || q.team !== s.team || q.veh || o.vRes || (o.vRide && !steal) || o.target || o.vd || q.hp < 40) continue;
+    if (o === b || !q.alive || q.team !== s.team || q.veh || o.vRes || (o.vRide && !steal) || o.target || o.vd || q.hp < 40 || (o.guard && Math.hypot(o.guard.x - q.pos.x, o.guard.z - q.pos.z) < 200)) continue;
     const d = Math.hypot(q.pos.x - v.st.x, q.pos.z - v.st.z);
     if (d > R) continue;
     const dest = tripDest(o); if (!dest || Math.hypot(dest.x - q.pos.x, dest.z - q.pos.z) < 140) continue;
@@ -358,14 +358,86 @@ export function doorPt(v, seat) {
 }
 // gidilecek yer: mangal bayrağı (yoksa botun hedefi)
 function tripDest(b) {
-  const g = b.game, o = g.squadGoal?.(b.s);
+  const g = b.game, o = b.guard || (b.respond && g.time < b.respond.until ? b.respond.o : null) || g.squadGoal?.(b.s);      // 12.208 nöbetçi / savunmaya koşan: kendi bayrağı
   if (o) return o;
   return b.goal || null;
 }
+// ── 12.208 tank görevi (kullanıcı: "tanklar sokulmalı"; eskiden mangal bayrağının içine girip 22–38 sn'de bir rastgele yer değiştiriyordu) ──
+//  · SAVUNMA (mangal hedefi kendi bayrağı ya da takımın tank sırası çift: ön hat bayrağı): bayrağın 18–60 m çevresinde GÖVDE SİPERDE mevzi
+//    (kule yüksekliğinden düşman yaklaşmasını görür, gövde yüksekliğinden görmez = sırt / duvar / kaya arkası; düşman yönüne bakan yan);
+//    varınca gövdeyi (ön zırh) düşman yönüne çevirir, topla bölgeyi tutar; 40–65 sn'de bir ya da ağır isabetten sonra başka mevziye (vur-kaç).
+//  · EŞLİK (mangal hedefi sahipsiz / düşman bayrağı): mangalın yaya askerlerinin 18 m gerisinde (kendi tarafında) ilerler; piyade bayrağa
+//    varınca (ya da piyade yoksa) bayrağa girer. Eşlik noktası 25 m kayınca yeniden rota (en sık 6 sn).
+export const TANK_POST = { ring: [18, 60], n: 48, eyeT: 2.6, eyeH: 1.0, hold: [40, 65], hitDrop: 0.18, esc: { back: 18, move: 25, every: 6 } };
+function tankPosts(g, o, team) {
+  const key = 'tpost' + o.id + team;
+  if (g.perchCache.has(key)) return g.perchCache.get(key);
+  const N = vnav(g), W = g.world, foe = team === 'blue' ? 'red' : 'blue', fh = g.map.spawns[foe][0];
+  const ea = Math.atan2(fh.z - o.z, fh.x - o.x), ex = Math.cos(ea), ez = Math.sin(ea);
+  const app = [];                                                         // düşman yaklaşması: bayraktan düşman yönüne 50 / 90 / 130 m (±30°)
+  for (const [d, a] of [[50, 0], [90, -0.5], [90, 0.5], [130, 0]]) { const x = o.x + Math.cos(ea + a) * d, z = o.z + Math.sin(ea + a) * d; app.push(new THREE.Vector3(x, W.heightAt(x, z) + 1.2, z)); }
+  app.push(new THREE.Vector3(o.x, W.heightAt(o.x, o.z) + 1.2, o.z));
+  const eT = new THREE.Vector3(), eH = new THREE.Vector3(), out = [], seen = new Set(), Q = [];
+  for (let k = 0; k < TANK_POST.n; k++) {
+    const a = ea + (Math.random() - 0.5) * 3.4, d = TANK_POST.ring[0] + Math.random() * (TANK_POST.ring[1] - TANK_POST.ring[0]);
+    const kk = vNear(N, o.x + Math.cos(a) * d, o.z + Math.sin(a) * d, VBOT.clr.tank + 0.4, 3); if (kk < 0 || seen.has(kk)) continue;
+    seen.add(kk);
+    const x = vX(N, kk), z = vZ(N, kk), y = W.heightAt(x, z);
+    eT.set(x, y + TANK_POST.eyeT, z); eH.set(x, y + TANK_POST.eyeH, z);
+    let vt = 0, vh = 0;
+    for (const p of app) { if (g.botSees(eT, p)) vt++; if (g.botSees(eH, p)) vh++; }
+    if (!vt) continue;
+    let cover = 0; for (const c of W.query(x - 6, z - 6, x + 6, z + 6, Q)) if (c.max[1] - y > 0.9 && !c.nocar) cover++;
+    const face = ((x - o.x) * ex + (z - o.z) * ez) / (Math.hypot(x - o.x, z - o.z) || 1);
+    out.push({ x, z, r: 4, id: 'tp' + o.id + k, of: o, look: Math.atan2(-ex, -ez), sc: vt * 1.5 + (vt - vh) * 2 + Math.min(cover, 3) * 0.6 + face + Math.random() * 0.5 });
+  }
+  out.sort((a, b) => b.sc - a.sc);
+  const P = []; for (const p of out) { if (P.every((q) => Math.hypot(q.x - p.x, q.z - p.z) > 12)) P.push(p); if (P.length >= 5) break; }
+  g.perchCache.set(key, P);
+  return P;
+}
+function tankGoal(b) {
+  const g = b.game, s = b.s, vd = b.vd, st = s.veh.st, team = s.team;
+  const sq = b.guard || g.squadGoal?.(s);
+  if (!sq || !g.map.big) return tripDest(b);
+  // savunma: kendi bayrağı; mangal hedefi geride kalmış kendi bayrağıysa takımın tank sırası çift olanı ön hat bayrağına
+  let def = sq.owner === team ? sq : null;
+  if (!def) {
+    const tanks = g.brains.filter((o) => o.s.team === team && o.vd?.kind === 'tank' && o.s.alive).sort((a, c) => a.s.id - c.s.id);
+    if (tanks.indexOf(b) % 2 === 1) def = g.frontFlag(team) || null;
+  }
+  if (def) {
+    const P = tankPosts(g, def, team);
+    if (!P.length) return def;
+    if (!vd.post || vd.post.of !== def || vd.moveOn) {
+      const used = new Set(g.brains.filter((o) => o !== b && o.vd?.post).map((o) => o.vd.post));
+      const C = P.filter((p) => !used.has(p) && p !== vd.post);
+      vd.post = (C.length ? C : P)[Math.floor(Math.random() * Math.min(2, (C.length ? C : P).length))];
+      vd.moveOn = false; vd.postHp = s.veh.hp; vd.postUntil = null;
+    }
+    vd.role = 'def';
+    return vd.post;
+  }
+  // eşlik: mangalın yaya askerleri
+  vd.role = 'esc'; vd.post = null;
+  let x = 0, z = 0, n = 0;
+  for (const e of g.soldiers) if (e.alive && !e.veh && e.team === team && e.squad === s.squad) { x += e.pos.x; z += e.pos.z; n++; }
+  if (!n) return sq;
+  x /= n; z /= n;
+  if (Math.hypot(x - sq.x, z - sq.z) < sq.r + 25) return sq;                // piyade bayrakta: bayrağa gir
+  const dx = sq.x - x, dz = sq.z - z, L = Math.hypot(dx, dz) || 1;
+  x -= dx / L * TANK_POST.esc.back; z -= dz / L * TANK_POST.esc.back;
+  const E = vd.esc;
+  if (E && Math.hypot(E.x - x, E.z - z) < TANK_POST.esc.move) return E;
+  if (E && g.time - (vd.escT || 0) < TANK_POST.esc.every) return E;
+  vd.escT = g.time;
+  return (vd.esc = { x, z, r: 6, id: 'esc', of: sq });
+}
+
 // yolcu: bu bot sürücünün aracına binsin mi (sürücü bekliyor, aynı takım, yolcunun hedefi uzak)
 export function vbRideOk(b, v) {
   const drv = v.seats[0], vd = drv?.brain?.vd;
-  if (!vd || vd.state !== 'wait' || drv.team !== b.s.team) return false;
+  if (!vd || vd.state !== 'wait' || drv.team !== b.s.team || (b.guard && Math.hypot(b.guard.x - b.s.pos.x, b.guard.z - b.s.pos.z) < 200)) return false;      // 12.208 nöbetçi bayrağından ayrılmaz
   const dest = tripDest(b);
   if (!dest) return false;
   return Math.hypot(dest.x - b.s.pos.x, dest.z - b.s.pos.z) > 140 || b.s.squad === drv.squad;
@@ -389,14 +461,15 @@ export function vbDrive(b, dt) {
     if (vd.t > VBOT.wait[1] || (vd.t > VBOT.wait[0] && (!coming || !v.seats.some((o, i) => i > 0 && !o)))) { vd.state = 'plan'; }
   }
   if (vd.state === 'plan' || vd.state === 'drive' || vd.state === 'hold') {
-    const o = tripDest(b);
+    const o = vd.kind === 'tank' ? tankGoal(b) : tripDest(b);                // 12.208 tank: gövde siperde mevzi / piyadeye eşlik
     if (!o) { vbExit(b, 'hedefsiz'); return; }
-    if (vd.state !== 'plan' && vd.dest !== o) vd.state = 'plan';                // mangal hedefi değişti: yeni rota
-    else if (vd.state === 'hold' && vd.kind === 'tank' && vd.t - (vd.holdT || 0) > (vd.holdFor ||= rand(22, 38))) { vd.state = 'plan'; vd.reloc = true; vd.holdFor = 0; }   // tank bayrakta yer değiştirir
+    if (vd.state !== 'plan' && vd.dest !== o) { vd.state = 'plan'; if (o.id === 'esc') stat(g).tankEsc = (stat(g).tankEsc || 0) + 1; }                // mangal hedefi değişti: yeni rota
+    else if (vd.state === 'hold' && vd.kind === 'tank' && vd.post && o === vd.post) { if (vd.t - (vd.holdT || 0) > (vd.postFor ||= rand(TANK_POST.hold[0], TANK_POST.hold[1])) || v.hp < (vd.postHp ?? d.hp) - d.hp * TANK_POST.hitDrop) { vd.moveOn = true; vd.postFor = 0; } }      // 12.208 vur-kaç: süre / ağır isabet → başka mevzi
+    else if (vd.state === 'hold' && vd.kind === 'tank' && !o.of && vd.t - (vd.holdT || 0) > (vd.holdFor ||= rand(22, 38))) { vd.state = 'plan'; vd.reloc = true; vd.holdFor = 0; }   // tank bayrakta yer değiştirir
     if (vd.state === 'plan') {
       if (g._vplanT === g.time) { inp.b = sp < 2; } else {
         g._vplanT = g.time;
-        const N = vnav(g), park = VBOT.park[vd.kind];
+        const N = vnav(g), park = o.of ? 3 : VBOT.park[vd.kind];
         let tx = o.x, tz = o.z;
         if (vd.reloc) { const a = Math.random() * Math.PI * 2, r = rand(4, o.r * 0.7); tx += Math.cos(a) * r; tz += Math.sin(a) * r; vd.reloc = false; }
         const t0 = performance.now(), route = vRoute(N, st.x, st.z, tx, tz, VBOT.clr[vd.kind]), S = stat(g), ms = performance.now() - t0;
@@ -405,12 +478,17 @@ export function vbDrive(b, dt) {
         // durma noktası: bayrak merkezine 'park' m kala (rota sonu kırpılır; jip bayrağın içine dalmaz)
         let cut = route.length;
         for (let i = 0; i < route.length; i++) if (Math.hypot(route[i][0] - o.x, route[i][1] - o.z) < park) { cut = i + 1; break; }
-        vd.route = route.slice(0, Math.max(2, cut)); vd.ri = 0; vd.dest = o; vd.state = 'drive'; vd.prog = 1e9; vd.progT = 0; vd.stuckT = 0; vd.revT = 0;
+        vd.route = route.slice(0, Math.max(2, cut)); vd.ri = 0; vd.dest = o; vd.state = 'drive'; vd.postIn = false; vd.prog = 1e9; vd.progT = 0; vd.stuckT = 0; vd.revT = 0;
         const e = vd.route[vd.route.length - 1]; vd.end = { x: e[0], z: e[1] };
       }
     }
   }
   if (vd.state === 'drive') follow(b, dt, inp, sp);
+  else if (vd.state === 'hold' && vd.kind === 'tank' && vd.post && vd.dest === vd.post) {      // 12.208 mevzide: ön zırhı düşman yönüne çevir (yerinde döner), sonra dur
+    if (!vd.postIn) { vd.postIn = true; stat(g).tankPost = (stat(g).tankPost || 0) + 1; vd.postHp = v.hp; }
+    const e = angleDiff(st.yaw, vd.post.look);
+    if (Math.abs(e) > 0.22 && sp < 1.5) { inp.b = false; inp.f = 0; inp.r = clamp(-e * 2.6, -1, 1); } else inp.b = true;
+  }
   else if (vd.state === 'hold') { inp.b = true; if ((vd.kind === 'jip' || vd.kind === 'moto') && sp < 0.6) { vd.parkT = (vd.parkT || 0) + dt; if (vd.parkT > 0.8) { stat(g).arrive++; vbExit(b, 'vardı'); return; } } }
   if (d.cannon && vd.fire) { if (V.fireCannon(v, s)) stat(g).shots++; vd.fire = false; }
   v.horn = !!vd.horn && !d.cannon; vd.horn = false;
@@ -523,7 +601,7 @@ function tankGun(b, dt, inp) {
   }
   if (vd.tg && (vd.tg.s ? !vd.tg.s.alive || vd.tg.s.veh : !vd.tg.v.alive)) vd.tg = null;
   const tg = vd.tg;
-  if (!tg) { inp.yw = yawFromDir(-Math.sin(st.yaw), -Math.cos(st.yaw)); inp.pt = 0.02; return; }
+  if (!tg) { inp.yw = vd.post && vd.state === 'hold' ? vd.post.look : yawFromDir(-Math.sin(st.yaw), -Math.cos(st.yaw)); inp.pt = 0.02; return; }      // 12.208 mevzide kule düşman yönünü gözler
   const p = tg.s ? tg.s.center(_t) : _t.set(tg.v.st.x, tg.v.st.y + tg.v.def.top * 0.55, tg.v.st.z);
   const tv = tg.s ? tg.s.vel : { x: tg.v.st.vx, z: tg.v.st.vz };
   // 12.188 API: Vehicles.gunAimFor (oyuncunun artısıyla aynı balistik çözüm: kule ekseninden hedef noktasına düşük yay) — hedef noktası öncülü;
@@ -562,6 +640,9 @@ export const HELI = {
   pilots: (per) => (per >= 16 ? Math.max(2, Math.round(2 * vehMult(per))) : 1),      // takımda aynı anda en çok bot pilot (12.206: helikopter sayısıyla)
   wait: [3.6, 9], climbAgl: 32, cruiseAgl: 40, orbitAgl: 36, orbitR: 78, maxF: 0.62, orbitF: 0.36,
   orbitT: [55, 85], rtbHp: 0.55, baseAvoid: 150, landR: 26,
+  // 12.208 devriye / saldırı turu: kendi bayrakları üstünde patrolT sn yörünge (sırayla), strikeEvery sn'de bir düşman bayrağına saldırı turu (strikeR yarıçap,
+  // strikeAgl irtifa, strikeT sn ya da 3 dalış, dalış arası 2,5–5 sn), sonra geri çekilme; uçuş en çok sortie sn (sonra üsse iner). threatR: RPG'li düşman bu kadar yakında → kaç.
+  patrolT: [25, 40], strikeEvery: [60, 120], strikeFirst: [30, 60], strikeR: 105, strikeAgl: 30, strikeT: [16, 24], sortie: 300, threatR: 75, evade: 4,
   diff: { easy: 0.6, normal: 1, hard: 1 },        // pilot olma olasılığı (zorluk)
 };
 function heliOk(g, s, b) {
@@ -621,7 +702,8 @@ function heliDrive(b, dt, inp) {
   // çarpma (rotor ucu / gövde): 1,5 sn geri çekil + tırman
   if (st.hit > 2 || st.land > 3) vd.bumpT = 1.5;
   if (vd.bumpT > 0) { vd.bumpT -= dt; inp.u = true; inp.f = -0.4; V.drive(v, inp, dt); return; }
-  const home = v.spawn, o = tripDest(b);
+  const home = v.spawn, o = heliGoal(b);                               // 12.208 devriye (kendi bayrakları) / saldırı turu (düşman bayrağı)
+  const strike = vd.mode === 'strike';
   if (vd.state === 'wait') {
     const coming = g.brains.some((q) => (q.rideGoal === v || q.vRide?.v === v) && q.s.alive), full = !v.seats.some((q, i) => i > 0 && !q), gun = v.seats[1] || v.seats[2];
     if (!full && (vd.rcT = (vd.rcT ?? 2) - dt) <= 0) { vd.rcT = 2.5; recruit(b, v); }      // 12.200 beklerken boş kapı koltuğuna yeniden çağrı (yeni doğan / boşalan arkadaş)
@@ -638,16 +720,18 @@ function heliDrive(b, dt, inp) {
   }
   // hasar / süre / nişancısız → üsse dön
   const gunners = v.seats.some((q, i) => i > 0 && q);
-  if ((vd.state === 'cruise' || vd.state === 'orbit') && (v.hp < d.hp * HELI.rtbHp || (vd.state === 'orbit' && (vd.t - vd.orbitT0 > vd.orbitFor || !gunners)) || !o)) vd.state = 'rtb';
+  if ((vd.state === 'cruise' || vd.state === 'orbit') && vd.state === 'orbit' && vd.t - vd.orbitT0 > vd.orbitFor) { if (strike) heliEgress(b); else vd.pNext = true; }      // 12.208 yörünge süresi: devriyede sıradaki kendi bayrağı, saldırıda geri çekil
+  if ((vd.state === 'cruise' || vd.state === 'orbit') && (v.hp < d.hp * HELI.rtbHp || (vd.state === 'orbit' && !gunners) || vd.t - (vd.tOff || 0) > HELI.sortie || !o)) vd.state = 'rtb';
+  if ((vd.state === 'cruise' || vd.state === 'orbit') && heliEvade(b, dt, inp)) { V.drive(v, inp, dt); return; }      // 12.208 RPG / roket tehdidi: tırman + uzaklaş
   let tx, tz, want, fmax = HELI.maxF;
   if (vd.state === 'cruise' || vd.state === 'orbit') {
     if (vd.dest !== o) { vd.dest = o; if (vd.state === 'orbit') vd.state = 'cruise'; vd.dir = Math.random() < 0.5 ? 1 : -1; }
-    const a0 = Math.atan2(st.z - o.z, st.x - o.x), dc = Math.hypot(st.x - o.x, st.z - o.z), R0 = HELI.orbitR;
+    const a0 = Math.atan2(st.z - o.z, st.x - o.x), dc = Math.hypot(st.x - o.x, st.z - o.z), R0 = strike ? HELI.strikeR : HELI.orbitR;
     if (vd.state === 'cruise') {
       // yörüngeye giriş: bayrağın bize bakan yanında yarıçap noktası
       tx = o.x + Math.cos(a0) * R0; tz = o.z + Math.sin(a0) * R0;
       const w = avoidBase(g, s.team, st.x, st.z, tx, tz); if (w) { tx = w.x; tz = w.z; }
-      if (dc < R0 + 25) { vd.state = 'orbit'; vd.orbitT0 = vd.t; vd.orbitFor = rand(HELI.orbitT[0], HELI.orbitT[1]); }
+      if (dc < R0 + 25) { vd.state = 'orbit'; vd.orbitT0 = vd.t; vd.orbitFor = strike ? rand(HELI.strikeT[0], HELI.strikeT[1]) : rand(HELI.patrolT[0], HELI.patrolT[1]); if (strike) vd.atkNext = g.time + 0.5; }
     }
     if (vd.state === 'orbit') {
       let a1 = a0 + vd.dir * 0.42;
@@ -677,7 +761,7 @@ function heliDrive(b, dt, inp) {
   const ye = Math.abs(angleDiff(st.yaw, inp.yw));
   inp.f = ye > 0.7 ? 0.08 : fmax * clamp(D / 60, 0.3, 1) * (1 - ye * 0.6);
   const look = clamp(sp * 4, 60, 200), top = aheadTop(g, st.x, st.z, dx / D, dz / D, look);
-  want = Math.max(top + 16, gnd + (vd.state === 'orbit' ? HELI.orbitAgl : HELI.cruiseAgl));
+  want = Math.max(top + 16, gnd + (vd.state === 'orbit' ? (strike ? HELI.strikeAgl : HELI.orbitAgl) : HELI.cruiseAgl));
   if (st.y < top + 10) inp.f = Math.min(inp.f, 0.05);                 // önü yüksek: önce tırman
   altTo(want);
   if (agl < 12 && !inp.u) { inp.d = false; inp.u = true; }             // asla yere yaklaşma (iniş dışında)
@@ -721,7 +805,7 @@ function heliAttack(b, dt, inp, gnd) {
   A.t += dt;
   const tp = A.v ? (A.v.alive ? _ht.set(A.v.st.x, A.v.st.y + 0.8, A.v.st.z) : null) : (A.s.alive && !A.s.veh ? A.s.center(_ht) : null);
   const D = tp ? Math.hypot(tp.x - st.x, tp.z - st.z) : 0;
-  if (!tp || A.t > 6 || D < 55 || agl < 22 || v.hp < v.def.hp * HELI.rtbHp) { vd.atk = null; vd.atkNext = g.time + rand(12, 20); V.mgFire(s, false, dt); return false; }
+  if (!tp || A.t > 6 || D < 55 || agl < 22 || v.hp < v.def.hp * HELI.rtbHp) { vd.atk = null; vd.atkNext = g.time + (vd.mode === 'strike' ? rand(2.5, 5) : rand(12, 20)); if (vd.mode === 'strike') vd.dives = (vd.dives || 0) + 1; V.mgFire(s, false, dt); return false; }
   const aim = V.noseAimAt(v, tp, (s._ga ||= {}));
   s.gunAim = aim; inp.yw = aim.y; inp.pt = aim.p;                    // burun + burun topu hedefe (oyuncunun gy / gp'siyle aynı yol)
   const ye = Math.abs(angleDiff(st.yaw, inp.yw)), nd = noseDir(st, N, aim, (vd._nd ||= {}));
