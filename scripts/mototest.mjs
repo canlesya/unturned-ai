@@ -221,7 +221,7 @@ async function online() {
   const up = await new Promise((res) => { const w = new WebSocket(WS); w.on('open', () => { w.close(); res(true); }); w.on('error', () => res(false)); setTimeout(() => res(false), 2000); });
   if (!up) { console.log('  (sunucu yok: ' + WS + ' — atlandı)'); return; }
   const { chromium } = await import('playwright');
-  const URL0 = process.env.URL || 'http://127.0.0.1:5196';
+  const URL0 = process.env.URL || 'http://127.0.0.1:5180';
   const browser = await chromium.launch({ headless: false, args: ['--use-angle=metal', '--ignore-gpu-blocklist'] });
   const page = await (await browser.newContext({ viewport: { width: 1280, height: 720 }, locale: 'tr-TR' })).newPage();
   const errs = []; page.on('pageerror', (e) => errs.push(e.message));
