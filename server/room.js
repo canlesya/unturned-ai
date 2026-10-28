@@ -1,7 +1,7 @@
 // Bir oda = başsız bir Game + bağlı oyuncular. Sabit adımla (SIM_HZ) çalışır, her SNAP_EVERY adımda snapshot yollar.
 import { Game, applyOpticPrefs, cleanFront } from '../src/game/game.js';
 import { SIM_DT, SIM_HZ, SNAP_EVERY, packSoldier, slowSig, cleanName } from '../src/net/protocol.js';
-import { IM_ALL, interestWants, aimOf } from '../src/net/interest.js';
+import { IM_ALL, interestWants, interestNear, aimOf } from '../src/net/interest.js';
 import { CLASS_DEFS, WSTATS, ZTYPES, ZT_ORDER, ZOMBIE, cleanSkins } from '../src/game/stats.js';
 import { cleanWear } from '../src/game/wearIds.js';
 import { defaultTickets } from '../src/game/match.js';
@@ -11,11 +11,19 @@ import { MAPS } from '../src/maps/index.js';
 import { nextOptions, tallyVotes } from '../src/game/nextMatch.js';
 import { packVehState } from '../src/sim/vehicle.js';
 import { squadOn, squadMates, mateSpawnState, vehFreeSeats } from '../src/game/squad.js';
+import { BotBrain } from '../src/game/bot.js';
 
 const RESTART_ENV = +process.env.BF_RESTART_MS || 0, RESTART_MS = RESTART_ENV || 15000;      // maç sonu ekranı (resmi odada oylama) süresi; ortam değişkeni resmi sunucunun voteSec'ini de ezer (test)
 const EMPTY_ENV = +process.env.BF_EMPTY_ROTATE_MS || 0;                                    // boş resmi oda harita değişimi (test); yoksa sunucunun idleMin alanı
 export const SPACE_MAPS = ['yorunge'];                              // 12.157 Uzay modu haritaları (başka mod bunlarda oynanmaz)
 export const MAPS_FOR = (type) => (type === 'space' ? SPACE_MAPS : type === 'inf' ? ['newyork'] : type === 'pb' ? PB_MAPS : type === 'payload' ? ['maden'] : type === 'front' ? FRONT_MAPS : type === 'conquest' || type === 'tdm' ? ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman', 'kuzey'] : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman']);      // 12.172 Kuzey Vadisi yalnız Ele Geçirme / TDM
+
+// 12.211 yük koruması: odanın sim adımı 2 sn'lik pencerelerde ort. LOAD_HI ms'yi 4 sn üst üste aşarsa seviye bir artar (en çok 3), LOAD_LO'nun
+// altında 20 sn kalırsa bir iner. 1: boştaki / yolcu / uyarılmış botlar seyrek düşünür · 2: çatışmadaki botlar da 2 adımda bir (bot.js tick) ·
+// 3: + ölü botların en çok %25'i park edilir (yuva boş, doğmaz; seviye inince geri gelir; insan girerse yuvayı alır). Günlüğe [yük] satırı.
+// Eşikler canlı sunucuya göre (60 Hz bütçe 16,7 ms): BF_LOAD_HI (12) / BF_LOAD_LO (6) ms; BF_LOAD=0 kapalı.
+const EV_FAR = +process.env.BF_EV_FAR || 400;                     // 12.211 uzak atış olayı eşiği (m)
+const LOAD_ON = process.env.BF_LOAD !== '0', LOAD_HI = +process.env.BF_LOAD_HI || 12, LOAD_LO = +process.env.BF_LOAD_LO || 6;
 
 const num = (v, lo, hi, d = 0) => (Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d);
 
@@ -45,6 +53,34 @@ export function sanitizeCfg(c = {}) {
   return R;
 }
 
+// 12.211 odadaki bağlantının oda mesajı (ana iş parçacığındaki oda da, oda iş parçacığı da aynı yoldan: server/roomWorker.js)
+export const ROOM_MSGS = new Set(['in', 'kill', 'chat', 'opt', 'mk', 'dbg', 'vote', 'team']);
+export function roomMessage(room, ws, m) {
+  const id = ws.ctx?.id;
+  if (id == null) return;
+  room.activate();                                                   // odanın denge sürümü (WSTATS vb. ortak)
+  switch (m.t) {
+    case 'in': room.input(id, m); return;
+    case 'kill': room.suicide(id); return;
+    case 'chat': room.chat(id, m); return;
+    case 'opt': room.opt(id, m); return;
+    case 'mk': room.mark(id, m); return;                             // 12.202 işaret (ping)
+    case 'dbg': if (process.env.BF_DEBUG) room.debug(id, m); return; // yalnızca test için
+    case 'vote': room.castVote(ws, m.i); return;                     // maç sonu oylaması (yalnız insanlar)
+    case 'team': ws.send(JSON.stringify({ t: 'team', ...room.teamCheck(id, m.team) })); return;      // M menüsü: takım değiştirme isteği
+  }
+}
+// Odaya giriş (p: temizlenmiş ad / takım / sınıf / yükleme / kaplama / kıyafet). Dönüş: girdi mi (bekleme listesi de giriş sayılır)
+export function enterRoom(room, ws, p) {
+  room.activate();
+  if (room.game.ended) { room.hold(ws, p); console.log(`[${room.code}] ${p.name} sonraki maçı bekliyor`); return true; }     // maç sonu ekranı: yeni maçta otomatik katılır
+  const c = room.join(ws, p.name, p.team, p.cls, p.loadout, false, p.skins, p.wear);
+  if (!c) { ws.send(JSON.stringify({ t: 'err', msg: 'Oda dolu' })); return false; }
+  ws.ctx = { room, id: c.id };
+  console.log(`[${room.code}] ${c.name} katıldı (${room.humanCount} oyuncu)`);
+  return true;
+}
+
 const cleanRoomName = (n) => String(n || '').replace(/[<>&"'`]/g, '').trim().slice(0, 24);
 
 export class Room {
@@ -68,6 +104,9 @@ export class Room {
     this._timer = setInterval(() => this.loop(), 4);
   }
 
+  message(ws, m) { roomMessage(this, ws, m); }
+  enter(ws, p) { return enterRoom(this, ws, p); }
+
   // Bu odanın denge sürümünü etkin yap (tüm odalar aynı süreçte, WSTATS vb. ortak nesneler: oda adımından önce çağrılır)
   activate() { useBalance(this.bal); }
 
@@ -89,6 +128,7 @@ export class Room {
       match: { perTeam: c.perTeam, type: c.type, tickets: c.tickets || undefined, time: c.time },
     });
     this.tick = 0;
+    this.lg = null;                                                    // 12.211 yük koruması (yeni maç sakin başlar)
     this._sig = []; this._forceSlow = true;
     this.resetAt = 0; this.vote = null;
     this.gameAt = Date.now();                                          // boş oda harita değişimi bu andan sayılır
@@ -436,12 +476,36 @@ export class Room {
 
   // Olaylar: herkese; `to` alanlı olay (12.165 asist bildirimi 'as') yalnız o savaşçının istemcisine (sıra korunur, tek mesaj)
   sendEvents(list) {
+    if (this.game.soldiers.length > IM_ALL && list.some((e) => e.e === 'sh')) { this.sendEventsIm(list); return; }
     if (!list.some((e) => e.to !== undefined)) { this.broadcast({ t: 'ev', l: list }); return; }
     const pub = list.filter((e) => e.to === undefined), str = pub.length ? JSON.stringify({ t: 'ev', l: pub }) : null;
     for (const c of this.clients.values()) {
       if (c.ws.readyState !== 1) continue;
       if (list.some((e) => e.to === c.id)) c.ws.send(JSON.stringify({ t: 'ev', l: list.filter((e) => e.to === undefined || e.to === c.id) }));
       else if (str) c.ws.send(str);
+    }
+  }
+
+  // 12.211 kalabalık odada atış olayları ('sh': iz / namlu / isabet / ses) ilgi alanıyla: istemcinin kendi atışı hiç (istemci zaten çizmez),
+  // bakış noktasına EV_FAR m'den uzak atışın (namlu da isabet de uzak) yalnız 4'te biri (uzak çatışma sesi / ışıltısı sürer, bant ~yarıya).
+  // Diğer olaylar (öldürme, ölüm, araç, bomba…) herkese, sıra korunur.
+  sendEventsIm(list) {
+    const F2 = EV_FAR * EV_FAR, n0 = (this._shN = (this._shN || 0) + 1);
+    let pub = null;
+    for (const c of this.clients.values()) {
+      if (c.ws.readyState !== 1) continue;
+      const s = c.h.s, k = !s.alive && s.lastHit && s.lastHit !== s && s.lastHit.alive ? s.lastHit.pos : s.pos;
+      let cut = false;
+      const out = list.filter((e, i) => {
+        if (e.to !== undefined) { cut = true; return e.to === c.id; }
+        if (e.e !== 'sh') return true;
+        if (e.by === c.id) { cut = true; return false; }
+        const o = e.o, p = e.p || o, d1 = (o[0] - k.x) ** 2 + (o[2] - k.z) ** 2, d2 = (p[0] - k.x) ** 2 + (p[2] - k.z) ** 2;
+        if (d1 < F2 || d2 < F2 || (n0 + i + e.by) % 4 === 0) return true;
+        cut = true; return false;
+      });
+      if (!out.length) continue;
+      c.ws.send(cut ? JSON.stringify({ t: 'ev', l: out }) : (pub ??= JSON.stringify({ t: 'ev', l: list.filter((e) => e.to === undefined) })));
     }
   }
 
@@ -476,10 +540,56 @@ export class Room {
   perfNote(simMs, netMs) {
     const P = (this.perf ||= { buf: new Float32Array(600), net: new Float32Array(600), i: 0, n: 0, logAt: Date.now() + 30000 });
     P.buf[P.i] = simMs * 1000; P.net[P.i] = netMs * 1000; P.i = (P.i + 1) % 600; P.n = Math.min(600, P.n + 1);
+    if (LOAD_ON) this.loadGuard(simMs + netMs);
     if (Date.now() < P.logAt) return;
     P.logAt = Date.now() + 30000;
     const st = this.perfStats();
-    if (this.game.soldiers.length > 64 && this.clients.size) console.log(`[başarım] ${this.code} ${this.game.soldiers.length} asker · sim ${st.simAvg} µs (p95 ${st.simP95}, en çok ${st.simMax}) · ağ ${st.netAvg} µs · istemci başına ${st.kbPerClient} KB/sn (ham)`);
+    if (this.game.soldiers.length > 64 && this.clients.size) console.log(`[başarım] ${this.code} ${this.game.soldiers.length} asker · sim ${st.simAvg} µs (p95 ${st.simP95}, en çok ${st.simMax}) · ağ ${st.netAvg} µs · istemci başına ${st.kbPerClient} KB/sn (ham)${this.lg?.lvl ? ` · yük seviyesi ${this.lg.lvl}` : ''}`);
+  }
+
+  // 12.211 yük koruması (yukarıdaki LOAD_* açıklaması)
+  loadGuard(ms) {
+    const G = (this.lg ||= { lvl: 0, acc: 0, n: 0, hi: 0, lo: 0 });
+    G.acc += ms; if (++G.n < 120) return;
+    const avg = G.acc / G.n; G.acc = 0; G.n = 0;
+    if (avg > LOAD_HI) { G.hi += 2; G.lo = 0; } else if (avg < LOAD_LO) { G.lo += 2; G.hi = 0; } else { G.hi = 0; G.lo = 0; }
+    if (G.hi >= 4 && G.lvl < 3) { G.hi = 0; this.setLoad(G.lvl + 1, avg); }
+    else if (G.lo >= 20 && G.lvl > 0) { G.lo = 0; this.setLoad(G.lvl - 1, avg); }
+    else if (G.lvl >= 3) this.parkBots(true);                          // seviye 3'te ölen botlar da park edilir (pay dolana dek)
+  }
+  setLoad(lvl, avg) {
+    const G = this.lg, from = G.lvl;
+    G.lvl = lvl; this.game.loadLevel = Math.min(2, lvl);
+    const n = lvl >= 3 ? this.parkBots(true) : from >= 3 ? -this.parkBots(false) : 0;
+    console.log(`[yük] ${this.code} seviye ${from} → ${lvl} (adım ort. ${avg.toFixed(1)} ms, ${this.game.soldiers.length} asker${n > 0 ? `, ${n} bot park edildi` : n < 0 ? `, ${-n} bot geri döndü` : ''})`);
+  }
+  // ölü botları park et (yuva boş: doğmaz) / geri getir. Dönüş: değişen bot sayısı
+  parkBots(on) {
+    const g = this.game; let n = 0;
+    if (on) {
+      for (const team of g.ffa ? [null] : ['blue', 'red']) {
+        const mine = g.soldiers.filter((e) => (!team || e.team === team) && !e.human && (e.brain || e._parked));
+        let cap = Math.floor(mine.length * 0.25) - mine.filter((e) => e._parked && e.vacant).length;
+        for (const e of mine) {
+          if (cap <= 0) break;
+          if (e._parked || e.alive || !e.brain || e.veh) continue;
+          const i = g.brains.indexOf(e.brain); if (i >= 0) g.brains.splice(i, 1);
+          e.brain = null; e.vacant = true; e._parked = true; e.name = 'Boş'; e.hp = 0; e.deadT = 99;
+          cap--; n++;
+        }
+      }
+    } else {
+      for (const e of g.soldiers) {
+        if (!e._parked) continue;
+        e._parked = false;
+        if (e.human || !e.vacant) continue;                            // park yerini insan aldı
+        e.vacant = false; e.name = g.freeBotName(); e.choice = { random: true }; e.respawnT = 1;
+        new BotBrain(g, e, g.opts.diff); g.brains.push(e.brain);
+        n++;
+      }
+    }
+    if (n) this.broadcast({ t: 'roster', roster: this.roster() });
+    return n;
   }
   perfStats() {
     const P = this.perf; if (!P || !P.n) return null;
@@ -508,16 +618,22 @@ export class Room {
     let bytes = 0, sentN = 0;
     for (const c of this.clients.values()) {
       if (c.ws.readyState !== 1) continue;
-      const h = c.h, s = h.s, sent = (h._imSent ||= []), A = (h._imA ||= []);
+      const h = c.h, s = h.s, sent = (h._imSent ||= []), A = (h._imA ||= []), F = (h._imF ||= []);
       const k = !s.alive && s.lastHit && s.lastHit !== s && s.lastHit.alive ? s.lastHit.pos : s.pos;      // ölüyken öldürenin çevresi (ölüm kamerası)
       const aim = im ? aimOf(s) : null;
       parts.length = 0;
       for (let i = 0; i < N; i++) {
         const e = S[i], a = e.alive ? 1 : 0;
-        if (im && e !== s && A[e.id] === a && !interestWants(k.x, k.z, e, sn, aim, s.team)) continue;
+        let fs = null;
+        if (im && e !== s && A[e.id] === a) {
+          if (!interestWants(k.x, k.z, e, sn, aim, s.team)) continue;
+          // 12.211 yakın olmayan (20 Hz katmanı dışı) ve hızlı paketi o istemciye son yollanandan beri AYNI asker (ölü, duran, park etmiş araçta oturan) 4'te bir
+          if ((sn + e.id) % 4 && (F[e.id] === (fs = fast[i] ??= JSON.stringify(packSoldier(e, false)))) && !interestNear(k.x, k.z, e, s.team)) continue;
+        }
         A[e.id] = a;
         const sl = force || !(sent[e.id] >= slowAt[e.id]) || sn - sent[e.id] >= 40;      // 40 snapshot'ta (2 sn) bir tam paket: seyrek asker periyodik tam paketi kaçırmasın
         if (sl) sent[e.id] = sn;
+        if (im) F[e.id] = fs ?? (fast[i] ??= JSON.stringify(packSoldier(e, false)));
         parts.push(sl ? (full[i] ??= JSON.stringify(packSoldier(e, true))) : (fast[i] ??= JSON.stringify(packSoldier(e, false))));
       }
       const me = { ack: h.ack, rs: s.spawnN, st: h.ackState || packSoldier(s), now: packSoldier(s), rt: +s.respawnT.toFixed(2), am: s.items.map((it) => [it.mag, it.reserve]), aa: h.ackAm, ab: [+s.abT.toFixed(1), +s.abActive.toFixed(1)] };

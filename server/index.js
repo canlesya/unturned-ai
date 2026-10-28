@@ -4,7 +4,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
-import { Room, sanitizeCfg } from './room.js';
+import os from 'node:os';
+import { Room, sanitizeCfg, ROOM_MSGS } from './room.js';
+import { RemoteRoom, prewarm } from './roomHost.js';
 import { officialList, reloadOfficial } from './officialStore.js';
 import { DEFAULT_PORT, makeRoomCode, cleanName } from '../src/net/protocol.js';
 import { MapBuilder } from '../src/maps/builder.js';
@@ -13,7 +15,7 @@ import { Game } from '../src/game/game.js';
 import { useBalance } from '../src/game/balance.js';
 import { cleanSkins } from '../src/game/stats.js';
 import { cleanWear } from '../src/game/wearIds.js';
-import { loadBalance, currentBalance } from './balanceStore.js';
+import { loadBalance, currentBalance, onBalance } from './balanceStore.js';
 import { startAdmin } from './admin.js';
 import { handleApi, byToken, guestName, ipOf, nameKey } from './accounts.js';
 import { runCommand, checkBan, refuse } from './moderation.js';
@@ -27,6 +29,23 @@ const MAX_ROOMS = +process.env.MAX_ROOMS || 20;
 const MAX_SOLDIERS = +process.env.BF_MAX_SOLDIERS || 600;
 const rooms = new Map();
 loadBalance();
+
+// 12.211 oda iş parçacıkları: kalabalık oda (> BF_WORKER_MIN asker, varsayılan 64 → 33v33 ve üstü) kendi worker_threads iş parçacığında koşar
+// (server/roomWorker.js). Canlıda 128v128 Kuzey odasının adımı bütçeyi aşınca aynı süreçteki bütün odalar ve ping / pong bekliyor, oyuncular
+// "yanıt yok" diye düşüyordu. Ana iş parçacığında yalnız bağlantılar + küçük odalar kalır. En çok BF_WORKERS iş parçacığı (varsayılan çekirdek − 1);
+// dolunca oda eskisi gibi ana iş parçacığında (asker bütçesiyle). BF_WORKER_MIN=0: her oyuncu odası iş parçacığında (test) · BF_WORKERS=0: kapalı.
+const WORKER_MIN = process.env.BF_WORKER_MIN != null ? +process.env.BF_WORKER_MIN : 64;
+const MAX_WORKERS = process.env.BF_WORKERS != null ? +process.env.BF_WORKERS : Math.max(1, (os.availableParallelism?.() || os.cpus().length) - 1);
+const wantsWorker = (n) => MAX_WORKERS > 0 && n > WORKER_MIN && [...rooms.values()].filter((r) => r.remote).length < MAX_WORKERS;
+function makeRoom(code, cfg, opts = {}) {
+  const c0 = sanitizeCfg(cfg), team = !['dm', 'gg', 'inf', 'pb'].includes(c0.type), n = team ? c0.perTeam * 2 : c0.perTeam;
+  if (wantsWorker(n)) {
+    console.log(`[${code}] oda iş parçacığında (${n} asker)`);
+    return new RemoteRoom(code, cfg, { ...opts, onDead: (r) => { if (rooms.get(code) === r) rooms.delete(code); if (r.official) setTimeout(syncOfficial, 2000); } });
+  }
+  return new Room(code, cfg, opts);
+}
+onBalance(() => { for (const r of rooms.values()) if (r.remote) r.balance(); });      // admin denge değişikliği: iş parçacıkları da dosyadan yeniden okur
 
 // Derlenmiş istemci (npm run build → dist/) aynı porttan servis edilir; dist yoksa yalnızca WebSocket sunucusu olarak çalışır
 const DIST = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'dist');
@@ -97,22 +116,10 @@ wss.on('connection', (ws, req) => {
     try { m = JSON.parse(data); } catch { return; }
     if (!m || typeof m.t !== 'string') return;
     if (m.t === 'ping') { ws.send(JSON.stringify({ t: 'pong', c: m.c })); return; }
-    if (ws.ctx) ws.ctx.room.activate();                 // odanın denge sürümü (WSTATS vb. ortak)
-    if (m.t === 'in') { if (ws.ctx) ws.ctx.room.input(ws.ctx.id, m); return; }
-    if (m.t === 'kill') { if (ws.ctx) ws.ctx.room.suicide(ws.ctx.id); return; }
-    if (m.t === 'chat') {
+    if (ROOM_MSGS.has(m.t)) {                            // oda mesajı: girdi, intihar, sohbet, seçenek, işaret, test, oy, takım (room.js roomMessage; uzak odada iş parçacığına)
       if (!ws.ctx) return;
-      if (typeof m.m === 'string' && m.m.trimStart().startsWith('/')) return command(ws, m.m);      // moderatör komutu: sohbete yayınlanmaz
-      ws.ctx.room.chat(ws.ctx.id, m); return;
-    }
-    if (m.t === 'opt') { if (ws.ctx) ws.ctx.room.opt(ws.ctx.id, m); return; }
-    if (m.t === 'mk') { if (ws.ctx) ws.ctx.room.mark(ws.ctx.id, m); return; }        // 12.202 işaret (ping)
-    if (m.t === 'dbg' && process.env.BF_DEBUG && ws.ctx) { ws.ctx.room.debug(ws.ctx.id, m); return; }   // yalnızca test için
-    if (m.t === 'vote') { if (ws.ctx) ws.ctx.room.castVote(ws, m.i); return; }      // maç sonu oylaması (yalnız insanlar)
-    if (m.t === 'team') {                                // M menüsü: takım değiştirme isteği
-      if (!ws.ctx) return;
-      const r = ws.ctx.room.teamCheck(ws.ctx.id, m.team);
-      ws.send(JSON.stringify({ t: 'team', ...r }));
+      if (m.t === 'chat' && typeof m.m === 'string' && m.m.trimStart().startsWith('/')) return command(ws, m.m);      // moderatör komutu: sohbete yayınlanmaz
+      ws.ctx.room.message(ws, m);
       return;
     }
     if (ws.ctx) return err(ws, 'Zaten bir odadasın');
@@ -129,10 +136,10 @@ wss.on('connection', (ws, req) => {
       useBalance(currentBalance());                     // yeni oda: güncel sınırlarla doğrulanır
       const cfg = { ...(m.cfg || {}) };
       if (!cfg.name || !String(cfg.name).trim()) cfg.name = `${owner}'in odası`;
-      { const used = [...rooms.values()].reduce((n, r) => n + (!r.official || r.clients.size ? r.game?.soldiers.length || 0 : 0), 0),      // boş resmi oda adımlanmaz (CPU yok): sayılmaz
+      { const used = [...rooms.values()].reduce((n, r) => n + (!r.remote && (!r.official || r.clients.size) ? r.game?.soldiers.length || 0 : 0), 0),      // boş resmi oda adımlanmaz (CPU yok): sayılmaz · 12.211 iş parçacığındaki oda ana iş parçacığının bütçesinden yemez
          c0 = sanitizeCfg(cfg), team = !['dm', 'gg', 'inf', 'pb'].includes(c0.type), need = team ? c0.perTeam * 2 : c0.perTeam;
-        if (used + need > MAX_SOLDIERS) { const fit = Math.floor((MAX_SOLDIERS - used) / (team ? 2 : 1)); if (fit < 4) return err(ws, 'Sunucu dolu, sonra tekrar dene'); cfg.perTeam = Math.min(c0.perTeam, fit); console.log(`[bütçe] oda ${c0.perTeam} → ${cfg.perTeam} (kullanılan ${used}/${MAX_SOLDIERS} asker)`); } }
-      const room = new Room(code, cfg, { owner });
+        if (!wantsWorker(need) && used + need > MAX_SOLDIERS) { const fit = Math.floor((MAX_SOLDIERS - used) / (team ? 2 : 1)); if (fit < 4) return err(ws, 'Sunucu dolu, sonra tekrar dene'); cfg.perTeam = Math.min(c0.perTeam, fit); console.log(`[bütçe] oda ${c0.perTeam} → ${cfg.perTeam} (kullanılan ${used}/${MAX_SOLDIERS} asker)`); } }
+      const room = makeRoom(code, cfg, { owner });
       rooms.set(code, room);
       enter(ws, room, m);
     } else if (m.t === 'join') {
@@ -191,15 +198,12 @@ function playerName(m) {
 }
 
 function enter(ws, room, m) {
-  room.activate();
   const name = playerName(m);
   const skins = cleanSkins(m.skins);                                                     // silah kaplamaları (bilinen silah / kaplama dışı atılır)
   const wear = cleanWear(m.wear);                                                        // 12.167 kıyafet tercihi (sınıf başına kod / tüm sınıflar); eski istemci yollamaz → varsayılan
-  if (room.game.ended) { room.hold(ws, { name, team: m.team, cls: m.cls, loadout: m.loadout, skins, wear }); console.log(`[${room.code}] ${name} sonraki maçı bekliyor`); return; }     // maç sonu ekranı: yeni maçta otomatik katılır
-  const c = room.join(ws, name, m.team, m.cls, m.loadout, false, skins, wear);
-  if (!c) return err(ws, 'Oda dolu');
-  ws.ctx = { room, id: c.id };
-  console.log(`[${room.code}] ${c.name} katıldı (${room.humanCount} oyuncu)`);
+  const t = (v) => (typeof v === 'string' ? v.slice(0, 24) : undefined);
+  const loadout = m.loadout && typeof m.loadout === 'object' && !Array.isArray(m.loadout) ? JSON.parse(JSON.stringify(m.loadout)) : undefined;      // iş parçacığına yapılandırılmış kopya (yalnız JSON değerleri)
+  room.enter(ws, { name, team: t(m.team), cls: t(m.cls), loadout, skins, wear });     // room.js enterRoom: maç bitmişse bekleme listesi, doluysa 'Oda dolu'
 }
 
 // 12.187: her haritayı açılışta bir kez kur (dinlemeye başlamadan). Bir haritanın süreçteki İLK kurulumu önbellek / JIT yüzünden pahalı
@@ -225,12 +229,13 @@ function syncOfficial() {
   }
   for (const o of want.values()) {
     const r = rooms.get(o.code);
-    if (!r) { rooms.set(o.code, new Room(o.code, { perTeam: o.perTeam, type: o.type, time: o.time, diff: o.diff, bots: o.bots }, { official: o })); console.log(`[${o.code}] ${o.name} hazır`); }
+    if (!r) { rooms.set(o.code, makeRoom(o.code, { perTeam: o.perTeam, type: o.type, time: o.time, diff: o.diff, bots: o.bots }, { official: o })); console.log(`[${o.code}] ${o.name} hazır`); }
     else if (r.official) { r.activate(); r.setOfficial(o); }
   }
 }
 warmMaps();
 syncOfficial();
+if (MAX_WORKERS > 0) prewarm();                 // 12.211 yedek oda iş parçacığı (haritalar kurulu bekler)
 // systemctl kill -s HUP warbyte: data/official.json'ı yeniden oku → değişen oda boşsa hemen, oyuncu varsa sonraki maçta (kimse düşmez)
 process.on('SIGHUP', () => { try { reloadOfficial(); syncOfficial(); console.log('[resmi] official.json yeniden yüklendi (SIGHUP)'); } catch (e) { console.error('[resmi] yeniden yükleme hatası', e); } });
 

@@ -492,7 +492,10 @@ export function vbDrive(b, dt) {
       }
     }
   }
-  if (vd.state === 'drive') follow(b, dt, inp, sp);
+  if (vd.state === 'drive') {                    // 12.211 rota izleme 2 adımda bir (birikmiş süreyle); arada son direksiyon / gaz girdisi sürer (araç fiziği her adım)
+    if (vd.fk || vd.fRoute !== vd.route) { vd.fk = false; follow(b, dt + (vd.fdt || 0), inp, sp); vd.fdt = 0; vd.fRoute = vd.route; vd.ff = inp.f; vd.fr = inp.r; vd.fb = inp.b; }
+    else { vd.fk = true; vd.fdt = dt; inp.f = vd.ff; inp.r = vd.fr; inp.b = vd.fb; }
+  }
   else if (vd.state === 'hold' && vd.kind === 'tank' && vd.post && vd.dest === vd.post) {      // 12.208 mevzide: ön zırhı düşman yönüne çevir (yerinde döner), sonra dur
     if (!vd.postIn) { vd.postIn = true; stat(g).tankPost = (stat(g).tankPost || 0) + 1; vd.postHp = v.hp; }
     const e = angleDiff(st.yaw, vd.post.look);

@@ -5,6 +5,7 @@
 //  · istemci başına ham snapshot boyutu (KB/sn) — eskisi (hepsi her snapshot'ta) ile karşılaştırma
 //   WS=ws://127.0.0.1:8968 node scripts/interesttest.mjs
 import WebSocket from 'ws';
+import { IM_NEAR } from '../src/net/interest.js';
 import zlib from 'node:zlib';
 const URL = process.env.WS || 'ws://127.0.0.1:8787';
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -34,8 +35,8 @@ S.forEach((m, si) => {
   const me = m.me?.now;
   const ids = new Set(m.s.map((p) => p.i));
   for (const p of m.s) { if (last[p.i] >= 0) { const g = si - last[p.i]; gaps[p.i] = Math.max(gaps[p.i], g); worstGap = Math.max(worstGap, g); } last[p.i] = si; seen[p.i]++; pos[p.i] = p; if (lastA[p.i] !== undefined && lastA[p.i] !== p.a) { /* a değişimi gelmiş */ } lastA[p.i] = p.a; }
-  // yakın (≤ 140 m) düşman bu snapshot'ta var mı (bir önceki konumundan)
-  if (me) for (let i = 0; i < N; i++) { const q = pos[i]; if (!q || i === myId) continue; const d = Math.hypot(q.x - me.x, q.z - me.z); if (d < 140 && q.a && Math.floor(i / 1) >= 0) { const foe = (i < 128) !== (myId < 128); if (foe) { nearN++; if (!ids.has(i)) nearMiss++; } } }
+  // yakın (≤ IM_NEAR − 10 m) düşman bu snapshot'ta var mı (bir önceki konumundan)
+  if (me) for (let i = 0; i < N; i++) { const q = pos[i]; if (!q || i === myId) continue; const d = Math.hypot(q.x - me.x, q.z - me.z); if (d < IM_NEAR - 10 && q.a && Math.floor(i / 1) >= 0) { const foe = (i < 128) !== (myId < 128); if (foe) { nearN++; if (!ids.has(i)) nearMiss++; } } }
 });
 const kb = S.reduce((a, m) => a + m._len, 0) / (S.length / 20) / 1024;
 const avgN = S.reduce((a, m) => a + m.s.length, 0) / S.length;

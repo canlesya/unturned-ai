@@ -84,7 +84,7 @@ function readBody(req) {
 export function startAdmin({ rooms, syncOfficial = () => {}, port = +process.env.ADMIN_PORT || 8788 }) {
   const roomList = () => [...rooms.values()].map((r) => ({
     ...r.info(), balVer: r.balVer || 0, soldiers: r.game?.soldiers.length || 0, perf: r.clients.size ? r.perfStats?.() || null : null,      // 12.203 oda başarımı (sim / ağ µs, istemci başına KB/sn)
-    players: [...r.clients.values()].map((c) => { const s = r.game.soldiers[c.id]; return { id: c.id, name: c.name, team: s.team, cls: s.cls, kills: s.kills || 0, assists: s.assists || 0, deaths: s.deaths || 0 }; }),
+    players: r.adminPlayers ? r.adminPlayers() : [...r.clients.values()].map((c) => { const s = r.game.soldiers[c.id]; return { id: c.id, name: c.name, team: s.team, cls: s.cls, kills: s.kills || 0, assists: s.assists || 0, deaths: s.deaths || 0 }; }),
   }));
 
   const officialState = () => ({

@@ -683,11 +683,20 @@ export class BotBrain {
   tick(dt, n) {
     const s = this.s, g = this.game;
     if (!s.alive) { this._tAcc = 0; this.update(dt); return; }
+    // 12.211 kademe: büyük haritada hedefsiz / uyarılmamış yaya bot en yakın düşmanı 150 / 260 / 420 m ötedeyse 2 / 2 / 3 adımda bir (birikmiş süreyle).
+    // Sunucu yük koruması (g.loadLevel, server/room.js): 1 → boştakiler 2–4, yolcu ve uyarılmış 2 adımda bir · 2 → çatışmadaki bot da 2 adımda bir.
+    // Sürücü bot her adım (araç girdisi). Süre birikir: dönüş / ateş aralığı / zamanlayıcılar aynı hızda işler, yalnız karar sıklığı düşer.
     let k = 1;
-    if (g.map.big && !s.veh && !this.target && !s.def.zombie && this.foeD > 260 && g.time - this.alertT > 3) k = this.foeD > 420 ? 3 : 2;
+    const L = g.loadLevel | 0;
+    if ((g.map.big || L) && !s.def.zombie && !(s.veh && this.vd)) {
+      const idle = !s.veh && !this.target && g.time - this.alertT > 3;
+      if (idle && g.map.big) k = this.foeD > 420 ? 3 : this.foeD > 150 ? 2 : 1;
+      if (L >= 1) { if (idle) k = Math.max(k + 1, 2); else if (s.veh || !this.target) k = Math.max(k, 2); }
+      if (L >= 2 && this.target) k = Math.max(k, 2);
+    }
     this._tAcc = (this._tAcc || 0) + dt;
     if (k > 1 && (n + s.id) % k) return;
-    const d = Math.min(this._tAcc, dt * 3); this._tAcc = 0;
+    const d = Math.min(this._tAcc, dt * 4); this._tAcc = 0;
     this.update(d);
   }
 

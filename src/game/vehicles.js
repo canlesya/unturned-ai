@@ -423,9 +423,26 @@ export class Vehicles {
   // ── yayaya çarpma + askeri gövdeden dışarı itme ──
   // Yaya, gövdenin (OBB) içine girmişse en kısa yönden dışarı itilir (her taraf, her askerde; istemci yerel oyuncu için de). Hızlı araç düşmana
   // (sürücüsüz yuvarlanan araçta son sürücünün düşmanına) çarparsa hasar + savrulma (yetkili); takım arkadaşı yalnız itilir.
+  // 12.211 araç ızgarası (16 m; her adımda bir kez, ilk sorguda): yaya ↔ araç itmesi yalnız bulunduğu hücreye uzanan araçlarla (eskiden her yaya × 116 araç).
+  // Hücreye eklerken erişim + 2 m pay (adım içinde sürülen araç kayabilir); sıra listeyle aynı → sonuç aynı. Çevrim içi istemci eski döngüde.
+  vgrid() {
+    const t = this.g.time;
+    if (this._vgT === t && this._vg) return this._vg;
+    this._vgT = t;
+    const G = (this._vg ||= new Map());
+    if (G.size > 4096) G.clear(); else for (const a of G.values()) a.length = 0;
+    for (const v of this.list) {
+      if (!v.st || (!v.alive && !v.wreck)) continue;
+      const r = v.def.hl + 3.5, x0 = Math.floor((v.st.x - r) / 16), x1 = Math.floor((v.st.x + r) / 16), z0 = Math.floor((v.st.z - r) / 16), z1 = Math.floor((v.st.z + r) / 16);
+      for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) { const k = (x + 4096) * 8192 + z + 4096; let a = G.get(k); if (!a) G.set(k, (a = [])); a.push(v); }
+    }
+    return G;
+  }
   pushSoldier(s) {
     if (!s.alive || s.veh || s.fly) return;
-    for (const v of this.list) {
+    const list = this.g.online ? this.list : this.vgrid().get((Math.floor(s.pos.x / 16) + 4096) * 8192 + Math.floor(s.pos.z / 16) + 4096);
+    if (!list) return;
+    for (const v of list) {
       if (!v.st || (!v.alive && !v.wreck)) continue;
       const st = v.st, d = v.def;
       if (Math.abs(s.pos.x - st.x) > d.hl + 1.5 || Math.abs(s.pos.z - st.z) > d.hl + 1.5) continue;
@@ -455,7 +472,14 @@ export class Vehicles {
       const sp = this.speed(v), d = v.def;
       if (sp < 2) continue;
       const st = v.st, drv = v.seats[0] || (now - v.lastDriverT < 4 ? v.lastDriver : null), team = drv ? drv.team : v.team;
-      for (const s of g.soldiers) {
+      // 12.211 asker ızgarasından (4 m hücre, bu adımın konumları) yalnız aracın çevresi; ızgara yoksa (çevrim içi istemci) hepsi
+      let near = g.soldiers;
+      if (g.crowd && !g.online) {
+        near = (this._rn ||= []); near.length = 0;
+        const r = d.hl + 1.3, x0 = Math.floor((st.x - r) / 4), x1 = Math.floor((st.x + r) / 4), z0 = Math.floor((st.z - r) / 4), z1 = Math.floor((st.z + r) / 4);
+        for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) { const a = g.crowd.bucket(x, z); if (a) for (let i = 0; i < a.length; i++) near.push(a[i]); }
+      }
+      for (const s of near) {
         if (!s.alive || s.veh || Math.abs(s.pos.x - st.x) > d.hl + 1.2 || Math.abs(s.pos.z - st.z) > d.hl + 1.2) continue;
         if (s.pos.y >= st.y + d.top || s.pos.y + s.height <= st.y + d.clear * 0.5) continue;
         const L = toLocal2(st, s.pos.x, s.pos.z);
