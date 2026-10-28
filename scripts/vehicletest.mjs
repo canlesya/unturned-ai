@@ -23,7 +23,8 @@ function headless() {
   console.log('── başsız ──');
   const mkG = (o = {}) => new Game(null, { headless: true, map: 'kuzey', tod: 'day', weather: 'clear', diff: 'normal', bots: false, match: { perTeam: 4, type: 'conquest' }, ...o });
   const g = mkG(), V = g.vehicles;
-  ok(V && V.list.length === 20 && V.list.filter((v) => v.alive).length === 14, 'kurulum: 12 jip (6 üs + 6 bayrak) + 4 tank + 4 helikopter (üs helipadleri), maç başında üslerdeki 6 jip + 4 tank + 4 helikopter hazır, bayrak jipleri bayrak alınınca', V ? `${V.list.length} / ${V.list.filter((v) => v.alive).length}` : 'yok');
+  const VL = V ? V.list.filter((v) => !v.def.moto) : [];      // 12.204: motorlar ayrı (scripts/mototest.mjs)
+  ok(V && VL.length === 20 && VL.filter((v) => v.alive).length === 14, 'kurulum: 12 jip (6 üs + 6 bayrak) + 4 tank + 4 helikopter (üs helipadleri), maç başında üslerdeki 6 jip + 4 tank + 4 helikopter hazır, bayrak jipleri bayrak alınınca', V ? `${VL.length} / ${VL.filter((v) => v.alive).length}` : 'yok');
   const others = [['kasaba', 'conquest'], ['colgecidi', 'tdm'], ['kuzey', 'tdm'], ['vadi', 'conquest']].map(([map, type]) => { const o = new Game(null, { headless: true, map, tod: 'day', weather: 'clear', diff: 'normal', bots: false, match: { perTeam: 2, type } }); return map + '/' + type + ':' + (o.vehicles ? 'VAR' : 'yok'); });
   ok(others.every((s) => s.endsWith('yok')), 'diğer haritalar / Kuzey TDM: araç yöneticisi yok (davranış aynı)', others.join(' '));
   const s = g.claimSlot('blue', 'Test', 'assault', {}), h = g.humans.get(s.id);

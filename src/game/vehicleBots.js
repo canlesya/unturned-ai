@@ -11,15 +11,16 @@
 import { mgAt, gunPose, toLocal2, toWorld, bodyPitchAlong, noseDir } from '../sim/vehicle.js';
 import { clamp, rand, angleDiff, yawFromDir } from './util.js';
 import * as THREE from 'three';
+import { MOTO_BOT, motoBotOk, motoTrip } from './motorbike.js';      // 12.204 motor: botlar uzak bayrağa motorla, hepsini kapmaz
 
 export const VBOT = {
-  trip: { jip: 200, tank: 150, heli: 300 },       // bu kadar uzak hedefe araçla gider
+  trip: { jip: 200, tank: 150, heli: 300, moto: MOTO_BOT.trip },       // bu kadar uzak hedefe araçla gider (12.204 motor: küçük haritada motoTrip)
   tanks: (per) => (per >= 12 ? 2 : 1),            // takımda aynı anda en çok bot tankçı
   reach: 75,                                      // boş araca en çok bu kadar yürür
   humanNear: 22,                                  // aracın bu kadar yakınında insan takım arkadaşı varsa bot almaz (oyuncu binmeye gidiyor olabilir)
-  park: { jip: 42, tank: 12 },                    // bayrak merkezine bu kadar kala durur
-  speed: { jip: [17, 10], tank: [10, 7] },        // hedef hız: yolda / arazide (m/sn)
-  clr: { jip: 1.6, tank: 2.3 },                   // rota açıklığı (m)
+  park: { jip: 42, tank: 12, moto: MOTO_BOT.park },                    // bayrak merkezine bu kadar kala durur
+  speed: { jip: [17, 10], tank: [10, 7], moto: MOTO_BOT.speed },        // hedef hız: yolda / arazide (m/sn)
+  clr: { jip: 1.6, tank: 2.3, moto: MOTO_BOT.clr },                   // rota açıklığı (m)
   wait: [1.2, 7],                                 // binince bekleme: en az / yolcu yürürken en çok (sn)
   stuck: { t: 1.6, rev: 1.4, max: 5, noProg: 35 },
   // tank topu (zorluk): ilk nişan hatası (rad, her atışta yeniden), hareketli hedefe öncü oranı, ek bekleme (dolumdan sonra), tepki (sn), menzil;
@@ -33,7 +34,7 @@ export const VBOT = {
 const _o = { x: 0, y: 0, z: 0 }, _d = { x: 0, y: 0, z: 0 }, _cp = { x: 0, y: 0, z: 0 }, _cd = { x: 0, y: 0, z: 0 }, _gs = {}, _e = new THREE.Vector3(), _t = new THREE.Vector3();
 // ölçüm sayaçları (testler okur: g.vbStats)
 const stat = (g) => (g.vbStats ||= { enter: 0, exit: {}, rev: 0, plans: 0, planMs: 0, planMax: 0, fail: 0, shots: 0, arrive: 0 });
-const kindOf = (v) => (v.def.heli ? 'heli' : v.def.cannon ? 'tank' : 'jip');
+const kindOf = (v) => (v.def.heli ? 'heli' : v.def.cannon ? 'tank' : v.def.moto ? 'moto' : 'jip');
 
 // ───── VNav ─────
 const VCACHE = new Map();
@@ -41,7 +42,7 @@ export function vnav(g) {
   if (g._vnav) return g._vnav;
   const key = g.map.id || g.map.name;
   let n = VCACHE.get(key);
-  if (!n) { n = buildVNav(g); vComp(n, VBOT.clr.jip); vComp(n, VBOT.clr.tank); n.ms = performance.now() - n.t0; VCACHE.set(key, n); }      // bağlı bölgeler de kurulumda (ilk rotada ~0,2 sn takılmasın)
+  if (!n) { n = buildVNav(g); vComp(n, VBOT.clr.jip); vComp(n, VBOT.clr.tank); vComp(n, VBOT.clr.moto); n.ms = performance.now() - n.t0; VCACHE.set(key, n); }      // bağlı bölgeler de kurulumda (ilk rotada ~0,2 sn takılmasın)
   return (g._vnav = n);
 }
 
@@ -217,7 +218,8 @@ export function vbBoard(b) {
   for (const v of V.list) {
     if (!v.alive || !v.st || v.burn || v.st.sunk || v.seats.some(Boolean) || v.team !== s.team || g.time < (v.botBad || 0)) continue;
     if (v.botRes && v.botRes !== b && v.botRes.s.alive && g.time < v.botResT) continue;
-    const k = kindOf(v); if (trip < VBOT.trip[k]) continue;
+    const k = kindOf(v); if (trip < (k === 'moto' ? motoTrip(g) : VBOT.trip[k])) continue;
+    if (k === 'moto' && !motoBotOk(g, s, v, busy(g, s.team, 'moto'))) continue;      // 12.204: insan yakındaysa bekle, takımın motorlarının hepsini alma
     if (k === 'heli' && (v.st.air || !heliOk(g, s, b))) continue;                 // helikopter: yerdeyken, takımda pilot sınırı / zorluk
     if (k === 'tank' && busy(g, s.team, 'tank') >= VBOT.tanks(teamN(g, s.team))) continue;      // tank: takım büyüklüğüne göre en çok bot tankçı
     if (v.hp < v.def.hp * 0.45) continue;
@@ -237,7 +239,7 @@ export function vbBoard(b) {
 // helikopterin nişancısı hiç gelmiyordu.)
 // 12.189 ölçüm: 10v10'da botların zamanının %52'si araçtaydı (2 tank + nişancı, 2 helikopter + 3 kişi bayrakta / gökte bekliyor) → piyade çatışması
 // azdı. Kabin yolcusu çağrılmaz; tank nişancısı 12+ kişilik takımda; tank / helikopter sayısı takım büyüklüğüyle sınırlı (VBOT.tanks, HELI.pilots).
-const CREW = { heli: [1, 2], tank: [1], jip: [1, 2, 3] };
+const CREW = { heli: [1, 2], tank: [1], jip: [1, 2, 3], moto: [1] };
 const teamN = (g, team) => g.soldiers.filter((e) => e.team === team && !e.vacant).length;
 const busy = (g, team, k) => { let n = 0; for (const o of g.brains) if (o.s.team === team && o.s.alive && (o.vd?.kind === k || (o.vRes && kindOf(o.vRes) === k))) n++; return n; };
 function recruit(b, v) {
@@ -304,7 +306,7 @@ export function vbDrive(b, dt) {
   const s = b.s, g = b.game, V = g.vehicles, v = s.veh, st = v.st, vd = b.vd, d = v.def;
   const inp = (vd.inp ||= { f: 0, r: 0, b: false, u: false, d: false, yw: st.yaw, pt: 0 });
   vd.t += dt; vd.odo = (vd.odo || 0) + V.speed(v) * dt;
-  if (!v.alive || v.burn || st.sunk || (vd.kind === 'jip' && v.hp < d.hp * 0.33)) { vbExit(b, 'hasar'); return; }       // yanıyor / batıyor (jip: yanmadan önce) → in
+  if (!v.alive || v.burn || st.sunk || st.stall || ((vd.kind === 'jip' || vd.kind === 'moto') && v.hp < d.hp * 0.33)) { vbExit(b, st.stall ? 'su' : 'hasar'); return; }       // yanıyor / batıyor (jip: yanmadan önce) → in
   inp.f = 0; inp.r = 0; inp.b = false;
   if (d.cannon) tankGun(b, dt, inp); else { inp.yw = st.yaw; inp.pt = 0; }
   if (vd.kind === 'heli') { heliDrive(b, dt, inp); return; }
@@ -337,7 +339,7 @@ export function vbDrive(b, dt) {
     }
   }
   if (vd.state === 'drive') follow(b, dt, inp, sp);
-  else if (vd.state === 'hold') { inp.b = true; if (vd.kind === 'jip' && sp < 0.6) { vd.parkT = (vd.parkT || 0) + dt; if (vd.parkT > 0.8) { stat(g).arrive++; vbExit(b, 'vardı'); return; } } }
+  else if (vd.state === 'hold') { inp.b = true; if ((vd.kind === 'jip' || vd.kind === 'moto') && sp < 0.6) { vd.parkT = (vd.parkT || 0) + dt; if (vd.parkT > 0.8) { stat(g).arrive++; vbExit(b, 'vardı'); return; } } }
   if (d.cannon && vd.fire) { if (V.fireCannon(v, s)) stat(g).shots++; vd.fire = false; }
   v.horn = !!vd.horn && !d.cannon; vd.horn = false;
   V.drive(v, inp, dt);
