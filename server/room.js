@@ -428,6 +428,7 @@ export class Room {
     }
     if (g.vehicles && Array.isArray(m.vtp) && m.vtp.length >= 2 && m.vtp.every(Number.isFinite)) { const v = s.veh || g.vehicles.list[m.vtp[3] | 0]; if (v?.st) { v.st.x = m.vtp[0]; v.st.z = m.vtp[1]; v.st.y = g.world.heightAt(m.vtp[0], m.vtp[1]); if (m.vtp.length > 2) v.st.yaw = m.vtp[2]; v.st.vx = v.st.vy = v.st.vz = 0; v.sleep = false; } }   // 12.177 { vtp:[x,z,yaw?,araç?] } aracı ışınla
     if (g.vehicles && Array.isArray(m.vdmg)) { const v = g.vehicles.list[m.vdmg[0] | 0]; if (v?.alive) g.vehicles.damage(v, +m.vdmg[1] || 0, null, m.vdmg[2] || 'impact'); }   // { vdmg:[araç, hasar, tür?] }
+    if (g.vehicles && Array.isArray(m.vrs)) { const v = g.vehicles.list[m.vrs[0] | 0]; if (v && !v.def.fixed) { if (v.alive) { g.vehicles.destroy(v, null, !!m.vrs[1]); v.deadT = v.def.wreck; } else if (!v.wreck) v.respawnT = 0; } }   // 12.215 { vrs:[araç, sessiz?] } patlat / sessiz yok et (enkaz beklenmez); ölüyken: hemen yeniden doğsun (vehspawnview)
     if (m.bots === false) { g.brainsOff = g.brains.splice(0); }
     if (m.bots === true && g.brainsOff) { g.brains.push(...g.brainsOff); g.brainsOff = null; }
     if (m.ask && c.ws.readyState === 1) c.ws.send(JSON.stringify({ t: 'dbg', optic: s.opticId, item: s.item.id, zb: !!s.def.zombie, ab: [+s.abT.toFixed(2), +s.abActive.toFixed(2)],

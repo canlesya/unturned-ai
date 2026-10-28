@@ -105,6 +105,7 @@ export class VehicleView {
     this.voices = []; this.horns = [];
     this.t = 0;
     game.on('vehboom', ({ v, quiet }) => { const it = this.items[v.idx]; if (it && !quiet) it.boomT = 1; if (quiet) this.sink(v); });
+    game.on('vehspawn', (v) => this.reborn(v));                        // 12.215 yeni doğan araç = yeni görünüm durumu (önceki ömrün batma / yay / yatışı taşınmaz)
     game.on('vehfire', (sh) => this.cannonFx(sh));                    // 12.178 tank topu: namlu alevi, duman halkası, geri tepme, ses
   }
 
@@ -198,6 +199,16 @@ export class VehicleView {
   }
 
   sink(v) { const it = this.items[v.idx]; if (it) it.sinkT = 0.001; }
+  // 12.215 doğuşta (çevrimdışı / sunucu trySpawn, istemci anlık görüntüde ölü → canlı) görünümün ÖMÜRLÜK durumu sıfırlanır. Eskiden sessiz yok oluşun
+  // (12.212 terk edilen araç, gölde batan araç) batma sayacı (sinkT) hiç sıfırlanmıyordu: sıfırlama satırı ölü araç karesindeydi, ama ölü araç
+  // ensure()'da gizlenip o satıra hiç varmıyordu → aynı araç yeniden doğunca model her karede 0,35 m/sn batıp 1,5 m'de (ömür boyu) arazinin
+  // içinde kalıyor, groundLift de "batan araç" sanıp kaldırmıyor, doğuş yerinde 3 sn su sıçraması çıkıyordu. Fizik / ağ / vuruş kutusu doğruydu
+  // (yalnız çizim) — vehspawnsink / vehdrive bu yüzden görmüyordu (vehdrive sinkT'li aracı bilerek atlıyor).
+  reborn(v) {
+    const it = this.items[v.idx]; if (!it) return;
+    it.sinkT = 0; it.boomT = 0; it.sy = it.svy = it.sp = it.svp = it.sr = it.svr = 0; it.lvy = 0; it.lyaw = null; it.lf = undefined;
+    it.lean = it.tip = 0; it.tipSide = 0; it.rec = 0; it.lift = 0;
+  }
 
   frame(dt) {
     const g = this.g, cam = g.camera, me = g.playerSoldier, P = g.player;
@@ -224,7 +235,7 @@ export class VehicleView {
       m.position.set(st.x, st.y + (v.alive ? it.sy * 0.6 : -0.12), st.z);
       m.rotation.order = 'YXZ';
       m.rotation.set(st.pitch + (v.alive ? it.sp : 0.03), st.yaw, st.roll + (v.alive ? it.sr : -0.04));
-      if (it.sinkT) { it.sinkT += dt; m.position.y -= Math.min(1.5, it.sinkT * 0.35); if (!v.alive && !v.wreck) it.sinkT = 0; }
+      if (it.sinkT) { it.sinkT += dt; m.position.y -= Math.min(1.5, it.sinkT * 0.35); }      // 12.215 sıfırlama doğuşta (reborn)
       U.body.position.y = v.alive ? it.sy * 0.4 : 0;
       const mine = me && me.veh === v && me.alive;
       if (U.heli) {
