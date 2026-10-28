@@ -456,7 +456,8 @@ export class BotBrain {
     const flying = v.def.heli && v.st.air;                                      // 12.179: uçan helikopterden inilmez (yanıyor / pilotsuz olsa da: atlarsa düşer)
     const bdrv = drv && !(drv.human || drv.isPlayer) ? drv.brain?.vd : null;       // 12.189 bot sürücü
     const waitDrv = !drv && v.botRes?.s.alive && g.time < v.botResT;               // 12.189: çağrıldığı araca sürücüden önce bindi (sürücü geliyor)
-    if ((v.burn || v.st.sunk || (!drv && !waitDrv) || (drv && !(drv.human || drv.isPlayer || bdrv))) && !flying) { if (sp < 4 || v.burn || v.st.sunk) { V.exit(s); this.goalT = 0; } return; }
+    const humIn = !drv && v.seats.some((o) => o && o !== s && o.team === s.team && (o.human || o.isPlayer || o.netHuman));      // 12.218 insan sürücü koltuğundan başka koltuğa geçti (yeniden sürebilir / botla takas): yolcu bot hemen inmez (durma kuralı aşağıda)
+    if ((v.burn || v.st.sunk || (!drv && !waitDrv && !humIn) || (drv && !(drv.human || drv.isPlayer || bdrv))) && !flying) { if (sp < 4 || v.burn || v.st.sunk) { V.exit(s); this.goalT = 0; } return; }
     if (sp > 3 || flying) this.rodeMoved = true;
     this.vstopT = sp < 0.8 && !flying && !(bdrv && (bdrv.state === 'wait' || (v.def.cannon && bdrv.state === 'hold'))) ? (this.vstopT || 0) + dt : 0;      // bot sürücü bekliyor / tank bayrakta savaşıyor: nişancı inmez
     if (this.vstopT > (this.rodeMoved ? 4 : 25)) { V.exit(s); this.vstopT = 0; this.rodeMoved = false; this.goalT = 0; return; }      // yola çıktıktan sonra 4 sn durdu = vardı (hiç kalkmadıysa 25 sn bekler)

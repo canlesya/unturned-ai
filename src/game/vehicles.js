@@ -8,6 +8,7 @@ import { motoAfterStep } from './motorbike.js';
 import { extraSpawnsFor } from '../maps/vehScale.js';             // 12.206 oyuncu sayısına göre ek araçlar (üste)
 import { submerged } from '../sim/swim.js';             // 12.212 terk edilen araç suda mı
 import { arcYaw, arcPitch } from '../sim/emplacement.js';          // 12.213 sabit yuvalar
+import { vbTakeWheel } from './vehicleBots.js';                    // 12.218 koltuk takası: bot sürücü koltuğuna geçince sürmeye devam eder
 
 // ───── Araçlar (12.177) ─────
 // Yönetici: haritanın araç doğuş verisinden (map.vehicles; yalnız VT'de tanımlı türler, yalnız Ele Geçirme) araçları kurar. YETKİLİ taraf (çevrimdışı
@@ -151,7 +152,7 @@ export class Vehicles {
       if (hum && v.seats[0] && isBot(v.seats[0])) { seat = 0; evict = v.seats[0]; }                 // sürücü bot: sürücü ol
       else if (hum && seat < 0) { const k = v.seats.findIndex((o, i) => i > 0 && o && isBot(o)); if (k > 0) { seat = k; evict = v.seats[k]; } }      // dolu: bot yolcu yer açar
       if (seat < 0) continue;
-      best = evict ? { v, seat, evict } : { v, seat }; bd = dist;
+      best = evict ? { v, seat, evict, to: this.botDest(v, seat) } : { v, seat }; bd = dist;      // 12.218 to: botun geçeceği koltuk (−1 = iner; ipucunda)
     }
     return best;
   }
@@ -202,18 +203,32 @@ export class Vehicles {
     if (!b || !isBot(b) || b.team !== s.team || !v.alive) return false;
     if (this.speed(v) > 2.5 || (v.def.heli && v.st.air)) { v.yieldReq = { s, seat, t: this.g.time }; this.g.emit('vehyield', { s, v }); return true; }
     v.yieldReq = null;
-    const free = v.seats.map((o, i) => i).filter((i) => i !== 0 && i !== seat && !v.seats[i]);
-    free.sort((a, c) => (mgAt(v.def, c) ? 1 : 0) - (mgAt(v.def, a) ? 1 : 0));
-    const br = b.brain;
-    if (br) { if (br.vd) { const S = this.g.vbStats; if (S) S.exit.insan = (S.exit.insan || 0) + 1; } br.vd = null; br.vRes = null; br.vRide = null; br.path = null; br.goalT = 0; br.vstopT = 0; br.rodeMoved = false; }
-    if (free.length) {
-      v.seats[seat] = null; v.seats[free[0]] = b; b.seat = free[0]; b.ads = false; b.adsT = 0;
+    const to = this.botDest(v, seat);
+    this.botUnseat(b, v);
+    if (v.def.fixed && b.brain) b.brain.empCD = this.g.time + 20;      // 12.218 yuvadan indirilen bot hemen geri dönmesin
+    if (to >= 0) {
+      v.seats[seat] = null; v.seats[to] = b; b.seat = to; b.ads = false; b.adsT = 0; b.gunAim = null;
       if (seat === 0) v.horn = false;
-      this.place(b); this.g.emit('vehseat', { s: b, v, seat: free[0] });
+      this.place(b); this.g.emit('vehseat', { s: b, v, seat: to });
     } else this.exit(b);
     v.taken = (v.taken || 0) + 1;
     return this.enter(s, v, seat);
   }
+
+  // 12.218 yer açan botun gideceği koltuk: sürücü / alınan koltuk dışında boş koltuk (önce makineli), yoksa −1 (iner). Sabit yuva tek koltuk: −1
+  botDest(v, seat) {
+    let best = -1;
+    for (let i = 1; i < v.seats.length; i++) if (i !== seat && !v.seats[i] && (best < 0 || (mgAt(v.def, i) && !mgAt(v.def, best)))) best = i;
+    return best;
+  }
+  // botun sürücü / yolcu çağrısı durumu temizlenir (koltuğu insana bırakırken)
+  botUnseat(b) {
+    const br = b.brain; if (!br) return;
+    if (br.vd) { const S = this.g.vbStats; if (S) S.exit.insan = (S.exit.insan || 0) + 1; }
+    br.vd = null; br.vRes = null; br.vRide = null; br.path = null; br.goalT = 0; br.vstopT = 0; br.rodeMoved = false;
+  }
+  // 12.218 araçtaki insan, takım arkadaşı botun koltuğunu alabilir mi (1–4 / telefon koltuk düğmesi: yer değiştirme). İnsanla takas yok.
+  swapOk(s, o) { return !!(s && o && s !== o && s.veh && o.veh === s.veh && !s.veh.def.fixed && isHuman(s) && isBot(o) && o.alive && o.team === s.team); }
 
   enter(s, v, seat) {
     if (v.seats[seat] || !v.alive) return false;
@@ -262,7 +277,8 @@ export class Vehicles {
 
   seatTo(s, n) {
     const v = s.veh;
-    if (!v || n < 0 || n >= v.seats.length || n === s.seat || v.seats[n]) return false;
+    if (!v || n < 0 || n >= v.seats.length || n === s.seat) return false;
+    if (v.seats[n]) return this.swapSeat(s, n);
     if (n === 0 && s.brain) return false;                              // botlar sürmez (12.177 aşama 1)
     v.seats[s.seat] = null;
     if (s.seat === 0) v.horn = false;
@@ -270,6 +286,28 @@ export class Vehicles {
     if (n === 0) { v.lastDriver = s; v.lastDriverT = this.g.time; v.team = s.team; }
     this.place(s);
     this.g.emit('vehseat', { s, v, seat: n });
+    return true;
+  }
+
+  // 12.218 yer değiştirme (yetkili taraf: çevrimdışı oyun / sunucu; çevrim içi istemci 'vs' kenarı yollar): insan n koltuğundaki takım arkadaşı
+  // botla yer değiştirir, bot insanın eski koltuğuna oturur. İnsan sürücü koltuğundan çıktıysa bot sürücü olur ve aracı sürmeye DEVAM eder
+  // (vbTakeWheel: kara aracı hedefe, helikopter havada seyir — Battlefield'da sürücüsüz kalan araç durur / helikopter düşer; burada takası
+  // isteyen oyuncu nişancı olmak istiyor, araç durursa hedef olur). İnsan sürücü olduysa botun sürücü durumu temizlenir (yolcu kalır).
+  // Araç hızlı / havada olsa da anında (araç içi koltuk değişimi; dışarıdan binmedeki "önce dur" kuralı burada yok). İkisinin de nişanı sıfır.
+  swapSeat(s, n) {
+    const v = s.veh, o = v?.seats[n];
+    if (!this.swapOk(s, o) || !v.alive) return false;
+    const a = s.seat;
+    if (n === 0) this.botUnseat(o);
+    v.seats[a] = o; v.seats[n] = s; o.seat = a; s.seat = n;
+    for (const q of [s, o]) { q.ads = false; q.adsT = 0; q.gunAim = null; q.vw = 0; if (q.cook) q.cook = null; }
+    if (a === 0 || n === 0) v.horn = false;
+    if (n === 0) { v.lastDriver = s; v.lastDriverT = this.g.time; v.team = s.team; }
+    if (a === 0 && o.brain) vbTakeWheel(o.brain, v);
+    v.yieldReq = null; v.sleep = false; v.idleT = 0;
+    this.place(s); this.place(o);
+    this.g.emit('vehseat', { s, v, seat: n }); this.g.emit('vehseat', { s: o, v, seat: a });
+    this.g.emit('vehswap', { s, o, v, from: a, to: n });
     return true;
   }
 

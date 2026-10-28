@@ -355,6 +355,16 @@ export function vbCrew(b) {
   else { b.rideGoal = null; b.rideTo = null; if (!b.goal || Math.hypot(b.goal.x - door.x, b.goal.z - door.z) > 4) { b.setGoal(door.x, door.z, 25); b.via = null; b.perching = false; } }
   return true;
 }
+// 12.218 koltuk takası: insan sürücü (1–4 tuşuyla) takım arkadaşı botun koltuğuna geçti, bot sürücü koltuğuna oturdu → bot aracı sürmeye
+// DEVAM eder (BF: sürücüden nişancıya geçen oyuncunun aracı durmaz; AI sürücü kendi hedefine — mangal hedefi / bayrak — götürür). Kara aracı:
+// hemen rota planı (bekleme yok, yolcu çağırmaz); tank: mevzi / eşlik; helikopter havadaysa seyir (irtifa korunur), yerdeyse kalkış beklemesi.
+export function vbTakeWheel(b, v) {
+  const k = kindOf(v), air = !!(v.def.heli && v.st?.air);
+  b.vd = { state: k === 'heli' ? (air ? 'cruise' : 'wait') : 'plan', t: 0, tOff: 0, kind: k, stuck: 0, prog: 1e9, progT: 0, swap: true };
+  if (b.vRes) vbRelease(b);
+  b.vRide = null; b.rideGoal = null; b.rideTo = null; b.path = null; b.goalT = 0; b.vstopT = 0;
+  const S = stat(b.game); S.swap = (S.swap || 0) + 1;
+}
 export function vbRelease(b) {
   if (b.vRes && b.vRes.botRes === b) b.vRes.botRes = null;
   b.vRes = null; b.rideGoal = null; b.rideTo = null;

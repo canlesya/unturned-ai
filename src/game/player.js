@@ -22,6 +22,7 @@ import { LEAN_ROLL } from './soldier.js';
 import { TUNE } from './balance.js';
 import { TouchControls, isTouch } from './touch.js';
 import { nearCrate, useCrate } from './supply.js';                     // 12.216 ikmal kutusu E
+import { seatPress } from './vehicleHud.js';                        // 12.218 koltuk tuşu: boş → geç, bot → yer değiştir
 import { ScopeBreath } from './breath.js';
 import { norm, codeLabel, slotOrder } from '../core/keybinds.js';
 import { t as $t } from '../i18n/index.js';
@@ -1011,7 +1012,7 @@ export class Player {
       if (s.alive && !s.veh && kb.is('prone', code)) { s.toggleProne(); this.game.online?.edge('p'); }
       if (s.alive && kb.is('optic', code)) { this.game.online?.edge('o'); const o = s.cycleOptic(); if (o) { this.game.hud.toast($t('hud.t.optic', { o: opticName(s.opticId) }), '#cfe6ff'); this.saveEraOptic(); } }
       const slot = kb.slotOf(code);                                                 // tuş konumu (1 ana, 2 yedek, 3 bıçak, 4 ekipman) → items indeksi
-      if (s.veh) { const n = /^Digit[1-4]$/.test(code) ? +code[5] - 1 : -1; if (n >= 0 && s.alive) { if (this.game.online) this.game.online.edges.vs = n + 1; else V.seatTo(s, n); } }      // araçta 1–4 = koltuk (silah: fare tekerleği)
+      if (s.veh) { const n = /^Digit[1-4]$/.test(code) ? +code[5] - 1 : -1; if (n >= 0 && s.alive) seatPress(this.game, s, n); }      // araçta 1–4 = koltuk (silah: fare tekerleği) · 12.218 botlu koltuk = yer değiştir, insanlı = "koltuk dolu" 
       else if (slot >= 0) { const i = slotOrder(s.items.length)[slot]; if (i !== undefined) s.switchTo(i); }
       if (kb.is('fireMode', code) && s.alive) { s.toggleFireMode(); this.game.online?.edge('fm'); }
       if (kb.is('scoreboard', code)) { e.preventDefault(); this.game.hud.showScoreboard(true); }

@@ -77,6 +77,7 @@ export const VT = {
     maxR: 14, accel: 9, brake: 9, roll: 1, drag: 0.0012, steerMax: 1, steerRate: 3, grip: 6, gripHand: 6, slide: 0.9, climbK: 1,
     // koltuklar: 0 pilot (kokpit sağ ön), 1 sol kapı nişancısı, 2 sağ kapı nişancısı, 3 kabin yolcusu (arkaya bakar)
     seat: [[1.55, 0.42, 0.95], [-0.25, -0.95, 0.95], [-0.25, 0.95, 0.95], [-1.15, 0, 0.95]],
+    seatKey: ['veh.seat.pilot', 'veh.seat.doorL', 'veh.seat.doorR', 'veh.seat.cabin'],      // 12.218 HUD koltuk listesi / binme ipucu
     blastMul: 1.2, bulletMul: 0.15, hmgMul: 0.4, atMul: 1.6, ramMin: 6, ramMul: 16, mass: 2, wade: 1.3, stepUp: 0.6,
     hitSafe: 4.5, hitMul: 26, landSafe: 5, landMul: 60,             // çarpma / iniş: bu hızın üstü hasar (÷ kütle 2: 10 m/sn sert iniş ≈ 150, 30 m'den düşüş ≈ 750 → patlar)
     burnAt: 0.25, burnRate: 12, boom: [9, 150],

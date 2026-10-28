@@ -6,13 +6,14 @@ import { gunPose, mgAt, seatGun, toWorld, noseDir, mgPitch } from '../sim/vehicl
 import { dirFromAngles } from './util.js';
 import { nearCrate, crateAction, crateLabel } from './supply.js';      // 12.216 ikmal kutusu ipucu
 import { MOTO_ICON } from './motorbike.js';                           // 12.204 motor simgesi
+import { isHuman } from './vehicles.js';                             // 12.218 koltuk takası
 
 // 12.177 araç HUD'u (yalnız tarayıcı): yaklaşınca binme ipucu ("E · Jip · Sür / Bin"), araçtayken panel: ad, can çubuğu, hız (sürücü),
 // 4 koltuk (benimki turuncu, dolu = takım rengi + ad), tuş ipuçları, yanma / su uyarısı; araca isabette küçük turuncu işaret + metal tıkırtısı.
 const CSS = `
 #vhPrompt{position:absolute;left:50%;top:calc(50% + 62px);transform:translateX(-50%);padding:6px 16px;background:rgba(9,13,19,.74);border:1px solid rgba(255,255,255,.18);border-left:3px solid var(--acc,#ff8a1f);font:600 15px Bahnschrift,Rajdhani,'Arial Narrow',sans-serif;letter-spacing:1.5px;color:#e8edf5;display:none;white-space:nowrap;text-shadow:0 1px 3px #000;text-transform:uppercase}
 #vhPrompt b{display:inline-block;min-width:22px;padding:1px 7px;margin-right:8px;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.45);text-align:center}
-#vhPanel{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);width:380px;display:none;font-family:Bahnschrift,Rajdhani,'Arial Narrow',sans-serif;color:#e8edf5;text-shadow:0 1px 3px #000;padding:9px 14px 8px;background:linear-gradient(180deg,rgba(9,13,19,.55),rgba(9,13,19,.82));border-top:2px solid var(--acc,#ff8a1f)}
+#vhPanel{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);width:420px;display:none;font-family:Bahnschrift,Rajdhani,'Arial Narrow',sans-serif;color:#e8edf5;text-shadow:0 1px 3px #000;padding:9px 14px 8px;background:linear-gradient(180deg,rgba(9,13,19,.55),rgba(9,13,19,.82));border-top:2px solid var(--acc,#ff8a1f)}
 #vhPanel .top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px}
 #vhPanel .nm{font-size:17px;font-weight:800;letter-spacing:4px}#vhPanel .nm .hsi,#vhPrompt .hsi{width:20px;height:20px;vertical-align:-4px;margin-right:6px}
 #vhPanel .spd{font-size:26px;font-weight:800;letter-spacing:1px;font-variant-numeric:tabular-nums}#vhPanel .spd small{font-size:11px;letter-spacing:2px;opacity:.7;margin-left:4px}
@@ -21,7 +22,11 @@ const CSS = `
 #vhPanel .seats{display:flex;gap:6px;margin-bottom:6px}
 #vhPanel .seats div{flex:1;min-width:0;padding:3px 5px;font-size:11px;letter-spacing:1px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #vhPanel .seats div b{margin-right:5px;opacity:.75}
+#vhPanel .seats div small{display:block;font-size:9.5px;letter-spacing:.5px;opacity:.72;overflow:hidden;text-overflow:ellipsis}
+#vhPanel .seats div small i{font-style:normal;color:#ffd9a8;opacity:1}
 #vhPanel .seats div.me{border-color:#ff8a1f;background:rgba(255,138,31,.22)}
+#vhPanel .seats div.bot{border-style:dashed;border-color:rgba(255,200,120,.6)}
+#vhPanel .seats div.hum small i{color:#cfd6dd}
 #vhPanel .hint{font-size:11px;letter-spacing:.5px;opacity:.78;line-height:1.5}#vhPanel .hint b{color:#ffd9a8;font-weight:700}
 #vhPanel .warn{display:none;margin-top:5px;text-align:center;font-size:13px;font-weight:800;letter-spacing:3px;color:#ff6a4a;animation:vhw .5s infinite alternate}
 @keyframes vhw{to{opacity:.45}}
@@ -73,6 +78,26 @@ body.mob #vhPrompt{zoom:.75}
 #vhPrompt.off{color:#c3c9d0;border-left-color:#8a929b;background:rgba(9,13,19,.6)}
 `;
 
+const seatName = (v, i) => t(v.def.seatKey?.[i] || 'veh.seat.' + i);
+// 12.218 koltuk tuşu (1–4) / telefonda koltuk düğmesi / paneldeki koltuğa dokunma — tek kural: boş koltuk → geç, takım arkadaşı BOT → yer
+// değiştir (bot eski koltuğuna; sürücü koltuğunu aldıysa sürmeye devam eder), İNSAN → takas yok, ipucu "koltuk dolu (oyuncu)". Yetkili taraf
+// aynı kuralı Vehicles.seatTo / swapSeat ile yeniden denetler (çevrim içinde sunucu, 'vs' kenarı).
+export function seatPress(g, s, n) {
+  const v = s?.veh, V = g.vehicles;
+  if (!v || !s.alive || !V || n < 0 || n >= v.seats.length || n === s.seat) return false;
+  const o = v.seats[n];
+  if (o && !V.swapOk(s, o)) { g.hud?.toast?.(isHuman(o) ? t('veh.t.seatHuman', { p: o.name }) : t('veh.t.seatBusy'), '#ffb38a'); return false; }
+  if (o && !g.player?.touch) g.hud?.toast?.(t('veh.t.swap', { b: o.name, n: n + 1, s: seatName(v, n) }), '#cfe6ff');      // telefonda panel ekranın üstünde: bildirim paneli örtmesin (panel takası gösterir)
+  if (g.online) g.online.edges.vs = n + 1; else V.seatTo(s, n);
+  return true;
+}
+// telefon koltuk düğmesi: sıradaki boş ya da botlu (takas) koltuk
+export function nextSeat(g, s) {
+  const v = s?.veh; if (!v) return -1;
+  for (let k = 1; k < v.seats.length; k++) { const n = (s.seat + k) % v.seats.length, o = v.seats[n]; if (!o || g.vehicles.swapOk(s, o)) return n; }
+  return -1;
+}
+
 export class VehicleHud {
   constructor(game) {
     this.g = game;
@@ -117,7 +142,7 @@ export class VehicleHud {
     if (this._off !== off) { this._off = off; this.pr.classList.toggle('off', off); }
     if (nb) this.set(this.pr, 'prt', `${t('veh.' + nb.v.type)} — ${nb.why === 'down' ? (Number.isFinite(nb.eta) ? t('veh.rebuild', { n: Math.ceil(nb.eta) }) : t('veh.rebuildN')) : t(nb.why === 'foe' ? 'veh.busyFoe' : 'veh.busy')}`, 'innerHTML');
     else if (cr) this.set(this.pr, 'prt', (off ? '' : `<b>${k}</b> `) + `${t('sup.name')} — ${crateLabel(ca)}`, 'innerHTML');
-    if (n) this.set(this.pr, 'prt',t('veh.prompt', { k: g.player?.touch ? '⟲' : this.key('vehicle'), n: (n.v.def.moto ? MOTO_ICON : '') + t('veh.' + n.v.type), s: (n.evict ? t(n.v.yieldReq?.s === me ? 'veh.yieldWait' : 'veh.evict') + ' · ' : '') + (n.seat === 0 ? t(n.v.def.fixed ? 'veh.use' : 'veh.drive') : t('veh.ride') + ' (' + t(n.v.def.seatKey?.[n.seat] || 'veh.seat.' + n.seat).toLowerCase() + ')') }), 'innerHTML');      // 12.206 sürücü / yolcu bot: "botu indir · sür"
+    if (n) this.set(this.pr, 'prt',t('veh.prompt', { k: g.player?.touch ? '⟲' : this.key('vehicle'), n: (n.v.def.moto ? MOTO_ICON : '') + t('veh.' + n.v.type), s: (n.seat === 0 ? t(n.v.def.fixed ? 'veh.use' : 'veh.drive') : t('veh.ride') + ' (' + seatName(n.v, n.seat).toLowerCase() + ')') + (n.evict ? ' · ' + (n.v.yieldReq?.s === me ? t('veh.yieldWait') : n.to >= 0 ? t('veh.botTo', { b: n.evict.name, n: n.to + 1, s: seatName(n.v, n.to).toLowerCase() }) : t('veh.botOut', { b: n.evict.name })) : '') }), 'innerHTML');      // 12.206 sürücü / yolcu bot · 12.218 ipucunda botun ne yapacağı: "sür · Mehmet 2. koltuğa geçer (makineli)" / "Mehmet iner"
     this.set(this.p.style, 'pd', v ? 'block' : 'none', 'display');
     this.aimHud(v && v.st ? v : null, me);
     const am = (this._am ||= this.g.hud.root.querySelector('#ammo')), hideAm = !!(v && (me.seat === 0 || mgAt(v.def, me.seat)));      // sürücü / makineli: kendi silahının cephanesi anlamsız
@@ -161,10 +186,11 @@ export class VehicleHud {
       this.set(this.q.gunT, 'gt', t('veh.heliBar', { r, h: Math.round(alt) }));
       this.set(this.q.gunB.style, 'gw', r + '%', 'width');
     }
-    v.seats.forEach((o, i) => {
-      const el = this.q.seats[i], mine = o === me;
-      this.set(el, 's' + i, `<b>${i + 1}</b>${o ? o.name : t('veh.empty')}`, 'innerHTML');
-      this.set(el, 'sc' + i, mine ? 'me' : '', 'className');
+    v.seats.forEach((o, i) => {      // 12.218 her koltuk: tuşu + kimde (SEN / bot adı / oyuncu adı / boş) + koltuğun adı, botta "⇄ takas", insanda "oyuncu"
+      const el = this.q.seats[i], mine = o === me, sw = !mine && o && V.swapOk(me, o), hum = !mine && o && isHuman(o);
+      const tag = sw ? ` · <i>${t('veh.sw')}</i>` : hum ? ` · <i>${t('veh.human')}</i>` : '';
+      this.set(el, 's' + i, `<b>${i + 1}</b>${mine ? t('veh.me') : o ? o.name : t('veh.empty')}<small>${seatName(v, i)}${tag}</small>`, 'innerHTML');
+      this.set(el, 'sc' + i, mine ? 'me' : sw ? 'bot' : hum ? 'hum' : '', 'className');
       this.set(el.style, 'sb' + i, o && !mine ? (o.team === 'blue' ? 'rgba(74,163,255,.25)' : 'rgba(255,90,67,.25)') : '', 'background');
     });
     const hk = d.fixed ? 'veh.hint.' + v.type : d.moto ? (me.seat === 0 ? 'veh.hint.moto' : 'veh.hint.motoPas') : d.heli ? (me.seat === 0 ? 'veh.hint.heli' : gunner ? 'veh.hint.gunner' : 'veh.hint.pas') : c ? (me.seat === 0 ? 'veh.hint.tank' : 'veh.hint.gunner') : me.seat === 0 ? 'veh.hint.drv' : gunner ? 'veh.hint.gunner' : 'veh.hint.pas';

@@ -113,7 +113,7 @@ if (!ONLY || ONLY === 'off') {
       await tpOff(p, at.x + Math.sin(at.b) * 1.9, at.z + Math.cos(at.b) * 1.9); await look(p, at, -0.45); await p.waitForTimeout(600);
       ok(/E TANKSAVAR — başına geç/.test(await prompt(p)), 'tanksavar ipucu', await prompt(p));
       await p.screenshot({ path: `${OUT}/6-tanksavar-ipucu.png` });
-      // düşman bot başında → "dolu (düşman)"; takım arkadaşı bot → "botu indir" + E
+      // düşman bot başında → "dolu (düşman)"; takım arkadaşı bot → "başına geç · <bot> iner" + E
       await p.evaluate(() => { const g = window.__game, v = g.vehicles.list.find((q) => q.id === 'Y-C-atgm-12'), r = g.soldiers.find((s) => s.team === 'red' && s.alive && s.brain && !s.veh); g.vehicles.enter(r, v, 0); });
       await p.waitForTimeout(400); const pf = await prompt(p);
       ok(/TANKSAVAR — dolu \(düşman\)/.test(pf), 'düşman bot yuvada: "TANKSAVAR — dolu (düşman)"', pf);
@@ -121,7 +121,7 @@ if (!ONLY || ONLY === 'off') {
       await p.evaluate(() => { const g = window.__game, v = g.vehicles.list.find((q) => q.id === 'Y-C-atgm-12'); g.vehicles.exit(v.seats[0]); const b = g.soldiers.find((s) => s.team === 'blue' && s.alive && s.brain && !s.veh); g.vehicles.enter(b, v, 0); });
       await p.waitForTimeout(400); const pm = await prompt(p);
       await p.keyboard.press('KeyE'); await p.waitForTimeout(400);
-      ok(/botu indir/.test(pm) && await seat(p) === 'Y-C-atgm-12', 'takım arkadaşı bot yuvada: "botu indir · başına geç" + E ile oyuncu geçer', pm);
+      ok(/başına geç · .+ iner/i.test(pm) && await seat(p) === 'Y-C-atgm-12', 'takım arkadaşı bot yuvada: "başına geç · <bot> iner" (12.218) + E ile oyuncu geçer', pm);
       await p.evaluate(() => { const g = window.__game, me = g.playerSoldier; if (me.veh) g.vehicles.exit(me); });
       // yok edildi → "yeniden kuruluyor N sn" → kurulunca E
       await p.evaluate(() => { const g = window.__game, v = g.vehicles.list.find((q) => q.id === 'Y-C-atgm-12'); if (v.seats[0]) g.vehicles.exit(v.seats[0]); g.vehicles.destroy(v, null); });

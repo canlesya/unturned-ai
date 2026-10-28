@@ -18,6 +18,7 @@ import { t } from '../i18n/index.js';
 import '../i18n/touch.js';
 import { wName, opticName } from '../i18n/game.js';
 import { OPTIC_ICON, OPTIC_MAG } from './opticIcons.js';
+import { seatPress, nextSeat } from './vehicleHud.js';              // 12.218 koltuk takası
 import { proneClamp } from '../sim/prone.js';
 import { nearCrate, useCrate } from './supply.js';                     // 12.216 ikmal kutusu (araç düğmesi)
 
@@ -245,6 +246,7 @@ export class TouchControls {
       if (bt && !bt.classList.contains('hid')) { this.btnTouch.set(t.identifier, bt.dataset.b); this.press(bt.dataset.b, true, t); continue; }
       const mm = document.getElementById('mmwrap')?.getBoundingClientRect();         // 12.202: mini haritaya dokunmak büyük haritayı açar
       if (mm && this.g.bigMap && t.clientX >= mm.left && t.clientX <= mm.right && t.clientY >= mm.top && t.clientY <= mm.bottom) { this.g.bigMap.toggle(true); continue; }
+      if (this.p.s.veh) { let hit = -1; document.querySelectorAll('#vhPanel .seats div').forEach((el, i) => { const r = el.getBoundingClientRect(); if (r.width && t.clientX >= r.left && t.clientX <= r.right && t.clientY >= r.top && t.clientY <= r.bottom) hit = i; }); if (hit >= 0) { seatPress(this.g, this.p.s, hit); continue; } }      // 12.218 araç panelindeki koltuğa dokun = o koltuğa geç / botla yer değiştir
       const slot = this.slotAt(t.clientX, t.clientY);
       if (slot >= 0) { if (this.p.s.alive && this.p.s.canEquip(slot)) this.p.s.switchTo(slot); continue; }
       if (t.clientX < innerWidth * 0.45 && !this.joy) {
@@ -420,7 +422,7 @@ export class TouchControls {
     if (!s.alive) return;
     if (id === 'veh') { const V = g.vehicles; if (V && (s.veh || V.near(s) || nearCrate(g, s))) { if (g.online) g.online.edge('ve'); else if (!V.toggle(s)) useCrate(g, s); } return; }      // 12.177 · 12.216 ikmal kutusu (RPG al)
     if (id === 'vcam') { if (s.veh) { p.vehCam = p.vehCam === 'first' ? 'third' : 'first'; } return; }
-    if (id === 'seat') { const v = s.veh; if (v) { for (let k = 1; k <= v.seats.length; k++) { const n = (s.seat + k) % v.seats.length; if (!v.seats[n]) { if (g.online) g.online.edges.vs = n + 1; else g.vehicles.seatTo(s, n); break; } } } return; }
+    if (id === 'seat') { const n = nextSeat(g, s); if (n >= 0) seatPress(g, s, n); return; }      // 12.218 sıradaki boş ya da botlu koltuk (bot: yer değiştir)
     if (s.veh && (id === 'crouch' || id === 'swap' && s.seat === 0 || id === 'nade' || id === 'third')) return;      // araçta çömelme / ekipman yok
     if (id === 'jump') { if (s.prone || s.crouching) { s.standUp(); g.online?.edge('u'); } else this.jump = true; }
     else if (id === 'crouch') { s.toggleCrouch(); g.online?.edge('c'); }
