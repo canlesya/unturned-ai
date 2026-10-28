@@ -1182,7 +1182,7 @@ export class Player {
     const s = this.s, y0 = s.yaw;
     s.yaw -= dx;
     s.pitch = clamp(s.pitch - dy, -1.5, 1.5);
-    proneClamp(s, true, y0);                                     // 12.199 yüzüstü: bakış gövdeye göre ±70° (taşan kısım gövdeyi sonraki adımlarda döndürür)
+    proneClamp(s, true, y0);                                     // 12.199 yüzüstü: bakış gövdeye göre ±50° (taşan kısım gövdeyi sonraki adımlarda döndürür)
   }
 
   // 12.177 araçtaki girdi: sürücü → gaz / direksiyon / fren (Boşluk) / korna (sol tık) aracı bir adım sürer (çevrimdışı yetkili, çevrim içi tahmin);

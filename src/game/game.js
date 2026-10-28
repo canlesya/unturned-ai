@@ -562,7 +562,7 @@ export class Game {
     if (inp.u) s.standUp();
     if (inp.c) s.toggleCrouch();
     if (inp.p) s.toggleProne();
-    proneLook(s, dt, { pb: inp.pb });                                 // 12.199 yüzüstü: bakış gövdeye göre ±70°, gövde ≤ 90°/sn (istemcinin gövde yönü pb doğrulanır)
+    proneLook(s, dt, { pb: inp.pb });                                 // 12.199 yüzüstü: bakış gövdeye göre ±50°, gövde ≤ 90°/sn (istemcinin gövde yönü pb doğrulanır)
     if (inp.rl) s.startReload();
     if (inp.fm) s.toggleFireMode();
     if (inp.ab) s.useAbility();

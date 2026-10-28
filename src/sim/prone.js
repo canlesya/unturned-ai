@@ -4,7 +4,7 @@
 //
 // Alanlar: s.pBody — gövde yönü (rad, sarılmamış: yaw ile aynı tur, ayakta = yaw) · s.pPend — yerel oyuncunun sınırı aşan bakış isteği
 // (fare ileri itildi ama gövde henüz dönmedi: gövde sonraki adımlarda o yöne döner, kamera onunla gelir; en çok 180°)
-export const PRONE_LOOK = (70 * Math.PI) / 180;          // bakış gövdeye göre en çok ±70°
+export const PRONE_LOOK = (50 * Math.PI) / 180;          // bakış gövdeye göre en çok ±50° (12.199b: 70° fazla geldi)
 export const PRONE_TURN = Math.PI / 2;                   // gövde dönüşü en çok 90°/sn
 export const PRONE_PEND = Math.PI - PRONE_LOOK;           // bekleyen istek: gövdeye göre toplam en çok 180°
 export const PRONE_PITCH = [-0.35, 0.6];                 // yatarken bakış: aşağı ~20°, yukarı ~34° (yere gömülmez / sırt üstü bakmaz)
