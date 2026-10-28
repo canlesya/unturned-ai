@@ -72,7 +72,7 @@ export function useCrate(g, s) {
 export function crateToast(g, a, c) {
   const me = g.playerSoldier; if (!me || g.headless) return;
   const key = g.binds?.codes?.('slot3')?.[0], k = key ? key.replace(/^Digit/, '') : '4';
-  if (a.act === 'take') { g.hud.toast($t('sup.t.take', { k, o: a.old ? wName(a.old) : '' }), '#9be07a'); g.sfx?.deploy?.(me.pos); }
+  if (a.act === 'take') { g.hud.toast($t(g.player?.touch ? 'sup.t.takeT' : 'sup.t.take', { k, o: a.old ? wName(a.old) : '' }), '#9be07a'); g.sfx?.deploy?.(me.pos); }
   else if (a.act === 'refill') { g.hud.toast($t('sup.t.refill'), '#9be07a'); g.sfx?.deploy?.(me.pos); }
   else if (a.act === 'full') g.hud.toast($t('sup.t.full'), '#cfd6dd');
   else if (a.act === 'enemy') g.hud.toast($t('sup.t.enemy'), '#ff9a88');

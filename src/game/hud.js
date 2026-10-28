@@ -1024,7 +1024,10 @@ export class Hud {
     x.clearRect(0, 0, this.mm.width, this.mm.height);
     x.drawImage(this.mmBase, 0, 0);
     this.cap?.drawMinimap(x, this.mmX, this.mmY, performance.now());     // 12.191 bayraklar: sahip + ilerleme halkası + alınıyor nabzı
-    if (g.supply) for (const c of g.supply) supMark(x, this.mmX(c.x), this.mmY(c.z), crateOpen(c, p.team), 0.7);      // 12.216 ikmal kutuları
+    if (g.supply) for (const c of g.supply) {                              // 12.216 ikmal kutuları (bayrak kutusu bayrak rozetinin sağ üstünde)
+      const near = c.of && Math.hypot(this.mmX(c.x) - this.mmX(c.of.x), this.mmY(c.z) - this.mmY(c.of.z)) < 14;
+      supMark(x, near ? this.mmX(c.of.x) + 11 : this.mmX(c.x), near ? this.mmY(c.of.z) - 9 : this.mmY(c.z), crateOpen(c, p.team), 0.6);
+    }
     if (g.vehicles) for (const v of g.vehicles.list) {                    // 12.177 araçlar: dost / boş araç hep, düşman araç içindeki görüldüyse
       if (v.def.fixed && (!v.alive || !v.st)) { empDownMark(x, this.mmX(v.spawn.x), this.mmY(v.spawn.z), v, 0.75); continue; }      // 12.216 yok edilmiş yuva
       if (!v.alive || !v.st) continue;

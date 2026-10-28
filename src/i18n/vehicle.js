@@ -25,7 +25,7 @@ addStrings('tr', {
   // 12.216 sabit yuva / ikmal kutusu ipuçları (yakınken; kullanılamıyorsa nedeni)
   'veh.busy': 'dolu', 'veh.busyFoe': 'dolu (düşman)', 'veh.rebuild': 'yeniden kuruluyor · {n} sn', 'veh.rebuildN': 'yeniden kuruluyor',
   'sup.name': 'İKMAL', 'sup.take': 'RPG al (3 roket{o})', 'sup.instead': ' · {o} yerine', 'sup.refill': 'mermi / roket al', 'sup.full': 'cephane dolu', 'sup.enemy': 'düşmanın — önce bayrağı al',
-  'sup.t.take': 'RPG alındı: 3 roket · {k} tuşuyla çek', 'sup.t.refill': 'İkmal: mermi / roket dolduruldu', 'sup.t.full': 'Cephanen zaten dolu', 'sup.t.enemy': 'Düşmanın ikmal kutusu — önce bayrağı al', 'sup.t.auto': 'İkmal: cephane / tanksavar dolduruldu',
+  'sup.t.take': 'RPG alındı: 3 roket · {k} tuşuyla çek', 'sup.t.takeT': 'RPG alındı: 3 roket · sağ üstte RPG-7 yuvasına dokun', 'sup.t.refill': 'İkmal: mermi / roket dolduruldu', 'sup.t.full': 'Cephanen zaten dolu', 'sup.t.enemy': 'Düşmanın ikmal kutusu — önce bayrağı al', 'sup.t.auto': 'İkmal: cephane / tanksavar dolduruldu',
   'map.sup': 'İkmal (RPG)',
   'map.emp.hmg': 'Ağır makineli', 'map.emp.atgm': 'Tanksavar',
   'agroup.4': 'Araç', 'tc.n.veh': 'Araca bin / in', 'tc.n.vcam': 'Araç kamerası', 'tc.n.seat': 'Koltuk değiştir',
@@ -49,7 +49,7 @@ addStrings('en', {
   // 12.216 emplacement / supply crate prompts
   'veh.busy': 'occupied', 'veh.busyFoe': 'occupied (enemy)', 'veh.rebuild': 'rebuilding · {n} s', 'veh.rebuildN': 'rebuilding',
   'sup.name': 'SUPPLY', 'sup.take': 'take RPG (3 rockets{o})', 'sup.instead': ' · replaces {o}', 'sup.refill': 'take ammo / rockets', 'sup.full': 'ammo full', 'sup.enemy': 'enemy crate — take the flag first',
-  'sup.t.take': 'RPG taken: 3 rockets · press {k} to equip', 'sup.t.refill': 'Supply: ammo / rockets refilled', 'sup.t.full': 'Your ammo is already full', 'sup.t.enemy': 'Enemy supply crate — take the flag first', 'sup.t.auto': 'Supply: ammo / AT refilled',
+  'sup.t.take': 'RPG taken: 3 rockets · press {k} to equip', 'sup.t.takeT': 'RPG taken: 3 rockets · tap the RPG-7 slot (top right)', 'sup.t.refill': 'Supply: ammo / rockets refilled', 'sup.t.full': 'Your ammo is already full', 'sup.t.enemy': 'Enemy supply crate — take the flag first', 'sup.t.auto': 'Supply: ammo / AT refilled',
   'map.sup': 'Supply (RPG)',
   'map.emp.hmg': 'Heavy MG', 'map.emp.atgm': 'Anti-tank',
   'agroup.4': 'Vehicle', 'action.vehicle': 'Enter / exit vehicle', 'action.vehCam': 'Vehicle camera (inside / chase)', 'action.vehAlt': 'Helicopter weapon: nose gun ↔ rockets · mouse wheel too',
