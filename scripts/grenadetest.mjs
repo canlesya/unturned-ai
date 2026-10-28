@@ -157,9 +157,9 @@ const row = []; let killR = 0, woundR = 0;
 for (let d = 0; d <= 11; d += 0.5) { const x = dmgAt(d); if (x >= 100) killR = d; if (x > 0) woundR = d; if (d % 1 === 0) row.push(`${d} m: ${x.toFixed(0)}`); }
 console.log('  ' + row.join(' · '));
 console.log(`  öldürme ≤ ${killR} m, yaralama ≤ ${woundR} m (yatay, 0,5 m adım) · eğri (gövde merkezine): 3,5 m ${fragDamage(st, 3.5)} · 4 m ${fragDamage(st, 4).toFixed(0)} · 6 m ${fragDamage(st, 6).toFixed(0)} · 8,5 m ${fragDamage(st, 8.5).toFixed(0)} · 10 m ${fragDamage(st, 10)}`);
-check(killR >= 3 && killR <= 3.5, `öldürücü iç yarıçap ≈ 3,5 m (ayakta hedef, yatay ${killR} m)`);
+check(killR >= 4.5 && killR <= 5, `öldürücü iç yarıçap ≈ 5 m (12.207; ayakta hedef, yatay ${killR} m)`);
 check(woundR >= 9 && woundR <= 10, `yaralama yarıçapı ≈ 10 m (${woundR} m)`);
-check(fragDamage(st, 6) > 30 && fragDamage(st, 6) < 60 && fragDamage(st, 9) < 10, 'düşüş: 6 m orta, 9 m az');
+check(fragDamage(st, 6) > 40 && fragDamage(st, 6) < 80 && fragDamage(st, 9) < 12, 'düşüş: 6 m orta, 9 m az');
 const st5 = dmgAt(5), pr5 = dmgAt(5, B, { prone: true });
 check(pr5 > 0 && pr5 < st5, `yatan hedef daha az hasar alır (5 m: ayakta ${st5.toFixed(0)}, yatarken ${pr5.toFixed(0)})`);
 check(dmgAt(1, C) === 0, 'takım arkadaşına hasar yok');

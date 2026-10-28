@@ -1513,6 +1513,7 @@ export class Game {
           else if (ev.k === 'w' && ev.ws) this.effects.splash(p);                                                       // 12.180 suya isabet
           else if (ev.k === 'w') { const n = new V(...ev.n); if (ev.vh) this.effects.spark(p, 6, n, '#ffe7b0'); else { this.effects.spark(p, 4, n); this.effects.dust(p, n); this.effects.decal(p, n); } }      // vh: araç gövdesi (12.177)
           if (ev.b) for (let i = 0; i + 2 < ev.b.length; i += 3) { const bp = new V(ev.b[i], ev.b[i + 1], ev.b[i + 2]); if (!this.ownBody(bp)) this.effects.blood(bp, 7, dir.clone().negate()); }     // 12.164: delip geçilen askerler
+          if (ev.sx) this.effects.miniBlast?.(p, ev.n ? new V(...ev.n) : null);                                              // 12.207 burun topu: küçük patlamalı mermi
           if (ev.tw) { const tp = new V(ev.tw[0], ev.tw[1], ev.tw[2]), tn = new V(ev.tw[3], ev.tw[4], ev.tw[5]); this.effects.spark(tp, 3, tn); this.effects.decal(tp, tn); }     // 12.164: ince levha geçişi
           if (ev.m) this.heat?.add(o.x, o.z, 0.25, this.time);
           if (ev.m) { this.effects.muzzle(o, dir); this.sfx.shot(st.sound, by.pos); by.flashT = 0.06; if (st.charge) by.railT = 0; }      // 12.160 railT: ray tüfeği şarjı 3. şahısta (yeni ağ alanı yok)
@@ -1857,6 +1858,11 @@ export class Game {
       } } finally { if (pr) this._pen = null; }
     }
     if (woodT < Infinity && !woodShown && woodT < (stopped ? hits[hits.length - 1].t : tw)) woodFx();
+    // 12.207 küçük patlamalı mermi (heli burun topu, st.splash): isabet noktasında (asker / duvar / araç / yer) küçük sıçrama hasarı + efekt
+    if (st.splash) {
+      const sp = stopped ? pts[pts.length - 1] : wh && !(wE != null && wE > 0.05 && wh.t > wE) ? wh.point : null;
+      if (sp) { this.splashHit(sp, stopped ? null : wh.normal, st, shooter, stopped ? hits[hits.length - 1].e : null); if (ev) ev.sx = 1; }
+    }
     if (stopped) {
       const pt = pts[pts.length - 1];
       if (Math.random() < 0.6 || (st.pellets || 1) === 1) this.effects.tracer(muzzle, pt, st.tracer);
@@ -1873,7 +1879,7 @@ export class Game {
       if (!wh.veh && (wh.collider || wh.normal.y > 0.5)) this.effects.dust(pt, wh.normal);
       if (!wh.veh) this.effects.decal(pt, wh.normal);                           // araçta iz bırakmaz (gövde hareket eder)
       if (shooter.isPlayer || pt.distanceTo(this.camera.position) < 25) this.sfx.impact(pt);
-      if (wh.veh && !this.online) { const f = wh.t <= st.range[0] ? 1 : lerpClamp(1, st.minMul, (wh.t - st.range[0]) / (st.range[1] - st.range[0])); this.vehicles.damage(wh.veh, st.dmg * f * (st.pellets ? 0.6 : 1) * (shooter.dmgMul || 1), shooter, st.vk || 'bullet', st.name); }
+      if (wh.veh && !this.online) { const f = wh.t <= st.range[0] ? 1 : lerpClamp(1, st.minMul, (wh.t - st.range[0]) / (st.range[1] - st.range[0])); this.vehicles.damage(wh.veh, (st.vdmg ?? st.dmg) * f * (st.pellets ? 0.6 : 1) * (shooter.dmgMul || 1), shooter, st.vk || 'bullet', st.name); }      // 12.207 vdmg: araç silahının araca hasarı ayrı
       if (ev) { ev.k = 'w'; ev.p = [q2(pt.x), q2(pt.y), q2(pt.z)]; ev.n = [q2(wh.normal.x), q2(wh.normal.y), q2(wh.normal.z)]; if (wh.veh) ev.vh = 1; }
     } else {
       const end = origin.clone().addScaledVector(dir, 120);
@@ -2106,6 +2112,26 @@ export class Game {
     }
   }
 
+  // 12.207 küçük patlamalı mermi (heli burun topu): p'de S = st.splash { r, inner, dmg } sıçraması — askere gövde merkezine uzaklıkla heFalloff, siper
+  // (patlamanın 0,15 m dışından gövdeye / başa açık hat) korur, doğrudan vurulan (skip) askere eklenmez; araçlara işlemez (araç hasarı vdmg ile mermiden).
+  // Efekt: küçük ateş + duman parçacıkları (çevrim içi istemcide 'sh' olayının sx bayrağından).
+  splashHit(p, n, st, owner, skip) {
+    const S = st.splash;
+    if (!this.headless) this.effects.miniBlast?.(p, n);
+    if (this.online || !S) return;
+    const o = (this._spo ||= new THREE.Vector3()).copy(p);
+    if (n) o.addScaledVector(n, 0.15); else o.y += 0.15;
+    for (const e of this.soldiers) {
+      if (!e.alive || e === skip || e === owner || e.team === owner.team) continue;
+      if (this.vehicles?.hiddenSeat(e)) continue;
+      const c = e.center(_xs), d = c.distanceTo(p);
+      if (d > S.r) continue;
+      if (!this.world.clear(o, c) && !this.world.clear(o, e.eye(_xe))) continue;
+      const a = S.dmg * heFalloff(d, S.r, S.inner ?? 0) * (owner.dmgMul || 1);
+      if (a >= 1) e.takeDamage(a, owner, 'body', p, st.name);
+    }
+  }
+
   // selfMul: atanın kendi hasar çarpanı (varsayılan TUNE.selfBlast; elde patlayan bomba öldürür). Duvar arkası: patlamadan gövde merkezi YA DA başa açık hat yoksa hasar yok.
   // 12.188 opt (tank topu HE): { he, inner, vehInner, n } — he: iri patlama efekti / sarsıntı + askere uzaklık gövde EKSENİNE (yere düşen mermi ayaktan
   // ölçülür), görüş çıkışı yüzey normali yönünde 0,3 m (+ yere düşende 0,7 m yukarıdan ikinci çıkış: arazinin kıl payı tümseği parçacığı kesmez),
@@ -2124,7 +2150,7 @@ export class Game {
       if (gh) this.effects.decal(gh.point, gh.normal, true);
     }
     if (this.online) return;                // hasar sunucuda
-    this.vehicles?.blast(pos, radius, dmg, owner, name, kind, opt);               // 12.177: araç hasarı (gövdeye en yakın noktadan) · 12.178 kind 'at' = tanksavar (RPG, tank topu)
+    this.vehicles?.blast(pos, radius, opt?.vdmg ?? dmg, owner, name, kind, opt);      // 12.207 opt.vdmg: araca ayrı hasar (heli roketi: askere 210, araca 170)               // 12.177: araç hasarı (gövdeye en yakın noktadan) · 12.178 kind 'at' = tanksavar (RPG, tank topu)
     const o = pos.clone(); if (opt?.n) o.addScaledVector(opt.n, 0.3); o.y += 0.3;
     let o2 = null;
     if (he && !(opt.n && opt.n.y < 0.7)) { o2 = pos.clone(); o2.y += 0.7; if (!this.world.clear(o, o2)) o2 = null; }      // yalnız yere düşen mermide (duvarın / kum torbasının yüzüne çarpan merminin arkası korunur)
@@ -2416,5 +2442,5 @@ export class Game {
   }
 }
 
-const _sv = new THREE.Vector3(), _sq = new THREE.Quaternion(), _xe = new THREE.Vector3();
+const _sv = new THREE.Vector3(), _sq = new THREE.Quaternion(), _xe = new THREE.Vector3(), _xs = new THREE.Vector3();
 function lerpClamp(a, b, t) { return a + (b - a) * clamp(t, 0, 1); }

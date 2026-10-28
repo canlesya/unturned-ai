@@ -172,7 +172,7 @@ function headless() {
   ok(!d1.revivable && !d2.revivable, 'patlayan araçta ölenler canlandırılamaz');
   g.onKill = ok0;
   // 14) kule makinelisi / kapı makinelisi hasar değerleri
-  ok(D.mg.dmg === 24 && VT['heli-n'].mg.dmg === 22, 'makineli hasarları: tank 24 (600 atış/dk) · kapı 22 (700 atış/dk)', `tank ${D.mg.dmg} · kapı ${VT['heli-n'].mg.dmg}`);
+  ok(D.mg.dmg === 24 && VT['heli-n'].mg.dmg === 34 && VT['heli-n'].mg.vdmg === 22, 'makineli hasarları: tank 24 (600 atış/dk) · kapı askere 34 / araca 22 (700 atış/dk; 12.207)', `tank ${D.mg.dmg} · kapı ${VT['heli-n'].mg.dmg}`);
   return g;
 }
 
@@ -221,11 +221,11 @@ function headlessGuns() {
   for (let i = 0; i < 400 && hl.rk > 0; i++) { h.queue.push(inp({ yw: YE, rk: 1 })); g.step(1 / 60); }
   const rr0 = hl.rkR; step(Math.ceil(VT['heli-n'].rockets.reload * 60) + 5, { yw: YE });
   ok(hl.rk === 0 || hl.rk === 14, 'roket kapsülü boşalınca ' + VT['heli-n'].rockets.reload + ' sn dolum', `dolum başında ${f1(rr0)} sn · sonra ${hl.rk}`);
-  // tanka roket: orta / zayıf (130 × 1,25 = ~160)
+  // tanka roket: orta (12.207: araca vdmg 170 × 1,25 = ~212 → önden 5 roket)
   const tr = V.list.find((x) => x.id === 'R-T1'); put(tr, X0 + 60, Z0 + 30, 0); tr.team = 'red'; tr.hp = VT.tank.hp;
   const P3 = (x, y, z) => new (s.pos.constructor)(x, y, z), R3 = VT['heli-n'].rockets;
-  g.explode(P3(tr.st.x, tr.st.y + 1.2, tr.st.z - VT.tank.hl - 0.15), R3.radius, R3.dmg, s, R3.name, undefined, 'at', { he: true, inner: R3.inner, vehInner: R3.vehInner });
-  ok(VT.tank.hp - tr.hp > 120 && VT.tank.hp - tr.hp < 200, 'roket → tank: orta hasar (≈ 6–7 roket)', `${Math.round(VT.tank.hp - tr.hp)}`);
+  g.explode(P3(tr.st.x, tr.st.y + 1.2, tr.st.z - VT.tank.hl - 0.15), R3.radius, R3.dmg, s, R3.name, undefined, 'at', { he: true, inner: R3.inner, vehInner: R3.vehInner, vdmg: R3.vdmg });
+  ok(VT.tank.hp - tr.hp > 190 && VT.tank.hp - tr.hp < 240, 'roket → tank: orta hasar (≈ 5 roket önden; 12.207)', `${Math.round(VT.tank.hp - tr.hp)}`);
   // burun topu (20 mm, hmg) → jip ağır, tank 0
   const j2 = V.list.find((x) => x.id === 'R-J2'); put(j2, X0 + 80, Z0 + 40, 0); j2.team = 'red'; j2.hp = j2.def.hp;
   const h0 = j2.hp, t0 = tr.hp; V.damage(j2, N.dmg, s, 'hmg'); V.damage(tr, N.dmg, s, 'hmg');

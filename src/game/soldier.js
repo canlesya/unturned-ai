@@ -382,7 +382,7 @@ export class Soldier {
       return false;
     }
     this.cd = 60 / st.rpm;
-    it.mag--; this.rlDoneT = 0;                                // 12.166: gerçek atış → reload bekleme payı kalkar (RPG gibi tek mermilide hemen yeniden doldurur)
+    if (!this.infAmmo) it.mag--; this.rlDoneT = 0;                                // 12.166: gerçek atış → reload bekleme payı kalkar (RPG gibi tek mermilide hemen yeniden doldurur)
     if (st.kind === 'throwable') { this.sprinting = false; return this._throw(st); }
     if (st.kind === 'mine' || st.kind === 'ammobox') { this.sprinting = false; return this._place(st, it); }
     this.firedSprinting = this.sprinting;                      // koşarken ateş: bu atış için dağılma cezası (spreadNow)
@@ -493,7 +493,7 @@ export class Soldier {
     this.cook = null;
     if (c.id !== it.id) return false;
     this.cd = 60 / st.rpm;
-    it.mag--;
+    if (!this.infAmmo) it.mag--;
     this.sprinting = false;
     return this._throw(st, st.cook && c.lit ? st.fuse - c.t : st.fuse, !!this.nadeUnder);
   }
@@ -523,7 +523,7 @@ export class Soldier {
     c.h += dt;
     if (!c.lit) return;
     c.t += dt;
-    if (st.cook && c.t >= st.fuse - 1e-9) { this.cook = null; this.cd = 60 / st.rpm; this.item.mag--; this._throw(st, 0, false, true); }
+    if (st.cook && c.t >= st.fuse - 1e-9) { this.cook = null; this.cd = 60 / st.rpm; if (!this.infAmmo) this.item.mag--; this._throw(st, 0, false, true); }
   }
 
   // Pimi çekili bombayı ayağının dibine bırak (silah değişimi / ölüm): kalan fünyeyle, hızsız düşer
@@ -532,7 +532,7 @@ export class Soldier {
     this.cook = null;
     const it = this.items.find((x) => x.id === c?.id);
     if (!st?.cook || !it || it.mag <= 0) return;
-    it.mag--;
+    if (!this.infAmmo) it.mag--;
     const o = { fuse: Math.max(0.05, st.fuse - c.t) };
     if (this.game.online && this.isPlayer) return;                                 // çevrimiçi istemci: sunucunun 'gr'si getirir
     this.game.spawnGrenade(this, new THREE.Vector3(this.pos.x, this.pos.y + 0.9, this.pos.z), new THREE.Vector3(this.vel.x * 0.3, 0.5, this.vel.z * 0.3), st, null, o);
@@ -667,7 +667,7 @@ export class Soldier {
     const ok = this.tryFire();
     this.cur = prev;
     this.autoSwitchT = 0;
-    if (ok && WSTATS[id].kind === 'launcher' && it.mag <= 0 && it.reserve > 0) { it.mag = 1; it.reserve--; this.cd = WSTATS[id].reload + 0.7; }
+    if (ok && WSTATS[id].kind === 'launcher' && it.mag <= 0 && it.reserve > 0) { it.mag = 1; if (!this.infAmmo) it.reserve--; this.cd = WSTATS[id].reload + 0.7; }
     return ok;
   }
 
@@ -721,9 +721,13 @@ export class Soldier {
     return OPTICS[nx];
   }
 
+  // 12.207 geliştirici sınırsız cephanesi (ölümsüzlükle aynı anahtar: O / çevrimdışı g.devGod, sunucuda BF_DEBUG { god }): mermi, yedek, bomba /
+  // ekipman, ilk yardım ve araç silahı cephanesi (heli roket kapsülü) eksilmez. Yalnız geliştirici oyuncu; botlar etkilenmez.
+  get infAmmo() { return !!((this.isPlayer && this.game.devGod) || this.devGod); }
+
   takeDamage(amount, attacker, zone, fromPos, weaponName) {
     if (!this.alive || this.protT > 0) return;
-    if (this.isPlayer && this.game.devGod) return;                                  // geliştirici modu: ölümsüzlük (O)
+    if ((this.isPlayer && this.game.devGod) || this.devGod) return;                 // geliştirici modu: ölümsüzlük (O) · 12.207 sunucuda BF_DEBUG { god }
     if (this.def.zombie && this.game.graceLeft > 0) return;                            // hazırlık süresinde zombiler dokunulmaz
     if (this.def.zombie) {
       if (this.boss) amount *= BOSS.armor;                                                              // boss hasarın %30'unu yok sayar
@@ -809,7 +813,7 @@ export class Soldier {
         // mermi mermi: her mermi girdiğinde ses; dolunca biter
         this.shellT -= dt;
         while (this.shellT <= 0 && it.mag < st.mag && it.reserve > 0) {
-          it.mag++; it.reserve--; this.shellT += st.shell;
+          it.mag++; if (!this.infAmmo) it.reserve--; this.shellT += st.shell;
           this.game.sfx.shell(this.pos);
         }
         const left = Math.min(st.mag - it.mag, it.reserve);
@@ -822,7 +826,7 @@ export class Soldier {
         const kS = this.rlSeatK ?? 1, seated = this.reloadT <= 0 || 1 - this.reloadT / this.reloadTotal >= kS;
         if (seated && !this.rlSeated) {
           const need = st.mag - it.mag, take = Math.min(need, it.reserve);
-          it.mag += take; it.reserve -= take; this.rlSeated = true;
+          it.mag += take; if (!this.infAmmo) it.reserve -= take; this.rlSeated = true;
         }
         if (this.reloadT <= 0) { this.rlDoneT = RL_GAP; this.game.emit('reloaded', this); }
       }
@@ -837,8 +841,8 @@ export class Soldier {
           const bt = this.reviveTarget; this.reviveTarget = null;
           const mk = this.items[2];
           if (this.game.online) { if (mk && mk.id === 'medkit' && mk.mag > 0) mk.mag--; }
-          else if (this.game.canRevive(bt, this)) { if (mk && mk.id === 'medkit' && mk.mag > 0) mk.mag--; this.game.revive(bt, this); }
-        } else if (it && it.mag > 0) { it.mag--; this.heal(WSTATS.medkit.heal); if (it.mag <= 0 && this.cur === 2) this.switchTo(0); }
+          else if (this.game.canRevive(bt, this)) { if (mk && mk.id === 'medkit' && mk.mag > 0 && !this.infAmmo) mk.mag--; this.game.revive(bt, this); }
+        } else if (it && it.mag > 0) { if (!this.infAmmo) it.mag--; this.heal(WSTATS.medkit.heal); if (it.mag <= 0 && this.cur === 2) this.switchTo(0); }
       }
     }
     // hedef nişan geçişi

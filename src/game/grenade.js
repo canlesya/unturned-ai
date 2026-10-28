@@ -139,7 +139,7 @@ export function aimNade(s, st, target, world, tol = 3.5, o = {}) {
 
 // ── 12.193 PUBG tarzı parça tesirli hasar ──
 // PUBG Frag: öldürücü ≤ 3,5 m, orta 3,5–8,5 m, az 8,5–10 m; yatana %20 az. Burada: d ≤ lethal → dmg (öldürür), sonra edge'den 0'a (radius'ta) eğriyle düşer.
-// d = patlamadan hedefin gövde merkezine. Değerler stats.js (grenade: dmg 150, lethal 3,5, radius 10, edge 95).
+// d = patlamadan hedefin gövde merkezine. Değerler stats.js (grenade: dmg 150, lethal 5 (12.207; eski 3,5), radius 10, edge 95).
 export function fragDamage(st, d) {
   const R = st.radius, L = Math.min(st.lethal ?? 0, R * 0.95);
   if (d >= R) return 0;

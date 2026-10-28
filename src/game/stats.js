@@ -184,20 +184,20 @@ export const WSTATS = {
   // ───────── Fırlatıcılar (gadget yuvası) ─────────
   rpg: {
     name: 'RPG-7', kind: 'launcher', slot: 'gadget', desc: 'Roketatar: araç ve bina için patlayıcı hasar.', stats: { dmg: 100, range: 80, rate: 8, control: 40, mobility: 40 },
-    count: 2, auto: false, dmg: 160, radius: 6.5, speed: 38, rpm: 30, mag: 1, reserve: 2, reload: 2.8, equip: 0.35, armorMul: 1.3,      // 12.200 armorMul: zırhlı araca (tank) çarpan (OYUN.md 12.200)
+    count: 2, auto: false, dmg: 160, radius: 7.5, speed: 38, rpm: 30, mag: 1, reserve: 2, reload: 2.8, equip: 0.35, armorMul: 1.3,      // 12.200 armorMul: zırhlı araca (tank) çarpan (OYUN.md 12.200) · 12.207 yarıçap 6,5 → 7,5 (askere öldürme ≤ 4,6 m)
     hip: 0.02, ads: 0.005, kickV: 0.06, kickH: 0.01, zoom: 1.4, move: 0.85,
     sight: [-0.045, 0.14, -0.05], dist: 0.38, sound: 'rpg',
   },
   m79: {
     name: 'M79 Bomba Atar', kind: 'launcher', slot: 'gadget', desc: 'Yaylı yoldan 40 mm bomba, çarpınca patlar.', stats: { dmg: 70, range: 55, rate: 10, control: 60, mobility: 55 },
-    count: 6, auto: false, impact: true, dmg: 120, radius: 5, speed: 30, rpm: 40, mag: 1, reserve: 5, reload: 1.5, reloadStyle: 'break', equip: 0.3,
+    count: 6, auto: false, impact: true, dmg: 120, radius: 6, speed: 30, rpm: 40, mag: 1, reserve: 5, reload: 1.5, reloadStyle: 'break', equip: 0.3,
     hip: 0.02, ads: 0.006, kickV: 0.04, kickH: 0.008, zoom: 1.2, move: 0.95,
     sight: [0, 0.09, 0.02], dist: 0.3, sound: 'm79',
   },
   // ───────── Gadgetlar ─────────
   grenade: {
     name: 'El Bombası', kind: 'throwable', gtype: 'frag', slot: 'gadget', desc: 'Parça tesirli bomba, 5 sn fünye (PUBG). Basılı tut: yörünge · R: pimi çek (pişir) · sağ tık: üstten / alttan · G: hızlı at.', stats: { dmg: 80, range: 40, rate: 30, control: 50, mobility: 100 },
-    count: 2, dmg: 150, lethal: 3.5, edge: 95, radius: 10, vehDmg: 60, vehR: 5, fuse: 5.0, cook: true, speed: 19, rpm: 40, mag: 2, reserve: 0, move: 1.0, equip: 0.3, sound: 'throw',
+    count: 2, dmg: 150, lethal: 5, edge: 95, radius: 10, vehDmg: 60, vehR: 5, fuse: 5.0, cook: true, speed: 19, rpm: 40, mag: 2, reserve: 0, move: 1.0, equip: 0.3, sound: 'throw',
   },
   smoke: {
     name: 'Dumanlı Bomba', kind: 'throwable', gtype: 'smoke', slot: 'gadget', desc: '30 sn yoğun duman perdesi (PUBG gibi uzun): görüşü tamamen keser.', stats: { dmg: 0, range: 40, rate: 30, control: 70, mobility: 100 },
@@ -531,7 +531,7 @@ Object.assign(WSTATS, {
   },
   ww_nade: {
     name: 'Saplı El Bombası', kind: 'throwable', gtype: 'frag', slot: 'gadget', desc: 'Uzun saplı el bombası: daha uzağa atılır, 5 sn fünye (R: pişir).', stats: { dmg: 80, range: 48, rate: 30, control: 50, mobility: 100 },
-    count: 2, dmg: 150, lethal: 3.5, edge: 95, radius: 10, vehDmg: 60, vehR: 5, fuse: 5.0, cook: true, speed: 21, rpm: 40, mag: 2, reserve: 0, move: 1.0, equip: 0.3, sound: 'throw', era: 'ww2',
+    count: 2, dmg: 150, lethal: 5, edge: 95, radius: 10, vehDmg: 60, vehR: 5, fuse: 5.0, cook: true, speed: 21, rpm: 40, mag: 2, reserve: 0, move: 1.0, equip: 0.3, sound: 'throw', era: 'ww2',
   },
 });
 // 12.174 Dönem nişangâhları (yalnız 1940'lar silahlarında; modern red dot / holo / ACOG yok). Liste sırası = B ile dönüş sırası, ilk öğe = varsayılan.
