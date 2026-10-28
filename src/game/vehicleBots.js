@@ -538,16 +538,20 @@ function follow(b, dt, inp, sp) {
   vt = Math.min(vt, Math.sqrt(2 * (tank ? 4 : 7) * Math.max(0, dEnd - 3)) + 1.5);
   // önündeki takım arkadaşı (yaya) / araç: yavaşla, korna, yana kaç
   let avoid = 0;
+  const fR = d.hl + 4 + Math.abs(vF) * 1.1, rR = d.hw + 1.4, R2 = fR * fR + rR * rR;      // 12.211 ucuz ön süzgeç (takım + uzaklık): sonuç aynı, 256 askerde yerel dönüşüm yok
   for (const e of g.soldiers) {
-    if (!e.alive || e.veh || e === s) continue;
+    if (!e.alive || e.veh || e === s || e.team !== s.team) continue;
+    { const ex = e.pos.x - st.x, ez = e.pos.z - st.z; if (ex * ex + ez * ez > R2) continue; }
     const L = toLocal2(st, e.pos.x, e.pos.z);
     if (L.f < d.hl - 0.5 || L.f > d.hl + 4 + Math.abs(vF) * 1.1 || Math.abs(L.r) > d.hw + 1.4) continue;
     if (e.team !== s.team) continue;                                          // düşman: ezilebilir
     vt = Math.min(vt, Math.max(0, (L.f - d.hl - 2) * 0.6)); vd.horn = true;
     avoid += (L.r > 0 ? -1 : 1) * 0.5;
   }
+  const vR = 16 + Math.abs(vF);
   for (const o of g.vehicles.list) {
     if (o === v || !o.st || (!o.alive && !o.wreck)) continue;
+    { const ex = o.st.x - st.x, ez = o.st.z - st.z, rr = d.hw + o.def.hw + 1.2; if (ex * ex + ez * ez > vR * vR + rr * rr) continue; }
     const L = toLocal2(st, o.st.x, o.st.z);
     if (L.f < 0 || L.f > 16 + Math.abs(vF) || Math.abs(L.r) > d.hw + o.def.hw + 1.2) continue;
     avoid += (L.r > 0 ? -1 : 1) * clamp(1.4 - L.f / 14, 0.3, 1);
@@ -621,7 +625,7 @@ function tankGun(b, dt, inp) {
   const ax = p.x + tv.x * tof * G.lead, az = p.z + tv.z * tof * G.lead, ay = p.y - (tg.s ? 0.2 : 0);
   const tu = v.def.turret, co = toWorld(st, tu.f, 0, tu.pivot, _cp), L = Math.hypot(ax - co.x, ay - co.y, az - co.z) || 1;
   _cd.x = (ax - co.x) / L; _cd.y = (ay - co.y) / L; _cd.z = (az - co.z) / L;
-  const sol = g.vehicles.gunAimFor(v, co, _cd, s, _gs);
+  const sol = g.vehicles.gunAimFor(v, co, _cd, s, _gs, L);      // 12.211 bot: ışın hedef noktasına kadar (700 m + 256 asker yerine)
   const dx = ax - _o.x, dz = az - _o.z, D = Math.hypot(dx, dz) || 1;
   inp.yw = sol.y + vd.err[0];
   inp.pt = sol.p + vd.err[1];

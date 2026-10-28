@@ -615,12 +615,13 @@ export class Vehicles {
   // 12.188 nişan yakınsaması (Battlefield 3 / 4 gibi: "mermi artının ortasına gider"): kamera ışınının çarptığı nokta P (dünya, araç, düşman asker; yoksa
   // 700 m) → kulenin hedef yaw'ı (kule ekseninden P'ye) + topun hedef açısı (namlu ucundan P'ye düşük yay balistik çözümü; namlu boyu için 3 yineleme).
   // Sürücü girdisinde bakış yerine yollanır (gy / gp); kule bu hedefe sınırlı hızla döner. Menzil dışı → 45°'ye (top sınırına takılır).
-  gunAimFor(v, co, cd, by, out = {}) {
+  // 12.211 lim: bot nişanı (hedef noktası belli, görüyor): ışın yalnız oraya kadar, asker taraması yok (sonuç: engel ya da hedef noktası)
+  gunAimFor(v, co, cd, by, out = {}, lim = 0) {
     const g = this.g, W = g.world, tu = v.def.turret, c = v.def.cannon;
-    let t = 700;
+    let t = lim > 0 ? Math.min(lim, 700) : 700;
     const wh = W.raycast(co, cd, t, (this._ga ||= {})); if (wh) t = wh.t;
     const vr = this.raycast(co, cd, t, v); if (vr && vr.t < t) t = vr.t;
-    for (const e of g.soldiers) { if (!e.alive || e === by || (by && e.team === by.team) || e.veh === v) continue; const h = g.hitSoldier(e, co, cd, t); if (h && h.t < t) t = h.t; }
+    if (!(lim > 0)) for (const e of g.soldiers) { if (!e.alive || e === by || (by && e.team === by.team) || e.veh === v) continue; const h = g.hitSoldier(e, co, cd, t); if (h && h.t < t) t = h.t; }
     const P = { x: co.x + cd.x * t, y: co.y + cd.y * t, z: co.z + cd.z * t };
     const pv = toWorld(v.st, tu.f, 0, tu.pivot, (this._gp ||= {}));
     const dx = P.x - pv.x, dz = P.z - pv.z, D0 = Math.hypot(dx, dz), h0 = P.y - pv.y, v2 = c.speed * c.speed, G = c.grav;
@@ -630,7 +631,7 @@ export class Vehicles {
       const disc = v2 * v2 - G * (G * D * D + 2 * h * v2);
       th = disc < 0 ? Math.PI / 4 : Math.atan2(v2 - Math.sqrt(disc), G * D);
     }
-    out.y = Math.atan2(-dx, -dz); out.p = th; out.P = P; out.dist = D0; out.hit = !!(wh || vr) || t < 700;      // dist: kuleden yatay menzil (HUD)
+    out.y = Math.atan2(-dx, -dz); out.p = th; out.P = P; out.dist = D0; out.hit = !!(wh || vr) || t < 700 || lim > 0;      // dist: kuleden yatay menzil (HUD)
     return out;
   }
 

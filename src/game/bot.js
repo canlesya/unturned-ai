@@ -364,10 +364,12 @@ export class BotBrain {
     let n = 0, foeD = 1e9;
     const vmg = !!(s.veh && mgAt(s.veh.def, s.seat));
     const vis = (g.night ? null : g.tod === 'sunset' ? TUNE.sightSunset : TUNE.sightDay), mul = (g.visMul || 1) * (big ? 1.35 : 1);
+    const vR = (vis ?? Math.max(TUNE.sightDay, TUNE.sightNight)) * mul + 2, vR2 = vR * vR;      // 12.211 ucuz uzaklık süzgeci (göz / gövde merkezi farkı için +2 m): sonuç aynı
     for (const e of g.soldiers) {
       if (!e.alive || e.team === s.team) continue;
-      { const fx = e.pos.x - s.pos.x, fz = e.pos.z - s.pos.z, d2 = fx * fx + fz * fz; if (d2 < foeD) foeD = d2; }      // 12.203 en yakın düşman (kademeli beyin)
-      if (e.protT > 0.5) continue;
+      const fx = e.pos.x - s.pos.x, fz = e.pos.z - s.pos.z, d2 = fx * fx + fz * fz;
+      if (d2 < foeD) foeD = d2;                                                     // 12.203 en yakın düşman (kademeli beyin)
+      if (d2 > vR2 || e.protT > 0.5) continue;
       if (e.def.zombie && g.graceLeft > 0) continue;
       if (g.vehicles && !at && g.vehicles.hiddenSeat(e)) continue;
       if (e.cloaked && Math.hypot(e.pos.x - s.pos.x, e.pos.z - s.pos.z) > 6) continue;

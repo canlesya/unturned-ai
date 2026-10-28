@@ -195,23 +195,39 @@ export class World {
   }
 
   // Işın: en yakın çarpışma kutusu ya da zemin. d normalize olmalı. skipTag: bu etiketli kutular yok sayılır (mermi ahşap kapıdan geçer: 'wood').
+  // 12.211: kutular ışının geçtiği ızgara hücrelerinde, yakından uzağa (2B DDA) aranır; bulunan isabet sonraki hücrenin girişinden yakınsa durur.
+  // Eskiden ışının bütün sınır kutusu taranıyordu: 300–700 m'lik çapraz mermi / tank nişanı ışını ~40 × 40 – 60 × 60 hücre + içindeki her kutu
+  // (128v128 Kuzey'de adımın ~%12'si). Sonuç aynı (en yakın isabet; hücreler ışının her noktasını kapsar).
   raycast(o, d, maxT = 300, out = {}, skipTag = null) {
     let best = maxT, bn = null, bc = null;
-    const inv = [1 / (d.x || 1e-9), 1 / (d.y || 1e-9), 1 / (d.z || 1e-9)];
-    const ex = o.x + d.x * maxT, ez = o.z + d.z * maxT;
-    const list = this.query(Math.min(o.x, ex) - 0.1, Math.min(o.z, ez) - 0.1, Math.max(o.x, ex) + 0.1, Math.max(o.z, ez) + 0.1, (this._tmp3 ||= []));
-    for (const c of list) {
-      if (skipTag && c.tag === skipTag) continue;
-      let t0 = 0, t1 = best, axisHit = -1, sgn = 0;
-      const oo = [o.x, o.y, o.z];
-      for (let a = 0; a < 3; a++) {
-        let ta = (c.min[a] - oo[a]) * inv[a], tb = (c.max[a] - oo[a]) * inv[a], s = -1;
-        if (ta > tb) { const t = ta; ta = tb; tb = t; s = 1; }
-        if (ta > t0) { t0 = ta; axisHit = a; sgn = s; }
-        if (tb < t1) t1 = tb;
-        if (t0 > t1) break;
+    const ox = o.x, oy = o.y, oz = o.z, dx = d.x || 1e-9, dy = d.y || 1e-9, dz = d.z || 1e-9, ix = 1 / dx, iy = 1 / dy, iz = 1 / dz;
+    const cs = this.cell, G = this.grid, stamp = ++this.stamp;
+    let cx = Math.floor(ox / cs), cz = Math.floor(oz / cs);
+    const sx = d.x > 0 ? 1 : -1, sz = d.z > 0 ? 1 : -1, ax = Math.abs(d.x) > 1e-12, az = Math.abs(d.z) > 1e-12;
+    let tMx = ax ? ((cx + (sx > 0 ? 1 : 0)) * cs - ox) * ix : Infinity, tMz = az ? ((cz + (sz > 0 ? 1 : 0)) * cs - oz) * iz : Infinity;
+    const tDx = ax ? cs * Math.abs(ix) : Infinity, tDz = az ? cs * Math.abs(iz) : Infinity;
+    for (let guard = 0; guard < 4096; guard++) {
+      const a = G.get(cellKey(cx, cz));
+      if (a) for (let k = 0; k < a.length; k++) {
+        const c = a[k];
+        if (c._s === stamp) continue;
+        c._s = stamp;
+        if (skipTag && c.tag === skipTag) continue;
+        const mn = c.min, mx = c.max;
+        let t0 = 0, t1 = best, axisHit = -1, sgn = 0, ta, tb, sg;
+        ta = (mn[0] - ox) * ix; tb = (mx[0] - ox) * ix; sg = -1; if (ta > tb) { const t = ta; ta = tb; tb = t; sg = 1; }
+        if (ta > t0) { t0 = ta; axisHit = 0; sgn = sg; } if (tb < t1) t1 = tb;
+        if (t0 > t1) continue;
+        ta = (mn[1] - oy) * iy; tb = (mx[1] - oy) * iy; sg = -1; if (ta > tb) { const t = ta; ta = tb; tb = t; sg = 1; }
+        if (ta > t0) { t0 = ta; axisHit = 1; sgn = sg; } if (tb < t1) t1 = tb;
+        if (t0 > t1) continue;
+        ta = (mn[2] - oz) * iz; tb = (mx[2] - oz) * iz; sg = -1; if (ta > tb) { const t = ta; ta = tb; tb = t; sg = 1; }
+        if (ta > t0) { t0 = ta; axisHit = 2; sgn = sg; } if (tb < t1) t1 = tb;
+        if (t0 <= t1 && t0 < best && t1 > 0) { best = t0; bc = c; bn = axisHit >= 0 ? [axisHit, sgn] : null; }
       }
-      if (t0 <= t1 && t0 < best && t1 > 0) { best = t0; bc = c; bn = axisHit >= 0 ? [axisHit, sgn] : null; }
+      const tExit = tMx < tMz ? tMx : tMz;
+      if (best <= tExit || tExit >= maxT) break;
+      if (tMx < tMz) { cx += sx; tMx += tDx; } else { cz += sz; tMz += tDz; }
     }
     let tnorm = null;
     if (this.terrain) {
