@@ -14,6 +14,10 @@ addStrings('tr', {
   'veh.heli-n': 'HELİKOPTER', 'veh.heli-s': 'HELİKOPTER', 'veh.heliBar': 'ROTOR %{r} · İRTİFA {h} m', 'veh.rotor': 'ROTOR HIZLANIYOR…',
   'veh.hint.heli': '<b>Sol tık</b> burun topu · <b>Sağ tık</b> roket · <b>Boşluk</b> yüksel · <b>C / Ctrl</b> alçal · <b>W S</b> ileri / geri · <b>A D</b> yana · <b>Fare</b> burun · <b>{v}</b> kamera · <b>{f}</b> far · <b>1–{n}</b> koltuk · <b>{e}</b> in (havada atlarsan düşersin)',
   'tc.n.down': 'Alçal',
+  // 12.204 arazi motosikleti
+  'veh.moto': 'MOTOR', 'veh.kf.moto': 'Motor', 'veh.seat.moto1': 'Arka yolcu', 'veh.stall': 'MOTOR SUDA STOP ETTİ', 'veh.fall': 'DEVRİLDİ',
+  'veh.hint.moto': '<b>W A S D</b> sür · <b>Boşluk</b> fren · <b>Sol tık</b> korna · <b>{f}</b> far · <b>{v}</b> kamera · <b>2</b> arka koltuk · <b>{e}</b> in',
+  'veh.hint.motoPas': '<b>Sol tık</b> ateş · <b>Tekerlek</b> silah · <b>1</b> sürücü · <b>{e}</b> in',
   'agroup.4': 'Araç', 'tc.n.veh': 'Araca bin / in', 'tc.n.vcam': 'Araç kamerası', 'tc.n.seat': 'Koltuk değiştir',
 });
 addStrings('en', {
@@ -31,4 +35,8 @@ addStrings('en', {
   'agroup.4': 'Vehicle', 'action.vehicle': 'Enter / exit vehicle', 'action.vehCam': 'Vehicle camera (inside / chase)',
   'set.grp.4': 'Vehicle', 'set.act.vehicle': 'Enter / exit vehicle', 'set.act.vehCam': 'Vehicle camera (inside / chase)',      // oyun içi Kontroller (Esc → Ayarlar)
   'tc.n.veh': 'Enter / exit vehicle', 'tc.n.vcam': 'Vehicle camera', 'tc.n.seat': 'Switch seat',
+  // 12.204 dirt bike
+  'veh.moto': 'DIRT BIKE', 'veh.kf.moto': 'Dirt bike', 'veh.seat.moto1': 'Pillion', 'veh.stall': 'ENGINE STALLED IN WATER', 'veh.fall': 'TIPPED OVER',
+  'veh.hint.moto': '<b>W A S D</b> ride · <b>Space</b> brake · <b>Left click</b> horn · <b>{f}</b> light · <b>{v}</b> camera · <b>2</b> rear seat · <b>{e}</b> exit',
+  'veh.hint.motoPas': '<b>Left click</b> fire · <b>Wheel</b> weapon · <b>1</b> rider · <b>{e}</b> exit',
 });

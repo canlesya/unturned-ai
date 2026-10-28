@@ -14,6 +14,7 @@
 // thr (son gaz −1..1, ses / görsel), sunk, hit (bu adımın en büyük çarpma hızı), land (bu adımın iniş hızı).
 
 import { submerged } from './swim.js';
+import { MOTO, stepMoto } from './moto.js';                       // 12.204 arazi motosikleti
 
 export const VT = {
   jip: {
@@ -80,6 +81,7 @@ export const VT = {
   },
 };
 VT['heli-s'] = VT['heli-n'];                                       // saldırı helikopteri ayrı model gelene dek aynı nakliye helikopteri
+VT.moto = MOTO;                                                    // 12.204 arazi motosikleti (sim/moto.js)
 
 // koltuğun makinelisi (yoksa null): tank nişancısı, helikopter kapı nişancıları
 export const mgAt = (def, seat) => (def?.mg && def.mg.seats.includes(seat) ? def.mg : null);
@@ -150,10 +152,14 @@ export function obbBox(v, c, pad = 0) {
 
 // Bir adım. inp: { f: gaz (−1..1), r: direksiyon (−1..1), b: fren / el freni } ya da null (sürücüsüz: el freni çekili, motor kapalı)
 export function stepVehicle(v, inp, dt, world) {
-  const d = v.def, T = world;
   v.hit = 0; v.land = 0;
   if (!(dt > 1e-5)) return;                                       // çevrimdışı kare adımı 0 olabilir (bölme yok)
-  if (d.heli) return stepHeli(v, inp, dt, world);
+  if (v.def.heli) return stepHeli(v, inp, dt, world);
+  if (v.def.moto) return stepMoto(v, inp, dt, world, stepCar, submerged);      // 12.204 motosiklet: teker modeli + devrilme / zıplama / su
+  return stepCar(v, inp, dt, world);
+}
+function stepCar(v, inp, dt, world) {
+  const d = v.def, T = world;
   const f = inp && !v.sunk ? Math.max(-1, Math.min(1, inp.f || 0)) : 0, rr = inp && !v.sunk ? Math.max(-1, Math.min(1, inp.r || 0)) : 0, hand = !inp || !!inp.b || v.sunk;
   v.thr = f; v.brk = hand ? 1 : 0;
   const s0 = Math.sin(v.yaw), c0 = Math.cos(v.yaw);
@@ -163,7 +169,7 @@ export function stepVehicle(v, inp, dt, world) {
   const g0 = (w0[0] + w0[1] + w0[2] + w0[3]) / 4;
   const onG = !v.air;
   // direksiyon (havada da döner, etkisi yok). Paletli: steer = dönüş isteği (−1..1, yumuşatılmış)
-  const want = d.tracked ? rr : rr * d.steerMax / (1 + Math.abs(vF) / 10);
+  const want = d.tracked ? rr : rr * d.steerMax / (1 + Math.abs(vF) / (d.steerV ?? 10));      // 12.204 steerV: direksiyon açısının hızla küçülmesi (motor: yüksek hızda kararlı)
   v.steer += Math.max(-d.steerRate * dt, Math.min(d.steerRate * dt, -want - v.steer));      // sağa (r > 0) dönüş = yaw azalır → steer negatif
   // kule + top (yalnız taretli araç): bakış yönüne sınırlı hızla döner (dünya ekseninde dengeli). Sürücüsüzken olduğu yerde kalır
   if (d.turret && inp && Number.isFinite(inp.yw)) {
@@ -358,12 +364,12 @@ function stepHeli(v, inp, dt, T) {
 }
 
 // Duruyor mu (uyku): sürücüsüz, yerde, hızsız
-export const vehicleAtRest = (v) => !v.air && Math.abs(v.vx) + Math.abs(v.vz) < 0.03 && Math.abs(v.vy) < 0.05 && !(v.rpm > 0);      // helikopter rotoru da durmalı
+export const vehicleAtRest = (v) => !v.air && Math.abs(v.vx) + Math.abs(v.vz) < 0.03 && Math.abs(v.vy) < 0.05 && !(v.rpm > 0) && !(v.fall > 0);      // helikopter rotoru da durmalı · 12.204 devrik motor doğrulana dek uyumaz
 
 // Ağ / uzlaştırma için tam durum (kesinlik: 3 hane)
 const q3 = (x) => Math.round(x * 1000) / 1000;
-export function packVehState(v) { const a = [q3(v.x), q3(v.y), q3(v.z), q3(v.yaw), q3(v.pitch), q3(v.roll), q3(v.vx), q3(v.vy), q3(v.vz), q3(v.steer), v.air ? 1 : 0]; if (v.def.turret) a.push(q3(v.tyaw), q3(v.gp)); else if (v.def.heli) a.push(q3(v.rpm)); return a; }
-export function applyVehState(v, a) { v.x = a[0]; v.y = a[1]; v.z = a[2]; v.yaw = a[3]; v.pitch = a[4]; v.roll = a[5]; v.vx = a[6]; v.vy = a[7]; v.vz = a[8]; v.steer = a[9]; v.air = !!a[10]; if (a.length > 12) { v.tyaw = a[11]; v.gp = a[12]; } else if (a.length > 11) v.rpm = a[11]; }
+export function packVehState(v) { const a = [q3(v.x), q3(v.y), q3(v.z), q3(v.yaw), q3(v.pitch), q3(v.roll), q3(v.vx), q3(v.vy), q3(v.vz), q3(v.steer), v.air ? 1 : 0]; if (v.def.turret) a.push(q3(v.tyaw), q3(v.gp)); else if (v.def.heli) a.push(q3(v.rpm)); else if (v.def.moto) a.push(q3(v.fall || 0), v.fallK || 0); return a; }      // 12.204 motor: devrik süresi + türü
+export function applyVehState(v, a) { v.x = a[0]; v.y = a[1]; v.z = a[2]; v.yaw = a[3]; v.pitch = a[4]; v.roll = a[5]; v.vx = a[6]; v.vy = a[7]; v.vz = a[8]; v.steer = a[9]; v.air = !!a[10]; if (v.def.moto) { v.fall = a[11] || 0; v.fallK = a[12] || 0; } else if (a.length > 12) { v.tyaw = a[11]; v.gp = a[12]; } else if (a.length > 11) v.rpm = a[11]; }
 
 // 12.178 namlu ucu ve yönü (dünya): kule ekseni gövdede (tf ileri), kule yaw dünyada, top açısı kule eğimine eklenir
 export function gunPose(v, outP, outD) {

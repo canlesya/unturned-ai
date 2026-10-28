@@ -6,6 +6,8 @@ import { toWorld, gunPose } from '../sim/vehicle.js';
 import { SIM_DT } from '../net/protocol.js';
 import { waterYAt } from '../sim/swim.js';
 import { SEAT_DROP } from './vehicles.js';
+import { createMoto } from '../models/moto.js';                     // 12.204 arazi motosikleti
+import { MOTO_FX, motoFrame } from './motorbike.js';
 
 // ───── Araç görünümü (12.177; yalnız tarayıcı) ─────
 // Model (takım rengine göre şablon kopyası), görsel süspansiyon (dikey ivme + eğim / yatış gecikmesi: yaylı gövde), teker dönüşü + ön teker
@@ -23,6 +25,7 @@ const FXP = {
   jip: { lights: [[2.02, -0.5, 0.86], [2.02, 0.5, 0.86]], exh: [[-2.0, -0.55, 0.38, 0]], dust: [[-1.2, -0.81], [-1.2, 0.81]], hood: [1.35, 0, 1.05], eng: [34, 70], vol: 0.32, inVol: 0.16 },
   heli: { lights: [[2.62, 0, 0.75]], exh: [[-1.95, -0.55, 2.95, 1], [-1.95, 0.55, 2.95, 1]], dust: [], hood: [-0.6, 0, 3.0], eng: [7, 13], vol: 0.7, inVol: 0.28, rotor: true },
   tank: { lights: [[3.02, -1.3, 1.55], [3.02, 1.3, 1.55]], exh: [[-3.25, -1.0, 1.62, 1], [-3.25, 1.0, 1.62, 1]], dust: [[-2.8, -1.42], [-2.8, 1.42], [2.5, -1.42], [2.5, 1.42]], hood: [-1.8, 0, 1.85], eng: [19, 36], vol: 0.5, inVol: 0.2, clank: true },
+  moto: MOTO_FX,                                                       // 12.204 (game/motorbike.js): tek far, sağ egzoz, arka teker tozu, tiz motor
 };
 
 class Puffs {
@@ -111,7 +114,7 @@ export class VehicleView {
     o.x = p.x + (st.x - p.x) * a + vo.x; o.y = p.y + (st.y - p.y) * a + vo.y; o.z = p.z + (st.z - p.z) * a + vo.z;
     o.yaw = la(p.yaw, st.yaw); o.pitch = p.pitch + (st.pitch - p.pitch) * a; o.roll = p.roll + (st.roll - p.roll) * a;
     o.vx = st.vx; o.vy = st.vy; o.vz = st.vz; o.steer = st.steer; o.thr = st.thr; o.air = st.air; o.def = st.def; o.tyaw = st.tyaw; o.gp = st.gp; o.brk = st.brk;
-    o.rpm = st.rpm; o.sunk = st.sunk;              // 12.183: rotor devri de (yoksa çevrim içi pilotun kendi helikopterinde rotor / rotor sesi / rüzgârı 0'da kalıyordu)
+    o.rpm = st.rpm; o.sunk = st.sunk; o.fall = st.fall; o.fallK = st.fallK;      // 12.204 motor devrik durumu              // 12.183: rotor devri de (yoksa çevrim içi pilotun kendi helikopterinde rotor / rotor sesi / rüzgârı 0'da kalıyordu)
     return o;
   }
 
@@ -121,7 +124,7 @@ export class VehicleView {
     const team = v.paint || null;
     if (!it.model || it.team !== team) {
       if (it.model) this.group.remove(it.model);
-      const m = v.def.heli ? createHeli(team) : v.type === 'tank' ? createTank(team) : createJeep(team);
+      const m = v.def.heli ? createHeli(team) : v.type === 'tank' ? createTank(team) : v.def.moto ? createMoto(team) : createJeep(team);
       if (m.userData.blur) { m.userData.blur.material = HELI_MATS.BLUR.clone(); m.userData.blur.userData.beam = true; }      // rotor bulanıklığı araç başına (kömürleşmez)
       const lens = JEEP_MATS.LENS.clone(), tail = JEEP_MATS.TAIL.clone();              // farlar araç başına (açık / kapalı)
       m.userData.fx.traverse((o) => { if (o.material === JEEP_MATS.LENS) o.material = lens; else if (o.material === JEEP_MATS.TAIL) o.material = tail; });
@@ -218,7 +221,8 @@ export class VehicleView {
         if (v.alive) { const w = yr * 1.3; it.sL = (it.sL || 0) + (fwd - w) * dt; it.sR = (it.sR || 0) + (fwd + w) * dt; }
         if (far < 90 && v.alive) setTracks(m, it.sL || 0, it.sR || 0);
         U.links.visible = U.rw.visible = far < 260;
-      } else {
+      } else if (U.moto) motoFrame(it, v, st, dt, fwd, yr, far);      // 12.204 motor: yatma / devrilme / teker / çatal
+      else {
         // tekerler: dönüş (ileri hız / yarıçap), ön tekerler direksiyon
         it.spin = ((it.spin || 0) + (v.alive ? fwd : 0) * dt / 0.4) % (Math.PI * 2);
         for (const w of U.wheels) { w.w.rotation.x = -it.spin; w.piv.rotation.y = w.front ? st.steer * 1.0 : 0; w.piv.position.y = 0.4 - (v.alive ? it.sy * 0.5 : 0.08); }

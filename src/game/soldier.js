@@ -13,6 +13,7 @@ import { cleanWear, wearCodeOf, botWear } from './wearIds.js';
 import { releaseCapeSway } from '../models/wear.js';
 import { throwState, pinSfx } from './grenade.js';
 import { mgAt } from '../sim/vehicle.js';
+import { motoRiderPose } from './motorbike.js';                       // 12.204 motorda oturuş
 import { spaceTp } from './space.js';
 import { SWIM, swimCanFire, waterYAt } from '../sim/swim.js';
 import { bodyYawOf, PRONE_LOOK } from '../sim/prone.js';
@@ -933,6 +934,7 @@ export class Soldier {
     }
     p.torso.rotation.x = clamp(this.pitch + this.recoilP, -0.9, 0.9) * 0.5 - 0.05; p.torso.rotation.z = 0; p.torso.position.x = 0; p.torso.position.y = 1.17;
     p.head.rotation.x = -clamp(this.pitch, -0.9, 0.9) * 0.3; p.head.rotation.z = 0;
+    if (this.veh.def.moto) motoRiderPose(p, this.seat);                            // 12.204: ata biner gibi, sürücü öne eğik
   }
 
   // 12.180 su görsel / ses: suya düşüş / atlayış sıçraması, yüzerken yüzey dalgacıkları (başkaları), yüzeye çıkış nefesi (oyuncu)
@@ -1090,7 +1092,7 @@ export class Soldier {
     }
     if (this.swing) melee = { kind: this.swing.kind, k: clamp(this.swing.t / this.swing.dur, 0, 1), hv: !!this.swing.hv };
     const vh = this.veh && this.veh.st;
-    if (vh) { const mg = !!mgAt(this.veh.def, this.seat); this._seatPose(m, p, root, vh, mg); m.refreshHold({ twist: this._seatTwist, side: 1, aimP: clamp(this.pitch + this.recoilP, -0.8, 0.8), reload, melee, drive: this.seat === 0 || mg, wheelA: mg ? 0 : -vh.steer * 2.2 }); if (this.veh.def.hidden?.[this.seat]) root.visible = false; return; }      // 12.178: tank sürücüsü gövdede görünmez, nişancı makineliyi tutar
+    if (vh) { const mg = !!mgAt(this.veh.def, this.seat); this._seatPose(m, p, root, vh, mg); m.refreshHold({ twist: this._seatTwist, side: 1, aimP: clamp(this.pitch + this.recoilP, -0.8, 0.8), reload, melee, drive: this.seat === 0 || mg, wheelA: mg || this.veh.def.moto ? 0 : -vh.steer * 2.2 }); if (this.veh.def.hidden?.[this.seat]) root.visible = false; return; }      // 12.178: tank sürücüsü gövdede görünmez, nişancı makineliyi tutar
     // 12.193 bomba pozu: hazırlarken kol geri-yukarı (üstten) ya da aşağı-geri (alttan) kurulur, atışta ileri savrulur
     if (!this.isPlayer) { const nv = this._nadeVisId() || null; if (nv !== this._nvPrev) { this._nvPrev = nv; this._syncWeaponModel(); } }
     const net = this.isPlayer ? 0 : this.nadeNet | 0;
