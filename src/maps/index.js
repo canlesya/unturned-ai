@@ -81,7 +81,7 @@ MAPS.yorunge = {      // 12.157 Uzay modu
   build: () => buildYorunge(),
 };
 MAPS.kuzey = {      // 12.172 büyük harita (araçlar ileride): yalnız Ele Geçirme + Takım Çatışması
-  id: 'kuzey', name: 'Kuzey Vadisi', tag: 'Dev · 1,6 km · 7 bayrak · 32v32', thumb: '/img/kuzey.jpg', only: ['conquest', 'tdm'],
+  id: 'kuzey', name: 'Kuzey Vadisi', tag: 'Dev · 1,6 km · 7 bayrak · 128v128', thumb: '/img/kuzey.jpg', only: ['conquest', 'tdm'],
   desc: '1,6 km\'lik DEV harita (Vadi\'den ayrı): Alplere benzer dağlarla çevrili, mezralar, çiftlikler ve korularla dolu vadi; güneyde Mavi, kuzeyde Kırmızı üs. Yedi bayrak: Radar Tepesi, Köy, Kavşak, Fabrika, Baraj, Çiftlik, Kereste Kampı. Ele geçirilen bayraktan / ön hattan doğulur. Orman, çalılık, çalı çiti, yıkık ev, kum torbası mevzisi ve buğday tarlalarında saklan; barajın gölünde yüzülür.',
   build: () => buildKuzey(),
 };

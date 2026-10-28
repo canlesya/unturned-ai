@@ -1,10 +1,11 @@
 // Bir oda = başsız bir Game + bağlı oyuncular. Sabit adımla (SIM_HZ) çalışır, her SNAP_EVERY adımda snapshot yollar.
 import { Game, applyOpticPrefs, cleanFront } from '../src/game/game.js';
 import { SIM_DT, SIM_HZ, SNAP_EVERY, packSoldier, slowSig, cleanName } from '../src/net/protocol.js';
+import { IM_ALL, interestWants, aimOf } from '../src/net/interest.js';
 import { CLASS_DEFS, WSTATS, ZTYPES, ZT_ORDER, ZOMBIE, cleanSkins } from '../src/game/stats.js';
 import { cleanWear } from '../src/game/wearIds.js';
 import { defaultTickets } from '../src/game/match.js';
-import { LIMITS, useBalance } from '../src/game/balance.js';
+import { LIMITS, useBalance, maxPerFor } from '../src/game/balance.js';
 import { currentBalance, balanceMeta } from './balanceStore.js';
 import { MAPS } from '../src/maps/index.js';
 import { nextOptions, tallyVotes } from '../src/game/nextMatch.js';
@@ -25,7 +26,7 @@ export function sanitizeCfg(c = {}) {
   const pick = (v, list, d) => (list.includes(v) ? v : d);
   const type0 = pick(c.type, ['conquest', 'tdm', 'dm', 'gg', 'inf', 'pb', 'payload', 'space', 'front'], 'conquest');
   const pbMap = c.map === 'random' ? PB_MAPS[Math.floor(Math.random() * PB_MAPS.length)] : pick(c.map, PB_MAPS, PB_MAPS[0]);
-  return {
+  const R = {
     map: type0 === 'space' ? pick(c.map, SPACE_MAPS, SPACE_MAPS[0]) : type0 === 'inf' ? 'newyork' : type0 === 'pb' ? pbMap : type0 === 'payload' ? 'maden' : type0 === 'front' ? pick(c.map, FRONT_MAPS, FRONT_MAPS[0]) : pick(c.map, (type0 === 'conquest' || type0 === 'tdm') ? ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman', 'kuzey'] : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman'], 'kasaba'),                  // Enfekte yalnızca New York'ta, Paintball yalnızca paintball haritalarında
     tod: pick(c.tod, ['day', 'sunset', 'night'], 'day'),
     weather: type0 === 'space' ? 'clear' : pick(c.weather, ['clear', 'rain', 'fog'], 'clear'),
@@ -40,6 +41,8 @@ export function sanitizeCfg(c = {}) {
     listed: c.listed !== false,
     third: c.third === true,                   // 3. şahıs kamera (H) bu odada serbest mi
   };
+  if (R.type === 'conquest' || R.type === 'tdm') R.perTeam = Math.round(num(c.perTeam, 1, maxPerFor(R.map, R.type), 5));      // 12.203: büyük harita (Kuzey Vadisi) 128v128 / TDM 64v64, diğerleri 32
+  return R;
 }
 
 const cleanRoomName = (n) => String(n || '').replace(/[<>&"'`]/g, '').trim().slice(0, 24);
@@ -455,34 +458,73 @@ export class Room {
   }
 
   step() {
-    const g = this.game;
+    const g = this.game, t0 = performance.now();
     g.step(SIM_DT);
+    const t1 = performance.now();
     this.tick = g.tick;
     for (const c of this.clients.values()) if (c.h.tickAck) { c.h.ackState = packSoldier(c.h.s); c.h.ackAm = c.h.s.items.map((it) => [it.mag, it.reserve]); c.h.ackVeh = c.h.s.veh && c.h.s.seat === 0 && c.h.s.veh.st ? packVehState(c.h.s.veh.st) : null; }      // ack anındaki cephane: istemci aynı girdideki kendi tahminiyle karşılaştırır (12.138) · 12.177 sürücünün araç durumu (tahmin uzlaştırması)
     if (g.netEvents.length) { this.sendEvents(g.netEvents); g.netEvents.length = 0; }
     if (this.tick % SNAP_EVERY === 0 && this.clients.size) this.snapshot();
+    this.perfNote(t1 - t0, performance.now() - t1);
+  }
+
+  // 12.203 oda başarımı: sim adımı + ağ (snapshot / olay) süresi, son 10 sn'nin ortalaması / p95 / en çoğu (µs); kalabalık odada 30 sn'de bir günlüğe.
+  // Bütçe: 60 Hz'de adım başına 16,7 ms (bütün odalar tek iş parçacığında: oda başına çok daha azı).
+  perfNote(simMs, netMs) {
+    const P = (this.perf ||= { buf: new Float32Array(600), net: new Float32Array(600), i: 0, n: 0, logAt: Date.now() + 30000 });
+    P.buf[P.i] = simMs * 1000; P.net[P.i] = netMs * 1000; P.i = (P.i + 1) % 600; P.n = Math.min(600, P.n + 1);
+    if (Date.now() < P.logAt) return;
+    P.logAt = Date.now() + 30000;
+    const st = this.perfStats();
+    if (this.game.soldiers.length > 64 && this.clients.size) console.log(`[başarım] ${this.code} ${this.game.soldiers.length} asker · sim ${st.simAvg} µs (p95 ${st.simP95}, en çok ${st.simMax}) · ağ ${st.netAvg} µs · istemci başına ${st.kbPerClient} KB/sn (ham)`);
+  }
+  perfStats() {
+    const P = this.perf; if (!P || !P.n) return null;
+    const a = Array.from(P.buf.subarray(0, P.n)).sort((x, y) => x - y), nt = P.net.subarray(0, P.n);
+    const avg = (v) => Math.round(v.reduce((x, y) => x + y, 0) / v.length);
+    return { simAvg: avg(a), simP95: Math.round(a[Math.floor(a.length * 0.95)]), simMax: Math.round(a[a.length - 1]), netAvg: avg(Array.from(nt)), kbPerClient: this.netStat ? +((this.netStat.per * SIM_HZ) / SNAP_EVERY / 1024).toFixed(1) : 0 };
   }
 
   snapshot() {
-    const g = this.game;
+    const g = this.game, S = g.soldiers, N = S.length;
     // yavaş alanlar yalnızca değişen savaşçılarda (ya da 2 sn'de bir / yeni katılımda) gönderilir
     const force = this._forceSlow || this.tick % (SNAP_EVERY * 40) === 0;
     this._forceSlow = false;
-    const sig = (this._sig ||= []);
-    const all = JSON.stringify(g.soldiers.map((s) => { const sg = slowSig(s), ch = force || sig[s.id] !== sg; if (ch) sig[s.id] = sg; return packSoldier(s, ch); }));
+    // 12.203 ilgi alanı (src/net/interest.js): kalabalık odada uzak askerler seyrek; yavaş alanların değiştiği an asker başına tutulur, istemciye
+    // o askeri en son yolladığımızdan beri değiştiyse tam paket (seyrek askerin skor / eşya değişimi kaçmaz). Paketler snapshot başına bir kez dizilir.
+    const sig = (this._sig ||= []), slowAt = (this._slowAt ||= []), sn = (this._sn = (this._sn || 0) + 1);
+    const fast = (this._pf ||= []), full = (this._pS ||= []);
+    fast.length = full.length = N;
+    for (let i = 0; i < N; i++) { const s = S[i], sg = slowSig(s); if (sig[s.id] !== sg) { sig[s.id] = sg; slowAt[s.id] = sn; } fast[i] = full[i] = null; }
+    const im = N > IM_ALL, parts = (this._parts ||= []);
     const o = JSON.stringify(g.mode.objectives.map((ob) => [ob.owner === 'blue' ? 1 : ob.owner === 'red' ? 2 : 0, Math.round(ob.p * 1000) / 1000, ob.nb || 0, ob.nr || 0]));      // 12.191 + alandaki Mavi / Kırmızı sayısı (istemci HUD'u sunucunun saydığını gösterir; ilerleme 0,001 adımlı: çubuk istemcide akıcı)
     const tl = g.timeLeft === Infinity ? -1 : Math.round(g.timeLeft * 10) / 10;
     const vh = g.vehicles ? g.vehicles.pack(force) : null;                    // 12.177: yalnız değişen araçlar (duran araç yollanmaz; katılımda / 2 sn'de bir hepsi)
     const pl = (g.payload ? `"pl":${JSON.stringify(g.payload.pack())},` : '') + (g.front ? `"fr":${JSON.stringify(g.front.pack())},` : '') + (vh && vh.length ? `"vh":${JSON.stringify(vh)},` : '');      // Cephe: [etkin nokta sırası, cephe değişimi, bitti]                                   // Vagon: [yol mesafesi, iten | durduran | durum | uzatma]
-    const head = `{"t":"snap","k":${this.tick},"tk":[${Math.round(g.tickets.blue)},${Math.round(g.tickets.red)}],"tl":${tl},"o":${o},${pl}"s":${all},"me":`;
+    const head = `{"t":"snap","k":${this.tick},"tk":[${Math.round(g.tickets.blue)},${Math.round(g.tickets.red)}],"tl":${tl},"o":${o},${pl}"s":[`;
+    let bytes = 0, sentN = 0;
     for (const c of this.clients.values()) {
       if (c.ws.readyState !== 1) continue;
-      const h = c.h, s = h.s;
+      const h = c.h, s = h.s, sent = (h._imSent ||= []), A = (h._imA ||= []);
+      const k = !s.alive && s.lastHit && s.lastHit !== s && s.lastHit.alive ? s.lastHit.pos : s.pos;      // ölüyken öldürenin çevresi (ölüm kamerası)
+      const aim = im ? aimOf(s) : null;
+      parts.length = 0;
+      for (let i = 0; i < N; i++) {
+        const e = S[i], a = e.alive ? 1 : 0;
+        if (im && e !== s && A[e.id] === a && !interestWants(k.x, k.z, e, sn, aim, s.team)) continue;
+        A[e.id] = a;
+        const sl = force || !(sent[e.id] >= slowAt[e.id]) || sn - sent[e.id] >= 40;      // 40 snapshot'ta (2 sn) bir tam paket: seyrek asker periyodik tam paketi kaçırmasın
+        if (sl) sent[e.id] = sn;
+        parts.push(sl ? (full[i] ??= JSON.stringify(packSoldier(e, true))) : (fast[i] ??= JSON.stringify(packSoldier(e, false))));
+      }
       const me = { ack: h.ack, rs: s.spawnN, st: h.ackState || packSoldier(s), now: packSoldier(s), rt: +s.respawnT.toFixed(2), am: s.items.map((it) => [it.mag, it.reserve]), aa: h.ackAm, ab: [+s.abT.toFixed(1), +s.abActive.toFixed(1)] };
       if (h.ackVeh) me.vs = h.ackVeh;
       if (!s.alive && h.hold && squadOn(g)) me.sp = squadMates(g, s).map((m) => m.veh ? [m.id, mateSpawnState(g, m), vehFreeSeats(m.veh)] : [m.id, mateSpawnState(g, m)]);      // 12.202 ölüyken: manga arkadaşlarının yanında doğulabilir mi · 12.205 araçtaysa boş koltuk sayısı
-      c.ws.send(head + JSON.stringify(me) + '}');
+      const msg = head + parts.join(',') + '],"me":' + JSON.stringify(me) + '}';
+      bytes += msg.length; sentN++;
+      c.ws.send(msg);
     }
+    if (sentN) { const B = (this.netStat ||= { n: 0, bytes: 0, per: 0 }); B.n++; B.bytes += bytes; B.per = B.per * 0.95 + (bytes / sentN) * 0.05; }      // istemci başına snapshot boyutu (ham; ws deflate öncesi) · admin / test
   }
 
   dispose() {

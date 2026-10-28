@@ -11,6 +11,7 @@ import { SWIM, waterYAt } from '../sim/swim.js';
 import { vbBoard, vbRelease, vbDrive, vbRideOk, vbCrew } from './vehicleBots.js';           // 12.189 bot sürücüler
 import { squadFollow } from './squad.js';                                            // 12.202 manga botu lideri izler
 import { frTick, frPickGoal, frArrive, frAnchored, frTargetBias, frCombatMove, frStuck, frDamaged } from './frontBots.js';     // 12.158 Cephe modu
+import { flankVia } from './bigBots.js';                                                    // 12.203 büyük harita kanat mangalı
 
 // silah rolleri (bot davranışı)
 const SNIPERS = new Set(['sniper', 'svd', 'barrett', 'ww_sniper']);
@@ -29,6 +30,7 @@ export const INF_Z = { spread: 6, lone: 3, stick: 4, pack: 1, packN: 3, packR: 4
 
 const NOIT = { id: '', mag: 0, reserve: 0 };                       // Silah Yarışı'nda eşya listesi 2 yuvalı: olmayan yuva boş sayılır
 const tA = new THREE.Vector3(), tB = new THREE.Vector3(), tC = new THREE.Vector3();
+const SN = {};                                                              // 12.203 senseNear aday listesi (yeniden kullanılır)
 const AO = [0, 0, 0, 0];                                            // tacAim çıktısı
 // 12.200 tanksavarlı bot (RPG): araçtaki düşmana (tank / jip / yerdeki helikopter) roket atar — aracın gövde ortasına, hareketine öncü vererek
 // (roket düz uçar, 38 m/sn); araca piyade silahı sıkmaz (tank mermiden etkilenmez). Menzil içine yaklaşır. err: nişan hatası (rad, zorlukla), cd: atışlar
@@ -146,6 +148,8 @@ export class BotBrain {
     }
     const { x: gx, z: gz } = g.objPoint(obj, 0.8);                                   // 12.184 hedef kotunda (Baraj: tepe, alttaki kanyon değil)
     this.setGoal(gx, gz, g.map.big ? Math.max(rand(14, 28), Math.hypot(gx - s.pos.x, gz - s.pos.z) / 4.2 + 12) : rand(14, 28));   // 12.172 büyük harita: hedefe varacak kadar süre (yolun ortasında yeni hedef seçip gidip gelmesin)
+    // 12.203 büyük harita kanat mangalı (bigBots.flankVia): 70–130 m yandan dolanan ara nokta
+    if (g.map.big && sq) { const fv = flankVia(g, s, gx, gz); if (fv) { this.via = fv; return; } }
     // yan kol: bazen ara nokta üzerinden dolan (kanat manevrası)
     if (Math.hypot(gx - s.pos.x, gz - s.pos.z) > 40 && Math.random() < (this.role === 'rusher' ? 0.7 : 0.45)) {
       const mx = (gx + s.pos.x) / 2, mz = (gz + s.pos.z) / 2;
@@ -302,6 +306,10 @@ export class BotBrain {
     const alerted = g.time - this.alertT < 3;
     const at = g.vehicles && (s.items[2]?.id === 'rpg' || s.items[2]?.id === 'm79') && s.items[2].mag > 0;      // 12.189 tanksavarı var
     let best = null, bd = 1e9;
+    // 12.203 düz uzaklık puanı olan modlarda (Ele Geçirme / TDM / herkes-tek) adaylar önce ucuz süzgeçten geçer, yakından uzağa sıralanır, ilk GÖRÜLEN
+    // seçilir (en yakın görünen = eskisiyle aynı sonuç). Eskiden menzildeki her aday için görüş hattı (dünya + duman + yaprak) sınanıyordu: 128v128'de
+    // adım başına ~8 bin hat. Enfekte / Vagon / Cephe kendi puanını kullanır (eski döngü).
+    if (!g.mode.infection && !g.payload && !g.front) { this.senseNear(eye, fwd, alerted, at); return; }
     for (const e of g.soldiers) {
       if (!e.alive || e.team === s.team || e.protT > 0.5) continue;
       if (e.def.zombie && g.graceLeft > 0) continue;                                        // 12.196 hazırlık süresinde donuk zombiye önceden nişan alınmaz (boss'un ilk canı serbest kalır kalmaz eriyordu)
@@ -325,6 +333,51 @@ export class BotBrain {
       if (at && e.veh?.alive && dist < AT_BOT.range) sc = sc * (e.veh.def.armor ? 0.4 : 0.7) - (e.veh.def.armor ? 30 : 10);      // 12.200 tanksavarlı bot önce aracı (tank) hedefler      // Vagon: vagonu iten / durduran düşman öne      // Enfekte: herkes aynı zombiyi seçmesin (yük dağılımı)
       if (sc < bd) { bd = sc; best = e; this._bHead = head; }
     }
+    this.senseDone(best);
+  }
+
+  senseNear(eye, fwd, alerted, at) {
+    const g = this.game, s = this.s, C = (SN.c ||= []), big = !!g.map.big;
+    let n = 0, foeD = 1e9;
+    const vis = (g.night ? null : g.tod === 'sunset' ? TUNE.sightSunset : TUNE.sightDay), mul = (g.visMul || 1) * (big ? 1.35 : 1);
+    for (const e of g.soldiers) {
+      if (!e.alive || e.team === s.team) continue;
+      { const fx = e.pos.x - s.pos.x, fz = e.pos.z - s.pos.z, d2 = fx * fx + fz * fz; if (d2 < foeD) foeD = d2; }      // 12.203 en yakın düşman (kademeli beyin)
+      if (e.protT > 0.5) continue;
+      if (e.def.zombie && g.graceLeft > 0) continue;
+      if (g.vehicles && !at && g.vehicles.hiddenSeat(e)) continue;
+      if (e.cloaked && Math.hypot(e.pos.x - s.pos.x, e.pos.z - s.pos.z) > 6) continue;
+      const tc = e.center(tC), dx = tc.x - eye.x, dz = tc.z - eye.z, dist = Math.hypot(dx, dz);
+      const v = vis ?? (e.flashOn || e.flashT > 0 ? TUNE.sightDay : TUNE.sightNight);
+      if (dist > v * mul) continue;
+      if (!alerted && (fwd.x * dx + fwd.z * dz) / (dist + 1e-6) < 0.3) continue;
+      if (dist > 22 && e.crouching) { if (Math.random() < 0.3) continue; }
+      if (n < C.length) { C[n].e = e; C[n].d = dist; } else C.push({ e, d: dist });
+      n++;
+    }
+    this.foeD = Math.sqrt(foeD);
+    let best = null;
+    if (n) {
+      if (n > 1) { const A = C.slice(0, n).sort((a, b) => a.d - b.d); for (let i = 0; i < n; i++) C[i] = A[i]; }
+      // 12.203 büyük harita LOS önbelleği: 25 m ötesinde görüşü kapalı çıkan düşman 0,35–0,7 sn yeniden sınanmaz (vadide tepe / orman arkasındaki onlarca aday
+      // her duyuşta yeniden ışınlanıyordu: 128v128'de adımın ~%14'ü); duyuş başına en çok 8 görüş hattı (yakından uzağa). Mevcut hedef hep sınanır.
+      const NO = big ? (this._losNo ||= new Float64Array(g.soldiers.length + 8)) : null, now = g.time;
+      let checks = 0;
+      for (let i = 0; i < n; i++) {
+        const e = C[i].e, far = NO && C[i].d > 25 && e !== this.target;
+        if (far && (NO[e.id] > now || checks >= 8)) continue;
+        checks++;
+        if (g.botSees(eye, e.center(tC))) { best = e; break; }
+        if (far) NO[e.id] = now + 0.35 + Math.random() * 0.35;
+      }
+    }
+    this._bHead = false;
+    this.senseDone(best);
+  }
+
+  // sense sonucu: yeni hedef / kaybedilen hedef (sense + senseNear ortak)
+  senseDone(best) {
+    const g = this.game;
     if (best) {
       this.frHead = !!this._bHead;
       if (best !== this.target) { this.target = best; this.reactT = rand(this.d.react[0], this.d.react[1]) * (this.atSpot && this.role === 'ambush' ? 0.7 : 1) + (g.mode.infection ? rand(0, INF_BOT.desync) : 0); this.aimFrac = rand(0.55, 0.85); this.ambWait = 0; }      // pusucu rotaya önceden nişanlı: daha çabuk
@@ -526,12 +579,13 @@ export class BotBrain {
     }
     this.repathT -= dt;
     if (!this.path || this.repathT <= 0) {
-      if (g.pathBudget > 0) {
+      if (g.pathBudget > 0 && !(g.pathMs > 3)) {                                  // 12.203: adım başına yol sayısı + süre sınırı (3 ms dolunca sıradaki adıma; uzun yollar üst üste binip adımı kilitlemesin)
         g.pathBudget--;
-        const tgt = this.via || this.goal;
+        const tgt = this.via || this.goal, t0 = performance.now();
         this.path = g.nav.findPath(s.pos.x, s.pos.z, tgt.x, tgt.z, 0.7, s.pos.y, tgt.y);
+        g.pathMs = (g.pathMs || 0) + performance.now() - t0;
         if (this.path && g.nav.threadDoors) g.nav.threadDoors(this.path, s.pos.x, s.pos.z);      // 12.184 Kuzey Vadisi: kapıdan kapı ekseninde geç (pervaza takılma)
-        this.repathT = rand(2.5, 4);
+        this.repathT = g.map.big && !this.target && this.path && this.path.length > 8 ? rand(6, 9) : rand(2.5, 4);      // 12.203 büyük harita: uzun yolda daha seyrek yeniden yol (128v128'de yol isteği bütçeyi aşıyordu)
         if (!this.path) { this.goal = null; this.via = null; return null; }
         // 12.161 Cephe: hedef kapalı hücrede (ev duvarı içi vb.) ve en yakın boş hücre botun kendi hücresi → tek noktalı yol hemen düşer, bot HER ADIM yeniden ister ve
         // yol bütçesini (adım başına 1) tüketip sıradaki botları aç bırakırdı (maçın ortasında herkes donuyordu). Ulaşılamaz say, yeni hedef seçilsin.
@@ -587,6 +641,19 @@ export class BotBrain {
     const spd = s.swim ? SWIM.speed * (s.spd || 1) : TUNE.walkSpeed * 0.5, a = Math.min(1, dt * 4);
     s.vel.x = lerp(s.vel.x, mx * spd, a); s.vel.z = lerp(s.vel.z, mz * spd, a);
     return true;
+  }
+
+  // 12.203 kademeli beyin (yalnız büyük harita): düşmandan uzak (en yakın düşman 260 m / 420 m ötede), hedefsiz, uyarılmamış, yaya bot 2 / 3 adımda bir
+  // birikmiş süreyle düşünür (hareketi her adım sürer: hız / yön beyinden kalır). Çatışmadaki bot her adım. Sıra askerin kimliğiyle kaydırılır (yük eşit dağılır).
+  tick(dt, n) {
+    const s = this.s, g = this.game;
+    if (!s.alive) { this._tAcc = 0; this.update(dt); return; }
+    let k = 1;
+    if (g.map.big && !s.veh && !this.target && !s.def.zombie && this.foeD > 260 && g.time - this.alertT > 3) k = this.foeD > 420 ? 3 : 2;
+    this._tAcc = (this._tAcc || 0) + dt;
+    if (k > 1 && (n + s.id) % k) return;
+    const d = Math.min(this._tAcc, dt * 3); this._tAcc = 0;
+    this.update(d);
   }
 
   update(dt) {
@@ -801,8 +868,19 @@ export class BotBrain {
       this.stuckT = 0; this.stuckPos.copy(s.pos);
     }
 
-    // ayrışma
-    for (const o of g.soldiers) {
+    // ayrışma (12.203: asker ızgarasından 3 × 3 komşu hücre; ızgara yoksa hepsi)
+    const G = g.crowd;
+    if (G) {
+      const cx = Math.floor(s.pos.x / 4), cz = Math.floor(s.pos.z / 4);
+      for (let i = cx - 1; i <= cx + 1; i++) for (let j = cz - 1; j <= cz + 1; j++) {
+        const a = G.bucket(i, j); if (!a) continue;
+        for (let n = 0; n < a.length; n++) {
+          const o = a[n]; if (o === s) continue;
+          const dx = s.pos.x - o.pos.x, dz = s.pos.z - o.pos.z, d2 = dx * dx + dz * dz;
+          if (d2 < 1.1 && d2 > 1e-4) { const d = Math.sqrt(d2); moveX += (dx / d) * 0.7; moveZ += (dz / d) * 0.7; }
+        }
+      }
+    } else for (const o of g.soldiers) {
       if (o === s || !o.alive) continue;
       const dx = s.pos.x - o.pos.x, dz = s.pos.z - o.pos.z;
       const d2 = dx * dx + dz * dz;

@@ -23,6 +23,7 @@ export function sanitizeOfficial(o, code) {
     return { map: c.map, tod: base.type === 'inf' ? 'night' : c.tod, weather: c.weather };
   });
   if (!rotation.length) rotation.push({ map: maps[0], tod: base.type === 'inf' ? 'night' : 'day', weather: 'clear' });
+  if (base.type === 'conquest' || base.type === 'tdm') base.perTeam = Math.max(...rotation.map((r) => sanitizeCfg({ type: base.type, map: r.map, perTeam: +o.perTeam }).perTeam));   // 12.203: düzende büyük harita varsa onun sınırı (küçük haritada maç kurulurken 32'ye kırpılır)
   return {
     code, name: clean(o.name, 32) || 'Resmi Sunucu', desc: clean(o.desc, 60), enabled: o.enabled !== false,
     type: base.type, perTeam: base.perTeam, time: base.time, diff: base.diff, tickets: base.tickets, bots: base.bots, third: base.third, shuffle: o.shuffle === true, rotation,

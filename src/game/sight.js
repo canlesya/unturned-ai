@@ -7,7 +7,7 @@ export class SightMap {
     this.list = list; this.grid = new Map(); this.stamp = 0; this.seen = new Int32Array(list.length);
     list.forEach(([x, , z, r], i) => {
       for (let cx = Math.floor((x - r) / CELL); cx <= Math.floor((x + r) / CELL); cx++) for (let cz = Math.floor((z - r) / CELL); cz <= Math.floor((z + r) / CELL); cz++) {
-        const k = cx + ',' + cz; let a = this.grid.get(k); if (!a) this.grid.set(k, (a = [])); a.push(i);
+        const k = (cx + 4096) * 8192 + (cz + 4096); let a = this.grid.get(k); if (!a) this.grid.set(k, (a = [])); a.push(i);
       }
     });
   }
@@ -20,7 +20,7 @@ export class SightMap {
     this.stamp++;
     let sum = 0;
     for (let i = 0; i <= n; i++) {
-      const t = Math.min(L, i * 2), a2 = this.grid.get(Math.floor((a.x + ux * t) / CELL) + ',' + Math.floor((a.z + uz * t) / CELL));
+      const t = Math.min(L, i * 2), a2 = this.grid.get((Math.floor((a.x + ux * t) / CELL) + 4096) * 8192 + Math.floor((a.z + uz * t) / CELL) + 4096);      // 12.203 sayı anahtar
       if (!a2) continue;
       for (const id of a2) {
         if (this.seen[id] === this.stamp) continue; this.seen[id] = this.stamp;

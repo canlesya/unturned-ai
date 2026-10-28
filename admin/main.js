@@ -342,6 +342,7 @@ function renderRooms(main) {
         · <span class="tag ${r.balVer !== v ? 'old' : ''}" title="Bu odanın maçı hangi denge sürümüyle oynanıyor">${r.balVer !== v ? `eski ayar v${r.balVer}` : `v${r.balVer}`}</span></div>
       <div style="display:flex;font-size:12px;color:var(--tx2)"><span style="flex:1">${r.humans} / ${r.cap} oyuncu</span>${r.bots ? 'botlar açık' : 'botsuz'}</div>
       <div class="bar"><s style="width:${Math.min(100, (r.humans / r.cap) * 100)}%"></s></div>
+      ${r.perf ? `<div style="font-size:12px;color:var(--tx2);margin-top:6px" title="12.203: son 10 sn; bütçe adım başına 16 700 µs (60 Hz, bütün odalar tek iş parçacığında)">${r.soldiers} asker · sim ${r.perf.simAvg} µs (p95 ${r.perf.simP95}) · ağ ${r.perf.netAvg} µs · ${r.perf.kbPerClient} KB/sn/oyuncu</div>` : ''}
       ${r.players.length ? r.players.map((p) => `<div class="pl"><i class="tm" style="background:${p.team === 'blue' ? 'var(--blue)' : 'var(--red)'}"></i><span class="n">${esc(p.name)} <span style="color:var(--tx3);font-size:12px">${esc(CLS(p.cls))}</span></span><span class="k" title="Öldürme / Asist / Ölüm">${p.kills}/${p.assists ?? 0}/${p.deaths}</span><button class="btn sm dan" data-kick="${esc(r.code)}:${p.id}" data-nm="${esc(p.name)}">At</button></div>`).join('') : '<div class="empty">Oyuncu yok</div>'}
       ${r.official ? '' : `<div style="margin-top:10px;text-align:right"><button class="btn sm dan" data-close="${esc(r.code)}">Odayı kapat</button></div>`}
     </div>`).join('') || '<div class="empty">Açık oda yok</div>'}</div></div>`;
@@ -375,11 +376,12 @@ const DIFFS = [['easy', 'Kolay'], ['normal', 'Normal'], ['hard', 'Zor']];
 const lbl = (L, v) => (L.find((x) => x[0] === v) || [, v])[1];
 const isTotal = (t) => t === 'dm' || t === 'gg' || t === 'inf' || t === 'pb';
 const mapsFor = (t) => (t === 'space' ? ['yorunge'] : t === 'inf' ? ['newyork'] : t === 'pb' ? ['boyakulesi', 'ormankale'] : t === 'payload' ? ['maden'] : t === 'front' ? ['cephe'] : t === 'conquest' || t === 'tdm' ? ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman', 'kuzey'] : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman']);
-function sizeRange(t, L) {
+function sizeRange(t, L, rot) {
   if (t === 'inf') return [L.infMin, L.infMax, 2];
   if (t === 'pb') return [L.pbMin ?? 2, L.pbMax ?? 12, 1];
   if (t === 'dm' || t === 'gg') return [2, L.dmMax, 1];
-  return [1, L.maxPerTeam, 1];
+  const big = (t === 'conquest' || t === 'tdm') && (rot || []).some((r) => r.map === 'kuzey');      // 12.203: düzende büyük harita (Kuzey Vadisi) varsa 128v128 (TDM 64v64); küçük haritada maç 32'ye kırpılır
+  return [1, big ? Math.max(L.maxPerTeam, t === 'tdm' ? Math.min(L.maxPerTeamBig ?? 128, L.maxPerTeamBigTdm ?? 64) : L.maxPerTeamBig ?? 128) : L.maxPerTeam, 1];
 }
 const sizeTxt = (o) => (isTotal(o.type) ? `${o.perTeam} kişi` : `${o.perTeam}v${o.perTeam}`);
 const timeTxt = (t) => (t ? `${Math.round(t / 60)} dk` : 'süresiz');
@@ -444,7 +446,7 @@ function openServer(src) {
   document.body.appendChild(m);
   const seg = (name, L2, v, dis) => `<div class="seg">${L2.map(([k, t]) => `<button type="button" data-${name}="${k}" class="${k === v ? 'on' : ''}" ${dis ? 'disabled' : ''}>${esc(t)}</button>`).join('')}</div>`;
   function fix() {
-    const [lo, hi, st] = sizeRange(E.type, L);
+    const [lo, hi, st] = sizeRange(E.type, L, E.rotation);
     E.perTeam = Math.max(lo, Math.min(hi, Math.round(E.perTeam / st) * st));
     const ms = mapsFor(E.type);
     for (const r of E.rotation) { if (!ms.includes(r.map)) r.map = ms[0]; if (E.type === 'inf') r.tod = 'night'; }
@@ -452,7 +454,7 @@ function openServer(src) {
   }
   function draw() {
     fix();
-    const [lo, hi, st] = sizeRange(E.type, L), inf = E.type === 'inf', lim = E.type === 'conquest' || E.type === 'tdm';
+    const [lo, hi, st] = sizeRange(E.type, L, E.rotation), inf = E.type === 'inf', lim = E.type === 'conquest' || E.type === 'tdm';
     m.innerHTML = `<div class="box wide"><div class="bh"><div class="h" style="font-size:18px">${src ? esc(src.code) + ' · Sunucuyu düzenle' : 'Yeni resmi sunucu'}</div></div>
       <div class="bb sform">
         <div class="two"><label class="fld"><span>Sunucu adı</span><input class="inp" id="sName" maxlength="32" value="${esc(E.name)}"></label>

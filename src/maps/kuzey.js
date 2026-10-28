@@ -40,12 +40,13 @@ export function buildKuzey() {
   const colliders = cs.colliders, sight = cs.sight;
 
   // ── doğuşlar: üs alanında (yapı / araç ayak izi dışı) aralıklı noktalar ──
+  // 12.203: 32 → 160 nokta (128v128: aynı anda doğan dalga iç içe geçmesin), aralık 5 → 3,6 m. İlk 32 nokta eskisiyle aynı sırada üretilir (aynı tohum).
   const spawnsFor = (team) => {
     const H = HQ[team], s = team === 'blue' ? 1 : -1, pts = [], R = makeRng(team === 'blue' ? 11 : 22);
-    for (let k = 0; k < 400 && pts.length < 32; k++) {
+    for (let k = 0; k < 6000 && pts.length < 160; k++) {
       const x = H.x + (R() - 0.5) * 150, z = H.z + s * (-12 + (R() - 0.5) * 70);
       if (occ.some((r) => x > r[0] - 1.5 && x < r[1] + 1.5 && z > r[2] - 1.5 && z < r[3] + 1.5)) continue;
-      if (pts.some((p) => Math.hypot(p.x - x, p.z - z) < 5)) continue;
+      if (pts.some((p) => Math.hypot(p.x - x, p.z - z) < (pts.length < 32 ? 5 : 3.6))) continue;
       pts.push({ x: +x.toFixed(2), z: +z.toFixed(2), ry: H.ry });
     }
     return pts;

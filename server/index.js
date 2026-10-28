@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
-import { Room } from './room.js';
+import { Room, sanitizeCfg } from './room.js';
 import { officialList, reloadOfficial } from './officialStore.js';
 import { DEFAULT_PORT, makeRoomCode, cleanName } from '../src/net/protocol.js';
 import { MapBuilder } from '../src/maps/builder.js';
@@ -21,6 +21,10 @@ MapBuilder.noVisual = true;          // sunucuda görsel geometri kurulmaz
 
 const PORT = +process.env.PORT || DEFAULT_PORT;
 const MAX_ROOMS = +process.env.MAX_ROOMS || 20;
+// 12.203 süreç başına asker bütçesi (bütün odaların botları + insanları tek iş parçacığında adımlanır). Ölçüm (scripts/scalesim.mjs, M serisi Mac, sakin):
+// 128v128 Kuzey Vadisi odası adım başına ~5,5–6 ms (asker başına ~23 µs); 60 Hz bütçesi 16,7 ms → 600 asker ≈ %80. Yeni oyuncu odası bütçeyi aşacaksa
+// takım başına sayı kalan bütçeye kırpılır (en az 4v4), sığmıyorsa "Sunucu dolu". Boş resmi oda (adımlanmaz) sayılmaz. VPS daha yavaşsa BF_MAX_SOLDIERS ile düşür.
+const MAX_SOLDIERS = +process.env.BF_MAX_SOLDIERS || 600;
 const rooms = new Map();
 loadBalance();
 
@@ -125,6 +129,9 @@ wss.on('connection', (ws, req) => {
       useBalance(currentBalance());                     // yeni oda: güncel sınırlarla doğrulanır
       const cfg = { ...(m.cfg || {}) };
       if (!cfg.name || !String(cfg.name).trim()) cfg.name = `${owner}'in odası`;
+      { const used = [...rooms.values()].reduce((n, r) => n + (!r.official || r.clients.size ? r.game?.soldiers.length || 0 : 0), 0),      // boş resmi oda adımlanmaz (CPU yok): sayılmaz
+         c0 = sanitizeCfg(cfg), team = !['dm', 'gg', 'inf', 'pb'].includes(c0.type), need = team ? c0.perTeam * 2 : c0.perTeam;
+        if (used + need > MAX_SOLDIERS) { const fit = Math.floor((MAX_SOLDIERS - used) / (team ? 2 : 1)); if (fit < 4) return err(ws, 'Sunucu dolu, sonra tekrar dene'); cfg.perTeam = Math.min(c0.perTeam, fit); console.log(`[bütçe] oda ${c0.perTeam} → ${cfg.perTeam} (kullanılan ${used}/${MAX_SOLDIERS} asker)`); } }
       const room = new Room(code, cfg, { owner });
       rooms.set(code, room);
       enter(ws, room, m);

@@ -13,6 +13,8 @@ import { fallHeight } from '../sim/fall.js';
 import { swimState, swimPhysics, climbReach, waterYAt } from '../sim/swim.js';
 const GRAV = 15;                 // varsayılan; TUNE.gravity kullanılır
 
+// 12.203 ızgara anahtarı sayı (eskiden 'x,z' dizesi: dize birleştirme + karma, 128v128 başsız adımın ~%9'u World.query'deydi). ±32 km'ye kadar küçük tamsayı.
+export const cellKey = (x, z) => (x + 4096) * 8192 + (z + 4096);
 export class World {
   constructor(colliders, bounds, terrain = null) {
     this.colliders = colliders;
@@ -28,7 +30,7 @@ export class World {
       const x0 = Math.floor(c.min[0] / this.cell), x1 = Math.floor(c.max[0] / this.cell);
       const z0 = Math.floor(c.min[2] / this.cell), z1 = Math.floor(c.max[2] / this.cell);
       for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) {
-        const k = x + ',' + z;
+        const k = cellKey(x, z);
         let a = this.grid.get(k);
         if (!a) this.grid.set(k, (a = []));
         a.push(c);
@@ -46,7 +48,7 @@ export class World {
       const z0 = Math.floor(c.min[2] / this.cell), z1 = Math.floor(c.max[2] / this.cell);
       if (x1 - x0 > 200 || z1 - z0 > 200) continue;
       for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) {
-        const k = x + ',' + z;
+        const k = cellKey(x, z);
         let a = this.grid.get(k);
         if (!a) this.grid.set(k, (a = []));
         a.push(c);
@@ -54,13 +56,14 @@ export class World {
     }
   }
 
+  cellKey(x, z) { return cellKey(x, z); }
   query(minx, minz, maxx, maxz, out = []) {
     out.length = 0;
     this.stamp++;
     const x0 = Math.floor(minx / this.cell), x1 = Math.floor(maxx / this.cell);
     const z0 = Math.floor(minz / this.cell), z1 = Math.floor(maxz / this.cell);
     for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) {
-      const a = this.grid.get(x + ',' + z);
+      const a = this.grid.get(cellKey(x, z));
       if (!a) continue;
       for (const c of a) if (c._s !== this.stamp) { c._s = this.stamp; out.push(c); }
     }
