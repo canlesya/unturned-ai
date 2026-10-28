@@ -14,6 +14,7 @@ import * as THREE from 'three';
 import { MOTO_BOT, motoBotOk, motoTrip } from './motorbike.js';      // 12.204 motor: botlar uzak bayrağa motorla, hepsini kapmaz
 import { WSTATS } from './stats.js';
 import { vehMult } from '../maps/vehScale.js';
+import { makeVd } from './shapes.js';                                   // 12.211 sabit gizli sınıf
 
 export const VBOT = {
   trip: { jip: 200, tank: 150, heli: 300, moto: MOTO_BOT.trip },       // bu kadar uzak hedefe araçla gider (12.204 motor: küçük haritada motoTrip)
@@ -215,7 +216,7 @@ export function vbBoard(b) {
     // 12.206 araca yürürken insan takım arkadaşı araca bottan yakın (15 m içinde) geldiyse ayırmayı bırak (insan öncelikli)
     if (edge > 3 && g.soldiers.some((e) => e.alive && e.team === s.team && humanOf(e) && !e.veh && Math.hypot(e.pos.x - v.st.x, e.pos.z - v.st.z) < Math.min(15, edge))) { v.botBad = g.time + 20; vbRelease(b); return false; }
     if (edge < 1.9 && Math.abs(s.pos.y - v.st.y) < 2.2) {
-      if (V.enter(s, v, 0)) { stat(g).enter++; b.vd = { state: 'wait', t: 0, kind: kindOf(v), stuck: 0, prog: 1e9, progT: 0 }; b.rideGoal = null; b.rideTo = null; b.target = null; }
+      if (V.enter(s, v, 0)) { stat(g).enter++; b.vd = makeVd({ state: 'wait', t: 0, kind: kindOf(v), stuck: 0, prog: 1e9, progT: 0 }); b.rideGoal = null; b.rideTo = null; b.target = null; }
       v.botRes = null; b.vRes = null;
       return true;
     }
@@ -406,15 +407,23 @@ function tankPosts(g, o, team) {
   g.perchCache.set(key, P);
   return P;
 }
+// takımın canlı bot tankçıları (asker no sırasıyla), adım başına bir kez (12.211: eskiden her tank her adım bütün beyinleri süzüp sıralıyordu)
+function tankOrder(g, team) {
+  const C = (g._tankOrd ||= { t: -1, blue: null, red: null });
+  if (C.t !== g.time) { C.t = g.time; C.blue = null; C.red = null; }
+  return (C[team] ||= g.brains.filter((o) => o.s.team === team && o.vd?.kind === 'tank' && o.s.alive).sort((a, c) => a.s.id - c.s.id));
+}
 function tankGoal(b) {
   const g = b.game, s = b.s, vd = b.vd, st = s.veh.st, team = s.team;
   const sq = b.guard || g.squadGoal?.(s);
   if (!sq || !g.map.big) return tripDest(b);
   // savunma: kendi bayrağı; mangal hedefi geride kalmış kendi bayrağıysa takımın tank sırası çift olanı ön hat bayrağına
   let def = sq.owner === team ? sq : null;
-  if (!def) {
-    const tanks = g.brains.filter((o) => o.s.team === team && o.vd?.kind === 'tank' && o.s.alive).sort((a, c) => a.s.id - c.s.id);
-    if (tanks.indexOf(b) % 2 === 1) def = g.frontFlag(team) || null;
+  if (!def && tankOrder(g, team).indexOf(b) % 2 === 1) {
+    // 12.211 ön hat bayrağı tank başına 20 sn tutulur. frontFlag ilk iki adaydan rastgele seçer: her adım çağrılınca hedef iki bayrak arasında
+    // gidip geliyor, tank her adım yeni mevzi + yeni rota istiyordu (rota planı adım başına 1 sınırında doyuyor, tanklar mevziye hiç varmıyordu)
+    if (g.time > (vd.frontT || 0) || (vd.front && vd.front.owner !== team)) { vd.front = g.frontFlag(team) || null; vd.frontT = g.time + 20; }
+    def = vd.front;
   }
   if (def) {
     const P = tankPosts(g, def, team);
@@ -467,11 +476,18 @@ export function vbDrive(b, dt) {
   const sp = V.speed(v);
   if (vd.state === 'wait') {
     inp.b = true;
-    const coming = g.brains.some((o) => (o.rideGoal === v || o.vRide?.v === v) && o.s.alive);
-    if (vd.t > VBOT.wait[1] || (vd.t > VBOT.wait[0] && (!coming || !v.seats.some((o, i) => i > 0 && !o)))) { vd.state = 'plan'; }
+    if (vd.t > VBOT.wait[0] && g.time >= (vd.comingT || 0)) {               // 12.211 "binmeye gelen var mı" taraması 0,25 sn'de bir (eskiden her adım bütün beyinler)
+      vd.comingT = g.time + 0.25;
+      vd.coming = g.brains.some((o) => (o.rideGoal === v || o.vRide?.v === v) && o.s.alive);
+    }
+    if (vd.t > VBOT.wait[1] || (vd.t > VBOT.wait[0] && (!vd.coming || !v.seats.some((o, i) => i > 0 && !o)))) { vd.state = 'plan'; }
   }
   if (vd.state === 'plan' || vd.state === 'drive' || vd.state === 'hold') {
-    const o = vd.kind === 'tank' ? tankGoal(b) : tripDest(b);                // 12.208 tank: gövde siperde mevzi / piyadeye eşlik
+    // 12.208 tank: gövde siperde mevzi / piyadeye eşlik · 12.211 tank görevi 0,3 sn'de bir (adım başına değil; bayrak / mevzi kararı yavaş değişir)
+    let o;
+    if (vd.kind !== 'tank') o = tripDest(b);
+    else if (vd.goalO && g.time < vd.goalAt && !vd.moveOn) o = vd.goalO;
+    else { o = vd.goalO = tankGoal(b); vd.goalAt = g.time + 0.3; }
     if (!o) { vbExit(b, 'hedefsiz'); return; }
     if (vd.state !== 'plan' && vd.dest !== o) { vd.state = 'plan'; if (o.id === 'esc') stat(g).tankEsc = (stat(g).tankEsc || 0) + 1; }                // mangal hedefi değişti: yeni rota
     else if (vd.state === 'hold' && vd.kind === 'tank' && vd.post && o === vd.post) { if (vd.t - (vd.holdT || 0) > (vd.postFor ||= rand(TANK_POST.hold[0], TANK_POST.hold[1])) || v.hp < (vd.postHp ?? d.hp) - d.hp * TANK_POST.hitDrop) { vd.moveOn = true; vd.postFor = 0; } }      // 12.208 vur-kaç: süre / ağır isabet → başka mevzi
@@ -483,7 +499,7 @@ export function vbDrive(b, dt) {
         let tx = o.x, tz = o.z;
         if (vd.reloc) { const a = Math.random() * Math.PI * 2, r = rand(4, o.r * 0.7); tx += Math.cos(a) * r; tz += Math.sin(a) * r; vd.reloc = false; }
         const t0 = performance.now(), route = vRoute(N, st.x, st.z, tx, tz, VBOT.clr[vd.kind]), S = stat(g), ms = performance.now() - t0;
-        S.plans++; S.planMs += ms; S.planMax = Math.max(S.planMax, ms);
+        S.plans++; S.planMs += ms; S.planMax = Math.max(S.planMax, ms); (S.byKind ||= {})[vd.kind] = (S.byKind[vd.kind] || 0) + 1;
         if (!route) { S.fail++; (S.failAt ||= []).push([Math.round(st.x), Math.round(st.z), Math.round(tx), Math.round(tz), vd.kind]); if (S.failAt.length > 6) S.failAt.shift(); v.botBad = g.time + 40; vbExit(b, 'rota yok'); return; }
         // durma noktası: bayrak merkezine 'park' m kala (rota sonu kırpılır; jip bayrağın içine dalmaz)
         let cut = route.length;

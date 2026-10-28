@@ -66,7 +66,16 @@ parentPort.on('message', (m) => {
   if (!room) return;
   try {
     switch (m.t) {
-      case 'm': { const ws = fakes.get(m.cid); if (ws && ws.ctx) roomMessage(room, ws, m.m); break; }
+      case 'm': {
+        const ws = fakes.get(m.cid);
+        if (process.env.BF_DEBUG && m.m.t === 'dbg' && (m.m.crash || m.m.hang)) {          // test (scripts/workercrash.mjs): çökme / kilitlenme taklidi
+          console.log(`[oda iş parçacığı ${code}] test: ${m.m.crash ? 'çökme' : 'kilitlenme'}`);
+          setTimeout(() => { if (m.m.crash) throw new Error('test: oda iş parçacığı çökmesi'); for (;;); }, 10);
+          break;
+        }
+        if (ws && ws.ctx) roomMessage(room, ws, m.m);
+        break;
+      }
       case 'enter': {
         const ws = new FakeWs(m.cid); fakes.set(m.cid, ws);
         if (!enterRoom(room, ws, m.p)) { fakes.delete(m.cid); ws.readyState = 3; op(['d', m.cid]); }

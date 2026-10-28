@@ -17,6 +17,7 @@ import { motoRiderPose } from './motorbike.js';                       // 12.204 
 import { spaceTp } from './space.js';
 import { SWIM, swimCanFire, waterYAt } from '../sim/swim.js';
 import { bodyYawOf, PRONE_LOOK } from '../sim/prone.js';
+import { preShape, SOLDIER_LATE } from './shapes.js';
 
 const _v = new THREE.Vector3();
 const _d = new THREE.Vector3();
@@ -86,6 +87,7 @@ export class Soldier {
     this.ztype = 'walker'; this.abT = 0; this.abActive = 0; this.cloakNet = false;      // Enfekte: zombi türü, özel güç bekleme süresi / etkin süresi, ağdan gelen görünmezlik
     this.model = null;
     this.setClass(cls);
+    preShape(this, SOLDIER_LATE);                // 12.211 sabit gizli sınıf (shapes.js)
   }
 
   get item() { return this.items[this.cur]; }

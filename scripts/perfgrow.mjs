@@ -1,7 +1,7 @@
 // 12.211 Uzun maç başarımı (başsız): adım süresinin ZAMANLA nasıl değiştiğini ölçer (30 sn'lik pencereler) + bölüm bölüm maliyet + yığın / liste boyları.
 //   node scripts/perfgrow.mjs [harita=kuzey] [NvN=128] [saniye=600] [tohum=1]
 // Satır başına: pencerenin adım ort / p95 / en çok (ms), bölümler (ms / adım), canlı asker, sürülen araç, mermi / mermi kabuğu, yığın MB.
-// Ortam: JSON=1 (son satırda özet JSON) · NET=1 (sunucu snapshot dizme maliyetini de ölç: 2 sahte insan istemci)
+// Ortam: PROF=0 (bölüm ölçümü kapalı) · JSON=1 (son satırda özet JSON) · NET=1 (sunucu snapshot dizme maliyetini de ölç: 2 sahte insan istemci)
 import { Game } from '../src/game/game.js';
 import { MAPS } from '../src/maps/index.js';
 import { LIMITS } from '../src/game/balance.js';
@@ -16,8 +16,9 @@ let seed = sd * 7919 + 13;
 Math.random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
 const now = () => performance.now();
 const prof = {};
+const NOPROF = process.env.PROF === '0';                       // PROF=0: bölüm sarmalayıcıları yok (yalın adım süresi; sarmalayıcının kendi yükü yok)
 const wrap = (obj, name, key = name) => {
-  const f = obj?.[name]; if (typeof f !== 'function') return;
+  const f = obj?.[name]; if (NOPROF || typeof f !== 'function') return;
   const P = (prof[key] ||= { n: 0, ms: 0, d: 0 });
   obj[name] = function (...a) { if (P.d++) { try { return f.apply(this, a); } finally { P.d--; } } const t = now(); try { return f.apply(this, a); } finally { P.d--; P.n++; P.ms += now() - t; } };
 };

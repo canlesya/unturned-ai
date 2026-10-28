@@ -11,7 +11,8 @@ import { SWIM, waterYAt } from '../sim/swim.js';
 import { vbBoard, vbRelease, vbDrive, vbRideOk, vbCrew, vnavFree } from './vehicleBots.js';           // 12.189 bot sürücüler
 import { squadFollow } from './squad.js';                                            // 12.202 manga botu lideri izler
 import { frTick, frPickGoal, frArrive, frAnchored, frTargetBias, frCombatMove, frStuck, frDamaged } from './frontBots.js';     // 12.158 Cephe modu
-import { empBoard, empRide } from './empBots.js';                                          // 12.213 sabit silah yuvaları
+import { brainLate } from './shapes.js';
+import { empBoard, empRide } from './empBots.js';                                        // 12.213 sabit silah yuvaları
 import { flankVia, bigGuardGoal, guardCombatMove, guardLeash, bigTacGoal } from './bigBots.js';                                                    // 12.203 büyük harita kanat mangalı
 
 // silah rolleri (bot davranışı)
@@ -64,6 +65,7 @@ export class BotBrain {
     soldier.brain = this;
     soldier.dmgMul = this.d.dmgMul;
     this.reset();
+    brainLate(this);                                                 // 12.211 sabit gizli sınıf (shapes.js)
   }
 
   reset() {
@@ -683,14 +685,15 @@ export class BotBrain {
   tick(dt, n) {
     const s = this.s, g = this.game;
     if (!s.alive) { this._tAcc = 0; this.update(dt); return; }
-    // 12.211 kademe: büyük haritada hedefsiz / uyarılmamış yaya bot en yakın düşmanı 150 / 260 / 420 m ötedeyse 2 / 2 / 3 adımda bir (birikmiş süreyle).
+    // 12.211 kademe: büyük haritada hedefsiz / uyarılmamış yaya bot 2 adımda bir (en yakın düşmanı 420 m ötedeyse 3), hedefsiz yolcu 2 (birikmiş süreyle).
     // Sunucu yük koruması (g.loadLevel, server/room.js): 1 → boştakiler 2–4, yolcu ve uyarılmış 2 adımda bir · 2 → çatışmadaki bot da 2 adımda bir.
     // Sürücü bot her adım (araç girdisi). Süre birikir: dönüş / ateş aralığı / zamanlayıcılar aynı hızda işler, yalnız karar sıklığı düşer.
     let k = 1;
     const L = g.loadLevel | 0;
     if ((g.map.big || L) && !s.def.zombie && !(s.veh && this.vd)) {
       const idle = !s.veh && !this.target && g.time - this.alertT > 3;
-      if (idle && g.map.big) k = this.foeD > 420 ? 3 : this.foeD > 150 ? 2 : 1;
+      if (idle && g.map.big) k = this.foeD > 420 ? 3 : 2;                  // 12.211 150 m içindeki boştaki de 2 adımda bir (görüş zaten 0,2–0,28 sn'de bir; tepki en çok +1 adım)
+      else if (s.veh && !this.target && g.map.big) k = 2;                    // 12.211 hedefsiz yolcu / nişancı (araç onu taşır; görüş 0,25 sn'de bir zaten)
       if (L >= 1) { if (idle) k = Math.max(k + 1, 2); else if (s.veh || !this.target) k = Math.max(k, 2); }
       if (L >= 2 && this.target) k = Math.max(k, 2);
     }

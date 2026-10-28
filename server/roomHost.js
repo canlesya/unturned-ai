@@ -8,21 +8,39 @@ import { sanitizeCfg } from './room.js';
 
 let nextCid = 1;
 const WORKER_URL = new URL('./roomWorker.js', import.meta.url);
+// Bellek tavanı: kaçak bir oda (sızıntı) bütün süreci değil yalnız kendi iş parçacığını düşürür (ERR_WORKER_OUT_OF_MEMORY → die). BF_WORKER_MB
+const LIMITS = { maxOldGenerationSizeMb: +process.env.BF_WORKER_MB || 1536 };
+// Bekçi: iş parçacığı 500 ms'de bir özet yollar; HANG_MS boyunca hiçbir mesaj gelmezse (sonsuz döngü / kilitlenme) sonlandırılır. BF_WORKER_HANG_MS
+const HANG_MS = +process.env.BF_WORKER_HANG_MS || 15000;
+const live = new Set();
+setInterval(() => {
+  const now = Date.now();
+  for (const r of live) if (now - r.lastMsg > HANG_MS) { console.error(`[iş parçacığı] ${r.code} ${Math.round((now - r.lastMsg) / 1000)} sn yanıt vermedi: sonlandırılıyor`); r.die('Sunucu odası yanıt vermedi, oda kapatıldı'); }
+}, 2000).unref?.();
 // Yedek iş parçacığı: haritaları önceden kurulmuş, bekler (yeni büyük oda soğuk başlangıç beklemez). Kullanılınca yenisi arka planda ısınır. BF_SPARE=0 kapalı.
-let spare = null;
+// Yedek ölürse 30 sn sonra yeniden (art arda ölürse 5 dk'ya kadar uzayarak).
+let spare = null, spareFails = 0;
 export function prewarm() {
   if (spare || process.env.BF_SPARE === '0') return;
-  const w = new Worker(WORKER_URL, { workerData: { spare: true } });
+  const w = new Worker(WORKER_URL, { workerData: { spare: true }, resourceLimits: LIMITS });
   spare = { w, ready: false };
-  w.on('message', (m) => { if (m.t === 'ready' && spare?.w === w) { spare.ready = true; console.log(`[iş parçacığı] yedek hazır (${m.ms} ms ısınma)`); } });
-  w.on('error', (e) => { console.error('[iş parçacığı] yedek hata', e); if (spare?.w === w) spare = null; });
-  w.on('exit', () => { if (spare?.w === w) spare = null; });
+  w.on('message', (m) => { if (m.t === 'ready' && spare?.w === w) { spare.ready = true; spareFails = 0; console.log(`[iş parçacığı] yedek hazır (${m.ms} ms ısınma)`); } });
+  const lost = (why) => {
+    if (spare?.w !== w) return;
+    spare = null;
+    const wait = Math.min(300000, 30000 * 2 ** spareFails++);
+    console.error(`[iş parçacığı] yedek kayboldu (${why}); ${wait / 1000} sn sonra yeniden`);
+    setTimeout(prewarm, wait).unref?.();
+  };
+  w.on('error', (e) => lost(e?.message || e));
+  w.on('exit', (c) => lost('çıkış ' + c));
 }
 function takeWorker(data) {
   const sp = spare;
   if (sp && sp.ready) { spare = null; sp.w.postMessage({ t: 'init', ...data }); setTimeout(prewarm, 3000).unref?.(); return sp.w; }
-  return new Worker(WORKER_URL, { workerData: data });
+  return new Worker(WORKER_URL, { workerData: data, resourceLimits: LIMITS });
 }
+export const workerRooms = () => [...live];
 
 export class RemoteRoom {
   constructor(code, cfg, opts = {}) {
@@ -39,14 +57,17 @@ export class RemoteRoom {
     this.emptySince = Date.now();
     this.st = null;                        // son özet
     this.alive = true;
+    this.born = Date.now();
+    this.lastMsg = Date.now() + 10000;       // ilk özet: soğuk iş parçacığında harita kurulumu birkaç sn sürer (bekçiye ek pay)
     this.worker = takeWorker({ code, cfg, opts: { official: this.official, owner: this.owner } });
-    this.worker.on('message', (m) => this.onMsg(m));
-    this.worker.on('error', (e) => { console.error(`[${code}] oda iş parçacığı hatası`, e); this.die('Sunucu odası hata verdi, yeniden bağlan'); });
-    this.worker.on('exit', (c) => { if (this.alive) { console.error(`[${code}] oda iş parçacığı kapandı (${c})`); this.die('Sunucu odası kapandı, yeniden bağlan'); } });
+    live.add(this);
+    this.worker.on('message', (m) => { this.lastMsg = Date.now(); this.onMsg(m); });
+    this.worker.on('error', (e) => { console.error(`[iş parçacığı] ${code} çöktü:`, e?.stack || e); this.die('Sunucu odasında hata oluştu, oda kapatıldı'); });
+    this.worker.on('exit', (c) => { if (this.alive) { console.error(`[iş parçacığı] ${code} beklenmedik çıkış (${c})`); this.die('Sunucu odası kapandı'); } });
   }
 
   onMsg(m) {
-    if (m.t === 'bye') { this.alive = false; this.worker.terminate(); return; }
+    if (m.t === 'bye') { this.alive = false; live.delete(this); this.worker.terminate(); return; }
     if (m.t !== 'ops') return;
     for (const o of m.l) {
       const k = o[0];
@@ -104,21 +125,26 @@ export class RemoteRoom {
   close(msg) {
     if (!this.alive) return;
     this.post({ t: 'shutdown', msg });
-    setTimeout(() => { if (this.alive) { this.alive = false; this.worker.terminate(); } }, 3000).unref?.();
+    setTimeout(() => { if (this.alive) { this.alive = false; live.delete(this); this.worker.terminate(); } }, 3000).unref?.();
   }
-  // İş parçacığı öldü: bağlantılar ana menüye döner (yuva da gider), oda listeden çıkar (resmi oda syncOfficial ile yeniden kurulur)
+  // İş parçacığı öldü (hata / bellek / bekçi): ana süreç ayakta kalır. Oyunculara sistem mesajı + bağlantı 4001 ile kapanır (Room.shutdown ile aynı:
+  // istemci "bağlantı koptu" bitiş ekranı → ana menü; 'err' yollanmaz: oyundayken bağlanma hatası yoluna düşüp donuk ekranda kalıyordu).
+  // Oda listeden çıkar; resmi oda 2 sn sonra syncOfficial ile yeni iş parçacığında yeniden kurulur (index.js onDead).
   die(msg) {
     if (!this.alive) return;
-    this.alive = false;
-    for (const ws of this.conns.values()) { ws.ctx = null; try { ws.send(JSON.stringify({ t: 'err', msg })); ws.close(4001, 'closed'); } catch { /* yok say */ } }
+    this.alive = false; live.delete(this);
+    const n = this.conns.size, up = Math.round((Date.now() - this.born) / 1000);
+    const line = JSON.stringify({ t: 'chat', sys: 1, m: '⚠ ' + msg });
+    for (const ws of this.conns.values()) { ws.ctx = null; try { if (ws.readyState === 1) ws.send(line); ws.close(4001, 'closed'); } catch { /* yok say */ } }
     this.conns.clear(); this.clients.clear(); this.pending.length = 0;
     try { this.worker.terminate(); } catch { /* yok say */ }
-    this.onDead(this);
+    console.error(`[başarım] ${this.code} oda iş parçacığı kaybedildi (${up} sn çalıştı, ${n} bağlantı kapatıldı${this.official ? ', resmi oda yeniden kurulacak' : ''})`);
+    try { this.onDead(this); } catch (e) { console.error('[iş parçacığı] onDead', e); }
   }
 
   info() {
     if (this.st) return { ...this.st.info, humans: this.clients.size };
-    const c = this.cfg;
+    const c = this.cfg;      // ilk özet gelmeden (iş parçacığı oda kuruyor)
     return { code: this.code, name: c.name, official: !!this.official, desc: this.official ? this.official.desc : '', map: c.map, tod: c.tod, weather: c.weather, type: c.type, perTeam: c.perTeam, humans: this.clients.size, cap: this.cap, bots: c.bots, diff: c.diff, third: !!c.third, locked: !!c.pw, ended: false, tl: -1, tk: [0, 0], by: this.owner };
   }
   perfStats() { return this.st?.perf || null; }
