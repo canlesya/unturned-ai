@@ -3,6 +3,7 @@ import { SightMap } from './sight.js';
 import { MapEditor, loadEdits } from './mapEditor.js';
 import * as THREE from 'three';
 import { warmup } from './warmup.js';
+import { gpuInfo } from '../gpuCheck.js';
 import { RemoteTorches } from './remoteTorch.js';
 import { setupEnvironment } from '../maps/environment.js';
 import { MAPS, DEFAULT_MAP } from '../maps/index.js';
@@ -131,6 +132,7 @@ export class Game {
     this.binds = new Binds(opts.keys);                  // tuş atamaları (menüde Kontroller'den değiştirilir)
     this.leftHand = !!opts.leftHand;                    // silahı sol elle tut (yalnızca birinci şahıs görünümü)
     this.settings = opts.settings || { fov: 80, volume: 0, shadows: false, pixelRatio: 1, sens: 1 };
+    if (!this.headless && opts.settings && gpuInfo().soft) Object.assign(this.settings, { shadows: false, post: false, pixelRatio: Math.min(this.settings.pixelRatio || 1, 0.75), softGL: true });      // 12.222 yazılım WebGL (donanım hızlandırma kapalı): düşük kalite
     this.listeners = new Map();
     this.time = 0; this.running = false; this.ended = false; this.simulate = true;
     this.soldiers = []; this.brains = []; this.projectiles = [];
@@ -2454,6 +2456,9 @@ export class Game {
     this.sfx.dispose?.();
     this.post?.dispose();
     this.renderer.dispose();
+    // 12.222 WebGL bağlamı da bırakılır: renderer.dispose() bağlamı kapatmaz → her maç (menüye dönüş / çevrim içi odada yeni maç) haritanın bütün
+    // GPU tamponlarıyla bir bağlam daha açık kalıyordu (5 döngüde 6 bağlam; tarayıcı 16'da en eskisini zorla düşürür, GPU belleği şişer)
+    try { this.renderer.forceContextLoss(); } catch (e) { /* yok say */ }
     this.canvas.remove();
     if (window.__game === this) delete window.__game;
   }
