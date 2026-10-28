@@ -10,7 +10,7 @@ export const MATCH_TYPES = {
   front: { get label() { return t('mode.front.label'); }, get desc() { return t('mode.front.desc'); } },        // Cephe: çekişmeli cephe hattı, 7 noktalık zincir (src/game/front.js, 12.161)
   pb: { label: 'Paintball', desc: 'Herkes tek, herkesin kendi boya rengi. Sabit boya silahları, Boya Kulesi\'nde üç kat: zemin siperleri, kaleler, kule tepesi. Kuyuya düşen elenir; ilk 30 elemeye ulaşan kazanır.' },
 };
-import { LIMITS } from './balance.js';
+import { LIMITS, maxPerFor } from './balance.js';
 import { t } from '../i18n/index.js';
 import '../i18n/payload.js';
 import '../i18n/space.js';
@@ -46,7 +46,7 @@ export function makeMatch(o = {}) {
   const pl = o.type === 'payload', pb = o.type === 'pb', dm = o.type === 'dm' || o.type === 'gg' || pb, inf = o.type === 'inf', gg = o.type === 'gg';
   // Ölüm maçında perTeam = toplam oyuncu sayısı (2–10)
   const total = inf ? Math.max(LIMITS.infMin, Math.min(LIMITS.infMax, Math.round((o.perTeam || 12) / 2) * 2)) : 0;           // Enfekte: toplam oyuncu (çift)
-  const perTeam = pb ? Math.max(LIMITS.pbMin, Math.min(LIMITS.pbMax, Math.round(o.perTeam || 8))) : dm ? Math.max(2, Math.min(LIMITS.dmMax, Math.round(o.perTeam || LIMITS.dmMax))) : inf ? total / 2 : Math.max(1, Math.min(LIMITS.maxPerTeam, Math.round(o.perTeam || 10)));   // inf: motor için iki yarı
+  const perTeam = pb ? Math.max(LIMITS.pbMin, Math.min(LIMITS.pbMax, Math.round(o.perTeam || 8))) : dm ? Math.max(2, Math.min(LIMITS.dmMax, Math.round(o.perTeam || LIMITS.dmMax))) : inf ? total / 2 : Math.max(1, Math.min(o.map ? maxPerFor(o.map, o.type) : LIMITS.maxPerTeam, Math.round(o.perTeam || 10)));   // inf: motor için iki yarı
   return {
     type: pb ? 'pb' : gg ? 'gg' : dm ? 'dm' : inf ? 'inf' : o.type === 'tdm' ? 'tdm' : pl ? 'payload' : fr ? 'front' : 'conquest',
     front: fr,

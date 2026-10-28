@@ -36,7 +36,7 @@ export class Payload {
     const W = game.world, keys = new Set(), q = {};
     for (let d = 0; d <= this.track.len + 0.5; d += 0.5) {
       this.track.at(d, q);
-      for (const ox of [-HALF - 0.2, HALF + 0.2]) for (const oz of [-HALF - 0.2, HALF + 0.2]) keys.add(Math.floor((q.x + ox) / W.cell) + ',' + Math.floor((q.z + oz) / W.cell));
+      for (const ox of [-HALF - 0.2, HALF + 0.2]) for (const oz of [-HALF - 0.2, HALF + 0.2]) keys.add(W.cellKey(Math.floor((q.x + ox) / W.cell), Math.floor((q.z + oz) / W.cell)));
     }
     for (const kk of keys) { let a = W.grid.get(kk); if (!a) W.grid.set(kk, (a = [])); a.push(this.col); }
     this.setBox();

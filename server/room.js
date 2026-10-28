@@ -4,7 +4,7 @@ import { SIM_DT, SIM_HZ, SNAP_EVERY, packSoldier, slowSig, cleanName } from '../
 import { CLASS_DEFS, WSTATS, ZTYPES, ZT_ORDER, ZOMBIE, cleanSkins } from '../src/game/stats.js';
 import { cleanWear } from '../src/game/wearIds.js';
 import { defaultTickets } from '../src/game/match.js';
-import { LIMITS, useBalance } from '../src/game/balance.js';
+import { LIMITS, useBalance, maxPerFor } from '../src/game/balance.js';
 import { currentBalance, balanceMeta } from './balanceStore.js';
 import { MAPS } from '../src/maps/index.js';
 import { nextOptions, tallyVotes } from '../src/game/nextMatch.js';
@@ -24,7 +24,7 @@ export function sanitizeCfg(c = {}) {
   const pick = (v, list, d) => (list.includes(v) ? v : d);
   const type0 = pick(c.type, ['conquest', 'tdm', 'dm', 'gg', 'inf', 'pb', 'payload', 'space', 'front'], 'conquest');
   const pbMap = c.map === 'random' ? PB_MAPS[Math.floor(Math.random() * PB_MAPS.length)] : pick(c.map, PB_MAPS, PB_MAPS[0]);
-  return {
+  const R = {
     map: type0 === 'space' ? pick(c.map, SPACE_MAPS, SPACE_MAPS[0]) : type0 === 'inf' ? 'newyork' : type0 === 'pb' ? pbMap : type0 === 'payload' ? 'maden' : type0 === 'front' ? pick(c.map, FRONT_MAPS, FRONT_MAPS[0]) : pick(c.map, (type0 === 'conquest' || type0 === 'tdm') ? ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman', 'kuzey'] : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman'], 'kasaba'),                  // Enfekte yalnızca New York'ta, Paintball yalnızca paintball haritalarında
     tod: pick(c.tod, ['day', 'sunset', 'night'], 'day'),
     weather: type0 === 'space' ? 'clear' : pick(c.weather, ['clear', 'rain', 'fog'], 'clear'),
@@ -39,6 +39,8 @@ export function sanitizeCfg(c = {}) {
     listed: c.listed !== false,
     third: c.third === true,                   // 3. şahıs kamera (H) bu odada serbest mi
   };
+  if (R.type === 'conquest' || R.type === 'tdm') R.perTeam = Math.round(num(c.perTeam, 1, maxPerFor(R.map, R.type), 5));      // 12.203: büyük harita (Kuzey Vadisi) 128v128 / TDM 64v64, diğerleri 32
+  return R;
 }
 
 const cleanRoomName = (n) => String(n || '').replace(/[<>&"'`]/g, '').trim().slice(0, 24);

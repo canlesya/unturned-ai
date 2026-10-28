@@ -48,6 +48,8 @@ import { Payload } from './payload.js';
 import { ObjFx } from './objFx.js';                                  // 12.191 bayrak direği + zemin halkası (yalnız istemci)
 import { Front } from './front.js';                                  // Cephe modu (12.158)
 import { Vehicles } from './vehicles.js';                            // 12.177 araçlar (Kuzey Vadisi: jip)
+import { SoldierGrid } from './crowd.js';
+import { SpawnSet } from './spawnPoints.js';                               // 12.203 doğuş noktaları                                  // 12.203 asker ızgarası (kalabalık maç)
 import { assignSquadsBig, perchBig, spawnFlagBig } from './bigBots.js';           // 12.189 büyük harita bot çatışma akışı
 import { vnav } from './vehicleBots.js';                                         // 12.189 bot sürücüler (araç ızgarası)
 import { VehicleView } from './vehicleView.js';
@@ -201,7 +203,9 @@ export class Game {
 
     this.map.navPost?.(this.nav);                                                   // 12.172: haritanın nav son işlemi (kapı hücreleri, oyun alanı dışı kapalı)
     // opts.match: özel maç ayarları; opts.mode: '3v3' | '10v10' hazır ayarı (test/uyumluluk)
-    this.mode = makeMatch(opts.match || PRESETS[opts.mode] || {});
+    this.mode = makeMatch({ ...(opts.match || PRESETS[opts.mode] || {}), map: this.map.id });      // 12.203: takım başına sınır haritaya göre (Kuzey Vadisi 128v128)
+    this.spawnSet = new SpawnSet(this);                                              // 12.203 doğuş noktası verisi + seçim (spawnPoints.js)
+    this.map.spawnPoints = (team, near) => this.spawnSet.points(team, near);        // temiz API: doğuş seçim arayüzü / manga sistemi bunu kullanır
     if (this.mode.space) { this.world.grav = TUNE.spaceGrav; opts.weather = 'clear'; }      // 12.157 Uzay: düşük yer çekimi (sunucu, çevrimdışı oyun ve istemci tahmini aynı World.grav), hava yok
     if (this.mode.infection) { opts.diff = 'hard'; this.bossCount = this.mode.total < ZOMBIE.bossSplit ? ZOMBIE.bossCount[0] : ZOMBIE.bossCount[1]; }                                  // Enfekte yalnızca Zor botlarla (menü/sunucu da öyle sabitler)
     // 3. şahıs kamera (H): odada izinli mi? sunucu açıkça true ister; offline varsayılan açık
@@ -970,47 +974,25 @@ export class Game {
       const own = this.mode.objectives.filter((o) => o.owner === team && this.canForwardSpawn(o, team));
       if (own.length) target = this.map.big ? (spawnFlagBig(this, s, own) || (Math.random() < 0.5 ? this.frontFlag(team, own) : null)) : pick(own);      // 12.189: mangal hedefine en yakın bayrak (yoksa yarı yarıya ön hat / üs: araç)
     }
+    // 12.203 ileri doğuş: bayrağın doğuş havuzundan (alan + kenarı; büyük haritada bayrağın arkası da) düşmanın görmediği, boş, son doğuşlardan uzak nokta.
+    // Eskiden alanın içinde 14 rastgele deneme (görüş denetimi yok): 128v128'de aynı bayrağa doğan onlarca bot direğin dibinde, düşmanın gözü önünde.
+    const SP = this.spawnSet;
     if (target && this.canForwardSpawn(target, team)) {
-      const cl = this.objCells(target);                                             // 12.184 alan kotu karışıksa (Baraj) yalnız hedef kotundaki hücreler
-      for (let k = 0; k < 14; k++) {
-        const a = Math.random() * Math.PI * 2, rr = target.r * (0.25 + Math.random() * 0.6);
-        const { x, z } = cl ? this.objPoint(target) : { x: target.x + Math.cos(a) * rr, z: target.z + Math.sin(a) * rr };
-        if (this._free(x, z, s)) return { x, z, ry: Math.atan2(-(target.x - x), -(target.z - z)) + (Math.random() - 0.5) * 3, forward: true };
-      }
+      const p = SP.choose(team, s, target.id);
+      if (p && this._free(p.x, p.z, s)) { SP.mark(p); return { x: p.x, z: p.z, ry: p.kind === 'rear' ? p.ry + (Math.random() - 0.5) * 0.8 : Math.atan2(-(target.x - p.x), -(target.z - p.z)) + (Math.random() - 0.5) * 3, forward: true }; }
     }
     const pts = this.map.spawns[team];
-    const free = pts.filter((p) => !this.soldiers.some((e) => e !== s && e.alive && Math.hypot(e.pos.x - p.x, e.pos.z - p.z) < 1.3));
-    if (free.length) return this.safeBase(free, team);
+    { const p = SP.choose(team, s, 'base'); if (p) { SP.mark(p); return { x: p.x, z: p.z, y: p.y, ry: p.ry }; } }      // 12.197 safeBase kuralı + son doğuşlar (spawnPoints.choose)
     // noktalar dolu (kalabalık maç): rastgele bir noktanın çevresinde boş yer bul
     const base = pick(pts);
-    for (let k = 0; k < 20; k++) {
-      const x = base.x + (Math.random() - 0.5) * 9, z = base.z + (Math.random() - 0.5) * 9;
+    for (let k = 0; k < 40; k++) {                                                   // 12.203: çember genişler (4,5 → 12 m), 20 yerine 40 deneme
+      const w = 9 + k * 0.4, x = base.x + (Math.random() - 0.5) * w, z = base.z + (Math.random() - 0.5) * w;
       if (this._free(x, z, s)) return { x, z, ry: base.ry };
     }
     return base;
   }
 
-  // 12.197 takım üs doğuşu: boş noktalardan rastgele 8 aday, düşmanın görmediği (60 m içinde göz → göğüs) ve düşmana en uzak olan seçilir.
-  // Eskiden rastgele bir noktaydı: küçük haritalarda (Liman / Depo, avlu ile hedefler arası 30 m) üsse sızan düşmanın tam önüne doğulabiliyordu.
-  safeBase(free, team) {
-    const foes = this.soldiers.filter((e) => e.alive && e.team !== team && !e.vacant);
-    if (!foes.length || free.length < 2) return pick(free);
-    const eye = (this._spE ||= new THREE.Vector3()), tgt = (this._spT ||= new THREE.Vector3());
-    let best = null, bs = -1e9;
-    for (let k = 0; k < Math.min(8, free.length); k++) {
-      const p = free[Math.floor(Math.random() * free.length)];
-      let dmin = 99, seen = 0;
-      tgt.set(p.x, (p.y || this.world.heightAt(p.x, p.z)) + 1.3, p.z);
-      for (const e of foes) {
-        const d = Math.hypot(e.pos.x - p.x, e.pos.z - p.z);
-        dmin = Math.min(dmin, d);
-        if (d < 60 && this.botSees(e.eye(eye), tgt)) seen++;
-      }
-      const sc = Math.min(dmin, 40) - seen * 30 + Math.random() * 3;
-      if (sc > bs) { bs = sc; best = p; }
-    }
-    return best || pick(free);
-  }
+  // 12.197 takım üs doğuşu (düşmanın görmediği, en uzak aday) → 12.203 spawnPoints.choose (aynı kural + son doğuşlar + büyük harita menzili)
 
   // oyuncu (offline) ya da insan (sunucu) için doğuş tercihleri; botlar için null
   ctlOf(s) { return s.isPlayer ? this : this.humans.get(s.id) || null; }
@@ -1370,6 +1352,8 @@ export class Game {
       else if (s.alive) { this.world.move(s, dt); V?.pushSoldier(s); this.fallCheck(s); this.swimCheck(s, dt); }
     }
     if (this.player) this.player.update(dt); else this.updateHumans(dt);
+    (this.crowd ||= new SoldierGrid()).rebuild(this.soldiers);                 // 12.203 asker ızgarası (bot ayrışması: 3 × 3 komşu hücre, eskiden herkes × herkes)
+    this.pathBudget = Math.max(1, Math.ceil(this.brains.length / 80));        // 12.203 adım başına yol bulma: 80 bota 1 (128v128'de 4; eskiden hep 1 → ortalama 80 bot yol bekliyordu)
     // 12.197 bot beyinleri her adımda farklı bir botla başlar (döner sıra): eskiden hep Mavi botlar önce işleniyordu → adım başına 1'lik yol bütçesini
     // hep Mavi kapıyor, aynı karede karşılıklı atışta hep Mavi önce ateş ediyordu (takım modlarında Mavi lehine sistematik kayma)
     { const B = this.brains, n = B.length, o = n ? (this._brainRot = ((this._brainRot || 0) + 1) % n) : 0; for (let i = 0; i < n; i++) B[(o + i) % n].update(dt); }
