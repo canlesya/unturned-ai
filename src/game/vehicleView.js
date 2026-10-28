@@ -118,6 +118,22 @@ export class VehicleView {
     return o;
   }
 
+  // 12.200 uzak ayrıntı kademesinde çizilen arazi fiziğin üstündeyse (kaba ızgara yol yatağını / çukuru doldurur) model o kadar kaldırılır: uzaktaki
+  // araç "yerin altında" görünmesin. Ayak izinin 9 noktasında (köşe, kenar ortası, merkez) en büyük fark; yakında (L0 = fizik) 0. Yalnız görünüm.
+  lodLift(st, d, far) {
+    const tm = this.g.map.fx?.tm;
+    if (!tm?.renderedHeightAt || far < 150 || (d.heli && st.air)) return 0;
+    const T = this.g.world, s = Math.sin(st.yaw), c = Math.cos(st.yaw);
+    if (st.y - T.heightAt(st.x, st.z) > 0.6) return 0;                      // köprü / baraj / çatı üstünde: arazi ağıyla ilgisi yok
+    let lift = 0;
+    for (const a of [-1, 0, 1]) for (const b of [-1, 0, 1]) {
+      const f = a * d.hl, r = b * d.hw, x = st.x - s * f + c * r, z = st.z - c * f - s * r;
+      const dh = tm.renderedHeightAt(x, z) - T.heightAt(x, z);
+      if (dh > lift) lift = dh;
+    }
+    return Math.min(2.5, lift);
+  }
+
   ensure(it) {
     const v = it.v, want = v.st && (v.alive || v.wreck);
     if (!want) { if (it.model) it.model.visible = false; return false; }
@@ -191,7 +207,7 @@ export class VehicleView {
         it.svr += (-K * it.sr - C * it.svr + Math.max(-30, Math.min(30, yr * fwd)) * 0.0022) * dt; it.sr += it.svr * dt;
         it.sy = Math.max(-0.12, Math.min(0.12, it.sy)); it.sp = Math.max(-0.07, Math.min(0.07, it.sp)); it.sr = Math.max(-0.07, Math.min(0.07, it.sr));
       }
-      m.position.set(st.x, st.y + (v.alive ? it.sy * 0.6 : -0.12), st.z);
+      m.position.set(st.x, st.y + (v.alive ? it.sy * 0.6 : -0.12) + this.lodLift(st, d, far), st.z);
       m.rotation.order = 'YXZ';
       m.rotation.set(st.pitch + (v.alive ? it.sp : 0.03), st.yaw, st.roll + (v.alive ? it.sr : -0.04));
       if (it.sinkT) { it.sinkT += dt; m.position.y -= Math.min(1.5, it.sinkT * 0.35); if (!v.alive && !v.wreck) it.sinkT = 0; }

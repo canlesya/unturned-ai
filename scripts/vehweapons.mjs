@@ -10,6 +10,7 @@
 import { Game } from '../src/game/game.js';
 import { VT, gunPose, shellVel, shellAdvance, heFalloff } from '../src/sim/vehicle.js';
 import { TUNE } from '../src/game/balance.js';
+import { WSTATS } from '../src/game/stats.js';
 import fs from 'fs';
 
 const URL0 = process.env.URL || 'http://127.0.0.1:5196', SRV = process.env.SRV || 'ws://127.0.0.1:8991', OUT = process.env.OUT || '/tmp/wb-qa6', ONLY = process.env.ONLY || '';
@@ -137,16 +138,22 @@ function headless() {
     const hp = () => v.hp, r = { id: v.def.name, hp: v.def.hp };
     let h0 = hp(); V.damage(v, 30, atk, 'bullet'); r.bullet = +(h0 - hp()).toFixed(1);
     h0 = hp(); g.explode(P(v.st.x + v.def.hw + 0.5, v.st.y + 0.4, v.st.z), 7.5, 130, atk, 'El Bombası'); r.nade = Math.round(h0 - hp());
-    v.hp = v.def.hp; h0 = hp(); g.explode(P(v.st.x, v.st.y + 1.2, v.st.z - v.def.hl - 0.15), 6.5, 160, atk, 'RPG-7', undefined, 'at'); r.rpg = Math.round(h0 - hp());
+    const PR = { pierce: WSTATS.rpg.armorMul };                     // 12.200 oyundaki roket gibi (zırh delme)
+    v.hp = v.def.hp; h0 = hp(); g.explode(P(v.st.x, v.st.y + 1.2, v.st.z - v.def.hl - 0.15), 6.5, 160, atk, 'RPG-7', undefined, 'at', PR); r.rpg = Math.round(h0 - hp());
+    v.hp = v.def.hp; h0 = hp(); g.explode(P(v.st.x + v.def.hw + 0.15, v.st.y + 1.0, v.st.z), 6.5, 160, atk, 'RPG-7', undefined, 'at', PR); r.rpgSide = Math.round(h0 - hp());
+    v.hp = v.def.hp; h0 = hp(); g.explode(P(v.st.x, v.st.y + 1.0, v.st.z + v.def.hl + 0.15), 6.5, 160, atk, 'RPG-7', undefined, 'at', PR); r.rpgRear = Math.round(h0 - hp());
     v.hp = v.def.hp; v.team = 'blue'; h0 = hp(); V.damage(v, 30, atk, 'bullet'); r.bulletFriendly = +(h0 - hp()).toFixed(1); g.explode(P(v.st.x, v.st.y + 1.2, v.st.z - v.def.hl - 0.15), 6.5, 160, atk, 'RPG-7', undefined, 'at'); r.mateAll = Math.round(h0 - hp()); v.team = 'red';
     v.hp = v.def.hp; h0 = hp(); g.explode(P(v.st.x, v.st.y + 1.2, v.st.z - v.def.hl - 0.15), C.radius, C.dmg, atk, C.name, undefined, 'at', { he: true, inner: C.inner, vehInner: C.vehInner }); r.shell = v.alive ? Math.round(h0 - hp()) : 'patladı';
     rows.push(r); put(v, v.spawn.x, v.spawn.z, v.spawn.yaw); v.hp = v.def.hp;
   }
   const J = rows[0], T = rows[1], H = rows[2];
   ok(T.bullet === 0 && J.bullet > 3 && J.bullet < 4 && H.bullet > 4 && H.bullet < 5, 'mermi: tank 0 · jip × 0,12 · helikopter × 0,15', rows.map((r) => `${r.id} ${r.bullet}`).join(' · '));
-  ok(T.rpg >= 190 && T.rpg <= 205 && J.rpg > 240 && H.rpg > 240, 'RPG: tank ≈ 200 (5 RPG) · jip / helikopter ≈ 256 (2 RPG)', rows.map((r) => `${r.id} ${r.rpg}`).join(' · '));
+  ok(J.rpg > 240 && H.rpg > 240, 'RPG: jip / helikopter ≈ 256 (2 RPG)', rows.map((r) => `${r.id} ${r.rpg}`).join(' · '));
+  // 12.200 yönlü zırh (Battlefield: önden 3–4, yandan 3, arkadan 2 RPG) — tank 1000 can
+  const hits = (d) => Math.ceil(1000 / d);
+  ok(hits(T.rpg) === 4 && hits(T.rpgSide) === 3 && hits(T.rpgRear) === 2, 'RPG → tank: önden 4 · yandan 3 · arkadan 2 isabet', `ön ${T.rpg} · yan ${T.rpgSide} · arka ${T.rpgRear}`);
   ok(T.shell === 375 && J.shell === 'patladı' && H.shell === 480, 'tank topu doğrudan: tank 375 (3 atış) · jip tek atış · helikopter 480 (2 atış)', rows.map((r) => `${r.id} ${r.shell}`).join(' · '));
-  ok(T.nade > 0 && T.nade < 50, 'el bombası: tank az (× 0,3)', rows.map((r) => `${r.id} ${r.nade}`).join(' · '));
+  ok(T.nade > 0 && T.nade < 75, 'el bombası: tank az (× 0,3 × yön)', rows.map((r) => `${r.id} ${r.nade}`).join(' · '));
   ok(rows.every((r) => r.bulletFriendly === 0 && r.mateAll === 0), 'dost ateşi: takım arkadaşının mermisi / RPG\'si dost araca işlemez', rows.map((r) => `${r.id} ${r.bulletFriendly}/${r.mateAll}`).join(' · '));
   fs.writeFileSync(`${OUT}/hasar-tablosu.json`, JSON.stringify(rows, null, 1));
   // 13) araç patlaması: düşman jipi (sürücü + yolcu) tank topuyla patlar → içindekiler ölür (öldürme tankçıya, ad 'Tank topu'), 4 m'deki düşman yaralanır;

@@ -27,6 +27,7 @@ function scen(diff = 'normal', goal = 'C') {
     g.brains = g.brains.filter((b) => keep.has(b.s) && !b.s.static);
   };
   const V = g.vehicles, byId = (id) => V.list.find((v) => v.id === id);
+  for (const v of V.list) v.spawnT = -1e9;                                  // 12.200 doğuş beklemesi (botMayTake) bu senaryoların konusu değil: araçlar eskimiş sayılır (kural: vehgrabtest.mjs)
   const only = (...ids) => { for (const v of V.list) if (!ids.includes(v.id)) v.botBad = 1e9; };
   const impact = { n: 0, sum: 0 };
   const d0 = V.damage.bind(V);

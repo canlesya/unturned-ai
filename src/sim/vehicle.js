@@ -32,7 +32,7 @@ export const VT = {
     mg: { seats: [1], name: 'Jip makinelisi', dmg: 22, rpm: 650, range: [60, 170], minMul: 0.6, hip: 0.013, tracer: '#ffd37a', sound: 'pkm', vmg: true, elev: [-0.5, 0.7], rel: true, zoom: 1.4, heat: 0.022, cool: 0.45, mz: [1.35, 0.34] },
     blastMul: 1.6, bulletMul: 0.12, hmgMul: 0.5, ramMin: 5.5,              // patlama hasarı çarpanı, mermi hasarı çarpanı, yayaya çarpma hasarının başladığı hız (m/sn)
     burnAt: 0.25, burnRate: 9, boom: [6, 110],                 // can oranı bu altındaysa yanar (sn başına can), patlama [yarıçap, hasar]
-    respawn: 30, wreck: 8, idleRespawn: 120,                   // yeniden doğuş (sn), enkaz süresi, boş bırakılınca (doğuştan uzakta) yenilenme
+    respawn: 20, wreck: 8, idleRespawn: 90,                    // yeniden doğuş (sn), enkaz süresi, boş bırakılınca (doğuştan uzakta) yenilenme · 12.200: 30 → 20 / 120 → 90 (jip bol ve çabuk: yürüyüş az)
     atMul: 1.6, mass: 1, wade: 1.1, ramMul: 16, stepUp: 0.55,  // tanksavar (RPG / tank topu) çarpanı, kütle (araç itişmesi), boğulma derinliği, çarpma hasarı / (m/sn), tırmanılan basamak
   },
   // 12.178 TANK: paletli (yerinde döner, kaymaz, yavaş), kule bakışla döner (dengeli: gövde dönse de nişan kalır), ana top (patlayıcı, mermi düşüşü,
@@ -47,8 +47,11 @@ export const VT = {
     // koltuklar: 0 sürücü (gövde içi, görünmez; ana topu da kullanır), 1 nişancı (kule kapağı, belden yukarısı dışarıda; makineli)
     seat: [[1.95, -0.62, 0.75], [-0.35, 0.42, 2.15]], hidden: [true, false],
     blastMul: 0.3, bulletMul: 0, hmgMul: 0, atMul: 1.25, ramMin: 2.5, ramMul: 40, mass: 4, wade: 1.6, stepUp: 0.8,
+    // 12.200 yönlü zırh (Battlefield: önden 3–4 RPG, arkadan 2): patlamanın gövdeye göre yeri → ön × f, yan / üst × s, arka × r ('at' + 'blast').
+    // RPG (armorMul 1,3): ön 160 × 1,3 × 1,25 = 260 → 4 · yan 351 → 3 · arka 520 → 2 isabet; tank topu (375): ön 3 · yan / arka 2 atış
+    armor: { f: 1, s: 1.35, r: 2.0 },
     burnAt: 0.2, burnRate: 14, boom: [8, 140],
-    respawn: 45, wreck: 10, idleRespawn: 150,
+    respawn: 60, wreck: 10, idleRespawn: 150,                  // 12.200 yeniden doğuş 45 → 60 sn (tank patlayınca sahada daha uzun yok; Battlefield'da da ağır zırh en geç gelen)
     // kule: dikey eksen gövde merkezinden ileri tf (m), kule üstü / yükseklik; ana top: pivot yüksekliği, namlu boyu, açı sınırları, dönüş hızları
     // 12.201 top açısı gövdeye göre −10°…+20° (Battlefield tankı; eski −7°…+18°), gövdenin o yöndeki eğimi + yatışı eklenir (bodyPitchAlong)
     turret: { f: -0.35, y0: 1.75, y1: 2.55, hw: 1.3, hl: 1.55, pivot: 2.18, len: 4.3, gunMin: -0.175, gunMax: 0.35, yawRate: 0.95, pitchRate: 0.6 },
@@ -165,6 +168,29 @@ function wheels(v, world, out, ref) {
   return out;
 }
 
+// 12.200 tümsek kaldırması: gövde yüksekliği dört teker noktasının ortalaması; tümseğin / sırtın üstünde duran (ya da geçen) araçta aradaki
+// zemin teker düzleminin üstüne çıkar → paletin ortası / gövde altı arazinin içinde görünüyordu (oynanış taraması: tank paleti 0,25 m, jip gövdesi
+// 0,49 m gömülü). Palet boyunca (¼, ½, ¾) ve gövde altı ortasında zemin örneklenir; düzlemin üstüne çıkan kısım kadar gövde kaldırılır (palet
+// tümseğe basar). w: wheels() çıktısı (ön sol, ön sağ, arka sol, arka sağ). Sunucu = istemci tahmini (aynı fonksiyon).
+const LIFT_K = [0.25, 0.5, 0.75];
+function bellyLift(v, world, w, ref) {
+  const d = v.def, s = Math.sin(v.yaw), c = Math.cos(v.yaw), fx = -s, fz = -c, rx = c, rz = -s, hf = d.wb / 2, ht = d.tr / 2;
+  let lift = 0;
+  if (d.tracked) {
+    for (let side = 0; side < 2; side++) {
+      const r = side ? ht : -ht, a = w[side], b = w[2 + side];
+      for (const k of LIFT_K) {
+        const f = hf - k * d.wb, gp = a + (b - a) * k, g = groundAt(world, v.x + fx * f + rx * r, v.z + fz * f + rz * r, ref, d.stepUp ?? STEP_UP);
+        if (g - gp > lift) lift = g - gp;
+      }
+    }
+  } else {
+    const gp = (w[0] + w[1] + w[2] + w[3]) / 4, g = world.heightAt(v.x, v.z), m = g - gp - (d.clear - 0.12);
+    if (m > lift) lift = m;
+  }
+  return Math.min(0.9, lift);
+}
+
 // OBB (araç) ↔ AABB (kutu) yatay ayırma ekseni testi. Çakışıyorsa { nx, nz, d } (aracı kutudan çıkaran yön + girişim), yoksa null
 export function obbBox(v, c, pad = 0) {
   const d = v.def, s = Math.sin(v.yaw), co = Math.cos(v.yaw);
@@ -277,7 +303,7 @@ function stepCar(v, inp, dt, world) {
   const b = T.bounds;
   if (b) { v.x = Math.max(b.minX + 2, Math.min(b.maxX - 2, v.x)); v.z = Math.max(b.minZ + 2, Math.min(b.maxZ - 2, v.z)); }
   // dikey: zemin izleme / uçuş / iniş
-  const w = wheels(v, T, _q, v.y + 0.05), g = (w[0] + w[1] + w[2] + w[3]) / 4;
+  const w = wheels(v, T, _q, v.y + 0.05), g = (w[0] + w[1] + w[2] + w[3]) / 4 + bellyLift(v, T, _q, v.y + 0.05);
   const sp = Math.hypot(v.vx, v.vz);
   if (!v.air) {
     const stick = 0.04 + sp * dt * 0.3;
@@ -303,8 +329,11 @@ const _tmp2 = [], _tmp4 = [0, 0, 0, 0];
 const _hp = { x: 0, y: 0, z: 0 };
 function heliGround(v, T, d) {
   const s = Math.sin(v.yaw), c = Math.cos(v.yaw), fx = -s, fz = -c, rx = c, rz = -s, hf = d.wb / 2, ht = d.tr / 2, w = v.wl;
+  // 12.200 gövde kotu = kızak uçlarının ŞU ANKİ eğim / yatışla yere değdiği kot (en yüksek temas). Eskiden dört ucun en yüksek zemini alınıp gövde
+  // sonra eğime yatırılıyordu → yamaçta duran helikopter 0,3–0,9 m havada asılı görünüyordu (vehground: rastgele 300 noktanın ~%30'u). Yatay gövdede eskisiyle aynı.
+  const sp = Math.sin(v.pitch || 0), sr = Math.sin(v.roll || 0) * Math.cos(v.pitch || 0);
   let k = 0, g = -1e9;
-  for (const f of [hf, -hf]) for (const r of [-ht, ht]) { const h = groundAt(T, v.x + fx * f + rx * r, v.z + fz * f + rz * r, v.y + 0.25, 0.35); w[k++] = h; if (h > g) g = h; }
+  for (const f of [hf, -hf]) for (const r of [-ht, ht]) { const o = f * sp + r * sr, h = groundAt(T, v.x + fx * f + rx * r, v.z + fz * f + rz * r, v.y + o + 0.25, 0.35); w[k++] = h; if (h - o > g) g = h - o; }
   return g;
 }
 function stepHeli(v, inp, dt, T) {

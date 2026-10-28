@@ -12,23 +12,30 @@ import { mgAt, gunPose, toLocal2, toWorld, bodyPitchAlong, noseDir } from '../si
 import { clamp, rand, angleDiff, yawFromDir } from './util.js';
 import * as THREE from 'three';
 import { MOTO_BOT, motoBotOk, motoTrip } from './motorbike.js';      // 12.204 motor: botlar uzak bayrağa motorla, hepsini kapmaz
+import { WSTATS } from './stats.js';
 
 export const VBOT = {
   trip: { jip: 200, tank: 150, heli: 300, moto: MOTO_BOT.trip },       // bu kadar uzak hedefe araçla gider (12.204 motor: küçük haritada motoTrip)
   tanks: (per) => (per >= 12 ? 2 : 1),            // takımda aynı anda en çok bot tankçı
   reach: 75,                                      // boş araca en çok bu kadar yürür
   humanNear: 22,                                  // aracın bu kadar yakınında insan takım arkadaşı varsa bot almaz (oyuncu binmeye gidiyor olabilir)
+  // 12.200 araç kapma kuralı (her araç türü; tür listesi yok): yeni doğan araca botlar hemen binmez. grace: doğuştan sonra bekleme (sn) ·
+  // humanNear2: bu bekleme sırasında / ayrılmış araçta insan takım arkadaşı bu kadar yakındaysa (yürüyerek geliyor) bot almaz ·
+  // hold: takımda insan oyuncu varken her doğuş grubunun (aynı doğuş takımı + aynı tür) bir kısmı bu kadar sn insanlara ayrılır ·
+  // share: ayrılan oran (yukarı yuvarlanır; en çok insan sayısı kadar). Değerler OYUN.md 12.200.
+  grab: { grace: 8, humanNear2: 30, hold: 40, share: 0.5 },
   park: { jip: 42, tank: 12, moto: MOTO_BOT.park },                    // bayrak merkezine bu kadar kala durur
   speed: { jip: [17, 10], tank: [10, 7], moto: MOTO_BOT.speed },        // hedef hız: yolda / arazide (m/sn)
   clr: { jip: 1.6, tank: 2.3, moto: MOTO_BOT.clr },                   // rota açıklığı (m)
   wait: [1.2, 7],                                 // binince bekleme: en az / yolcu yürürken en çok (sn)
   stuck: { t: 1.6, rev: 1.4, max: 5, noProg: 35 },
   // tank topu (zorluk): ilk nişan hatası (rad, her atışta yeniden), hareketli hedefe öncü oranı, ek bekleme (dolumdan sonra), tepki (sn), menzil;
-  // inf: piyadeye karşı hata çarpanı / ek bekleme / menzil
+  // inf: piyadeye karşı hata çarpanı / ek bekleme / menzil · 12.200: piyadeye hata × 1,8 → 2,4 / ek bekleme 2 → 3 sn (normal; kolay / zor orantılı):
+  // başsız ölçümde öldürmelerin ~%22'si tek başına bot tank topundandı (tank ölümü başına ~6–10 leş)
   gun: {
-    easy: { err: 0.03, lead: 0.3, cd: 3.2, react: [1.6, 2.4], range: 150, inf: { err: 2.0, cd: 2.5, range: 110 } },
-    normal: { err: 0.017, lead: 0.6, cd: 1.7, react: [1.0, 1.6], range: 190, inf: { err: 1.8, cd: 2.0, range: 130 } },
-    hard: { err: 0.01, lead: 0.85, cd: 0.8, react: [0.6, 1.0], range: 220, inf: { err: 1.6, cd: 1.5, range: 150 } },
+    easy: { err: 0.03, lead: 0.3, cd: 3.2, react: [1.6, 2.4], range: 150, inf: { err: 2.6, cd: 3.5, range: 110 } },
+    normal: { err: 0.017, lead: 0.6, cd: 1.7, react: [1.0, 1.6], range: 190, inf: { err: 2.4, cd: 3.0, range: 130 } },
+    hard: { err: 0.01, lead: 0.85, cd: 0.8, react: [0.6, 1.0], range: 220, inf: { err: 2.0, cd: 2.2, range: 150 } },
   },
 };
 const _o = { x: 0, y: 0, z: 0 }, _d = { x: 0, y: 0, z: 0 }, _cp = { x: 0, y: 0, z: 0 }, _cd = { x: 0, y: 0, z: 0 }, _gs = {}, _e = new THREE.Vector3(), _t = new THREE.Vector3();
@@ -216,7 +223,8 @@ export function vbBoard(b) {
   const trip = Math.hypot(dest.x - s.pos.x, dest.z - s.pos.z);
   let best = null, bd = 1e9;
   for (const v of V.list) {
-    if (!v.alive || !v.st || v.burn || v.st.sunk || v.seats.some(Boolean) || v.team !== s.team || g.time < (v.botBad || 0)) continue;
+    if (!v.alive || !v.st || v.burn || v.st.sunk || v.seats.some(Boolean) || (v.team && v.team !== s.team) || g.time < (v.botBad || 0)) continue;      // 12.200 tarafsız (yol kenarı) araç: herkes
+    if (!botMayTake(g, v, s.team)) continue;                                      // 12.200 yeni doğan araç / insanlara ayrılan araç
     if (v.botRes && v.botRes !== b && v.botRes.s.alive && g.time < v.botResT) continue;
     const k = kindOf(v); if (trip < (k === 'moto' ? motoTrip(g) : VBOT.trip[k])) continue;
     if (k === 'moto' && !motoBotOk(g, s, v, busy(g, s.team, 'moto'))) continue;      // 12.204: insan yakındaysa bekle, takımın motorlarının hepsini alma
@@ -226,7 +234,7 @@ export function vbBoard(b) {
     const d = Math.hypot(v.st.x - s.pos.x, v.st.z - s.pos.z);
     if (d > VBOT.reach || d > trip * 0.35) continue;
     if (g.soldiers.some((e) => e.alive && e.team === s.team && (e.human || e.isPlayer) && !e.veh && Math.hypot(e.pos.x - v.st.x, e.pos.z - v.st.z) < VBOT.humanNear)) continue;
-    const sc = d - (k === 'tank' ? 15 : 0);
+    const sc = d - (k === 'tank' ? 15 : k === 'heli' ? 30 : 0);                  // 12.200 helikopter önce (jip bol: eskiden yakındaki jipler kapılınca pilot / nişancı kalmıyordu)
     if (sc < bd) { bd = sc; best = v; }
   }
   if (!best) return false;
@@ -234,6 +242,56 @@ export function vbBoard(b) {
   recruit(b, best);
   return true;
 }
+// 12.200 araç kapma kuralı (her araç türü, motosiklet dahil: türe bakmaz). Kullanıcı: "direkt botlar alıp kaçıyor". (1) Araç doğduktan sonra
+// VBOT.grab.grace sn hiçbir bot binmez (oyuncu doğuşta aracı görüp yürüyebilsin) ve bu sırada aracın humanNear2 m içinde insan takım arkadaşı
+// varsa da almaz. (2) Takımda (araçta olmayan) insan oyuncu varken her doğuş grubunun (aynı doğuş takımı / bayrağı + aynı tür) en düşük sıralı
+// ceil(n × share) aracı (en çok insan sayısı kadar) hold sn insanlara ayrılır; hiç sürülmemiş ve doğuşunda duruyorsa. Süre dolunca botlar alabilir
+// (araç boşa yatmaz). Çevrimdışı oyunda oyuncu da insan sayılır.
+const humanOf = (e) => (e.human || e.isPlayer) && !e.vacant;
+export function botMayTake(g, v, team) {
+  const G = VBOT.grab, age = g.time - (v.spawnT ?? -1e9);
+  const fresh = (u) => u.alive && u.st && !u.lastDriver && Math.hypot(u.st.x - u.spawn.x, u.st.z - u.spawn.z) < 6;
+  if (fresh(v) && age < G.grace) return false;
+  let H = 0;
+  for (const e of g.soldiers) {
+    if (e.team !== team || !humanOf(e)) continue;
+    if (e.alive && !e.veh && (fresh(v) && age < G.hold) && Math.hypot(e.pos.x - v.st.x, e.pos.z - v.st.z) < G.humanNear2) return false;
+    if (!e.veh) H++;
+  }
+  if (!H || !fresh(v) || age >= G.hold) return true;
+  let n = 0, before = 0;
+  for (const u of g.vehicles.list) {
+    if (u.type !== v.type || u.spawn.team !== v.spawn.team) continue;
+    n++;
+    if (u.idx < v.idx && fresh(u) && g.time - (u.spawnT ?? -1e9) < G.hold) before++;
+  }
+  return before >= Math.min(H, Math.ceil(n * G.share));
+}
+
+// 12.200 tanksavar donanımı (bot, doğuşta; yalnız zırhlı araçlı haritada). Kök neden "tankı patlatamıyorlar": botların donanımı rastgele seçiliyordu
+// (makeLoadout choice.random) → mühendisin yalnız ¼'ü RPG alıyordu; 10v10'da takım başına ~1 RPG'li bot (başsız ölçüm: 600 sn'de piyadeden 0–6 roket).
+// Kural: (1) mühendis bot düşmanın zırhlı aracı varken her zaman, yokken %60 RPG taşır; (2) düşmanın canlı zırhlı aracı varken takımdaki RPG'li sayısı
+// want'ın altındaysa doğan taarruz / ağır destek botu mühendise geçer (Battlefield'da oyuncuların tanka karşı sınıf değiştirmesi gibi).
+// want = 1 + 2 × düşman zırhlı araç, en çok takımın %30'u. Sağlıkçı / keskin nişancı rolünü bırakmaz.
+export const AT_KIT = { want: (armor, n) => Math.min(Math.ceil(n * 0.3), 1 + 2 * armor), idle: 0.6, from: ['assault', 'heavy'] };
+export function botAtLoadout(g, s) {
+  const V = g.vehicles;
+  if (!V || !s.brain || s.def.zombie || g.mode.fixed || !V.list.some((v) => v.def.armor)) return;
+  let armor = 0;
+  for (const v of V.list) if (v.alive && v.def.armor && V.teamOf(v) && V.teamOf(v) !== s.team) armor++;
+  const rpg = (e) => e.items?.[2]?.id === 'rpg' || (e.cls === 'engineer' && e.brain && armor);      // mühendis bot doğunca RPG alacak (henüz doğmamış olan da sayılır)
+  if (s._atCls && !armor) { const c = s._atCls; s._atCls = null; s.setClass(c); g.emit('botcls', s); return; }      // düşman zırhı kalmadı: eski sınıfına döner
+  if (s.cls !== 'engineer') {
+    if (!armor || !AT_KIT.from.includes(s.cls)) return;
+    let n = 0, have = 0;
+    for (const e of g.soldiers) if (e.team === s.team && !e.vacant && e !== s) { n++; if (rpg(e)) have++; }
+    if (have >= AT_KIT.want(armor, n + 1)) return;
+    s._atCls = s.cls; s.setClass('engineer');
+    g.emit('botcls', s);
+  } else if (!armor && Math.random() > AT_KIT.idle) return;
+  if (s.items[2]?.id !== 'rpg') { const n = WSTATS.rpg.count || 1; s.items[2] = { id: 'rpg', mag: 1, reserve: n - 1 }; }
+}
+
 // Mürettebat çağrısı: sürücü / pilot aracı ayırınca yakındaki boştaki takım arkadaşlarını (önce aynı mangal) koltuklara çağırır: helikopter 2 kapı
 // nişancısı + kabin, tank nişancı, jip 3 yolcu. (Eskiden yolcular yalnız bekleyen araca kendileri geliyordu; üste herkes jip / tank alıp gittiği için
 // helikopterin nişancısı hiç gelmiyordu.)
@@ -247,7 +305,10 @@ function recruit(b, v) {
   const cand = [];
   for (const o of g.brains) {
     const q = o.s;
-    if (o === b || !q.alive || q.team !== s.team || q.veh || o.vRes || o.vRide || o.target || o.vd || q.hp < 40) continue;
+    // 12.200 nişancısız kalkmayan araç (helikopter) önceliklidir: başka (jip / tank) koltuğuna çağrılmış ama henüz binmemiş botu da alır. Araç 20 → 36
+    // olunca üsteki boştaki botların hepsi jip yolcusu çağrılıyor, helikopter nişancı bulamayıp hiç kalkmıyordu ("nişancısız" iniş)
+    const steal = k === 'heli' && o.vRide && o.vRide.v !== v && kindOf(o.vRide.v) !== 'heli';
+    if (o === b || !q.alive || q.team !== s.team || q.veh || o.vRes || (o.vRide && !steal) || o.target || o.vd || q.hp < 40) continue;
     const d = Math.hypot(q.pos.x - v.st.x, q.pos.z - v.st.z);
     if (d > R) continue;
     const dest = tripDest(o); if (!dest || Math.hypot(dest.x - q.pos.x, dest.z - q.pos.z) < 140) continue;
@@ -552,6 +613,7 @@ function heliDrive(b, dt, inp) {
   const home = v.spawn, o = tripDest(b);
   if (vd.state === 'wait') {
     const coming = g.brains.some((q) => (q.rideGoal === v || q.vRide?.v === v) && q.s.alive), full = !v.seats.some((q, i) => i > 0 && !q), gun = v.seats[1] || v.seats[2];
+    if (!full && (vd.rcT = (vd.rcT ?? 2) - dt) <= 0) { vd.rcT = 2.5; recruit(b, v); }      // 12.200 beklerken boş kapı koltuğuna yeniden çağrı (yeni doğan / boşalan arkadaş)
     if (st.rpm > 0.95 && gun && (vd.t > HELI.wait[1] || (vd.t > HELI.wait[0] && (!coming || full)))) { vd.state = 'climb'; vd.tOff = vd.t; }
     else if (vd.t > HELI.wait[1] * (coming ? 2 : 1) && !gun) { v.botBad = g.time + 30; vbExit(b, 'nişancısız'); return; }      // kapı nişancısı yoksa kalkmaz (helikopterin işi nişancıyı taşımak)
     V.drive(v, inp, dt); return;

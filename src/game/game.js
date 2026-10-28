@@ -49,7 +49,7 @@ import { ObjFx } from './objFx.js';                                  // 12.191 b
 import { Front } from './front.js';                                  // Cephe modu (12.158)
 import { Vehicles } from './vehicles.js';                            // 12.177 araçlar (Kuzey Vadisi: jip)
 import { assignSquadsBig, perchBig, spawnFlagBig } from './bigBots.js';           // 12.189 büyük harita bot çatışma akışı
-import { vnav } from './vehicleBots.js';                                         // 12.189 bot sürücüler (araç ızgarası)
+import { vnav, botAtLoadout } from './vehicleBots.js';                                         // 12.189 bot sürücüler (araç ızgarası)
 import { VehicleView } from './vehicleView.js';
 import { VehicleHud } from './vehicleHud.js';
 import { squadOn, assignDefault, placeHuman, mateSpawnState, mateSpawnPoint, squadMates, SP } from './squad.js';     // 12.202 manga
@@ -1111,6 +1111,7 @@ export class Game {
     }
     const pt = s.def.zombie && this.infPool ? this.pickZombieSpawn(s, first) : this.pickSpawn(s.team, s);
     s.spawn(pt, first ? TUNE.firstProtect : TUNE.spawnProtect);
+    if (s.brain && this.vehicles) botAtLoadout(this, s);              // 12.200 zırhlı araçlı haritada bot tanksavar donanımı (vehicleBots.js)
     this.world.settle(s);
     if (pt.squad) s.pos.y = pt.y + 0.002;                              // 12.202 mangadan doğuş: arkadaşın katı (köprü altı / tünel / üst kat; settle tabliyeye çıkarmasın)
     else if (pt.y > s.pos.y + 0.3) s.pos.y = pt.y;                          // kat doğuşu (kale güvertesi): settle yalnız zemine / alçak engele oturtur
@@ -2100,7 +2101,7 @@ export class Game {
         if (gt === 'smoke') spawnSmoke(this, boom, p.st, p.owner);
         else if (gt === 'flash') flashBang(this, boom, p.owner, p.st);
         else if (p.type === 'grenade' && p.st.kind === 'throwable') this.fragBlast(boom, p.st, p.owner, p.inHand ? 9 : undefined);      // 12.193 PUBG tarzı parça tesiri (öldürücü iç yarıçap + düşüş, siper)
-        else this.explode(boom, p.st.radius, p.st.dmg, p.owner, p.st.name, p.inHand ? 9 : undefined, p.type === 'rocket' ? 'at' : 'blast');      // 12.178: RPG tanksavar
+        else this.explode(boom, p.st.radius, p.st.dmg, p.owner, p.st.name, p.inHand ? 9 : undefined, p.type === 'rocket' ? 'at' : 'blast', p.st.armorMul ? { pierce: p.st.armorMul } : null);      // 12.178: RPG tanksavar · 12.200 zırh delme (yalnız zırhlı araca)
       }
     }
   }
