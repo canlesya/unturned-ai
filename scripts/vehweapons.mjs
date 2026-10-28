@@ -330,9 +330,9 @@ async function online(chromium) {
   await B.evaluate(() => { const g = window.__game, me = g.playerSoldier; me.yaw = Math.atan2(-(305 - me.pos.x), -(-392 - me.pos.z)); me.pitch = -0.12; });
   // 12.201 burun topu artının noktasına gider → artıyı (takip kamerası ışını; bakış − 0,16) yakındaki düşmanın gövdesine koy
   await A.evaluate((ids) => { const g = window.__game, me = g.playerSoldier; const aim = () => { const T = ids.map((i) => g.soldiers[i]).filter((e) => e.alive).sort((a, b) => Math.hypot(a.pos.x - me.pos.x, a.pos.z - me.pos.z) - Math.hypot(b.pos.x - me.pos.x, b.pos.z - me.pos.z))[0]; if (!T) return; const c = g.camera.position, t = T.center(), dx = t.x - c.x, dz = t.z - c.z; me.yaw = Math.atan2(-dx, -dz); me.pitch = Math.atan2(t.y - c.y, Math.hypot(dx, dz)) + 0.16; }; aim(); window.__pa = setInterval(aim, 8); g.player.fireHeld = true; }, ids2);
-  await A.waitForTimeout(700); await A.evaluate(() => { const g = window.__game; g.player.fireHeld = false; g.player.mmb = true; });      // 12.201 roket: orta tık (sağ tık = yakınlaştırma)
+  await A.waitForTimeout(700); await A.evaluate(() => { const g = window.__game; g.player.fireHeld = false; if (g.player.vehWeapon) { g.player.vehWeapon(1); g.player.fireHeld = true; } else g.player.mmb = true; });      // 12.206 roket: Q ile seç + sol tık (12.201: orta tık)
   await A.waitForTimeout(500); await Promise.all([A.screenshot({ path: `${OUT}/sonra/23-cevrimici-A-pilot-roket.png` }), B.screenshot({ path: `${OUT}/sonra/24-cevrimici-B-pilot-roket.png` })]);
-  await A.waitForTimeout(900); await A.evaluate(() => { window.__game.player.mmb = false; clearInterval(window.__pa); });
+  await A.waitForTimeout(900); await A.evaluate(() => { const P = window.__game.player; P.mmb = false; P.fireHeld = false; P.vehWeapon?.(0); clearInterval(window.__pa); });
   await A.waitForTimeout(800);
   const res2 = await Promise.all([A, B].map((P) => P.evaluate((ids) => { const g = window.__game; return { sh: g._sh, rk: g._rk, feed: g._feed2.filter((x) => ids.includes(x[1])) }; }, ids2)));
   ok(hseat[0] === 'B-H1' && hseat[1] === 0 && res2[1].sh > 3 && res2[1].rk >= 1, 'çevrim içi helikopter pilotu (tek kişi): burun topu izleri + roketler diğer istemcide görünür', JSON.stringify({ seat: hseat, B: { sh: res2[1].sh, rk: res2[1].rk } }));

@@ -90,7 +90,7 @@ export const VT = {
     nose: { seats: [0], fixed: true, f: 3.55, u: 0.72, dp: -0.05, cone: [-0.26, 0.14, 0.17], zoom: 1.5, name: 'Burun topu', dmg: 20, rpm: 750, range: [80, 220], minMul: 0.6, hip: 0.006, tracer: '#ffb35a', sound: 'pkm', vmg: true, vk: 'hmg', heat: 0.016, cool: 0.4 },
     // 12.206 roketler artının noktasına yakınsar (burun topuyla aynı nokta; yerçekimi + helikopterin hızı telafi: rocketDir), burnun konisinde (cone =
     // burun topununki) kırpılır; minAim: kapsülden bu kadar yakın nişan bu uzaklığa uzatılır (dibindeki yere roket atıp kendini vurmasın)
-    rockets: { name: 'Roket', n: 14, rate: 0.2, reload: 6, speed: 125, grav: 3, dmg: 130, radius: 5.5, inner: 1.2, vehInner: 0.4, prox: 0, dp: 0, cone: [-0.26, 0.14, 0.17], minAim: 25, pods: [[1.75, -1.62, 0.6], [1.75, 1.62, 0.6]] },
+    rockets: { name: 'Roket', n: 14, rate: 0.2, reload: 6, speed: 125, grav: 3, dmg: 130, radius: 5.5, inner: 1.2, vehInner: 0.4, prox: 0, dp: 0, cone: [-0.26, 0.14, 0.17], minAim: 8, pods: [[1.75, -1.62, 0.6], [1.75, 1.62, 0.6]] },
   },
 };
 VT['heli-s'] = VT['heli-n'];                                       // saldırı helikopteri ayrı model gelene dek aynı nakliye helikopteri
