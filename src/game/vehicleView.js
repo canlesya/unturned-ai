@@ -136,8 +136,8 @@ export class VehicleView {
       const h = W.heightAt(_w.x, _w.z), gp = groundAt(W, _w.x, _w.z, _w.y + 0.05, up), gy = gp > h + 0.01 ? gp : R(_w.x, _w.z);
       if (gy - _w.y > sink) sink = gy - _w.y;
     }
-    const hr = d.moto ? [0] : [-d.hw, 0, d.hw];                                        // gövde altı 5 × 3 (motor yatar: yalnız orta hat)
-    for (const f of [-d.hl, -d.hl / 2, 0, d.hl / 2, d.hl]) for (const r of hr) {
+    const hr = d.moto ? [0] : [-d.hw, 0, d.hw];                                        // gövde altı 9 × 3 (motor yatar: yalnız orta hat)
+    for (let i = 0; i <= 8; i++) for (const r of hr) { const f = -d.hl + i * d.hl / 4;
       _w.set(r, d.clear, -f).applyMatrix4(M);
       const gy = R(_w.x, _w.z);
       if (gy - _w.y > sink) sink = gy - _w.y;
