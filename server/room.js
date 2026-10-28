@@ -21,9 +21,9 @@ export const MAPS_FOR = (type) => (type === 'space' ? SPACE_MAPS : type === 'inf
 // 12.211 yük koruması: odanın sim adımı 2 sn'lik pencerelerde ort. LOAD_HI ms'yi 4 sn üst üste aşarsa seviye bir artar (en çok 3), LOAD_LO'nun
 // altında 20 sn kalırsa bir iner. 1: boştaki / yolcu / uyarılmış botlar seyrek düşünür · 2: çatışmadaki botlar da 2 adımda bir (bot.js tick) ·
 // 3: + ölü botların en çok %25'i park edilir (yuva boş, doğmaz; seviye inince geri gelir; insan girerse yuvayı alır). Günlüğe [yük] satırı.
-// Eşikler canlı sunucuya göre (60 Hz bütçe 16,7 ms): BF_LOAD_HI (12) / BF_LOAD_LO (6) ms; BF_LOAD=0 kapalı.
+// Eşikler canlı sunucuya göre (60 Hz bütçe 16,7 ms): BF_LOAD_HI (11) / BF_LOAD_LO (6) ms; BF_LOAD=0 kapalı.
 const EV_FAR = +process.env.BF_EV_FAR || 400;                     // 12.211 uzak atış olayı eşiği (m)
-const LOAD_ON = process.env.BF_LOAD !== '0', LOAD_HI = +process.env.BF_LOAD_HI || 12, LOAD_LO = +process.env.BF_LOAD_LO || 6;
+const LOAD_ON = process.env.BF_LOAD !== '0', LOAD_HI = +process.env.BF_LOAD_HI || 11, LOAD_LO = +process.env.BF_LOAD_LO || 6;
 
 const num = (v, lo, hi, d = 0) => (Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d);
 

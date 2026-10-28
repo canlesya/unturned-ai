@@ -802,7 +802,7 @@ export class Soldier {
       if (sw.t >= sw.dur) this.swing = null;
     }
     this.sinceShot += dt;
-    { const st = this.stat; this.bloom = Math.max(0, this.bloom - dt * (st.ball ? (this.sinceShot > 0.12 ? st.bloomRec ?? 0.06 : 0.006) : 0.05)); }      // paintball: seri sürerken açılma neredeyse sönmez, bırakınca toparlanır
+    if (this.bloom > 0) { const st = this.stat; this.bloom = Math.max(0, this.bloom - dt * (st.ball ? (this.sinceShot > 0.12 ? st.bloomRec ?? 0.06 : 0.006) : 0.05)); }      // 12.211 sıfırken getter zinciri çağrılmaz (sonuç aynı)      // paintball: seri sürerken açılma neredeyse sönmez, bırakınca toparlanır
     this.recoilP = Math.max(0, this.recoilP - dt * (0.06 + this.recoilP * 4.5));
     if (this.reloadT > 0 && this.game.online && this !== this.game.playerSoldier) {
       // 12.195: çevrim içinde uzaktaki savaşçı: cephanesi bilinmez (yedek 0 görünür → fişekli reload hemen bitiyordu, 3. şahısta animasyon yoktu); süre yalnız görüntü için akar
@@ -848,7 +848,7 @@ export class Soldier {
     // hedef nişan geçişi
     // 12.201: araç silahı koltuğunda (sürücü / pilot / makineli) piyade nişanı yok — sağ tık aracın kendi yakınlaştırması (Player.vehZoom); kendi silahıyla ateş eden yolcu normal
     const wantAds = this.ads && this.reloadT <= 0 && this.switchT <= 0 && this.zoomNow && !this.sprinting && !this.swim && !(this.veh && vehSeatArmed(this.veh.def, this.seat));      // 12.180 yüzerken nişan yok
-    this.adsT = clamp(this.adsT + (wantAds ? 1 : -1) * dt * this.adsRate, 0, 1);      // 12.153: adsTime (sn) silaha özgü dürbün süresi (12.174: dönem dürbününün kendi süresi)
+    if (wantAds || this.adsT > 0) this.adsT = clamp(this.adsT + (wantAds ? 1 : -1) * dt * this.adsRate, 0, 1);      // 12.211 nişan dışı ve sıfırken adsRate getter'ı çağrılmaz      // 12.153: adsTime (sn) silaha özgü dürbün süresi (12.174: dönem dürbününün kendi süresi)
     if (this.swim) { this.crouching = false; this.prone = false; }
     if (this.prone) this.crouching = false;
     this.height = this.prone ? H_PRONE : this.crouching ? H_CROUCH : H_STAND;
