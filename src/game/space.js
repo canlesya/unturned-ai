@@ -19,7 +19,8 @@ const matOf = (vm) => {
   if (vm._enFor === vm.model) return vm._enMat;
   let m = null;
   vm.model?.traverse((o) => { if (!m && o.material?.userData?.U?.uEnK) m = o.material; });
-  vm._enFor = vm.model; vm._enMat = m; vm._en0 = m ? m.userData.U.uEn.value.clone() : null; vm.heat = 0; vm.charge = 1; vm.pulse = 0;
+  if (m) { const ud = m.userData; ud.en0 ||= ud.U.uEn.value.clone(); ud.U.uEn.value.copy(ud.en0); ud.U.uEnK.value = 1; }      // 12.210: model önbellekten geri gelebilir → özgün enerji rengi malzemede saklı (ısınmış renk taban sanılmasın)
+  vm._enFor = vm.model; vm._enMat = m; vm._en0 = m ? m.userData.en0 : null; vm.heat = 0; vm.charge = 1; vm.pulse = 0;
   return m;
 };
 

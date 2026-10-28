@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { WSTATS } from './stats.js';
 
 // Gölgelendirici ön ısıtma (12.151): oyunun ilk karesinden ÖNCE (yükleme ekranı hâlâ açıkken) maç içinde ilk kez gerekecek WebGL programları derlenir.
 // Neden: Firefox'ta KHR_parallel_shader_compile yok ve WebGL ayrı GPU sürecinde çalışır; three.js her yeni programı ilk kullanıldığı karede eşzamanlı
@@ -22,6 +23,24 @@ export function warmup(game) {
   try {
     game.scene.updateMatrixWorld(true);
     both(game.scene, game.camera);
+    // 12.210 geliştirici araçları (J/K ile her silah elde denenebilir): her yuvadaki bütün eşyaların programları da derlenir. Donanım döngüsünden ÖNCE: önbellekte
+    // sonuncular (donanımdakiler, GPU'ya yüklenmiş) kalsın. Önbellekten düşen model malzemesini atmadığı için program canlı kalır → J/K ile ilk kez gelen silahta derleme donması yok (paintball / pençe / uzay: 75–235 ms ölçüldü)
+    if (p.devTools?.()) {
+      const cur = s.cur, slots = ['primary', 'secondary', 'gadget', 'melee'];
+      for (let i = 0; i < Math.min(4, s.items.length); i++) {
+        const keep = s.items[i]; s.cur = i;
+        for (const id of Object.keys(WSTATS)) {
+          if (WSTATS[id].slot !== slots[i] || id === keep?.id) continue;
+          s.items[i] = { id, mag: 1, reserve: 0 };
+          p.refreshWeapon();
+          vm.scene.updateMatrixWorld(true);
+          r.compile(vm.scene, vm.cam);
+          vm.setFade(0.5, 0); r.compile(vm.scene, vm.cam); vm.setFade(0, 1);      // nişan solması varyantı
+        }
+        s.items[i] = keep;
+      }
+      s.cur = cur;
+    }
     // birinci şahıs: her yuvadaki eşya; ana silahta izin verilen her nişangâh (ACOG / PSO merceği: saydam disk + geçiş camı, 12.162)
     const cur = s.cur, optic = s.optic, om = s.optics, seen = new Set();
     s.optics = {};      // 12.174: silaha özgü nişangâh seçimi ön ısıtmada geçici kapalı (s.optic ile her nişangâh denenir)
