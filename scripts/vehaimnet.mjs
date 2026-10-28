@@ -1,5 +1,5 @@
 // 12.201 araç nişanı — çevrim içi (iki istemci, gerçek sunucu): A helikoptere pilot olarak biner, kalkar, burnu fareyle aşağı eğer (S basılı = yerinde
-// asılı), burun topuyla aşağıya, Q / orta tıkla roket atar. Sunucunun yolladığı 'sh' / 'ts' olaylarından merminin çıkış pitch'i ölçülür (A ve B'de),
+// asılı; 12.206: W basmadan), burun topuyla aşağıya; 12.206: Q ile roket seçip sol tıkla atar (sunucunun patlama noktası ↔ A'nın artısı). Sunucunun yolladığı 'sh' / 'ts' olaylarından merminin çıkış pitch'i ölçülür (A ve B'de),
 // A'nın tahmin ettiği burun eğimi ↔ B'nin gördüğü (sunucu) eğim, sağ tık = aracın yakınlaştırması (piyade optiği yok), inince nişan sıfır.
 //   node scripts/vehaimnet.mjs [url=http://127.0.0.1:5183] [ws=ws://127.0.0.1:8964] [çıktı=/tmp/wb-vaim/net]
 import { chromium } from 'playwright';
@@ -37,7 +37,7 @@ const inA = await A.evaluate(() => { const s = window.__game.playerSoldier; retu
 check(inA.veh === heli.i && inA.seat === 0, `A helikoptere pilot olarak bindi (${JSON.stringify(inA)})`);
 const aId = await A.evaluate(() => window.__game.playerSoldier.id);
 // sunucu olayları: A'nın burun topu izleri ('sh' vm) ve roketleri ('ts' w: 1) — her iki istemcide
-for (const P of [A, B]) await P.evaluate((aid) => { const g = window.__game; g._sh = []; g._ts = []; g.online.ws.addEventListener('message', (e) => { let m; try { m = JSON.parse(e.data); } catch { return; } if (m.t !== 'ev') return; for (const x of m.l) { if (x.e === 'sh' && x.vm && x.by === aid && x.p) g._sh.push({ o: x.o, p: x.p }); if (x.e === 'ts' && x.w === 1 && x.by === aid) g._ts.push({ o: x.o, d: x.d }); } }); }, aId);
+for (const P of [A, B]) await P.evaluate((aid) => { const g = window.__game; g._sh = []; g._ts = []; g.online.ws.addEventListener('message', (e) => { let m; try { m = JSON.parse(e.data); } catch { return; } if (m.t !== 'ev') return; for (const x of m.l) { if (x.e === 'sh' && x.vm && x.by === aid && x.p) g._sh.push({ o: x.o, p: x.p }); if (x.e === 'ts' && x.w === 1 && x.by === aid) g._ts.push({ o: x.o, d: x.d }); if (x.e === 'tsb' && x.w === 1 && x.by === aid) (g._tsb ||= []).push(x.p); } }); }, aId);
 // B helikopteri izler (her kare bakış helikopterin önünde, burun topu izlerinin ortasına)
 await B.evaluate((vi) => {
   const g = window.__game, P = Object.getPrototypeOf(g), r0 = P.render;
@@ -56,14 +56,13 @@ const z1 = await A.evaluate(() => { const g = window.__game, P = g.player, me = 
 await A.screenshot({ path: `${OUT}/01-A-pilot-sagtik.png` });
 check(z1.adsT === 0 && !z1.lens && z1.zoom > 1.3 && z1.zoom < 1.8, `çevrim içi pilot sağ tık: aracın yakınlaştırması ×${z1.zoom}, piyade optiği yok (adsT ${z1.adsT})`);
 await A.evaluate(() => { window.__game.playerSoldier.ads = false; });
-// burun aşağı (bakış −0,6) + S (yerinde asılı)
+// burun aşağı (bakış −0,6), 12.206: W basılmadan yerinde asılı (eskiden S basılı)
 await A.evaluate(() => { window.__game.playerSoldier.pitch = -0.6; });
-await key(A, 'keydown', 'KeyS');
 await A.waitForTimeout(3500);
 const nose = await Promise.all([A, B].map((P) => P.evaluate((vi) => { const v = window.__game.vehicles.list[vi]; return { p: +v.st.pitch.toFixed(3), sp: +Math.hypot(v.st.vx || 0, v.st.vz || 0).toFixed(2) }; }, heli.i)));
 console.log('   burun A (tahmin)', JSON.stringify(nose[0]), '· B (sunucu)', JSON.stringify(nose[1]));
 check(nose[0].p < -0.35 && Math.abs(nose[0].p - nose[1].p) < 0.05, `burun eğimi A'da ${nose[0].p}, B'de (sunucu) ${nose[1].p} rad`);
-check(nose[1].sp < 2, `burun aşağı + S: yerinde asılı (B'de yatay hız ${nose[1].sp} m/sn)`);
+check(nose[1].sp < 2, `burun aşağı (W yok): yerinde asılı (B'de yatay hız ${nose[1].sp} m/sn)`);
 for (const P of [A, B]) await P.evaluate(() => { window.__game._sh.length = 0; window.__game._ts.length = 0; });
 await A.evaluate(() => { window.__game.player.fireHeld = true; });
 await A.waitForTimeout(500);
@@ -77,16 +76,23 @@ const sh = await Promise.all([A, B].map((P) => P.evaluate(() => { const g = wind
 const sp = sh[1].map((s) => pit(s.o, s.p)), mean = (a) => a.reduce((x, y) => x + y, 0) / Math.max(1, a.length), grd = sh[1].filter((s) => Math.abs(s.p[1] - s.gy) < 2.5).length;
 console.log(`   sunucu 'sh': A ${sh[0].length}, B ${sh[1].length} · çıkış pitch ort. ${mean(sp).toFixed(3)} rad (${(mean(sp) * 57.3).toFixed(1)}°) · ${grd} yere`);
 check(sh[1].length >= 6 && mean(sp) < -0.45 && grd >= sh[1].length * 0.7, `çevrim içi burun topu aşağı: sunucu izleri ${sh[1].length}, çıkış ${mean(sp).toFixed(3)} rad, ${grd}/${sh[1].length} yere (eski: hep −0,05)`);
-// roket: orta tık 0,8 sn
-await A.evaluate(() => { window.__game.player.mmb = true; });
+// roket: 12.206 Q (gerçek tuş) ile roket seç + sol tık 0,8 sn; A'nın artı noktası kaydedilir
+await press(A, 'KeyQ');
+await A.waitForTimeout(200);
+const vwA = await A.evaluate(() => window.__game.playerSoldier.vw);
+const aimP = await A.evaluate(() => { const P = window.__game.playerSoldier.gunAim?.P; return P ? [P.x, P.y, P.z] : null; });
+for (const P of [A, B]) await P.evaluate(() => { window.__game._tsb = []; });
+await A.evaluate(() => { window.__game.player.fireHeld = true; });
 await A.waitForTimeout(800);
-await A.evaluate(() => { window.__game.player.mmb = false; });
-await A.waitForTimeout(500);
+await A.evaluate(() => { window.__game.player.fireHeld = false; });
+await A.waitForTimeout(1500);
 await B.screenshot({ path: `${OUT}/04-B-roket.png` });
 const ts = await B.evaluate(() => window.__game._ts);
 const rp = ts.map((r) => Math.atan2(r.d[1], Math.hypot(r.d[0], r.d[2])));
-check(ts.length >= 2 && mean(rp) < -0.35, `çevrim içi roket (orta tık): ${ts.length} roket, pitch ${mean(rp).toFixed(3)} rad (burun ${nose[1].p})`);
-await key(A, 'keyup', 'KeyS');
+check(ts.length >= 2 && mean(rp) < -0.35, `çevrim içi roket (Q seç + sol tık, vw ${vwA}): ${ts.length} roket, pitch ${mean(rp).toFixed(3)} rad (burun ${nose[1].p})`);
+const tsb = await B.evaluate(() => window.__game._tsb || []), me2 = tsb.map((p) => Math.hypot(p[0] - aimP[0], p[1] - aimP[1], p[2] - aimP[2]));
+console.log(`   sunucu roket patlamaları ${tsb.length} · A'nın artısına ort. ${mean(me2).toFixed(2)} m, en çok ${Math.max(...me2, 0).toFixed(2)} m`);
+check(vwA === 1 && tsb.length >= 2 && mean(me2) < 2, `çevrim içi roket artının noktasına (sunucu, gP): ort. ${mean(me2).toFixed(2)} m`);
 // sağ tık açıkken in → nişan / yakınlaştırma sıfır (aç-kapa nişan da)
 await A.evaluate(() => { window.__game.playerSoldier.ads = true; window.__game.playerSoldier.pitch = 0; });
 await key(A, 'keydown', 'KeyC'); await A.waitForTimeout(4500); await key(A, 'keyup', 'KeyC');

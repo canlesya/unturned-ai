@@ -1,4 +1,4 @@
-import { VT, makeVehicle, stepVehicle, toWorld, toLocal2, obbBox, rayVehicle, packVehState, applyVehState, vehicleAtRest, groundAt, gunPose, mgAt, seatGun, shellVel, shellAdvance, heFalloff, noseDir, mgPitch } from '../sim/vehicle.js';
+import { VT, makeVehicle, stepVehicle, toWorld, toLocal2, obbBox, rayVehicle, packVehState, applyVehState, vehicleAtRest, groundAt, gunPose, mgAt, seatGun, shellVel, shellAdvance, heFalloff, noseDir, mgPitch, rocketDir } from '../sim/vehicle.js';
 import { dirFromAngles } from './util.js';
 import * as THREE from 'three';
 import { R as SR } from './collision.js';
@@ -591,11 +591,23 @@ export class Vehicles {
     out.y = Math.atan2(-dx, -dz); out.p = Math.atan2(dy, Math.hypot(dx, dz)); out.P = P; out.dist = Math.hypot(dx, dy, dz); out.hit = hit;
     return out;
   }
-  // 12.201 HUD roket işareti: şu an atılan roketin ilk isabet noktası (fireRocket ile aynı çıkış + aynı integral / isabet; 3 sn'ye dek) ya da null
+  // 12.206 sıradaki roketin çıkışı + yönü (fireRocket, HUD ve botlar aynı): sıradaki kapsülün ağzından artının noktasına (by.gunAim.P: oyuncuda
+  // kamera ışınının çarptığı nokta, sunucuda istemcinin yolladığı gP, botta hedef) yakınsar, burnun konisinde kırpılır (rocketDir). out: { o, d, c }
+  rocketAimFor(v, by, out = {}) {
+    const R = v.def.rockets, st = v.st, n = v.rk ?? R.n, pod = R.pods[(R.n - n) % R.pods.length];
+    const o = toWorld(st, pod[0], pod[1], pod[2], (out.o ||= { x: 0, y: 0, z: 0 }));
+    const aim = by && by.veh === v && by.seat === 0 ? by.gunAim : null;
+    const rd = rocketDir(st, R, o, aim?.P || null, (this._rdr ||= {}));
+    out.d = dirFromAngles(rd.y, rd.p, (out.d ||= new THREE.Vector3())); out.c = rd.c; out.aim = !!aim?.P;
+    return out;
+  }
+  // 12.201 HUD roket işareti: şu an atılan roketin ilk isabet noktası (fireRocket ile aynı çıkış + aynı integral / isabet; 3 sn'ye dek) ya da null.
+  // 12.206: roket artıya yakınsadığı için işaret artının üstündedir; burun konisi sınırında (out.c) gerçek düşüş noktasını gösterir
   predictRocket(v, by, out = {}) {
     const R = v.def.rockets, st = v.st; if (!R || !st) return null;
-    const pod = R.pods[0], o = toWorld(st, pod[0], 0, pod[2], { x: 0, y: 0, z: 0 }), d = dirFromAngles(st.yaw, (st.pitch || 0) + (R.dp || 0), (this._rd ||= new THREE.Vector3()));
+    const A = this.rocketAimFor(v, by, (this._rpa ||= {})), o = A.o, d = A.d;
     const sh = { x: o.x, y: o.y, z: o.z, vx: d.x * R.speed + st.vx, vy: d.y * R.speed + st.vy, vz: d.z * R.speed + st.vz }, a = { x: 0, y: 0, z: 0 }, dd = { x: 0, y: 0, z: 0 }, h0 = 1 / 30;
+    out.c = A.c;
     for (let k = 0; k < 90; k++) {
       a.x = sh.x; a.y = sh.y; a.z = sh.z;
       shellAdvance(sh, h0, R.grav);
@@ -649,20 +661,29 @@ export class Vehicles {
     return true;
   }
 
-  // 12.188 helikopter roketleri (pilot; 12.201: Q / orta tık / telefonda ROKET, eskiden sağ tık): YETKİLİ tarafta (tank topu gibi 'ts' olayı, w: 1) — kapsüllerden sırayla, burnun yönünde; HE sıçrama
-  // (shellTrace / explode ortak). v.rk kalan, v.rkT atış arası, v.rkR dolum (boşalınca R.reload sn). Botlar için: fireRocket(araç, pilot).
+  // 12.188 helikopter roketleri (pilot): YETKİLİ tarafta (tank topu gibi 'ts' olayı, w: 1) — kapsüllerden sırayla; HE sıçrama (shellTrace / explode ortak).
+  // 12.206 (Battlefield saldırı helikopteri): pilot SEÇİLİ silahı sol tıkla ateşler (s.vw 1 = roket; Q / fare tekerleği değiştirir), roket artının
+  // noktasına yakınsar (rocketAimFor: burun topuyla aynı nokta). v.rk kalan, v.rkT atış arası, v.rkR dolum (boşalınca ya da R ile R.reload sn).
+  // Botlar için: fireRocket(araç, pilot) — pilotun gunAim.P'si hedef.
   fireRocket(v, by) {
     const R = v.def.rockets;
     if (!R || !v.alive || !v.st || this.g.online || (v.rkT || 0) > 0 || (v.rkR || 0) > 0) return false;
     if (v.rk == null) v.rk = R.n;
     if (v.rk <= 0) return false;
-    const st = v.st, pod = R.pods[(R.n - v.rk) % R.pods.length], o = toWorld(st, pod[0], pod[1], pod[2], { x: 0, y: 0, z: 0 }), d = dirFromAngles(st.yaw, (st.pitch || 0) + (R.dp || 0));
+    const st = v.st, A = this.rocketAimFor(v, by, (this._fra ||= {})), o = { x: A.o.x, y: A.o.y, z: A.o.z }, d = A.d;
     v.rk--; v.rkT = R.rate; if (v.rk <= 0) v.rkR = R.reload;
     const id = ++this.shellN, vel = { vx: d.x * R.speed + st.vx, vy: d.y * R.speed + st.vy, vz: d.z * R.speed + st.vz };
     this.addShell({ id, v, by, w: R, x: o.x, y: o.y, z: o.z, ...vel, t: 0, auth: true });
     this.g.netEvent({ e: 'ts', id, i: v.idx, w: 1, by: by ? by.id : -1, o: [r2(o.x), r2(o.y), r2(o.z)], d: [r2(vel.vx), r2(vel.vy), r2(vel.vz)] });
     by && (by.spottedT = this.g.time);
     this.g.alertNear?.(o, by?.team, 120);
+    return true;
+  }
+  // 12.206 R: kapsülü elle doldur (yarım kapsül; dolum süresince atış yok). Yetkili tarafta (çevrim içinde sunucu, girdi 'rl')
+  reloadRockets(v) {
+    const R = v?.def.rockets;
+    if (!R || !v.alive || this.g.online || (v.rkR || 0) > 0 || (v.rk ?? R.n) >= R.n) return false;
+    v.rkR = R.reload;
     return true;
   }
 

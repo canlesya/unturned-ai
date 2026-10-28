@@ -1,5 +1,5 @@
 // 12.201 araç nişanı — başsız (sunucunun yolu: Game.vehTick, insan girdisi kuyruğu): helikopter burnu artıyı izler (gy / gp), burun topu artının
-// noktasına (koni), burun aşağı = öne hızlanır, burun aşağı + S = yerinde asılı; roket burnun yönünde; eski istemci (gy / gp yok) bozulmaz; tank topu
+// noktasına (koni), 12.206: W yokken burun aşağı = yerinde asılı, W + burun aşağı = öne; roket (vw + sol tık + gP) artının noktasına, eski 'rk' burnun yönünde; eski istemci (gy / gp yok) bozulmaz; tank topu
 // tepeden aşağıdaki hedefe (−10°), jip makinelisi yan yatık jipte aşağı (gövdeye göre sınır). Sayısal çıktı + OK / HATA.
 //   node scripts/vehaimhl.mjs
 import { Game } from '../src/game/game.js';
@@ -27,29 +27,35 @@ const hl = V.list.find((x) => x.id === 'B-H1'), YE = -Math.PI / 2, X0 = 292, Z0 
 put(hl, X0, Z0, YE, H0); s.pos.set(X0 + 3, W.heightAt(X0 + 3, Z0), Z0); s.protT = 0; V.enter(s, hl, 0);
 const P = { x: X0 + 70, y: W.heightAt(X0 + 70, Z0), z: Z0 };
 const aimIn = (o = {}) => () => { const A = V.noseAimAt(hl, P, {}); return { yw: A.y, pt: A.p, gy: A.y, gp: A.p, ...o }; };
-step(240, aimIn({ f: -1, j: 0 }));                                    // burun aşağı + S (yerinde asılı)
+step(240, aimIn({ f: 0, j: 0 }));                                     // 12.206 burun aşağı, W yok: yerinde asılı (eskiden S gerekiyordu)
 const want = V.noseAimAt(hl, P, {}).p, sp0 = Math.hypot(hl.st.vx, hl.st.vz);
 ok(hl.st.pitch < -0.35, 'burun artıyı izler: aşağıdaki hedefe bakınca burun eğilir', `burun ${f3(hl.st.pitch)} rad (${deg(hl.st.pitch)}), artı ${f3(want)} rad`);
-ok(sp0 < 1.2, 'burun aşağı + S: yerinde asılı kalır (hover)', `yatay hız ${f2(sp0)} m/sn`);
-shots.length = 0; step(60, aimIn({ f: -1, fh: 1 }));
+ok(sp0 < 1.2, 'burun aşağı, W yok: yerinde asılı kalır (hover)', `yatay hız ${f2(sp0)} m/sn`);
+shots.length = 0; step(60, aimIn({ f: 0, fh: 1 }));
 const L1 = land(shots), miss1 = L1.map((p) => (p ? Math.hypot(p.x - P.x, p.y - P.y, p.z - P.z) : 99)), pit1 = shots.map((o) => Math.asin(o.d.y));
 ok(shots.length >= 8 && mean(pit1) < -0.45 && mean(miss1) < 4, 'hover\'da burun topu aşağı, artının noktasına', `${shots.length} mermi · çıkış pitch ort. ${f3(mean(pit1))} rad (${deg(mean(pit1))}) · artıdan ort. ${f2(mean(miss1))} m (70 m önde, 45 m aşağıda)`);
-rks.length = 0; step(60, aimIn({ f: -1, rk: 1 }));
+rks.length = 0; step(60, aimIn({ f: 0, rk: 1 }));
 ok(rks.length >= 3 && Math.abs(mean(rks) - hl.st.pitch) < 0.03, 'roketler (girdi rk) burnun yönünde', `${rks.length} roket · pitch ${f3(mean(rks))} · burun ${f3(hl.st.pitch)}`);
 const R1 = { nose: hl.st.pitch, pitch: mean(pit1), miss: mean(miss1), n: shots.length };
-// S bırakılınca burun aşağıyken öne hızlanır (BF)
-step(180, aimIn({ f: 0 }));
+// 12.206 roket: seçili silah roket (vw 1) + sol tık (fh) + artının noktası (gP) → roketler P'ye yakınsar (sunucunun 'tsb' patlama noktası)
+{ const booms = [], ne = g.netEvent.bind(g); g.netEvent = (e) => { if (e.e === 'tsb' && e.w === 1) booms.push(e.p); return ne(e); };
+  hl.rk = hl.def.rockets.n; hl.rkR = 0; step(150, () => ({ ...aimIn({ f: 0 })(), vw: 1, fh: 1, gP: [P.x, P.y, P.z] }));
+  const m = booms.map((p) => Math.hypot(p[0] - P.x, p[1] - P.y, p[2] - P.z)), sp = Math.hypot(hl.st.vx, hl.st.vz);
+  ok(booms.length >= 8 && mean(m) < 1 && shots.length === R1.n, '12.206 roket seçili + sol tık + gP: roketler artının noktasına (burun topu ateşlenmez)', `${booms.length} roket · artıdan ort. ${f2(mean(m))} m, en çok ${f2(Math.max(...m))} m · yatay hız ${f2(sp)} m/sn`);
+  g.netEvent = ne; }
+// 12.206 W + burun aşağı: öne hızlanır (BF dalışı)
+step(180, aimIn({ f: 1 }));
 const sp1 = Math.hypot(hl.st.vx, hl.st.vz), fwd = -(hl.st.vx * Math.sin(hl.st.yaw) + hl.st.vz * Math.cos(hl.st.yaw));
-ok(fwd > 4, 'burun aşağı (S yok): öne hızlanır', `ileri hız ${f2(fwd)} m/sn (${f2(sp1 * 3.6)} km/s)`);
+ok(fwd > 4, 'W + burun aşağı: öne hızlanır', `ileri hız ${f2(fwd)} m/sn (${f2(sp1 * 3.6)} km/s)`);
 // koni: burun sınırının (−0,6) ötesi, dik aşağı (hedef 50 m önde, 45 m aşağıda) — burun topu koniyle daha aşağı
-put(hl, X0, Z0, YE, H0); step(30, () => ({ yw: YE, pt: 0, gy: YE, gp: 0, f: -1 }));
+put(hl, X0, Z0, YE, H0); step(30, () => ({ yw: YE, pt: 0, gy: YE, gp: 0, f: 0 }));
 const P2 = { x: X0 + 50, y: W.heightAt(X0 + 50, Z0), z: Z0 };      // ~36° aşağı: burun sınırının (−0,6 rad; S ile −0,52) altında
-const aim2 = () => { const A = V.noseAimAt(hl, P2, {}); return { yw: A.y, pt: A.p, gy: A.y, gp: A.p, f: -1 }; };
+const aim2 = () => { const A = V.noseAimAt(hl, P2, {}); return { yw: A.y, pt: A.p, gy: A.y, gp: A.p, f: 0 }; };
 step(240, aim2); shots.length = 0; step(40, () => ({ ...aim2(), fh: 1 }));
 const pit2 = mean(shots.map((o) => Math.asin(o.d.y))), miss2 = mean(land(shots).map((p) => (p ? Math.hypot(p.x - P2.x, p.y - P2.y, p.z - P2.z) : 99)));
 ok(pit2 < hl.st.pitch - 0.15 && miss2 < 4, 'dik aşağı hedef: burun sınırında, burun topu serbest koniyle daha aşağı', `burun ${f3(hl.st.pitch)} · mermi ${f3(pit2)} rad (${deg(pit2)}) · artıdan ${f2(miss2)} m`);
 // eski istemci (gy / gp yok, pt = bakış): burun bakışı izler, top burnun yönünde −0,05 (bozulmaz)
-put(hl, X0, Z0, YE, H0); step(200, { yw: YE, pt: -0.3, f: -1 }); shots.length = 0; step(30, { yw: YE, pt: -0.3, f: -1, fh: 1 });
+put(hl, X0, Z0, YE, H0); step(200, { yw: YE, pt: -0.3, f: 0 }); shots.length = 0; step(30, { yw: YE, pt: -0.3, f: 0, fh: 1 });
 const pit3 = mean(shots.map((o) => Math.asin(o.d.y)));
 ok(shots.length > 3 && Math.abs(pit3 - (hl.st.pitch - 0.05)) < 0.03, 'eski istemci (gy / gp yok): burun bakışla eğilir, top burnun yönünde', `burun ${f3(hl.st.pitch)} · mermi ${f3(pit3)}`);
 // kapı makinelisi: dik aşağı (eski sınır −1,25)

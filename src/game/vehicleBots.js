@@ -714,13 +714,17 @@ function heliAttack(b, dt, inp, gnd) {
   const aim = V.noseAimAt(v, tp, (s._ga ||= {}));
   s.gunAim = aim; inp.yw = aim.y; inp.pt = aim.p;                    // burun + burun topu hedefe (oyuncunun gy / gp'siyle aynı yol)
   const ye = Math.abs(angleDiff(st.yaw, inp.yw)), nd = noseDir(st, N, aim, (vd._nd ||= {}));
-  const ge = Math.abs(angleDiff(nd.y, aim.y)) + Math.abs(nd.p - aim.p), pe = st.pitch - aim.p;
+  const ge = Math.abs(angleDiff(nd.y, aim.y)) + Math.abs(nd.p - aim.p);
   inp.f = ye > 0.4 ? 0.05 : 0.2;                                       // yavaş yaklaşma (burun aşağıyken stepHeli zaten öne hızlandırır)
   if (st.y - gnd < 30) inp.u = true;
   s.botExtraSpread = b.d.err * 0.45;
   A.react -= dt;
   const on = A.react <= 0 && ge < 0.012 + 2 / (D + 20);
   V.mgFire(s, on && !s.vhot, dt);
-  if (on && RK && ye < 0.035 + 2 / (D + 20) && Math.abs(pe) < 0.05 && (A.v || A.n >= 2) && (vd.rkT = (vd.rkT || 0) - dt) <= 0) { if (V.fireRocket(v, s)) vd.rkT = b.dk === 'hard' ? 0.25 : b.dk === 'easy' ? 0.9 : 0.45; }
+  // 12.206 roket (oyuncu pilotla aynı sistem): roketler nişanın noktasına (gunAim.P = hedef) yakınsar → burun konisi hedefi kapsayınca (rocketAimFor
+  // kırpmadı) araca / kalabalığa; eskiden burun hedefe TAM oturana dek (yaw + pitch < 0,05) beklenirdi
+  const RA = on && RK ? V.rocketAimFor(v, s, (vd._ra ||= {})) : null;
+  s.vw = RA && !RA.c && (A.v || A.n >= 2) ? 1 : 0;
+  if (s.vw && (vd.rkT = (vd.rkT || 0) - dt) <= 0) { if (V.fireRocket(v, s)) vd.rkT = b.dk === 'hard' ? 0.25 : b.dk === 'easy' ? 0.9 : 0.45; }
   return true;
 }

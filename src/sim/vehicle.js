@@ -88,7 +88,9 @@ export const VT = {
     // 12.201 burun topu burna bağlı ama sınırlı serbest nişan konisi (cone: aşağı, yukarı, yana rad): artının noktasına (gy / gp) bu koni içinde döner;
     // nişan yoksa (eski istemci) burnun yönünde −0,05. Sağ tık ×1,5 yakınlaştırma. Roketler burnun TAM yönünde (dp 0).
     nose: { seats: [0], fixed: true, f: 3.55, u: 0.72, dp: -0.05, cone: [-0.26, 0.14, 0.17], zoom: 1.5, name: 'Burun topu', dmg: 20, rpm: 750, range: [80, 220], minMul: 0.6, hip: 0.006, tracer: '#ffb35a', sound: 'pkm', vmg: true, vk: 'hmg', heat: 0.016, cool: 0.4 },
-    rockets: { name: 'Roket', n: 14, rate: 0.2, reload: 6, speed: 125, grav: 3, dmg: 130, radius: 5.5, inner: 1.2, vehInner: 0.4, prox: 0, dp: 0, pods: [[1.75, -1.62, 0.6], [1.75, 1.62, 0.6]] },
+    // 12.206 roketler artının noktasına yakınsar (burun topuyla aynı nokta; yerçekimi + helikopterin hızı telafi: rocketDir), burnun konisinde (cone =
+    // burun topununki) kırpılır; minAim: kapsülden bu kadar yakın nişan bu uzaklığa uzatılır (dibindeki yere roket atıp kendini vurmasın)
+    rockets: { name: 'Roket', n: 14, rate: 0.2, reload: 6, speed: 125, grav: 3, dmg: 130, radius: 5.5, inner: 1.2, vehInner: 0.4, prox: 0, dp: 0, cone: [-0.26, 0.14, 0.17], minAim: 25, pods: [[1.75, -1.62, 0.6], [1.75, 1.62, 0.6]] },
   },
 };
 VT['heli-s'] = VT['heli-n'];                                       // saldırı helikopteri ayrı model gelene dek aynı nakliye helikopteri
@@ -118,6 +120,23 @@ export function noseDir(st, M, aim, out = {}) {
   if (!C || !aim || !Number.isFinite(aim.y) || !Number.isFinite(aim.p)) { out.y = st.yaw; out.p = (st.pitch || 0) + (M.dp || 0); out.c = false; return out; }
   const dy = wrapA(aim.y - st.yaw), y = Math.max(-C[2], Math.min(C[2], dy)), p0 = st.pitch || 0, p = Math.max(p0 + C[0], Math.min(p0 + C[1], aim.p));
   out.y = st.yaw + y; out.p = p; out.c = Math.abs(y - dy) > 1e-4 || Math.abs(p - aim.p) > 1e-4;
+  return out;
+}
+
+// 12.206 helikopter roketinin yönü (yaw, pitch): kapsül ağzından (o) artının noktasına (P) — roketin hızı = yön · R.speed + aracın hızı, yerçekimi
+// R.grav (shellAdvance ile aynı yay) → P'ye varan yön (4 yineleme). Burnun koni sınırında (R.cone) kırpılır (noseDir); P yoksa (eski istemci) burnun
+// tam yönü + dp. Sunucu (fireRocket), HUD (predictRocket) ve botlar aynı fonksiyonu kullanır. out: { y, p, c (kırpıldı), t (uçuş sn) }
+const _ra = { y: 0, p: 0 };
+export function rocketDir(st, R, o, P, out = {}) {
+  if (!P || !Number.isFinite(P.x)) { out.y = st.yaw; out.p = (st.pitch || 0) + (R.dp || 0); out.c = false; out.t = 0; return out; }
+  let dx = P.x - o.x, dy = P.y - o.y, dz = P.z - o.z;
+  const D0 = Math.hypot(dx, dy, dz) || 1e-6, mn = R.minAim || 0;
+  if (D0 < mn) { const k = mn / D0; dx *= k; dy *= k; dz *= k; }
+  const S = R.speed, G = R.grav || 0, vx = st.vx || 0, vy = st.vy || 0, vz = st.vz || 0;
+  let t = Math.max(D0, mn) / S, wx = dx, wy = dy, wz = dz;
+  for (let i = 0; i < 4; i++) { wx = dx - vx * t; wy = dy - vy * t + 0.5 * G * t * t; wz = dz - vz * t; t = Math.hypot(wx, wy, wz) / S; }
+  _ra.y = Math.atan2(-wx, -wz); _ra.p = Math.atan2(wy, Math.hypot(wx, wz));
+  noseDir(st, R, _ra, out); out.t = t;
   return out;
 }
 
@@ -353,7 +372,10 @@ function stepHeli(v, inp, dt, T) {
   let vF = v.vx * fx + v.vz * fz, vR = v.vx * rx + v.vz * rz;
   if (lift > 0 && !(onG && up <= 0)) {
     // 12.201 S (geri) burun aşağıyken önce burnun itişini söndürür: tam S = burun aşağı + yerinde asılı (hover'da aşağıya ateş); burun düzken geri gider
-    const nA = v.air ? nAcc : 0, tF = Math.max(-d.maxB, Math.min(d.maxF, f > 0 ? f * d.maxF + nA : f < 0 && nA > 0 ? nA * (1 + f) * Math.min(1, nA / 3) + (f * d.maxB + nA) * (1 - Math.min(1, nA / 3)) : f * d.maxB + nA)), tR = rr * d.maxS, a = d.acc * lift * dt;
+    // 12.206 burun eğiminin hız katkısı YALNIZ W (ileri) basılıyken: W + burun aşağı = daha hızlı ileri (BF dalışı), W yokken nişan için burnu eğen
+    // helikopter yerinde asılı kalır (eskiden aşağıya nişan = kendiliğinden öne hızlanma → artı / roketler hedefin üstünden kayıyordu, 3 sn'de 16–25 m);
+    // S geri gider (eski "burun aşağıda S = yerinde asılı" artık gerekmez)
+    const nA = v.air && f > 0 ? nAcc : 0, tF = Math.max(-d.maxB, Math.min(d.maxF, f > 0 ? f * d.maxF + nA : f * d.maxB)), tR = rr * d.maxS, a = d.acc * lift * dt;
     vF += Math.max(-a, Math.min(a, tF - vF)); vR += Math.max(-a * 1.3, Math.min(a * 1.3, tR - vR));
     const alt = v.y - g0, tY = up > 0 ? d.climb : up < 0 ? -Math.min(d.descend, 1.4 + alt * 0.7) : 0, va = d.vacc * dt;      // yere yaklaşınca alçalış kendiliğinden yavaşlar (yumuşak iniş ≤ 1,4 m/sn)
     v.vy += Math.max(-va, Math.min(va, tY - v.vy)) * lift - VEH_G * (1 - lift) * dt;
