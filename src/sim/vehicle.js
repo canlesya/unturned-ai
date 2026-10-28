@@ -15,6 +15,7 @@
 
 import { submerged } from './swim.js';
 import { MOTO, stepMoto } from './moto.js';                       // 12.204 arazi motosikleti
+import { EMP, stepFixed } from './emplacement.js';                // 12.213 sabit silah yuvaları (ağır makineli, tanksavar)
 
 export const VT = {
   jip: {
@@ -98,15 +99,16 @@ export const VT = {
 };
 VT['heli-s'] = VT['heli-n'];                                       // saldırı helikopteri ayrı model gelene dek aynı nakliye helikopteri
 VT.moto = MOTO;                                                    // 12.204 arazi motosikleti (sim/moto.js)
+VT.hmg = EMP.hmg; VT.atgm = EMP.atgm;                             // 12.213 sabit yuvalar (sim/emplacement.js)
 
 // koltuğun makinelisi (yoksa null): tank nişancısı, helikopter kapı nişancıları
 export const mgAt = (def, seat) => (def?.mg && def.mg.seats.includes(seat) ? def.mg : null);
 // 12.188 koltuğun araç silahı (makineli koltuklar + helikopter pilotunun burun topu); yoksa null. Botlar / HUD / yetkili taraf aynı fonksiyonu kullanır
-export const seatGun = (def, seat) => (seat === 0 ? def?.nose || null : mgAt(def, seat));
+export const seatGun = (def, seat) => (seat === 0 ? def?.nose || mgAt(def, 0) : mgAt(def, seat));      // 12.213: sabit ağır makinelide 0. koltuk makineli
 // 12.201 koltuk araç silahını mı kullanıyor (sürücü / pilot / makineli): o koltukta piyade nişanı (optik, adsT) YOK, sağ tık aracın yakınlaştırması
 export const vehSeatArmed = (def, seat) => seat === 0 || !!mgAt(def, seat);
 // 12.201 sağ tık yakınlaştırması (× ; 0 = yok). Tank sürücüsü: dürbünde ×2,6 (temel ×1,15), takipte ×1,6 — kamera kipine göre vehicleView / Player
-export const seatZoom = (def, seat, first) => (seat === 0 && def?.cannon ? (first ? 2.6 : 1.6) : seatGun(def, seat)?.zoom || 0);
+export const seatZoom = (def, seat, first) => (seat === 0 && def?.cannon ? (first ? 2.6 : 1.6) : seatGun(def, seat)?.zoom || (seat === 0 && def?.atgm?.zoom) || 0);      // 12.213 tanksavar dürbünü
 const wrapA = (a) => ((a + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
 // 12.201 gövdenin yaw yönündeki eğimi (rad): burun eğimi · cos + yatış · −sin (sağa bakınca yatış). Tank topu / gövdeye göre makineli sınırları
 export function bodyPitchAlong(st, yaw) { const a = yaw - st.yaw; return (st.pitch || 0) * Math.cos(a) - (st.roll || 0) * Math.sin(a); }
@@ -176,7 +178,7 @@ export function groundAt(world, x, z, ref, up = STEP_UP) {
 
 export function makeVehicle(type, x, y, z, yaw) {
   const d = VT[type];
-  return { type, def: d, x, y, z, yaw, pitch: 0, roll: 0, vx: 0, vy: 0, vz: 0, steer: 0, air: false, thr: 0, brk: 0, sunk: false, hit: 0, land: 0, wl: [0, 0, 0, 0], tyaw: yaw, gp: 0, rpm: 0 };
+  return { type, def: d, x, y, z, yaw, base: yaw, pitch: 0, roll: 0, vx: 0, vy: 0, vz: 0, steer: 0, air: false, thr: 0, brk: 0, sunk: false, hit: 0, land: 0, wl: [0, 0, 0, 0], tyaw: yaw, gp: 0, rpm: 0 };
 }
 
 // Dört teker zemini (sıra: ön sol, ön sağ, arka sol, arka sağ) → w[0..3]
@@ -232,6 +234,7 @@ export function obbBox(v, c, pad = 0) {
 export function stepVehicle(v, inp, dt, world) {
   v.hit = 0; v.land = 0;
   if (!(dt > 1e-5)) return;                                       // çevrimdışı kare adımı 0 olabilir (bölme yok)
+  if (v.def.fixed) return stepFixed(v, inp);                                    // 12.213 sabit yuva: yalnız silahın yönü
   if (v.def.heli) return stepHeli(v, inp, dt, world);
   if (v.def.moto) return stepMoto(v, inp, dt, world, stepCar, submerged);      // 12.204 motosiklet: teker modeli + devrilme / zıplama / su
   return stepCar(v, inp, dt, world);

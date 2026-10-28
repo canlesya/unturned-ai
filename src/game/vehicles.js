@@ -6,6 +6,7 @@ import { TUNE } from './balance.js';
 import { motoSpawnsFor } from '../maps/motoSpawns.js';                   // 12.204 arazi motosikleti doğuşları (haritanın araç listesine eklenir)
 import { motoAfterStep } from './motorbike.js';
 import { extraSpawnsFor } from '../maps/vehScale.js';             // 12.206 oyuncu sayısına göre ek araçlar (üste)
+import { arcYaw, arcPitch } from '../sim/emplacement.js';          // 12.213 sabit yuvalar
 
 // ───── Araçlar (12.177) ─────
 // Yönetici: haritanın araç doğuş verisinden (map.vehicles; yalnız VT'de tanımlı türler, yalnız Ele Geçirme) araçları kurar. YETKİLİ taraf (çevrimdışı
@@ -52,10 +53,10 @@ export class Vehicles {
   constructor(game) {
     this.g = game;
     this.list = []; this.shells = []; this.shellN = 0;
-    for (const d of [...(game.map.vehicles || []), ...motoSpawnsFor(game.map), ...extraSpawnsFor(game.map, game.mode.perTeam)]) {      // 12.204: motorlar listenin sonunda · 12.206 ek araçlar en sonda (perTeam'den: sıra sunucu = istemci)
+    for (const d of [...(game.map.vehicles || []), ...motoSpawnsFor(game.map), ...extraSpawnsFor(game.map, game.mode.perTeam), ...(game.map.emplacements || [])]) {      // 12.213 sabit yuvalar en sonda (harita verisi: sunucu = istemci)      // 12.204: motorlar listenin sonunda · 12.206 ek araçlar en sonda (perTeam'den: sıra sunucu = istemci)
       if (!VT[d.type]) continue;
       const yaw = d.ry + Math.PI;                                     // veri: bakış (sin ry, cos ry) → asker yaw kuralı (−sin, −cos)
-      const v = { idx: this.list.length, id: d.id, type: d.type, def: VT[d.type], spawn: { x: d.x, z: d.z, yaw, team: d.team },
+      const v = { idx: this.list.length, id: d.id, type: d.type, def: VT[d.type], spawn: { x: d.x, z: d.z, y: d.y, yaw, team: d.team, tower: d.tower },
         st: null, hp: 0, alive: false, wreck: false, seats: new Array(VT[d.type].seats).fill(null), team: null, paint: null,
         burn: false, deadT: 0, respawnT: 0, sunkT: 0, idleT: 0, lastHit: null, lastHitT: -99, lastDriver: null, lastDriverT: -99,
         lights: false, horn: false, sleep: false, sig: '', ramT: new Map(), pred: false, buf: [], rl: 0 };
@@ -76,6 +77,14 @@ export class Vehicles {
     const team = this.spawnTeam(v);
     if (!team && v.spawn.team) return false;
     const S = v.spawn, W = this.g.world;
+    if (v.def.fixed) {                                                // 12.213 sabit yuva: yerinde kurulur (kule tepesi kotu veride), asker / araç beklemez
+      v.st = makeVehicle(v.type, S.x, Number.isFinite(S.y) ? S.y : W.heightAt(S.x, S.z), S.z, S.yaw);
+      v.hp = v.def.hp; v.alive = true; v.wreck = false; v.burn = false; v.deadT = 0; v.sunkT = 0; v.idleT = 0; v.rl = 0; v.dmgLog = null;
+      v.team = team; v.paint = team; v.lights = false; v.horn = false; v.sleep = true; v.lastHit = null; v.lastDriver = null;
+      v.seats.fill(null); v.spawnN = (v.spawnN || 0) + 1; v.spawnT = this.g.time;
+      this.g.emit('vehspawn', v);
+      return true;
+    }
     if (!first) {                                                     // doğuş yeri dolu (asker / araç) → bekle
       for (const s of this.g.soldiers) if (s.alive && Math.hypot(s.pos.x - S.x, s.pos.z - S.z) < 3.2) return false;
       for (const o of this.list) if (o !== v && o.alive && Math.hypot(o.st.x - S.x, o.st.z - S.z) < (v.def.moto && o.def.moto ? 2.2 : 4.5)) return false;      // 12.204: motorlar yan yana (2,6 m) dizilir
@@ -175,7 +184,7 @@ export class Vehicles {
     s.ads = false; s.adsT = 0;                                          // 12.201: piyadedeki nişan (4× vb.) araca taşınmaz; koltukta sağ tık aracın yakınlaştırması
     if (s.cook) s.cook = null;
     s.swing = null; s.useT = 0;
-    if (seat === 0) { v.lastDriver = s; v.lastDriverT = this.g.time; v.team = s.team; if (!v.lights && (this.g.night || this.g.tod === 'sunset')) v.lights = true; }
+    if (seat === 0) { v.lastDriver = s; v.lastDriverT = this.g.time; v.team = s.team; if (!v.lights && !v.def.fixed && (this.g.night || this.g.tod === 'sunset')) v.lights = true; }
     if (!this.occupants(v).some((o) => o !== s)) v.team = s.team;
     v.sleep = false; v.idleT = 0;
     this.place(s);
@@ -194,7 +203,7 @@ export class Vehicles {
   exit(s) {
     const v = s.veh; if (!v) return false;
     const st = v.st, d = v.def, sp = d.seat[s.seat], side = Math.sign(sp[1]) || -1, W = this.g.world;
-    const tries = [[sp[0], side * (d.hw + 0.62)], [sp[0], -side * (d.hw + 0.62)], [-(d.hl + 0.7), 0], [d.hl + 0.7, 0], [sp[0] - 0.6, side * (d.hw + 0.62)], [sp[0] + 0.6, side * (d.hw + 0.62)]];
+    const tries = d.fixed ? [[sp[0] - 0.1, 0], [sp[0], 0.7], [sp[0], -0.7], [sp[0] - 0.7, 0]] : [[sp[0], side * (d.hw + 0.62)], [sp[0], -side * (d.hw + 0.62)], [-(d.hl + 0.7), 0], [d.hl + 0.7, 0], [sp[0] - 0.6, side * (d.hw + 0.62)], [sp[0] + 0.6, side * (d.hw + 0.62)]];
     this.release(s);
     let ok = false;
     const fly = d.heli && st.air && st.y - W.heightAt(st.x, st.z) > 2;      // 12.179 uçan helikopter: kapıdan boşluğa (zemine oturtulmaz → düşer)
@@ -254,7 +263,7 @@ export class Vehicles {
         const s = v.seats[i];
         if (!s) continue;
         if (!s.alive || s.vacant || s.veh !== v) { v.seats[i] = null; if (s.veh === v) { s.veh = null; s.seat = -1; } continue; }
-        if (i === 0 && s.brain && !s.brain.vd) this.exit(s);                      // 12.189: kendi bindiği araçtaki bot sürücü kalır (vehicleBots.js)
+        if (i === 0 && s.brain && !s.brain.vd && !v.def.fixed) this.exit(s);      // 12.213 sabit yuvada bot nişancı kalır (empBots.js)                      // 12.189: kendi bindiği araçtaki bot sürücü kalır (vehicleBots.js)
       }
       const drv = v.seats[0];
       if (!drv) {
@@ -456,7 +465,7 @@ export class Vehicles {
           const ddx = bx - ax, ddz = bz - az, dd = Math.hypot(ddx, ddz), m = ra + rb;
           if (dd >= m || dd < 1e-4) continue;
           const nx = ddx / dd, nz = ddz / dd, pen = (m - dd) / 2;
-          const wa = a.wreck || !a.alive ? 0 : 1 / (a.def.mass || 1), wb = b.wreck || !b.alive ? 0 : 1 / (b.def.mass || 1), sum = wa + wb || 1;      // ağır araç az itilir (tank jipi iter)
+          const wa = a.wreck || !a.alive || a.def.fixed ? 0 : 1 / (a.def.mass || 1), wb = b.wreck || !b.alive || b.def.fixed ? 0 : 1 / (b.def.mass || 1), sum = wa + wb || 1;      // ağır araç az itilir (tank jipi iter)
           A.x -= nx * pen * 2 * wa / sum; A.z -= nz * pen * 2 * wa / sum; B.x += nx * pen * 2 * wb / sum; B.z += nz * pen * 2 * wb / sum;
           const rv = (B.vx - A.vx) * nx + (B.vz - A.vz) * nz;
           if (rv < 0) { const imp = -rv * 0.6; A.vx -= nx * imp * wa / sum * 2; A.vz -= nz * imp * wa / sum * 2; B.vx += nx * imp * wb / sum * 2; B.vz += nz * imp * wb / sum * 2; if (-rv > 9 && !this.g.online) { this.damage(a, (-rv - 9) * 8, null, 'impact'); this.damage(b, (-rv - 9) * 8, null, 'impact'); } }
@@ -506,14 +515,14 @@ export class Vehicles {
   addShell(sh) { this.shells.push(sh); this.g.emit('vehfire', sh); }
   netShell(ev) {
     const v = this.list[ev.i]; if (!v) return;
-    const w = ev.w === 1 ? v.def.rockets : null;
+    const w = ev.w === 1 ? v.def.rockets : ev.w === 2 ? v.def.atgm : null;      // 12.213 w 2: tanksavar füzesi
     this.addShell({ id: ev.id, v, w, by: this.g.soldiers[ev.by] || null, x: ev.o[0], y: ev.o[1], z: ev.o[2], vx: ev.d[0], vy: ev.d[1], vz: ev.d[2], t: 0, auth: false });
-    if (!w) v.rl = v.def.cannon.reload;
+    if (!w || ev.w === 2) v.rl = (w || v.def.cannon).reload;
   }
   netShellBoom(ev) {
     const i = this.shells.findIndex((x) => x.id === ev.id);
     if (i >= 0) this.shells.splice(i, 1);
-    const v = this.list[ev.i], c = ev.w === 1 ? v?.def.rockets : (v || this.list.find((x) => x.def.cannon))?.def.cannon;
+    const v = this.list[ev.i], c = ev.w === 1 ? v?.def.rockets : ev.w === 2 ? v?.def.atgm : (v || this.list.find((x) => x.def.cannon))?.def.cannon;
     const by = this.g.soldiers[ev.by] || this.g.playerSoldier;
     const n = ev.n ? new THREE.Vector3(ev.n[0], ev.n[1], ev.n[2]) : null;
     this.g.explode(new THREE.Vector3(ev.p[0], ev.p[1], ev.p[2]), c?.radius || 5, 0, by, '', undefined, 'at', { he: true, n });      // çevrim içi istemci: yalnız efekt / ses / sarsıntı / iz
@@ -571,7 +580,7 @@ export class Vehicles {
         const n = h ? { x: h.n.x, y: h.n.y, z: h.n.z } : { x: 0, y: 1, z: 0 };
         this.shells.splice(i, 1);
         if (!sh.auth) { sh.done = true; continue; }                      // istemci: patlamayı sunucunun 'tsb' olayı çizer
-        g.netEvent({ e: 'tsb', id: sh.id, i: sh.v.idx, w: sh.w ? 1 : undefined, by: sh.by ? sh.by.id : -1, p: [r2(p.x), r2(p.y), r2(p.z)], n: [r2(n.x), r2(n.y), r2(n.z)] });
+        g.netEvent({ e: 'tsb', id: sh.id, i: sh.v.idx, w: sh.w ? (sh.w === sh.v.def.atgm ? 2 : 1) : undefined, by: sh.by ? sh.by.id : -1, p: [r2(p.x), r2(p.y), r2(p.z)], n: [r2(n.x), r2(n.y), r2(n.z)] });
         const owner = sh.by || this.driver(sh.v);
         if (owner) g.explode(new THREE.Vector3(p.x, p.y, p.z), c.radius, c.dmg, owner, c.name, undefined, 'at', { he: true, inner: c.inner, vehInner: c.vehInner, vdmg: c.vdmg, n: new THREE.Vector3(n.x, n.y, n.z) });      // 12.207 vdmg: araca ayrı hasar (heli roketi)
         continue;
@@ -689,7 +698,7 @@ export class Vehicles {
       const st = v.st, nd = noseDir(st, M, s.gunAim, (this._nd2 ||= {})); o = new THREE.Vector3(); toWorld(st, M.f, 0, M.u, o);
       yaw = nd.y; base = dirFromAngles(nd.y, nd.p);
     } else {
-      o = s.eye(); yaw = s.yaw; base = dirFromAngles(s.yaw, mgPitch(v.st, M, s.yaw, s.pitch));      // 12.201 rel: sınır gövdeye göre (yokuşta aşağı)
+      o = s.eye(); yaw = v.def.fixed ? arcYaw(v.st, s.yaw) : s.yaw; base = dirFromAngles(yaw, mgPitch(v.st, M, yaw, s.pitch));      // 12.201 rel: sınır gövdeye göre (yokuşta aşağı) · 12.213 sabit yuva: yay içinde
     }
     const sp = M.hip + Math.min(this.speed(v) * 0.0008, 0.01) + (s.brain ? s.botExtraSpread : 0), a = rnd() * Math.PI * 2, rr = Math.sqrt(rnd()) * sp;
     const right = { x: Math.cos(yaw), z: -Math.sin(yaw) };
@@ -729,6 +738,35 @@ export class Vehicles {
     return true;
   }
 
+  // 12.213 sabit tanksavar: YETKİLİ tarafta (tank topu gibi 'ts' olayı, w: 2). Füze, nişancının bakışının (yay / dikey sınırda) çarptığı noktaya
+  // (dünya, araç, düşman asker; yoksa 600 m) tüpün ağzından DÜZ uçar (yer çekimi yok: "artının noktasına gider"). Bot P (öncüllü hedef) verebilir.
+  atgmAim(v, by, P = null, out = {}) {
+    const A = v.def.atgm, st = v.st, o = toWorld({ ...st, pitch: 0, roll: 0 }, A.f, 0, A.u, (out.o ||= { x: 0, y: 0, z: 0 }));
+    if (!P) {
+      const e = by.eye(), yaw = arcYaw(st, by.yaw), d = dirFromAngles(yaw, arcPitch(v.def, by.pitch), (this._ad ||= new THREE.Vector3()));
+      let t = 600;
+      const wh = this.g.world.raycast(e, d, t, (this._aw ||= {})); if (wh) t = wh.t;
+      const vr = this.raycast(e, d, t, v); if (vr && vr.t < t) t = vr.t;
+      for (const q of this.g.soldiers) { if (!q.alive || q === by || q.team === by.team || q.veh === v) continue; const h = this.g.hitSoldier(q, e, d, t); if (h && h.t < t) t = h.t; }
+      P = (out.P ||= { x: 0, y: 0, z: 0 }); P.x = e.x + d.x * t; P.y = e.y + d.y * t; P.z = e.z + d.z * t;
+    }
+    let dx = P.x - o.x, dy = P.y - o.y, dz = P.z - o.z; const L = Math.hypot(dx, dy, dz) || 1;
+    out.d = { x: dx / L, y: dy / L, z: dz / L }; out.dist = L;
+    return out;
+  }
+  fireAtgm(v, by, P = null) {
+    const A = v.def.atgm;
+    if (!A || !v.alive || !v.st || this.g.online || v.rl > 0 || !by) return false;
+    const r = this.atgmAim(v, by, P, (this._fa ||= {})), o = r.o, d = r.d;
+    v.rl = A.reload;
+    const id = ++this.shellN, vel = { vx: d.x * A.speed, vy: d.y * A.speed, vz: d.z * A.speed };
+    this.addShell({ id, v, by, w: A, x: o.x, y: o.y, z: o.z, ...vel, t: 0, auth: true });
+    this.g.netEvent({ e: 'ts', id, i: v.idx, w: 2, by: by.id, o: [r2(o.x), r2(o.y), r2(o.z)], d: [r2(vel.vx), r2(vel.vy), r2(vel.vz)] });
+    by.spottedT = this.g.time;
+    this.g.alertNear?.(o, by.team, 120);
+    return true;
+  }
+
   // 12.178 el bombası ↔ araç gövdesi: bu adımın yolunda gövde varsa hız yüzey normaline göre yansır (sekme 0,35, sürtünme 0,7), bomba yüzeyin dışına konur
   nadeBounce(p, h) {
     if (p.rest) return false;
@@ -765,7 +803,8 @@ export class Vehicles {
       const a = st ? [v.idx, r2(st.x), r2(st.y), r2(st.z), r3(st.yaw), r3(st.pitch), r3(st.roll), r2(st.vx), r2(st.vy), r2(st.vz), r3(st.steer), Math.round(v.hp), fl, r2(st.thr), tm] : [v.idx, 0, -999, 0, 0, 0, 0, 0, 0, 0, 0, 0, fl, 0, tm];
       if (st && v.def.turret) a.push(r3(st.tyaw), r3(st.gp), Math.ceil(v.rl * 10) / 10);      // 12.178 kule yaw, top açısı, dolum (sn)
       else if (st && v.def.heli) a.push(r2(st.rpm), v.rk ?? v.def.rockets?.n ?? 0, Math.ceil((v.rkR || 0) * 10) / 10);      // 12.188 roket (kalan, dolum sn) ·                        // 12.179 rotor devri
-      else if (st && v.def.moto) a.push(r2(st.fall || 0), st.fallK || 0);            // 12.204 motor: devrik süresi + türü (yan yatış görünümü)
+      else if (st && v.def.moto) a.push(r2(st.fall || 0), st.fallK || 0);
+      else if (st && v.def.atgm) a.push(Math.ceil(v.rl * 10) / 10);                  // 12.213 tanksavar dolumu (sn)            // 12.204 motor: devrik süresi + türü (yan yatış görünümü)
       const sig = a.join(',');
       if (!force && sig === v.sig) continue;
       v.sig = sig;
@@ -812,12 +851,12 @@ export class Vehicles {
     const was = v.alive;
     v.alive = !!(fl & F_ALIVE); v.wreck = !!(fl & F_WRECK); v.burn = !!(fl & F_BURN); v.lights = !!(fl & F_LIGHT); v.horn = !!(fl & F_HORN);
     if (A[2] < -900) { v.st = null; return; }
-    if (!v.st) v.st = makeVehicle(v.type, A[1], A[2], A[3], A[4]);
+    if (!v.st) { v.st = makeVehicle(v.type, A[1], A[2], A[3], A[4]); if (v.def.fixed) v.st.base = v.spawn.yaw; }      // 12.213 yuvanın yayı doğuş yönünden
     const st = v.st, L = (i) => A[i] + (B[i] - A[i]) * t;
     const la = (x, y) => x + (((y - x + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * t;
     st.x = L(1) + A[7] * ex; st.y = L(2); st.z = L(3) + A[9] * ex; st.yaw = la(A[4], B[4]); st.pitch = L(5); st.roll = L(6);
     st.vx = A[7]; st.vy = A[8]; st.vz = A[9]; st.steer = L(10); st.thr = A[13]; st.air = !!(fl & F_AIR); st.sunk = !!(fl & F_SUNK);
-    if (A.length > 15 && B.length > 15) { if (v.def.moto) { st.fall = A[15]; st.fallK = A[16]; } else if (v.def.turret) { st.tyaw = la(A[15], B[15]); st.gp = L(16); v.rl = A[17]; } else if (v.def.heli) { st.rpm = L(15); if (A.length > 16) { v.rk = A[16]; v.rkR = A[17]; } } }
+    if (A.length > 15 && B.length > 15) { if (v.def.atgm) v.rl = A[15]; else if (v.def.moto) { st.fall = A[15]; st.fallK = A[16]; } else if (v.def.turret) { st.tyaw = la(A[15], B[15]); st.gp = L(16); v.rl = A[17]; } else if (v.def.heli) { st.rpm = L(15); if (A.length > 16) { v.rk = A[16]; v.rkR = A[17]; } } }
     if (v.alive && !was) { v.spawnN = (v.spawnN || 0) + 1; this.g.emit('vehspawn', v); }
   }
 

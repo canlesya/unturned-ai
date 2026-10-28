@@ -51,7 +51,8 @@ import { Vehicles } from './vehicles.js';                            // 12.177 a
 import { SoldierGrid } from './crowd.js';                                  // 12.203 asker ızgarası (kalabalık maç)
 import { SpawnSet } from './spawnPoints.js';                               // 12.203 doğuş noktaları
 import { FarSoldiers } from './farSoldiers.js';                              // 12.203 uzak asker LOD'u (istemci)
-import { assignSquadsBig, perchBig, spawnFlagBig, bigKill } from './bigBots.js';           // 12.189 büyük harita bot çatışma akışı
+import { assignSquadsBig, perchBig, spawnFlagBig, bigKill } from './bigBots.js';
+import { towerPerch } from './empBots.js';                                         // 12.213 kule tepesi nişancı mevzisi           // 12.189 büyük harita bot çatışma akışı
 import { vnav, botAtLoadout } from './vehicleBots.js';                                         // 12.189 bot sürücüler (araç ızgarası)
 import { VehicleView } from './vehicleView.js';
 import { VehicleHud } from './vehicleHud.js';
@@ -625,6 +626,7 @@ export class Game {
       v.horn = !!v.def.horn && !!inp.fh;                               // jip: sol tık korna · tank: ana top · 12.188 helikopter: burun topu (korna yok)
       V.drive(v, { f: inp.f, r: inp.r, b: !!inp.j, u: !!inp.j, d: !!inp.dn, yw: inp.gy ?? inp.yw, pt: inp.gp ?? inp.pt }, dt);      // 12.188 gy / gp: artının noktasına balistik top hedefi · 12.178: bakış = kule / top hedefi · 12.179 helikopter: j yüksel, dn alçal, bakış burun
       if (v.def.cannon && (inp.fh || inp.fp)) V.fireCannon(v, s);
+      if (v.def.atgm && (inp.fh || inp.fp)) V.fireAtgm(v, s);              // 12.213 sabit tanksavar (bakış = nişan; sunucu aynı noktayı bulur)
       if (v.def.nose) {                                                 // 12.201 burun topu artının noktasına (koni içinde; istemciyle aynı noseDir) · 12.206 roket: artının noktası gP (≤ 900 m)
         const P = inp.gP && Math.hypot(inp.gP[0] - v.st.x, inp.gP[1] - v.st.y, inp.gP[2] - v.st.z) < 900 ? Object.assign((s._sgP ||= {}), { x: inp.gP[0], y: inp.gP[1], z: inp.gP[2] }) : null;
         s.gunAim = Number.isFinite(inp.gy) && Number.isFinite(inp.gp) ? Object.assign((s._sga ||= {}), { y: inp.gy, p: inp.gp, P }) : null;
@@ -1303,7 +1305,7 @@ export class Game {
 
   // Keskin nişancı gözetleme noktası: hedefi gören, yüksek/uzak, kendi tarafa yakın nokta
   perch(o, team) {
-    if (this.map.big) return perchBig(this, o, team);                        // 12.189: büyük haritada tepe noktası (60–160 m, bot görüşüyle)
+    if (this.map.big) return towerPerch(this, o, team) || perchBig(this, o, team);      // 12.213: kule varsa çoğunlukla kulenin platformu                        // 12.189: büyük haritada tepe noktası (60–160 m, bot görüşüyle)
     const key = o.id + team;
     if (this.perchCache.has(key)) return this.perchCache.get(key);
     const home = this.map.spawns[team][0];

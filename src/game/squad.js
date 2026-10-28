@@ -59,7 +59,7 @@ export function mateSpawnState(g, m) {
   const c = m._sqSt;
   if (c && g.time - c.t < 0.4 && c.t <= g.time) return c.v;
   let v = SP.OK;
-  if (m.veh) v = vehSpawnState(m.veh);
+  if (m.veh && !m.veh.def.fixed) v = vehSpawnState(m.veh);      // 12.213 sabit yuvadaki arkadaş: yaya gibi (yanına doğulur)
   else if (m.swim || m.under || (!m.onGround && Math.abs(m.vel.y) > 2.5)) v = SP.AIR;
   else if (g.time - (m.lastDmgT ?? -99) < COMBAT_HIT || g.time - (m.spottedT ?? -99) < COMBAT_FIRE) v = SP.COMBAT;
   else {

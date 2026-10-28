@@ -18,6 +18,11 @@ addStrings('tr', {
   'veh.moto': 'MOTOR', 'veh.kf.moto': 'Motor', 'veh.seat.moto1': 'Arka yolcu', 'veh.stall': 'MOTOR SUDA STOP ETTİ', 'veh.fall': 'DEVRİLDİ',
   'veh.hint.moto': '<b>W A S D</b> sür · <b>Boşluk</b> fren · <b>Sol tık</b> korna · <b>{f}</b> far · <b>{v}</b> kamera · <b>2</b> arka koltuk · <b>{e}</b> in',
   'veh.hint.motoPas': '<b>Sol tık</b> ateş · <b>Tekerlek</b> silah · <b>1</b> sürücü · <b>{e}</b> in',
+  // 12.213 sabit silah yuvaları
+  'veh.hmg': 'AĞIR MAKİNELİ', 'veh.atgm': 'TANKSAVAR', 'veh.use': 'kullan', 'veh.kf.hmg': 'Ağır makineli', 'veh.kf.atgm': 'Tanksavar füzesi', 'veh.kf.atpost': 'Tanksavar', 'veh.atLoad': 'FÜZE DOLUYOR · {n} sn', 'veh.atReady': 'FÜZE HAZIR',
+  'veh.hint.hmg': '<b>Sol tık</b> ateş · <b>Fare</b> nişan (±70°, −15°…+25°) · <b>Sağ tık</b> yakınlaştır · ısınınca bırak · <b>{e}</b> kalk',
+  'veh.hint.atgm': '<b>Sol tık</b> füze (artının noktasına gider) · <b>Fare</b> nişan (±60°) · <b>Sağ tık</b> dürbün · dolum 5 sn · <b>{e}</b> kalk',
+  'map.emp.hmg': 'Ağır makineli', 'map.emp.atgm': 'Tanksavar',
   'agroup.4': 'Araç', 'tc.n.veh': 'Araca bin / in', 'tc.n.vcam': 'Araç kamerası', 'tc.n.seat': 'Koltuk değiştir',
 });
 addStrings('en', {
@@ -32,6 +37,11 @@ addStrings('en', {
   'veh.hint.gunner': '<b>Left click</b> machine gun · <b>Mouse</b> aim · <b>Right click</b> zoom · <b>1–{n}</b> seat · <b>{e}</b> exit',
   'veh.heli-n': 'HELICOPTER', 'veh.heli-s': 'HELICOPTER', 'veh.heliBar': 'ROTOR {r}% · ALT {h} m', 'veh.rotor': 'ROTOR SPINNING UP…',
   'veh.hint.heli': '<b>Left click</b> selected weapon · <b>{q} / Wheel</b> nose gun ↔ rockets · <b>{r}</b> reload rockets · <b>Right click</b> zoom · <b>Mouse</b> nose + aim (hovers without W) · <b>Space</b> climb · <b>C / Ctrl</b> descend · <b>W S</b> fwd / back (W + nose down = fast) · <b>A D</b> strafe · <b>{v}</b> camera · <b>{f}</b> light · <b>1–{n}</b> seat · <b>{e}</b> exit (jumping out in the air = fall)',
+  // 12.213 stationary weapons
+  'veh.hmg': 'HEAVY MG', 'veh.atgm': 'ANTI-TANK', 'veh.use': 'use', 'veh.kf.hmg': 'Heavy MG', 'veh.kf.atgm': 'AT missile', 'veh.kf.atpost': 'AT launcher', 'veh.atLoad': 'MISSILE LOADING · {n} s', 'veh.atReady': 'MISSILE READY',
+  'veh.hint.hmg': '<b>Left click</b> fire · <b>Mouse</b> aim (±70°, −15°…+25°) · <b>Right click</b> zoom · ease off when hot · <b>{e}</b> leave',
+  'veh.hint.atgm': '<b>Left click</b> missile (flies to the crosshair) · <b>Mouse</b> aim (±60°) · <b>Right click</b> sight · 5 s reload · <b>{e}</b> leave',
+  'map.emp.hmg': 'Heavy MG', 'map.emp.atgm': 'Anti-tank',
   'agroup.4': 'Vehicle', 'action.vehicle': 'Enter / exit vehicle', 'action.vehCam': 'Vehicle camera (inside / chase)', 'action.vehAlt': 'Helicopter weapon: nose gun ↔ rockets · mouse wheel too',
   'set.grp.4': 'Vehicle', 'set.act.vehicle': 'Enter / exit vehicle', 'set.act.vehCam': 'Vehicle camera (inside / chase)', 'set.act.vehAlt': 'Helicopter weapon: nose gun ↔ rockets · mouse wheel too',      // oyun içi Kontroller (Esc → Ayarlar)
   'tc.n.veh': 'Enter / exit vehicle', 'tc.n.vcam': 'Vehicle camera', 'tc.n.seat': 'Switch seat',

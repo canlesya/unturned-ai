@@ -16,7 +16,7 @@ import { mapName, modeLabel, className } from '../i18n/data.js';
 import '../i18n/assist.js';                                              // sb.a (12.165 asist sütunu)
 import { wName, wLabel, classDesc, ztName, ztDesc, abilName, opticName, fireName, teamName, popText, mapText, dispName, placeName } from '../i18n/game.js';
 import { MOTO_ICON } from './motorbike.js';                                  // 12.204 öldürme akışında motor simgesi
-import { vehIconSvg } from './vehIcons.js';                                 // 12.205 doğuş listesinde araçtaki arkadaşın aracı
+import { vehIconSvg, empMark } from './vehIcons.js';                                 // 12.205 doğuş listesinde araçtaki arkadaşın aracı
 
 const EN = (s) => String(s).replace(/Paintball/g, '<span lang="en">Paintball</span>');   // tr büyük harfte 'PAİNTBALL' olmasın (marka adı)
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -48,7 +48,7 @@ const PEN_SVG = '<svg class="hsi pni" viewBox="0 0 16 16"><path d="M1 8h11.5" st
 const FALL_SVG = '<svg class="fli" viewBox="0 0 16 16"><path d="M8 1v9M4.2 6.6 8 10.4l3.8-3.8" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 14.2h12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';   // düşme (12.143): aşağı ok + zemin
 // 12.188 araç silahı öldürmeleri: tank topu (mermi), roket, araç makinelisi (iki mermi), araç patlaması / ezme (araç silueti)
 const VSVG = { moto: MOTO_ICON, shell: '<svg class="hsi vs" viewBox="0 0 16 16"><path d="M2 6.5h8l4 1.5-4 1.5H2z" fill="currentColor"/><path d="M2 5.5v5" stroke="currentColor" stroke-width="1.6"/></svg>', rocket: '<svg class="hsi vs" viewBox="0 0 16 16"><path d="M3 7h8l3 1-3 1H3z" fill="currentColor"/><path d="M3 7 1 5M3 9l-2 2" stroke="currentColor" stroke-width="1.3"/></svg>', mg: '<svg class="hsi vs" viewBox="0 0 16 16"><path d="M1 5h9l2 1-2 1H1zM1 9h9l2 1-2 1H1z" fill="currentColor"/></svg>', veh: '<svg class="hsi vs" viewBox="0 0 16 16"><path d="M1 10h14v2H1zM3 7h7l2 3H2z" fill="currentColor"/><circle cx="4" cy="12.5" r="1.5" fill="currentColor"/><circle cx="12" cy="12.5" r="1.5" fill="currentColor"/></svg>' };
-const VEH_KF = { 'Tank topu': 'shell', 'Roket': 'rocket', 'Tank makinelisi': 'mg', 'Kapı makinelisi': 'mg', 'Jip makinelisi': 'mg', 'Burun topu': 'mg', 'Jip': 'veh', 'Tank': 'veh', 'Helikopter': 'veh', 'Motor': 'moto' };      // 12.204 motor simgesi (motorbike.js)
+const VEH_KF = { 'Tank topu': 'shell', 'Roket': 'rocket', 'Tank makinelisi': 'mg', 'Kapı makinelisi': 'mg', 'Jip makinelisi': 'mg', 'Burun topu': 'mg', 'Ağır makineli': 'mg', 'Tanksavar füzesi': 'rocket', 'Tanksavar': 'veh', 'Jip': 'veh', 'Tank': 'veh', 'Helikopter': 'veh', 'Motor': 'moto' };      // 12.204 motor simgesi (motorbike.js)
 const DROWN_SVG = '<svg class="fli" viewBox="0 0 16 16"><path d="M8 1.6C6 4.6 4 7 4 9.6a4 4 0 0 0 8 0C12 7 10 4.6 8 1.6z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>';   // 12.180 boğuldu: su damlası
 // 12.186: öldürme akışı ikonu silah ADINDAN (her el bombası türü: Saplı El Bombası da; öldürene yazılan düşme / boğulma da — 12.165 kredisi)
 let FRAG_NAMES = null;
@@ -911,7 +911,7 @@ export class Hud {
     const ov = p.overlay, adsL = p.adsT, ads = adsEase(adsL);           // adsL doğrusal (dürbün eşiği silah modeliyle aynı), ads görsel eğri
     const scopeOn = p.alive && ov === 'scope' && (g.player ? !!g.player.scopeOn : adsL > 0.9);      // 12.127: bayrak ViewModel'de (çıkışta dünya ×2'nin altına inene dek açık; model aynı bayrakla gizli)
     const tp = g.showSelf;                                   // 3. şahıs kamera: optik örtüsü yok, artı hep görünür
-    const showCross = p.alive && (ads < 0.6 || tp) && !p.scoped && !(p.veh && p.seat === 0);      // 12.188: sürücüde artı yok (tank: nişan = top nişangâhı #vhGun; ekran ortası namlu hattı değil, 20 m+ kısa düşüyordu)      // 12.174: dönem dürbünü takılı tüfekte de      // 12.156: dürbünlü keskin nişancıda belden artı yok (no-scope tahmine kalır; isabet işareti #hitm ayrı, çalışır)
+    const showCross = p.alive && (ads < 0.6 || tp) && !p.scoped && !(p.veh && p.seat === 0 && !p.veh.def.fixed);      // 12.213 sabit yuvada artı var      // 12.188: sürücüde artı yok (tank: nişan = top nişangâhı #vhGun; ekran ortası namlu hattı değil, 20 m+ kısa düşüyordu)      // 12.174: dönem dürbünü takılı tüfekte de      // 12.156: dürbünlü keskin nişancıda belden artı yok (no-scope tahmine kalır; isabet işareti #hitm ayrı, çalışır)
     cross.style.display = showCross ? 'block' : 'none';
     cross.classList.toggle('ads', ads > 0.5 && !tp);
     // 12.186 artı boşluğu (yalnız görsel; isabet / sapma değişmedi): eskiden 3 + sapma × 900 px (ekran ve FOV'dan bağımsız) → pompalı / PKM yürürken
@@ -1027,6 +1027,7 @@ export class Hud {
       if (!v.alive || !v.st) continue;
       const occ = v.seats.filter(Boolean), tm = occ.length ? occ[0].team : v.paint;
       if (tm && tm !== p.team && !occ.some((o) => g.time - (o.spottedT ?? -99) < 2.5)) continue;
+      if (v.def.fixed) { empMark(x, this.mmX(v.st.x), this.mmY(v.st.z), v, tm, occ.length, 0.75); continue; }      // 12.213 sabit yuva
       x.save(); x.translate(this.mmX(v.st.x), this.mmY(v.st.z)); x.rotate(-v.st.yaw);
       x.fillStyle = tm === 'blue' ? '#4aa3ff' : tm === 'red' ? '#ff5a43' : '#d8d4c4'; x.strokeStyle = occ.length ? '#fff' : '#0008'; x.lineWidth = 1.2;
       x.fillRect(-2.6, -4.2, 5.2, 8.4); x.strokeRect(-2.6, -4.2, 5.2, 8.4); x.restore();

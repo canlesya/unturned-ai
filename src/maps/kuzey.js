@@ -17,6 +17,8 @@ import { Fauna } from './assets/kuzey/fauna.js';
 import { Life } from './assets/kuzey/life.js';
 import { Ambience } from './assets/kuzey/ambience.js';
 import { SURF } from './assets/kuzey/terrain.js';
+import { TOWERS, milTower, emplacementsFor } from './assets/kuzey/towers.js';      // 12.213 gözetleme kuleleri + sabit silah yuvaları
+import { KuzeyNav } from './kuzeyNav.js';
 
 // "Kuzey Vadisi" (12.172) — büyük harita (1600 × 1600 m oynanır, 5 km uzak manzara), Ele Geçirme 7 bayrak + Takım Çatışması (köy alt alanı).
 // Arazi (2 m ızgara, yollar / köy sokakları / baraj gölü / alanlar; 12.182 ortadaki nehir yok), bölgelerde varlıklar (içine girilen binalar), orman + çalı çiti + kaya + devrik ağaç + buğday,
@@ -39,6 +41,8 @@ export function buildKuzey() {
   // 12.206 büyük maçların ek helikopterleri için helipedler (oyuncu sayısından bağımsız hep çizilir: harita bir kez kurulur). Yerleşimden SONRA: blockout'un
   // ayak izi listesine girselerdi orman / piyade doğuşu rastgele akışı kayardı; yerler zaten ağaçsız / yapısız seçildi (vehScale.js)
   for (const hp of extraHelipadsFor('kuzey')) helipad(cs.at(hp.x, hp.z), T, hp);
+  // 12.213 gözetleme kuleleri (yerleşimden SONRA, helipedler gibi: yerler zaten ağaçsız / yapısız seçildi → orman / doğuş rastgele akışı değişmez)
+  const towers = TOWERS.map((t) => milTower(cs.at(t[1], t[2]), T, t, FLAGS.find((f) => f.id === t[0])));
   const nWheat = fieldCover(T, cs);
   const group = new THREE.Group(); group.name = 'kuzey';
   cs.build(group);
@@ -84,7 +88,9 @@ export function buildKuzey() {
     mini: null, roads: roadRects, roadColor: '#5b5d61',
     spawns, baseZones: { blue: zoneOf(pad('BHQ')), red: zoneOf(pad('RHQ')) },
     objectives: FLAGS.map((f) => ({ ...f, label: f.id, y: flagY(f), core: !!f.core })),
-    vehicles: VEHICLES, helipads: HELIPADS, roadGraph: T.roads.map((r) => ({ id: r.id, t: r.t, w: r.w, pts: r.pts.filter((_, i) => i % 3 === 0 || i === r.pts.length - 1) })),
+    vehicles: VEHICLES, helipads: HELIPADS, towers, emplacements: emplacementsFor(towers, T),      // 12.213
+    makeNav() { return new KuzeyNav(this.colliders, this.bounds, this.terrain, this.navCell, towers); },      // 12.213 kule merdiveni / tepesi: ikinci kat bağlantısı
+    roadGraph: T.roads.map((r) => ({ id: r.id, t: r.t, w: r.w, pts: r.pts.filter((_, i) => i % 3 === 0 || i === r.pts.length - 1) })),
     tdm: TDM_AREA, wires, veg: visual ? veg : null,
     env, visMul: 1,
     stats: { trees: veg.length, treesIn: veg.filter((t) => t.inside).length, colliders: colliders.length, sight: sight.length, wheatCover: nWheat, logs: veg.logs.length, loot: loot.length, doors: (ctx.doors || []).length, chunks: cs.list.length, buildMs: 0, terrainMs: T.tBuild },

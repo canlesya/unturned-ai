@@ -226,7 +226,7 @@ export function vbBoard(b) {
   const trip = Math.hypot(dest.x - s.pos.x, dest.z - s.pos.z);
   let best = null, bd = 1e9;
   for (const v of V.list) {
-    if (!v.alive || !v.st || v.burn || v.st.sunk || v.seats.some(Boolean) || (v.team && v.team !== s.team) || g.time < (v.botBad || 0)) continue;      // 12.200 tarafsız (yol kenarı) araç: herkes
+    if (!v.alive || !v.st || v.def.fixed || v.burn || v.st.sunk || v.seats.some(Boolean) || (v.team && v.team !== s.team) || g.time < (v.botBad || 0)) continue;      // 12.213 sabit yuva sürülmez (empBots.js)      // 12.200 tarafsız (yol kenarı) araç: herkes
     if (!botMayTake(g, v, s.team)) continue;                                      // 12.200 yeni doğan araç / insanlara ayrılan araç
     if (v.botRes && v.botRes !== b && v.botRes.s.alive && g.time < v.botResT) continue;
     const k = kindOf(v); if (trip < (k === 'moto' ? motoTrip(g) : VBOT.trip[k])) continue;

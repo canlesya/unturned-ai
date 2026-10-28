@@ -25,7 +25,8 @@ import { ScopeBreath } from './breath.js';
 import { norm, codeLabel, slotOrder } from '../core/keybinds.js';
 import { t as $t } from '../i18n/index.js';
 import { vehCamera } from './vehicleView.js';
-import { mgAt, seatGun, seatZoom, vehSeatArmed } from '../sim/vehicle.js';                   // 12.177 araç kamerası (sürücü içeriden / takip)
+import { mgAt, seatGun, seatZoom, vehSeatArmed } from '../sim/vehicle.js';
+import { arcYaw, arcPitch } from '../sim/emplacement.js';                             // 12.213 sabit yuva yayı                   // 12.177 araç kamerası (sürücü içeriden / takip)
 import { wName, opticName, fireName } from '../i18n/game.js';
 import { opticSvg } from './opticIcons.js';
 
@@ -1226,10 +1227,11 @@ export class Player {
   vehInput(dt, k, kb, T) {
     const s = this.s, g = this.game, V = g.vehicles, v = s.veh;
     if (!v || !v.st) return;
-    const yw = v.st.yaw, stab = !!(v.def.turret || v.def.heli);             // 12.179 helikopter: burun bakışı izler (gövde dönüşü bakışa eklenirse geri besleme olur)                         // 12.178 tank: bakış dünyada sabit (kule dengeli), gövde dönüşü bakışı döndürmez
+    const yw = v.st.yaw, stab = !!(v.def.turret || v.def.heli || v.def.fixed);      // 12.213 sabit yuva: gövde (silah) bakışı izler             // 12.179 helikopter: burun bakışı izler (gövde dönüşü bakışa eklenirse geri besleme olur)                         // 12.178 tank: bakış dünyada sabit (kule dengeli), gövde dönüşü bakışı döndürmez
     if (!stab && this._vveh === v && this._vyaw !== undefined) s.yaw += ((yw - this._vyaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
     this._vyaw = yw; this._vveh = v;
     const drv = s.seat === 0;
+    if (v.def.fixed) { s.yaw = arcYaw(v.st, s.yaw); s.pitch = arcPitch(v.def, s.pitch); }      // 12.213 sabit yuva: bakış silahın yayında (±70° / −15°…+25°)
     const f = drv ? (kb.held('forward', k) ? 1 : 0) - (kb.held('back', k) ? 1 : 0) || (T ? T.f : 0) : 0;
     const r = drv ? (kb.held('right', k) ? 1 : 0) - (kb.held('left', k) ? 1 : 0) || (T ? T.r : 0) : 0;
     const brake = drv && (kb.held('jump', k) || !!(T && T.jump)), dn = drv && !!v.def.heli && (kb.held('crouch', k) || !!(T && T.down));      // helikopter: Boşluk yüksel, C / Ctrl alçal
@@ -1246,7 +1248,8 @@ export class Player {
     if (drv) {
       v.horn = !!v.def.horn && this.fireHeld && this.locked;             // 12.188: korna yalnız jipte (helikopterde sol tık = burun topu)
       V.drive(v, { f, r, b: brake, u: brake, d: dn, yw: s.gunAim ? s.gunAim.y : s.yaw, pt: s.gunAim ? s.gunAim.p : s.pitch }, dt);
-      if (v.def.cannon && this.fireHeld && this.locked && !g.online) V.fireCannon(v, s);      // çevrimdışı: ana top (çevrim içinde sunucu ateşler, 'ts' olayı)
+      if (v.def.cannon && this.fireHeld && this.locked && !g.online) V.fireCannon(v, s);
+      if (v.def.atgm && this.fireHeld && this.locked && !g.online) V.fireAtgm(v, s);      // 12.213 sabit tanksavar (çevrim içinde sunucu)      // çevrimdışı: ana top (çevrim içinde sunucu ateşler, 'ts' olayı)
       if (s.rkHeld && !g.online) V.fireRocket(v, s);                                       // 12.188 helikopter roketleri (12.201: Q / orta tık; çevrim içinde sunucu, girdi 'rk')
       V.place(s);
       if (!g.online) for (const o of v.seats) if (o && o !== s) V.place(o);
