@@ -8,9 +8,9 @@ import fs from 'fs';
 const URL0 = process.env.URL || 'http://127.0.0.1:5287', OUT = process.env.OUT || '/tmp/wb-veh/lod';
 // [ad, araç türü, x, z, yaw, kamera uzaklığı (m), kamera yüksekliği (m), fov]
 const SPOTS = JSON.parse(process.env.SPOTS || JSON.stringify([
-  ['L2-kizil-us-yolu', 'jip', -211.8, -608.3, 2.254, 560, 70, 3.2],
-  ['L2-kizil-us-yolu-tank', 'tank', -211.8, -608.3, 2.254, 560, 70, 3.6],
-  ['L3-radar-yolu', 'jip', -532.1, 193.5, 1.598, 880, 110, 2.2],
+  ['L2-kizil-us-yolu', 'jip', -211.8, -608.3, 2.254, 560, 70, 1.4],
+  ['L2-kizil-us-yolu-tank', 'tank', -211.8, -608.3, 2.254, 560, 70, 1.8],
+  ['L3-radar-yolu', 'jip', -532.1, 193.5, 1.598, 880, 110, 1.0],
 ]));
 fs.mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch({ headless: false, args: ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu'] });
