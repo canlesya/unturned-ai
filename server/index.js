@@ -102,6 +102,7 @@ wss.on('connection', (ws, req) => {
       ws.ctx.room.chat(ws.ctx.id, m); return;
     }
     if (m.t === 'opt') { if (ws.ctx) ws.ctx.room.opt(ws.ctx.id, m); return; }
+    if (m.t === 'mk') { if (ws.ctx) ws.ctx.room.mark(ws.ctx.id, m); return; }        // 12.202 işaret (ping)
     if (m.t === 'dbg' && process.env.BF_DEBUG && ws.ctx) { ws.ctx.room.debug(ws.ctx.id, m); return; }   // yalnızca test için
     if (m.t === 'vote') { if (ws.ctx) ws.ctx.room.castVote(ws, m.i); return; }      // maç sonu oylaması (yalnız insanlar)
     if (m.t === 'team') {                                // M menüsü: takım değiştirme isteği

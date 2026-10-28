@@ -90,6 +90,7 @@ export class NetClient {
     if (m.t === 'ev') return this.game.onNetEvents?.(m.l);
     if (m.t === 'votes') return this.game.onNetVotes?.(m);
     if (m.t === 'restart') return this.game.onNetRestart?.(m);
+    if (m.t === 'mk') return this.game.pings?.add(m);                                                   // 12.202 takım arkadaşının işareti
   }
 
   // ── girdi ──
@@ -188,6 +189,7 @@ export class NetClient {
     // 12.191 bayraklar: [sahip, ilerleme, alandaki Mavi, Kırmızı]; ilk snapshot (geç katılım) bildirim / ses çıkarmaz, yalnız durumu kurar
     const first = !this._oSeen, at = performance.now(); this._oSeen = true;
     m.o.forEach((o, i) => { const ob = g.mode.objectives[i]; if (!ob) return; const prev = ob.owner; ob.owner = o[0] === 1 ? 'blue' : o[0] === 2 ? 'red' : null; ob.p = o[1]; ob.nb = o[2] || 0; ob.nr = o[3] || 0; ob._at = at; if (first) ob.pd = ob.p; else if (ob.owner !== prev) g.onFlag?.(ob, prev); });
+    if (m.me?.sp) g._sqNet = new Map(m.me.sp);                                 // 12.202 ölüyken: manga arkadaşlarının yanında doğulabilir mi (sunucu hesaplar)
     this.reconcile(m.me);
   }
 
@@ -196,7 +198,8 @@ export class NetClient {
     this.roster = roster;
     for (const r of roster) {
       const s = g.soldiers[r.id]; if (!s) continue;
-      s.name = r.name; s.vacant = !!r.vac;
+      s.name = r.name; s.vacant = !!r.vac; s.netHuman = !!r.human;
+      if (Number.isInteger(r.sq)) s.squad = r.sq;                                  // 12.202 sunucunun manga ataması
       if (s.team !== r.team) s.team = r.team;
       if (s.cls !== r.cls) s.setClass(r.cls);
     }

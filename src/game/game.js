@@ -52,6 +52,11 @@ import { assignSquadsBig, perchBig, spawnFlagBig } from './bigBots.js';         
 import { vnav } from './vehicleBots.js';                                         // 12.189 bot sürücüler (araç ızgarası)
 import { VehicleView } from './vehicleView.js';
 import { VehicleHud } from './vehicleHud.js';
+import { squadOn, assignDefault, placeHuman, mateSpawnState, mateSpawnPoint, squadMates, SP } from './squad.js';     // 12.202 manga
+import { SquadHud } from './squadHud.js';
+import { Pings } from './pings.js';
+import { Heat } from './heat.js';
+import { BigMap, DEPLOY_AUTO } from './bigMap.js';
 import { VT, mgAt, seatGun, heFalloff } from '../sim/vehicle.js';
 import { spaceSetup } from './space.js';
 import { NADE, nadeTick, NadeView, fragBlast, bounceSfx, aimNade } from './grenade.js';
@@ -289,11 +294,11 @@ export class Game {
       this.map.baseZones = null;                                    // üs cezası yok: zombiler her yerden doğar
       if (!opts.online) this.seedInfection();
     }
-    // mangallar: takım başına 4'lü gruplar
-    for (const team of ['blue', 'red']) {
-      let n = 0;
-      for (const s of this.soldiers) if (s.team === team) s.squad = Math.floor(n++ / 4);
-    }
+    // mangalar: takım başına 4'lü gruplar (12.202: çevrim içinde sunucunun atadığı roster.sq; insan katılınca arkadaşının mangasına geçer: squad.js placeHuman)
+    assignDefault(this);
+    if (opts.online) for (const r of opts.online.roster) { const s = this.soldiers[r.id]; if (s) { if (Number.isInteger(r.sq)) s.squad = r.sq; s.netHuman = !!r.human; } }
+    this.hold = !headless && !opts.online && squadOn(this);                // 12.202 doğuş seçici: ölünce "Doğ"a basılana dek (en çok süre + DEPLOY_AUTO sn) beklenir
+    this.deployNow = false;
     this.squadGoals = { blue: [], red: [] };
     this.perchCache = new Map();
     this.squadT = 0;
@@ -316,7 +321,13 @@ export class Game {
     this.killfx = new KillFx(this);                                                // vuruş / öldürme hissi (kendi katmanı)
     this.objFx = this.mode.objectives.length && !opts.editor ? new ObjFx(this) : null;   // 12.191 bayrak direği (bez ilerlemeyle iner / çıkar) + alan sınırı halkası
     if (this.online) this.chat = new Chat(this);                                   // sohbet yalnızca çevrimiçi odalarda
+    if (!opts.editor) {                                                            // 12.202 manga HUD'u, işaretler, çatışma yoğunluğu, büyük harita / doğuş seçici
+      this.heat = new Heat();
+      this.pings = new Pings(this);
+      this.squadHud = squadOn(this) ? new SquadHud(this) : null;
+    }
     this.player = new Player(this, this.playerSoldier, this.settings);
+    if (!opts.editor) this.bigMap = new BigMap(this);
     this.nadeView = new NadeView(this);                                            // 12.144: bomba yörünge önizlemesi + pişirme göstergesi
     this.player.locked = !!opts.nolock;
     this.abfx = new AbilityFx(this);                                                // zombi gücü: yerel oyuncunun ekran / ses geri bildirimi (abilityfx.js)
@@ -332,6 +343,7 @@ export class Game {
     }
 
     // olaylar
+    this.on('spawn', (s) => { if (s === this.playerSoldier) { this.deployReq = null; this.deployNow = false; } });      // 12.202 doğuş isteği karşılandı
     this.on('pad', (s) => { if (s.pos.distanceTo(this.camera.position) < 40) this.sfx.boing?.(s.pos); });
     this.on('hitmark', (e) => {
       this.killfx.hit(e);                                                          // işaret + isabet sesi (öldürme sesi killfx.kill'de)
@@ -356,6 +368,7 @@ export class Game {
       if (locked) { this.lockFails = 0; this._quietUntil = 0; this.player.skipMove = 2; this.lockKeys(true); }                 // kilit anındaki ilk fare olayı genelde zıplar: atla
       else {
         this.chat?.close();
+        if (this.bigMap?.mode === 'map') this.bigMap.toggle(false);                 // 12.202: Esc / kilit düştü → büyük harita kapanır (menü açılır)
         this._unlockBy = this._selfUnlock ? 'game' : 'user'; this._selfUnlock = false;   // 12.147: oyunun bıraktığı kilit jestsiz geri alınabilir
         this.lockKeys(document.fullscreenElement && this.settings.fullscreen !== false ? 'esc' : false);   // tam ekran menüde Esc sayfada kalsın (yoksa tam ekrandan çıkar)
         this._unlockAt = performance.now();
@@ -390,10 +403,12 @@ export class Game {
       document.body.appendChild(b);
       this._badgeT = 0; this._badgeCode = code;
       this.online.roster = opts.online.roster;
-      document.addEventListener('keydown', this._km = (e) => {                    // M: takım seçimi
-        if (this.binds.is('team', e.code) && !e.repeat && !this.ended) { e.preventDefault(); this.toggleTeamMenu(); }
+      document.addEventListener('keydown', this._km = (e) => {                    // K: takım seçimi (12.202: M artık büyük harita)
+        if (this.chatOpen) return;
+        if (this.binds.is('team', e.code) && !e.repeat && !this.ended) { e.preventDefault(); this.bigMap?.toggle(false); this.toggleTeamMenu(); }
         else if (e.code === 'Escape' && this._tm) this.toggleTeamMenu(false);
       });
+      if (squadOn(this)) this.online.send({ t: 'opt', hold: 1 });                  // 12.202: ölünce "Doğ" beklenir (eski sunucu yok sayar → eskisi gibi kendiliğinden)
     } else for (const s of this.soldiers) if (!s.vacant) this.respawn(s, true);
     this.remoteTorch = new RemoteTorches(this);      // 12.159: başkalarının feneri (sabit ışık havuzu; ön ısıtmadan önce kurulur → ışık sayısı hiç değişmez)
     if (this.vehicles) { this.vehView = new VehicleView(this); this.vehHud = new VehicleHud(this); }      // 12.177 araç modelleri / far havuzu / ses + HUD (ön ısıtmadan önce: far ışıkları sabit)
@@ -519,6 +534,7 @@ export class Game {
       if (live.length && !live.some((e) => e.team === 'red')) { this.makeZombie(s, true); this.netEvent({ e: 'inf', v: s.id, bs: 1, zt: 1, zl: s.zLives }); }
     }
     this.humans.set(s.id, { s, queue: [], last: null, stale: 0, ack: 0, tickAck: false, fireBuf: 0, pendingClass: null, pendingLoadout: null, spawnChoice: 'base' });
+    placeHuman(this, s);                                                         // 12.202: aynı takımdaki başka insanın mangasına (yer varsa)
     this.respawn(s, true);
     return s;
   }
@@ -735,6 +751,7 @@ export class Game {
   // Alt sayfa (Ayarlar / Kontroller, tuş atama), sohbet, takım menüsü Esc'yi kendileri işler; dokunmatik / kilitsiz yedek mod player.js'te.
   onEsc(e) {
     const hud = this.hud;
+    if (this.bigMap?.mode === 'map' && !hud.igs?.open) { e.preventDefault(); this.bigMap.toggle(false); return; }     // 12.202: Esc büyük haritayı kapatır
     if (!this.running || this.ended || hud.endShown || this.noPointerLock || this._tm || this.chatOpen || hud.igs?.open) return;
     if (this.opts.nolock ? this.simulate : this.player.locked) {
       e.preventDefault();
@@ -815,10 +832,66 @@ export class Game {
   // Oyuncu doğma noktası seçimi: 'base' ya da sahip olunan hedefin id'si
   spawnOptions(team = this.playerSoldier.team) {
     const out = [{ id: 'base', name: 'Üs', ok: true }];
-    if (this.front) return out;                                                     // Cephe: ileri doğuş yok (doğuş hattı sektörle kayar)
-    if (this.map.big) out.push({ id: 'front', name: 'Ön hat', ok: this.mode.objectives.some((o) => this.canForwardSpawn(o, team)), label: '▲' });   // 12.172 büyük harita: düşmana en yakın sahip olunan bayrak
-    for (const o of this.mode.objectives) out.push({ id: o.id, name: o.name, ok: this.canForwardSpawn(o, team), label: o.label || o.name[0] });
+    if (!this.front) {                                                              // Cephe: ileri doğuş yok (doğuş hattı sektörle kayar)
+      if (this.map.big) out.push({ id: 'front', name: 'Ön hat', ok: this.mode.objectives.some((o) => this.canForwardSpawn(o, team)), label: '▲' });   // 12.172 büyük harita: düşmana en yakın sahip olunan bayrak
+      for (const o of this.mode.objectives) out.push({ id: o.id, name: o.name, ok: this.canForwardSpawn(o, team), label: o.label || o.name[0] });
+    }
+    const me = this.playerSoldier;                                                  // 12.202 manga arkadaşları (Cephe / Vagon / TDM'de de)
+    if (me && me.team === team && squadOn(this)) for (const m of squadMates(this, me)) { const st = this.mateState(m); out.push({ id: 'sq:' + m.id, name: m.name, ok: st === SP.OK, mate: m, st }); }
     return out;
+  }
+  // 12.202 manga arkadaşının yanında doğuş durumu: çevrimdışında yerelde, çevrim içinde sunucunun me.sp'si (arkadaşın çatışma durumunu yalnız sunucu bilir)
+  mateState(m) {
+    if (!this.online) return mateSpawnState(this, m);
+    if (!m.alive) return SP.DEAD;
+    const v = this._sqNet?.get(m.id);
+    return v ?? (m.veh ? SP.VEH : SP.OK);
+  }
+  // 12.202 "Doğ" (ölüm ekranı / Boşluk): süre bitince seçili noktada doğulur (bitmediyse hazır bekler)
+  requestDeploy() {
+    const me = this.playerSoldier;
+    if (!me || me.alive || this.ended) return;
+    const sel = this.spawnOptions().find((o) => o.id === this.spawnChoice);
+    if (sel && !sel.ok) { this.hud.toast($t('sq.t.cantSpawn'), '#ffb38a'); return; }
+    if (this.online) { this.deployReq = this.time; this.online.send({ t: 'opt', spawn: this.spawnChoice, dep: 1 }); }
+    else this.deployNow = true;
+    this.sfx?.ui?.('click');
+  }
+  deployArmed() { return this.online ? this.deployReq != null : this.deployNow; }
+  // yetkili taraf: süresi biten ölü doğabilir mi (insan "Doğ" bekliyorsa: basınca ya da DEPLOY_AUTO sn sonra)
+  deployOk(s) {
+    const c = this.ctlOf(s);
+    if (!c || !c.hold || s.def?.zombie) return true;
+    if (s.respawnT <= -DEPLOY_AUTO) return true;
+    if (!c.deployNow) return false;
+    const ch = c.spawnChoice;
+    if (typeof ch === 'string' && ch.startsWith('sq:')) {
+      const m = this.soldiers[+ch.slice(3)];
+      if (!m || m.team !== s.team || m.squad !== s.squad || mateSpawnState(this, m) !== SP.OK) { c.deployNow = false; return false; }      // arkadaş bu arada çatışmaya girdi: istemci yeniden seçer
+    }
+    return true;
+  }
+
+  // 12.202 işaret (yetkili: çevrimdışı oyun / sunucu Room.mark). p: dünya noktası, vId: işaretlenen düşman (görüyorsa). Döner { k, v, x, y, z } ya da null
+  ping(by, p, vId = -1) {
+    if (!by || by.vacant || this.ended || !p || ![p.x, p.y, p.z].every(Number.isFinite)) return null;
+    const b = this.map.bounds;
+    if (p.x < b.minX - 50 || p.x > b.maxX + 50 || p.z < b.minZ - 50 || p.z > b.maxZ + 50) return null;
+    const x = clamp(p.x, b.minX, b.maxX), z = clamp(p.z, b.minZ, b.maxZ), y = clamp(p.y, -50, 400);
+    let k = 'loc', v = -1;
+    const e = vId >= 0 ? this.soldiers[vId] : null;
+    if (e && e.alive && !e.vacant && e.team !== by.team && by.alive && Math.hypot(e.pos.x - by.pos.x, e.pos.z - by.pos.z) < 360) {
+      const ok = !this.headless || this.losClear(by.eye(), new THREE.Vector3(e.pos.x, e.pos.y + 1.1, e.pos.z)) || this.losClear(by.eye(), new THREE.Vector3(e.pos.x, e.pos.y + 1.6, e.pos.z));
+      if (ok) { k = 'enemy'; v = e.id; e.spottedT = Math.max(e.spottedT ?? -99, this.time + 3.5); }
+    }
+    if (k === 'loc' && squadOn(this)) {                                             // manga botları liderin / arkadaşın işaretine yönelir (hedefi yoksa)
+      for (const bb of this.brains) {
+        const s = bb.s;
+        if (s === by || !s.alive || s.team !== by.team || s.squad !== by.squad || bb.target || s.veh || this.front || this.payload) continue;
+        if (Math.random() < 0.7) { bb.setGoal(x + rand(-4, 4), z + rand(-4, 4), rand(14, 22), y); bb.pingT = this.time; }
+      }
+    }
+    return { k, v, x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10, z: Math.round(z * 10) / 10 };
   }
   // klavyeyle doğma noktası seç: kullanılabilir seçenekler arasında ileri/geri
   cycleSpawn(step) {
@@ -964,7 +1037,10 @@ export class Game {
     // ileri doğma: seçilen / bot için ara sıra sahip olunan hedefin çevresi
     let target = null;
     const ctl = s ? this.ctlOf(s) : null;
-    if (ctl && ctl.spawnChoice === 'front') target = this.front ? null : this.frontFlag(team);
+    if (ctl && typeof ctl.spawnChoice === 'string' && ctl.spawnChoice.startsWith('sq:')) {      // 12.202 manga arkadaşının yanı (uygun değilse üs)
+      const m = this.soldiers[+ctl.spawnChoice.slice(3)];
+      if (m && m !== s && m.team === team && m.squad === s.squad && mateSpawnState(this, m) === SP.OK) return mateSpawnPoint(this, s, m);
+    } else if (ctl && ctl.spawnChoice === 'front') target = this.front ? null : this.frontFlag(team);
     else if (ctl && ctl.spawnChoice !== 'base') target = this.front ? null : this.mode.objectives.find((o) => o.id === ctl.spawnChoice);
     else if (s && !ctl && !this.front && Math.random() < (this.map.big ? 0.9 : 0.35)) {                 // 12.172 büyük harita: botlar çoğunlukla ön hattan doğar
       const own = this.mode.objectives.filter((o) => o.owner === team && this.canForwardSpawn(o, team));
@@ -972,11 +1048,13 @@ export class Game {
     }
     if (target && this.canForwardSpawn(target, team)) {
       const cl = this.objCells(target);                                             // 12.184 alan kotu karışıksa (Baraj) yalnız hedef kotundaki hücreler
-      for (let k = 0; k < 14; k++) {
+      const want = ctl ? 6 : 1, cands = [];                                          // 12.202: insanın seçtiği bayrakta 6 boş aday → düşmanın görmediği (safePick, 12.197 üs kuralı); bot eskisi gibi ilk boş nokta
+      for (let k = 0; k < (ctl ? 24 : 14) && cands.length < want; k++) {
         const a = Math.random() * Math.PI * 2, rr = target.r * (0.25 + Math.random() * 0.6);
         const { x, z } = cl ? this.objPoint(target) : { x: target.x + Math.cos(a) * rr, z: target.z + Math.sin(a) * rr };
-        if (this._free(x, z, s)) return { x, z, ry: Math.atan2(-(target.x - x), -(target.z - z)) + (Math.random() - 0.5) * 3, forward: true };
+        if (this._free(x, z, s)) cands.push({ x, z, ry: Math.atan2(-(target.x - x), -(target.z - z)) + (Math.random() - 0.5) * 3, forward: true });
       }
+      if (cands.length) return cands.length > 1 ? this.safePick(cands, team) : cands[0];
     }
     const pts = this.map.spawns[team];
     const free = pts.filter((p) => !this.soldiers.some((e) => e !== s && e.alive && Math.hypot(e.pos.x - p.x, e.pos.z - p.z) < 1.3));
@@ -993,14 +1071,18 @@ export class Game {
   // 12.197 takım üs doğuşu: boş noktalardan rastgele 8 aday, düşmanın görmediği (60 m içinde göz → göğüs) ve düşmana en uzak olan seçilir.
   // Eskiden rastgele bir noktaydı: küçük haritalarda (Liman / Depo, avlu ile hedefler arası 30 m) üsse sızan düşmanın tam önüne doğulabiliyordu.
   safeBase(free, team) {
+    if (free.length < 2) return pick(free);
+    return this.safePick(Array.from({ length: Math.min(8, free.length) }, () => free[Math.floor(Math.random() * free.length)]), team);
+  }
+  // adaylardan düşmanın görmediği (60 m, göz → göğüs) ve düşmana en uzak olan (12.197; 12.202'den beri seçilen bayrakta da)
+  safePick(cands, team) {
     const foes = this.soldiers.filter((e) => e.alive && e.team !== team && !e.vacant);
-    if (!foes.length || free.length < 2) return pick(free);
+    if (!foes.length) return pick(cands);
     const eye = (this._spE ||= new THREE.Vector3()), tgt = (this._spT ||= new THREE.Vector3());
     let best = null, bs = -1e9;
-    for (let k = 0; k < Math.min(8, free.length); k++) {
-      const p = free[Math.floor(Math.random() * free.length)];
+    for (const p of cands) {
       let dmin = 99, seen = 0;
-      tgt.set(p.x, (p.y || this.world.heightAt(p.x, p.z)) + 1.3, p.z);
+      tgt.set(p.x, (p.y || this.world.groundAt(p.x, p.z)) + 1.3, p.z);
       for (const e of foes) {
         const d = Math.hypot(e.pos.x - p.x, e.pos.z - p.z);
         dmin = Math.min(dmin, d);
@@ -1009,7 +1091,7 @@ export class Game {
       const sc = Math.min(dmin, 40) - seen * 30 + Math.random() * 3;
       if (sc > bs) { bs = sc; best = p; }
     }
-    return best || pick(free);
+    return best || pick(cands);
   }
 
   // oyuncu (offline) ya da insan (sunucu) için doğuş tercihleri; botlar için null
@@ -1029,10 +1111,11 @@ export class Game {
     const pt = s.def.zombie && this.infPool ? this.pickZombieSpawn(s, first) : this.pickSpawn(s.team, s);
     s.spawn(pt, first ? TUNE.firstProtect : TUNE.spawnProtect);
     this.world.settle(s);
-    if (pt.y > s.pos.y + 0.3) s.pos.y = pt.y;                          // kat doğuşu (kale güvertesi): settle yalnız zemine / alçak engele oturtur
+    if (pt.squad) s.pos.y = pt.y + 0.002;                              // 12.202 mangadan doğuş: arkadaşın katı (köprü altı / tünel / üst kat; settle tabliyeye çıkarmasın)
+    else if (pt.y > s.pos.y + 0.3) s.pos.y = pt.y;                          // kat doğuşu (kale güvertesi): settle yalnız zemine / alçak engele oturtur
     s.zoneT = 0;
     if (s.brain) s.brain.reset();
-    if (ctl) ctl.pendingClass = null;
+    if (ctl) { ctl.pendingClass = null; ctl.deployNow = false; }
     if (s.isPlayer) this.hud.onPlayerSpawn?.();
   }
 
@@ -1338,7 +1421,7 @@ export class Game {
     if (this._badge && (this._badgeT -= dt) <= 0) { this._badgeT = 0.5; const rtt = Math.round(this.online.stats.rtt || 0); this._badge.innerHTML = `ODA <b style="color:#ffb347">${this._badgeCode}</b> · ${rtt ? rtt + ' ms' : '…'} · ${Math.round(this._perf?.fps || 0)} FPS`; }
     const me = this.playerSoldier;
     for (const s of this.soldiers) s.update(dt);
-    if (me.alive) { if (me.veh) this.vehicles.place(me); else { this.world.move(me, dt); this.vehicles?.pushSoldier(me); this.fallPredict(me); this.swimPredict(me, dt); } } else if (me.respawnT > 0) me.respawnT -= dt;
+    if (me.alive) { if (me.veh) this.vehicles.place(me); else { this.world.move(me, dt); this.vehicles?.pushSoldier(me); this.fallPredict(me); this.swimPredict(me, dt); } } else if (me.respawnT > -DEPLOY_AUTO) me.respawnT -= dt;      // 12.202: süre bitince eksiye (otomatik doğuş geri sayımı)
     this.updatePlayArea(dt);
     this.player.update(dt);
     { const m = this.playerSoldier.pos; if (!this._p0) { this._p0 = m.clone(); this._p1 = m.clone(); } else { const t = this._p0; this._p0 = this._p1; this._p1 = t; t.copy(m); } }       // yerel karakter konumu: son iki adım
@@ -1389,7 +1472,7 @@ export class Game {
     for (const s of this.soldiers) {
       if (!s.alive && !this.ended && !s.vacant) {
         s.respawnT -= dt;
-        if (s.respawnT <= 0) this.respawn(s);
+        if (s.respawnT <= 0 && this.deployOk(s)) this.respawn(s);            // 12.202: insan "Doğ" bekliyorsa (hold) basınca / DEPLOY_AUTO sn sonra
       }
     }
     this.effects.update(dt);
@@ -1430,6 +1513,7 @@ export class Game {
           else if (ev.k === 'w') { const n = new V(...ev.n); if (ev.vh) this.effects.spark(p, 6, n, '#ffe7b0'); else { this.effects.spark(p, 4, n); this.effects.dust(p, n); this.effects.decal(p, n); } }      // vh: araç gövdesi (12.177)
           if (ev.b) for (let i = 0; i + 2 < ev.b.length; i += 3) { const bp = new V(ev.b[i], ev.b[i + 1], ev.b[i + 2]); if (!this.ownBody(bp)) this.effects.blood(bp, 7, dir.clone().negate()); }     // 12.164: delip geçilen askerler
           if (ev.tw) { const tp = new V(ev.tw[0], ev.tw[1], ev.tw[2]), tn = new V(ev.tw[3], ev.tw[4], ev.tw[5]); this.effects.spark(tp, 3, tn); this.effects.decal(tp, tn); }     // 12.164: ince levha geçişi
+          if (ev.m) this.heat?.add(o.x, o.z, 0.25, this.time);
           if (ev.m) { this.effects.muzzle(o, dir); this.sfx.shot(st.sound, by.pos); by.flashT = 0.06; if (st.charge) by.railT = 0; }      // 12.160 railT: ray tüfeği şarjı 3. şahısta (yeni ağ alanı yok)
           break;
         }
@@ -1445,6 +1529,7 @@ export class Game {
           const victim = this.soldiers[ev.v], killer = this.soldiers[ev.k] || victim;
           if (!victim) break;
           this.hud.killFeed(killer, victim, ev.w, !!ev.hs, ev.pn || 0);
+          this.heat?.add(victim.pos.x, victim.pos.z, 3, this.time);
           if (killer === me && victim !== me) this.killfx.kill(victim, ev.w, !!ev.hs, undefined, { pn: ev.pn || 0, pc: ev.pc || 0 });
           if (victim === me) this.killfx.died();
           if (victim === me) me.lastHit = killer;
@@ -1743,6 +1828,7 @@ export class Game {
     restore?.();
     shooter.spottedT = this.time;
     const first = this._firstPellet; this._firstPellet = false;
+    if (first && this.heat) this.heat.add(shooter.pos.x, shooter.pos.z, 0.25, this.time);     // 12.202 çatışma yoğunluğu (çevrim içinde başkalarınınki 'sh' olayından)
     const q2 = (v) => Math.round(v * 100) / 100;
     const ev = this.headless ? { e: 'sh', by: shooter.id, m: first ? 1 : 0, o: [q2(muzzle.x), q2(muzzle.y), q2(muzzle.z)] } : null;
     if (ev && st.vmg) ev.vm = 1;
@@ -1875,7 +1961,7 @@ export class Game {
   }
 
   // 12.193 el bombası patlaması (grenade.js fragBlast; test / hata ayıklama buradan yakalar)
-  fragBlast(pos, st, owner, selfMul) { fragBlast(this, pos, st, owner, selfMul); }
+  fragBlast(pos, st, owner, selfMul) { this.heat?.add(pos.x, pos.z, 1.5, this.time); fragBlast(this, pos, st, owner, selfMul); }
 
   // 12.193 bot bomba nişanı (aynı fizik; araç gövdeleri dahil). under: önce alttan dene (kısa mesafe) · fuse: kalan fünye
   botAimNade(s, st, tp, under, fuse) {
@@ -2023,6 +2109,7 @@ export class Game {
   // ölçülür), görüş çıkışı yüzey normali yönünde 0,3 m (+ yere düşende 0,7 m yukarıdan ikinci çıkış: arazinin kıl payı tümseği parçacığı kesmez),
   // hasar inner içinde tam → radius'ta 0 (heFalloff), daha güçlü itme. İz (kurum) çevrim içi istemcide de çizilir (eskiden yalnız yetkili tarafta).
   explode(pos, radius, dmg, owner, name, selfMul, kind = 'blast', opt = null) {
+    this.heat?.add(pos.x, pos.z, 1.5, this.time);
     const he = !!opt?.he;
     this.effects.explosion(pos, radius);
     if (he) this.effects.heBlast?.(pos, opt.n);
@@ -2211,6 +2298,7 @@ export class Game {
     this.netEvent(kev);
     if (!this.mode.infection) for (const b of this.brains) b.onMateDown?.(victim, killer);          // 12.152: yakındaki takım arkadaşları düştüğü yere bakar / araştırır
     this.hud.killFeed(killer, victim, weapon, hs, pn);
+    this.heat?.add(victim.pos.x, victim.pos.z, 3, this.time);
     if (killer && killer.isPlayer && killer !== victim) this.killfx.kill(victim, weapon, hs, undefined, { pn, pc });
     if (victim.isPlayer) this.killfx.died();
     if (this.mode.infection) {
@@ -2315,6 +2403,7 @@ export class Game {
     this.abfx?.dispose();
     this.chat?.dispose();
     this.killfx.dispose();
+    this.bigMap?.dispose(); this.pings?.dispose(); this.squadHud?.dispose();      // 12.202
     this.hud.dispose(); this.objFx?.dispose();
     this.sfx.dispose?.();
     this.post?.dispose();

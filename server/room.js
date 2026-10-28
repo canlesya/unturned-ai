@@ -9,6 +9,7 @@ import { currentBalance, balanceMeta } from './balanceStore.js';
 import { MAPS } from '../src/maps/index.js';
 import { nextOptions, tallyVotes } from '../src/game/nextMatch.js';
 import { packVehState } from '../src/sim/vehicle.js';
+import { squadOn, squadMates, mateSpawnState } from '../src/game/squad.js';
 
 const RESTART_ENV = +process.env.BF_RESTART_MS || 0, RESTART_MS = RESTART_ENV || 15000;      // maç sonu ekranı (resmi odada oylama) süresi; ortam değişkeni resmi sunucunun voteSec'ini de ezer (test)
 const EMPTY_ENV = +process.env.BF_EMPTY_ROTATE_MS || 0;                                    // boş resmi oda harita değişimi (test); yoksa sunucunun idleMin alanı
@@ -248,7 +249,7 @@ export class Room {
   }
 
   roster() {
-    return this.game.soldiers.map((s) => ({ id: s.id, name: s.name, team: s.team, cls: s.cls, human: this.game.humans.has(s.id), vac: !!s.vacant }));
+    return this.game.soldiers.map((s) => ({ id: s.id, name: s.name, team: s.team, cls: s.cls, human: this.game.humans.has(s.id), vac: !!s.vacant, sq: s.squad | 0 }));      // 12.202 sq: manga (sunucu atar)
   }
 
   join(ws, name, team, cls, loadout, re = false, skins = null, wear = null) {
@@ -369,7 +370,22 @@ export class Room {
     }
     if (m.skins !== undefined) h.s.skins = c.pref.skins = cleanSkins(m.skins);           // menüde / oyunda kaplama değişti: yavaş alan imzası değişir → bir kez yayınlanır
     if (m.wear !== undefined) h.s.wear = c.pref.wear = cleanWear(m.wear);                // 12.167 kıyafet değişti (aynı yol)
-    if (typeof m.spawn === 'string') h.spawnChoice = m.spawn === 'base' || (m.spawn === 'front' && g.map.big) || g.mode.objectives.some((o) => o.id === m.spawn) ? m.spawn : 'base';
+    if (typeof m.spawn === 'string') h.spawnChoice = m.spawn === 'base' || (m.spawn === 'front' && g.map.big) || g.mode.objectives.some((o) => o.id === m.spawn) || (/^sq:\d{1,3}$/.test(m.spawn) && g.soldiers[+m.spawn.slice(3)]?.team === h.s.team) ? m.spawn : 'base';      // 12.202 sq:<id> manga arkadaşı (uygunluk doğuşta)
+    if (m.hold !== undefined) h.hold = !!m.hold && squadOn(g);                      // 12.202 doğuş seçici: "Doğ" beklenir (en çok süre + 10 sn)
+    if (m.dep && !h.s.alive) h.deployNow = true;
+  }
+
+  // 12.202 işaret: { t:'mk', p:[x,y,z], v? } → doğrulanır (Game.ping: harita içinde, düşmanı görüyor mu) → aynı takımdaki istemcilere { t:'mk', by, p, v, k }
+  mark(id, m) {
+    const c = this.clients.get(id);
+    if (!c || !Array.isArray(m.p) || m.p.length !== 3) return;
+    const now = Date.now();
+    if (now - (c.mkT || 0) < 400) return;                                          // sel sınırı
+    c.mkT = now;
+    const s = c.h.s, r = this.game.ping(s, { x: +m.p[0], y: +m.p[1], z: +m.p[2] }, Number.isInteger(m.v) ? m.v : -1);
+    if (!r) return;
+    const str = JSON.stringify({ t: 'mk', by: id, p: [r.x, r.y, r.z], v: r.v, k: r.k });
+    for (const o of this.clients.values()) if (o.ws.readyState === 1 && o.h.s.team === s.team) o.ws.send(str);
   }
 
   // BF_DEBUG=1 ile açılan test komutları (12.177: { vtp } aracı ışınla, { vdmg } araca hasar; ask: kuyruk / bütçe / atıcı durumu da döner): { t:'dbg', tp:[x,z] } ışınla · { tpy:[x,y,z] } havada bırak · { hp } can · { bots:false } botları sustur · { pb:1 } herkese paintball silahları · { zb:'brute' } zombi ol · { dmg:[id,hasar,kafa] } başkasını vur · { tps:[id,x,z,yaw,can] } başkasını ışınla · { ask } durum
@@ -462,6 +478,7 @@ export class Room {
       const h = c.h, s = h.s;
       const me = { ack: h.ack, rs: s.spawnN, st: h.ackState || packSoldier(s), now: packSoldier(s), rt: +s.respawnT.toFixed(2), am: s.items.map((it) => [it.mag, it.reserve]), aa: h.ackAm, ab: [+s.abT.toFixed(1), +s.abActive.toFixed(1)] };
       if (h.ackVeh) me.vs = h.ackVeh;
+      if (!s.alive && h.hold && squadOn(g)) me.sp = squadMates(g, s).map((m) => [m.id, mateSpawnState(g, m)]);      // 12.202 ölüyken: manga arkadaşlarının yanında doğulabilir mi
       c.ws.send(head + JSON.stringify(me) + '}');
     }
   }

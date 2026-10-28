@@ -17,6 +17,7 @@ import '../i18n/assist.js';                                              // sb.a
 import { wName, wLabel, classDesc, ztName, ztDesc, abilName, opticName, fireName, teamName, popText, mapText, dispName, placeName } from '../i18n/game.js';
 
 const EN = (s) => String(s).replace(/Paintball/g, '<span lang="en">Paintball</span>');   // tr büyük harfte 'PAİNTBALL' olmasın (marka adı)
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const setH = (el, h) => { if (el._h !== h) { el._h = h; el.innerHTML = h; } };     // yalnız değişince yaz (her kare)
 // 12.190 büyüten mercek retikülleri (HUD #lens; R = merceğin ekran yarıçapı px, dot = kırmızı nokta çapı px, k = çizgi kalınlık çarpanı). Kırmızı = ayarlanabilir retikül rengi (--rc)
 const LENS_RET = { x2: 1, x3: 1, chev: 1 };
@@ -536,7 +537,7 @@ export class Hud {
   buildSpawnRow() {
     const g = this.game, row = this.$('spawnrow');
     const opts = g.spawnOptions();
-    const key = opts.map((o) => o.id + (o.ok ? 1 : 0)).join(',') + '|' + g.spawnChoice;
+    const key = opts.map((o) => o.id + (o.ok ? 1 : 0) + (o.st ?? '')).join(',') + '|' + g.spawnChoice + '|' + lang();
     if (key === this._spKey) return;
     this._spKey = key;
     const kb = g.binds;
@@ -545,7 +546,8 @@ export class Hud {
     for (const o of opts) {
       const c = document.createElement('div');
       c.className = 'cc' + (o.ok ? '' : ' dis') + (g.spawnChoice === o.id ? ' on' : ''); c.dataset.k = o.id;
-      c.innerHTML = `<b>${o.id === 'base' ? '⌂ ' + t('death.base') : '⚑ ' + placeName(o.name)}</b><small>${o.id === 'base' ? t('death.baseSafe') : o.ok ? t('death.flagOwned') : t('death.unavail')}</small>`;
+      c.innerHTML = o.mate ? `<b style="color:#8dff8a">◆ ${esc(o.name)}</b><small>${o.ok ? t('sq.mateOk') : t('sq.st.' + o.st)}</small>`      // 12.202 manga arkadaşı
+        : `<b>${o.id === 'base' ? '⌂ ' + t('death.base') : '⚑ ' + placeName(o.name)}</b><small>${o.id === 'base' ? t('death.baseSafe') : o.ok ? t('death.flagOwned') : t('death.unavail')}</small>`;
       c.onclick = () => { g.requestSpawn(o.id); this._spKey = null; };
       row.appendChild(c);
     }
@@ -970,6 +972,7 @@ export class Hud {
     if (g.mode.infection && g.graceLeft > 0) msg = p.def.zombie ? t('hud.graceZ', { n: Math.ceil(g.graceLeft) }) : t('hud.graceH', { n: Math.ceil(g.graceLeft) });
     $('msg').textContent = msg;
     if (this.sbShown) this.renderScoreboard();
+    g.squadHud?.update(); g.pings?.update(); g.bigMap?.update();             // 12.202 manga, işaretler, büyük harita / doğuş seçici
     this.drawMinimap();
   }
 
@@ -1025,14 +1028,15 @@ export class Hud {
     for (const s of g.soldiers) {
       if (!s.alive) continue;
       if (s.veh) continue;                                                  // araçtaki asker araç işaretinde
-      const friendly = s.team === p.team;
+      const friendly = s.team === p.team, mate = friendly && g.squadHud && s.squad === p.squad;      // 12.202 manga arkadaşı yeşil
       if (!friendly && !(g.time - (s.spottedT ?? -99) < 2.5)) continue;
       x.beginPath();
-      x.fillStyle = s.team === 'blue' ? '#4aa3ff' : '#ff5a43';
-      x.arc(this.mmX(s.pos.x), this.mmY(s.pos.z), s.isPlayer ? 0 : 2.6, 0, 6.3);
+      x.fillStyle = mate ? '#62f06a' : s.team === 'blue' ? '#4aa3ff' : '#ff5a43';
+      x.arc(this.mmX(s.pos.x), this.mmY(s.pos.z), s.isPlayer ? 0 : mate ? 3.2 : 2.6, 0, 6.3);
       x.fill();
       if (!friendly) { x.strokeStyle = '#fff'; x.lineWidth = 1; x.stroke(); }
     }
+    g.pings?.drawMap(x, this.mmX, this.mmY, 0.8);                         // 12.202 işaretler
     if (p.alive) {
       x.save();
       x.translate(this.mmX(p.pos.x), this.mmY(p.pos.z));
