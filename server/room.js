@@ -544,7 +544,7 @@ export class Room {
     if (Date.now() < P.logAt) return;
     P.logAt = Date.now() + 30000;
     const st = this.perfStats();
-    if (this.game.soldiers.length > 64 && this.clients.size) console.log(`[başarım] ${this.code} ${this.game.soldiers.length} asker · sim ${st.simAvg} µs (p95 ${st.simP95}, en çok ${st.simMax}) · ağ ${st.netAvg} µs · istemci başına ${st.kbPerClient} KB/sn (ham)${this.lg?.lvl ? ` · yük seviyesi ${this.lg.lvl}` : ''}`);
+    if (this.game.soldiers.length > 64 && this.clients.size) console.log(`[başarım] ${this.code}${this.thread ? ' (iş parçacığı)' : ''} ${this.game.soldiers.length} asker · ${this.clients.size} oyuncu · sim ${st.simAvg} µs (p95 ${st.simP95}, en çok ${st.simMax}) · ağ ${st.netAvg} µs · istemci başına ${st.kbPerClient} KB/sn (ham)${this.lg?.lvl ? ` · yük seviyesi ${this.lg.lvl}` : ''}`);
   }
 
   // 12.211 yük koruması (yukarıdaki LOAD_* açıklaması)
@@ -595,7 +595,7 @@ export class Room {
     const P = this.perf; if (!P || !P.n) return null;
     const a = Array.from(P.buf.subarray(0, P.n)).sort((x, y) => x - y), nt = P.net.subarray(0, P.n);
     const avg = (v) => Math.round(v.reduce((x, y) => x + y, 0) / v.length);
-    return { simAvg: avg(a), simP95: Math.round(a[Math.floor(a.length * 0.95)]), simMax: Math.round(a[a.length - 1]), netAvg: avg(Array.from(nt)), kbPerClient: this.netStat ? +((this.netStat.per * SIM_HZ) / SNAP_EVERY / 1024).toFixed(1) : 0 };
+    return { simAvg: avg(a), simP95: Math.round(a[Math.floor(a.length * 0.95)]), simMax: Math.round(a[a.length - 1]), netAvg: avg(Array.from(nt)), kbPerClient: this.netStat ? +((this.netStat.per * SIM_HZ) / SNAP_EVERY / 1024).toFixed(1) : 0, load: this.lg?.lvl || 0 };
   }
 
   snapshot() {

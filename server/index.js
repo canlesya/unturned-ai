@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { WebSocketServer } from 'ws';
 import os from 'node:os';
+import { monitorEventLoopDelay } from 'node:perf_hooks';
 import { Room, sanitizeCfg, ROOM_MSGS } from './room.js';
 import { RemoteRoom, prewarm } from './roomHost.js';
 import { officialList, reloadOfficial } from './officialStore.js';
@@ -37,8 +38,9 @@ loadBalance();
 const WORKER_MIN = process.env.BF_WORKER_MIN != null ? +process.env.BF_WORKER_MIN : 64;
 const MAX_WORKERS = process.env.BF_WORKERS != null ? +process.env.BF_WORKERS : Math.max(1, (os.availableParallelism?.() || os.cpus().length) - 1);
 const wantsWorker = (n) => MAX_WORKERS > 0 && n > WORKER_MIN && [...rooms.values()].filter((r) => r.remote).length < MAX_WORKERS;
+const soldiersOf = (cfg) => { const c0 = sanitizeCfg(cfg), team = !['dm', 'gg', 'inf', 'pb'].includes(c0.type); return team ? c0.perTeam * 2 : c0.perTeam; };
 function makeRoom(code, cfg, opts = {}) {
-  const c0 = sanitizeCfg(cfg), team = !['dm', 'gg', 'inf', 'pb'].includes(c0.type), n = team ? c0.perTeam * 2 : c0.perTeam;
+  const n = soldiersOf(cfg);
   if (wantsWorker(n)) {
     console.log(`[${code}] oda iş parçacığında (${n} asker)`);
     return new RemoteRoom(code, cfg, { ...opts, onDead: (r) => { if (rooms.get(code) === r) rooms.delete(code); if (r.official) setTimeout(syncOfficial, 2000); } });
@@ -68,7 +70,10 @@ const server = http.createServer(async (req, res) => {
   if (await handleApi(req, res)) return;                               // hesap uçları: /api/register · login · logout · me · profile (server/accounts.js)
   if (req.url === '/health') {
     res.writeHead(200, { 'content-type': 'application/json', 'access-control-allow-origin': '*' });
-    res.end(JSON.stringify({ ok: true, rooms: rooms.size, players: [...rooms.values()].reduce((a, r) => a + r.humanCount, 0) }));
+    // 12.211 workers: iş parçacığındaki odalar (kod, asker, oyuncu) · soldiers: süreçteki toplam asker
+    const all = [...rooms.values()];
+    res.end(JSON.stringify({ ok: true, rooms: rooms.size, players: all.reduce((a, r) => a + r.humanCount, 0), soldiers: all.reduce((a, r) => a + (r.game?.soldiers.length || 0), 0),
+      workers: all.filter((r) => r.remote).map((r) => ({ code: r.code, soldiers: r.game.soldiers.length, players: r.humanCount, ready: !!r.st })) }));
     return;
   }
   if (req.url === '/balance') {          // istemci: çevrimdışı maçlar için güncel denge ayarları
@@ -228,10 +233,30 @@ function syncOfficial() {
     if (r.official && !want.has(code)) { r.shutdown('Bu sunucu yönetici tarafından kapatıldı'); rooms.delete(code); console.log(`[${code}] resmi sunucu kapatıldı`); }
   }
   for (const o of want.values()) {
-    const r = rooms.get(o.code);
-    if (!r) { rooms.set(o.code, makeRoom(o.code, { perTeam: o.perTeam, type: o.type, time: o.time, diff: o.diff, bots: o.bots }, { official: o })); console.log(`[${o.code}] ${o.name} hazır`); }
+    let r = rooms.get(o.code);
+    const ocfg = { perTeam: o.perTeam, type: o.type, time: o.time, diff: o.diff, bots: o.bots };
+    // 12.211 asker sayısı değişip oda yanlış yerde kaldıysa (ör. 32v32 → 128v128 ana iş parçacığında) ve boşsa doğru yerde yeniden kurulur
+    if (r && r.official && !r.humanCount && !r.pending?.length) {
+      const n = soldiersOf(ocfg), big = MAX_WORKERS > 0 && n > WORKER_MIN;
+      if (r.remote ? !big : big && wantsWorker(n)) { r.dispose(); rooms.delete(o.code); r = null; console.log(`[${o.code}] ${n} asker: ${big ? 'iş parçacığına' : 'ana iş parçacığına'} taşınıyor`); }
+    }
+    if (!r) { rooms.set(o.code, makeRoom(o.code, ocfg, { official: o })); console.log(`[${o.code}] ${o.name} hazır`); }
     else if (r.official) { r.activate(); r.setOfficial(o); }
   }
+}
+
+// 12.211 ana iş parçacığının olay döngüsü gecikmesi (bağlantılar + küçük odalar burada): 30 sn'de bir, odada insan varken [başarım] satırı.
+// Büyük oda iş parçacığındayken bu değer o odanın adımından bağımsız kalmalı (canlıdaki "yanıt yok" düşmeleri buradaki gecikmeydi).
+{
+  const h = monitorEventLoopDelay({ resolution: 10 }); h.enable();
+  setInterval(() => {
+    const humans = [...rooms.values()].reduce((a, r) => a + r.humanCount, 0);
+    if (humans) {
+      const W = [...rooms.values()].filter((r) => r.remote), ms = (v) => Math.max(0, v / 1e6 - 10).toFixed(1);      // ölçüm 10 ms'lik zamanlayıcıyla: gecikme = ölçülen − 10
+      console.log(`[başarım] ana iş parçacığı · döngü gecikmesi ort ${ms(h.mean)} ms (p99 ${ms(h.percentile(99))}, en çok ${ms(h.max)}) · ${rooms.size} oda (${W.length} iş parçacığında: ${W.map((r) => `${r.code} ${r.game.soldiers.length} asker`).join(', ') || '-'}) · ${wss.clients.size} bağlantı, ${humans} oyuncu`);
+    }
+    h.reset();
+  }, 30000).unref?.();
 }
 warmMaps();
 syncOfficial();

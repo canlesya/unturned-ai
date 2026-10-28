@@ -18,26 +18,30 @@ setInterval(() => {
   for (const r of live) if (now - r.lastMsg > HANG_MS) { console.error(`[iş parçacığı] ${r.code} ${Math.round((now - r.lastMsg) / 1000)} sn yanıt vermedi: sonlandırılıyor`); r.die('Sunucu odası yanıt vermedi, oda kapatıldı'); }
 }, 2000).unref?.();
 // Yedek iş parçacığı: haritaları önceden kurulmuş, bekler (yeni büyük oda soğuk başlangıç beklemez). Kullanılınca yenisi arka planda ısınır. BF_SPARE=0 kapalı.
-// Yedek ölürse 30 sn sonra yeniden (art arda ölürse 5 dk'ya kadar uzayarak).
-let spare = null, spareFails = 0;
+// Yedek sayısı BF_SPARES (varsayılan 1; test sunucusu BF_WORKER_MIN=0 iken çok oda aynı anda kurulur). Yedek ölürse 30 sn sonra yeniden
+// (art arda ölürse 5 dk'ya kadar uzayarak). Soğuk iş parçacığı (yedek yokken) oda kurulumu ~3–6 sn.
+const SPARES = process.env.BF_SPARE === '0' ? 0 : +process.env.BF_SPARES || 1;
+const spares = [];
+let spareFails = 0;
 export function prewarm() {
-  if (spare || process.env.BF_SPARE === '0') return;
-  const w = new Worker(WORKER_URL, { workerData: { spare: true }, resourceLimits: LIMITS });
-  spare = { w, ready: false };
-  w.on('message', (m) => { if (m.t === 'ready' && spare?.w === w) { spare.ready = true; spareFails = 0; console.log(`[iş parçacığı] yedek hazır (${m.ms} ms ısınma)`); } });
-  const lost = (why) => {
-    if (spare?.w !== w) return;
-    spare = null;
-    const wait = Math.min(300000, 30000 * 2 ** spareFails++);
-    console.error(`[iş parçacığı] yedek kayboldu (${why}); ${wait / 1000} sn sonra yeniden`);
-    setTimeout(prewarm, wait).unref?.();
-  };
-  w.on('error', (e) => lost(e?.message || e));
-  w.on('exit', (c) => lost('çıkış ' + c));
+  while (spares.length < SPARES) {
+    const w = new Worker(WORKER_URL, { workerData: { spare: true }, resourceLimits: LIMITS }), sp = { w, ready: false };
+    spares.push(sp);
+    w.on('message', (m) => { if (m.t === 'ready' && spares.includes(sp)) { sp.ready = true; spareFails = 0; console.log(`[iş parçacığı] yedek hazır (${m.ms} ms ısınma)`); } });
+    const lost = (why) => {
+      const i = spares.indexOf(sp); if (i < 0) return;
+      spares.splice(i, 1);
+      const wait = Math.min(300000, 30000 * 2 ** spareFails++);
+      console.error(`[iş parçacığı] yedek kayboldu (${why}); ${wait / 1000} sn sonra yeniden`);
+      setTimeout(prewarm, wait).unref?.();
+    };
+    w.on('error', (e) => lost(e?.message || e));
+    w.on('exit', (c) => lost('çıkış ' + c));
+  }
 }
 function takeWorker(data) {
-  const sp = spare;
-  if (sp && sp.ready) { spare = null; sp.w.postMessage({ t: 'init', ...data }); setTimeout(prewarm, 3000).unref?.(); return sp.w; }
+  const i = spares.findIndex((s) => s.ready);
+  if (i >= 0) { const sp = spares.splice(i, 1)[0]; sp.w.postMessage({ t: 'init', ...data }); setTimeout(prewarm, 3000).unref?.(); return sp.w; }
   return new Worker(WORKER_URL, { workerData: data, resourceLimits: LIMITS });
 }
 export const workerRooms = () => [...live];

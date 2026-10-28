@@ -56,6 +56,7 @@ let code = null;
 function init(d) {
   code = d.code; loadBalance();
   room = new Room(d.code, d.cfg, d.opts);
+  room.thread = true;                        // [başarım] satırında "(iş parçacığı)"
   state();
   setInterval(state, 500);
   setInterval(() => { if (room?.official) { room.activate(); if (room.idleTick(Date.now())) state(); } }, 1000);      // boş resmi oda dönüşü (iş parçacığında: ana döngüyü tutmaz)
