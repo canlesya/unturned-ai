@@ -158,6 +158,23 @@ function headless() {
     ok(tLand > 0 && padD < 30 && v.alive, 'helikopter: hasar alınca (%50) helipade döner, iner, pilot iner', tLand > 0 ? `${f1(tLand - tDmg)} sn · pada ${f1(padD)} m · can ${Math.round(v.hp)}/${Math.round(hpAtDmg)}` : `inmedi · durumlar ${[...states].join(',')}`);
     ok(S.impact.sum < 60, 'helikopter: çarpma / sert iniş hasarı yok', `${S.impact.n} olay / ${f1(S.impact.sum)}`);
   }
+  // 4b) 12.206 bot pilot roketi (yeni sistem): bayrakta 3 kişilik düşman kümesi → saldırı dalışında roket; roketler nişanın noktasına (hedef) yakınsar
+  {
+    const S = scen(), { g, blue, red, V } = S, v = S.byId('B-H1');
+    S.only('B-H1');
+    S.use(blue[0], v.st.x + 8, v.st.z + 4); S.use(blue[1], v.st.x + 12, v.st.z - 6); S.use(blue[2], v.st.x - 10, v.st.z + 6);
+    const E = [S.use(red[0], S.o.x + 30, S.o.z + 25), S.use(red[1], S.o.x + 32.5, S.o.z + 26), S.use(red[2], S.o.x + 29, S.o.z + 27.5)];
+    for (const e of E) { e.static = true; e.maxHp = 1e6; e.hp = 1e6; }       // ölmesinler: dalış boyunca hedef kalsın
+    S.done();
+    const booms = [], ne = g.netEvent.bind(g), shots = new Map();
+    // ateş anındaki nişan noktası (gunAim.P = hedefin gövdesi) ↔ sunucunun patlama noktası; HE itmesi askeri savurduğu için hedef kümeye ilk roket ayrıca
+    g.netEvent = (e) => { if (e.e === 'ts' && e.w === 1) { const P = v.seats[0]?.gunAim?.P; shots.set(e.id, P ? [P.x, P.y, P.z] : null); } if (e.e === 'tsb' && e.w === 1) booms.push({ p: e.p, aim: shots.get(e.id) }); return ne(e); };
+    S.run(200, () => booms.length >= 8);
+    const miss = booms.filter((b) => b.aim).map((b) => Math.hypot(b.p[0] - b.aim[0], b.p[1] - b.aim[1], b.p[2] - b.aim[2]));
+    const first = booms[0] ? Math.min(...[[30, 25], [32.5, 26], [29, 27.5]].map(([x, z]) => Math.hypot(S.o.x + x - booms[0].p[0], S.o.z + z - booms[0].p[2]))) : 99;
+    const avg = miss.reduce((a, b) => a + b, 0) / Math.max(1, miss.length);
+    ok(booms.length >= 2 && avg < 2.5 && first < 5.5, 'helikopter: bot pilot kalabalığa roket atar, roketler nişan noktasına yakınsar (12.206)', `${booms.length} roket · nişandan ort. ${f1(avg)} m, en çok ${f1(Math.max(...miss))} m · ilk roket kümeye ${f1(first)} m`);
+  }
   // 5) yanan araç: bot sürücü iner
   {
     const S = scen(), { g, blue, V } = S, v = S.byId('B-J2');

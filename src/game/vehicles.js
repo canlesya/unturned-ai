@@ -1,10 +1,11 @@
-import { VT, makeVehicle, stepVehicle, toWorld, toLocal2, obbBox, rayVehicle, packVehState, applyVehState, vehicleAtRest, groundAt, gunPose, mgAt, seatGun, shellVel, shellAdvance, heFalloff, noseDir, mgPitch } from '../sim/vehicle.js';
+import { VT, makeVehicle, stepVehicle, toWorld, toLocal2, obbBox, rayVehicle, packVehState, applyVehState, vehicleAtRest, groundAt, gunPose, mgAt, seatGun, shellVel, shellAdvance, heFalloff, noseDir, mgPitch, rocketDir } from '../sim/vehicle.js';
 import { dirFromAngles } from './util.js';
 import * as THREE from 'three';
 import { R as SR } from './collision.js';
 import { TUNE } from './balance.js';
 import { motoSpawnsFor } from '../maps/motoSpawns.js';                   // 12.204 arazi motosikleti doğuşları (haritanın araç listesine eklenir)
 import { motoAfterStep } from './motorbike.js';
+import { extraSpawnsFor } from '../maps/vehScale.js';             // 12.206 oyuncu sayısına göre ek araçlar (üste)
 
 // ───── Araçlar (12.177) ─────
 // Yönetici: haritanın araç doğuş verisinden (map.vehicles; yalnız VT'de tanımlı türler, yalnız Ele Geçirme) araçları kurar. YETKİLİ taraf (çevrimdışı
@@ -40,6 +41,10 @@ export function armorAt(v, pos) {
   return fn >= 0 ? A.f : A.r;
 }
 
+// 12.206 koltuk önceliği: insan (çevrimdışı oyuncu, sunucuda insan, istemcide netHuman) bottan öncelikli
+export const isHuman = (o) => !!(o && (o.isPlayer || o.human || o.netHuman));
+export const isBot = (o) => !!(o && !isHuman(o) && !o.vacant);
+
 export class Vehicles {
   // Haritada kullanılabilir araç doğuşu var mı (yoksa yönetici kurulmaz → diğer haritalarda davranış aynı)
   static wanted(game) { return !!([...(game.map.vehicles || []), ...motoSpawnsFor(game.map)].some((d) => VT[d.type]) && game.mode.type === 'conquest'); }
@@ -47,7 +52,7 @@ export class Vehicles {
   constructor(game) {
     this.g = game;
     this.list = []; this.shells = []; this.shellN = 0;
-    for (const d of [...(game.map.vehicles || []), ...motoSpawnsFor(game.map)]) {      // 12.204: motorlar listenin sonunda (sıra sunucu = istemci)
+    for (const d of [...(game.map.vehicles || []), ...motoSpawnsFor(game.map), ...extraSpawnsFor(game.map, game.mode.perTeam)]) {      // 12.204: motorlar listenin sonunda · 12.206 ek araçlar en sonda (perTeam'den: sıra sunucu = istemci)
       if (!VT[d.type]) continue;
       const yaw = d.ry + Math.PI;                                     // veri: bakış (sin ry, cos ry) → asker yaw kuralı (−sin, −cos)
       const v = { idx: this.list.length, id: d.id, type: d.type, def: VT[d.type], spawn: { x: d.x, z: d.z, yaw, team: d.team },
@@ -108,9 +113,12 @@ export class Vehicles {
   hiddenSeat(s) { return !!(s.veh && s.veh.def.hidden?.[s.seat]); }
 
   // ── binme / inme ──
-  // Askerin binebileceği en yakın araç + koltuk (yoksa null). Dolu araca yalnız aynı takım; sürücü koltuğu boşsa önce o
+  // Askerin binebileceği en yakın araç + koltuk (yoksa null). Dolu araca yalnız aynı takım; sürücü koltuğu boşsa önce o.
+  // 12.206 (Battlefield: insan bottan öncelikli): insan oyuncu için sürücü koltuğunda takım arkadaşı BOT varsa koltuk 0 + evict (bot arkaya geçer ya
+  // da iner); araç doluysa yolcu koltuğundaki bot yer açar. Dönen { v, seat, evict? }
   near(s) {
     if (!s.alive || s.veh || s.def.zombie) return null;
+    const hum = isHuman(s);
     let best = null, bd = ENTER_R;
     for (const v of this.list) {
       if (!v.alive || !v.st || v.st.sunk) continue;
@@ -119,9 +127,11 @@ export class Vehicles {
       if (dist > bd || Math.abs(s.pos.y - v.st.y) > 2.2) continue;
       const occ = this.occupants(v);
       if (occ.length && occ[0].team !== s.team) continue;
-      const seat = v.seats[0] ? v.seats.findIndex((o) => !o) : 0;
+      let seat = v.seats[0] ? v.seats.findIndex((o) => !o) : 0, evict = null;
+      if (hum && v.seats[0] && isBot(v.seats[0])) { seat = 0; evict = v.seats[0]; }                 // sürücü bot: sürücü ol
+      else if (hum && seat < 0) { const k = v.seats.findIndex((o, i) => i > 0 && o && isBot(o)); if (k > 0) { seat = k; evict = v.seats[k]; } }      // dolu: bot yolcu yer açar
       if (seat < 0) continue;
-      best = { v, seat }; bd = dist;
+      best = evict ? { v, seat, evict } : { v, seat }; bd = dist;
     }
     return best;
   }
@@ -129,8 +139,31 @@ export class Vehicles {
   toggle(s) {
     if (s.veh) return this.exit(s);
     const n = this.near(s);
+    if (n?.evict) return this.claim(s, n.v, n.seat);
     if (n) this.enter(s, n.v, n.seat);
     return !!n;
+  }
+
+  // 12.206 insan oyuncu bottan koltuk alır (yetkili tarafta; çevrim içinde sunucu, girdi 've'). Araç hareketliyse (> 2,5 m/sn) ya da helikopter havadaysa
+  // önce istek: bot sürücü fren yapar (vehicleBots vbDrive v.yieldReq), durunca takas kendiliğinden olur (6 sn içinde, oyuncu hâlâ kapıdaysa).
+  // Bot: boş yolcu koltuğu varsa oraya geçer (önce makineli: jip / tank makinelisi, helikopter kapısı), yoksa iner. Sürücü durumu (vd) temizlenir.
+  claim(s, v, seat) {
+    if (this.g.online) return false;
+    const b = v.seats[seat];
+    if (!b || !isBot(b) || b.team !== s.team || !v.alive) return false;
+    if (this.speed(v) > 2.5 || (v.def.heli && v.st.air)) { v.yieldReq = { s, seat, t: this.g.time }; this.g.emit('vehyield', { s, v }); return true; }
+    v.yieldReq = null;
+    const free = v.seats.map((o, i) => i).filter((i) => i !== 0 && i !== seat && !v.seats[i]);
+    free.sort((a, c) => (mgAt(v.def, c) ? 1 : 0) - (mgAt(v.def, a) ? 1 : 0));
+    const br = b.brain;
+    if (br) { if (br.vd) { const S = this.g.vbStats; if (S) S.exit.insan = (S.exit.insan || 0) + 1; } br.vd = null; br.vRes = null; br.vRide = null; br.path = null; br.goalT = 0; br.vstopT = 0; br.rodeMoved = false; }
+    if (free.length) {
+      v.seats[seat] = null; v.seats[free[0]] = b; b.seat = free[0]; b.ads = false; b.adsT = 0;
+      if (seat === 0) v.horn = false;
+      this.place(b); this.g.emit('vehseat', { s: b, v, seat: free[0] });
+    } else this.exit(b);
+    v.taken = (v.taken || 0) + 1;
+    return this.enter(s, v, seat);
   }
 
   enter(s, v, seat) {
@@ -247,6 +280,13 @@ export class Vehicles {
       // sahipsiz bayrak aracı: hiç kullanılmamış (doğuşunda), bayrak el değiştirdiyse yeni sahibine boyanır
       if (!occ.length && !v.lastDriver && typeof v.spawn.team === 'string' && v.spawn.team.startsWith('flag:')) { const t = this.spawnTeam(v); if (t && t !== v.team) { v.team = t; v.paint = t; } }
       for (const s of occ) this.place(s);
+      // 12.206 bekleyen "botu indir" isteği: araç durunca (oyuncu hâlâ kapıdaysa) takas
+      const Y = v.yieldReq;
+      if (Y) {
+        const n = g.time - Y.t > 6 || !Y.s.alive || Y.s.veh ? null : this.near(Y.s);
+        if (!n || n.v !== v || !n.evict) v.yieldReq = null;
+        else if (this.speed(v) <= 2.5 && !(v.def.heli && v.st.air)) this.claim(Y.s, v, n.seat);
+      }
     }
     this.collideVehicles();
     this.ramSoldiers(dt);
@@ -591,11 +631,23 @@ export class Vehicles {
     out.y = Math.atan2(-dx, -dz); out.p = Math.atan2(dy, Math.hypot(dx, dz)); out.P = P; out.dist = Math.hypot(dx, dy, dz); out.hit = hit;
     return out;
   }
-  // 12.201 HUD roket işareti: şu an atılan roketin ilk isabet noktası (fireRocket ile aynı çıkış + aynı integral / isabet; 3 sn'ye dek) ya da null
+  // 12.206 sıradaki roketin çıkışı + yönü (fireRocket, HUD ve botlar aynı): sıradaki kapsülün ağzından artının noktasına (by.gunAim.P: oyuncuda
+  // kamera ışınının çarptığı nokta, sunucuda istemcinin yolladığı gP, botta hedef) yakınsar, burnun konisinde kırpılır (rocketDir). out: { o, d, c }
+  rocketAimFor(v, by, out = {}) {
+    const R = v.def.rockets, st = v.st, n = v.rk ?? R.n, pod = R.pods[(R.n - n) % R.pods.length];
+    const o = toWorld(st, pod[0], pod[1], pod[2], (out.o ||= { x: 0, y: 0, z: 0 }));
+    const aim = by && by.veh === v && by.seat === 0 ? by.gunAim : null;
+    const rd = rocketDir(st, R, o, aim?.P || null, (this._rdr ||= {}));
+    out.d = dirFromAngles(rd.y, rd.p, (out.d ||= new THREE.Vector3())); out.c = rd.c; out.aim = !!aim?.P;
+    return out;
+  }
+  // 12.201 HUD roket işareti: şu an atılan roketin ilk isabet noktası (fireRocket ile aynı çıkış + aynı integral / isabet; 3 sn'ye dek) ya da null.
+  // 12.206: roket artıya yakınsadığı için işaret artının üstündedir; burun konisi sınırında (out.c) gerçek düşüş noktasını gösterir
   predictRocket(v, by, out = {}) {
     const R = v.def.rockets, st = v.st; if (!R || !st) return null;
-    const pod = R.pods[0], o = toWorld(st, pod[0], 0, pod[2], { x: 0, y: 0, z: 0 }), d = dirFromAngles(st.yaw, (st.pitch || 0) + (R.dp || 0), (this._rd ||= new THREE.Vector3()));
+    const A = this.rocketAimFor(v, by, (this._rpa ||= {})), o = A.o, d = A.d;
     const sh = { x: o.x, y: o.y, z: o.z, vx: d.x * R.speed + st.vx, vy: d.y * R.speed + st.vy, vz: d.z * R.speed + st.vz }, a = { x: 0, y: 0, z: 0 }, dd = { x: 0, y: 0, z: 0 }, h0 = 1 / 30;
+    out.c = A.c;
     for (let k = 0; k < 90; k++) {
       a.x = sh.x; a.y = sh.y; a.z = sh.z;
       shellAdvance(sh, h0, R.grav);
@@ -649,20 +701,29 @@ export class Vehicles {
     return true;
   }
 
-  // 12.188 helikopter roketleri (pilot; 12.201: Q / orta tık / telefonda ROKET, eskiden sağ tık): YETKİLİ tarafta (tank topu gibi 'ts' olayı, w: 1) — kapsüllerden sırayla, burnun yönünde; HE sıçrama
-  // (shellTrace / explode ortak). v.rk kalan, v.rkT atış arası, v.rkR dolum (boşalınca R.reload sn). Botlar için: fireRocket(araç, pilot).
+  // 12.188 helikopter roketleri (pilot): YETKİLİ tarafta (tank topu gibi 'ts' olayı, w: 1) — kapsüllerden sırayla; HE sıçrama (shellTrace / explode ortak).
+  // 12.206 (Battlefield saldırı helikopteri): pilot SEÇİLİ silahı sol tıkla ateşler (s.vw 1 = roket; Q / fare tekerleği değiştirir), roket artının
+  // noktasına yakınsar (rocketAimFor: burun topuyla aynı nokta). v.rk kalan, v.rkT atış arası, v.rkR dolum (boşalınca ya da R ile R.reload sn).
+  // Botlar için: fireRocket(araç, pilot) — pilotun gunAim.P'si hedef.
   fireRocket(v, by) {
     const R = v.def.rockets;
     if (!R || !v.alive || !v.st || this.g.online || (v.rkT || 0) > 0 || (v.rkR || 0) > 0) return false;
     if (v.rk == null) v.rk = R.n;
     if (v.rk <= 0) return false;
-    const st = v.st, pod = R.pods[(R.n - v.rk) % R.pods.length], o = toWorld(st, pod[0], pod[1], pod[2], { x: 0, y: 0, z: 0 }), d = dirFromAngles(st.yaw, (st.pitch || 0) + (R.dp || 0));
+    const st = v.st, A = this.rocketAimFor(v, by, (this._fra ||= {})), o = { x: A.o.x, y: A.o.y, z: A.o.z }, d = A.d;
     v.rk--; v.rkT = R.rate; if (v.rk <= 0) v.rkR = R.reload;
     const id = ++this.shellN, vel = { vx: d.x * R.speed + st.vx, vy: d.y * R.speed + st.vy, vz: d.z * R.speed + st.vz };
     this.addShell({ id, v, by, w: R, x: o.x, y: o.y, z: o.z, ...vel, t: 0, auth: true });
     this.g.netEvent({ e: 'ts', id, i: v.idx, w: 1, by: by ? by.id : -1, o: [r2(o.x), r2(o.y), r2(o.z)], d: [r2(vel.vx), r2(vel.vy), r2(vel.vz)] });
     by && (by.spottedT = this.g.time);
     this.g.alertNear?.(o, by?.team, 120);
+    return true;
+  }
+  // 12.206 R: kapsülü elle doldur (yarım kapsül; dolum süresince atış yok). Yetkili tarafta (çevrim içinde sunucu, girdi 'rl')
+  reloadRockets(v) {
+    const R = v?.def.rockets;
+    if (!R || !v.alive || this.g.online || (v.rkR || 0) > 0 || (v.rk ?? R.n) >= R.n) return false;
+    v.rkR = R.reload;
     return true;
   }
 

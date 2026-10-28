@@ -110,7 +110,9 @@ export class NetClient {
       dn: inp.dn ? 1 : undefined,                                                    // 12.179 helikopter: alçal (C / Ctrl basılı)
       co: s.shotOff ? [+s.shotOff.x.toFixed(2), +s.shotOff.y.toFixed(2), +s.shotOff.z.toFixed(2)] : undefined,
       gy: s.gunAim ? +s.gunAim.y.toFixed(4) : undefined, gp: s.gunAim ? +s.gunAim.p.toFixed(4) : undefined,      // 12.188 tank: topun hedef yönü (artının gösterdiği noktaya balistik çözüm) · 12.201 helikopter: burun / burun topu hedefi
-      rk: s.rkHeld ? 1 : undefined,                                                  // 12.201 helikopter roketi basılı (Q / orta tık; eskiden sağ tık = 'a')
+      rk: s.rkHeld ? 1 : undefined,                                                  // 12.201 helikopter roketi basılı (12.206: seçili silah roket + sol tık)
+      vw: s.vw ? 1 : undefined,                                                      // 12.206 pilotun seçili silahı (1 roket: sol tık burun topunu ateşlemez)
+      gP: s.veh && s.seat === 0 && s.veh.def.rockets && s.gunAim?.P ? [+s.gunAim.P.x.toFixed(2), +s.gunAim.P.y.toFixed(2), +s.gunAim.P.z.toFixed(2)] : undefined,      // 12.206 artının noktası (roketler oraya yakınsar)
     });
     const fire = !!(fireHeld || e.fp || e.rl);
     this.hist.push({ q, fire, gy: s.gunAim?.y, gp: s.gunAim?.p, inp: { f: inp.f, r: inp.r, lean: inp.lean, sprint: !!inp.sprint, jump: !!inp.jump, dive: !!inp.dive, dn: !!inp.dn }, ads: !!s.ads, adsT: s.adsT, yaw: s.yaw, pitch: s.pitch, e, st: { x: s.pos.x, y: s.pos.y, z: s.pos.z } });

@@ -44,7 +44,9 @@ const mk = () => new Game(null, { headless: true, map: 'kuzey', tod: 'day', weat
     if (taken.has(first.id)) bad.push(first.id);
   }
   ok(bad.length === 0, `insanlı takım: üsteki her grubun ilk aracı ${G.hold} sn bota verilmez`, `${resv} grup · bota giden ${bad.join(', ') || '-'} · bot sürdüğü mavi araç ${[...taken.keys()].filter((id) => id.startsWith('B-')).join(', ')}`);
-  ok([...taken.keys()].some((id) => /^B-J[0-9]$/.test(id) && id !== 'B-J1'), 'insanlı takımda ayrılmayan jipleri botlar alır', [...taken.keys()].join(', '));
+  // 12.206: kural düzeyinde (botlar 38 sn'de jip yerine motor / tank seçebiliyor — rastgele; eskiden de ~1/3 koşuda HATA veriyordu)
+  const openJ = V.list.filter((v) => /^B-J[2-5]$/.test(v.id) && (taken.has(v.id) || (v.alive && botMayTake(g, v, 'blue'))));
+  ok(openJ.length >= 3, 'insanlı takımda ayrılmayan jipler botlara açık', `${openJ.map((v) => v.id + (taken.has(v.id) ? '*' : '')).join(', ')} (* bot aldı) · bot binişleri ${[...taken.keys()].join(', ')}`);
   // süre dolunca ayrılan araç da bota açılır
   const v1 = V.list.find((v) => v.id === 'B-J1');
   for (let i = 0; i < 30 * 4; i++) { g.step(1 / 30); park(); }

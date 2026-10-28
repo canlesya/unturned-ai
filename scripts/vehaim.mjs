@@ -113,10 +113,11 @@ if (after) ok(R.acc.n > 3 && R.acc.err < 3 && R.acc.vis && R.acc.px < 12, `burun
 await shot('03b-heli-arti-isabet', 300);
 await ev(([YE, TX, HY]) => window.__seat('B-H1', 0, TX + 2, -404, YE, { pitch: -0.55, air: true, y: HY }), [YE, TX, HY]);
 await page.waitForTimeout(2200);
-// roket (sonra: Q / orta tık; önce: sağ tık)
-await ev(([after]) => { const g = window.__game; window.__rk.length = 0; if (after) g.player.mmb = true; else g.playerSoldier.ads = true; }, [after]);
+// roket (12.206: Q ile roket seç + sol tık; 12.201: Q / orta tık; önce: sağ tık)
+const sel = await ev(() => typeof window.__game.vehicles.rocketAimFor === 'function');
+await ev(([after, sel]) => { const g = window.__game; window.__rk.length = 0; if (sel) { g.player.vehWeapon(1); g.player.fireHeld = true; } else if (after) g.player.mmb = true; else g.playerSoldier.ads = true; }, [after, sel]);
 await shot('04-heli-roket-asagi', 900);
-await ev(() => { const g = window.__game; g.player.mmb = false; g.playerSoldier.ads = false; });
+await ev(() => { const g = window.__game; g.player.mmb = false; g.player.fireHeld = false; g.playerSoldier.ads = false; g.player.vehWeapon(0); });
 R.rk = await ev(() => { const a = window.__rk; return { n: a.length, pitch: a.length ? +(a.reduce((s, r) => s + Math.atan2(r.vy, Math.hypot(r.vx, r.vz)), 0) / a.length).toFixed(3) : null }; });
 console.log('  roket', JSON.stringify(R.rk));
 if (after) ok(R.rk.n >= 2 && R.rk.pitch < -0.4, `roket burnun yönünde aşağı (${R.rk.n} roket, pitch ${R.rk.pitch})`);
@@ -201,12 +202,14 @@ if (MOB) {
   await mp.waitForTimeout(500);
   R.mob = await mp.evaluate(() => window.__st());
   await shot('20-telefon-heli-nisan', 300, mp);
-  const rkb = after ? await tapHold('rk', 900) : 'yok';
+  const sel = await mp.evaluate(() => typeof window.__game.vehicles.rocketAimFor === 'function');
+  const rkb = !after ? 'yok' : sel ? await tapHold('rk', 120) : await tapHold('rk', 900);      // 12.206: SİLAH düğmesi (dokun = roket seç) + ATEŞ basılı
+  if (sel) { await mp.waitForTimeout(200); R.mobVw = await mp.evaluate(() => window.__game.playerSoldier.vw); await tapHold('fire', 900); }
   R.mobRk = await mp.evaluate(() => window.__rk.length);
   await shot('21-telefon-heli-roket', 900, mp);
   console.log('  telefon', a1, JSON.stringify(R.mob), 'roket butonu', rkb, R.mobRk);
   ok(!R.mob.lens && R.mob.adsT === 0, 'telefon pilot nişan butonu: piyade optiği yok');
-  if (after) { ok(R.mob.zoom > 1.3, `telefon pilot nişan butonu = yakınlaştırma ×${R.mob.zoom}`); ok(rkb === 'ok' && R.mobRk >= 2, `telefon ROKET butonu (${R.mobRk} roket)`); }
+  if (after) { ok(R.mob.zoom > 1.3, `telefon pilot nişan butonu = yakınlaştırma ×${R.mob.zoom}`); ok(rkb === 'ok' && R.mobRk >= 2 && (!sel || R.mobVw === 1), `telefon SİLAH düğmesi → roket seçili (vw ${R.mobVw}) + ATEŞ (${R.mobRk} roket)`); }
 }
 fs.writeFileSync(`${OUT}/olcum.json`, JSON.stringify(R, null, 1));
 await browser.close();

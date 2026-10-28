@@ -13,17 +13,18 @@ import { clamp, rand, angleDiff, yawFromDir } from './util.js';
 import * as THREE from 'three';
 import { MOTO_BOT, motoBotOk, motoTrip } from './motorbike.js';      // 12.204 motor: botlar uzak bayrağa motorla, hepsini kapmaz
 import { WSTATS } from './stats.js';
+import { vehMult } from '../maps/vehScale.js';
 
 export const VBOT = {
   trip: { jip: 200, tank: 150, heli: 300, moto: MOTO_BOT.trip },       // bu kadar uzak hedefe araçla gider (12.204 motor: küçük haritada motoTrip)
-  tanks: (per) => (per >= 12 ? 2 : 1),            // takımda aynı anda en çok bot tankçı
+  tanks: (per) => (per >= 12 ? Math.max(2, Math.round(2 * vehMult(per))) : 1),      // takımda aynı anda en çok bot tankçı (12.206: büyük maçta tank sayısıyla: 32 → 4, 64 → 6)
   reach: 75,                                      // boş araca en çok bu kadar yürür
   humanNear: 22,                                  // aracın bu kadar yakınında insan takım arkadaşı varsa bot almaz (oyuncu binmeye gidiyor olabilir)
   // 12.200 araç kapma kuralı (her araç türü; tür listesi yok): yeni doğan araca botlar hemen binmez. grace: doğuştan sonra bekleme (sn) ·
   // humanNear2: bu bekleme sırasında / ayrılmış araçta insan takım arkadaşı bu kadar yakındaysa (yürüyerek geliyor) bot almaz ·
   // hold: takımda insan oyuncu varken her doğuş grubunun (aynı doğuş takımı + aynı tür) bir kısmı bu kadar sn insanlara ayrılır ·
   // share: ayrılan oran (yukarı yuvarlanır; en çok insan sayısı kadar). Değerler OYUN.md 12.200.
-  grab: { grace: 8, humanNear2: 30, hold: 40, share: 0.5 },
+  grab: { grace: 8, humanNear2: 30, hold: 40, share: 0.5, keepR: 150 },      // 12.206 keepR: ayrılan araç, insan bu kadar yakındayken (ya da ölüyken) hold'dan sonra da ayrılı
   park: { jip: 42, tank: 12, moto: MOTO_BOT.park },                    // bayrak merkezine bu kadar kala durur
   speed: { jip: [17, 10], tank: [10, 7], moto: MOTO_BOT.speed },        // hedef hız: yolda / arazide (m/sn)
   clr: { jip: 1.6, tank: 2.3, moto: MOTO_BOT.clr },                   // rota açıklığı (m)
@@ -206,6 +207,8 @@ export function vbBoard(b) {
     if (!v.alive || !v.st || v.burn || v.st.sunk || v.seats[0] || v.botRes !== b || g.time > v.botResT) { vbRelease(b); return false; }
     const dx = v.st.x - s.pos.x, dz = v.st.z - s.pos.z;
     const L = toLocal2(v.st, s.pos.x, s.pos.z), edge = Math.hypot(Math.max(0, Math.abs(L.f) - v.def.hl), Math.max(0, Math.abs(L.r) - v.def.hw));
+    // 12.206 araca yürürken insan takım arkadaşı araca bottan yakın (15 m içinde) geldiyse ayırmayı bırak (insan öncelikli)
+    if (edge > 3 && g.soldiers.some((e) => e.alive && e.team === s.team && humanOf(e) && !e.veh && Math.hypot(e.pos.x - v.st.x, e.pos.z - v.st.z) < Math.min(15, edge))) { v.botBad = g.time + 20; vbRelease(b); return false; }
     if (edge < 1.9 && Math.abs(s.pos.y - v.st.y) < 2.2) {
       if (V.enter(s, v, 0)) { stat(g).enter++; b.vd = { state: 'wait', t: 0, kind: kindOf(v), stuck: 0, prog: 1e9, progT: 0 }; b.rideGoal = null; b.rideTo = null; b.target = null; }
       v.botRes = null; b.vRes = null;
@@ -243,27 +246,33 @@ export function vbBoard(b) {
   return true;
 }
 // 12.200 araç kapma kuralı (her araç türü, motosiklet dahil: türe bakmaz). Kullanıcı: "direkt botlar alıp kaçıyor". (1) Araç doğduktan sonra
-// VBOT.grab.grace sn hiçbir bot binmez (oyuncu doğuşta aracı görüp yürüyebilsin) ve bu sırada aracın humanNear2 m içinde insan takım arkadaşı
-// varsa da almaz. (2) Takımda (araçta olmayan) insan oyuncu varken her doğuş grubunun (aynı doğuş takımı / bayrağı + aynı tür) en düşük sıralı
-// ceil(n × share) aracı (en çok insan sayısı kadar) hold sn insanlara ayrılır; hiç sürülmemiş ve doğuşunda duruyorsa. Süre dolunca botlar alabilir
-// (araç boşa yatmaz). Çevrimdışı oyunda oyuncu da insan sayılır.
+// VBOT.grab.grace sn hiçbir bot binmez (oyuncu doğuşta aracı görüp yürüyebilsin). (2) Takımda (araçta olmayan) insan oyuncu varken her doğuş grubunun
+// (aynı doğuş takımı / bayrağı + aynı tür) en düşük sıralı ceil(n × share) aracı (en çok insan sayısı kadar) insanlara ayrılır (hiç sürülmemiş ve
+// doğuşunda duruyorsa). Çevrimdışı oyunda oyuncu da insan sayılır.
+// 12.206 kullanıcı: "botlar araba alıyor diye araçsız kalıyorum" — 12.200'deki ayrım yalnız aracın doğuşundan sonraki 40 sn'ydi: maçın 5. dakikasında
+// üste doğan oyuncu araçların hepsini botlarda buluyordu. Artık: (a) araçtan bağımsız, insan takım arkadaşı aracın humanNear2 (30 m) içinde yayaysa
+// bot almaz (her zaman); (b) ayrılan araçlar süre dolunca DA ayrılı kalır — yalnız hold sn geçmiş VE insanların hepsi canlı + aracın keepR (150 m)
+// dışındaysa botlara açılır (ölü / doğmayı bekleyen insan buraya doğabilir). Bunun üstüne insan, bot sürücüyü E ile indirebilir (Vehicles.claim).
 const humanOf = (e) => (e.human || e.isPlayer) && !e.vacant;
 export function botMayTake(g, v, team) {
   const G = VBOT.grab, age = g.time - (v.spawnT ?? -1e9);
   const fresh = (u) => u.alive && u.st && !u.lastDriver && Math.hypot(u.st.x - u.spawn.x, u.st.z - u.spawn.z) < 6;
   if (fresh(v) && age < G.grace) return false;
-  let H = 0;
+  let H = 0, near = false;
   for (const e of g.soldiers) {
-    if (e.team !== team || !humanOf(e)) continue;
-    if (e.alive && !e.veh && (fresh(v) && age < G.hold) && Math.hypot(e.pos.x - v.st.x, e.pos.z - v.st.z) < G.humanNear2) return false;
-    if (!e.veh) H++;
+    if (e.team !== team || !humanOf(e) || e.veh) continue;
+    H++;
+    if (!e.alive) { near = true; continue; }
+    const d = Math.hypot(e.pos.x - v.st.x, e.pos.z - v.st.z);
+    if (d < G.humanNear2) return false;
+    if (d < G.keepR) near = true;
   }
-  if (!H || !fresh(v) || age >= G.hold) return true;
+  if (!H || !fresh(v) || (age >= G.hold && !near)) return true;
   let n = 0, before = 0;
   for (const u of g.vehicles.list) {
     if (u.type !== v.type || u.spawn.team !== v.spawn.team) continue;
     n++;
-    if (u.idx < v.idx && fresh(u) && g.time - (u.spawnT ?? -1e9) < G.hold) before++;
+    if (u.idx < v.idx && fresh(u)) before++;
   }
   return before >= Math.min(H, Math.ceil(n * G.share));
 }
@@ -370,6 +379,8 @@ export function vbDrive(b, dt) {
   if (!v.alive || v.burn || st.sunk || st.stall || ((vd.kind === 'jip' || vd.kind === 'moto') && v.hp < d.hp * 0.33)) { vbExit(b, st.stall ? 'su' : 'hasar'); return; }       // yanıyor / batıyor (jip: yanmadan önce) → in
   inp.f = 0; inp.r = 0; inp.b = false;
   if (d.cannon) tankGun(b, dt, inp); else { inp.yw = st.yaw; inp.pt = 0; }
+  // 12.206 insan takım arkadaşı "botu indir / sür" dedi (Vehicles.claim, araç hareketliydi): fren, durunca yönetici koltukları takas eder
+  if (v.yieldReq && g.time - v.yieldReq.t < 6 && !(d.heli && st.air)) { inp.f = 0; inp.r = 0; inp.b = true; inp.u = false; inp.d = false; v.horn = false; V.drive(v, inp, dt); return; }
   if (vd.kind === 'heli') { heliDrive(b, dt, inp); return; }
   const sp = V.speed(v);
   if (vd.state === 'wait') {
@@ -548,7 +559,7 @@ function tankGun(b, dt, inp) {
 // (pad üstünde konum tutarak alçalış) → pilot iner. Yanıyorsa: alçal + in (atlamaz). Rotor / gövde çarpmasında geri çekilip tırmanır (12.183
 // asılı kalma döngüsüne girmesin). Girdi oyuncunun pilot girdisiyle aynı: { f, r, u, d, yw }.
 export const HELI = {
-  pilots: (per) => (per >= 16 ? 2 : 1),          // takımda aynı anda en çok bot pilot
+  pilots: (per) => (per >= 16 ? Math.max(2, Math.round(2 * vehMult(per))) : 1),      // takımda aynı anda en çok bot pilot (12.206: helikopter sayısıyla)
   wait: [3.6, 9], climbAgl: 32, cruiseAgl: 40, orbitAgl: 36, orbitR: 78, maxF: 0.62, orbitF: 0.36,
   orbitT: [55, 85], rtbHp: 0.55, baseAvoid: 150, landR: 26,
   diff: { easy: 0.6, normal: 1, hard: 1 },        // pilot olma olasılığı (zorluk)
@@ -714,13 +725,17 @@ function heliAttack(b, dt, inp, gnd) {
   const aim = V.noseAimAt(v, tp, (s._ga ||= {}));
   s.gunAim = aim; inp.yw = aim.y; inp.pt = aim.p;                    // burun + burun topu hedefe (oyuncunun gy / gp'siyle aynı yol)
   const ye = Math.abs(angleDiff(st.yaw, inp.yw)), nd = noseDir(st, N, aim, (vd._nd ||= {}));
-  const ge = Math.abs(angleDiff(nd.y, aim.y)) + Math.abs(nd.p - aim.p), pe = st.pitch - aim.p;
+  const ge = Math.abs(angleDiff(nd.y, aim.y)) + Math.abs(nd.p - aim.p);
   inp.f = ye > 0.4 ? 0.05 : 0.2;                                       // yavaş yaklaşma (burun aşağıyken stepHeli zaten öne hızlandırır)
   if (st.y - gnd < 30) inp.u = true;
   s.botExtraSpread = b.d.err * 0.45;
   A.react -= dt;
   const on = A.react <= 0 && ge < 0.012 + 2 / (D + 20);
   V.mgFire(s, on && !s.vhot, dt);
-  if (on && RK && ye < 0.035 + 2 / (D + 20) && Math.abs(pe) < 0.05 && (A.v || A.n >= 2) && (vd.rkT = (vd.rkT || 0) - dt) <= 0) { if (V.fireRocket(v, s)) vd.rkT = b.dk === 'hard' ? 0.25 : b.dk === 'easy' ? 0.9 : 0.45; }
+  // 12.206 roket (oyuncu pilotla aynı sistem): roketler nişanın noktasına (gunAim.P = hedef) yakınsar → burun konisi hedefi kapsayınca (rocketAimFor
+  // kırpmadı) araca / kalabalığa; eskiden burun hedefe TAM oturana dek (yaw + pitch < 0,05) beklenirdi
+  const RA = on && RK ? V.rocketAimFor(v, s, (vd._ra ||= {})) : null;
+  s.vw = RA && !RA.c && (A.v || A.n >= 2) ? 1 : 0;
+  if (s.vw && (vd.rkT = (vd.rkT || 0) - dt) <= 0) { if (V.fireRocket(v, s)) vd.rkT = b.dk === 'hard' ? 0.25 : b.dk === 'easy' ? 0.9 : 0.45; }
   return true;
 }

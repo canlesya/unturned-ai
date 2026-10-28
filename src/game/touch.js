@@ -30,7 +30,7 @@ const LAYOUT = {
   reload: { x: 0.655, y: 0.86, s: 0.15 }, swap: { x: 0.79, y: 0.89, s: 0.15 }, nade: { x: 0.655, y: 0.58, s: 0.15 }, abil: { x: 0.655, y: 0.6, s: 0.19 },
   third: { x: 0.655, y: 0.34, s: 0.12 }, optic: { x: 0.81, y: 0.36, s: 0.12 }, breath: { x: 0.72, y: 0.4, s: 0.12 }, pause: { x: 0.22, y: 0.075, s: 0.11 }, score: { x: 0.285, y: 0.075, s: 0.11 }, map: { x: 0.345, y: 0.075, s: 0.11 },      // 12.202 büyük harita
   veh: { x: 0.53, y: 0.62, s: 0.14 }, vcam: { x: 0.53, y: 0.4, s: 0.11 }, seat: { x: 0.53, y: 0.84, s: 0.11 },      // 12.177 araç: bin / in (yalnız yakında / içindeyken), kamera (sürücü), koltuk değiştir
-  rk: { x: 0.655, y: 0.58, s: 0.15 },                                              // 12.201 helikopter pilotu: ROKET (basılı; araçta gizli bomba düğmesinin yeri)
+  rk: { x: 0.655, y: 0.58, s: 0.15 },                                              // 12.201 helikopter pilotu (araçta gizli bomba düğmesinin yeri) · 12.206: SİLAH (dokun = burun topu ↔ roket; ATEŞ seçili silahı atar)
 };
 const NAME = (id) => t('tc.n.' + id);                                            // düzenleyicideki buton adları (src/i18n/touch.js)
 const I = {
@@ -50,6 +50,7 @@ const I = {
   vcam: '<rect x="3" y="7" width="13" height="10" rx="2"/><path d="M16 11l5-3v8l-5-3"/>',
   seat: '<path d="M7 4v9h9l2 7M7 13l-2 7M10 4h-3"/><path d="M14 4l3 3-3 3"/>',
   rk: '<path d="M5 19l3-1 8-8a4 4 0 001-5 4 4 0 00-5 1l-8 8-1 3z"/><path d="M8 13l3 3M5 15l-2 2M9 19l-2 2M14 7l1 1"/>',      // 12.201 roket
+  rkGun: '<path d="M3 10h13v4H3z"/><path d="M16 11h5M16 13h5M6 14v4h3v-4"/>',      // 12.206 burun topu (silah düğmesi: seçili silah)
 };
 // seçici kartlarında küçük nişangâh önizlemesi ve buton etiketi (12.190: ortak opticIcons.js; 2× / 3× / 4× ACOG / 6× / 8× eklendi)
 const OPI = OPTIC_ICON, opLabel = (id) => OPTIC_MAG[id] || (id ? t('tc.op.' + id) : '');   // nişangâh butonu etiketi
@@ -184,7 +185,7 @@ export class TouchControls {
       d.className = 'b' + (id === 'fire' || id === 'fire2' ? ' fire' : '') + (id === 'pause' || id === 'score' || id === 'map' ? ' sm' : '');
       d.dataset.b = id; d.dataset.k = id;
       d.innerHTML = id === 'abil' ? `<svg class="rg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18.5" pathLength="100" stroke-dasharray="100"/></svg><svg class="i" viewBox="0 0 24 24">${I[id]}</svg><i class="ol"></i>`
-        : `<svg viewBox="0 0 24 24">${I[id]}</svg>${id === 'optic' ? '<i class="ol"></i>' : ''}`;
+        : `<svg viewBox="0 0 24 24">${I[id]}</svg>${id === 'optic' || id === 'rk' ? '<i class="ol"></i>' : ''}`;
       el.appendChild(d);
       this.b[id] = d;
     }
@@ -223,7 +224,7 @@ export class TouchControls {
     for (const [id, d] of Object.entries(this.b)) { place(d, this.pos(id)); d.style.opacity = op; d.classList.toggle('sel', !!this.editing && this.sel === id); }
     this.b.fire2.classList.toggle('hid', !this.cfg.leftFire);
     this.b.third.classList.toggle('hid', !this.g.thirdAllowed);
-    for (const k of ['optic', 'abil']) this.b[k].querySelector('.ol').style.fontSize = Math.max(8, this.pos(k).s * H * (k === 'abil' ? 0.15 : 0.17)) + 'px';
+    for (const k of ['optic', 'abil', 'rk']) this.b[k].querySelector('.ol').style.fontSize = Math.max(8, this.pos(k).s * H * (k === 'abil' ? 0.15 : 0.17)) + 'px';
     document.body.style.setProperty('--rs', this.cfg.retSz || 1);                           // HUD nişangâh boyutu (hud.js body.mob #rdot / #holo / #idot)
     this.jR = (this.pos('joy').s * H) / 2;
     if (!this.joy || this.cfg.joy === 'fixed') this.homeJoy();
@@ -412,7 +413,7 @@ export class TouchControls {
     if (id === 'crouch') this.dive = down;                                     // 12.180: yüzerken çömel düğmesi basılıyken dalınır
     if (id === 'crouch' && !down && this.down) { this.down = false; if (b) b.classList.remove('on'); }      // 12.183: alçal basılıyken inilse / koltuk değişse de bırakınca söner (eskiden takılı kalıyordu → sonraki binişte kendiliğinden alçalış)
     if (id === 'crouch' && s.veh?.def.heli && s.seat === 0) { this.down = down; if (b) b.classList.toggle('on', down); return; }      // 12.179 helikopter pilotu: çömel butonu basılıyken alçal
-    if (id === 'rk') { this.rk = down && s.alive && !!s.veh && s.seat === 0; if (b) b.classList.toggle('on', this.rk); return; }      // 12.201 helikopter pilotu: ROKET basılı (nişan butonu artık yakınlaştırma, aç-kapa)
+    if (id === 'rk') { if (down) p.vehWeapon(); return; }      // 12.206 helikopter pilotu: SİLAH — dokun = burun topu ↔ roket (ATEŞ seçili silahı atar; eskiden ROKET basılı)
     if (!down) { if (id === 'jump') this.jump = false; return; }
     if (id === 'pause') { g.togglePause(); return; }
     if (!s.alive) return;
@@ -619,6 +620,11 @@ export class TouchControls {
         for (const k of ['reload', 'swap', 'optic']) this.b[k].classList.toggle('vh', drv);
         this.b.ads.classList.toggle('vh', drv && !(s.veh.def.cannon || s.veh.def.nose));      // 12.188: nişan butonu tank sürücüsünde yakınlaştırma · 12.201 helikopter pilotunda da yakınlaştırma (roket ayrı ROKET butonunda)
         this.b.rk.classList.toggle('hid', !(hp && s.veh.def.rockets)); if (!hp) { this.rk = false; this.b.rk.classList.remove('on'); }
+      }
+      const vw = inV && drv && s.veh.def.rockets ? (s.vw === 1 ? 2 : 1) : 0;              // 12.206 silah düğmesi: seçili silahın simgesi + adı
+      if (vw !== this._vw) {
+        this._vw = vw;
+        if (vw) { this.b.rk.querySelector('svg').innerHTML = vw === 2 ? I.rk : I.rkGun; this.b.rk.querySelector('.ol').textContent = t(vw === 2 ? 'tc.rk' : 'tc.gun'); this.b.rk.classList.toggle('on', vw === 2); }
       }
     }
     // zombi: güç butonu (halka = bekleme / etkin süre), silah butonları yok

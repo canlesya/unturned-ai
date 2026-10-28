@@ -5,8 +5,10 @@
 //      gövdenin bina / ağaç / duvar kutusuna girmesi (> 0,1 m HATA).
 //   2) Rastgele yerleşim (her türden ~300 nokta, savaş alanında, araç yamacı < 0,6): aynı doğuş yordamı → gömülme / gövde içi arazi oranı (model hatası
 //      yoksa ~0). 3) Dekor araçlar (vehicles.js modelleri; tüm haritalar): ayak izi köşe / kenar ortalarında zemin − araç tabanı (> 0,15 m gömülü).
-//   ENV: JSON=dosya (ölçümler) · RAND=0 (rastgele yerleşimi atla) · DECOR=0
+//   ENV: JSON=dosya (ölçümler) · RAND=0 (rastgele yerleşimi atla) · DECOR=0 · PER=takım başına kişi (12.206: büyük maçta ek araçlar; varsayılan 16)
 import { Game } from '../src/game/game.js';
+import { LIMITS } from '../src/game/balance.js';
+if (+process.env.PER > LIMITS.maxPerTeam) LIMITS.maxPerTeam = +process.env.PER;      // 12.206: 64v64 / 128v128 ek araç yerleri (oda sınırı başka işte yükseltilir; burada yalnız deneme)
 import { MAPS } from '../src/maps/index.js';
 import { MapBuilder } from '../src/maps/builder.js';
 import { VT, toWorld, toLocal2, groundAt, makeVehicle, stepVehicle, obbBox } from '../src/sim/vehicle.js';
@@ -64,7 +66,7 @@ function lodSink(T) {
 function driveable(id) {
   const M = MAPS[id];
   if (!M || (M.only && !M.only.includes('conquest'))) return;
-  const g = new Game(null, { headless: true, map: id, tod: 'day', weather: 'clear', diff: 'normal', match: { perTeam: 16, type: 'conquest' } });
+  const g = new Game(null, { headless: true, map: id, tod: 'day', weather: 'clear', diff: 'normal', match: { perTeam: +(process.env.PER || 16), type: 'conquest' } });
   const V = g.vehicles;
   if (!V) { console.log(`${id}: sürülen araç yok`); g.dispose?.(); return; }
   for (const s of g.soldiers) { s.vacant = true; s.alive = false; }
@@ -102,6 +104,18 @@ function driveable(id) {
     for (const o of V.list) if (o !== v && o.alive && !o.def.heli && Math.hypot(o.spawn.x - v.spawn.x, o.spawn.z - v.spawn.z) < d.hl + o.def.hl) { why.push(`araç ${o.id} üst üste`); break; }
     if (why.length) { nc++; ok(false, `${id} ${v.id} doğuş açıklığı`, why.join(' · ')); }
   }
+  // 12.206 helikopter doğuşu: rotor çemberi (13 m) içinde gövdenin 0,6 m üstüne çıkan kutu / yaprak yok, piyade doğuşu pistte değil, iki helikopter 20 m'den yakın değil
+  let nh = 0;
+  for (const v of V.list) {
+    if (!v.alive || !v.def.heli) continue;
+    const st = v.st, why = [];
+    for (const c of g.world.query(st.x - 14, st.z - 14, st.x + 14, st.z + 14, [])) { const cx = Math.max(c.min[0], Math.min(st.x, c.max[0])), cz = Math.max(c.min[2], Math.min(st.z, c.max[2])); if (Math.hypot(cx - st.x, cz - st.z) < 13 && c.max[1] > st.y + 0.6) { why.push(`kutu [${c.min.map((x) => x.toFixed(1))}]..[${c.max.map((x) => x.toFixed(1))}]`); break; } }
+    for (const q of SG) if (Math.hypot(q[0] - st.x, q[2] - st.z) < 13 + q[3] - 0.3 && q[1] + q[3] > st.y + 0.6) { why.push(`yaprak [${q.map((x) => x.toFixed(1))}]`); break; }
+    for (const p of SP) if (Math.hypot(p.x - st.x, p.z - st.z) < 9) { why.push(`piyade doğuşu (${p.x.toFixed(1)}, ${p.z.toFixed(1)})`); break; }
+    for (const o of V.list) if (o !== v && o.alive && o.def.heli && Math.hypot(o.spawn.x - v.spawn.x, o.spawn.z - v.spawn.z) < 20) { why.push(`helikopter ${o.id} yakın`); break; }
+    if (why.length) { nh++; ok(false, `${id} ${v.id} helikopter doğuşu (rotor) açıklığı`, why.join(' · ')); }
+  }
+  ok(nh === 0, `${id}: ${V.list.filter((v) => v.def.heli).length} helikopter doğuşu açık (rotor çemberinde kutu / yaprak yok, pistte piyade doğuşu yok)`, `kötü ${nh}`);
   // 12.200 uzaktan görünüm: arazi ağının uzak kademeleri (L1 4 m · L2 8 m · L3 20 m ızgara; 190 / 430 / 820 m'den sonra) fiziğin üstüne çıkarsa
   // araç ağın içinde görünür (kullanıcı: "bazı araçlar yerin altında"). Bilgi: her doğuşta kademe başına en büyük batma (ayak izinin 9 noktası).
   // Görünüm düzeltmesi (vehicleView.lodLift) aynı formülle modeli kaldırır; gerçek GPU ölçümü vehgroundshot.mjs.

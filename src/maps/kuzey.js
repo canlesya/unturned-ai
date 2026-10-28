@@ -5,6 +5,8 @@ import { KZ_BOUNDS, FLAGS, HQ, PADS, CALLOUTS, VEHICLES, HELIPADS, TDM_AREA, DAM
 import { KK, makeKuzeyMaterial } from './assets/kuzey/surface.js';
 import { ChunkSet } from './assets/kuzey/chunks.js';
 import { placeAll } from './assets/kuzey/blockout.js';
+import { helipad } from './assets/kuzey/military.js';
+import { extraHelipadsFor } from './vehScale.js';
 import { scatterVegetation, vegetationColliders, fieldCover, fallenLogs } from './assets/kuzey/vegetation.js';
 import { TerrainMesh } from './assets/kuzey/terrainMesh.js';
 import { Forest } from './assets/common/kuzeyFlora.js';
@@ -34,6 +36,9 @@ export function buildKuzey() {
   const veg = scatterVegetation(T, occ, makeRng(7272), makeRng(9191), { outer: visual, orchard, rocks, wires });
   vegetationColliders(veg, cs);
   fallenLogs(veg.logs, cs);
+  // 12.206 büyük maçların ek helikopterleri için helipedler (oyuncu sayısından bağımsız hep çizilir: harita bir kez kurulur). Yerleşimden SONRA: blockout'un
+  // ayak izi listesine girselerdi orman / piyade doğuşu rastgele akışı kayardı; yerler zaten ağaçsız / yapısız seçildi (vehScale.js)
+  for (const hp of extraHelipadsFor('kuzey')) helipad(cs.at(hp.x, hp.z), T, hp);
   const nWheat = fieldCover(T, cs);
   const group = new THREE.Group(); group.name = 'kuzey';
   cs.build(group);
