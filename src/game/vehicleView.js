@@ -418,7 +418,13 @@ export function vehCamera(P, dt) {
     toWorld(st, tu.f, 0, tu.y1 + 0.32, _p);
     cam.position.set(_p.x - sy * 0.9 - cy * 0.55, _p.y, _p.z - cy * 0.9 + sy * 0.55);
     _e.set(Math.max(-0.5, Math.min(0.6, s.pitch)) + jy, s.yaw + jx, 0, 'YXZ'); cam.quaternion.setFromEuler(_e);
-    cam.fov = P.baseFov() / (s.ads ? 2.6 : 1.15); cam.updateProjectionMatrix();
+    cam.fov = P.baseFov() / P.zoomCur(); cam.updateProjectionMatrix();      // 12.201: ×1,15 → sağ tık ×2,6 yumuşak (Player.vehZoom)
+    P.bodyVisible = false; P._vcs = null;
+  } else if (mode === 'first' && v.def.heli) {                       // 12.201 helikopter kokpiti: bakış dünyada dengeli (burun bakışı / nişanı izler; gövde eğimi
+    const sp = v.def.seat[0];                                          // bakışa eklenirse burun eğildikçe kamera da eğilip geri besleme olurdu), yatışın yarısı hissedilir
+    toWorld(st, sp[0] - 0.04, sp[1], sp[2] + 0.72, _p);
+    cam.position.set(_p.x, _p.y, _p.z);
+    _e.set(Math.max(-1.2, Math.min(1.0, s.pitch)) + jy, s.yaw + jx, (st.roll || 0) * 0.5, 'YXZ'); cam.quaternion.setFromEuler(_e);
     P.bodyVisible = false; P._vcs = null;
   } else if (mode === 'first') {
     const sp = v.def.seat[0];
@@ -434,8 +440,11 @@ export function vehCamera(P, dt) {
     toWorld({ ...st, pitch: 0, roll: 0 }, tk ? v.def.turret.f : 0, 0, tk ? 3.0 : hl ? 2.6 : 1.7, _p);
     const pv = _w.set(_p.x, _p.y, _p.z), pit = Math.max(-0.75, Math.min(0.55, s.pitch)) - (tk ? 0 : 0.16);      // tank: kamera bakışı = nişan (artı = bakış yönü)
     const dx = -Math.sin(s.yaw) * Math.cos(pit), dy = Math.sin(pit), dz = -Math.cos(s.yaw) * Math.cos(pit);
-    const D = tk ? 10.5 : hl ? 14 : 7.2, des = _v.set(pv.x - dx * D, pv.y - dy * D + (tk ? 1.0 : hl ? 2.2 : 0.8), pv.z - dz * D);
-    if (tk) { cam.fov = P.baseFov() / (s.ads ? 1.6 : 1); cam.updateProjectionMatrix(); }
+    const D = tk ? 10.5 : hl ? 14 : 7.2, des = _v.set(pv.x - dx * D, pv.y - dy * D + (tk ? 1.0 : hl ? 0 : 0.8), pv.z - dz * D);
+    // 12.201 helikopter: kamera bakışa DİK yukarı kaydırılır (3 m) → aşağı bakınca bakış ışını gövdenin üstünden geçer, helikopter artının altında kalır
+    // (eski sabit +2,2 m dikey payda aşağı bakan artı helikopterin kendisine düşüyor, yerdeki hedef gövdenin arkasında kalıyordu). Düz bakışta ≈ eskisi
+    if (hl) { const sp = Math.sin(pit), cp = Math.cos(pit); des.x += Math.sin(s.yaw) * sp * 3.0; des.y += cp * 3.0 - Math.max(0, sp) * 0.8; des.z += Math.cos(s.yaw) * sp * 3.0; }
+    if (tk) { cam.fov = P.baseFov() / P.zoomCur(); cam.updateProjectionMatrix(); }      // 12.201: sağ tık ×1,6 yumuşak
     const dir = des.clone().sub(pv), len = dir.length(); dir.multiplyScalar(1 / len);
     const h = g.world.raycast(pv, dir, len + 0.3, _h);
     if (h) des.copy(pv).addScaledVector(dir, Math.max(1.2, h.t - 0.3));

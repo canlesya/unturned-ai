@@ -27,7 +27,8 @@ export const VT = {
     // 12.188: 1 = makineli nişancısı (ön koltukların arkasında, ortada yükseltilmiş tabure; halka kundak etrafında 360°) — eski ön yolcu koltuğu
     seat: [[0.12, -0.42, 0.78], [-0.38, 0, 1.1], [-0.78, -0.42, 0.84], [-0.78, 0.42, 0.84]], horn: true,
     // 12.188 halka kundaklı makineli (BF4 jip nişancısı): 360° yön, yükseliş −0,35…+0,55 rad, ısınma (sürekli ~4 sn → aşırı ısınır, soğuyunca açılır)
-    mg: { seats: [1], name: 'Jip makinelisi', dmg: 22, rpm: 650, range: [60, 170], minMul: 0.6, hip: 0.013, tracer: '#ffd37a', sound: 'pkm', vmg: true, elev: [-0.35, 0.55], heat: 0.022, cool: 0.45, mz: [1.35, 0.34] },
+    // 12.201 yükseliş gövdeye göre (rel: yokuşta / yan yatıkken de aşağıdaki hedef) −0,5…+0,7 rad (eski dünyaya göre −0,35…+0,55); sağ tık ×1,4 yakınlaştırma (piyade optiği yok)
+    mg: { seats: [1], name: 'Jip makinelisi', dmg: 22, rpm: 650, range: [60, 170], minMul: 0.6, hip: 0.013, tracer: '#ffd37a', sound: 'pkm', vmg: true, elev: [-0.5, 0.7], rel: true, zoom: 1.4, heat: 0.022, cool: 0.45, mz: [1.35, 0.34] },
     blastMul: 1.6, bulletMul: 0.12, hmgMul: 0.5, ramMin: 5.5,              // patlama hasarı çarpanı, mermi hasarı çarpanı, yayaya çarpma hasarının başladığı hız (m/sn)
     burnAt: 0.25, burnRate: 9, boom: [6, 110],                 // can oranı bu altındaysa yanar (sn başına can), patlama [yarıçap, hasar]
     respawn: 30, wreck: 8, idleRespawn: 120,                   // yeniden doğuş (sn), enkaz süresi, boş bırakılınca (doğuştan uzakta) yenilenme
@@ -48,22 +49,26 @@ export const VT = {
     burnAt: 0.2, burnRate: 14, boom: [8, 140],
     respawn: 45, wreck: 10, idleRespawn: 150,
     // kule: dikey eksen gövde merkezinden ileri tf (m), kule üstü / yükseklik; ana top: pivot yüksekliği, namlu boyu, açı sınırları, dönüş hızları
-    turret: { f: -0.35, y0: 1.75, y1: 2.55, hw: 1.3, hl: 1.55, pivot: 2.18, len: 4.3, gunMin: -0.12, gunMax: 0.32, yawRate: 0.95, pitchRate: 0.6 },
+    // 12.201 top açısı gövdeye göre −10°…+20° (Battlefield tankı; eski −7°…+18°), gövdenin o yöndeki eğimi + yatışı eklenir (bodyPitchAlong)
+    turret: { f: -0.35, y0: 1.75, y1: 2.55, hw: 1.3, hl: 1.55, pivot: 2.18, len: 4.3, gunMin: -0.175, gunMax: 0.35, yawRate: 0.95, pitchRate: 0.6 },
     // 12.188 ana top (HE): askere iç yarıçap (inner) içinde tam hasar, dışa doğru (1 − t)^1,5 ile radius'ta sıfır (100 canlı asker ~5,3 m'ye dek ölür);
     // araca gövdeden vehInner içinde tam, radius'ta sıfır. prox: düşman askerin gövde ekseninin bu kadar yakınından geçen mermi orada patlar
     // (yakın geçiş tapası: başın üstünden / yanından sıyıran mermi 20 m arkaya düşmesin). Değerler OYUN.md 12.188.
     cannon: { reload: 4.5, speed: 150, grav: 9, dmg: 300, radius: 7.5, inner: 3, vehInner: 1, prox: 1.3, name: 'Tank topu' },
-    mg: { seats: [1], name: 'Tank makinelisi', dmg: 24, rpm: 600, range: [60, 170], minMul: 0.6, hip: 0.012, tracer: '#ffd37a', sound: 'pkm', vmg: true, elev: [-0.3, 0.6], heat: 0.02, cool: 0.45 },
+    mg: { seats: [1], name: 'Tank makinelisi', dmg: 24, rpm: 600, range: [60, 170], minMul: 0.6, hip: 0.012, tracer: '#ffd37a', sound: 'pkm', vmg: true, elev: [-0.35, 0.65], rel: true, zoom: 1.4, heat: 0.02, cool: 0.45 },
   },
   // 12.179 HELİKOPTER (nakliye; helipadlerde doğar): pilot + iki yan kapı nişancısı (makineli, kapının yönünde ±78° yay) + kabinde yolcu (kendi silahı).
   // Arcade uçuş (öğrenilebilir): rotor pilot binince ~3 sn'de döner, kaldırma rotorla; W / S ileri / geri, A / D yana kayma, burun FAREYLE (bakış yaw'ı;
-  // sınırlı hızla döner), Boşluk yüksel, C / Ctrl alçal, girdi yokken havada asılı kalır. Yükseklik sınırı yok (savaş alanı sınırı geçerli). Pilotsuz
+  // sınırlı hızla döner; 12.201: fare Y burnu eğer, burun aşağı = öne hızlanma), Boşluk yüksel, C / Ctrl alçal, girdi yokken havada asılı kalır. Yükseklik sınırı yok (savaş alanı sınırı geçerli). Pilotsuz
   // rotor söner → düşer. Gövde / kuyruk / rotor ucu çarpışması hasar; sert iniş hasar; can bitince havada patlar, enkaz düşer.
   'heli-n': {
     name: 'Helikopter', hp: 600, seats: 4, heli: true,
     hl: 2.5, hw: 1.25, top: 2.7, clear: 0.55,
     wb: 3.0, tr: 2.4, wheelR: 0,                                   // kızak noktaları (iniş zemini / eğim)
-    maxF: 46, maxB: 14, maxS: 16, climb: 9, descend: 7, acc: 9, vacc: 12, yawRate: 1.5, spinUp: 3.2, rotorR: 6.6, rotorY: 3.25, tailF: -7.6,
+    maxF: 46, maxB: 14, maxS: 16, climb: 9, descend: 7, acc: 9, vacc: 12, yawRate: 1.5,
+    // 12.201 burun eğimi pilotun nişanını izler (fare Y; girdi pt = artının yönü): havada [aşağı, yukarı] rad; burun aşağıdayken öne, yukarıdayken geri
+    // hız isteği eklenir (Battlefield: burnu eğince hızlanır; noseAcc m/sn / rad, ölü bölge sonrası)
+    noseP: [-0.6, 0.32], noseAcc: 15, spinUp: 3.2, rotorR: 6.6, rotorY: 3.25, tailF: -7.6,
     maxR: 14, accel: 9, brake: 9, roll: 1, drag: 0.0012, steerMax: 1, steerRate: 3, grip: 6, gripHand: 6, slide: 0.9, climbK: 1,
     // koltuklar: 0 pilot (kokpit sağ ön), 1 sol kapı nişancısı, 2 sağ kapı nişancısı, 3 kabin yolcusu (arkaya bakar)
     seat: [[1.55, 0.42, 0.95], [-0.25, -0.95, 0.95], [-0.25, 0.95, 0.95], [-1.15, 0, 0.95]],
@@ -72,11 +77,14 @@ export const VT = {
     burnAt: 0.25, burnRate: 12, boom: [9, 150],
     respawn: 50, wreck: 12, idleRespawn: 150,
     parts: [[-0.32, 0.32, 1.55, 2.35, 2.4, 7.9]],                    // ek çarpışma / vuruş kutuları (yerel: x0, x1, y0, y1, z0, z1; z = geri): kuyruk kirişi
-    mg: { seats: [1, 2], arc: { 1: -1, 2: 1 }, arcW: 1.36, name: 'Kapı makinelisi', dmg: 22, rpm: 700, range: [60, 170], minMul: 0.6, hip: 0.014, tracer: '#ffd37a', sound: 'pkm', vmg: true, elev: [-1.25, 0.4], heat: 0.02, cool: 0.45 },
+    // 12.201 kapı makinelisi dünyaya göre −1,45 rad'a (83°) dek aşağı (eski −1,25): havadan dik aşağı
+    mg: { seats: [1, 2], arc: { 1: -1, 2: 1 }, arcW: 1.36, name: 'Kapı makinelisi', dmg: 22, rpm: 700, range: [60, 170], minMul: 0.6, hip: 0.014, tracer: '#ffd37a', sound: 'pkm', vmg: true, elev: [-1.45, 0.45], zoom: 1.4, heat: 0.02, cool: 0.45 },
     // 12.188 pilot silahları (BF4: tek başına uçan pilot da ateş eder): burun topu (sol tık; burnun baktığı yöne sabit, 20 mm: hmg → jipe / helikoptere
     // ağır, tanka işlemez) + güdümsüz roket kapsülleri (sağ tık; 2 × 7, sırayla, HE sıçramalı; boşalınca dolum)
-    nose: { seats: [0], fixed: true, f: 3.55, u: 0.72, dp: -0.05, name: 'Burun topu', dmg: 20, rpm: 750, range: [80, 220], minMul: 0.6, hip: 0.006, tracer: '#ffb35a', sound: 'pkm', vmg: true, vk: 'hmg', heat: 0.016, cool: 0.4 },
-    rockets: { name: 'Roket', n: 14, rate: 0.2, reload: 6, speed: 125, grav: 3, dmg: 130, radius: 5.5, inner: 1.2, vehInner: 0.4, prox: 0, dp: -0.05, pods: [[1.75, -1.62, 0.6], [1.75, 1.62, 0.6]] },
+    // 12.201 burun topu burna bağlı ama sınırlı serbest nişan konisi (cone: aşağı, yukarı, yana rad): artının noktasına (gy / gp) bu koni içinde döner;
+    // nişan yoksa (eski istemci) burnun yönünde −0,05. Sağ tık ×1,5 yakınlaştırma. Roketler burnun TAM yönünde (dp 0).
+    nose: { seats: [0], fixed: true, f: 3.55, u: 0.72, dp: -0.05, cone: [-0.26, 0.14, 0.17], zoom: 1.5, name: 'Burun topu', dmg: 20, rpm: 750, range: [80, 220], minMul: 0.6, hip: 0.006, tracer: '#ffb35a', sound: 'pkm', vmg: true, vk: 'hmg', heat: 0.016, cool: 0.4 },
+    rockets: { name: 'Roket', n: 14, rate: 0.2, reload: 6, speed: 125, grav: 3, dmg: 130, radius: 5.5, inner: 1.2, vehInner: 0.4, prox: 0, dp: 0, pods: [[1.75, -1.62, 0.6], [1.75, 1.62, 0.6]] },
   },
 };
 VT['heli-s'] = VT['heli-n'];                                       // saldırı helikopteri ayrı model gelene dek aynı nakliye helikopteri
@@ -85,6 +93,28 @@ VT['heli-s'] = VT['heli-n'];                                       // saldırı 
 export const mgAt = (def, seat) => (def?.mg && def.mg.seats.includes(seat) ? def.mg : null);
 // 12.188 koltuğun araç silahı (makineli koltuklar + helikopter pilotunun burun topu); yoksa null. Botlar / HUD / yetkili taraf aynı fonksiyonu kullanır
 export const seatGun = (def, seat) => (seat === 0 ? def?.nose || null : mgAt(def, seat));
+// 12.201 koltuk araç silahını mı kullanıyor (sürücü / pilot / makineli): o koltukta piyade nişanı (optik, adsT) YOK, sağ tık aracın yakınlaştırması
+export const vehSeatArmed = (def, seat) => seat === 0 || !!mgAt(def, seat);
+// 12.201 sağ tık yakınlaştırması (× ; 0 = yok). Tank sürücüsü: dürbünde ×2,6 (temel ×1,15), takipte ×1,6 — kamera kipine göre vehicleView / Player
+export const seatZoom = (def, seat, first) => (seat === 0 && def?.cannon ? (first ? 2.6 : 1.6) : seatGun(def, seat)?.zoom || 0);
+const wrapA = (a) => ((a + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+// 12.201 gövdenin yaw yönündeki eğimi (rad): burun eğimi · cos + yatış · −sin (sağa bakınca yatış). Tank topu / gövdeye göre makineli sınırları
+export function bodyPitchAlong(st, yaw) { const a = yaw - st.yaw; return (st.pitch || 0) * Math.cos(a) - (st.roll || 0) * Math.sin(a); }
+// 12.201 makinelinin dünya pitch'i: yükseliş sınırı (M.rel: gövdeye göre)
+export function mgPitch(st, M, yaw, pitch) {
+  if (!M.elev) return pitch;
+  const b = M.rel && st ? bodyPitchAlong(st, yaw) : 0;
+  return Math.max(M.elev[0] + b, Math.min(M.elev[1] + b, pitch));
+}
+// 12.201 burun topunun yönü (yaw, pitch): nişan (aim.y / aim.p, artının noktasına) burnun koni sınırında kırpılır; nişan yoksa burun + dp.
+// Sunucu (mgFire), istemci izi, HUD burun artısı ve botlar aynı fonksiyonu kullanır. out.c: kırpıldı mı
+export function noseDir(st, M, aim, out = {}) {
+  const C = M.cone;
+  if (!C || !aim || !Number.isFinite(aim.y) || !Number.isFinite(aim.p)) { out.y = st.yaw; out.p = (st.pitch || 0) + (M.dp || 0); out.c = false; return out; }
+  const dy = wrapA(aim.y - st.yaw), y = Math.max(-C[2], Math.min(C[2], dy)), p0 = st.pitch || 0, p = Math.max(p0 + C[0], Math.min(p0 + C[1], aim.p));
+  out.y = st.yaw + y; out.p = p; out.c = Math.abs(y - dy) > 1e-4 || Math.abs(p - aim.p) > 1e-4;
+  return out;
+}
 
 const STEP_UP = 0.55;           // teker zemini: bu kadar yukarıdaki kutu tepesine çıkılır (bordür, kütük, tabliye ağzı)
 export const VEH_G = 15;         // yer çekimi (askerlerle aynı TUNE.gravity varsayılanı; araç his ayarı ayrı tutulur)
@@ -170,7 +200,7 @@ export function stepVehicle(v, inp, dt, world) {
     const tu = d.turret, dy = ((inp.yw - v.tyaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
     v.tyaw += Math.max(-tu.yawRate * dt, Math.min(tu.yawRate * dt, dy));
     if (v.tyaw > Math.PI) v.tyaw -= Math.PI * 2; else if (v.tyaw < -Math.PI) v.tyaw += Math.PI * 2;
-    const wp = Math.max(tu.gunMin, Math.min(tu.gunMax, (inp.pt || 0) - v.pitch * Math.cos(v.tyaw - v.yaw)));      // gövde eğimi top açısından düşülür (sınırlar gövdeye göre)
+    const wp = Math.max(tu.gunMin, Math.min(tu.gunMax, (inp.pt || 0) - bodyPitchAlong(v, v.tyaw)));      // gövde eğimi (+ 12.201 yatış) top açısından düşülür (sınırlar gövdeye göre)
     v.gp += Math.max(-tu.pitchRate * dt, Math.min(tu.pitchRate * dt, wp - v.gp));
   }
   if (onG) {
@@ -276,6 +306,9 @@ function stepHeli(v, inp, dt, T) {
   v.rpm = Math.max(0, Math.min(1, v.rpm + (pilot ? 1 : -0.7) * dt / d.spinUp));
   const lift = Math.max(0, Math.min(1, (v.rpm - 0.6) / 0.3));
   const f = pilot ? Math.max(-1, Math.min(1, inp.f || 0)) : 0, rr = pilot ? Math.max(-1, Math.min(1, inp.r || 0)) : 0, up = pilot ? (inp.u ? 1 : 0) - (inp.d ? 1 : 0) : 0;
+  // 12.201 burun eğimi = pilotun nişanı (pt: artının yönü, fare Y), havada noseP içinde; burun aşağı → öne hız isteği (BF), yukarı → geri
+  const NP = d.noseP || [0, 0], aimP = pilot && Number.isFinite(inp.pt) ? Math.max(NP[0], Math.min(NP[1], inp.pt)) : 0;
+  const nAcc = (aimP < -0.08 ? (-aimP - 0.08) : aimP > 0.12 ? -(aimP - 0.12) * 0.5 : 0) * (d.noseAcc || 0) * lift;
   v.thr = Math.max(Math.abs(f), Math.abs(up)) * (up < 0 ? -1 : 1); v.brk = 0;
   const g0 = heliGround(v, T, d), onG = !v.air;
   // burun: pilotun bakışına (havada tam, yerde yavaş)
@@ -284,7 +317,7 @@ function stepHeli(v, inp, dt, T) {
   const s0 = Math.sin(v.yaw), c0 = Math.cos(v.yaw), fx = -s0, fz = -c0, rx = c0, rz = -s0;
   let vF = v.vx * fx + v.vz * fz, vR = v.vx * rx + v.vz * rz;
   if (lift > 0 && !(onG && up <= 0)) {
-    const tF = f > 0 ? f * d.maxF : f * d.maxB, tR = rr * d.maxS, a = d.acc * lift * dt;
+    const tF = Math.max(-d.maxB, Math.min(d.maxF, (f > 0 ? f * d.maxF : f * d.maxB) + (v.air ? nAcc : 0))), tR = rr * d.maxS, a = d.acc * lift * dt;
     vF += Math.max(-a, Math.min(a, tF - vF)); vR += Math.max(-a * 1.3, Math.min(a * 1.3, tR - vR));
     const alt = v.y - g0, tY = up > 0 ? d.climb : up < 0 ? -Math.min(d.descend, 1.4 + alt * 0.7) : 0, va = d.vacc * dt;      // yere yaklaşınca alçalış kendiliğinden yavaşlar (yumuşak iniş ≤ 1,4 m/sn)
     v.vy += Math.max(-va, Math.min(va, tY - v.vy)) * lift - VEH_G * (1 - lift) * dt;
@@ -348,9 +381,10 @@ function stepHeli(v, inp, dt, T) {
     if (up <= 0 || lift < 0.9) { v.air = false; }
   } else if (!v.air && v.y > g + 0.3) v.air = true;
   if (!v.air) { v.y = g; v.vy = Math.max(0, v.vy); }
-  // eğim / yatış: yerde kızaklardan, havada ivme / girdiden (burun ileri gidişte aşağı, yana kaymada yatar)
+  // eğim / yatış: yerde kızaklardan, havada nişan (12.201: fare Y, burun silahı / roketler burnun yönünde) + ivme / girdi (ileri gidişte burun biraz
+  // daha aşağı, yana kaymada yatar). Eski: yalnız ileri girdisi −0,2 rad (hover'da burun hep düz → aşağıya ateş edilemiyordu)
   const w = v.wl;
-  const tp = !v.air ? Math.atan2((w[0] + w[1]) / 2 - (w[2] + w[3]) / 2, d.wb) : -f * 0.2 * lift - (vF / d.maxF) * 0.08;
+  const tp = !v.air ? Math.atan2((w[0] + w[1]) / 2 - (w[2] + w[3]) / 2, d.wb) : Math.max(NP[0] - 0.08, Math.min(NP[1] + 0.05, aimP * lift - f * 0.08 * lift - (vF / d.maxF) * 0.05));
   const tr = !v.air ? Math.atan2((w[1] + w[3]) / 2 - (w[0] + w[2]) / 2, d.tr) : -rr * 0.22 * lift - v.steer * 0.12;
   const kk = 1 - Math.exp(-4 * dt);
   v.pitch += (tp - v.pitch) * kk; v.roll += (tr - v.roll) * kk;
@@ -368,7 +402,7 @@ export function applyVehState(v, a) { v.x = a[0]; v.y = a[1]; v.z = a[2]; v.yaw 
 // 12.178 namlu ucu ve yönü (dünya): kule ekseni gövdede (tf ileri), kule yaw dünyada, top açısı kule eğimine eklenir
 export function gunPose(v, outP, outD) {
   const tu = v.def.turret, c = toWorld(v, tu.f, 0, tu.pivot, { x: 0, y: 0, z: 0 });
-  const ps = v.pitch * Math.cos(v.tyaw - v.yaw), pt = v.gp + ps, cp = Math.cos(pt);
+  const pt = v.gp + bodyPitchAlong(v, v.tyaw), cp = Math.cos(pt);      // 12.201: gövdenin kule yönündeki eğimi + yatışı
   outD.x = -Math.sin(v.tyaw) * cp; outD.y = Math.sin(pt); outD.z = -Math.cos(v.tyaw) * cp;
   outP.x = c.x + outD.x * tu.len; outP.y = c.y + outD.y * tu.len; outP.z = c.z + outD.z * tu.len;
   return outP;

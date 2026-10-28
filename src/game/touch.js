@@ -30,6 +30,7 @@ const LAYOUT = {
   reload: { x: 0.655, y: 0.86, s: 0.15 }, swap: { x: 0.79, y: 0.89, s: 0.15 }, nade: { x: 0.655, y: 0.58, s: 0.15 }, abil: { x: 0.655, y: 0.6, s: 0.19 },
   third: { x: 0.655, y: 0.34, s: 0.12 }, optic: { x: 0.81, y: 0.36, s: 0.12 }, breath: { x: 0.72, y: 0.4, s: 0.12 }, pause: { x: 0.22, y: 0.075, s: 0.11 }, score: { x: 0.285, y: 0.075, s: 0.11 },
   veh: { x: 0.53, y: 0.62, s: 0.14 }, vcam: { x: 0.53, y: 0.4, s: 0.11 }, seat: { x: 0.53, y: 0.84, s: 0.11 },      // 12.177 araç: bin / in (yalnız yakında / içindeyken), kamera (sürücü), koltuk değiştir
+  rk: { x: 0.655, y: 0.58, s: 0.15 },                                              // 12.201 helikopter pilotu: ROKET (basılı; araçta gizli bomba düğmesinin yeri)
 };
 const NAME = (id) => t('tc.n.' + id);                                            // düzenleyicideki buton adları (src/i18n/touch.js)
 const I = {
@@ -47,6 +48,7 @@ const I = {
   veh: '<path d="M4 15l2-6h12l2 6v4H4z"/><circle cx="8" cy="18" r="2"/><circle cx="16" cy="18" r="2"/><path d="M7 9l1.5-3h7L17 9"/>',
   vcam: '<rect x="3" y="7" width="13" height="10" rx="2"/><path d="M16 11l5-3v8l-5-3"/>',
   seat: '<path d="M7 4v9h9l2 7M7 13l-2 7M10 4h-3"/><path d="M14 4l3 3-3 3"/>',
+  rk: '<path d="M5 19l3-1 8-8a4 4 0 001-5 4 4 0 00-5 1l-8 8-1 3z"/><path d="M8 13l3 3M5 15l-2 2M9 19l-2 2M14 7l1 1"/>',      // 12.201 roket
 };
 // seçici kartlarında küçük nişangâh önizlemesi ve buton etiketi (12.190: ortak opticIcons.js; 2× / 3× / 4× ACOG / 6× / 8× eklendi)
 const OPI = OPTIC_ICON, opLabel = (id) => OPTIC_MAG[id] || (id ? t('tc.op.' + id) : '');   // nişangâh butonu etiketi
@@ -406,7 +408,7 @@ export class TouchControls {
     if (id === 'crouch') this.dive = down;                                     // 12.180: yüzerken çömel düğmesi basılıyken dalınır
     if (id === 'crouch' && !down && this.down) { this.down = false; if (b) b.classList.remove('on'); }      // 12.183: alçal basılıyken inilse / koltuk değişse de bırakınca söner (eskiden takılı kalıyordu → sonraki binişte kendiliğinden alçalış)
     if (id === 'crouch' && s.veh?.def.heli && s.seat === 0) { this.down = down; if (b) b.classList.toggle('on', down); return; }      // 12.179 helikopter pilotu: çömel butonu basılıyken alçal
-    if (id === 'ads' && s.veh?.def.rockets && s.seat === 0) { s.ads = down; if (b) b.classList.toggle('on', down); return; }      // 12.188 helikopter pilotu: nişan butonu basılıyken roket
+    if (id === 'rk') { this.rk = down && s.alive && !!s.veh && s.seat === 0; if (b) b.classList.toggle('on', this.rk); return; }      // 12.201 helikopter pilotu: ROKET basılı (nişan butonu artık yakınlaştırma, aç-kapa)
     if (!down) { if (id === 'jump') this.jump = false; return; }
     if (id === 'pause') { g.togglePause(); return; }
     if (!s.alive) return;
@@ -574,7 +576,7 @@ export class TouchControls {
     this.el.classList.toggle('off', !show);
     if (!show) {
       this.closeOptics();
-      this.f = this.r = 0; this.sprint = this.jump = this.breath = this.dive = this.down = false; this.runLock = false; this.joy = null; this.looks.clear();
+      this.f = this.r = 0; this.sprint = this.jump = this.breath = this.dive = this.down = this.rk = false; this.runLock = false; this.joy = null; this.looks.clear();
       this.jb.classList.remove('drag', 'run', 'locked', 'lockon');
       if (this.cfg.joy === 'float') this.jb.classList.add('float');
       if (p.fireHeld && this.anyFire()) p.fireHeld = false;
@@ -611,7 +613,8 @@ export class TouchControls {
         for (const k of ['nade', 'third']) this.b[k].classList.toggle('vh', inV);
         this.b.crouch.classList.toggle('vh', inV && !hp);                                  // helikopter pilotunda çömel = alçal, zıpla = yüksel
         for (const k of ['reload', 'swap', 'optic']) this.b[k].classList.toggle('vh', drv);
-        this.b.ads.classList.toggle('vh', drv && !(s.veh.def.cannon || s.veh.def.rockets));      // 12.188: nişan butonu tank sürücüsünde yakınlaştırma, helikopter pilotunda roket
+        this.b.ads.classList.toggle('vh', drv && !(s.veh.def.cannon || s.veh.def.nose));      // 12.188: nişan butonu tank sürücüsünde yakınlaştırma · 12.201 helikopter pilotunda da yakınlaştırma (roket ayrı ROKET butonunda)
+        this.b.rk.classList.toggle('hid', !(hp && s.veh.def.rockets)); if (!hp) { this.rk = false; this.b.rk.classList.remove('on'); }
       }
     }
     // zombi: güç butonu (halka = bekleme / etkin süre), silah butonları yok

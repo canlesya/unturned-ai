@@ -208,10 +208,10 @@ function headlessGuns() {
   const e2 = place(reds[1], X0 + 41, Z0 + 3);
   const rk0 = hl.rk; hl.st.pitch = Math.atan2(j.st.y + 0.7 - (hl.st.y + 0.6), 40 - 1.75) - VT['heli-n'].rockets.dp;
   booms = []; let n = 0;
-  for (; n < 200; n++) { h.queue.push(inp({ yw: YE, a: 1 })); g.step(1 / 60); hl.st.pitch = Math.atan2(j.st.y + 0.7 - (hl.st.y + 0.6), 40 - 1.75) - VT['heli-n'].rockets.dp; if (!j.alive) break; }
+  for (; n < 200; n++) { h.queue.push(inp({ yw: YE, rk: 1 })); g.step(1 / 60); hl.st.pitch = Math.atan2(j.st.y + 0.7 - (hl.st.y + 0.6), 40 - 1.75) - VT['heli-n'].rockets.dp; if (!j.alive) break; }
   const rb = booms.filter((b) => b.name === 'Roket');
-  ok(rk0 === 14 && hl.rk < 14 && rb.length >= 1 && !j.alive && !e2.alive, 'helikopter roketleri (sağ tık): jipi patlatır, yanındaki asker ölür (HE sıçrama)', `${14 - hl.rk} roket · ${rb.length} patlama · ${f2(n / 60)} sn`);
-  for (let i = 0; i < 400 && hl.rk > 0; i++) { h.queue.push(inp({ yw: YE, a: 1 })); g.step(1 / 60); }
+  ok(rk0 === 14 && hl.rk < 14 && rb.length >= 1 && !j.alive && !e2.alive, 'helikopter roketleri (12.201: Q / orta tık, girdi rk): jipi patlatır, yanındaki asker ölür (HE sıçrama)', `${14 - hl.rk} roket · ${rb.length} patlama · ${f2(n / 60)} sn`);
+  for (let i = 0; i < 400 && hl.rk > 0; i++) { h.queue.push(inp({ yw: YE, rk: 1 })); g.step(1 / 60); }
   const rr0 = hl.rkR; step(Math.ceil(VT['heli-n'].rockets.reload * 60) + 5, { yw: YE });
   ok(hl.rk === 0 || hl.rk === 14, 'roket kapsülü boşalınca ' + VT['heli-n'].rockets.reload + ' sn dolum', `dolum başında ${f1(rr0)} sn · sonra ${hl.rk}`);
   // tanka roket: orta / zayıf (130 × 1,25 = ~160)
@@ -322,9 +322,9 @@ async function online(chromium) {
   await A.waitForTimeout(900);
   await B.evaluate(() => { const g = window.__game, me = g.playerSoldier; me.yaw = Math.atan2(-(305 - me.pos.x), -(-392 - me.pos.z)); me.pitch = -0.12; });
   await A.evaluate(() => { const g = window.__game, me = g.playerSoldier; me.yaw = -Math.PI / 2; me.pitch = -0.1; g.player.fireHeld = true; });
-  await A.waitForTimeout(700); await A.evaluate(() => { const g = window.__game; g.player.fireHeld = false; g.playerSoldier.ads = true; });
+  await A.waitForTimeout(700); await A.evaluate(() => { const g = window.__game; g.player.fireHeld = false; g.player.mmb = true; });      // 12.201 roket: orta tık (sağ tık = yakınlaştırma)
   await A.waitForTimeout(500); await Promise.all([A.screenshot({ path: `${OUT}/sonra/23-cevrimici-A-pilot-roket.png` }), B.screenshot({ path: `${OUT}/sonra/24-cevrimici-B-pilot-roket.png` })]);
-  await A.waitForTimeout(900); await A.evaluate(() => { window.__game.playerSoldier.ads = false; });
+  await A.waitForTimeout(900); await A.evaluate(() => { window.__game.player.mmb = false; });
   await A.waitForTimeout(800);
   const res2 = await Promise.all([A, B].map((P) => P.evaluate((ids) => { const g = window.__game; return { sh: g._sh, rk: g._rk, feed: g._feed2.filter((x) => ids.includes(x[1])) }; }, ids2)));
   ok(hseat[0] === 'B-H1' && hseat[1] === 0 && res2[1].sh > 3 && res2[1].rk >= 1, 'çevrim içi helikopter pilotu (tek kişi): burun topu izleri + roketler diğer istemcide görünür', JSON.stringify({ seat: hseat, B: { sh: res2[1].sh, rk: res2[1].rk } }));

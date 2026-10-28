@@ -42,7 +42,7 @@ await ev(([YE, TX]) => window.__seat('B-T1', 1, TX, -390, YE, { look: YE + 0.2, 
 await ev(() => { window.__game.player.fireHeld = true; }); await shot(page, '07-tank-makineli-ates', 1800); await ev(() => { window.__game.player.fireHeld = false; });
 await ev(([YE, TX]) => window.__seat('B-H1', 0, TX + 2, -404, YE, { pitch: -0.12 }), [YE, TX]); await shot(page, '08-heli-pilot', 3500);
 await ev(() => { window.__game.player.fireHeld = true; }); await shot(page, '08b-heli-pilot-burun-topu', 700); await ev(() => { window.__game.player.fireHeld = false; });
-await ev(() => { window.__game.playerSoldier.ads = true; }); await shot(page, '08c-heli-pilot-roket', 900); await ev(() => { window.__game.playerSoldier.ads = false; });
+await ev(() => { window.__game.player.mmb = true; }); await shot(page, '08c-heli-pilot-roket', 900); await ev(() => { window.__game.player.mmb = false; });
 await ev(([YE, TX]) => window.__seat('B-H1', 1, TX + 2, -404, 0, { look: Math.PI / 2 + 0.2, pitch: -0.05 }), [YE, TX]); await shot(page, '09-heli-kapi-nisanci', 1500);
 await ev(() => { window.__game.player.fireHeld = true; }); await shot(page, '10-heli-kapi-ates', 2500); await ev(() => { window.__game.player.fireHeld = false; });
 await ev(([YE, TX]) => { window.__seat('B-H1', 1, TX + 2, -404, 0, { look: -Math.PI / 2, pitch: -0.05 }); }, [YE, TX]); await shot(page, '11-heli-kapi-yay-disi', 1200);

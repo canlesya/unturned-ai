@@ -1,4 +1,4 @@
-import { VT, makeVehicle, stepVehicle, toWorld, toLocal2, obbBox, rayVehicle, packVehState, applyVehState, vehicleAtRest, groundAt, gunPose, mgAt, seatGun, shellVel, shellAdvance, heFalloff } from '../sim/vehicle.js';
+import { VT, makeVehicle, stepVehicle, toWorld, toLocal2, obbBox, rayVehicle, packVehState, applyVehState, vehicleAtRest, groundAt, gunPose, mgAt, seatGun, shellVel, shellAdvance, heFalloff, noseDir, mgPitch } from '../sim/vehicle.js';
 import { dirFromAngles } from './util.js';
 import * as THREE from 'three';
 import { R as SR } from './collision.js';
@@ -81,7 +81,7 @@ export class Vehicles {
     s.crouching = false; s.prone = false; s.sprinting = false; s.leanDir = 0; s.leanOff.set(0, 0, 0); s.leanK = 0; s.leanT = 0;
     s.crouchT = 0; s.proneT = 0; s.height = SEAT_H; s.eyeY = SEAT_EYE;
     s.swim = false; s.under = false;                                    // 12.180: koltukta yüzme / nefes yok (araç batarsa yönetici indirir → yüzme konumdan başlar)
-    if (s.seat === 0 && !v.def.cannon && !v.def.rockets) s.ads = false; // tank sürücüsü sağ tıkla nişangâhı yakınlaştırır · 12.188 helikopter pilotu sağ tıkla roket atar
+    if (s.seat === 0 && !v.def.cannon && !v.def.nose) s.ads = false;    // tank sürücüsü / 12.201 helikopter pilotu sağ tıkla yakınlaştırır (roket: Q / orta tık); jip sürücüsünde nişan yok
   }
   // koltuk gövdenin içinde mi (tank sürücüsü: görünmez, zırh arkasında; patlama sıçraması işlemez)
   hiddenSeat(s) { return !!(s.veh && s.veh.def.hidden?.[s.seat]); }
@@ -116,6 +116,7 @@ export class Vehicles {
     if (v.seats[seat] || !v.alive) return false;
     if (s.veh) this.release(s);
     v.seats[seat] = s; s.veh = v; s.seat = seat;
+    s.ads = false; s.adsT = 0;                                          // 12.201: piyadedeki nişan (4× vb.) araca taşınmaz; koltukta sağ tık aracın yakınlaştırması
     if (s.cook) s.cook = null;
     s.swing = null; s.useT = 0;
     if (seat === 0) { v.lastDriver = s; v.lastDriverT = this.g.time; v.team = s.team; if (!v.lights && (this.g.night || this.g.tod === 'sunset')) v.lights = true; }
@@ -130,7 +131,7 @@ export class Vehicles {
     const v = s.veh; if (!v) return;
     if (v.seats[s.seat] === s) v.seats[s.seat] = null;
     if (s.seat === 0) { v.horn = false; v.sleep = false; }
-    s.veh = null; s.seat = -1; s.height = 1.78; s.eyeY = 1.62; s.gunAim = null;
+    s.veh = null; s.seat = -1; s.height = 1.78; s.eyeY = 1.62; s.gunAim = null; s.ads = false; s.adsT = 0;      // 12.201: inince nişan temiz (aç-kapa nişan açık kalmasın)
   }
 
   // İn: yan kapıdan (koltuğun tarafı), olmazsa öbür yan / arka / ön / üst. Hız aracın hızının yarısı, ilk iniş hasarsız
@@ -162,7 +163,7 @@ export class Vehicles {
     if (n === 0 && s.brain) return false;                              // botlar sürmez (12.177 aşama 1)
     v.seats[s.seat] = null;
     if (s.seat === 0) v.horn = false;
-    v.seats[n] = s; s.seat = n;
+    v.seats[n] = s; s.seat = n; s.ads = false; s.adsT = 0;          // 12.201: koltuk değişince nişan temiz
     if (n === 0) { v.lastDriver = s; v.lastDriverT = this.g.time; v.team = s.team; }
     this.place(s);
     this.g.emit('vehseat', { s, v, seat: n });
@@ -552,6 +553,37 @@ export class Vehicles {
     }
     return null;
   }
+  // 12.201 helikopter burun topunun hedefi (Battlefield: mermi artıya gider): kamera ışınının çarptığı nokta P (dünya, araç, düşman; yoksa 600 m)
+  // → burun topu ağzından P'ye yaw / pitch. Pilot girdisinde gy / gp olarak yollanır: burun bu yöne eğilir / döner (stepHeli), top koni içinde tam
+  // oraya (noseDir). Botlar hedefin noktasını doğrudan verir (noseAimAt).
+  noseAimFor(v, co, cd, by, out = {}) {
+    const g = this.g, W = g.world;
+    let t = 600;
+    const wh = W.raycast(co, cd, t, (this._na ||= {})); if (wh) t = wh.t;
+    const vr = this.raycast(co, cd, t, v); if (vr && vr.t < t) t = vr.t;
+    for (const e of g.soldiers) { if (!e.alive || e === by || (by && e.team === by.team) || e.veh === v) continue; const h = g.hitSoldier(e, co, cd, t); if (h && h.t < t) t = h.t; }
+    return this.noseAimAt(v, { x: co.x + cd.x * t, y: co.y + cd.y * t, z: co.z + cd.z * t }, out, t < 600);
+  }
+  noseAimAt(v, P, out = {}, hit = true) {
+    const M = v.def.nose, o = toWorld(v.st, M.f, 0, M.u, (this._nm ||= {})), dx = P.x - o.x, dy = P.y - o.y, dz = P.z - o.z;
+    out.y = Math.atan2(-dx, -dz); out.p = Math.atan2(dy, Math.hypot(dx, dz)); out.P = P; out.dist = Math.hypot(dx, dy, dz); out.hit = hit;
+    return out;
+  }
+  // 12.201 HUD roket işareti: şu an atılan roketin ilk isabet noktası (fireRocket ile aynı çıkış + aynı integral / isabet; 3 sn'ye dek) ya da null
+  predictRocket(v, by, out = {}) {
+    const R = v.def.rockets, st = v.st; if (!R || !st) return null;
+    const pod = R.pods[0], o = toWorld(st, pod[0], 0, pod[2], { x: 0, y: 0, z: 0 }), d = dirFromAngles(st.yaw, (st.pitch || 0) + (R.dp || 0), (this._rd ||= new THREE.Vector3()));
+    const sh = { x: o.x, y: o.y, z: o.z, vx: d.x * R.speed + st.vx, vy: d.y * R.speed + st.vy, vz: d.z * R.speed + st.vz }, a = { x: 0, y: 0, z: 0 }, dd = { x: 0, y: 0, z: 0 }, h0 = 1 / 30;
+    for (let k = 0; k < 90; k++) {
+      a.x = sh.x; a.y = sh.y; a.z = sh.z;
+      shellAdvance(sh, h0, R.grav);
+      const dx = sh.x - a.x, dy = sh.y - a.y, dz = sh.z - a.z, L = Math.hypot(dx, dy, dz);
+      dd.x = dx / L; dd.y = dy / L; dd.z = dz / L;
+      const h = this.shellTrace(a, dd, L, R, by, v);
+      if (h) { out.p = { x: a.x + dd.x * h.t, y: a.y + dd.y * h.t, z: a.z + dd.z * h.t }; out.k = h.k; return out; }
+    }
+    return null;
+  }
   // İstemci: kendi atış görseli olmayan istemcide mermi uçuşu (yetkili olmayan), adım başına
   clientShells(dt) { if (this.g.online) this.updateShells(dt); }
 
@@ -577,12 +609,11 @@ export class Vehicles {
     if (M.heat) { s.vheat = Math.min(1, (s.vheat || 0) + M.heat); if (s.vheat >= 1) s.vhot = true; }
     const g = this.g, rnd = g.paint.rngFor(s);
     let o, base, yaw;
-    if (M.fixed) {
-      const st = v.st; o = new THREE.Vector3(); toWorld(st, M.f, 0, M.u, o);
-      yaw = st.yaw; base = dirFromAngles(st.yaw, (st.pitch || 0) + (M.dp || 0));
+    if (M.fixed) {                                                    // 12.201 burun topu: artının noktasına (s.gunAim) burnun koni sınırında
+      const st = v.st, nd = noseDir(st, M, s.gunAim, (this._nd2 ||= {})); o = new THREE.Vector3(); toWorld(st, M.f, 0, M.u, o);
+      yaw = nd.y; base = dirFromAngles(nd.y, nd.p);
     } else {
-      const pt = M.elev ? Math.max(M.elev[0], Math.min(M.elev[1], s.pitch)) : s.pitch;
-      o = s.eye(); yaw = s.yaw; base = dirFromAngles(s.yaw, pt);
+      o = s.eye(); yaw = s.yaw; base = dirFromAngles(s.yaw, mgPitch(v.st, M, s.yaw, s.pitch));      // 12.201 rel: sınır gövdeye göre (yokuşta aşağı)
     }
     const sp = M.hip + Math.min(this.speed(v) * 0.0008, 0.01) + (s.brain ? s.botExtraSpread : 0), a = rnd() * Math.PI * 2, rr = Math.sqrt(rnd()) * sp;
     const right = { x: Math.cos(yaw), z: -Math.sin(yaw) };
@@ -596,7 +627,7 @@ export class Vehicles {
     return true;
   }
 
-  // 12.188 helikopter roketleri (pilot, sağ tık): YETKİLİ tarafta (tank topu gibi 'ts' olayı, w: 1) — kapsüllerden sırayla, burnun yönünde; HE sıçrama
+  // 12.188 helikopter roketleri (pilot; 12.201: Q / orta tık / telefonda ROKET, eskiden sağ tık): YETKİLİ tarafta (tank topu gibi 'ts' olayı, w: 1) — kapsüllerden sırayla, burnun yönünde; HE sıçrama
   // (shellTrace / explode ortak). v.rk kalan, v.rkT atış arası, v.rkR dolum (boşalınca R.reload sn). Botlar için: fireRocket(araç, pilot).
   fireRocket(v, by) {
     const R = v.def.rockets;
