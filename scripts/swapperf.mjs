@@ -23,7 +23,7 @@ await page.waitForTimeout(2500);
 const warm = await page.evaluate(() => window.__game.warm);
 await page.evaluate(() => {
   const g = window.__game, p = g.player, s = g.playerSoldier, r = g.renderer;
-  g.devGod = true; s.protT = 1e9;
+  g.devGod = true; s.protT = 1e9; s.fly = false; s.vel.set(0, 0, 0);      // geliştirici modunda uçuş açık başlar: tekerlek uçuş hızını ayarlıyordu
   // iş dökümü: sarılan işlevlerin bu karedeki toplam süresi
   const acc = (window.__acc = {});
   const wrap = (o, k, name) => { const f = o[k]; if (!f || f.__w) return; const w = function (...a) { const t = performance.now(); try { return f.apply(this, a); } finally { acc[name] = (acc[name] || 0) + performance.now() - t; } }; w.__w = 1; o[k] = w; };

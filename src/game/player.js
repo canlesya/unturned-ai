@@ -257,9 +257,7 @@ export class ViewModel {
       if (C.size <= VM_CACHE) break;
       if (e.g === this.model) continue;
       C.delete(k);
-      const own = e.g.userData.ownMat;
-      e.g.traverse((o) => { o.geometry?.dispose(); const mt = o.material; if (mt && !Array.isArray(mt) && (own || (mt.userData.skinMat && !mt.userData.shared))) mt.dispose(); });      // setFade kopyaları + modele özel kaplama malzemesi (eski değişim temizliğiyle aynı)
-      e.flash?.userData.mat.dispose();
+      e.g.traverse((o) => o.geometry?.dispose());      // yalnız GPU arabellekleri. Malzeme atılmaz: atılırsa program sayacı sıfırlanıp WebGL programı silinir, sonraki silah aynı gölgelendiriciyi yeniden derlerdi (eski takılmanın asıl kaynağı)
       for (const a of e.arms) a.mesh.geometry.dispose();
       e.lensDisc?.geometry.dispose();
     }
