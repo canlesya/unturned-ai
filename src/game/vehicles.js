@@ -256,7 +256,7 @@ export class Vehicles {
       const drv = v.seats[0];
       if (!drv) {
         v.horn = false;
-        if (!v.sleep) { stepVehicle(v.st, null, dt, g.world); this.afterStep(v, dt); if (vehicleAtRest(v.st)) v.sleep = true; }
+        if (!v.sleep) { stepVehicle(v.st, null, dt, g.world); this.afterStep(v, dt); if (vehicleAtRest(v.st) && v.alive) { settleVehicle(v.st, g.world); v.sleep = true; } else if (vehicleAtRest(v.st)) v.sleep = true; }      // 12.209 uyurken eğim / yatış tam oturur (frenle duran aracın eğimi yumuşatmadan geride kalmasın)
       }
       // takım: içindekilerin (yoksa doğuşun / son sürücünün)
       const occ = this.occupants(v);
