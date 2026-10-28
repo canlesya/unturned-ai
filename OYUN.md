@@ -2356,6 +2356,6 @@ Kullanıcı: "bence oyundaki hologramlar yakınlaştırmalar için PUBG'yi refer
   | doğuş (`scripts/vehspawnsink.mjs`, 53 kara aracı) en kötü teker | 0,09 m | **0,00 m** |
   | yarmanın en derin yerinde jip 900 m (L3) | 1,58 m ağın içinde (kaldırma 2,5'te kırpık) | **0,00 m** (kaldırma 4,08 m) |
 
-- **Testler**: `vite build` OK, `vehground kuzey` hepsi OK, `mototest` (başsız 27 + çevrim içi) OK, `vehicletest` 99 OK, `nettest` OK, `vehaimhl` OK, `vehdrive` çevrimdışı / çevrim içi OK, `vehdrive-hl` OK, `vehspawnsink` OK. Yeni betikler: `vehdrive.mjs`, `vehdrive-hl.mjs`, `vehdriveshot.mjs` (önce / sonra), `vehspawnsink.mjs`.
+- **Testler**: `vite build` OK, `vehground kuzey` hepsi OK, `mototest` 32 OK (başsız + çevrim içi), `vehicletest` 99 OK, `nettest` OK, `vehaimhl` OK, `vehdrive` çevrimdışı / çevrim içi OK, `vehdrive-hl` OK, `vehspawnsink` OK. Yeni betikler: `vehdrive.mjs`, `vehdrive-hl.mjs`, `vehdriveshot.mjs` (önce / sonra), `vehspawnsink.mjs`.
 - **Görseller**: `/tmp/wb-vdrive/goruntu/tablo.jpg` (Kırmızı üs yolu yarması, 900 / 650 / 330 m, önce / sonra), en kötü örnekler `/tmp/wb-vdrive/once-off/`, `once-on/`, `sonra-off/`, `sonra-on/`.
 - Bilinen: uzak kademede araç kaba ağın üstünde durur, yani fiziğe göre o kadar yüksekte çizilir (yarmada 900 m'de ~4 m); dar açıyla bakınca yol yatağından yüksekte görünebilir (ağ yol yatağını doldurduğu sürece doğru görünüm budur). Kalan küçük farklar (≤ 0,2 m) eğim yumuşatmasının tepe aşımında geride kalmasından.
