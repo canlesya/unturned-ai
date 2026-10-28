@@ -5,6 +5,7 @@ import { R as SR } from './collision.js';
 import { TUNE } from './balance.js';
 import { motoSpawnsFor } from '../maps/motoSpawns.js';                   // 12.204 arazi motosikleti doğuşları (haritanın araç listesine eklenir)
 import { motoAfterStep } from './motorbike.js';
+import { extraSpawnsFor } from '../maps/vehScale.js';             // 12.206 oyuncu sayısına göre ek araçlar (üste)
 
 // ───── Araçlar (12.177) ─────
 // Yönetici: haritanın araç doğuş verisinden (map.vehicles; yalnız VT'de tanımlı türler, yalnız Ele Geçirme) araçları kurar. YETKİLİ taraf (çevrimdışı
@@ -51,7 +52,7 @@ export class Vehicles {
   constructor(game) {
     this.g = game;
     this.list = []; this.shells = []; this.shellN = 0;
-    for (const d of [...(game.map.vehicles || []), ...motoSpawnsFor(game.map)]) {      // 12.204: motorlar listenin sonunda (sıra sunucu = istemci)
+    for (const d of [...(game.map.vehicles || []), ...motoSpawnsFor(game.map), ...extraSpawnsFor(game.map, game.mode.perTeam)]) {      // 12.204: motorlar listenin sonunda · 12.206 ek araçlar en sonda (perTeam'den: sıra sunucu = istemci)
       if (!VT[d.type]) continue;
       const yaw = d.ry + Math.PI;                                     // veri: bakış (sin ry, cos ry) → asker yaw kuralı (−sin, −cos)
       const v = { idx: this.list.length, id: d.id, type: d.type, def: VT[d.type], spawn: { x: d.x, z: d.z, yaw, team: d.team },

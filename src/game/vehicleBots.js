@@ -13,10 +13,11 @@ import { clamp, rand, angleDiff, yawFromDir } from './util.js';
 import * as THREE from 'three';
 import { MOTO_BOT, motoBotOk, motoTrip } from './motorbike.js';      // 12.204 motor: botlar uzak bayrağa motorla, hepsini kapmaz
 import { WSTATS } from './stats.js';
+import { vehMult } from '../maps/vehScale.js';
 
 export const VBOT = {
   trip: { jip: 200, tank: 150, heli: 300, moto: MOTO_BOT.trip },       // bu kadar uzak hedefe araçla gider (12.204 motor: küçük haritada motoTrip)
-  tanks: (per) => (per >= 12 ? 2 : 1),            // takımda aynı anda en çok bot tankçı
+  tanks: (per) => (per >= 12 ? Math.max(2, Math.round(2 * vehMult(per))) : 1),      // takımda aynı anda en çok bot tankçı (12.206: büyük maçta tank sayısıyla: 32 → 4, 64 → 6)
   reach: 75,                                      // boş araca en çok bu kadar yürür
   humanNear: 22,                                  // aracın bu kadar yakınında insan takım arkadaşı varsa bot almaz (oyuncu binmeye gidiyor olabilir)
   // 12.200 araç kapma kuralı (her araç türü; tür listesi yok): yeni doğan araca botlar hemen binmez. grace: doğuştan sonra bekleme (sn) ·
@@ -558,7 +559,7 @@ function tankGun(b, dt, inp) {
 // (pad üstünde konum tutarak alçalış) → pilot iner. Yanıyorsa: alçal + in (atlamaz). Rotor / gövde çarpmasında geri çekilip tırmanır (12.183
 // asılı kalma döngüsüne girmesin). Girdi oyuncunun pilot girdisiyle aynı: { f, r, u, d, yw }.
 export const HELI = {
-  pilots: (per) => (per >= 16 ? 2 : 1),          // takımda aynı anda en çok bot pilot
+  pilots: (per) => (per >= 16 ? Math.max(2, Math.round(2 * vehMult(per))) : 1),      // takımda aynı anda en çok bot pilot (12.206: helikopter sayısıyla)
   wait: [3.6, 9], climbAgl: 32, cruiseAgl: 40, orbitAgl: 36, orbitR: 78, maxF: 0.62, orbitF: 0.36,
   orbitT: [55, 85], rtbHp: 0.55, baseAvoid: 150, landR: 26,
   diff: { easy: 0.6, normal: 1, hard: 1 },        // pilot olma olasılığı (zorluk)
