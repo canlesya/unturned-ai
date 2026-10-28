@@ -57,6 +57,7 @@ import { towerPerch } from './empBots.js';                                      
 import { vnav, botAtLoadout } from './vehicleBots.js';                                         // 12.189 bot sürücüler (araç ızgarası)
 import { VehicleView } from './vehicleView.js';
 import { VehicleHud } from './vehicleHud.js';
+import { Cine } from './cine.js';                                         // 12.217 sinema kamerası (?cine=1; yalnız açıkken)
 import { squadOn, assignDefault, placeHuman, mateSpawnState, mateSpawnPoint, squadMates, SP, spOk, vehSpawnSeat, vehFreeSeats, vehSidePoint, seatYaw } from './squad.js';     // 12.202 manga
 import { SquadHud } from './squadHud.js';
 import { Pings } from './pings.js';
@@ -423,6 +424,7 @@ export class Game {
     if (this.vehicles) { this.vehView = new VehicleView(this); this.vehHud = new VehicleHud(this); }      // 12.177 araç modelleri / far havuzu / ses + HUD (ön ısıtmadan önce: far ışıkları sabit)
     this.map.fx?.attach?.(this);                       // 12.172: haritanın kurulum sonrası görsel kancası (hava / gün saati uygulanmış sise göre; ön ısıtmadan önce → program değişmez)
     this.warm = warmup(this);                          // 12.151: gölgelendirici ön ısıtma (yükleme ekranı açıkken; Firefox'ta ilk ACOG / nişan / silah çekme donmasını önler)
+    if (opts.cine && !this.online && !opts.editor) this.cine = new Cine(this);      // 12.217 sinema kamerası: HUD / silah gizli, yerel oyuncu bot (autoplay)
     this.running = true;
     this.simulate = !!opts.nolock || !!this.online;
     this.hud.setPaused(!opts.nolock);
@@ -798,7 +800,7 @@ export class Game {
   }
 
   // 3. şahıs kamera yeterince çekilmişse gövdeni göster, silah modelini (1. şahıs) gizle
-  get showSelf() { return !!this.player && this.player.bodyVisible; }
+  get showSelf() { return !!this.cine || (!!this.player && this.player.bodyVisible); }      // 12.217 sinema kamerasında yerel oyuncunun gövdesi de görünür
 
   respawnReady() { return !this.playerSoldier.alive && !this.ended; }
   requestClass(k) {
@@ -1351,8 +1353,9 @@ export class Game {
         } else s.syncModel(dt);
       }
       this.lerpCamera(alpha);
-    } else if (this.simulate && !this.ended) this.step(dt);
+    } else if (this.simulate && !this.ended) this.step(this.cine ? dt * this.cine.timeScale : dt);      // 12.217 sinema: yavaş çekim
     else if (this.ended) { this.effects.update(dt); for (const s of this.soldiers) s.syncModel(dt); }
+    this.cine?.update(dt);
     this.render();
   }
 
@@ -1718,7 +1721,7 @@ export class Game {
     const r = this.renderer;
     this.farView?.end();
     // gölge kamerası oyuncuyu izler, bakış yönüne kaydırılır (kayma olmaması için texel ızgarasına yuvarla)
-    const p = this.playerSoldier.pos, S = this._shS || 55, F = this._shF || 0;
+    const p = this.cine ? this.cine.focus : this.playerSoldier.pos, S = this._shS || 55, F = this._shF || 0;      // 12.217 sinema: gölge kamerası çekimin hedefinde
     const q = (2 * S) / this.sun.shadow.mapSize.x;
     this.camera.getWorldDirection(_sv); const fl = Math.hypot(_sv.x, _sv.z) || 1;
     const tx = Math.round((p.x + (_sv.x / fl) * F) / q) * q, tz = Math.round((p.z + (_sv.z / fl) * F) / q) * q;
@@ -1740,7 +1743,7 @@ export class Game {
     r.clear();
     r.render(this.scene, this.camera);
     uw?.overlay(r);
-    if (this.playerSoldier.alive && !this.showSelf && !(this.playerSoldier.veh && (this.playerSoldier.seat === 0 || mgAt(this.playerSoldier.veh.def, this.playerSoldier.seat)))) this.player.vm.render(r, innerWidth, innerHeight);      // 12.177: sürücünün elinde silah yok
+    if (!this.cine && this.playerSoldier.alive && !this.showSelf && !(this.playerSoldier.veh && (this.playerSoldier.seat === 0 || mgAt(this.playerSoldier.veh.def, this.playerSoldier.seat)))) this.player.vm.render(r, innerWidth, innerHeight);      // 12.177: sürücünün elinde silah yok
     uw?.end();
     if (post) post.end();
   }
@@ -2144,6 +2147,7 @@ export class Game {
   // hasar inner içinde tam → radius'ta 0 (heFalloff), daha güçlü itme. İz (kurum) çevrim içi istemcide de çizilir (eskiden yalnız yetkili tarafta).
   explode(pos, radius, dmg, owner, name, selfMul, kind = 'blast', opt = null) {
     this.heat?.add(pos.x, pos.z, 1.5, this.time);
+    this.cine?.onBoom(pos, radius >= 6 ? 2 : 1);
     const he = !!opt?.he;
     this.effects.explosion(pos, radius);
     if (he) this.effects.heBlast?.(pos, opt.n);
@@ -2419,6 +2423,7 @@ export class Game {
     this.endFlow?.dispose(); this.endFlow = null;
     if (!keepNet) this.online?.ws.close();
     this.mapEditor?.dispose();
+    this.cine?.dispose();
     this.payload?.dispose();
     this.front?.dispose();
     this.vehView?.dispose(); this.vehHud?.dispose();

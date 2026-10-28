@@ -36,7 +36,8 @@ function start(opts) {
         ...opts,
         debug: q.get('debug') === '1',
         nolock: q.get('nolock') === '1',
-        autoplay: q.get('autoplay') === '1',
+        autoplay: q.get('autoplay') === '1' || (!opts.online && q.get('cine') === '1'),
+        cine: !opts.online && !opts.editor && q.get('cine') === '1',                 // 12.217 sinema kamerası (HUD yok, yönetmen kamera; yerel oyuncu bot)
         onMatchEnd: recordMatch,
         onExit: opts.onExit || (() => { game = null; showMenu(start, beginOnline); }),
         onRestart: opts.onRestart || ((nx) => start(nx ? { ...opts, ...nx } : opts)),      // çevrimdışı sonraki maç: maç sonu ekranında seçilen harita / gün saati / hava
