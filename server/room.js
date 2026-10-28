@@ -312,6 +312,7 @@ export class Room {
       f: Math.round(num(m.f, -1, 1) * 100) / 100, r: Math.round(num(m.r, -1, 1) * 100) / 100, l: Math.round(num(m.l, -1, 1)),     // f / r analog (dokunmatik joystick)
       s: m.s ? 1 : 0, j: m.j ? 1 : 0, a: m.a ? 1 : 0, dn: m.dn ? 1 : 0,        // dn: 12.180 dalma (çömel basılı)
       yw: num(m.yw, -1e4, 1e4), pt: num(m.pt, -1.5, 1.5),
+      pb: Number.isFinite(m.pb) ? num(m.pb, -1e4, 1e4) : null,                       // 12.199 yüzüstü gövde yönü (humanTick → proneLook doğrular; eski istemci yollamaz)
       w: Math.round(num(m.w, 0, 3)),
       c: m.c ? 1 : 0, p: m.p ? 1 : 0, u: m.u ? 1 : 0,
       fh: m.fh ? 1 : 0, fp: m.fp ? 1 : 0, rl: m.rl ? 1 : 0, fm: m.fm ? 1 : 0, o: m.o ? 1 : 0, ab: m.ab ? 1 : 0, nu: m.nu ? 1 : 0,      // nu: 12.193 bomba atış şekli
