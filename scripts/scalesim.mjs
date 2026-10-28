@@ -76,7 +76,7 @@ game.respawn = (s, first) => {
 
 const dt = 1 / 60;                                                            // sunucu adımı (SIM_HZ 60)
 const steps = [], snapAll = [], snapIm = [], snapAllZ = [], snapImZ = [];
-let errors = 0, n = 0, pathWait = 0, pathWaitN = 0;
+let errors = 0, n = 0, pathWait = 0, pathWaitN = 0, squadObj = 0, squadN = 0, flankN = 0;
 const deflate = (str) => zlib.deflateRawSync(Buffer.from(str), { level: 1 }).length;
 const s0 = now();
 try {
@@ -87,6 +87,8 @@ try {
     if (n % 60 === 30) {                                                      // yol bekleyen bot (hedefi var, yolu yok)
       for (const b of game.brains) if (b.s.alive && !b.s.veh && b.goal && !b.path) pathWait++;
       pathWaitN++;
+      // mangal görevleri: takım başına farklı hedef bayrak sayısı + kanat mangalı sayısı (12.203)
+      for (const tm of ['blue', 'red']) { const G = game.squadGoals?.[tm] || []; squadObj += new Set(G.filter(Boolean).map((o) => o.id)).size; squadN++; flankN += (game._bigPlan?.[tm]?.flank || []).filter(Boolean).length; }
     }
     if (n % 300 === 150) {                                                    // snapshot boyutu: hepsi (eski) + ilgi alanı (game.snapPlan varsa, ilk insan yerine 1. Mavi asker)
       const all = JSON.stringify(S.map((s) => packSoldier(s, false)));
@@ -139,6 +141,7 @@ const res = {
   realtime: +((n * dt * 1000) / wall).toFixed(2),
   prof: Object.fromEntries(Object.entries(prof).map(([k, v]) => [k, { n: v.n, usPerStep: Math.round((v.ms * 1000) / Math.max(1, n)), usEach: +((v.ms * 1000) / Math.max(1, v.n)).toFixed(1) }])),
   pathWaitAvg: +(pathWait / Math.max(1, pathWaitN)).toFixed(1),
+  squads: { objPerTeam: +(squadObj / Math.max(1, squadN)).toFixed(2), flankPerTeam: +(flankN / Math.max(1, squadN)).toFixed(2) },
   kills: nk, kpm: +(nk / (n * dt / 60)).toFixed(1), vehKillPct: +(kills.filter((k) => k[4]).length / Math.max(1, nk) * 100).toFixed(0),
   dist: { cells50: cells.size, entropy50: +ent(cells).toFixed(2), regions: regs.size, regionEntropy: +ent(regs).toFixed(2), regions5, top3Pct: +(top * 100).toFixed(0), topRegions: regList.slice(0, 8), winTop },
   spawn: { n: spawnQA.n, overlap: spawnQA.overlap, blocked: spawnQA.blocked, indoor: spawnQA.indoor, indoorAt: spawnQA.indoorAt, minDMed: +([...spawnQA.minD].sort((a, b) => a - b)[spawnQA.minD.length >> 1] || 0).toFixed(1), spawnKill, spawnKillPct: +(spawnKill / Math.max(1, nk) * 100).toFixed(1) },

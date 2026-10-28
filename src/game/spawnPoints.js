@@ -24,7 +24,7 @@ export class SpawnSet {
   ok(x, z) {
     const g = this.g, nav = g.nav, W = g.world;
     if (!nav.isFree(x, z)) return false;
-    if (nav.floor && nav.floorAt(x, z) > 0.3) return false;
+    if (nav.floor && nav.floorAt(x, z) - W.heightAt(x, z) > 0.3) return false;            // platform / çatı hücresi (kat kotu arazinin üstünde; mutlak kot değil: Çöl Geçidi arazisi 1,9 m)
     if (this.seen && !this.seen[nav.idx(x, z)]) return false;
     const y = W.groundAt(x, z);
     const T = W.terrain;
@@ -52,10 +52,10 @@ export class SpawnSet {
     const rnd = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
     for (let k = 0; k < want * 40 && out.length < want; k++) {
       const a = a0 + (rnd() - 0.5) * span, r = Math.sqrt(r0 * r0 + rnd() * (r1 * r1 - r0 * r0));
-      const x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
+      const x = +(cx + Math.cos(a) * r).toFixed(2), z = +(cz + Math.sin(a) * r).toFixed(2);      // önce yuvarla, sonra sına (yuvarlama hücre sınırını aşmasın)
       if (out.some((p) => (p.x - x) ** 2 + (p.z - z) ** 2 < sp2)) continue;
       if (!this.ok(x, z)) continue;
-      out.push({ x: +x.toFixed(2), z: +z.toFixed(2), ry: ry ?? Math.atan2(-(cx - x), -(cz - z)) });
+      out.push({ x, z, ry: ry ?? Math.atan2(-(cx - x), -(cz - z)) });
     }
     return out;
   }

@@ -493,9 +493,9 @@ export class Room {
       parts.length = 0;
       for (let i = 0; i < N; i++) {
         const e = S[i], a = e.alive ? 1 : 0;
-        if (im && e !== s && A[e.id] === a && !interestWants(k.x, k.z, e, sn, aim)) continue;
+        if (im && e !== s && A[e.id] === a && !interestWants(k.x, k.z, e, sn, aim, s.team)) continue;
         A[e.id] = a;
-        const sl = force || !(sent[e.id] >= slowAt[e.id]);
+        const sl = force || !(sent[e.id] >= slowAt[e.id]) || sn - sent[e.id] >= 40;      // 40 snapshot'ta (2 sn) bir tam paket: seyrek asker periyodik tam paketi kaçırmasın
         if (sl) sent[e.id] = sn;
         parts.push(sl ? (full[i] ??= JSON.stringify(packSoldier(e, true))) : (fast[i] ??= JSON.stringify(packSoldier(e, false))));
       }

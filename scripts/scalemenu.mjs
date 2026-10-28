@@ -1,0 +1,47 @@
+// 12.203 Menü: Özel Oyun → Ele Geçirme → Kuzey Vadisi seçilince oyuncu sayısı 128v128'e kadar (hızlı seçimler 64v64 / 128v128), küçük haritaya geçince
+// 32'ye kırpılır; Takım Çatışması'nda Kuzey 64v64. 128v128 seçilip Oyna → maç 256 askerle açılır. Çevrim içi oda kurma kartında da aynı sınır.
+//   node scripts/scalemenu.mjs [url=http://127.0.0.1:5185] [klasör=/tmp/wb-scale/menu]
+import { chromium } from 'playwright';
+import fs from 'fs';
+const base = process.argv[2] || 'http://127.0.0.1:5185', OUT = process.argv[3] || '/tmp/wb-scale/menu';
+fs.mkdirSync(OUT, { recursive: true });
+const browser = await chromium.launch({ headless: false, args: ['--use-angle=metal', '--ignore-gpu-blocklist', '--enable-gpu'] });
+const page = await (await browser.newContext({ viewport: { width: 1400, height: 860 }, locale: 'tr-TR' })).newPage();
+const errs = []; page.on('pageerror', (e) => errs.push(e.message));
+let fails = 0; const ok = (c, m, x = '') => { console.log((c ? 'OK   ' : 'HATA ') + m + (x ? ' · ' + x : '')); if (!c) fails++; };
+await page.goto(base + '/?debug=1&nolock=1&nologin=1');
+await page.waitForTimeout(2500);
+const click = (sel, re) => page.evaluate(([sel, re]) => { const b = [...document.querySelectorAll(sel)].find((e) => new RegExp(re, 'i').test(e.textContent)); b?.click(); return !!b; }, [sel, re]);
+const size = () => page.evaluate(() => { const r = document.querySelector('#rSize'); return { max: r ? +r.max : null, val: r ? +r.value : null, chips: [...document.querySelectorAll('[data-a=size]')].map((c) => c.textContent.trim()), head: r?.closest('.sc')?.querySelector('h4')?.textContent || '' }; });
+await click('[data-a]', 'Özel Oyun'); await page.waitForTimeout(800);
+await page.click('[data-a=type][data-v=conquest]'); await page.waitForTimeout(300);
+await page.evaluate(() => { const k = [...document.querySelectorAll('.mapc')].find((c) => /Kuzey Vadisi/.test(c.textContent)); k?.click(); });
+await page.waitForTimeout(600);
+const s1 = await size();
+ok(s1.max === 128 && s1.chips.includes('64v64') && s1.chips.includes('128v128'), 'Kuzey Vadisi Ele Geçirme: sürgü 128, 64v64 / 128v128 hızlı seçim', JSON.stringify(s1));
+await page.click('[data-a=size][data-v="128"]'); await page.waitForTimeout(300);
+await page.evaluate(() => document.querySelector('#rSize')?.scrollIntoView({ block: 'center' }));
+await page.screenshot({ path: `${OUT}/menu-kuzey-128.png` });
+const s2 = await size();
+ok(s2.val === 128, '128v128 seçildi', JSON.stringify({ val: s2.val, head: s2.head }));
+await page.click('[data-a=type][data-v=tdm]'); await page.waitForTimeout(400);
+const s3 = await size();
+ok(s3.max === 64 && s3.val <= 64, 'Kuzey Takım Çatışması: en çok 64v64, seçim kırpıldı', JSON.stringify({ max: s3.max, val: s3.val }));
+await page.click('[data-a=type][data-v=conquest]'); await page.waitForTimeout(300);
+await page.evaluate(() => { const k = [...document.querySelectorAll('.mapc')].find((c) => /Kasaba/.test(c.textContent)); k?.click(); });
+await page.waitForTimeout(500);
+const s4 = await size();
+ok(s4.max === 32 && s4.val <= 32 && !s4.chips.includes('64v64'), 'küçük haritada (Kasaba) en çok 32v32', JSON.stringify({ max: s4.max, val: s4.val, chips: s4.chips }));
+await page.evaluate(() => { const k = [...document.querySelectorAll('.mapc')].find((c) => /Kuzey Vadisi/.test(c.textContent)); k?.click(); });
+await page.waitForTimeout(400);
+await page.click('[data-a=size][data-v="128"]'); await page.waitForTimeout(300);
+await page.evaluate(() => { const b = [...document.querySelectorAll('button.play')].find((e) => /Oyna|Başlat/i.test(e.textContent)) || document.querySelector('button.play'); b?.click(); });
+await page.waitForFunction('window.__game && window.__game.running', null, { timeout: 240000 }).catch(() => {});
+const m = await page.evaluate(() => ({ map: window.__game?.mapDef.id, n: window.__game?.soldiers.length, per: window.__game?.mode.perTeam, lod: !!window.__game?.farView }));
+ok(m.map === 'kuzey' && m.n === 256 && m.per === 128 && m.lod, 'Oyna → Kuzey Vadisi 128v128 (256 asker), uzak asker LOD açık', JSON.stringify(m));
+await page.waitForTimeout(4000);
+await page.screenshot({ path: `${OUT}/mac-128v128.png` });
+ok(!errs.length, 'sayfa hatası yok', errs.slice(0, 3).join(' | '));
+console.log(fails ? `sonuç: ${fails} HATA` : 'sonuç: OK');
+await browser.close();
+process.exit(fails ? 1 : 0);
