@@ -23,8 +23,8 @@ export const MOTO_SPAWNS = {
     // yol noktaları (tarafsız)
     { id: 'Y-M1', type: 'moto', team: null, x: 51.1, z: 320.7, ry: -0.87 },        // Benzinlik
     { id: 'Y-M2', type: 'moto', team: null, x: -473.2, z: -26.5, ry: 2.53 },       // Değirmen
-    { id: 'Y-M3', type: 'moto', team: null, x: 332.9, z: -73.3, ry: -2.32 },       // Doğu Geçidi
-    { id: 'Y-M4', type: 'moto', team: null, x: -206.2, z: 44.8, ry: 2.84 },        // Batı Geçidi
+    { id: 'Y-M3', type: 'moto', team: null, x: 332.9, z: -60.8, ry: -2.32 },       // Doğu Geçidi
+    { id: 'Y-M4', type: 'moto', team: null, x: -212.9, z: 51.5, ry: 2.84 },        // Batı Geçidi
   ],
 };
 export const motoSpawnsFor = (map) => MOTO_SPAWNS[map?.id] || [];
