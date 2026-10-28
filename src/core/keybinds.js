@@ -31,7 +31,9 @@ export const ACTIONS = [
   ['leftHand', 'Sol el ↔ sağ el (silahı tutan el)', 2, ['KeyU']],
   ['third', '3. şahıs kamera', 3, ['KeyH']],
   ['flashlight', 'Fener', 3, ['KeyF']],
-  ['team', 'Takım seçimi (çevrimiçi)', 3, ['KeyM']],
+  ['map', 'Büyük harita (işaret: tıkla)', 3, ['KeyM']],                     // 12.202 Battlefield gibi M = harita (takım seçimi K'ye geçti)
+  ['ping', 'İşaret koy / düşmanı işaretle (orta tık da)', 3, ['KeyI']],        // 12.202 spot: Q eğilmeyle çakışmasın diye I + orta tık
+  ['team', 'Takım seçimi (çevrimiçi)', 3, ['KeyK']],
   ['chat', 'Sohbet (çevrimiçi) · Shift ile takıma', 3, ['Enter']],
   ['scoreboard', 'Skor tablosu (basılı tut)', 3, ['Tab']],
   // 12.177 araçlar: E (sağa eğilmeyle ortak; araç yanında / içindeyken binme-inme), V (bıçakla ortak; araçtayken kamera), koltuk = 1–4, far = Fener tuşu, korna = sol tık (sürücü)

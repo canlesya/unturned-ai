@@ -355,6 +355,7 @@ export class Sfx {
   beep(pos) { this._tone({ pos, gain: 0.22, dur: 0.06, f0: 1800, f1: 1800, type: 'triangle' }); }
   chat() { if (!this.ctx) return; const v = this._voice(null, 1); this._tone({ v, gain: 0.08, dur: 0.07, f0: 1300, f1: 1300, type: 'triangle' }); this._tone({ v, gain: 0.07, dur: 0.1, f0: 1750, f1: 1750, type: 'triangle', delay: 0.06 }); }   // sohbet iletisi
   ui(kind) { uiSound(kind); }
+  ping(enemy, own) { if (!this.ctx) return; const v = this._voice(null, 1), f = enemy ? 980 : 1480, g0 = own ? 0.06 : 0.09; this._tone({ v, gain: g0, dur: 0.08, f0: f, f1: f, type: 'triangle' }); this._tone({ v, gain: g0 * 0.9, dur: 0.12, f0: enemy ? 740 : 1980, f1: enemy ? 740 : 1980, type: 'triangle', delay: 0.07 }); }   // 12.202 işaret (ping): iki nota; düşman işareti pes
   smokeHiss(pos) { if (!this.ctx) return; const v = this._voice(pos, 1, { rv: 0.2 }); this._noise({ v, gain: 0.45, dur: 1.4, f0: 6000, f1: 3000, type: 'highpass', att: 0.04 }); this._tone({ v, gain: 0.3, dur: 0.12, f0: 200, f1: 90 }); }
   flashbang(pos) {
     if (!this.ctx) return;

@@ -946,6 +946,8 @@ export class Player {
       const s = this.s;
       if (!this.game.running) return;
       if (kb.is('chat', code) && this.game.chat && this.locked && !this.wheel) { e.preventDefault(); this.game.chat.open(e.shiftKey); return; }      // sohbet (çevrimiçi): Enter herkese, Shift+Enter takıma
+      if (kb.is('map', code) && this.game.bigMap && !this.wheel) { e.preventDefault(); this.game.bigMap.toggle(); }      // 12.202 büyük harita (M)
+      if (kb.is('ping', code) && s.alive && this.locked && !this.wheel) this.game.pings?.spot();                         // 12.202 işaret / düşman işaretle
       if (kb.is('wheel', code) && s.alive && !this.wheel && !s.veh) this.openWheel();
       // 12.177 araç: E bin / in (yanında ya da içindeyken; değilse E sağa eğilmedir), V kamera (sürücü), 1–4 koltuk
       const V = this.game.vehicles;
@@ -1009,6 +1011,8 @@ export class Player {
       // ani sıçramaları (sürücü/Chrome hatası) kes: tek olayda 120 pikselden fazla gerçek bir fare hareketi değildir
       const mx = Math.max(-120, Math.min(120, e.movementX || 0)), my = Math.max(-120, Math.min(120, e.movementY || 0));
       if (this.wheel) { this.wheelMove(mx, my); return; }                                      // T basılıyken fare seçim imlecidir
+      const bm = this.game.bigMap;
+      if (bm?.open) { if (document.pointerLockElement) bm.moveCursor(mx, my); return; }       // 12.202 büyük harita / doğuş ekranı: fare haritada imleç (bakış dönmez)
       if (!this.locked) return;
       const k = this.set.sens / Math.pow(this.zoomCur(), 0.8);      // 12.127: hassasiyet o anki büyütmeyle sürekli (eski adsT 0,5'te basamak)
       this.look(mx * k, my * k);
@@ -1016,6 +1020,8 @@ export class Player {
     });
     this.on(cv, 'mousedown', (e) => {
       if (this.wheel) { if (e.button === 0) this.wheelPick(); return; }                       // tekerlek açıkken tık = seçim (ateş değil)
+      if (this.game.bigMap?.open && document.pointerLockElement) { this.game.bigMap.lockedClick(e.button); return; }      // 12.202 harita açık: tık imlecin altındakine
+      if (e.button === 1) { e.preventDefault(); if (this.locked && this.s.alive) this.game.pings?.spot(); return; }       // 12.202 orta tık: işaret (Battlefield spot)
       if (!this.locked) { this.game.requestLock(); return; }
       if (this.game.chatOpen) return;
       if (e.button === 0) { this.fireHeld = true; this.fireBuf = 0.15; this.game.online?.edge('fp'); }
@@ -1029,7 +1035,7 @@ export class Player {
     });
     this.on(document, 'contextmenu', (e) => e.preventDefault());                      // sağ tık menüsü oyunda hiç çıkmasın (nişan alırken takılıyordu)
     this.on(window, 'wheel', (e) => {
-      if (!this.locked || !this.s.alive) return;
+      if (!this.locked || !this.s.alive || this.game.bigMap?.open) return;
       const dir = e.deltaY > 0 ? 1 : -1, s = this.s;
       if (s.fly && this.devTools()) { this.flySpeed = Math.max(3, Math.min(120, (this.flySpeed || 13) * (dir > 0 ? 0.8 : 1.25))); this.game.hud.toast($t('hud.t.flySpeed', { n: this.flySpeed.toFixed(0) }), '#cfe6ff'); return; }       // uçarken tekerlek hız ayarlar
       if (this.varZoomStep(dir)) return;                                                                 // 12.190: değişken dürbünde nişandayken tekerlek = büyütme (silah değiştirmez)

@@ -28,7 +28,7 @@ const LAYOUT = {
   fire: { x: 0.78, y: 0.60, s: 0.27 }, fire2: { x: 0.08, y: 0.36, s: 0.18 },
   ads: { x: 0.93, y: 0.36, s: 0.16 }, jump: { x: 0.93, y: 0.61, s: 0.18 }, crouch: { x: 0.93, y: 0.86, s: 0.16 },
   reload: { x: 0.655, y: 0.86, s: 0.15 }, swap: { x: 0.79, y: 0.89, s: 0.15 }, nade: { x: 0.655, y: 0.58, s: 0.15 }, abil: { x: 0.655, y: 0.6, s: 0.19 },
-  third: { x: 0.655, y: 0.34, s: 0.12 }, optic: { x: 0.81, y: 0.36, s: 0.12 }, breath: { x: 0.72, y: 0.4, s: 0.12 }, pause: { x: 0.22, y: 0.075, s: 0.11 }, score: { x: 0.285, y: 0.075, s: 0.11 },
+  third: { x: 0.655, y: 0.34, s: 0.12 }, optic: { x: 0.81, y: 0.36, s: 0.12 }, breath: { x: 0.72, y: 0.4, s: 0.12 }, pause: { x: 0.22, y: 0.075, s: 0.11 }, score: { x: 0.285, y: 0.075, s: 0.11 }, map: { x: 0.345, y: 0.075, s: 0.11 },      // 12.202 büyük harita
   veh: { x: 0.53, y: 0.62, s: 0.14 }, vcam: { x: 0.53, y: 0.4, s: 0.11 }, seat: { x: 0.53, y: 0.84, s: 0.11 },      // 12.177 araç: bin / in (yalnız yakında / içindeyken), kamera (sürücü), koltuk değiştir
 };
 const NAME = (id) => t('tc.n.' + id);                                            // düzenleyicideki buton adları (src/i18n/touch.js)
@@ -44,6 +44,7 @@ const I = {
   abil: '<path d="M13 2L5 13h6l-1 9 8-12h-6z"/>',
   breath: '<path d="M3 9h11a3 3 0 10-3-3M3 15h14a3 3 0 11-3 3M3 12h8"/>',      // 12.156: nefes tut (dürbünde basılı tut)
   pause: '<path d="M8 5v14M16 5v14"/>', score: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+  map: '<path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/>',
   veh: '<path d="M4 15l2-6h12l2 6v4H4z"/><circle cx="8" cy="18" r="2"/><circle cx="16" cy="18" r="2"/><path d="M7 9l1.5-3h7L17 9"/>',
   vcam: '<rect x="3" y="7" width="13" height="10" rx="2"/><path d="M16 11l5-3v8l-5-3"/>',
   seat: '<path d="M7 4v9h9l2 7M7 13l-2 7M10 4h-3"/><path d="M14 4l3 3-3 3"/>',
@@ -178,7 +179,7 @@ export class TouchControls {
     for (const id of Object.keys(LAYOUT)) {
       if (id === 'joy') continue;
       const d = document.createElement('div');
-      d.className = 'b' + (id === 'fire' || id === 'fire2' ? ' fire' : '') + (id === 'pause' || id === 'score' ? ' sm' : '');
+      d.className = 'b' + (id === 'fire' || id === 'fire2' ? ' fire' : '') + (id === 'pause' || id === 'score' || id === 'map' ? ' sm' : '');
       d.dataset.b = id; d.dataset.k = id;
       d.innerHTML = id === 'abil' ? `<svg class="rg" viewBox="0 0 40 40"><circle cx="20" cy="20" r="18.5" pathLength="100" stroke-dasharray="100"/></svg><svg class="i" viewBox="0 0 24 24">${I[id]}</svg><i class="ol"></i>`
         : `<svg viewBox="0 0 24 24">${I[id]}</svg>${id === 'optic' ? '<i class="ol"></i>' : ''}`;
@@ -238,6 +239,8 @@ export class TouchControls {
     for (const t of e.changedTouches) {
       const bt = t.target.closest?.('[data-b]');
       if (bt && !bt.classList.contains('hid')) { this.btnTouch.set(t.identifier, bt.dataset.b); this.press(bt.dataset.b, true, t); continue; }
+      const mm = document.getElementById('mmwrap')?.getBoundingClientRect();         // 12.202: mini haritaya dokunmak büyük haritayı açar
+      if (mm && this.g.bigMap && t.clientX >= mm.left && t.clientX <= mm.right && t.clientY >= mm.top && t.clientY <= mm.bottom) { this.g.bigMap.toggle(true); continue; }
       const slot = this.slotAt(t.clientX, t.clientY);
       if (slot >= 0) { if (this.p.s.alive && this.p.s.canEquip(slot)) this.p.s.switchTo(slot); continue; }
       if (t.clientX < innerWidth * 0.45 && !this.joy) {
@@ -403,6 +406,7 @@ export class TouchControls {
     if (id === 'ads' && s.stat.kind === 'melee' && !s.veh) { s.ads = down && s.alive; if (b) b.classList.toggle('on', s.ads); return; }      // 12.194: yakın dövüşte nişan düğmesi = ağır vuruş (basılı tuttukça; CS2 sağ tık)
     if (id === 'breath') { this.breath = down; return; }                         // 12.156: basılı tutulduğu sürece nefes tut (Player → ScopeBreath)
     if (id === 'score') { g.hud.showScoreboard(down); return; }
+    if (id === 'map') { if (down) g.bigMap?.toggle(); return; }                  // 12.202
     if (id === 'crouch') this.dive = down;                                     // 12.180: yüzerken çömel düğmesi basılıyken dalınır
     if (id === 'crouch' && !down && this.down) { this.down = false; if (b) b.classList.remove('on'); }      // 12.183: alçal basılıyken inilse / koltuk değişse de bırakınca söner (eskiden takılı kalıyordu → sonraki binişte kendiliğinden alçalış)
     if (id === 'crouch' && s.veh?.def.heli && s.seat === 0) { this.down = down; if (b) b.classList.toggle('on', down); return; }      // 12.179 helikopter pilotu: çömel butonu basılıyken alçal
@@ -570,7 +574,7 @@ export class TouchControls {
   update() {
     if (this.editing) return;
     const p = this.p, g = this.g, s = p.s;
-    const show = s.alive && g.simulate && !g.ended && p.locked;
+    const show = s.alive && g.simulate && !g.ended && p.locked && !g.bigMap?.open;      // 12.202: büyük harita açıkken butonlar gizli (harita dokunuşları alır)
     this.el.classList.toggle('off', !show);
     if (!show) {
       this.closeOptics();
