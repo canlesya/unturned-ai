@@ -39,6 +39,7 @@ export const ACTIONS = [
   // 12.177 araçlar: E (sağa eğilmeyle ortak; araç yanında / içindeyken binme-inme), V (bıçakla ortak; araçtayken kamera), koltuk = 1–4, far = Fener tuşu, korna = sol tık (sürücü)
   ['vehicle', 'Araca bin / in', 4, ['KeyE']],
   ['vehCam', 'Araç kamerası (içeriden / takip)', 4, ['KeyV']],
+  ['vehAlt', 'Helikopter roketi (basılı tut) · orta tık da', 4, ['KeyQ']],          // 12.201: sağ tık araçta yakınlaştırma; Q araçta eğilmez (sola eğilmeyle ortak)
 ].map(([id, label, group, def]) => ({ id, label, group, def }));
 
 // Sağ/sol modifier tuşları aynı sayılır (Ctrl, Shift, Alt)

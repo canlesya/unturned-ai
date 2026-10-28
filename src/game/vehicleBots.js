@@ -8,7 +8,7 @@
 // durduran kutular: zeminden > 0,65 m, < 2,6 m'de başlayan; dik yamaç > ~27°, derin su) → uzaklık dönüşümü → her hücrenin en yakın engele
 // (yamaç kenarı dahil: yol seti) açıklığı. Maliyet: asfalt / toprak yol 1, banket 1,4, arazi 2,4 + eğim; engele yakın hücre pahalı. A* (ağırlıklı) jip 1,6 m, tank
 // 2,3 m açıklık ister (tank köy sokaklarına girmez). Rota 3 m'lik noktalar; sürüş ileri bakışlı izleme (pure pursuit).
-import { mgAt, gunPose, toLocal2, toWorld } from '../sim/vehicle.js';
+import { mgAt, gunPose, toLocal2, toWorld, bodyPitchAlong, noseDir } from '../sim/vehicle.js';
 import { clamp, rand, angleDiff, yawFromDir } from './util.js';
 import * as THREE from 'three';
 
@@ -465,7 +465,7 @@ function tankGun(b, dt, inp) {
   inp.pt = sol.p + vd.err[1];
   vd.react -= dt;
   // ateş: dolum + ek bekleme bitti, kule hedefte, açı top sınırında
-  const yerr = Math.abs(angleDiff(st.tyaw, inp.yw)), perr = Math.abs(st.gp + st.pitch * Math.cos(st.tyaw - st.yaw) - inp.pt);
+  const yerr = Math.abs(angleDiff(st.tyaw, inp.yw)), perr = Math.abs(st.gp + bodyPitchAlong(st, st.tyaw) - inp.pt);      // 12.201: gövde eğimi + yatışı (gunPose ile aynı)
   if (vd.react <= 0 && v.rl <= 0 && g.time >= (vd.cdT || 0) && yerr < 0.008 + 0.6 / (D + 10) && perr < 0.006) {
     // dost ateşi: namlu hattında 6 m'ye yakın takım arkadaşı varsa atma
     for (const e of g.soldiers) {
@@ -525,7 +525,7 @@ function avoidBase(g, team, x0, z0, x1, z1) {
 
 function heliDrive(b, dt, inp) {
   const s = b.s, g = b.game, V = g.vehicles, v = s.veh, st = v.st, vd = b.vd, d = v.def, T = g.map.terrain || g.world.terrain;
-  inp.u = false; inp.d = false; inp.f = 0; inp.r = 0;
+  inp.u = false; inp.d = false; inp.f = 0; inp.r = 0; inp.pt = 0; s.gunAim = null;      // 12.201: burun düz (pt), burun topu nişanı yalnız saldırıda
   const gnd = T.heightAt(st.x, st.z), agl = st.y - gnd, sp = V.speed(v);
   const fx = -Math.sin(st.yaw), fz = -Math.cos(st.yaw);
   const hold = (x, z, k = 0.45, vmax = 9) => {                      // konum tut: hedef noktaya yerel hız isteği (pad üstü, yavaş yaklaşma)
@@ -611,9 +611,10 @@ function heliDrive(b, dt, inp) {
   V.drive(v, inp, dt);
 }
 
-// Saldırı dalışı (12.188 burun topu sabit: burnun yönünde −0,05 rad; roket de burnun yönünde): görünen düşman (önce araç, sonra 2+ asker kümesi,
-// sonra tek asker) 70–230 m'de → burun ona döner, gerekli dalış açısı kadar ileri basılır (helikopterin burun eğimi ileri girdisiyle), burun hedefe
-// oturunca burun topu basılı (zorluk saçılması), araç / kalabalıkta roket. En çok 6 sn; zeminden 22 m altına inmez; sonraki dalış 12–20 sn sonra.
+// Saldırı dalışı: görünen düşman (önce araç, sonra 2+ asker kümesi, sonra tek asker) 70–230 m'de → 12.201 oyuncu pilotla aynı sistem: nişan (gy / gp
+// = burun topu ağzından hedefe, Vehicles.noseAimAt) burnu döndürür + eğer (aşağı eğim öne hızlandırır), burun topu koni içinde hedefe (noseDir) →
+// koni hedefe yetişince burun topu basılı (zorluk saçılması), burun hedefe oturunca araç / kalabalıkta roket (burnun tam yönünde). En çok 6 sn;
+// zeminden 22 m altına inmez; sonraki dalış 12–20 sn sonra. (12.188: burun sabitti, dalış açısı ileri girdisiyle veriliyordu.)
 const _he = new THREE.Vector3(), _ht = new THREE.Vector3();
 function heliAttack(b, dt, inp, gnd) {
   const s = b.s, g = b.game, V = g.vehicles, v = s.veh, st = v.st, vd = b.vd, N = v.def.nose, RK = v.def.rockets;
@@ -646,16 +647,16 @@ function heliAttack(b, dt, inp, gnd) {
   const tp = A.v ? (A.v.alive ? _ht.set(A.v.st.x, A.v.st.y + 0.8, A.v.st.z) : null) : (A.s.alive && !A.s.veh ? A.s.center(_ht) : null);
   const D = tp ? Math.hypot(tp.x - st.x, tp.z - st.z) : 0;
   if (!tp || A.t > 6 || D < 55 || agl < 22 || v.hp < v.def.hp * HELI.rtbHp) { vd.atk = null; vd.atkNext = g.time + rand(12, 20); V.mgFire(s, false, dt); return false; }
-  const dx = tp.x - st.x, dz = tp.z - st.z;
-  inp.yw = yawFromDir(dx, dz);
-  const want = Math.atan2(tp.y - (st.y + 0.7), D) - (N.dp || 0);      // gereken burun eğimi (aşağı −)
-  const ye = Math.abs(angleDiff(st.yaw, inp.yw)), pe = st.pitch - want;
-  inp.f = ye > 0.4 ? 0.05 : clamp(-want / 0.22, 0.1, 1);              // ileri girdi burnu eğer (stepHeli: −0,2 · f)
+  const aim = V.noseAimAt(v, tp, (s._ga ||= {}));
+  s.gunAim = aim; inp.yw = aim.y; inp.pt = aim.p;                    // burun + burun topu hedefe (oyuncunun gy / gp'siyle aynı yol)
+  const ye = Math.abs(angleDiff(st.yaw, inp.yw)), nd = noseDir(st, N, aim, (vd._nd ||= {}));
+  const ge = Math.abs(angleDiff(nd.y, aim.y)) + Math.abs(nd.p - aim.p), pe = st.pitch - aim.p;
+  inp.f = ye > 0.4 ? 0.05 : 0.2;                                       // yavaş yaklaşma (burun aşağıyken stepHeli zaten öne hızlandırır)
   if (st.y - gnd < 30) inp.u = true;
   s.botExtraSpread = b.d.err * 0.45;
   A.react -= dt;
-  const on = A.react <= 0 && ye < 0.035 + 2 / (D + 20) && Math.abs(pe) < 0.05;
+  const on = A.react <= 0 && ge < 0.012 + 2 / (D + 20);
   V.mgFire(s, on && !s.vhot, dt);
-  if (on && RK && (A.v || A.n >= 2) && (vd.rkT = (vd.rkT || 0) - dt) <= 0) { if (V.fireRocket(v, s)) vd.rkT = b.dk === 'hard' ? 0.25 : b.dk === 'easy' ? 0.9 : 0.45; }
+  if (on && RK && ye < 0.035 + 2 / (D + 20) && Math.abs(pe) < 0.05 && (A.v || A.n >= 2) && (vd.rkT = (vd.rkT || 0) - dt) <= 0) { if (V.fireRocket(v, s)) vd.rkT = b.dk === 'hard' ? 0.25 : b.dk === 'easy' ? 0.9 : 0.45; }
   return true;
 }

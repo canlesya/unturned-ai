@@ -619,8 +619,9 @@ export class Game {
       v.horn = !!v.def.horn && !!inp.fh;                               // jip: sol tık korna · tank: ana top · 12.188 helikopter: burun topu (korna yok)
       V.drive(v, { f: inp.f, r: inp.r, b: !!inp.j, u: !!inp.j, d: !!inp.dn, yw: inp.gy ?? inp.yw, pt: inp.gp ?? inp.pt }, dt);      // 12.188 gy / gp: artının noktasına balistik top hedefi · 12.178: bakış = kule / top hedefi · 12.179 helikopter: j yüksel, dn alçal, bakış burun
       if (v.def.cannon && (inp.fh || inp.fp)) V.fireCannon(v, s);
+      if (v.def.nose) s.gunAim = Number.isFinite(inp.gy) && Number.isFinite(inp.gp) ? Object.assign((s._sga ||= {}), { y: inp.gy, p: inp.gp }) : null;      // 12.201 burun topu artının noktasına (koni içinde; istemciyle aynı noseDir)
       if (seatGun(v.def, 0)) V.mgFire(s, !!inp.fh, dt);                // 12.188 helikopter pilotu: burun topu (sol tık)
-      if (v.def.rockets && inp.a) V.fireRocket(v, s);                    // · roketler (sağ tık)
+      if (v.def.rockets && inp.rk) V.fireRocket(v, s);                   // · roketler (12.201: Q / orta tık / telefonda ROKET; sağ tık = yakınlaştırma)
       for (const o of v.seats) if (o) V.place(o);
       h.fireBuf = 0;
       return;

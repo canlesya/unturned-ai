@@ -12,7 +12,7 @@ import { pbItems } from './match.js';
 import { cleanWear, wearCodeOf, botWear } from './wearIds.js';
 import { releaseCapeSway } from '../models/wear.js';
 import { throwState, pinSfx } from './grenade.js';
-import { mgAt } from '../sim/vehicle.js';
+import { mgAt, vehSeatArmed } from '../sim/vehicle.js';
 import { spaceTp } from './space.js';
 import { SWIM, swimCanFire, waterYAt } from '../sim/swim.js';
 import { bodyYawOf, PRONE_LOOK } from '../sim/prone.js';
@@ -841,7 +841,8 @@ export class Soldier {
       }
     }
     // hedef nişan geçişi
-    const wantAds = this.ads && this.reloadT <= 0 && this.switchT <= 0 && this.zoomNow && !this.sprinting && !this.swim;      // 12.180 yüzerken nişan yok
+    // 12.201: araç silahı koltuğunda (sürücü / pilot / makineli) piyade nişanı yok — sağ tık aracın kendi yakınlaştırması (Player.vehZoom); kendi silahıyla ateş eden yolcu normal
+    const wantAds = this.ads && this.reloadT <= 0 && this.switchT <= 0 && this.zoomNow && !this.sprinting && !this.swim && !(this.veh && vehSeatArmed(this.veh.def, this.seat));      // 12.180 yüzerken nişan yok
     this.adsT = clamp(this.adsT + (wantAds ? 1 : -1) * dt * this.adsRate, 0, 1);      // 12.153: adsTime (sn) silaha özgü dürbün süresi (12.174: dönem dürbününün kendi süresi)
     if (this.swim) { this.crouching = false; this.prone = false; }
     if (this.prone) this.crouching = false;

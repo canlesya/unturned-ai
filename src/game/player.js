@@ -25,7 +25,7 @@ import { ScopeBreath } from './breath.js';
 import { norm, codeLabel, slotOrder } from '../core/keybinds.js';
 import { t as $t } from '../i18n/index.js';
 import { vehCamera } from './vehicleView.js';
-import { mgAt, seatGun } from '../sim/vehicle.js';                   // 12.177 araç kamerası (sürücü içeriden / takip)
+import { mgAt, seatGun, seatZoom, vehSeatArmed } from '../sim/vehicle.js';                   // 12.177 araç kamerası (sürücü içeriden / takip)
 import { wName, opticName, fireName } from '../i18n/game.js';
 import { opticSvg } from './opticIcons.js';
 
@@ -994,7 +994,7 @@ export class Player {
         if (step) this.game.cycleSpawn(step);
       }
     });
-    this.on(window, 'blur', () => { this.keys.clear(); this.fireHeld = false; this.s.ads = false; this.game.hud.showScoreboard(false); this.closeWheel(); });     // pencere odağı gidince takılı tuş kalmasın
+    this.on(window, 'blur', () => { this.keys.clear(); this.fireHeld = false; this.mmb = false; this.s.ads = false; this.game.hud.showScoreboard(false); this.closeWheel(); });     // pencere odağı gidince takılı tuş kalmasın
     this.on(window, 'keyup', (e) => {
       const code = norm(e.code), kb = this.kb;
       if (kb.is('wheel', code)) this.closeWheel();
@@ -1025,12 +1025,14 @@ export class Player {
       if (!this.locked) { this.game.requestLock(); return; }
       if (this.game.chatOpen) return;
       if (e.button === 0) { this.fireHeld = true; this.fireBuf = 0.15; this.game.online?.edge('fp'); }
+      if (e.button === 1) { this.mmb = true; e.preventDefault(); }                              // 12.201 orta tık: helikopter roketi (Q ile aynı)
       if (e.button === 2 && this.s.def.zombie) { this.zAbility(); return; }                  // zombi: sağ tık = özel güç
       if (e.button === 2 && this.s.stat.kind === 'throwable') { this.nadeModeReq = true; this.game.online?.edge('nu'); return; }      // 12.193 PUBG: bombada sağ tık = üstten ↔ alttan
       if (e.button === 2) this.s.ads = this.game.opts.adsToggle ? !this.s.ads : true;          // Ayarlar: basılı tut ya da bir kez bas (aç-kapa)
     });
     this.on(window, 'mouseup', (e) => {
       if (e.button === 0) this.fireHeld = false;
+      if (e.button === 1) this.mmb = false;
       if (e.button === 2 && !this.game.opts.adsToggle) this.s.ads = false;
     });
     this.on(document, 'contextmenu', (e) => e.preventDefault());                      // sağ tık menüsü oyunda hiç çıkmasın (nişan alırken takılıyordu)
@@ -1180,7 +1182,24 @@ export class Player {
     return true;
   }
   // o anki görüş büyütmesi (model ile aynı eğri, 1 = yok): FOV, fare / ok tuşu / dokunmatik hassasiyeti bunu kullanır
-  zoomCur() { const s = this.s, z = this.zoomEff(); return z > 1 && !this.vm.model?.userData.noAds ? lerp(1, z, adsEase(s.adsT)) : 1; }
+  zoomCur() {
+    const s = this.s;
+    if (s.veh && vehSeatArmed(s.veh.def, s.seat)) { const Z = this._vehZ || 0, b = this._vehZ0 || 1; return Z ? lerp(b, Z, adsEase(this._vehK || 0)) : b; }      // 12.201 araç koltuğu: aracın yakınlaştırması (piyade optiği yok)
+    const z = this.zoomEff(); return z > 1 && !this.vm.model?.userData.noAds ? lerp(1, z, adsEase(s.adsT)) : 1;
+  }
+  // 12.201 araç koltuğunda sağ tık yakınlaştırması (Battlefield): tank sürücüsü dürbün ×2,6 (temel ×1,15) / takip ×1,6, helikopter pilotu ×1,5 (burun artısı),
+  // makineli koltukları ×1,4; ~0,14 sn'de yumuşak. Bin / in / koltuk değişince sıfırlanır. Kendi silahıyla ateş eden yolcuda piyade optiği (adsT) aynen.
+  vehZoom(dt) {
+    const s = this.s, v = s.alive ? s.veh : null, key = v ? v.idx * 8 + s.seat : -1;
+    if (key !== this._vehKey) {                                         // bin / in / koltuk: nişan + yakınlaştırma temiz (aç-kapa nişan da kapanır)
+      this._vehKey = key; this._vehK = 0; s.ads = false; s.adsT = 0; this._zTail = null; this.mmb = false;
+      this.touch?.b?.ads?.classList.remove('on'); if (this.touch) this.touch.rk = false;
+    }
+    const armed = !!(v && vehSeatArmed(v.def, s.seat)), first = this.vehCam === 'first', tk = !!(v && s.seat === 0 && v.def.cannon);
+    this._vehZ = armed ? seatZoom(v.def, s.seat, first) : 0;
+    this._vehZ0 = tk && first ? 1.15 : 1;
+    this._vehK = clamp((this._vehK || 0) + (this._vehZ && s.ads ? 1 : -1) * dt * 7, 0, 1);
+  }
   // Dikey FOV (derece): masaüstünde ayar doğrudan dikey FOV; dokunmatikte ayar YATAY FOV'dur (2,2:1 telefonda dikey 75° → yatay 118°, düşman küçücük kalıyordu)
   baseFov() { const f = this.set.fov; if (!this.touch) return f; const a = this.game.camera.aspect || 16 / 9; return (2 * Math.atan(Math.tan((f * Math.PI) / 360) / a) * 180) / Math.PI; }
 
@@ -1207,12 +1226,16 @@ export class Player {
     if (drv && v.def.turret) {                                           // 12.188 tank: top artının gösterdiği noktaya (kamera ışını) balistik hedeflenir
       const cam = g.camera.position, pc = this.vehCam === 'first' ? Math.max(-0.5, Math.min(0.6, s.pitch)) : Math.max(-0.75, Math.min(0.55, s.pitch));
       s.gunAim = V.gunAimFor(v, cam, dirFromAngles(s.yaw, pc), s, (s._ga ||= {}));
+    } else if (drv && v.def.nose) {                                     // 12.201 helikopter: burun (yaw + eğim) ve burun topu artının noktasına (Battlefield: mermi artıya gider)
+      const cam = g.camera.position, pc = this.vehCam === 'first' ? Math.max(-1.2, Math.min(1.0, s.pitch)) : Math.max(-0.75, Math.min(0.55, s.pitch)) - 0.16;      // vehCamera ile aynı bakış
+      s.gunAim = V.noseAimFor(v, cam, dirFromAngles(s.yaw, pc), s, (s._ga ||= {}));
     } else s.gunAim = null;
+    s.rkHeld = !!(drv && v.def.rockets && this.locked && (kb.held('vehAlt', k) || this.mmb || T?.rk));      // 12.201 roket: Q / orta tık / telefonda ROKET (sağ tık artık yakınlaştırma)
     if (drv) {
       v.horn = !!v.def.horn && this.fireHeld && this.locked;             // 12.188: korna yalnız jipte (helikopterde sol tık = burun topu)
       V.drive(v, { f, r, b: brake, u: brake, d: dn, yw: s.gunAim ? s.gunAim.y : s.yaw, pt: s.gunAim ? s.gunAim.p : s.pitch }, dt);
       if (v.def.cannon && this.fireHeld && this.locked && !g.online) V.fireCannon(v, s);      // çevrimdışı: ana top (çevrim içinde sunucu ateşler, 'ts' olayı)
-      if (v.def.rockets && s.ads && this.locked && !g.online) V.fireRocket(v, s);              // 12.188 helikopter roketleri (sağ tık; çevrim içinde sunucu, girdi 'a')
+      if (s.rkHeld && !g.online) V.fireRocket(v, s);                                       // 12.188 helikopter roketleri (12.201: Q / orta tık; çevrim içinde sunucu, girdi 'rk')
       V.place(s);
       if (!g.online) for (const o of v.seats) if (o && o !== s) V.place(o);
       this._vyaw = v.st.yaw;
@@ -1291,6 +1314,7 @@ export class Player {
       if (kk.has('ArrowDown')) s.pitch = clamp(s.pitch - sp, -1.5, 1.5);
     }
     if (!s.alive) this.breath.reset();
+    this.vehZoom(dt);
     if (s.alive && !g.opts.autoplay) {
       const k = this.keys;
       const kb = this.kb, T = this.touch;

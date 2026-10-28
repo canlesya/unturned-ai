@@ -109,7 +109,8 @@ export class NetClient {
       ve: e.ve ? 1 : undefined, vs: e.vs || undefined, vl: e.vl ? 1 : undefined,    // 12.177 araç kenar olayları (yalnız basılınca)
       dn: inp.dn ? 1 : undefined,                                                    // 12.179 helikopter: alçal (C / Ctrl basılı)
       co: s.shotOff ? [+s.shotOff.x.toFixed(2), +s.shotOff.y.toFixed(2), +s.shotOff.z.toFixed(2)] : undefined,
-      gy: s.gunAim ? +s.gunAim.y.toFixed(4) : undefined, gp: s.gunAim ? +s.gunAim.p.toFixed(4) : undefined,      // 12.188 tank: topun hedef yönü (artının gösterdiği noktaya balistik çözüm)
+      gy: s.gunAim ? +s.gunAim.y.toFixed(4) : undefined, gp: s.gunAim ? +s.gunAim.p.toFixed(4) : undefined,      // 12.188 tank: topun hedef yönü (artının gösterdiği noktaya balistik çözüm) · 12.201 helikopter: burun / burun topu hedefi
+      rk: s.rkHeld ? 1 : undefined,                                                  // 12.201 helikopter roketi basılı (Q / orta tık; eskiden sağ tık = 'a')
     });
     const fire = !!(fireHeld || e.fp || e.rl);
     this.hist.push({ q, fire, gy: s.gunAim?.y, gp: s.gunAim?.p, inp: { f: inp.f, r: inp.r, lean: inp.lean, sprint: !!inp.sprint, jump: !!inp.jump, dive: !!inp.dive, dn: !!inp.dn }, ads: !!s.ads, adsT: s.adsT, yaw: s.yaw, pitch: s.pitch, e, st: { x: s.pos.x, y: s.pos.y, z: s.pos.z } });
@@ -321,6 +322,7 @@ export class NetClient {
     if (nv === (s.veh || null) && ns === (s.veh ? s.seat : -1)) return false;
     for (const v of V.list) if (v.pred) { v.pred = false; v.p0 = null; }
     this.hist.length = 0; this.viewOff.set(0, 0, 0);
+    s.ads = false; s.adsT = 0;                                          // 12.201: bin / in / koltuk değişince nişan temiz (piyade optiği araca, aracın yakınlaştırması piyadeye taşınmaz)
     const p = me.now;
     if (nv) {
       s.veh = nv; s.seat = ns;
