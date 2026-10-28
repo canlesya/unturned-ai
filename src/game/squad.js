@@ -5,8 +5,10 @@
 import * as THREE from 'three';
 
 export const SQUAD_N = 4;
-// mangadan doğuş durumu (ağ: me.sp = [[arkadaş id, kod]…]): 0 uygun · 1 çatışmada · 2 yakında düşman · 3 ölü · 4 araçta · 5 havada / suda
-export const SP = { OK: 0, COMBAT: 1, ENEMY: 2, DEAD: 3, VEH: 4, AIR: 5 };
+// mangadan doğuş durumu (ağ: me.sp = [[arkadaş id, kod, boş koltuk]…]): 0 uygun · 1 çatışmada · 2 yakında düşman · 3 ölü · 4 araçta (doğuş yok) ·
+// 5 havada / suda · 12.205 araçtaki arkadaş: 6 boş koltuğa doğulabilir · 7 araç dolu · 8 araç yanıyor · 9 araç devrilmiş · 10 araç batmış
+export const SP = { OK: 0, COMBAT: 1, ENEMY: 2, DEAD: 3, VEH: 4, AIR: 5, VOK: 6, VFULL: 7, VBURN: 8, VFLIP: 9, VSUNK: 10 };
+export const spOk = (st) => st === SP.OK || st === SP.VOK;
 export const SQ_NAMES = ['Alfa', 'Bravo', 'Charlie', 'Delta', 'Eko', 'Foxtrot', 'Golf', 'Hotel', 'India', 'Juliet', 'Kilo', 'Lima', 'Mike', 'November', 'Oscar', 'Papa', 'Quebec', 'Romeo', 'Sierra', 'Tango', 'Uniform', 'Victor', 'Whiskey', 'X-ray', 'Yankee', 'Zulu'];
 export const squadName = (i) => SQ_NAMES[i] || `${i + 1}`;
 const COMBAT_HIT = 5, COMBAT_FIRE = 3, ENEMY_NEAR = 20, ENEMY_SEE = 55;
@@ -57,7 +59,7 @@ export function mateSpawnState(g, m) {
   const c = m._sqSt;
   if (c && g.time - c.t < 0.4 && c.t <= g.time) return c.v;
   let v = SP.OK;
-  if (m.veh) v = SP.VEH;
+  if (m.veh) v = vehSpawnState(m.veh);
   else if (m.swim || m.under || (!m.onGround && Math.abs(m.vel.y) > 2.5)) v = SP.AIR;
   else if (g.time - (m.lastDmgT ?? -99) < COMBAT_HIT || g.time - (m.spottedT ?? -99) < COMBAT_FIRE) v = SP.COMBAT;
   else {
@@ -71,6 +73,54 @@ export function mateSpawnState(g, m) {
   m._sqSt = { t: g.time, v };
   return v;
 }
+
+// 12.205 araçtaki manga arkadaşının boş koltuğuna doğuş (Battlefield): helikopter, tank, jip, motor. Çatışma / yakın düşman kuralı araçta YOK
+// (Battlefield'da araç koltuğuna doğuş çatışmada da açık: koltuk zırhın / aracın içinde, yere düşmüyorsun). Kapalı: araç yanıyor, batmış, devrilmiş
+// (motor yere yatmış ya da gövde > ~66° yatık), boş koltuk yok. Koltuk sırası: silahlı boş koltuk (makineli / kapı nişancısı) → yolcu → sürücü / pilot.
+export function vehFlipped(v) {
+  const st = v.st;
+  if (!st) return false;
+  if (v.def.moto) return st.fall > 0;
+  if (v.def.heli && st.air) return false;                                  // uçan helikopterin yatışı manevra (kızaklar yerde değil)
+  return Math.cos(st.pitch || 0) * Math.cos(st.roll || 0) < 0.4;
+}
+export function vehSpawnSeat(v) {
+  if (!v || !v.def) return -1;
+  const n = v.seats.length, armed = [], pas = [];
+  for (let i = 1; i < n; i++) if (!v.seats[i]) (v.def.mg?.seats?.includes(i) ? armed : pas).push(i);
+  return armed[0] ?? pas[0] ?? (v.seats[0] ? -1 : 0);
+}
+export const vehFreeSeats = (v) => (v ? v.seats.reduce((k, o) => k + (o ? 0 : 1), 0) : 0);
+export function vehSpawnState(v) {
+  if (!v || !v.alive || !v.st || v.wreck) return SP.VBURN;
+  if (v.st.sunk) return SP.VSUNK;
+  if (v.burn) return SP.VBURN;
+  if (vehFlipped(v)) return SP.VFLIP;
+  return vehSpawnSeat(v) < 0 ? SP.VFULL : SP.VOK;
+}
+// Yetkili taraf: koltuk o arada dolduysa (seçimle doğuş arasında) → aracın yanında yere (araç yerde, yavaş, yakında düşman yok), olmazsa null (üs)
+export function vehSidePoint(g, s, v) {
+  const st = v.st, d = v.def, W = g.world;
+  if (!st || st.air || Math.hypot(st.vx, st.vz) > 3) return null;
+  for (const e of g.soldiers) if (e.alive && !e.vacant && e.team !== s.team && Math.hypot(e.pos.x - st.x, e.pos.z - st.z) < ENEMY_NEAR) return null;
+  const R = Math.hypot(d.hl, d.hw);
+  _a.set(st.x, st.y + 1.2, st.z);
+  for (const r of [R + 0.9, R + 1.8, R + 2.8]) for (let k = 0; k < 10; k++) {
+    const a = st.yaw + Math.PI / 2 + k * Math.PI / 5, x = st.x + Math.sin(a) * r, z = st.z + Math.cos(a) * r;
+    _o.set(x, st.y + 1.6, z);
+    const hit = W.raycast(_o, DOWN, 3.4, _h), y = hit ? hit.point.y : W.heightAt(x, z);
+    if (Math.abs(y - st.y) > 0.9) continue;
+    if (W._hits(W.query(x - 1, z - 1, x + 1, z + 1, _q), x, y + 0.05, z, 1.7)) continue;
+    _b.set(x, y + 1.2, z);
+    if (!W.clear(_a, _b)) continue;
+    if (g.vehicles.list.some((o) => o.alive && o.st && Math.hypot(o.st.x - x, o.st.z - z) < Math.hypot(o.def.hl, o.def.hw) + 0.6)) continue;
+    if (g.soldiers.some((e) => e !== s && e.alive && Math.hypot(e.pos.x - x, e.pos.z - z) < 0.9)) continue;
+    return { x, z, y, ry: st.yaw, squad: true };
+  }
+  return null;
+}
+// Koltuğa doğan askerin bakışı: aracın önü; kapı nişancısı kapıdan dışarı (bot.js ile aynı kural)
+export function seatYaw(v, seat) { const arc = v.def.mg?.arc?.[seat]; return v.st.yaw - (arc ? arc * Math.PI / 2 : 0); }
 
 const DOWN = new THREE.Vector3(0, -1, 0), _o = new THREE.Vector3(), _h = {}, _a = new THREE.Vector3(), _b = new THREE.Vector3(), _q = [];
 // Arkadaşın arkasında doğuş noktası: 1,6–3,4 m halkada arkadan başlayarak; zemin arkadaşın katında (±0,7 m), gövde kutulara girmiyor, aradan duvar

@@ -190,7 +190,7 @@ export class NetClient {
     // 12.191 bayraklar: [sahip, ilerleme, alandaki Mavi, Kırmızı]; ilk snapshot (geç katılım) bildirim / ses çıkarmaz, yalnız durumu kurar
     const first = !this._oSeen, at = performance.now(); this._oSeen = true;
     m.o.forEach((o, i) => { const ob = g.mode.objectives[i]; if (!ob) return; const prev = ob.owner; ob.owner = o[0] === 1 ? 'blue' : o[0] === 2 ? 'red' : null; ob.p = o[1]; ob.nb = o[2] || 0; ob.nr = o[3] || 0; ob._at = at; if (first) ob.pd = ob.p; else if (ob.owner !== prev) g.onFlag?.(ob, prev); });
-    if (m.me?.sp) g._sqNet = new Map(m.me.sp);                                 // 12.202 ölüyken: manga arkadaşlarının yanında doğulabilir mi (sunucu hesaplar)
+    if (m.me?.sp) { g._sqNet = new Map(m.me.sp); g._sqNetF = new Map(m.me.sp.filter((a) => a.length > 2).map((a) => [a[0], a[2]])); }      // 12.202 ölüyken: manga arkadaşlarının yanında doğulabilir mi (sunucu hesaplar) · 12.205 [id, kod, araçtaki boş koltuk]
     this.reconcile(m.me);
   }
 
@@ -263,6 +263,7 @@ export class NetClient {
       s.yaw = p.yw; s.pitch = p.pt; s.protT = 0; s.cur = p.c; s.respawnT = me.rt;
       applyFlags(s, p.f);
       this.applyAmmo(s, me);
+      if (p.a) this.vehSync(s, me);                                    // 12.205 koltuğa doğuş: ilk karede koltukta (kamera / HUD / tahmin araçtan)
       return;
     }
     const st = me.st;
