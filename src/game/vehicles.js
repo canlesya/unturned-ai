@@ -1,4 +1,4 @@
-import { VT, makeVehicle, stepVehicle, toWorld, toLocal2, obbBox, rayVehicle, packVehState, applyVehState, vehicleAtRest, groundAt, gunPose, mgAt, seatGun, shellVel, shellAdvance, heFalloff, noseDir, mgPitch, rocketDir } from '../sim/vehicle.js';
+import { VT, makeVehicle, stepVehicle, toWorld, toLocal2, obbBox, rayVehicle, packVehState, applyVehState, vehicleAtRest, groundAt, restY, settleVehicle, gunPose, mgAt, seatGun, shellVel, shellAdvance, heFalloff, noseDir, mgPitch, rocketDir } from '../sim/vehicle.js';
 import { dirFromAngles } from './util.js';
 import * as THREE from 'three';
 import { R as SR } from './collision.js';
@@ -86,8 +86,7 @@ export class Vehicles {
       for (const o of this.list) if (o !== v && o.alive && Math.hypot(o.st.x - S.x, o.st.z - S.z) < (v.def.moto && o.def.moto ? 2.2 : 4.5)) { o.blockT = this.g.time; return false; }      // 12.212 tıkayan boş araç terk sayacına girer      // 12.204: motorlar yan yana (2,6 m) dizilir
     }
     v.st = makeVehicle(v.type, S.x, groundAt(W, S.x, S.z, W.heightAt(S.x, S.z) + 1), S.z, S.yaw);
-    stepVehicle(v.st, null, 1 / 60, W); stepVehicle(v.st, null, 1 / 60, W);      // zemine otur (eğim / yatış)
-    v.st.vx = v.st.vz = v.st.vy = 0;
+    settleVehicle(v.st, W);                                           // 12.209 zemine tam otur (eğim / yatış / kot)
     v.hp = v.def.hp; v.alive = true; v.wreck = false; v.burn = false; v.deadT = 0; v.sunkT = 0; v.idleT = 0;
     v.team = team; v.paint = team; v.lights = false; v.horn = false; v.sleep = false; v.lastHit = null; v.lastDriver = null; v.rl = 0; v.dmgLog = null; v.rk = v.def.rockets?.n; v.rkT = v.rkR = 0;
     v.seats.fill(null); v.spawnN = (v.spawnN || 0) + 1; v.spawnT = this.g.time;      // 12.200 spawnT: botların araç kapma beklemesi (vehicleBots.botMayTake)
@@ -264,7 +263,7 @@ export class Vehicles {
       const drv = v.seats[0];
       if (!drv) {
         v.horn = false;
-        if (!v.sleep) { stepVehicle(v.st, null, dt, g.world); this.afterStep(v, dt); if (vehicleAtRest(v.st)) v.sleep = true; }
+        if (!v.sleep) { stepVehicle(v.st, null, dt, g.world); this.afterStep(v, dt); if (vehicleAtRest(v.st) && v.alive) { settleVehicle(v.st, g.world); v.sleep = true; } else if (vehicleAtRest(v.st)) v.sleep = true; }      // 12.209 uyurken eğim / yatış tam oturur (frenle duran aracın eğimi yumuşatmadan geride kalmasın)
       }
       // takım: içindekilerin (yoksa doğuşun / son sürücünün)
       const occ = this.occupants(v);
@@ -839,6 +838,10 @@ export class Vehicles {
     const la = (x, y) => x + (((y - x + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * t;
     st.x = L(1) + A[7] * ex; st.y = L(2); st.z = L(3) + A[9] * ex; st.yaw = la(A[4], B[4]); st.pitch = L(5); st.roll = L(6);
     st.vx = A[7]; st.vy = A[8]; st.vz = A[9]; st.steer = L(10); st.thr = A[13]; st.air = !!(fl & F_AIR); st.sunk = !!(fl & F_SUNK);
+    // 12.209 yerdeki uzak aracın y'si sunucunun formülüyle zemine kenetlenir (restY = stepCar'ın gövde kotu): anlık görüntüler arası doğrusal
+    // ara değerleme tepe / çukur üstünde zemini keser, tampon boşalınca x / z hızla ileri tahmin edilip y edilmiyordu (yokuşta araç zemine
+    // gömülüyordu). Havada: zeminin altına inmez. Helikopter / batmış araç hariç (kendi kuralları).
+    if (!v.def.heli && !st.sunk) { const gy = restY(st, this.g.world); st.y = st.air ? Math.max(st.y, gy) : gy; }
     if (A.length > 15 && B.length > 15) { if (v.def.moto) { st.fall = A[15]; st.fallK = A[16]; } else if (v.def.turret) { st.tyaw = la(A[15], B[15]); st.gp = L(16); v.rl = A[17]; } else if (v.def.heli) { st.rpm = L(15); if (A.length > 16) { v.rk = A[16]; v.rkR = A[17]; } } }
     if (v.alive && !was) { v.spawnN = (v.spawnN || 0) + 1; this.g.emit('vehspawn', v); }
   }

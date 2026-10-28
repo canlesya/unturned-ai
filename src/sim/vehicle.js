@@ -194,10 +194,13 @@ function wheels(v, world, out, ref) {
 // zemin teker düzleminin üstüne çıkar → paletin ortası / gövde altı arazinin içinde görünüyordu (oynanış taraması: tank paleti 0,25 m, jip gövdesi
 // 0,49 m gömülü). Palet boyunca (¼, ½, ¾) ve gövde altı ortasında zemin örneklenir; düzlemin üstüne çıkan kısım kadar gövde kaldırılır (palet
 // tümseğe basar). w: wheels() çıktısı (ön sol, ön sağ, arka sol, arka sağ). Sunucu = istemci tahmini (aynı fonksiyon).
-const LIFT_K = [0.25, 0.5, 0.75];
+// 12.209 (a) burulma: dört teker noktası bir düzlemde değilse (çapraz tümsek / çukur) ortalama düzlemde iki teker |e| kadar zeminin İÇİNDE
+// kalıyordu (oynanışta jip teker gömülmesi en çok 0,31 m) → gövde |e| kaldırılır: rijit gövde yüksek köşegene basar. (b) tekerli araçta gövde
+// altı yalnız ortadan değil 5 noktadan (orta, ön / arka dingil arası, sol / sağ) örneklenir: dar çapraz hendek / sırtta gövde arazideydi (0,98 m).
+const LIFT_K = [0.25, 0.5, 0.75], BELLY = [[0, 0], [0.25, 0], [-0.25, 0], [0, 0.25], [0, -0.25]];
 function bellyLift(v, world, w, ref) {
   const d = v.def, s = Math.sin(v.yaw), c = Math.cos(v.yaw), fx = -s, fz = -c, rx = c, rz = -s, hf = d.wb / 2, ht = d.tr / 2;
-  let lift = 0;
+  let lift = Math.abs(w[0] + w[3] - w[1] - w[2]) / 4;                                 // burulma payı (düzlemden sapma)
   if (d.tracked) {
     for (let side = 0; side < 2; side++) {
       const r = side ? ht : -ht, a = w[side], b = w[2 + side];
@@ -207,10 +210,33 @@ function bellyLift(v, world, w, ref) {
       }
     }
   } else {
-    const gp = (w[0] + w[1] + w[2] + w[3]) / 4, g = world.heightAt(v.x, v.z), m = g - gp - (d.clear - 0.12);
-    if (m > lift) lift = m;
+    const gm = (w[0] + w[1] + w[2] + w[3]) / 4, dF = (w[0] + w[1] - w[2] - w[3]) / 2, dR = (w[1] + w[3] - w[0] - w[2]) / 2, cl = d.clear - 0.12;
+    for (const [a, b] of BELLY) {
+      const f = a * d.wb, r = b * d.tr, gp = gm + dF * a + dR * b;                     // teker düzleminin o noktadaki kotu
+      const m = world.heightAt(v.x + fx * f + rx * r, v.z + fz * f + rz * r) - gp - cl;
+      if (m > lift) lift = m;
+    }
   }
   return Math.min(0.9, lift);
+}
+// 12.209 yerdeki aracın gövde kotu (stepCar ile AYNI hesap): çevrim içi uzak aracın ara değerlenen y'si buna kenetlenir.
+export function restY(v, world) {
+  const w = wheels(v, world, _q, v.y + 0.05);
+  return (w[0] + w[1] + w[2] + w[3]) / 4 + bellyLift(v, world, w, v.y + 0.05);
+}
+
+// 12.209 doğuşta zemine TAM oturt (eğim / yatış / kot: teker noktalarından, doğrudan). Eskiden iki 1/60 sn adım atılıyordu; eğim yumuşatması
+// (14 / sn) iki adımda hedefin ancak ~%40'ına varıyor, hızsız araç hemen uyuyordu → yamaçta doğan / üsse dönen araç düz gövdeyle yokuş tarafı
+// tekerleri ve gövde altı arazinin içinde kalıyordu. Sunucu = çevrimdışı (aynı fonksiyon).
+export function settleVehicle(v, world) {
+  const d = v.def;
+  for (let k = 0; k < 3; k++) {
+    const w = wheels(v, world, _q, v.y + 0.05);
+    v.pitch = Math.atan2((w[0] + w[1]) / 2 - (w[2] + w[3]) / 2, d.wb); v.roll = Math.atan2((w[1] + w[3]) / 2 - (w[0] + w[2]) / 2, d.tr);
+    if (d.heli) v.y = heliGround(v, world, d);
+    else { v.y = (w[0] + w[1] + w[2] + w[3]) / 4 + bellyLift(v, world, w, v.y + 0.05); for (let i = 0; i < 4; i++) v.wl[i] = w[i]; }
+  }
+  v.vx = v.vy = v.vz = 0; v.air = false;
 }
 
 // OBB (araç) ↔ AABB (kutu) yatay ayırma ekseni testi. Çakışıyorsa { nx, nz, d } (aracı kutudan çıkaran yön + girişim), yoksa null
