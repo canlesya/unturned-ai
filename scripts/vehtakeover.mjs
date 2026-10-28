@@ -150,7 +150,7 @@ async function browserPart() {
     await page.waitForTimeout(1200);
     const pr = await page.evaluate(() => { const e = document.getElementById('vhPrompt'); return { vis: getComputedStyle(e).display !== 'none', txt: e.textContent }; });
     await page.screenshot({ path: `${OUT}/01-ipucu-botu-indir.png` });
-    ok(pr.vis && /botu indir/i.test(pr.txt), 'ipucu: "botu indir · sür"', pr.txt);
+    ok(pr.vis && /sür · .+ (2\. koltuğa geçer|iner)/i.test(pr.txt), 'ipucu (12.218): "sür · <bot> 2. koltuğa geçer (makineli)"', pr.txt);
     await page.keyboard.press('KeyE');
     await page.waitForTimeout(1500);
     const r = await page.evaluate(() => { const g = window.__game, me = g.playerSoldier, b = window.__b; return { me: me.seat, inV: me.veh === window.__v, bot: b.seat, bInV: b.veh === window.__v, seats: [...document.querySelectorAll('#vhPanel .seats div')].map((e) => e.textContent) }; });

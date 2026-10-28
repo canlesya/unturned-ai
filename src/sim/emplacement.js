@@ -12,6 +12,7 @@ export const EMP = {
     wb: 1, tr: 1, wheelR: 0, maxF: 0, maxR: 0, accel: 0, brake: 0, roll: 0, drag: 0, steerMax: 0, steerRate: 0, grip: 0, gripHand: 0, slide: 1, climbK: 0,
     // koltuk: nişancı silahın 0,78 m arkasında yüksek taburede oturur, göz 1,52 m (kalkanın 0,36 m üstünden bakar; alıcı görüşün altında)
     seat: [[-0.78, 0, 0.74]],
+    seatKey: ['veh.seat.fix'],
     arc: 1.22, elev: [-0.26, 0.44],                                    // yatay ±70°, dikey −15°…+25°
     // .50 cal: askere 34 (3 mermi; 90 → 240 m'de × 0,75 = 4 mermi), araca vdmg 40 'hmg' (jip × 0,5 = 20 → ~20 isabet, helikopter × 0,4, tank × 0 = işlemez)
     mg: { seats: [0], name: 'Ağır makineli', dmg: 34, vdmg: 40, vk: 'hmg', rpm: 560, range: [90, 240], minMul: 0.75, hip: 0.009, tracer: '#ffc56a', sound: 'pkm', vmg: true, elev: [-0.26, 0.44], zoom: 1.6, heat: 0.016, cool: 0.4, mz: [1.5, 0.5] },
@@ -25,6 +26,7 @@ export const EMP = {
     parts: [[-0.26, -0.16, 1.16, 1.28, -0.03, 0.39]],                 // nişan dürbünü (tüpün solunda)
     wb: 1, tr: 1, wheelR: 0, maxF: 0, maxR: 0, accel: 0, brake: 0, roll: 0, drag: 0, steerMax: 0, steerRate: 0, grip: 0, gripHand: 0, slide: 1, climbK: 0,
     seat: [[-1.05, 0, 0.72]],                                       // göz 1,50 m (tüpün 0,2 m üstünden)
+    seatKey: ['veh.seat.fix'],
     arc: 1.05, elev: [-0.1, 0.3],                                      // yatay ±60°, dikey −6°…+17° (mevzinin ön duvarı füzenin önünde kalmaz)
     // füze: artının noktasına (atış anında nişancının bakışının çarptığı nokta) düz uçar (yer çekimi yok, 95 m/sn); tanka vdmg 420 'at':
     // tank atMul 1,25 → ön 525 (2 isabet) · yan 709 (2) · arka 1050 (1). Jip / helikopter / motor tek isabet. Askere 140 / 4 m (iç 1 m)
