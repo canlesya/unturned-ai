@@ -4,6 +4,7 @@ import { codeLabel } from '../core/keybinds.js';
 import * as THREE from 'three';
 import { gunPose, mgAt, seatGun, toWorld, noseDir, mgPitch } from '../sim/vehicle.js';
 import { dirFromAngles } from './util.js';
+import { nearCrate, crateAction, crateLabel } from './supply.js';      // 12.216 ikmal kutusu ipucu
 import { MOTO_ICON } from './motorbike.js';                           // 12.204 motor simgesi
 
 // 12.177 araç HUD'u (yalnız tarayıcı): yaklaşınca binme ipucu ("E · Jip · Sür / Bin"), araçtayken panel: ad, can çubuğu, hız (sürücü),
@@ -69,6 +70,7 @@ const CSS = `
 body.mob #vhPanel{zoom:.6;bottom:auto;top:calc(74px / .6);left:50%}
 body.mob #vhPanel .hint{display:none}body.mob #vhPanel .wsel small{display:none}
 body.mob #vhPrompt{zoom:.75}
+#vhPrompt.off{color:#c3c9d0;border-left-color:#8a929b;background:rgba(9,13,19,.6)}
 `;
 
 export class VehicleHud {
@@ -107,8 +109,15 @@ export class VehicleHud {
     const v = me.alive ? me.veh : null;
     // binme ipucu
     const n = !v && me.alive && !g.ended ? V.near(me) : null;
-    this.set(this.pr.style, 'prd', n ? 'block' : 'none', 'display');
-    if (n) this.set(this.pr, 'prt', t('veh.prompt', { k: g.player?.touch ? '⟲' : this.key('vehicle'), n: (n.v.def.moto ? MOTO_ICON : '') + t('veh.' + n.v.type), s: (n.evict ? t(n.v.yieldReq?.s === me ? 'veh.yieldWait' : 'veh.evict') + ' · ' : '') + (n.seat === 0 ? t(n.v.def.fixed ? 'veh.use' : 'veh.drive') : t('veh.ride') + ' (' + t(n.v.def.seatKey?.[n.seat] || 'veh.seat.' + n.seat).toLowerCase() + ')') }), 'innerHTML');      // 12.206 sürücü / yolcu bot: "botu indir · sür"
+    // 12.216 binilemeyen sabit yuva (dolu / yeniden kuruluyor) ya da ikmal kutusu: ipucu + neden (tuşsuz = kullanılamaz)
+    const nb = !n && !v && me.alive && !g.ended ? V.fixedBlocked(me) : null, cr = !n && !nb && !v && me.alive && !g.ended ? nearCrate(g, me) : null;
+    const k = g.player?.touch ? '⟲' : this.key('vehicle');
+    const ca = cr ? crateAction(g, me, cr) : null, off = !!nb || ca?.act === 'enemy' || ca?.act === 'full';
+    this.set(this.pr.style, 'prd', n || nb || cr ? 'block' : 'none', 'display');
+    if (this._off !== off) { this._off = off; this.pr.classList.toggle('off', off); }
+    if (nb) this.set(this.pr, 'prt', `${t('veh.' + nb.v.type)} — ${nb.why === 'down' ? (Number.isFinite(nb.eta) ? t('veh.rebuild', { n: Math.ceil(nb.eta) }) : t('veh.rebuildN')) : t(nb.why === 'foe' ? 'veh.busyFoe' : 'veh.busy')}`, 'innerHTML');
+    else if (cr) this.set(this.pr, 'prt', (off ? '' : `<b>${k}</b> `) + `${t('sup.name')} — ${crateLabel(ca)}`, 'innerHTML');
+    if (n) this.set(this.pr, 'prt',t('veh.prompt', { k: g.player?.touch ? '⟲' : this.key('vehicle'), n: (n.v.def.moto ? MOTO_ICON : '') + t('veh.' + n.v.type), s: (n.evict ? t(n.v.yieldReq?.s === me ? 'veh.yieldWait' : 'veh.evict') + ' · ' : '') + (n.seat === 0 ? t(n.v.def.fixed ? 'veh.use' : 'veh.drive') : t('veh.ride') + ' (' + t(n.v.def.seatKey?.[n.seat] || 'veh.seat.' + n.seat).toLowerCase() + ')') }), 'innerHTML');      // 12.206 sürücü / yolcu bot: "botu indir · sür"
     this.set(this.p.style, 'pd', v ? 'block' : 'none', 'display');
     this.aimHud(v && v.st ? v : null, me);
     const am = (this._am ||= this.g.hud.root.querySelector('#ammo')), hideAm = !!(v && (me.seat === 0 || mgAt(v.def, me.seat)));      // sürücü / makineli: kendi silahının cephanesi anlamsız

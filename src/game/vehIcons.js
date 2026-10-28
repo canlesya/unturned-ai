@@ -32,3 +32,20 @@ export function empMark(x, px, py, v, tm, occ, D = 1) {
   x.fillStyle = occ ? (tm === 'blue' ? '#8cc6ff' : tm === 'red' ? '#ff9a88' : '#fff') : '#d8d4c4'; vehIconDraw(x, v);
   x.restore();
 }
+// 12.216 yok edilmiş (yeniden kurulan) sabit yuva: soluk rozet + kırmızı çarpı (M / mini harita; konum doğuş verisinden)
+export function empDownMark(x, px, py, v, D = 1) {
+  x.save(); x.globalAlpha = 0.5; empMark(x, px, py, v, null, 0, D); x.restore();
+  const r = 5.5 * D; x.save(); x.translate(px, py); x.strokeStyle = '#ff8a74'; x.lineWidth = 1.8 * D;
+  x.beginPath(); x.moveTo(-r, -r); x.lineTo(r, r); x.moveTo(r, -r); x.lineTo(-r, r); x.stroke(); x.restore();
+}
+// 12.216 ikmal kutusu (RPG + cephane): yeşil sandık + sarı şerit + üstünde roket; kullanılamayan (düşmanın) soluk
+export function supMark(x, px, py, open, D = 1) {
+  const w = 7 * D, h = 4.6 * D;
+  x.save(); x.translate(px, py); x.globalAlpha = open ? 1 : 0.45;
+  x.fillStyle = '#56633a'; x.strokeStyle = open ? '#eef7d8' : 'rgba(255,255,255,.5)'; x.lineWidth = 1.4 * D;
+  x.fillRect(-w, -h + 2 * D, w * 2, h * 2); x.strokeRect(-w, -h + 2 * D, w * 2, h * 2);
+  x.fillStyle = '#e0a92c'; x.fillRect(-w + D, 2.2 * D, w * 2 - 2 * D, 1.8 * D);
+  x.fillStyle = '#dfe7c8'; x.fillRect(-w - D, -h - 1.2 * D, w * 2, 2 * D);                                                   // roket tüpü (kutunun üstünde)
+  x.beginPath(); x.moveTo(w - D, -h - 2.4 * D); x.lineTo(w + 3.4 * D, -h - 0.2 * D); x.lineTo(w - D, -h + 2 * D); x.closePath(); x.fill();      // savaş başlığı
+  x.restore();
+}

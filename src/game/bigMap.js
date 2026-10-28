@@ -17,7 +17,8 @@ import { clamp } from './util.js';
 import { mapName } from '../i18n/data.js';
 import { mapText, placeName } from '../i18n/game.js';
 import { squadOn, squadMates, SP } from './squad.js';
-import { vehIconDraw, vehIconSvg, empMark } from './vehIcons.js';
+import { vehIconDraw, vehIconSvg, empMark, empDownMark, supMark } from './vehIcons.js';
+import { crateOpen } from './supply.js';                              // 12.216 ikmal kutusu simgesi
 import { PCOL } from './pings.js';
 import { HEAT_SEC } from './heat.js';
 import { codeLabel } from '../core/keybinds.js';
@@ -180,7 +181,8 @@ export class BigMap {
     this.zc.querySelector('.zf').title = t('sq.zoomFit');
     const on = squadOn(g);
     ov.querySelector('.bml').innerHTML = [`<span><i style="background:#ffd23a"></i>${t('sq.lg.me')}</span>`, on ? `<span><i style="background:${PCOL.sq}"></i>${t('sq.lg.squad')}</span>` : '', !g.ffa ? `<span><i style="background:${COL[g.playerSoldier?.team] || COL.blue}"></i>${t('sq.lg.team')}</span>` : '',
-      `<span><i style="background:${COL.red};box-shadow:0 0 0 1px #fff"></i>${t('sq.lg.enemy')}</span>`, `<span><i class="d" style="background:${PCOL.me}"></i>${t('sq.lg.ping')}</span>`, `<span><i class="h"></i>${t('sq.lg.heat', { n: HEAT_SEC })}</span>`].join('');
+      `<span><i style="background:${COL.red};box-shadow:0 0 0 1px #fff"></i>${t('sq.lg.enemy')}</span>`, `<span><i class="d" style="background:${PCOL.me}"></i>${t('sq.lg.ping')}</span>`, `<span><i class="h"></i>${t('sq.lg.heat', { n: HEAT_SEC })}</span>`,
+      g.supply?.length ? `<span><i style="background:#56633a;border-radius:1px;box-shadow:inset 0 -3px #e0a92c,0 0 0 1px #eef7d8"></i>${t('map.sup')}</span>` : ''].join('');      // 12.216 ikmal kutusu (RPG + cephane)
     if (this.card) { this.card.querySelector('.dmt').textContent = t('sq.deployTitle'); this.card.querySelector('.dmh').textContent = t(mob ? 'sq.deployHintTouch' : 'sq.deployHint') + ' · ' + t(mob ? 'sq.zoomHintTouch' : 'sq.zoomHint'); }
     this._baseKey = null;
   }
@@ -491,7 +493,9 @@ export class BigMap {
       x.strokeText(nm, px, py + r + 10 * D); x.fillText(nm, px, py + r + 10 * D);
     }
     // araçlar (mini haritayla aynı kural: dost / boş hep, düşman görüldüyse)
+    if (g.supply) { let n = 0; for (const c of g.supply) { const fr = c.of && Math.hypot(X(c.x) - X(c.of.x), Y(c.z) - Y(c.of.z)) < 13 * D * 1.6 ? 13 * D * 1.35 : 0; supMark(x, (fr ? X(c.of.x) : X(c.x)) + fr, (fr ? Y(c.of.z) : Y(c.z)) - fr * 0.75, crateOpen(c, team), D); n++; } this.supN = n; }      // 12.216 ikmal kutuları (RPG + cephane; düşmanınki soluk) · bayrak kutusu bayrak rozetinin sağ üstünde (harita ölçeğinde rozetin altında kalıyordu)
     if (g.vehicles) for (const v of g.vehicles.list) {
+      if (v.def.fixed && (!v.alive || !v.st)) { empDownMark(x, X(v.spawn.x), Y(v.spawn.z), v, D); continue; }      // 12.216 yok edilmiş yuva: yeniden kuruluyor
       if (!v.alive || !v.st) continue;
       const occ = v.seats.filter(Boolean), tm = occ.length ? occ[0].team : v.paint;
       if (tm && tm !== team && !occ.some((o) => g.time - (o.spottedT ?? -99) < 2.5)) continue;

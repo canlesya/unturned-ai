@@ -16,7 +16,8 @@ import { mapName, modeLabel, className } from '../i18n/data.js';
 import '../i18n/assist.js';                                              // sb.a (12.165 asist sütunu)
 import { wName, wLabel, classDesc, ztName, ztDesc, abilName, opticName, fireName, teamName, popText, mapText, dispName, placeName } from '../i18n/game.js';
 import { MOTO_ICON } from './motorbike.js';                                  // 12.204 öldürme akışında motor simgesi
-import { vehIconSvg, empMark } from './vehIcons.js';                                 // 12.205 doğuş listesinde araçtaki arkadaşın aracı
+import { vehIconSvg, empMark, empDownMark, supMark } from './vehIcons.js';
+import { crateOpen } from './supply.js';                                                      // 12.216 ikmal kutusu (mini harita)                                 // 12.205 doğuş listesinde araçtaki arkadaşın aracı
 
 const EN = (s) => String(s).replace(/Paintball/g, '<span lang="en">Paintball</span>');   // tr büyük harfte 'PAİNTBALL' olmasın (marka adı)
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -1023,7 +1024,12 @@ export class Hud {
     x.clearRect(0, 0, this.mm.width, this.mm.height);
     x.drawImage(this.mmBase, 0, 0);
     this.cap?.drawMinimap(x, this.mmX, this.mmY, performance.now());     // 12.191 bayraklar: sahip + ilerleme halkası + alınıyor nabzı
+    if (g.supply) for (const c of g.supply) {                              // 12.216 ikmal kutuları (bayrak kutusu bayrak rozetinin sağ üstünde)
+      const near = c.of && Math.hypot(this.mmX(c.x) - this.mmX(c.of.x), this.mmY(c.z) - this.mmY(c.of.z)) < 14;
+      supMark(x, near ? this.mmX(c.of.x) + 11 : this.mmX(c.x), near ? this.mmY(c.of.z) - 9 : this.mmY(c.z), crateOpen(c, p.team), 0.6);
+    }
     if (g.vehicles) for (const v of g.vehicles.list) {                    // 12.177 araçlar: dost / boş araç hep, düşman araç içindeki görüldüyse
+      if (v.def.fixed && (!v.alive || !v.st)) { empDownMark(x, this.mmX(v.spawn.x), this.mmY(v.spawn.z), v, 0.75); continue; }      // 12.216 yok edilmiş yuva
       if (!v.alive || !v.st) continue;
       const occ = v.seats.filter(Boolean), tm = occ.length ? occ[0].team : v.paint;
       if (tm && tm !== p.team && !occ.some((o) => g.time - (o.spottedT ?? -99) < 2.5)) continue;

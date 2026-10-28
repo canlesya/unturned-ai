@@ -18,6 +18,10 @@ import { arcYaw, arcPitch } from '../sim/emplacement.js';          // 12.213 sab
 // Asker alanları: s.veh (araç) · s.seat (0 sürücü … 3). Koltuktaki askerin konumu = koltuk (gövdeye göre; vuruş kutusu oturuşa göre kısalır).
 export const SEAT_DROP = 0.5, SEAT_EYE = 1.28, SEAT_H = 1.45;      // koltuk yüzeyi − bu = askerin "ayak" kotu; göz / vuruş kutusu boyu bu tabana göre
 const ENTER_R = 2.2;                                               // gövde kenarına bu kadar yakın asker binebilir
+// 12.216 binme uzaklığı (gövde kenarına). Sabit yuva: dönme ekseninden YUVARLAK erişim (FIXED_R m; ENTER_R'ye göre) — ince tüp / alıcı (hw 0,11–0,12)
+// yandan yalnız 2,3 m'ye erişiyordu, mevzinin yan kum torbası askeri 2,42 m'de durduruyordu → yandan (siperin üstünden) ipucu çıkmıyor, binilmiyordu
+const FIXED_R = 3.0;
+const enterDist = (d, L) => d.fixed ? Math.max(0, Math.hypot(L.f, L.r) - (FIXED_R - ENTER_R)) : Math.hypot(Math.max(0, Math.abs(L.f) - d.hl), Math.max(0, Math.abs(L.r) - d.hw));
 const RAM_CD = 0.45;
 const _p = { x: 0, y: 0, z: 0 }, _rv = {};
 const F_ALIVE = 1, F_AIR = 2, F_BURN = 4, F_LIGHT = 8, F_HORN = 16, F_SUNK = 32, F_WRECK = 64;
@@ -139,7 +143,7 @@ export class Vehicles {
     for (const v of this.list) {
       if (!v.alive || !v.st || v.st.sunk) continue;
       const L = toLocal2(v.st, s.pos.x, s.pos.z), d = v.def;
-      const ex = Math.max(0, Math.abs(L.f) - d.hl), ez = Math.max(0, Math.abs(L.r) - d.hw), dist = Math.hypot(ex, ez);
+      const dist = enterDist(d, L);
       if (dist > bd || Math.abs(s.pos.y - v.st.y) > 2.2) continue;
       const occ = this.occupants(v);
       if (occ.length && occ[0].team !== s.team) continue;
@@ -148,6 +152,35 @@ export class Vehicles {
       else if (hum && seat < 0) { const k = v.seats.findIndex((o, i) => i > 0 && o && isBot(o)); if (k > 0) { seat = k; evict = v.seats[k]; } }      // dolu: bot yolcu yer açar
       if (seat < 0) continue;
       best = evict ? { v, seat, evict } : { v, seat }; bd = dist;
+    }
+    return best;
+  }
+
+  // 12.216 sabit yuva yakında ama binilemiyor: nedeni (ipucunda "dolu" / "yeniden kuruluyor 32 sn"). Dönen { v, why: 'foe' | 'busy' | 'down', eta? } ya da null.
+  // Yok edilmiş yuvanın modeli görünmez (enkaz 10 sn sonra kalkar) → konum doğuş verisinden; kalan süre: çevrimdışı / sunucu sayaçlardan, çevrim içi
+  // istemcide yuvanın düştüğü andan (downT; anlık görüntüde canlı → ölü geçişi), bilinmiyorsa sayı yok
+  fixedBlocked(s) {
+    if (!s.alive || s.veh || s.def.zombie) return null;
+    let best = null, bd = ENTER_R + 0.3;
+    for (const v of this.list) {
+      if (!v.def.fixed) continue;
+      const S = v.alive && v.st ? v.st : { x: v.spawn.x, y: v.spawn.y, z: v.spawn.z, yaw: v.spawn.yaw };
+      const L = toLocal2(S, s.pos.x, s.pos.z), d = v.def;
+      const dist = enterDist(d, L);
+      if (dist > bd || (Number.isFinite(S.y) && Math.abs(s.pos.y - S.y) > 2.2)) continue;
+      let why, eta;
+      if (!v.alive || !v.st) {
+        why = 'down';
+        if (!this.g.online) eta = v.wreck ? Math.max(0, d.wreck - v.deadT) + d.respawn : Math.max(0, v.respawnT);
+        else if (Number.isFinite(v.downT)) eta = Math.max(0, v.downT + d.wreck + d.respawn - this.g.time);
+      } else {
+        const occ = this.occupants(v);
+        if (!occ.length) continue;
+        if (occ[0].team !== s.team) why = 'foe';
+        else if (!(isHuman(s) && isBot(occ[0]))) why = 'busy';
+        else continue;                                                  // takım arkadaşı bot: near() "botu indir" verir
+      }
+      best = { v, why, eta }; bd = dist;
     }
     return best;
   }
@@ -390,7 +423,7 @@ export class Vehicles {
   destroy(v, killer, quiet = false, name) {
     if (!v.alive) return;
     const g = this.g, st = v.st, d = v.def;
-    v.alive = false; v.hp = 0; v.burn = false; v.horn = false; v.deadT = 0;
+    v.alive = false; v.hp = 0; v.burn = false; v.horn = false; v.deadT = 0; v.downT = g.time;      // 12.216 downT: yuvanın kalan kurulma süresi (ipucu)
     v.wreck = !quiet; v.respawnT = quiet ? d.respawn * 0.5 : d.respawn;
     const occ = this.occupants(v);
     for (const s of occ) this.release(s);
@@ -885,7 +918,8 @@ export class Vehicles {
     // gömülüyordu). Havada: zeminin altına inmez. Helikopter / batmış araç hariç (kendi kuralları).
     if (!v.def.heli && !v.def.fixed && !st.sunk) { const gy = restY(st, this.g.world); st.y = st.air ? Math.max(st.y, gy) : gy; }
     if (A.length > 15 && B.length > 15) { if (v.def.atgm) v.rl = A[15]; else if (v.def.moto) { st.fall = A[15]; st.fallK = A[16]; } else if (v.def.turret) { st.tyaw = la(A[15], B[15]); st.gp = L(16); v.rl = A[17]; } else if (v.def.heli) { st.rpm = L(15); if (A.length > 16) { v.rk = A[16]; v.rkR = A[17]; } } }
-    if (v.alive && !was) { v.spawnN = (v.spawnN || 0) + 1; this.g.emit('vehspawn', v); }
+    if (v.alive && !was) { v.spawnN = (v.spawnN || 0) + 1; v.downT = undefined; this.g.emit('vehspawn', v); }
+    else if (was && !v.alive) v.downT = this.g.time;                    // 12.216 sabit yuvanın "yeniden kuruluyor N sn" sayacı (istemci)
   }
 
   // İstemci: koltuktaki askerleri (yerel yolcu dahil) aracın gösterilen durumuna oturt; s.veh ağdan (packSoldier 'v') gelir
