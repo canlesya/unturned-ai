@@ -6,6 +6,7 @@
 // yavaş çekim. Kamera arazi / duvar içine girmez (arazi kotu + hedeften kameraya ışın; yaprak kalınlığı açı seçiminde).
 // Kayıt (scripts/cinerec.mjs): cine.manual() → döngü durur; cine.frame(dt) = sabit adım sim + kamera + çizim (kare kare, takılmasız).
 import * as THREE from 'three';
+import { toWorld, noseDir, mgPitch, mgAt } from '../sim/vehicle.js';
 
 const UP = new THREE.Vector3(0, 1, 0);
 const _a = new THREE.Vector3(), _b = new THREE.Vector3(), _c = new THREE.Vector3(), _d = new THREE.Vector3(), _hit = {};
@@ -23,14 +24,17 @@ const PRESET = {
   jip: { chase: { d: 9, h: 2.4, lag: 5 }, side: { d: 8.5, h: 1.3, f: 2, slide: -0.9, lead: 3, lag: 6 }, low: { ahead: 2.4, off: 6.5, h: 0.5 } },
   sniper: { d: 2.3, x: 0.85, h: 0.35, fov: 40, side: 1, snapT: true }, scope: { fov: 6.5, snapT: true }, squad: { d: 5.5, h: 1.5, x: 1.2, lead: 14, fov: 58, lag: 4, turn: 2 },
 };
-export const CINE_TYPES = ['pair', 'chase', 'side', 'orbit', 'low', 'flyby', 'heliTop', 'sniper', 'scope', 'wide', 'squad', 'still'];
+// 12.221 araç içi / yer çekimleri: nose (helikopter burnu: burun topunun baktığı yön), door (kapı nişancısının omzu: makinelinin yönü), turret (tank
+// kulesinin arkası: namlu yönü), watch (yerde sabit kamera: geçen helikoptere / araca bakar; mix: helikopterin nişan noktasına doğru)
+const INSIDE = new Set(['scope', 'sniper', 'nose', 'door', 'turret']);
+export const CINE_TYPES = ['pair', 'chase', 'side', 'orbit', 'low', 'flyby', 'heliTop', 'sniper', 'scope', 'wide', 'squad', 'still', 'nose', 'door', 'turret', 'watch'];
 
 export class Cine {
   constructor(g) {
     this.g = g;
     this.shot = null; this.timeScale = 1; this.slow = null; this.auto = true; this.log = [];
     this.pos = new THREE.Vector3(); this.look = new THREE.Vector3(); this.fov = 50; this.roll = 0;
-    this.focus = new THREE.Vector3(); this.overlay = { scope: 0 };
+    this.focus = new THREE.Vector3(); this.overlay = { scope: 0, nose: 0 };
     this.booms = [];                                                        // son patlamalar (yönetmen + yavaş çekim)
     const cam = g.camera; cam.far = Math.max(cam.far, 2600); cam.updateProjectionMatrix();
     document.body.classList.add('wb-cine');
@@ -40,6 +44,9 @@ export class Cine {
     g.on('vehboom', (e) => { const v = e?.v; if (v?.st && !e.quiet) this.onBoom(_a.set(v.st.x, v.st.y + 1, v.st.z), 3, v); });      // { v, quiet } (batma: sessiz)
     this._key = (e) => { if (e.code === 'Space' || e.code === 'KeyV') { e.preventDefault(); this.next(); } };
     addEventListener('keydown', this._key);
+    // 12.221 burun / kapı çekiminde kendi helikopterinin ışık konisi (saydam koni ağı) kameranın önünü kaplamasın: yalnız çizimde gizlenir (ışık yanar)
+    const vv = g.vehView;
+    if (vv) { const f0 = vv.frame.bind(vv); vv.frame = (dt) => { f0(dt); const sh = this.shot; if (sh?.v && (sh.type === 'nose' || sh.type === 'door')) for (const b of vv.items[sh.v.idx]?.model?.userData?.beams || []) b.visible = false; }; }
   }
   dispose() { removeEventListener('keydown', this._key); this._st?.remove(); document.body.classList.remove('wb-cine'); }
 
@@ -92,7 +99,7 @@ export class Cine {
     const sh = { t: 0, dur: 7, side: Math.random() < 0.5 ? -1 : 1, ...o };
     if (o.p && !(o.p instanceof THREE.Vector3)) sh.p = new THREE.Vector3(o.p.x, o.p.y ?? this.groundY(o.p.x, o.p.z), o.p.z);
     if (sh.s && sh.s.alive) sh.last = sh.s.center(new THREE.Vector3());
-    this.shot = sh; this.slow = null; this.timeScale = 1;
+    this.shot = sh; this.slow = null; this.timeScale = 1; this.roll = 0;
     const T = this.tpos(sh, _b);
     if (!T) { this.shot = null; return null; }
     sh.T = T.clone(); sh.F = this.tfwd(sh, new THREE.Vector3()); sh.hy = Math.atan2(-sh.F.x, -sh.F.z);
@@ -212,6 +219,50 @@ export class Cine {
         P.set(T.x + Math.sin(sh.pa) * D * sh.side, T.y + (sh.h ?? 8), T.z + Math.cos(sh.pa) * D * sh.side);      // AB'ye dik
         L.copy(T); sh.wf = sh.fov ?? 50; break;
       }
+      case 'nose': {                                                                 // 12.221 helikopter burnu: kamera burun topunun üstünde, topun yönüne
+        const v = sh.v, st = v?.st; if (!st) break;
+        const N = v.def.nose, pl = v.seats[0], nd = noseDir(st, N, pl?.gunAim, (sh._nd ||= {}));
+        toWorld(st, N.f + (sh.f ?? 0.3), sh.x ?? 0, N.u + (sh.u ?? 0.42), P);
+        const cp = Math.cos(nd.p + (sh.dp ?? -0.02));
+        L.set(P.x - Math.sin(nd.y) * cp * 90, P.y + Math.sin(nd.p + (sh.dp ?? -0.02)) * 90, P.z - Math.cos(nd.y) * cp * 90);
+        sh.wf = sh.fov ?? 62; sh.wr = -(st.roll || 0) * (sh.rk ?? 0.8); break;
+      }
+      case 'door': {                                                                 // 12.221 kapı nişancısı: omzunun arkasından makinelinin yönüne
+        const v = sh.v, st = v?.st; if (!st) break;
+        const seat = sh.seat ?? 1, gs = v.seats[seat], M = mgAt(v.def, seat), side = M?.arc?.[seat] ?? (seat === 2 ? 1 : -1);
+        const sp = v.def.seat[seat];
+        const E = toWorld(st, sp[0], sp[1], sp[2] + 0.75, _d);
+        const rest = -side * Math.PI / 2, aw = Math.min(M?.arcW ?? 1.3, sh.aw ?? 0.85), rel = gs && gs.alive ? wrap(gs.yaw - st.yaw) : rest + (sh.yo ?? 0);
+        const dy = st.yaw + rest + Math.max(-aw, Math.min(aw, wrap(rel - rest))), dp = gs && gs.alive && M ? mgPitch(st, M, dy, gs.pitch) : (sh.po ?? -0.5);      // kapı makinelisinin yayı (vehicleView ile aynı)
+        sh.dy = sh.dy == null ? dy : sh.dy + wrap(dy - sh.dy) * (dt ? damp(sh.aimK ?? 6, dt) : 1);
+        sh.dpp = sh.dpp == null ? dp : sh.dpp + (dp - sh.dpp) * (dt ? damp(sh.aimK ?? 6, dt) : 1);
+        const ay = sh.dy, ap = Math.max(-0.95, Math.min(0.2, sh.dpp)), cp = Math.cos(ap);
+        const dir = _b.set(-Math.sin(ay) * cp, Math.sin(ap), -Math.cos(ay) * cp), r = _a.set(Math.cos(ay), 0, -Math.sin(ay));
+        // kabinin içinden, nişancının omzunun arkasından kapıya (yay ±0,85 rad: hep dışarı bakar). Geri çekilme yatayda: aşağı nişanda kamera tavana girmesin
+        P.set(E.x + Math.sin(ay) * (sh.d ?? 1.25), E.y + (sh.h ?? 0.3), E.z + Math.cos(ay) * (sh.d ?? 1.25)).addScaledVector(r, (sh.x ?? 0.45) * (sh.xs ?? 1));
+        L.copy(E).addScaledVector(dir, 70);
+        sh.wf = sh.fov ?? 58; sh.wr = -(st.roll || 0) * (sh.rk ?? 0.6); break;
+      }
+      case 'turret': {                                                               // 12.221 tank kulesinin arkasından namlunun yönüne
+        const v = sh.v, st = v?.st; if (!st || !v.def.turret) break;
+        const tu = v.def.turret, C = toWorld(st, tu.f, 0, tu.pivot, _d), pt = (st.gp || 0) * 0.5 + (sh.dp ?? -0.03), cp = Math.cos(pt);
+        sh.ty = sh.ty == null ? st.tyaw : sh.ty + wrap(st.tyaw - sh.ty) * (dt ? damp(sh.aimK ?? 5, dt) : 1);
+        const dir = _b.set(-Math.sin(sh.ty) * cp, Math.sin(pt), -Math.cos(sh.ty) * cp), r = _a.set(Math.cos(sh.ty), 0, -Math.sin(sh.ty));
+        P.copy(C).addScaledVector(dir, -(sh.d ?? 6.5)).addScaledVector(r, (sh.x ?? 1.1) * sh.side); P.y = C.y + (sh.h ?? 1.5);
+        L.copy(C).addScaledVector(dir, 60); L.y = C.y + (sh.ly ?? 0.2);
+        sh.wf = sh.fov ?? 50; break;
+      }
+      case 'watch': {                                                                // 12.221 yerde sabit kamera (sh.at: { x, z, h }); hedefe bakar
+        if (!sh.anchor) { const a = sh.at; sh.anchor = new THREE.Vector3(a.x, (a.y ?? this.groundY(a.x, a.z)) + (a.h ?? 1.6), a.z); }
+        P.copy(sh.anchor); if (sh.drift) P.addScaledVector(sh.drift, k);
+        L.copy(T);
+        const ap = sh.mix && sh.v?.seats[0]?.gunAim?.P;
+        if (ap) { sh.am = sh.am ? sh.am.lerp(ap, dt ? damp(2, dt) : 1) : new THREE.Vector3().copy(ap); L.lerp(sh.am, sh.mix); }
+        L.y += sh.ly ?? 0;
+        if (sh.fit) { const D = P.distanceTo(T); sh.wf = Math.max(sh.fmin ?? 24, Math.min(sh.fov ?? 60, 2 * Math.atan(sh.fit / D) * 180 / Math.PI)); }
+        else sh.wf = sh.fov ?? 55;
+        break;
+      }
       case 'wide': case 'still': {
         const a = sh.ang + (sh.w ?? (sh.type === 'still' ? 0 : 0.035)) * k, r = (sh.r ?? 80) + (sh.dr ?? 0) * k;
         P.set(T.x + Math.sin(a) * r, 0, T.z + Math.cos(a) * r); P.y = Math.max(this.groundY(P.x, P.z) + 4, T.y + (sh.h ?? 40) + (sh.dh ?? 0) * k);
@@ -225,6 +276,7 @@ export class Cine {
   // kameranın duvar / arazi / araç içine girmemesi
   solve(sh, P, T, dt) {
     const v = sh.v, kk = v ? vk(v) : null;
+    if (INSIDE.has(sh.type) && sh.type !== 'scope' && sh.type !== 'sniper' || sh.type === 'watch') { const gy = this.groundY(P.x, P.z) + 0.4; if (P.y < gy) P.y = gy; return; }      // 12.221 araç içi / sabit yer kamerası: itme yok
     if (v?.st && kk && !(sh.type === 'scope' || sh.type === 'sniper' || (sh.type === 'pair' && !sh.ots))) {            // araca en az min m
       const dx = P.x - v.st.x, dy = P.y - v.st.y, dz = P.z - v.st.z, d = Math.hypot(dx, dy, dz);
       if (d < kk.min && d > 1e-3) P.set(v.st.x + dx / d * kk.min, v.st.y + dy / d * kk.min, v.st.z + dz / d * kk.min);
@@ -263,7 +315,8 @@ export class Cine {
     if (T) { if (s2.s && s2.s.alive) s2.last?.copy(T); s2.T.lerp(T, s2.snapT ? 1 : damp(s2.tk ?? 9, dt)); }
     this.pose(s2, gdt);
     const p = s2.P, l = s2.L, kp = damp(s2.lag ?? 4, dt), kl = damp(s2.lagL ?? 7, dt);
-    if (s2.type === 'scope' || s2.type === 'sniper') { p.copy(s2.wp); l.lerp(s2.wl, damp(14, dt)); }
+    if (s2.type === 'scope' || s2.type === 'sniper' || s2.type === 'nose' || s2.type === 'door' || s2.type === 'turret') { p.copy(s2.wp); l.lerp(s2.wl, damp(s2.lagL ?? 14, dt)); }
+    else if (s2.type === 'watch') { p.copy(s2.wp); l.lerp(s2.wl, kl); }
     else { p.lerp(s2.wp, kp); l.lerp(s2.wl, kl); }
     s2.fv += (s2.wf - s2.fv) * damp(3, dt);
     this.solve(s2, p, s2.T, dt);
@@ -273,6 +326,8 @@ export class Cine {
       if (B.t >= B.d) s2.bl = null;
     } else { this.pos.copy(p); this.look.copy(l); this.fov = s2.fv; }
     this.overlay.scope = s2.type === 'scope' ? 1 : 0;
+    this.overlay.nose = s2.type === 'nose' && s2.reticle !== false ? 1 : 0;
+    this.roll += ((s2.wr || 0) - this.roll) * damp(6, dt);
     this.apply(dt);
   }
   lost(sh) {
