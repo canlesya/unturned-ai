@@ -38,6 +38,23 @@ const AO = [0, 0, 0, 0];                                            // tacAim ç
 // arası ek bekleme (dolum WSTATS.rpg.reload + 0,7 sn ayrıca). Değerler OYUN.md 12.200.
 export const AT_BOT = { range: 130, fire: [12, 85], approach: 70, err: { easy: 0.035, normal: 0.02, hard: 0.012 }, cd: { easy: [2.5, 4], normal: [1.2, 2.4], hard: [0.6, 1.4] }, heliAir: 55 };
 
+// 12.214 bot nişanı (OYUN.md 12.214). elev: uzak hedefe pitch yükseltmesi (rad / m; mermi ışın gibi düz gider, 12.214 öncesi 0,0004 → 70 m'de 2 m,
+// 110 m'de 4,8 m üstten geçiyordu) · sat: kalan dağılmanın (botExtraSpread) mesafeyle büyümesi bu mesafede durur (açı sabit; eskiden 0,6 + d/70 sınırsız:
+// 110 m'de normal botun saçılması ±7 m, M24 bile %0) · scope: dürbünü oturmuş keskin nişancının çarpanı (eski 0,6)
+// shotSwap: pompalı bot bu × etkili menzilin (range[1]) ötesinde tabancaya geçer, range[1] içinde pompalıya döner
+// veh: piyade silahıyla araçtaki hedef bu mesafelerin ötesinde hedef alınmaz (zırhlı: mermi işlemez · uçan helikopter · hızlı araç > fast m/sn · diğer araç)
+export const BOT_AIM = { elev: 0, sat: 35, scope: 0.4, shotSwap: 1.25, veh: { armor: 25, air: 45, fast: 8, fastD: 45, any: 80 } };
+// 12.214 piyade / tüfekli yolcu bot: araçtaki düşman boşa mermi mi (true = hedef alma). mg: makineli koltuğundaki bot (yalnız zırhlıyı eler)
+export function vehFoeSkip(V, e, d, mg = false) {
+  const v = e.veh, A = BOT_AIM.veh;
+  if (!v || !v.alive || !v.st || !V) return false;
+  if (v.def.armor) return d > A.armor;
+  if (mg) return false;
+  if (v.def.heli && v.st.air) return d > A.air;
+  if (V.speed(v) > A.fast) return d > A.fastD;
+  return d > A.any;
+}
+
 export class BotBrain {
   constructor(game, soldier, diffKey = 'normal') {
     this.game = game;
@@ -324,7 +341,8 @@ export class BotBrain {
       const dx = tc.x - eye.x, dz = tc.z - eye.z;
       const dist = Math.hypot(dx, dz);
       const vis = g.night ? (e.flashOn || e.flashT > 0 ? TUNE.sightDay : TUNE.sightNight) : g.tod === 'sunset' ? TUNE.sightSunset : TUNE.sightDay;
-      if (dist > vis * (g.visMul || 1) * (g.map.big ? 1.35 : 1)) continue;      // 12.189 büyük harita: açık arazide daha uzağı fark eder (130 → 175 m gündüz)
+      if (dist > vis * (g.visMul || 1) * (g.map.big ? 1.35 : 1)) continue;      // 12.189
+      if (e.veh && !at && vehFoeSkip(g.vehicles, e, dist, !!(s.veh && mgAt(s.veh.def, s.seat)))) continue;      // 12.214 büyük harita: açık arazide daha uzağı fark eder (130 → 175 m gündüz)
       if (!alerted && (fwd.x * dx + fwd.z * dz) / (dist + 1e-6) < 0.3) continue;
       if (dist > 22 && e.crouching) { if (Math.random() < 0.3) continue; }
       let head = false;
@@ -344,6 +362,7 @@ export class BotBrain {
   senseNear(eye, fwd, alerted, at) {
     const g = this.game, s = this.s, C = (SN.c ||= []), big = !!g.map.big;
     let n = 0, foeD = 1e9;
+    const vmg = !!(s.veh && mgAt(s.veh.def, s.seat));
     const vis = (g.night ? null : g.tod === 'sunset' ? TUNE.sightSunset : TUNE.sightDay), mul = (g.visMul || 1) * (big ? 1.35 : 1);
     for (const e of g.soldiers) {
       if (!e.alive || e.team === s.team) continue;
@@ -355,6 +374,7 @@ export class BotBrain {
       const tc = e.center(tC), dx = tc.x - eye.x, dz = tc.z - eye.z, dist = Math.hypot(dx, dz);
       const v = vis ?? (e.flashOn || e.flashT > 0 ? TUNE.sightDay : TUNE.sightNight);
       if (dist > v * mul) continue;
+      if (e.veh && !at && vehFoeSkip(g.vehicles, e, dist, vmg)) continue;           // 12.214 tankın / uzaktaki aracın içine piyade mermisi sıkmaz
       if (!alerted && (fwd.x * dx + fwd.z * dz) / (dist + 1e-6) < 0.3) continue;
       if (dist > 22 && e.crouching) { if (Math.random() < 0.3) continue; }
       if (n < C.length) { C[n].e = e; C[n].d = dist; } else C.push({ e, d: dist });
@@ -440,6 +460,13 @@ export class BotBrain {
     if (sp > 3 || flying) this.rodeMoved = true;
     this.vstopT = sp < 0.8 && !flying && !(bdrv && (bdrv.state === 'wait' || (v.def.cannon && bdrv.state === 'hold'))) ? (this.vstopT || 0) + dt : 0;      // bot sürücü bekliyor / tank bayrakta savaşıyor: nişancı inmez
     if (this.vstopT > (this.rodeMoved ? 4 : 25)) { V.exit(s); this.vstopT = 0; this.rodeMoved = false; this.goalT = 0; return; }      // yola çıktıktan sonra 4 sn durdu = vardı (hiç kalkmadıysa 25 sn bekler)
+    // 12.214 tüfekli yolcu: araçta boş makineli koltuğu varsa ona geçer (jipte 1. yolcu koltuğu, helikopter kabini: makineli boş kalırken yolcu
+    // hareketli araçtan tüfekle hiç vuramıyordu)
+    if (!mgAt(v.def, s.seat) && s.seat > 0 && v.def.mg && (this.seatT = (this.seatT ?? rand(0.5, 1.5)) - dt) <= 0) {
+      this.seatT = 1;
+      const i = v.def.mg.seats.find((k) => k > 0 && !v.seats[k]);
+      if (i != null) { const o = s.seat; if (V.seatTo(s, i)) this._seatMoved = o; }      // _seatMoved: ölçüm / görüntü betikleri
+    }
     const st = s.stat, mg = !!mgAt(v.def, s.seat);                           // 12.178 tank nişancısı / 12.179 helikopter kapı nişancısı: makineli (cephane sınırsız)
     if (!mg && (st.kind === 'gun' || st.kind === 'launcher') && s.item.mag <= 0 && s.reloadT <= 0 && s.item.reserve > 0) s.startReload();
     if (!mg && st.kind !== 'gun') { if (s.items[0]?.mag + s.items[0]?.reserve > 0) s.switchTo(0); return; }
@@ -580,7 +607,7 @@ export class BotBrain {
     const gd = Math.hypot(this.goal.x - s.pos.x, this.goal.z - s.pos.z) + (g.nav.nearestNode || this.goal.tw ? Math.max(0, Math.abs(this.goal.y - s.pos.y) - 1.2) * 3 : 0);      // 12.213 kule tepesi hedefi: platform kotunda değilse varılmamış   // katlı: hedef katta değilse varılmış sayılmaz
     if (gd < 1.8 && !this.via) {
       this.holdT -= dt;
-      if (this.perching) { if (this.spot) tacHold(this, dt); else { s.crouching = true; if (this.holdT <= 0) this.holdT = 3; } } else if (g.payload && this.plRole) plArrive(this); else if (g.front && this.frRole) frArrive(this, dt); else if (this.holdT <= 0) { this.holdT = rand(2, 5); if (g.nav.nearestNode && Math.random() < 0.6) this.pickGoal(); else this.setGoal(this.goal.x + rand(-6, 6), this.goal.z + rand(-6, 6), g.map.big ? Math.max(this.goalT, 2) : 10, this.goal.y); }      // 12.189 büyük harita: bekleme hedefin süresini yenilemez (eskiden her 2–5 sn'de 10 sn'ye dönüp bot bayrakta sonsuza dek kalıyordu)      // katlı haritada yeni dolaşma noktası (kat değiştirsin)
+      if (this.perching) { if (this.spot) tacHold(this, dt); else { s.crouching = true; if (this.holdT <= 0) this.holdT = 3; } } else if (g.payload && this.plRole) plArrive(this); else if (g.front && this.frRole) frArrive(this, dt); else if (this.holdT <= 0) { this.holdT = rand(2, 5); if (g.nav.nearestNode && Math.random() < 0.6) this.pickGoal(); else this.setGoal(this.goal.x + rand(-6, 6), this.goal.z + rand(-6, 6), Math.max(this.goalT, 2), this.goal.y); }      // 12.214 küçük haritada da (TDM: varan bot ±6 m'de sonsuza dek dolaşıyordu, düşman gelmezse savaşa girmiyordu) · 12.189 büyük harita: bekleme hedefin süresini yenilemez (eskiden her 2–5 sn'de 10 sn'ye dönüp bot bayrakta sonsuza dek kalıyordu)      // katlı haritada yeni dolaşma noktası (kat değiştirsin)
       return [0, 0, 0];
     }
     this.repathT -= dt;
@@ -730,6 +757,12 @@ export class BotBrain {
       const p0 = s.items[0].id;
       if (SNIPERS.has(p0) && p0 !== 'svd' && dist < 12 && s.cur === 0 && !g.mode.gungame) s.switchTo(1);
       else if (s.cur === 1 && SNIPERS.has(p0) && dist > 25) s.switchTo(0);
+      // 12.214 pompalı bot: etkili menzilin (range[1] ≈ 28–32 m) ötesinde tabancayla savaşır (eskiden 50 m'de tane başına %2–4 isabetle pompalıyla sıkıyordu), yaklaşınca pompalıya döner
+      else if (SHOTGUNS.has(p0) && !g.mode.gungame && s.items[1]) {
+        const R = WSTATS[p0]?.range?.[1] || 30;
+        if (s.cur === 0 && dist > R * BOT_AIM.shotSwap && s.items[1].mag + s.items[1].reserve > 0 && s.reloadT <= 0) s.switchTo(1);
+        else if (s.cur === 1 && dist < R && s.items[0].mag + s.items[0].reserve > 0) s.switchTo(0);
+      }
       // bıçak dövüşü: çok yakında ve silah işe yaramıyorsa (yükleniyor/boş/ağır) bıçağa geç, uzaklaşınca geri dön
       const gunBusy = s.cur === 0 && (s.reloadT > 0.5 || s.item.mag <= 0 || LMGS.has(p0) || SNIPERS.has(p0));
       if (g.mode.infection) { if (s.cur === 3) s.switchTo(0); }                                  // Enfekte: zombiye bıçakla değil silahla karşılık verilir
@@ -745,7 +778,7 @@ export class BotBrain {
       let wantPitch = Math.atan2(dy, Math.hypot(adx, adz)) + (inf ? 0 : AO[1]);
       const atm = this.atAim(tg, eye, dist);                                  // 12.200 tanksavar: araca roket nişanı (öncülü)
       if (atm) { wantYaw = atm[0]; wantPitch = atm[1]; }
-      if (dist > 35 && !atm) wantPitch += dist * 0.0004;                        // 12.200 roket düz uçar: tanksavar nişanına yükseltme eklenmez (eskiden 70 m'de 2 m üstten geçiyordu)
+      if (dist > 35 && !atm && BOT_AIM.elev) wantPitch += dist * BOT_AIM.elev;      // 12.214: varsayılan 0 (yükseltme hatası; bkz. BOT_AIM)                       // 12.200 roket düz uçar: tanksavar nişanına yükseltme eklenmez (eskiden 70 m'de 2 m üstten geçiyordu)
       if (st.ball) wantPitch += ballLead(st, Math.hypot(dist, dy));                  // paintball: topun düşüşü kadar yukarı nişan
       const turn = this.d.turn * (0.7 + Math.min(Math.abs(angleDiff(s.yaw, wantYaw)), 1.5));
       const dyaw = angleDiff(s.yaw, wantYaw);
@@ -756,7 +789,7 @@ export class BotBrain {
       this.reactT -= dt;
       const aimed = Math.abs(dyaw) < 0.07 + 2 / (dist + 8);
       s.botExtraSpread = inf ? this.d.err * (0.6 + dist / 45) * (this.reactT > -0.8 ? 1.8 : 1) * (1 + INF_BOT.crowd * this.crowd(tg))
-        : this.d.err * tacOf(this).spread * (0.6 + dist / 70) * (st.scope && s.adsT > 0.8 ? 0.6 : 1);      // nişan hatası artık açıda (tacAim); burada kalan küçük dağılma      // Enfekte: aynı hedefe çok kişi sıkarsa isabet düşer (herkesin aynı anda nişan alıp vurması engellenir)
+        : this.d.err * tacOf(this).spread * (0.6 + Math.min(dist, BOT_AIM.sat) / 70) * (st.scope && s.adsT > 0.8 ? BOT_AIM.scope : 1);      // 12.214 açı 35 m'den sonra sabit      // nişan hatası artık açıda (tacAim); burada kalan küçük dağılma      // Enfekte: aynı hedefe çok kişi sıkarsa isabet düşer (herkesin aynı anda nişan alıp vurması engellenir)
       const may = !atm && (inf || tacMayFire(this, tg, dist, aimed && this.reactT <= 0, dt));   // nişancı sabitlenir, pusucu yaklaştırır · 12.200 araca roketle (piyade silahı sıkılmaz)
       if (atm) this.atFire(atm, dist, dt);
       if (this.reactT <= 0 && aimed && may) {
