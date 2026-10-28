@@ -813,7 +813,7 @@ export class Soldier {
         // mermi mermi: her mermi girdiğinde ses; dolunca biter
         this.shellT -= dt;
         while (this.shellT <= 0 && it.mag < st.mag && it.reserve > 0) {
-          it.mag++; it.reserve--; this.shellT += st.shell;
+          it.mag++; if (!this.infAmmo) it.reserve--; this.shellT += st.shell;
           this.game.sfx.shell(this.pos);
         }
         const left = Math.min(st.mag - it.mag, it.reserve);
@@ -841,7 +841,7 @@ export class Soldier {
           const bt = this.reviveTarget; this.reviveTarget = null;
           const mk = this.items[2];
           if (this.game.online) { if (mk && mk.id === 'medkit' && mk.mag > 0) mk.mag--; }
-          else if (this.game.canRevive(bt, this)) { if (mk && mk.id === 'medkit' && mk.mag > 0) mk.mag--; this.game.revive(bt, this); }
+          else if (this.game.canRevive(bt, this)) { if (mk && mk.id === 'medkit' && mk.mag > 0 && !this.infAmmo) mk.mag--; this.game.revive(bt, this); }
         } else if (it && it.mag > 0) { if (!this.infAmmo) it.mag--; this.heal(WSTATS.medkit.heal); if (it.mag <= 0 && this.cur === 2) this.switchTo(0); }
       }
     }

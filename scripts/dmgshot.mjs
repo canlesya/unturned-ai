@@ -140,6 +140,31 @@ await page.screenshot({ path: `${OUT}/04-dev-olumsuz-arac-hud.png` });
 console.log('ölümsüz araç:', JSON.stringify(R.god));
 ok(R.god.alive && !R.god.burn && R.god.hpAfterHits === R.god.hp0 && R.god.hpLow > 0 && /ÖLÜMSÜZ|INVULNERABLE/.test(R.god.hud || ''), 'dev ölümsüz: oyuncunun jipi hasar almaz, yanmaz, HUD\'da ÖLÜMSÜZ');
 ok(R.god.botDmg > 0 && R.god.offDmg > 0, `botun jipi hasar alır (${R.god.botDmg}), O kapalıyken oyuncununki de (${R.god.offDmg})`);
+
+// 5) geliştirici sınırsız cephanesi: piyade şarjörü / bomba / heli roket kapsülü eksilmez, HUD ∞; bot ve O kapalı normal
+R.inf = await ev(async () => {
+  const g = window.__game, me = g.playerSoldier, V = g.vehicles, wait = (t) => new Promise((r) => setTimeout(r, t));
+  if (me.veh) V.exit(me); window.__park(); clearInterval(window.__ai);
+  g.devGod = true; me.fly = false; me.switchTo(0); await wait(900);
+  const it = me.items[0], m0 = it.mag, r0 = it.reserve;
+  g.player.fireHeld = true; await wait(2500); g.player.fireHeld = false;
+  const rifle = { m0, m1: it.mag, r0, r1: it.reserve, shots: me.shots ?? null, hud: document.getElementById('res')?.textContent };
+  const gi = me.items.findIndex((x) => x.id === 'grenade' || x.id === 'ww_nade'); let nade = null;
+  if (gi >= 0) { const n0 = me.items[gi].mag; me.switchTo(gi); await wait(700); me.cd = 0; const okT = me.tryFire(); await wait(300); nade = { n0, n1: me.items[gi].mag, okT, hud: document.getElementById('res')?.textContent }; }
+  const v = window.__seat(0, 430, g.world.heightAt(0, 430) + 30, 0); me.vw = 1; await wait(600);
+  for (let k = 0; k < 6; k++) { v.rkT = 0; V.fireRocket(v, me); await wait(30); }
+  const rk = { rk: v.rk, n: v.def.rockets.n, hud: [...document.querySelectorAll('#vhPanel *')].map((e) => e.textContent).find((t) => /∞/.test(t)) || null };
+  V.exit(me);
+  // O kapalı: şarjör eksilir; bot normal
+  me.switchTo(0); await wait(900); g.devGod = false; const it2 = me.items[0], q0 = it2.mag; g.player.fireHeld = true; await wait(600); g.player.fireHeld = false; const off = { m0: q0, m1: it2.mag }; g.devGod = true;
+  const bot = g.soldiers.find((s) => s !== me && s.alive); return { rifle, nade, rk, off, botInf: bot.infAmmo };
+});
+await page.screenshot({ path: `${OUT}/05-dev-sinirsiz-cephane-hud.png` });
+console.log('sınırsız cephane:', JSON.stringify(R.inf));
+{ const r = R.inf; ok(r.rifle.m1 === r.rifle.m0 && r.rifle.r1 === r.rifle.r0 && /∞/.test(r.rifle.hud || ''), `dev: tüfek şarjörü / yedek eksilmez, HUD ∞ (${r.rifle.m0}/${r.rifle.r0} → ${r.rifle.m1}/${r.rifle.r1} · "${r.rifle.hud}")`);
+  ok(!r.nade || r.nade.n1 === r.nade.n0, `dev: el bombası eksilmez (${JSON.stringify(r.nade)})`);
+  ok(r.rk.rk === r.rk.n && !!r.rk.hud, `dev: heli roket kapsülü eksilmez, HUD ∞ (${r.rk.rk}/${r.rk.n} · "${r.rk.hud}")`);
+  ok(r.off.m1 < r.off.m0 && r.botInf === false, `O kapalıyken şarjör eksilir (${r.off.m0} → ${r.off.m1}), bot sınırsız değil`); }
 ok(!errs.length, 'sayfa hatası yok' + (errs.length ? ': ' + errs.slice(0, 2).join(' | ') : ''));
 fs.writeFileSync(`${OUT}/olcum.json`, JSON.stringify(R, null, 1));
 await browser.close();
