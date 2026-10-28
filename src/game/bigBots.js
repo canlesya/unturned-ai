@@ -23,6 +23,7 @@ import * as THREE from 'three';
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const rand = (a, b) => a + Math.random() * (b - a);
 // 12.203 takım planı ayarları (ölçüm: scripts/scalesim.mjs, BIG_<ad>=değer ile denenir)
 export const BIG = { wMin: 0.6, wSpan: 0.9, focus: 2.5, fatigue: 0.06, fatigueCap: 24, phaseMin: 60, phaseSpan: 60, ax2: 10, ax3: 12 };
 
@@ -78,7 +79,7 @@ function tasks(g, team, P) {
   // 12.203: ÷ takımın niyet ağırlığı × (1 + yorgunluk) → birincil hedef maç içinde değişir, çok kanlı bayrak bir süre geriye düşer
   const heat = heatDecay(g);
   const att = objs.filter((o) => o.owner !== team).map((o) => ({ o, d: (Math.min(...anchors.map((q) => dist(q, o))) * (o.owner ? 1 : 0.8) + 0.6 * dMass(o)) / (P.w[o.id] ?? 1) / (o.id === P.focus ? BIG.focus : 1) * (1 + BIG.fatigue * Math.min(BIG.fatigueCap, heat[o.id] || 0)) })).sort((a, b) => a.d - b.d);
-  return { def: out, front, att: att.map((a) => a.o) };
+  return { def: out, front, att: att.map((a) => a.o), mass };
 }
 
 // mangal merkezi (canlı üyeler; yoksa üs)
@@ -128,10 +129,27 @@ export function assignSquadsBig(g) {
         for (let ax = 0; ax < axes; ax++) for (let k = 0, c = Math.max(1, Math.round(N * share[ax])); k < c && free.size; k++) take(A[ax]);
         while (free.size) take(A[0]);
       }
-      // kanat: aynı hedefe 3+ mangal → her üçüncüsü sırayla sol / sağ kanattan dolanır (aynı görevde tarafını korur)
+      // 12.208 YOĞUNLUK: 12+ mangalda bir saldırı hedefine en çok TAC.sqCap(nSq) mangal; fazlası sıradaki (en az kalabalık) hedefe
       const byObj = new Map();
       for (let sq = 0; sq < nSq; sq++) if (next[sq] && next[sq].owner !== team) { const l = byObj.get(next[sq]) || []; l.push(sq); byObj.set(next[sq], l); }
-      for (const l of byObj.values()) if (l.length >= 3) l.forEach((sq, i) => { if (i % 3 === 2) flank[sq] = P.flank[sq] && prev[sq] === next[sq] ? P.flank[sq] : ((i / 3) | 0) % 2 ? 1 : -1; });
+      if (many && A.length > 1) {
+        const cap = TAC.sqCap(nSq);
+        for (const [o, l] of [...byObj.entries()]) {
+          if (l.length <= cap) continue;
+          l.sort((a, b) => dist(pos[b], o) - dist(pos[a], o));                       // hedefe en uzak mangallar başka hedefe
+          while (l.length > cap) {
+            const sq = l.shift();
+            const alt = A.filter((q) => q !== o && (byObj.get(q)?.length || 0) < cap).sort((a, b) => (byObj.get(a)?.length || 0) - (byObj.get(b)?.length || 0) || dist(pos[sq], a) - dist(pos[sq], b))[0];
+            if (!alt) { l.unshift(sq); break; }
+            next[sq] = alt; const la = byObj.get(alt) || []; la.push(sq); byObj.set(alt, la);
+            (g.bigStats ||= {}).sqMove = (g.bigStats.sqMove || 0) + 1;
+          }
+        }
+      }
+      // kanat: aynı hedefe 3+ mangal → her üçüncüsü sırayla sol / sağ kanattan dolanır (aynı görevde tarafını korur);
+      // 12.208: 8+ mangalda üçte ikisi (biri soldan, biri sağdan, biri düz) → ayrı rotalar
+      const fk = nSq >= 8 ? (i) => (i % 3 === 1 ? -1 : i % 3 === 2 ? 1 : 0) : (i) => (i % 3 === 2 ? (((i / 3) | 0) % 2 ? 1 : -1) : 0);
+      for (const l of byObj.values()) if (l.length >= (nSq >= 8 ? 2 : 3)) l.forEach((sq, i) => { const f = fk(i); if (f) flank[sq] = P.flank[sq] && prev[sq] === next[sq] ? P.flank[sq] : f; });
     }
     for (let sq = 0; sq < nSq; sq++) {
       if (next[sq] === prev[sq] && flank[sq] === (P.flank[sq] || 0)) continue;
@@ -140,6 +158,7 @@ export function assignSquadsBig(g) {
     }
     P.flank = flank;
     g.squadGoals[team] = next;
+    assignGuards(g, team, T.mass);                                              // 12.208 nöbet
   }
 }
 
@@ -177,8 +196,248 @@ export function perchBig(g, o, team) {
   return best;
 }
 
+// ── 12.208 NÖBET (kullanıcı: "aldığı yeri savunmuyor kimse, aldığı yerde nöbet tutulmalı") ──
+// Ölçüm (başsız 16v16 300 sn): ele geçirilmiş bayrağın r + 30 m içinde ortalama 1,4–1,75 kendi askeri, bayrakların %46'sı bomboş (mangallar alıp geçiyordu).
+//  · Her ele geçirilmiş bayrağa nöbetçi: per(n) = round(1 + n / 16), 1–6 (10v10 2, 32v32 3, 64v64 5, 128v128 6); takımın en çok %25'i nöbette
+//    (saldırı temposu / 12.203 dağılımı korunsun). Sıra: tehdit altındaki → düşman kitlesine en yakın (cephe) → geride kalan (geride: en çok 1).
+//  · Nöbetçi bayrağın çevresinde SİPER noktasına (kutu / duvar / kaya yanı, düşman yönüne bakan, düşman yaklaşmasını gören) çömelir; keskin nişancı
+//    nöbetçi perchBig'e. Çatışmada mevziden kopmaz (yerinde çömel-kalk; 10 m'den yakındaki düşmana normal), sese / kaybolan düşmana bayraktan
+//    r + 40 m'den öteye koşmaz. Ölünce o bayrakta doğar. Bayrak düşerse nöbet biter (mangal görevi geri alma).
+//  · TEPKİ: bayrağın r + 70 m'sinde düşman varsa yakındaki (220 m) yaya botlar (nöbetçi değil, araçta değil) 35 sn savunmaya koşar: düşman başına 1,
+//    en çok 2 × per(n). 1,5 sn'de bir denetlenir.
+export const GUARD = { per: (n) => clamp(Math.round(1 + n / 16), 1, 6), budget: 0.25, rearD: 450, pick: 320, respondR: 220, respondT: 35, tick: 1.5, leash: 40, holdR: 10, swap: [40, 70] };
+// ── 12.208 TAKTİK (kullanıcı: "128v128'de ortada çok kalabalık fight dönüyor") ──
+//  · sqCap: 12+ mangalda bir saldırı hedefine en çok max(3, %22) mangal (fazlası başka hedefe; assignSquadsBig).
+//  · YOĞUNLUK SINIRI (3 sn'de bir, takım 24+): takımın yaya botlarının 50 m hücre sayımı; hücrede cellCap(n)'den fazla bot varsa hedefsiz / görüşü
+//    olmayan fazlası 30–45 sn başka bayrağa (en az kalabalık saldırı / savunma hedefi) ya da kanada (hedefinin 90 m yanından) yönlenir.
+//  · SİPERDEN SİPERE: saldırı hedefine r + 25 … r + 110 m kala hedefe doğrudan koşmak yerine hedefe yakın bir siper noktasına (guardPosts kalıbı:
+//    kutu / duvar yanı) sıçrar, orada 3–6 sn durur; 2–3 sıçrayıştan sonra bayrağa.
+export const TAC = { sqCap: (nSq) => Math.max(3, Math.ceil(nSq * 0.22)), cellCap: (n) => clamp(Math.round(4 + n / 14), 6, 12), minTeam: 24, tick: 3, redirT: [30, 45], hop: [25, 110], hopWait: [3, 6], hops: 3 };
+export function bigDensityTick(g) {
+  if ((g.time || 0) < (g._denT ?? 0)) return;
+  g._denT = (g.time || 0) + TAC.tick;
+  const objs = g.mode.objectives; if (objs.length < 2) return;
+  for (const team of ['blue', 'red']) {
+    const n = g.soldiers.filter((s) => s.team === team && !s.vacant).length;
+    if (n < TAC.minTeam) continue;
+    const cap = TAC.cellCap(n), C = new Map();
+    for (const b of g.brains) {
+      const s = b.s;
+      if (s.team !== team || !s.alive || s.veh || b.guard || !freeBot(b)) continue;
+      const k = Math.floor(s.pos.x / 50) * 100000 + Math.floor(s.pos.z / 50);
+      let L = C.get(k); if (!L) C.set(k, (L = [])); L.push(b);
+    }
+    // takımın bayrak başına (canlı yaya, r + 60 m) yoğunluğu: yönlendirme hedefi en az kalabalık olan
+    const crowd = new Map(objs.map((o) => [o, 0]));
+    const thr = new Set();
+    for (const s of g.soldiers) if (s.alive && !s.veh) for (const o of objs) { const d = dist(s.pos, o); if (s.team === team && d < o.r + 60) crowd.set(o, crowd.get(o) + 1); else if (s.team !== team && o.owner === team && d < o.r + 70) thr.add(o); }
+    for (const L of C.values()) {
+      if (L.length <= cap) continue;
+      const ex = L.filter((b) => !b.target && !(b.redir && g.time < b.redir.until) && !leaderHuman(g, b)).sort(() => Math.random() - 0.5).slice(0, L.length - cap);
+      for (const b of ex) {
+        const s = b.s, cur = g.squadGoal(s);
+        const C2 = objs.filter((o) => o !== cur && o !== b.respond?.o && (o.owner !== team || thr.has(o))).map((o) => [crowd.get(o) * 25 + dist(s.pos, o) * 0.5, o]).sort((a, c) => a[0] - c[0]);
+        const o = C2[0]?.[1];
+        if (o && dist(s.pos, o) < 700 && Math.random() < 0.6) { b.redir = { o, until: g.time + rand(TAC.redirT[0], TAC.redirT[1]) }; crowd.set(o, crowd.get(o) + 1); }
+        else if (cur) {                                                       // kanada: hedefinin yanından (90 m), hücreden çık
+          const dx = cur.x - s.pos.x, dz = cur.z - s.pos.z, Ld = Math.hypot(dx, dz) || 1, side = Math.random() < 0.5 ? -1 : 1;
+          const vi = g.nav.nearestFree(cur.x - dx / Ld * 40 + (-dz / Ld) * 90 * side, cur.z - dz / Ld * 40 + (dx / Ld) * 90 * side, 24);
+          if (vi < 0) continue;
+          b.redir = { o: cur, via: { x: g.nav.cx(vi), z: g.nav.cz(vi) }, until: g.time + rand(TAC.redirT[0], TAC.redirT[1]) * 0.6 };
+        } else continue;
+        b.goalT = Math.min(b.goalT, 0.2 + Math.random());
+        (g.bigStats ||= {}).redirect = (g.bigStats.redirect || 0) + 1;
+      }
+    }
+  }
+}
+// pickGoal (büyük harita): yoğunluk yönlendirmesi + saldırıda siperden sipere; true = hedef verildi
+export function bigTacGoal(b) {
+  const g = b.game, s = b.s;
+  if (b.redir) {
+    const R = b.redir;
+    if (g.time > R.until) b.redir = null;
+    else {
+      if (R.via && dist2(s.pos, R.via.x, R.via.z) > 12) { b.setGoal(R.via.x, R.via.z, 25); b.perching = false; b.via = null; return true; }
+      R.via = null;
+      const a = Math.random() * Math.PI * 2, r = R.o.r * Math.random() * 0.7;
+      b.setGoal(R.o.x + Math.cos(a) * r, R.o.z + Math.sin(a) * r, Math.max(16, dist(s.pos, R.o) / 4.2 + 10)); b.perching = false; b.via = null;
+      return true;
+    }
+  }
+  // siperden sipere (saldırı hedefi; mangal görevi sahibi olmadığımız bayrak)
+  const o = g.squadGoal(s);
+  if (!o || o.owner === s.team || s.cls === 'sniper') return false;
+  const d = dist(s.pos, o);
+  if (d < o.r + TAC.hop[0] || d > o.r + TAC.hop[1]) { if (d > o.r + TAC.hop[1]) b.hopN = 0; return false; }
+  if ((b.hopN || 0) >= TAC.hops) return false;
+  const P = guardPosts(g, o, s.team === 'blue' ? 'red' : 'blue');            // düşmanın savunma siperleri değil, kendi tarafımıza bakan halka: ters takımın kalıbı = bize dönük yüzler
+  const toMe = Math.atan2(s.pos.z - o.z, s.pos.x - o.x);
+  let best = null, bs = 1e9;
+  for (const p of P) {
+    const dp = dist2(o, p.x, p.z), dm = dist2(s.pos, p.x, p.z);
+    if (dp > d - 12 || dm < 6 || dm > 60) continue;                            // hedefe yaklaştıran, 6–60 m ileride
+    const ang = Math.abs(Math.atan2(Math.sin(Math.atan2(p.z - o.z, p.x - o.x) - toMe), Math.cos(Math.atan2(p.z - o.z, p.x - o.x) - toMe)));
+    if (ang > 1.1) continue;                                                   // bizim tarafımızda
+    const sc = dm + Math.random() * 10;
+    if (sc < bs) { bs = sc; best = p; }
+  }
+  if (!best) {                                                                 // siper yoksa yolun üstünde 25–40 m ileri, 8–15 m yana kayan nokta
+    const L = d || 1, k = Math.min(d - o.r - 10, rand(25, 40)), side = Math.random() < 0.5 ? -1 : 1, off = rand(8, 15);
+    const vi = g.nav.nearestFree(s.pos.x + (o.x - s.pos.x) / L * k + (-(o.z - s.pos.z) / L) * off * side, s.pos.z + (o.z - s.pos.z) / L * k + ((o.x - s.pos.x) / L) * off * side, 6);
+    if (vi < 0) return false;
+    best = { x: g.nav.cx(vi), z: g.nav.cz(vi) };
+  }
+  b.hopN = (b.hopN || 0) + 1;
+  b.setGoal(best.x, best.z, Math.max(8, dist2(s.pos, best.x, best.z) / 4.5 + rand(TAC.hopWait[0], TAC.hopWait[1])));
+  b.hopping = true; b.perching = true; b.via = null;
+  (g.bigStats ||= {}).hop = (g.bigStats.hop || 0) + 1;
+  return true;
+}
+
+const isHumanS = (e) => !!(e && (e.isPlayer || e.human || e.netHuman) && !e.vacant);
+function leaderHuman(g, b) {
+  // mangalda insan lider varsa (12.202 manga) bot onu izler: nöbete alınmaz
+  for (const e of g.soldiers) if (e.team === b.s.team && e.squad === b.s.squad && isHumanS(e)) return true;
+  return false;
+}
+const freeBot = (b) => !b.s.veh && !b.vd && !b.vRes && !b.vRide && !b.s.def.zombie;
+const dist2 = (a, x, z) => Math.hypot(a.x - x, a.z - z);
+
+// bayrağın çevresinde nöbet siperleri (takım + bayrak başına önbellek): r × 0,35 … r + 16 m halkada yürünür nokta; puan = yanındaki siper kutusu
+// (0,8–3,2 m yüksek, 2,4 m içinde) + düşman yönüne bakan yarı + düşman yaklaşmasını (bayraktan 70 m düşman yönü) görüyor + yükseklik. ≥ 6 m aralıklı en çok 8.
+export function guardPosts(g, o, team) {
+  const key = 'guard' + o.id + team;
+  if (g.perchCache.has(key)) return g.perchCache.get(key);
+  const W = g.world, foe = team === 'blue' ? 'red' : 'blue', fh = g.map.spawns[foe][0];
+  const ea = Math.atan2(fh.z - o.z, fh.x - o.x), ex = Math.cos(ea), ez = Math.sin(ea);
+  const app = new THREE.Vector3(o.x + ex * 70, 0, o.z + ez * 70); app.y = W.heightAt(app.x, app.z) + 1.2;
+  const eye = new THREE.Vector3(), Q = [], cand = [];
+  for (let k = 0; k < 90; k++) {
+    const a = Math.random() * Math.PI * 2, d = o.r * 0.35 + Math.random() * (o.r * 0.65 + 16);
+    let x = o.x + Math.cos(a) * d, z = o.z + Math.sin(a) * d;
+    const vi = g.nav.nearestFree(x, z, 3); if (vi < 0) continue;
+    x = g.nav.cx(vi); z = g.nav.cz(vi);
+    const y = W.heightAt(x, z);
+    let cover = 0;
+    for (const c of W.query(x - 2.4, z - 2.4, x + 2.4, z + 2.4, Q)) { const h = c.max[1] - y; if (h > 0.8 && h < 3.2 && c.min[1] < y + 0.6) cover++; }
+    eye.set(x, y + 1.5, z);
+    const sees = g.botSees(eye, app) ? 1 : 0;
+    const face = ((x - o.x) * ex + (z - o.z) * ez) / (Math.hypot(x - o.x, z - o.z) || 1);
+    cand.push({ x, z, sc: Math.min(cover, 3) * 1.4 + face * 1.2 + sees * 2 + (y - W.heightAt(o.x, o.z)) * 0.15 + Math.random() * 0.6, look: Math.atan2(-ex, -ez) });
+  }
+  cand.sort((a, b) => b.sc - a.sc);
+  const out = [];
+  for (const c of cand) { if (out.every((p) => Math.hypot(p.x - c.x, p.z - c.z) >= 6)) out.push(c); if (out.length >= 8) break; }
+  g.perchCache.set(key, out);
+  return out;
+}
+
+// takımın nöbetçilerini dağıt (assignSquadsBig içinden, görev dağıtımıyla: 12 sn + bayrak değişince 1 sn)
+function assignGuards(g, team, mass) {
+  const objs = g.mode.objectives, n = g.soldiers.filter((s) => s.team === team && !s.vacant).length;
+  const per = GUARD.per(n);
+  let budget = Math.max(1, Math.floor(n * GUARD.budget));
+  const mine = g.brains.filter((b) => b.s.team === team);
+  // bayrağı düşen / sahibi değişen nöbetçi bırakılır
+  for (const b of mine) if (b.guard && b.guard.owner !== team) { b.guard = null; b.guardPost = null; b.goalT = Math.min(b.goalT, 0.5); }
+  const dMass = (o) => { let m = 1e9; for (const q of mass) m = Math.min(m, dist(q, o)); return m; };
+  const foe = team === 'blue' ? 'red' : 'blue';
+  const threat = (o) => { let k = 0; for (const e of g.soldiers) if (e.alive && e.team === foe && dist(e.pos, o) < o.r + 70) k++; return k; };
+  const own = objs.filter((o) => o.owner === team).map((o) => ({ o, d: dMass(o), th: threat(o) })).sort((a, b) => (b.th > 0) - (a.th > 0) || a.d - b.d);
+  const want = new Map();
+  for (const f of own) { const w = Math.min(budget, f.d > GUARD.rearD && !f.th ? 1 : per); want.set(f.o, w); budget -= w; }
+  // fazlalık: istenen sayıdan çok nöbetçisi olan bayrak (bütçe daraldı) → en uzaktakini bırak
+  for (const f of own) {
+    const L = mine.filter((b) => b.guard === f.o).sort((a, b) => (b.s.alive ? 0 : 1e6) + dist(b.s.pos, f.o) - ((a.s.alive ? 0 : 1e6) + dist(a.s.pos, f.o)));
+    while (L.length > want.get(f.o)) { const b = L.shift(); b.guard = null; b.guardPost = null; b.goalT = Math.min(b.goalT, 0.5); }
+  }
+  for (const f of own) {
+    let have = mine.filter((b) => b.guard === f.o).length;
+    if (have >= want.get(f.o)) continue;
+    const C = [];
+    for (const b of mine) {
+      if (b.guard || !freeBot(b) || leaderHuman(g, b)) continue;
+      const d = b.s.alive ? dist(b.s.pos, f.o) : 260;                              // ölü bot: doğunca bayrakta doğar (orta öncelik)
+      if (b.s.alive && d > GUARD.pick) continue;
+      C.push([d - (g.squadGoal(b.s) === f.o ? 80 : 0) - (b.s.cls === 'heavy' || b.s.cls === 'sniper' ? 25 : 0) + (b.s.cls === 'medic' ? 40 : 0), b]);
+    }
+    C.sort((a, b) => a[0] - b[0]);
+    for (const [, b] of C) { if (have >= want.get(f.o)) break; b.guard = f.o; b.guardPost = null; b.guardT = g.time; b.goalT = Math.min(b.goalT, 0.3 + Math.random()); have++; }
+  }
+}
+
+// 1,5 sn'de bir (Game.step, büyük harita): saldırı altındaki bayrağa yakındaki botlar koşar
+export function bigGuardTick(g) {
+  if ((g.time || 0) < (g._grdT ?? 0)) return;
+  g._grdT = (g.time || 0) + GUARD.tick;
+  const objs = g.mode.objectives; if (!objs.length) return;
+  for (const team of ['blue', 'red']) {
+    const foe = team === 'blue' ? 'red' : 'blue', n = g.soldiers.filter((s) => s.team === team && !s.vacant).length, per = GUARD.per(n);
+    for (const o of objs) {
+      if (o.owner !== team) continue;
+      let k = 0; for (const e of g.soldiers) if (e.alive && e.team === foe && dist(e.pos, o) < o.r + 70) k++;
+      if (!k) continue;
+      const wantR = Math.min(k, 2 * per);
+      let have = 0; const C = [];
+      for (const b of g.brains) {
+        if (b.s.team !== team || !b.s.alive || b.guard) continue;
+        if (b.respond && b.respond.o === o && g.time < b.respond.until) { have++; continue; }
+        if (!freeBot(b) || leaderHuman(g, b)) continue;
+        const d = dist(b.s.pos, o); if (d > GUARD.respondR || d < o.r * 0.6) continue;
+        C.push([d, b]);
+      }
+      C.sort((a, b) => a[0] - b[0]);
+      for (const [, b] of C) { if (have >= wantR) break; b.respond = { o, until: g.time + GUARD.respondT }; b.goalT = Math.min(b.goalT, 0.2 + Math.random() * 0.8); have++; (g.bigStats ||= {}).respond = (g.bigStats.respond || 0) + 1; }
+    }
+  }
+}
+
+// BotBrain.pickGoal (büyük harita): nöbet / savunmaya koşma hedefi; true = hedef verildi
+export function bigGuardGoal(b) {
+  const g = b.game, s = b.s;
+  if (b.respond) {
+    const R = b.respond;
+    if (g.time > R.until || (R.o.owner && R.o.owner !== s.team && g.time > R.until - GUARD.respondT * 0.5)) b.respond = null;   // süre doldu (alınan bayrağı yarı süre geri almaya çalışır)
+    else { const a = Math.random() * Math.PI * 2, r = R.o.r * Math.random() * 0.7; b.setGoal(R.o.x + Math.cos(a) * r, R.o.z + Math.sin(a) * r, 12); b.perching = false; b.via = null; return true; }
+  }
+  const o = b.guard;
+  if (!o) return false;
+  if (o.owner !== s.team) { b.guard = null; b.guardPost = null; return false; }
+  if (s.cls === 'sniper') { const pp = perchBig(g, o, s.team); if (pp && dist2(pp, o.x, o.z) < 170) { b.setGoal(pp.x, pp.z, rand(30, 50)); b.perching = true; b.guardPost = pp; b.via = null; return true; } }
+  const P = guardPosts(g, o, s.team);
+  if (!P.length) { const a = Math.random() * Math.PI * 2; b.setGoal(o.x + Math.cos(a) * o.r * 0.6, o.z + Math.sin(a) * o.r * 0.6, 20); b.perching = true; b.via = null; return true; }
+  // mevzi: boş (başka nöbetçi tutmuyor), arada (40–70 sn) yer değiştirir
+  if (!b.guardPost || !P.includes(b.guardPost) || g.time > (b.guardSwapT || 0)) {
+    const used = new Set(); for (const q of g.brains) if (q !== b && q.guard === o && q.guardPost) used.add(q.guardPost);
+    const free = P.filter((p) => !used.has(p) && p !== b.guardPost);
+    b.guardPost = free.length ? free[Math.floor(Math.random() * Math.min(3, free.length))] : P[Math.floor(Math.random() * P.length)];
+    b.guardSwapT = g.time + rand(GUARD.swap[0], GUARD.swap[1]);
+  }
+  const p = b.guardPost, d = dist2(s.pos, p.x, p.z);
+  b.setGoal(p.x, p.z, Math.max(rand(20, 30), d / 4.2 + 12));
+  b.perching = true; b.via = null;
+  return true;
+}
+
+// çatışma hareketi (BotBrain.update): nöbetçi mevzisindeyse yerinden kopmaz → [mx, mz, hız, çömel] ya da null (normal çatışma)
+export function guardCombatMove(b, dt, dist) {
+  const s = b.s, p = b.guardPost, o = b.guard;
+  if (!p || !o || dist < 10) return null;
+  const d = dist2(s.pos, p.x, p.z);
+  if (d > 30) return null;                                              // mevziden uzak (yolda): normal çatışma
+  if (d > 1.6) { const k = 1 / d; return [(p.x - s.pos.x) * k, (p.z - s.pos.z) * k, 0.8, false]; }
+  b.grdPeek = (b.grdPeek ?? rand(0, 2)) - dt;
+  if (b.grdPeek <= 0) { b.grdUp = !b.grdUp; b.grdPeek = b.grdUp ? rand(2.2, 3.8) : rand(0.7, 1.4); }
+  return [0, 0, 0, !b.grdUp && !(b.burstLeft > 0)];
+}
+// nöbetçi bu noktaya (ses / son görülen) koşar mı
+export function guardLeash(b, x, z) { const o = b.guard; return !o || dist2(o, x, z) < o.r + GUARD.leash; }
+
 // Bot doğuşu (büyük harita): mangal hedefine en yakın, ileri doğuşa uygun kendi bayrağı (yoksa null → genel kural). Üsten doğan bot araç alır.
 export function spawnFlagBig(g, s, own) {
+  if (s.brain?.guard && own.includes(s.brain.guard)) return s.brain.guard;      // 12.208 nöbetçi kendi bayrağında doğar
+  if (s.brain?.respond && own.includes(s.brain.respond.o) && g.time < s.brain.respond.until) return s.brain.respond.o;
   const sq = g.squadGoal(s);
   if (!sq || !own.length) return null;
   let best = null, bd = 1e9;

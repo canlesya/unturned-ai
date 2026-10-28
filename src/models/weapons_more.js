@@ -557,6 +557,24 @@ function claymore() {
   box(g, [0.01, 0.02, 0.01], STL, [-0.05, 0.05, -0.03]); box(g, [0.01, 0.02, 0.01], STL, [0.05, 0.05, -0.03]);  // nişan çentikleri
   return finish(g, { name: 'Claymore', hold: 'grenade', gripR: [0, 0, 0], gripL: null, muzzle: [0, 0, 0], length: 0.22 });
 }
+// 12.208 C4: macun kalıbı kalıp (krem) + koli bandı + kırmızı ışıklı ateşleyici · tanksavar mayını: yassı yeşil disk + basınç başlığı
+function c4() {
+  const g = new THREE.Group();
+  box(g, [0.16, 0.05, 0.1], '#d8cfae', [0, 0, 0]);                                   // kalıp
+  for (const z of [-0.03, 0.03]) box(g, [0.165, 0.052, 0.018], '#4a4f3c', [0, 0, z]); // bant
+  box(g, [0.05, 0.022, 0.04], BLK, [0.03, 0.035, 0]);                                // ateşleyici
+  box(g, [0.012, 0.01, 0.012], '#ff2a1a', [0.045, 0.05, 0]);                         // ışık
+  box(g, [0.006, 0.006, 0.07], C.red, [-0.02, 0.03, 0.01]);                          // kablo
+  return finish(g, { name: 'C4', hold: 'grenade', gripR: [0, 0, 0], gripL: null, muzzle: [0, 0, 0], length: 0.16 });
+}
+function atmine() {
+  const g = new THREE.Group();
+  cylY(g, 0.15, 0.16, 0.06, '#4c5734', [0, 0, 0], 16);                               // gövde
+  cylY(g, 0.11, 0.12, 0.012, '#3b4428', [0, 0.034, 0], 16);                          // üst kapak
+  cylY(g, 0.035, 0.035, 0.02, BLK, [0, 0.05, 0], 10);                               // basınç başlığı
+  box(g, [0.02, 0.008, 0.06], C.yellow, [0.08, 0.034, 0]);                           // emniyet işareti
+  return finish(g, { name: 'Tanksavar Mayını', hold: 'grenade', gripR: [0, 0, 0], gripL: null, muzzle: [0, 0, 0], length: 0.3 });
+}
 function ammobox() {
   const g = new THREE.Group();
   const it = createItem('ammoBox');
@@ -624,5 +642,5 @@ function tomahawk() {
 
 export const MORE = {
   scarh, aug, g36, ak74u, vector, p90, mac10, aa12, dbl, deagle, revolver, m1911, svd, barrett, pkm, m79,
-  smoke, flash, claymore, ammobox, machete, tomahawk, claws,
+  smoke, flash, claymore, ammobox, machete, tomahawk, claws, c4, atmine,
 };

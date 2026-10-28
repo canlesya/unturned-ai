@@ -211,6 +211,22 @@ export const WSTATS = {
     name: 'Claymore', kind: 'mine', slot: 'gadget', desc: 'Yere kurulur; önünden geçen düşmanı patlatır.', stats: { dmg: 90, range: 25, rate: 20, control: 60, mobility: 100 },
     count: 2, dmg: 150, radius: 5.5, trigger: 6.5, rpm: 40, mag: 2, reserve: 0, move: 1.0, equip: 0.3, sound: 'throw', useTime: 0.7,
   },
+  // 12.208 tanksavar (Battlefield: taarruzda tek atımlık hafif roketatar, yapışkan C4, mühendiste tanksavar mayını). Tank 1000 can, yönlü zırh ön 1 / yan 1,35 / arka-üst 2:
+  // LAW ön 195 · yan 263 · arka / üst 390 (3 isabet) · C4 ön 425 · yan 574 · arka / üst 850 (2 tane) · mayın 562 (2 tane; alttan, zırh yok). Jip / motor: hepsi tek.
+  law: {
+    name: 'M72 LAW', kind: 'launcher', slot: 'gadget', desc: 'Tek atımlık hafif roketatar: tanka / araca. İkmal kutusunda yenilenir.', stats: { dmg: 80, range: 70, rate: 6, control: 55, mobility: 70 },
+    count: 1, auto: false, dmg: 120, radius: 4.5, speed: 44, rpm: 30, mag: 1, reserve: 0, reload: 2.2, equip: 0.4, armorMul: 1.3,
+    hip: 0.02, ads: 0.005, kickV: 0.05, kickH: 0.01, zoom: 1.35, move: 0.92,
+    sight: [-0.045, 0.14, -0.05], dist: 0.38, sound: 'rpg',
+  },
+  c4: {
+    name: 'C4', kind: 'mine', dep: 'c4', slot: 'gadget', desc: 'Yapışkan patlayıcı: aracın dibindeyken ona, değilse yere yapışır; 5 sn sonra patlar. Arkadan / üstten 2 tanesi tankı patlatır.', stats: { dmg: 95, range: 10, rate: 15, control: 60, mobility: 100 },
+    count: 2, dmg: 340, radius: 4.5, fuse: 5, stick: 2.6, rpm: 40, mag: 2, reserve: 0, move: 1.0, equip: 0.3, sound: 'throw', useTime: 0.6,
+  },
+  atmine: {
+    name: 'Tanksavar Mayını', kind: 'mine', dep: 'atmine', slot: 'gadget', desc: 'Yola kurulur; üstünden geçen düşman aracını patlatır (2 mayın tankı, 1 mayın jipi). Yayaya tepki vermez.', stats: { dmg: 100, range: 5, rate: 10, control: 70, mobility: 100 },
+    count: 2, dmg: 90, radius: 3, vehDmg: 450, trigger: 0.4, arm: 2, max: 4, rpm: 40, mag: 2, reserve: 0, move: 1.0, equip: 0.3, sound: 'throw', useTime: 0.9,
+  },
   ammobox: {
     name: 'Cephane Kutusu', kind: 'ammobox', slot: 'gadget', desc: 'Yere koyulur; yakındaki dostların mermisini doldurur.', stats: { dmg: 0, range: 20, rate: 10, control: 70, mobility: 100 },
     count: 1, rpm: 40, mag: 1, reserve: 0, move: 1.0, equip: 0.3, sound: 'throw', useTime: 0.8, life: 30, radius: 3.6,
@@ -271,7 +287,7 @@ export const CLASS_DEFS = {
     label: 'Saldırı', hp: 100, speed: 1.0, primary: { blue: 'm4a1', red: 'ak47' }, gadget: ['grenade', 2], desc: 'Dengeli tüfek + 2 el bombası',
     primaryOptions: ['m4a1', 'ak47', 'scarh', 'aug', 'g36', 'ak74u'],
     secondaryOptions: ['pistol', 'm1911', 'deagle', 'revolver', 'mac10'],
-    gadgetOptions: ['grenade', 'smoke', 'flash', 'claymore'],
+    gadgetOptions: ['grenade', 'smoke', 'flash', 'claymore', 'law', 'c4'],      // 12.208 tanksavar: hafif roketatar (LAW) / C4
     meleeOptions: ['knife', 'machete', 'tomahawk'],
     defaults: { primary: { blue: 'm4a1', red: 'ak47' }, secondary: 'pistol', gadget: 'grenade', melee: 'knife' },
   },
@@ -287,7 +303,7 @@ export const CLASS_DEFS = {
     label: 'Keskin Nişancı', hp: 100, speed: 0.97, primary: { blue: 'sniper', red: 'sniper' }, gadget: ['grenade', 1], desc: 'Tek atış, uzun menzil dürbünü',
     primaryOptions: ['sniper', 'svd', 'barrett'],
     secondaryOptions: ['pistol', 'm1911', 'deagle', 'revolver', 'mac10'],
-    gadgetOptions: ['grenade', 'smoke', 'claymore', 'medkit'],
+    gadgetOptions: ['grenade', 'smoke', 'claymore', 'medkit', 'c4'],
     meleeOptions: ['knife', 'machete', 'tomahawk'],
     defaults: { primary: { blue: 'sniper', red: 'sniper' }, secondary: 'pistol', gadget: 'grenade', melee: 'knife' },
   },
@@ -295,7 +311,7 @@ export const CLASS_DEFS = {
     label: 'Ağır Destek', hp: 125, speed: 0.9, primary: { blue: 'lmg', red: 'lmg' }, gadget: ['grenade', 1], desc: '100 mermilik LMG, fazla can',
     primaryOptions: ['lmg', 'pkm', 'scarh'],
     secondaryOptions: ['pistol', 'm1911', 'deagle', 'revolver', 'mac10'],
-    gadgetOptions: ['grenade', 'ammobox', 'smoke', 'claymore', 'flash'],
+    gadgetOptions: ['grenade', 'ammobox', 'smoke', 'claymore', 'flash', 'c4'],
     meleeOptions: ['knife', 'machete', 'tomahawk'],
     defaults: { primary: { blue: 'lmg', red: 'pkm' }, secondary: 'pistol', gadget: 'grenade', melee: 'knife' },
   },
@@ -303,7 +319,7 @@ export const CLASS_DEFS = {
     label: 'Mühendis', hp: 100, speed: 1.0, primary: { blue: 'shotgun', red: 'shotgun' }, gadget: ['rpg', 2], desc: 'Pompalı + roketatar',
     primaryOptions: ['shotgun', 'aa12', 'dbl', 'ak74u'],
     secondaryOptions: ['pistol', 'm1911', 'deagle', 'revolver', 'mac10'],
-    gadgetOptions: ['rpg', 'm79', 'claymore', 'ammobox'],
+    gadgetOptions: ['rpg', 'm79', 'claymore', 'ammobox', 'atmine', 'c4'],
     meleeOptions: ['knife', 'machete', 'tomahawk'],
     defaults: { primary: { blue: 'shotgun', red: 'shotgun' }, secondary: 'pistol', gadget: 'rpg', melee: 'knife' },
   },
@@ -321,7 +337,7 @@ export function makeLoadout(cls, team, choice = {}, rng = Math.random) {
   const melee = pickOpt(def.meleeOptions, choice.melee, d.melee);
   const gun = (id) => ({ id, mag: WSTATS[id].mag, reserve: WSTATS[id].reserve });
   const gs = WSTATS[gadget], n = gs.count || 1;
-  const gi = gs.kind === 'launcher' ? { id: gadget, mag: 1, reserve: n - 1 } : { id: gadget, mag: n, reserve: 0 };
+  const gi = gs.kind === 'launcher' ? { id: gadget, mag: 1, reserve: Math.max(n - 1, gs.reserve || 0) } : { id: gadget, mag: n, reserve: 0 };      // 12.208 roketatar dolu başlar (RPG 1 + 2 = 3 roket; eskiden 2)
   return [gun(primary), gun(secondary), gi, { id: melee, mag: 1, reserve: 0 }];
 }
 
@@ -383,6 +399,7 @@ export const OPTIC_ALLOWED = {
   svd: ['acog', 'x6', 'x8'],
   barrett: ['scope6', 'x8'],
   rpg: ['iron'],
+  law: ['iron'],
   m79: ['iron'],
   pbrifle: ['reddot'],
   pbpistol: ['iron', 'reddot'],

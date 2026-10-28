@@ -8,11 +8,11 @@ import { aimNade } from './grenade.js';
 import { tacRole, tacPickGoal, tacHold, tacAim, tacMayFire, tacFired, tacCombatMove, tacStrafeDir, tacHear, tacMateDown, tacOf } from './botTactics.js';
 import { plTick, plPickGoal, plArrive, plAnchored, plTargetBias, plCombatMove, plStuck } from './payloadBots.js';
 import { SWIM, waterYAt } from '../sim/swim.js';
-import { vbBoard, vbRelease, vbDrive, vbRideOk, vbCrew } from './vehicleBots.js';           // 12.189 bot sürücüler
+import { vbBoard, vbRelease, vbDrive, vbRideOk, vbCrew, vnavFree } from './vehicleBots.js';           // 12.189 bot sürücüler
 import { squadFollow } from './squad.js';                                            // 12.202 manga botu lideri izler
 import { frTick, frPickGoal, frArrive, frAnchored, frTargetBias, frCombatMove, frStuck, frDamaged } from './frontBots.js';     // 12.158 Cephe modu
 import { empBoard, empRide } from './empBots.js';                                          // 12.213 sabit silah yuvaları
-import { flankVia } from './bigBots.js';                                                    // 12.203 büyük harita kanat mangalı
+import { flankVia, bigGuardGoal, guardCombatMove, guardLeash, bigTacGoal } from './bigBots.js';                                                    // 12.203 büyük harita kanat mangalı
 
 // silah rolleri (bot davranışı)
 const SNIPERS = new Set(['sniper', 'svd', 'barrett', 'ww_sniper']);
@@ -78,7 +78,7 @@ export class BotBrain {
     if (inv < 0) return;
     this.alertT = this.game.time;
     this.alertPos = (this.alertPos || new THREE.Vector3()).copy(pos);
-    if (!this.target && Math.random() < inv && this.goalT > 3 && !(this.game.payload && plAnchored(this)) && !(this.game.front && frAnchored(this))) this.setGoal(pos.x + rand(-6, 6), pos.z + rand(-6, 6), 8, pos.y);
+    if (!this.target && Math.random() < inv && this.goalT > 3 && !(this.game.payload && plAnchored(this)) && !(this.game.front && frAnchored(this)) && guardLeash(this, pos.x, pos.z)) this.setGoal(pos.x + rand(-6, 6), pos.z + rand(-6, 6), 8, pos.y);
   }
 
   onMateDown(victim, killer) { if (!this.s.def.zombie) tacMateDown(this, victim, killer); }
@@ -117,6 +117,8 @@ export class BotBrain {
     if (g.front) { frPickGoal(this); return; }            // Cephe: rol planı (frontBots.js): mevzi / nokta savunması · nokta saldırısı / kanat / nişancı
     if (g.payload) { plPickGoal(this); return; }          // Vagon: rol planı (payloadBots.js): eskort / öncü / yan · durdurucu / siper / yan
     if (squadFollow(this)) return;                       // 12.202 manga: insan liderin yakınına (ara sıra; bayrak görevi sonra sürer)
+    if (g.map.big && (this.guard || this.respond) && bigGuardGoal(this)) return;      // 12.208 nöbet (bayrak çevresinde siper) / saldırı altındaki bayrağa koşma (bigBots.js)
+    if (g.map.big && objs.length && bigTacGoal(this)) return;                  // 12.208 yoğunluk yönlendirmesi / saldırıda siperden sipere (bigBots.js)
     if (tacPickGoal(this)) return;                       // 12.152: nişancı mevzisi / pusu noktası (botTactics.js)
     if (!objs.length) { this.roam(); return; }       // takım çatışması: haritada dolaş, düşmana yönel
     const sq = g.squadGoal(s);
@@ -284,9 +286,9 @@ export class BotBrain {
   // 12.200 tanksavar nişanı: hedef araçtaysa ve botta roket varsa [yaw, pitch, aracın gövde ortasına uzaklık] (öncü: roket düz uçar), yoksa null
   atAim(tg, eye, dist) {
     const s = this.s, v = tg.veh, it = s.items[2];
-    if (!v?.alive || !v.st || s.veh || it?.id !== 'rpg' || it.mag + it.reserve <= 0 || dist > AT_BOT.range) return null;
+    if (!v?.alive || !v.st || s.veh || (it?.id !== 'rpg' && it?.id !== 'law') || it.mag + it.reserve <= 0 || dist > AT_BOT.range) return null;
     if (v.def.heli && v.st.air && dist > AT_BOT.heliAir) return null;
-    const st = v.st, sp = WSTATS.rpg.speed;
+    const st = v.st, sp = WSTATS[it.id].speed;
     let px = st.x, py = st.y + v.def.top * 0.45, pz = st.z;
     for (let k = 0; k < 2; k++) { const t = Math.hypot(px - eye.x, py - eye.y, pz - eye.z) / sp; px = st.x + st.vx * t; py = st.y + v.def.top * 0.45 + (st.vy || 0) * t; pz = st.z + st.vz * t; }
     if ((this.atErrT = (this.atErrT ?? 0) - 1) <= 0 || !this.atErr) { const e = AT_BOT.err[this.dk] ?? AT_BOT.err.normal; this.atErr = [rand(-e, e), rand(-e, e) * 0.6]; this.atErrT = 1e9; }
@@ -299,7 +301,7 @@ export class BotBrain {
     this.atCd = (this.atCd ?? 0) - dt;
     if (this.reactT > 0 || this.atCd > 0 || dist < AT_BOT.fire[0] || dist > AT_BOT.fire[1]) return;
     if (Math.abs(angleDiff(s.yaw, atm[0])) > 0.03 + 0.6 / (dist + 10) || Math.abs(s.pitch - atm[1]) > 0.04) return;
-    if (s.useGadget('rpg')) { const c = AT_BOT.cd[this.dk] || AT_BOT.cd.normal; this.atCd = rand(c[0], c[1]); this.atErr = null; const gs = (this.game.atStats ||= { shots: 0 }); gs.shots++; }
+    if (s.useGadget(s.items[2].id)) { const c = AT_BOT.cd[this.dk] || AT_BOT.cd.normal; this.atCd = rand(c[0], c[1]); this.atErr = null; const gs = (this.game.atStats ||= { shots: 0 }); gs.shots++; }
   }
 
   sense() {
@@ -307,7 +309,7 @@ export class BotBrain {
     const eye = s.eye(tA);
     const fwd = tB.set(-Math.sin(s.yaw), 0, -Math.cos(s.yaw));
     const alerted = g.time - this.alertT < 3;
-    const at = g.vehicles && (s.items[2]?.id === 'rpg' || s.items[2]?.id === 'm79') && s.items[2].mag > 0;      // 12.189 tanksavarı var
+    const at = g.vehicles && (s.items[2]?.id === 'rpg' || s.items[2]?.id === 'law' || s.items[2]?.id === 'm79') && s.items[2].mag > 0;      // 12.189 tanksavarı var
     let best = null, bd = 1e9;
     // 12.203 düz uzaklık puanı olan modlarda (Ele Geçirme / TDM / herkes-tek) adaylar önce ucuz süzgeçten geçer, yakından uzağa sıralanır, ilk GÖRÜLEN
     // seçilir (en yakın görünen = eskisiyle aynı sonuç). Eskiden menzildeki her aday için görüş hattı (dünya + duman + yaprak) sınanıyordu: 128v128'de
@@ -389,7 +391,7 @@ export class BotBrain {
     } else if (this.target) {
       this.lostT += 0.22;
       if (this.lostT > 0.5) {
-        if (this.lastKnown && !(g.payload && plAnchored(this)) && !(g.front && frAnchored(this)) && !this.spot) this.setGoal(this.lastKnown.x, this.lastKnown.z, 6, this.lastKnown.y);
+        if (this.lastKnown && !(g.payload && plAnchored(this)) && !(g.front && frAnchored(this)) && !this.spot && guardLeash(this, this.lastKnown.x, this.lastKnown.z)) this.setGoal(this.lastKnown.x, this.lastKnown.z, 6, this.lastKnown.y);
         if (this.lastKnown && this.target?.alive && Math.hypot(this.target.vel.x, this.target.vel.z) < 2) { this.nadeSpot = this.lastKnown.clone(); this.nadeSpotT = g.time; }   // siper arkasında durdu (kamp): oraya bomba düşünülebilir
         this.target = null;
       }
@@ -776,6 +778,10 @@ export class BotBrain {
         if (isFrag(gid) || gid === 'flash') this.gadgetT = 2;                                  // el bombası / flaş: aşağıda (tryNade, kendi bekleme süresi)
         else if (gid === 'smoke' && s.hp < s.maxHp * 0.55 && dist > 8 && dist < 40) { s.pitch = Math.max(s.pitch, 0.25); if (s.useGadget('smoke')) this.gadgetT = rand(18, 30); }
         else if (atm) this.gadgetT = 0.5;                                                       // 12.200: roketi atFire atar
+        else if (gid === 'c4' && tg.veh?.alive && tg.veh.st && !s.veh && s.items[2].mag > 0) {      // 12.208 C4: araçtaki düşmanın dibindeyse yapıştır (yoksa 2 sn sonra yeniden bak)
+          const v = tg.veh, dv = Math.hypot(v.st.x - s.pos.x, v.st.z - s.pos.z) - Math.max(v.def.hl, v.def.hw);
+          if (dv < 1.8) { s.yaw = yawFromDir(v.st.x - s.pos.x, v.st.z - s.pos.z); if (s.useGadget('c4')) { this.gadgetT = rand(2, 4); (g.atStats ||= { shots: 0 }).c4 = ((g.atStats.c4) || 0) + 1; } } else this.gadgetT = 0.5;
+        }
         else if ((gid === 'rpg' || gid === 'm79') && dist > 14 && dist < (gid === 'rpg' ? 70 : 55) && Math.random() < 0.5) {
           if (gid === 'm79') s.pitch = Math.max(s.pitch, 0.0044 * dist);
           if (s.useGadget(gid)) this.gadgetT = rand(10, 16);
@@ -796,7 +802,8 @@ export class BotBrain {
       const kite = g.mode.infection && tg.def && tg.def.zombie && !(g.map.perches && s.pos.y > 0.8);      // platformdaki insan geri çekilmez, yüksekten ateş eder
       s.crouching = false;
       const plm = g.payload && !kite ? plCombatMove(this, dt, nx, nz) : g.front && !kite ? frCombatMove(this, dt, nx, nz) : null;      // Cephe: mevzideki bot yerinden kopmaz, çömel-kalk      // Vagon: eskort / durdurucu yarıçaptan, siperdeki siperinden kopmaz
-      const tcm = !plm && !kite && !inf && s.cur !== 3 && st.kind !== 'melee' ? tacCombatMove(this, dist, tg) : null;      // 12.152 rol: nişancı / pusucu yerinde, taarruzcu yaklaşır, canı az geri çekilir
+      const gcm = !plm && !kite && this.guard && s.cur !== 3 && st.kind !== 'melee' ? guardCombatMove(this, dt, dist) : null;      // 12.208 nöbetçi mevzisinden kopmaz
+      const tcm = !plm && !gcm && !kite && !inf && s.cur !== 3 && st.kind !== 'melee' ? tacCombatMove(this, dist, tg) : null;      // 12.152 rol: nişancı / pusucu yerinde, taarruzcu yaklaşır, canı az geri çekilir
       if (atm && !plm) {                                         // 12.200 tanksavar: menzile yaklaş (uzakta koşar), yakında yana kayarak dur, çok yakında (< 14 m) geri çekil
         const k = dist > AT_BOT.approach ? 0.95 : dist < 14 ? -0.7 : 0, st2 = dist > AT_BOT.approach ? 0.15 : 0.45;
         moveX = nx * k + (-nz) * this.strafeDir * st2; moveZ = nz * k + nx * this.strafeDir * st2; speed *= dist > AT_BOT.approach ? 0.9 : 0.55;
@@ -805,6 +812,7 @@ export class BotBrain {
           const pm = this.followGoal(dt); if (pm && pm[2] > 0) { moveX = pm[0]; moveZ = pm[1]; }
         }
       } else if (plm) { moveX = plm[0]; moveZ = plm[1]; speed *= plm[2]; }
+      else if (gcm) { moveX = gcm[0]; moveZ = gcm[1]; speed *= gcm[2]; s.crouching = gcm[3]; }
       else if (tcm) { moveX = nx * tcm[0] + (-nz) * this.strafeDir * tcm[1]; moveZ = nz * tcm[0] + nx * this.strafeDir * tcm[1]; speed *= tcm[2]; s.crouching = tcm[3]; }
       else if (kite) {                                           // zombiye karşı: yaklaşınca geri çekilerek ateş et, uzaktayken yerinde dur
         s.crouching = false;
@@ -843,6 +851,7 @@ export class BotBrain {
       if (this.gadgetT <= 0) {
         const gi = s.items[2] || NOIT;
         if (gi.id === 'claymore' && gi.mag > 0 && this.goal && Math.hypot(this.goal.x - s.pos.x, this.goal.z - s.pos.z) < 7) { if (s.useGadget('claymore')) this.gadgetT = rand(25, 50); else this.gadgetT = 3; }
+        else if (gi.id === 'atmine' && gi.mag > 0 && g.vehicles && this.goal && Math.hypot(this.goal.x - s.pos.x, this.goal.z - s.pos.z) < 7 && g.mode.objectives.some((o) => o.owner === s.team && Math.hypot(o.x - s.pos.x, o.z - s.pos.z) < o.r + 60) && vnavFree(g, s.pos.x, s.pos.z)) { if (s.useGadget('atmine')) this.gadgetT = rand(30, 60); else this.gadgetT = 3; }      // 12.208 kendi bayrağında araç geçebilen yere mayın
         else if (gi.id === 'ammobox' && gi.mag > 0 && s.items[0].reserve < WSTATS[s.items[0].id].reserve * 0.5) { if (s.useGadget('ammobox')) this.gadgetT = rand(30, 60); else this.gadgetT = 3; }
         else this.gadgetT = 4;
       }

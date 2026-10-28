@@ -4,6 +4,7 @@ import { WSTATS } from './stats.js';
 import { clamp, rand } from './util.js';
 import { t as $t } from '../i18n/index.js';
 import { deafen } from './grenade.js';
+import { toWorld, toLocal2 } from '../sim/vehicle.js';
 
 // Gadget mantığı: duman (küre listesi, görüşü keser), flaşbang (körlük), claymore (mayın), cephane kutusu.
 // game.smokes: [{ pos, r, rMax, life, max, group, puffs }] · game.deployables: kurulan nesneler
@@ -148,8 +149,9 @@ export function placeDeployable(game, s, st) {
   const x = s.pos.x + fx * 0.9, z = s.pos.z + fz * 0.9;
   // önü duvarsa kurma
   const wall = game.world.raycast(new THREE.Vector3(s.pos.x, s.pos.y + 0.5, s.pos.z), new THREE.Vector3(fx, 0, fz), 1.0, {});
-  if (wall) return false;
+  if (wall && st.dep !== 'c4') return false;                                  // 12.208 C4 önündeki araca / duvara yapışır
   const y = groundAt(game, x, z, s.pos.y);
+  if (st.dep === 'c4' || st.dep === 'atmine') return placeAT(game, s, st, x, y, z, fx, fz);
   if (st.kind === 'mine') {
     const mine = game.deployables.filter((d) => d.type === 'claymore' && d.owner === s);
     if (mine.length >= 3) removeDeployable(game, mine[0]);
@@ -178,6 +180,84 @@ export function placeDeployable(game, s, st) {
   return false;
 }
 
+// ── 12.208 C4 (aracın dibindeyse gövdesine yapışır, yoksa yere; 5 sn fünye, bip sıklaşır) · tanksavar mayını (yola; üstünden geçen düşman aracı) ──
+function atMesh(type) { const m = createWeapon(type === 'c4' ? 'c4' : 'atmine'); m.scale.setScalar(type === 'c4' ? 2.2 : 2.4); return m; }
+function placeAT(game, s, st, x, y, z, fx, fz) {
+  const type = st.dep, V = game.vehicles;
+  let veh = null, lo = null;
+  if (type === 'c4' && V) {                                         // gövdeye en yakın araç (oyuncunun önünde / yanında, stick m içinde)
+    let bd = st.stick;
+    for (const v of V.list) {
+      if (!v.alive || !v.st) continue;
+      const L = toLocal2(v.st, s.pos.x + fx * 0.6, s.pos.z + fz * 0.6), d = v.def;
+      const ex = Math.max(0, Math.abs(L.f) - d.hl), ez = Math.max(0, Math.abs(L.r) - d.hw);
+      const dd = Math.hypot(ex, ez); if (dd < bd && s.pos.y < v.st.y + d.top + 1.5) { bd = dd; veh = v; }
+    }
+    if (veh) {                                                       // yapışma noktası: gövde kutusunun oyuncuya bakan yüzü (yüksekte duruyorsa üstü)
+      const d = veh.def, L = toLocal2(veh.st, s.pos.x, s.pos.z);
+      const top = s.pos.y > veh.st.y + d.top - 0.3;
+      let f = Math.max(-d.hl, Math.min(d.hl, L.f)), r = Math.max(-d.hw, Math.min(d.hw, L.r));
+      if (!top) { if (Math.abs(L.f) / d.hl > Math.abs(L.r) / d.hw) f = Math.sign(L.f) * (d.hl + 0.05); else r = Math.sign(L.r) * (d.hw + 0.05); }
+      lo = [f, r, top ? d.top + 0.08 : Math.min(d.top * 0.6, 1.0)];
+    }
+  }
+  if (type === 'atmine') { const mine = game.deployables.filter((d) => d.type === 'atmine' && d.owner === s); if (mine.length >= (st.max || 4)) removeDeployable(game, mine[0]); }
+  const mesh = atMesh(type);
+  game.scene.add(mesh);
+  const d = { id: ++game.pidN, type, owner: s, team: s.team, pos: new THREE.Vector3(x, y + 0.05, z), mesh, st, ry: s.yaw, veh, lo, fuse: st.fuse || 0, arm: st.arm || 0, beep: 0 };
+  atFollow(d);
+  mesh.rotation.y = s.yaw;
+  game.deployables.push(d);
+  game.netEvent({ e: 'dep', id: d.id, ty: type === 'c4' ? 'k' : 'm', p: [d.pos.x, d.pos.y, d.pos.z], ry: +s.yaw.toFixed(3), tm: s.team, w: type, by: s.id, vi: veh ? veh.idx : -1, lo: lo ? lo.map((q) => +q.toFixed(2)) : null });
+  if (s.isPlayer) game.hud.toast(type === 'c4' ? (veh ? 'C4 araca yapıştı · 5 sn' : 'C4 kuruldu · 5 sn') : 'Tanksavar mayını kuruldu', '#ffc94a');
+  return true;
+}
+const _f = { x: 0, y: 0, z: 0 };
+function atFollow(d) {                                               // araca yapışık C4 aracın gövdesiyle gider
+  if (d.veh && d.lo) {
+    if (!d.veh.alive || !d.veh.st) { d.veh = null; return; }
+    toWorld(d.veh.st, d.lo[0], d.lo[1], d.lo[2], _f); d.pos.set(_f.x, _f.y, _f.z);
+    d.mesh.rotation.y = d.veh.st.yaw;
+  }
+  d.mesh.position.copy(d.pos);
+}
+function atBoom(game, d, hitV) {
+  const st = d.st, pos = d.pos.clone();
+  if (d.type === 'c4') {
+    if (d.veh?.alive) d.veh._lastZone = '';
+    game.netEvent({ e: 'boom', k: 'x', p: [+pos.x.toFixed(2), +pos.y.toFixed(2), +pos.z.toFixed(2)], r: st.radius, by: d.owner.id });
+    game.explode(pos, st.radius, st.dmg, d.owner, st.name, undefined, 'at', null);
+  } else {
+    game.netEvent({ e: 'boom', k: 'x', p: [+pos.x.toFixed(2), +pos.y.toFixed(2), +pos.z.toFixed(2)], r: 3, by: d.owner.id });
+    game.effects.explosion(pos, 3.5); game.sfx.explosion(pos); game.effects.boomShake?.(pos, 0.7, 30); game.alertNear?.(pos, d.team, 90);
+    if (hitV) { hitV._lastZone = 'b'; game.vehicles.damage(hitV, st.vehDmg, d.owner, 'at', st.name); }
+    for (const e of game.soldiers) {
+      if (!e.alive || e.veh || e.team === d.team) continue;
+      const dist = e.center(_a).distanceTo(pos); if (dist > st.radius) continue;
+      e.takeDamage(st.dmg * (1 - (dist / st.radius) ** 2), d.owner, 'body', pos, st.name);
+    }
+  }
+  removeDeployable(game, d);
+}
+function atTick(game, d, dt) {
+  atFollow(d);
+  if (d.type === 'c4') {
+    d.fuse -= dt; d.beep -= dt;
+    if (d.beep <= 0) { d.beep = d.fuse > 2 ? 0.8 : d.fuse > 1 ? 0.35 : 0.15; game.sfx.beep(d.pos); }
+    if (d.fuse <= 0) atBoom(game, d);
+    return;
+  }
+  if (d.arm > 0) { d.arm -= dt; if (d.arm <= 0) game.sfx.beep(d.pos); return; }
+  const V = game.vehicles; if (!V) return;
+  for (const v of V.list) {
+    if (!v.alive || !v.st || (v.def.heli && v.st.air)) continue;
+    const tm = V.teamOf(v); if (!tm || tm === d.team || !v.seats.some(Boolean)) continue;      // boş / dost araç tetiklemez
+    if (Math.abs(v.st.y - d.pos.y) > 1.5) continue;
+    const L = toLocal2(v.st, d.pos.x, d.pos.z), t = d.st.trigger;
+    if (Math.abs(L.f) < v.def.hl + t && Math.abs(L.r) < v.def.hw + t) { atBoom(game, d, v); return; }
+  }
+}
+
 export function removeDeployable(game, d) {
   game.scene.remove(d.mesh);
   const i = game.deployables.indexOf(d);
@@ -189,6 +269,11 @@ export function removeDeployable(game, d) {
 export function netDeploy(game, ev) {
   const [x, y, z] = ev.p;
   let mesh;
+  if (ev.ty === 'k' || ev.ty === 'm') {                               // 12.208 C4 / tanksavar mayını (araca yapışık C4 istemcide de aracı izler)
+    const type = ev.ty === 'k' ? 'c4' : 'atmine', m = atMesh(type); m.rotation.y = ev.ry; game.scene.add(m);
+    const d = { id: ev.id, type, team: ev.tm, mesh: m, pos: new THREE.Vector3(x, y, z), veh: ev.vi >= 0 ? game.vehicles?.list[ev.vi] : null, lo: ev.lo, net: true };
+    atFollow(d); game.deployables.push(d); return;
+  }
   if (ev.ty === 'c') { mesh = createWeapon('claymore'); mesh.scale.setScalar(2.2); mesh.position.set(x, y + 0.15, z); }
   else { mesh = ammoMesh(); mesh.scale.setScalar(1.7); mesh.position.set(x, y, z); }
   mesh.rotation.y = ev.ry;
@@ -223,10 +308,11 @@ function claymoreBlast(game, d) {
 
 export function updateGadgets(game, dt, T) {
   updateSmokes(game, dt, T);
-  if (game.online) return;               // çevrimiçi istemci: mayın/cephane mantığı sunucuda
+  if (game.online) { for (const d of game.deployables) if (d.veh) atFollow(d); return; }               // çevrimiçi istemci: mayın/cephane mantığı sunucuda (araca yapışık C4 görüntüsü aracı izler)
   for (let i = game.deployables.length - 1; i >= 0; i--) {
     const d = game.deployables[i];
     if (!game.deployables.includes(d)) continue;
+    if (d.type === 'c4' || d.type === 'atmine') { atTick(game, d, dt); continue; }
     if (d.type === 'claymore') {
       if (d.arm > 0) { d.arm -= dt; if (d.arm <= 0) game.sfx.beep(d.pos); continue; }
       d.beep -= dt;
