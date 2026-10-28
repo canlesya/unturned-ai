@@ -184,7 +184,7 @@ export const WSTATS = {
   // ───────── Fırlatıcılar (gadget yuvası) ─────────
   rpg: {
     name: 'RPG-7', kind: 'launcher', slot: 'gadget', desc: 'Roketatar: araç ve bina için patlayıcı hasar.', stats: { dmg: 100, range: 80, rate: 8, control: 40, mobility: 40 },
-    count: 2, auto: false, dmg: 160, radius: 6.5, speed: 38, rpm: 30, mag: 1, reserve: 2, reload: 2.8, equip: 0.35,
+    count: 2, auto: false, dmg: 160, radius: 6.5, speed: 38, rpm: 30, mag: 1, reserve: 2, reload: 2.8, equip: 0.35, armorMul: 1.3,      // 12.200 armorMul: zırhlı araca (tank) çarpan (OYUN.md 12.200)
     hip: 0.02, ads: 0.005, kickV: 0.06, kickH: 0.01, zoom: 1.4, move: 0.85,
     sight: [-0.045, 0.14, -0.05], dist: 0.38, sound: 'rpg',
   },

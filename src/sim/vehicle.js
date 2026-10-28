@@ -45,6 +45,9 @@ export const VT = {
     // koltuklar: 0 sürücü (gövde içi, görünmez; ana topu da kullanır), 1 nişancı (kule kapağı, belden yukarısı dışarıda; makineli)
     seat: [[1.95, -0.62, 0.75], [-0.35, 0.42, 2.15]], hidden: [true, false],
     blastMul: 0.3, bulletMul: 0, hmgMul: 0, atMul: 1.25, ramMin: 2.5, ramMul: 40, mass: 4, wade: 1.6, stepUp: 0.8,
+    // 12.200 yönlü zırh (Battlefield: önden 3–4 RPG, arkadan 2): patlamanın gövdeye göre yeri → ön × f, yan / üst × s, arka × r ('at' + 'blast').
+    // RPG (armorMul 1,3): ön 160 × 1,3 × 1,25 = 260 → 4 · yan 351 → 3 · arka 520 → 2 isabet; tank topu (375): ön 3 · yan / arka 2 atış
+    armor: { f: 1, s: 1.35, r: 2.0 },
     burnAt: 0.2, burnRate: 14, boom: [8, 140],
     respawn: 45, wreck: 10, idleRespawn: 150,
     // kule: dikey eksen gövde merkezinden ileri tf (m), kule üstü / yükseklik; ana top: pivot yüksekliği, namlu boyu, açı sınırları, dönüş hızları
@@ -131,6 +134,29 @@ function wheels(v, world, out, ref) {
     out[k++] = groundAt(world, v.x + fx * f + rx * r, v.z + fz * f + rz * r, ref, d.stepUp ?? STEP_UP);
   }
   return out;
+}
+
+// 12.200 tümsek kaldırması: gövde yüksekliği dört teker noktasının ortalaması; tümseğin / sırtın üstünde duran (ya da geçen) araçta aradaki
+// zemin teker düzleminin üstüne çıkar → paletin ortası / gövde altı arazinin içinde görünüyordu (oynanış taraması: tank paleti 0,25 m, jip gövdesi
+// 0,49 m gömülü). Palet boyunca (¼, ½, ¾) ve gövde altı ortasında zemin örneklenir; düzlemin üstüne çıkan kısım kadar gövde kaldırılır (palet
+// tümseğe basar). w: wheels() çıktısı (ön sol, ön sağ, arka sol, arka sağ). Sunucu = istemci tahmini (aynı fonksiyon).
+const LIFT_K = [0.25, 0.5, 0.75];
+function bellyLift(v, world, w, ref) {
+  const d = v.def, s = Math.sin(v.yaw), c = Math.cos(v.yaw), fx = -s, fz = -c, rx = c, rz = -s, hf = d.wb / 2, ht = d.tr / 2;
+  let lift = 0;
+  if (d.tracked) {
+    for (let side = 0; side < 2; side++) {
+      const r = side ? ht : -ht, a = w[side], b = w[2 + side];
+      for (const k of LIFT_K) {
+        const f = hf - k * d.wb, gp = a + (b - a) * k, g = groundAt(world, v.x + fx * f + rx * r, v.z + fz * f + rz * r, ref, d.stepUp ?? STEP_UP);
+        if (g - gp > lift) lift = g - gp;
+      }
+    }
+  } else {
+    const gp = (w[0] + w[1] + w[2] + w[3]) / 4, g = world.heightAt(v.x, v.z), m = g - gp - (d.clear - 0.12);
+    if (m > lift) lift = m;
+  }
+  return Math.min(0.9, lift);
 }
 
 // OBB (araç) ↔ AABB (kutu) yatay ayırma ekseni testi. Çakışıyorsa { nx, nz, d } (aracı kutudan çıkaran yön + girişim), yoksa null
@@ -241,7 +267,7 @@ export function stepVehicle(v, inp, dt, world) {
   const b = T.bounds;
   if (b) { v.x = Math.max(b.minX + 2, Math.min(b.maxX - 2, v.x)); v.z = Math.max(b.minZ + 2, Math.min(b.maxZ - 2, v.z)); }
   // dikey: zemin izleme / uçuş / iniş
-  const w = wheels(v, T, _q, v.y + 0.05), g = (w[0] + w[1] + w[2] + w[3]) / 4;
+  const w = wheels(v, T, _q, v.y + 0.05), g = (w[0] + w[1] + w[2] + w[3]) / 4 + bellyLift(v, T, _q, v.y + 0.05);
   const sp = Math.hypot(v.vx, v.vz);
   if (!v.air) {
     const stick = 0.04 + sp * dt * 0.3;

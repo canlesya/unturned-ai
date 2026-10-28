@@ -2013,7 +2013,7 @@ export class Game {
         if (gt === 'smoke') spawnSmoke(this, boom, p.st, p.owner);
         else if (gt === 'flash') flashBang(this, boom, p.owner, p.st);
         else if (p.type === 'grenade' && p.st.kind === 'throwable') this.fragBlast(boom, p.st, p.owner, p.inHand ? 9 : undefined);      // 12.193 PUBG tarzı parça tesiri (öldürücü iç yarıçap + düşüş, siper)
-        else this.explode(boom, p.st.radius, p.st.dmg, p.owner, p.st.name, p.inHand ? 9 : undefined, p.type === 'rocket' ? 'at' : 'blast');      // 12.178: RPG tanksavar
+        else this.explode(boom, p.st.radius, p.st.dmg, p.owner, p.st.name, p.inHand ? 9 : undefined, p.type === 'rocket' ? 'at' : 'blast', p.st.armorMul ? { pierce: p.st.armorMul } : null);      // 12.178: RPG tanksavar · 12.200 zırh delme (yalnız zırhlı araca)
       }
     }
   }

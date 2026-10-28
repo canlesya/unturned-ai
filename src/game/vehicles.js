@@ -19,6 +19,15 @@ const F_ALIVE = 1, F_AIR = 2, F_BURN = 4, F_LIGHT = 8, F_HORN = 16, F_SUNK = 32,
 export const VEH_FLAGS = { F_ALIVE, F_AIR, F_BURN, F_LIGHT, F_HORN, F_SUNK, F_WRECK };
 const r2 = (v) => Math.round(v * 100) / 100, r3 = (v) => Math.round(v * 1000) / 1000;
 
+// 12.200 yönlü zırh: patlama noktasının gövdeye göre yeri (yerel f / r, gövde boyuna oranla) → ön / yan (üst dahil) / arka çarpanı (def.armor)
+export function armorAt(v, pos) {
+  const A = v.def.armor, d = v.def; if (!A) return 1;
+  const L = toLocal2(v.st, pos.x, pos.z), fn = L.f / d.hl, rn = Math.abs(L.r) / d.hw;
+  if (pos.y > v.st.y + d.top - 0.15 && Math.abs(fn) < 1 && rn < 1) return A.s;          // üstten (helikopter roketi, havan): yan zırhı kadar
+  if (rn > Math.abs(fn)) return A.s;
+  return fn >= 0 ? A.f : A.r;
+}
+
 export class Vehicles {
   // Haritada kullanılabilir araç doğuşu var mı (yoksa yönetici kurulmaz → diğer haritalarda davranış aynı)
   static wanted(game) { return !!(game.map.vehicles?.some((d) => VT[d.type]) && game.mode.type === 'conquest'); }
@@ -284,7 +293,7 @@ export class Vehicles {
       _p.x = v.st.x; _p.y = v.st.y + d.top * 0.6; _p.z = v.st.z;
       if (dist > 0.6 && !this.g.world.clear(o, _p)) continue;
       const f = opt?.vehInner != null ? heFalloff(dist, radius, opt.vehInner) : 1 - (dist / radius) ** 2;
-      this.damage(v, dmg * f, owner, kind, name);
+      this.damage(v, dmg * f * (d.armor ? armorAt(v, pos) * (opt?.pierce || 1) : 1), owner, kind, name);
     }
   }
 

@@ -241,7 +241,7 @@ export function buildNewYork() {
     ['car', 54, -2.4, -0.3, true, '#5a463c'], ['taxi', 62, 5.5, 0.2, true], ['car', 70, -5.6, Math.PI + 0.2, true, '#303a42'],
     // 5. cadde
     ['taxi', 2.6, -24, Math.PI / 2 + 0.1, true], ['car', -3.0, -38, Math.PI / 2 - 0.2, true, '#46403a'], ['taxi', 3.4, -50, Math.PI / 2, true], ['car', -2.6, 22, Math.PI / 2 + 0.15, true, '#2e3238'],
-    ['taxi', 3.0, 34, -Math.PI / 2, true], ['car', -3.2, 48, Math.PI / 2 - 0.1, true, '#523a2e'],
+    ['taxi', 3.0, 34, -Math.PI / 2, true], ['car', -2.8, 40.2, Math.PI / 2 - 0.1, true, '#523a2e'],      // 12.200: eskiden (−3,2, 48) parktaki çeşmenin içindeydi
     // yan caddeler
     ['car', -42, -20, Math.PI / 2, true, '#3a3f45'], ['taxi', -42, 24, Math.PI / 2 + 0.2, true], ['car', 42, -22, Math.PI / 2 - 0.1, true, '#4a443c'], ['taxi', 42, 20, Math.PI / 2, true],
     ['car', -42, 48, Math.PI / 2, true, '#2f343a'], ['car', 42, -48, Math.PI / 2 + 0.1, true, '#3d3a34'],
@@ -254,7 +254,7 @@ export function buildNewYork() {
   b.withKind(KD.WRECK, () => {
   K.bus(b, { x: -24, z: 5.6, ry: 0.05, wreck: true }); K.bus(b, { x: 30, z: -5.8, ry: Math.PI - 0.05, wreck: true }); K.bus(b, { x: 42, z: 0, ry: Math.PI / 2 + 0.1, wreck: true });
   M.tank(b, { x: 8.5, z: 14.5, ry: 0.6, wreck: true }); M.apc(b, { x: -9.5, z: -15.5, ry: -2.4, wreck: true }); M.apc(b, { x: 45, z: 22, ry: 1.2, wreck: true });
-  M.ambulance(b, { x: -30, z: 12, ry: 0.4, wreck: true }); M.jeep(b, { x: 40, z: -13.5, ry: 2.6, wreck: true });
+  M.ambulance(b, { x: -30, z: 10.3, ry: 0.4, wreck: true }); M.jeep(b, { x: 40, z: -13.5, ry: 2.6, wreck: true });      // 12.200 ambulans: z 12'de arka köşesi binanın cephesine giriyordu
   M.helicopter(b, { x: 22, z: 26, ry: 0.9 });                                            // düşmüş helikopter (güney B arsa karşısı)
   });
   b.flushVehicles();
