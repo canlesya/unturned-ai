@@ -3,7 +3,7 @@
 // rastgele düşmanın yanına ya da haritanın rastgele noktasına) → 16v16 600 sn'de 90 öldürme, araç yok. Burada yalnız BOT PLANI:
 //  · ÇATIŞMA BÖLGELERİ: haritanın adlı bölgeleri (bayrak yerleri: Radar Tepesi, Köy, Kavşak, Fabrika, Baraj, Çiftlik, Kereste Kampı) ele geçirilmez;
 //    150–240 sn'lik evrelerde İKİ TAKIM İÇİN ORTAK 1–3 etkin bölge seçilir (mangal sayısına göre). Seçim ağırlığı: iki üsse eşit uzaklık (adalet;
-//    Kavşak / Radar / Baraj önde, üsse yakın Çiftlik / Kereste Kampı neredeyse hiç) × yorgunluk (150 m içindeki son ölümler: çok kanlı bölge bir
+//    Kavşak / Radar / Baraj önde, üsse yakın Çiftlik / Kereste Kampı neredeyse hiç; ilk evre yalnız adil bölgelerden) × yorgunluk (150 m içindeki son ölümler: çok kanlı bölge bir
 //    süre geriye düşer → çatışma yeri maç içinde kayar). İki takımın mangalları aynı bölgelere gider → karşılaşma garanti.
 //  · Mangal görevi (12 sn'de bir): etkin bölgelere paylaştırılır (mangal konumuna en yakın), aynı bölgeye 3+ mangal → kanat (12.203 flankVia kalıbı).
 //  · Bölgedeki hedefsiz bot ara sıra 350 m içindeki en yakın düşmana yönelir (av); bölgeye uzak bot yolda araç alır (vehicleBots: tripDest = mangal hedefi).
@@ -47,7 +47,9 @@ function plan(g, nSq) {
   const Z = tdmZones(g), H = heat(g), prev = new Set(P.act.map((o) => o.id));
   // yakınlık: yeni bölge eski bölgelere yakın olan (çatışma yeri yavaş kayar; 700 m öteye atlayınca herkes yeniden yola düşüyordu)
   const near = (o) => (P.act.length ? 1 / (1 + Math.min(...P.act.map((q) => dist(q, o))) / BTDM.near) : 1);
-  const w = new Map(Z.map((o) => [o, Math.pow(fair(g, o), BTDM.fair) / (1 + BTDM.fatigue * Math.min(BTDM.fatigueCap, H[o.id] || 0)) * near(o) * (prev.has(o.id) ? BTDM.stay : 1)]));
+  // ilk evre: adil bölgelerden, üslere yakın olan daha olası (Kavşak ~700 m: ilk temas Baraj / Radar'dakinden ~30 sn önce)
+  const b0 = g.map.spawns.blue[0], r0 = g.map.spawns.red[0], first = (o) => (P.phase > 0 ? 1 : Math.pow(700 / ((dist(o, b0) + dist(o, r0)) / 2), 4));
+  const w = new Map(Z.filter((o) => P.phase > 0 || fair(g, o) > 0.9).map((o) => [o, first(o) * Math.pow(fair(g, o), BTDM.fair) / (1 + BTDM.fatigue * Math.min(BTDM.fatigueCap, H[o.id] || 0)) * near(o) * (prev.has(o.id) ? BTDM.stay : 1)]));
   const act = [];
   for (let i = 0; i < k && w.size; i++) {
     let sum = 0; for (const v of w.values()) sum += v;

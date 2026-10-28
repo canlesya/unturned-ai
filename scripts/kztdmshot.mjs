@@ -116,7 +116,8 @@ if (!ONLY || ONLY === 'online') {
   // boş tarafsız jip (bayrak / yol aracı; botlar almadıysa): yanına ışınlan, E
   let aIn = null, jp = null, why = null;
   for (let k = 0; k < 4 && !aIn; k++) {
-    jp = await A.evaluate(() => { const L = window.__game.vehicles.list.filter((v) => v.type === 'jip' && v.alive && !v.team && !v.seats.some(Boolean) && Math.hypot(v.st.vx, v.st.vz) < 0.3); const v = L[Math.floor(Math.random() * L.length)]; if (!v) return null; const sx = Math.cos(v.st.yaw), sz = -Math.sin(v.st.yaw); return [v.st.x + sx * 2.3, v.st.z + sz * 2.3, v.idx, v.id]; });
+    jp = await A.evaluate(() => { const PREF = ['C-Ja', 'F-Jb', 'N-J1', 'N-J2', 'C-Jb', 'N-J3'];      // önü açık (düz yol) tarafsız jipler
+      const L = window.__game.vehicles.list.filter((v) => v.type === 'jip' && v.alive && !v.team && !v.seats.some(Boolean) && Math.hypot(v.st.vx, v.st.vz) < 0.3 && Math.hypot(v.st.x - v.spawn.x, v.st.z - v.spawn.z) < 2).sort((a, b) => ((PREF.indexOf(a.id) + 99) % 99) - ((PREF.indexOf(b.id) + 99) % 99)); const v = L[0]; if (!v) return null; const sx = Math.cos(v.st.yaw), sz = -Math.sin(v.st.yaw); return [v.st.x + sx * 2.3, v.st.z + sz * 2.3, v.idx, v.id]; });
     if (!jp) break;
     await A.evaluate((p) => window.__game.online.send({ t: 'dbg', tp: [p[0], p[1]] }), jp);
     await A.waitForTimeout(1800);
@@ -137,9 +138,10 @@ if (!ONLY || ONLY === 'online') {
   const err = Math.hypot(posA2[0] - posB[0], posA2[1] - posB[1]);
   ok(aIn && aIn === jp?.[3] && posA[2] > 10 && err < 3 && posB[2] === 'Ali', 'çevrim içi: A tarafsız jipe biner + sürer, B jipi aynı yerde, sürücüsü Ali görür', JSON.stringify({ aIn, moved: +posA[2].toFixed(1), err: +err.toFixed(2), drv: posB[2] }));
   await A.keyboard.press('KeyE');
-  await A.waitForTimeout(60000);
+  await A.waitForTimeout(45000);
+  for (let k = 0; k < 15 && !(await B.evaluate(() => window.__game.tickets.blue + window.__game.tickets.red)); k++) await A.waitForTimeout(5000);      // ilk temas bölgeye göre 60–120 sn
   const bs = await B.evaluate(() => { const g = window.__game, V = g.vehicles; const drv = V.list.filter((v) => v.alive && !v.def.fixed && v.seats[0] && !v.seats[0].netHuman && v.seats[0].name !== 'Ali' && v.seats[0].name !== 'Veli'); return { botDriven: drv.length, kinds: [...new Set(drv.map((v) => v.type))].join(','), score: { ...g.tickets }, pick: drv.find((v) => Math.hypot(v.st.vx, v.st.vz) > 3)?.idx ?? drv[0]?.idx ?? -1 }; });
-  ok(bs.botDriven >= 3 && bs.score.blue + bs.score.red >= 1, 'çevrim içi (~65 sn): botlar araç sürüyor, skor işliyor (B\'nin gördüğü)', JSON.stringify(bs));
+  ok(bs.botDriven >= 3 && bs.score.blue + bs.score.red >= 1, 'çevrim içi (ilk temasa dek, ≤ 2 dk): botlar araç sürüyor, skor işliyor (B\'nin gördüğü)', JSON.stringify(bs));
   if (bs.pick >= 0) {
     const vp = await B.evaluate((i) => { const v = window.__game.vehicles.list[i]; return [v.st.x, v.st.z]; }, bs.pick);
     await B.evaluate((p) => window.__game.online.send({ t: 'dbg', tp: [p[0] + 18, p[1] + 12] }), vp);

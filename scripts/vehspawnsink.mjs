@@ -51,7 +51,7 @@ for (const PER of PERS) {
     const R = [];
     for (const v of L) {
       const flag = typeof v.spawn.team === 'string' && v.spawn.team.startsWith('flag:');
-      if (sc === 'bayrak' && !flag) continue;
+      if (sc === 'bayrak' && (!flag || !g.mode.objectives.length)) continue;      // 12.219 TDM: bayrak yok
       born.delete(v.idx);
       if (sc === 'ilk') { v.alive = false; v.wreck = false; v.st = null; V.trySpawn(v, true); }
       else if (sc === 'bayrak') { const o = g.mode.objectives.find((q) => q.id === v.spawn.team.slice(5)); v.alive = false; v.st = null; v.spawnN = 0; v.wreck = false; o.owner = null; tick(2); o.owner = o.owner === 'red' ? 'blue' : 'red'; }
