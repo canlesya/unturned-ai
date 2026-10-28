@@ -35,7 +35,7 @@ function viewSink(W, it, d) {
 
 let fails = 0;
 for (const PER of PERS) {
-  const g = new Game(null, { headless: true, map: 'kuzey', tod: 'day', weather: 'clear', diff: 'normal', match: { perTeam: PER, type: 'conquest' } });
+  const g = new Game(null, { headless: true, map: 'kuzey', tod: 'day', weather: 'clear', diff: 'normal', match: { perTeam: PER, type: process.env.TYPE || 'conquest' } });
   const W = g.world, V = g.vehicles;
   for (const s of g.soldiers) { s.vacant = true; s.alive = false; }                 // doğuş yerini tutan asker yok (trySpawn bekletmesin)
   g.brains = [];

@@ -28,8 +28,14 @@ function headless() {
     const flagN = g.map.vehicles.filter((d) => VT[d.type] && !VT[d.type].moto && String(d.team).startsWith('flag:')).length, all = g.map.vehicles.filter((d) => VT[d.type] && !VT[d.type].moto).length;
     ok(V && VL.length === all && all >= 36 && VL.filter((v) => v.alive).length === all - flagN, 'kurulum: üs jip / tank / helikopter + tarafsız yol jipleri maç başında hazır, bayrak jipleri bayrak alınınca (12.200: 36 araç)', V ? `${VL.length} / ${VL.filter((v) => v.alive).length} · bayrak ${flagN}` : 'yok');
   }
-  const others = [['kasaba', 'conquest'], ['colgecidi', 'tdm'], ['kuzey', 'tdm'], ['vadi', 'conquest']].map(([map, type]) => { const o = new Game(null, { headless: true, map, tod: 'day', weather: 'clear', diff: 'normal', bots: false, match: { perTeam: 2, type } }); return map + '/' + type + ':' + (o.vehicles ? 'VAR' : 'yok'); });
-  ok(others.every((s) => s.endsWith('yok')), 'diğer haritalar / Kuzey TDM: araç yöneticisi yok (davranış aynı)', others.join(' '));
+  const others = [['kasaba', 'conquest'], ['colgecidi', 'tdm'], ['vadi', 'conquest']].map(([map, type]) => { const o = new Game(null, { headless: true, map, tod: 'day', weather: 'clear', diff: 'normal', bots: false, match: { perTeam: 2, type } }); return map + '/' + type + ':' + (o.vehicles ? 'VAR' : 'yok'); });
+  ok(others.every((s) => s.endsWith('yok')), 'diğer haritalar: araç yöneticisi yok (davranış aynı)', others.join(' '));
+  { // 12.219 Kuzey TDM: bütün harita araçlı — Ele Geçirme ile aynı liste (sıra aynı), bayrak araçları baştan TARAFSIZ (bayrak yok)
+    const gt = new Game(null, { headless: true, map: 'kuzey', tod: 'day', weather: 'clear', diff: 'normal', bots: false, match: { perTeam: 4, type: 'tdm' } }), VT2 = gt.vehicles;
+    const ids = (G) => G.vehicles.list.map((v) => v.id).join(',');
+    const fl = VT2 ? VT2.list.filter((v) => String(v.spawn.team).startsWith('flag:')) : [];
+    ok(VT2 && ids(gt) === ids(g) && fl.length > 0 && fl.every((v) => v.alive && v.team === null) && VT2.list.every((v) => v.alive), 'Kuzey TDM: araç listesi Ele Geçirme ile aynı, hepsi maç başında hazır, bayrak araçları tarafsız (12.219)', VT2 ? `${VT2.list.length} araç · tarafsız bayrak aracı ${fl.length}` : 'yok');
+  }
   const s = g.claimSlot('blue', 'Test', 'assault', {}), h = g.humans.get(s.id);
   let q = 0;
   const step = (n, o = {}) => { for (let i = 0; i < n; i++) { h.queue.push({ q: ++q, f: 0, r: 0, l: 0, s: 0, j: 0, a: 0, yw: s.yaw, pt: 0, w: s.cur, c: 0, p: 0, u: 0, fh: 0, fp: 0, rl: 0, fm: 0, o: 0, ab: 0, vt: null, ve: 0, vs: 0, vl: 0, ...(typeof o === 'function' ? o(i) : o) }); g.step(1 / 60); } };

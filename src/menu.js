@@ -256,7 +256,7 @@ export function showMenu(onStart, onOnline) {
     const tq = tp === 'space' ? 'tdm' : tp;                                         // 12.157: Uzay = tdm kuralları (skor sınırı)
     const maps = mapsFor(tp), cm = c.map === 'random' ? null : MAPS[c.map] || maps[0];
     const ftod = cm && cm.forceTod;
-    const eff = c.tickets || (tq === 'tdm' ? defaultScoreLimit(c.perTeam) : defaultTickets(c.perTeam));
+    const eff = c.tickets || (tq === 'tdm' ? defaultScoreLimit(c.perTeam, tp === 'tdm' ? c.map : null) : defaultTickets(c.perTeam));
     const lk = tp === 'inf' || tp === 'gg' || tp === 'dm' || tp === 'pb' || tq === 'tdm' ? tq : 'conquest';
     const limitTitle = tp === 'payload' ? t('payload.limitTitle') : tp === 'front' ? t('front.limitTitle') : t('menu.limit.' + lk);
     const limitSum = tp === 'payload' ? t('payload.limitSum') : tp === 'front' ? t('front.limitSum', { n: c.tickets || frontTickets(c.perTeam) }) : t('menu.limitSum.' + lk, { n: eff, dm: LIMITS.dmKills, pb: LIMITS.pbKills });
