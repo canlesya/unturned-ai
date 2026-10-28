@@ -222,6 +222,20 @@ export function restY(v, world) {
   return (w[0] + w[1] + w[2] + w[3]) / 4 + bellyLift(v, world, w, v.y + 0.05);
 }
 
+// 12.209 doğuşta zemine TAM oturt (eğim / yatış / kot: teker noktalarından, doğrudan). Eskiden iki 1/60 sn adım atılıyordu; eğim yumuşatması
+// (14 / sn) iki adımda hedefin ancak ~%40'ına varıyor, hızsız araç hemen uyuyordu → yamaçta doğan / üsse dönen araç düz gövdeyle yokuş tarafı
+// tekerleri ve gövde altı arazinin içinde kalıyordu. Sunucu = çevrimdışı (aynı fonksiyon).
+export function settleVehicle(v, world) {
+  const d = v.def;
+  for (let k = 0; k < 3; k++) {
+    const w = wheels(v, world, _q, v.y + 0.05);
+    v.pitch = Math.atan2((w[0] + w[1]) / 2 - (w[2] + w[3]) / 2, d.wb); v.roll = Math.atan2((w[1] + w[3]) / 2 - (w[0] + w[2]) / 2, d.tr);
+    if (d.heli) v.y = heliGround(v, world, d);
+    else { v.y = (w[0] + w[1] + w[2] + w[3]) / 4 + bellyLift(v, world, w, v.y + 0.05); for (let i = 0; i < 4; i++) v.wl[i] = w[i]; }
+  }
+  v.vx = v.vy = v.vz = 0; v.air = false;
+}
+
 // OBB (araç) ↔ AABB (kutu) yatay ayırma ekseni testi. Çakışıyorsa { nx, nz, d } (aracı kutudan çıkaran yön + girişim), yoksa null
 export function obbBox(v, c, pad = 0) {
   const d = v.def, s = Math.sin(v.yaw), co = Math.cos(v.yaw);

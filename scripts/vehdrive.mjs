@@ -46,7 +46,7 @@ await page.evaluate(async () => {
     S.frames++;
     for (const it of g.vehView.items) {
       const v = it.v, st = v.st, m = it.model, d = v.def;
-      if (!v.alive || !st || !m?.visible || d.heli || d.tracked || !v.seats.some(Boolean)) continue;
+      if (!v.alive || !st || !m?.visible || d.heli || d.tracked || st.sunk || it.sinkT || !v.seats.some(Boolean)) continue;      // batan araç bilerek suya gömülür
       const sp = Math.hypot(st.vx, st.vz); if (sp < 2) continue;
       m.updateMatrixWorld(true);
       const far = c.position.distanceTo(_v.set(st.x, st.y, st.z)), up = d.stepUp ?? 0.55;

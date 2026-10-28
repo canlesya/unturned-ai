@@ -1,4 +1,4 @@
-import { VT, makeVehicle, stepVehicle, toWorld, toLocal2, obbBox, rayVehicle, packVehState, applyVehState, vehicleAtRest, groundAt, restY, gunPose, mgAt, seatGun, shellVel, shellAdvance, heFalloff, noseDir, mgPitch, rocketDir } from '../sim/vehicle.js';
+import { VT, makeVehicle, stepVehicle, toWorld, toLocal2, obbBox, rayVehicle, packVehState, applyVehState, vehicleAtRest, groundAt, restY, settleVehicle, gunPose, mgAt, seatGun, shellVel, shellAdvance, heFalloff, noseDir, mgPitch, rocketDir } from '../sim/vehicle.js';
 import { dirFromAngles } from './util.js';
 import * as THREE from 'three';
 import { R as SR } from './collision.js';
@@ -81,8 +81,7 @@ export class Vehicles {
       for (const o of this.list) if (o !== v && o.alive && Math.hypot(o.st.x - S.x, o.st.z - S.z) < (v.def.moto && o.def.moto ? 2.2 : 4.5)) return false;      // 12.204: motorlar yan yana (2,6 m) dizilir
     }
     v.st = makeVehicle(v.type, S.x, groundAt(W, S.x, S.z, W.heightAt(S.x, S.z) + 1), S.z, S.yaw);
-    stepVehicle(v.st, null, 1 / 60, W); stepVehicle(v.st, null, 1 / 60, W);      // zemine otur (eğim / yatış)
-    v.st.vx = v.st.vz = v.st.vy = 0;
+    settleVehicle(v.st, W);                                           // 12.209 zemine tam otur (eğim / yatış / kot)
     v.hp = v.def.hp; v.alive = true; v.wreck = false; v.burn = false; v.deadT = 0; v.sunkT = 0; v.idleT = 0;
     v.team = team; v.paint = team; v.lights = false; v.horn = false; v.sleep = false; v.lastHit = null; v.lastDriver = null; v.rl = 0; v.dmgLog = null; v.rk = v.def.rockets?.n; v.rkT = v.rkR = 0;
     v.seats.fill(null); v.spawnN = (v.spawnN || 0) + 1; v.spawnT = this.g.time;      // 12.200 spawnT: botların araç kapma beklemesi (vehicleBots.botMayTake)
