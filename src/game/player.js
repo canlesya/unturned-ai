@@ -177,6 +177,7 @@ const MELEE_SPRINT = { pos: [-0.04, 0.06, -0.06], rx: 0.65, ry: 0.3, rz: -0.1 };
 // göz merceğindeki disk saydam camdır: önce (renderOrder −1) yalnız derinliğe yazılır → arkasındaki tüp / mercek çizilmez, dünya görünür (mercek içi = dışı, doğal).
 // Geçişte disk koyu camdan saydama açılır (LENS_ON → +LENS_FADE); retikül 3B ışıyan nokta, tam nişanda HUD #rdot (red dot ile aynı, ADS_HUD).
 export const LENS_ON = 0.3, LENS_FADE = 0.2;
+const VM_CACHE = 14;      // 12.210: birinci şahıs model önbelleği (donanım 4 eşya + ana silahın nişangâhları ≈ 8–10; J/K ile gezerken eskiyen atılır)
 const LENS_MASK = new THREE.MeshBasicMaterial({ colorWrite: false });
 const LENS_TINT = new THREE.MeshBasicMaterial({ color: '#030606', transparent: true, opacity: 1, depthWrite: false });
 
@@ -241,17 +242,53 @@ export class ViewModel {
     c.sp.set(18 + Math.random() * 10, 6 * (Math.random() - 0.5), 14 + Math.random() * 8);
   }
 
+  // 12.210: silah değiştirme takılması. Eskiden her değişimde silah + eller + kollar baştan kuruluyor, eskisi atılıyordu (geometri / malzeme üretimi
+  // + ilk çizimde GPU'ya yeniden yükleme ≈ 7–9 ms, zayıf işlemcide 15–25 ms; zombi pençesine her geçişte program silinip yeniden derleniyordu).
+  // Şimdi (silah, takım, nişangâh, kaplama, kıyafet) başına kurulan model önbellekte kalır: geri dönüşte yalnız sahneye takılır (GPU arabellekleri yerinde).
+  // Ön ısıtma (warmup.js) donanımdaki eşyaları zaten kurup çizdiği için maçtaki ilk değişim de sıcak. En çok VM_CACHE model; eskiyen atılır.
+  _stash() {
+    for (const a of this.arms) this.cam.remove(a.mesh);
+    if (this.model) this.root.remove(this.model);
+    if (this.lensDisc) this.root.remove(this.lensDisc);
+  }
+  _evict() {
+    const C = this._cache;
+    for (const [k, e] of C) {
+      if (C.size <= VM_CACHE) break;
+      if (e.g === this.model) continue;
+      C.delete(k);
+      const own = e.g.userData.ownMat;
+      e.g.traverse((o) => { o.geometry?.dispose(); const mt = o.material; if (mt && !Array.isArray(mt) && (own || (mt.userData.skinMat && !mt.userData.shared))) mt.dispose(); });      // setFade kopyaları + modele özel kaplama malzemesi (eski değişim temizliğiyle aynı)
+      e.flash?.userData.mat.dispose();
+      for (const a of e.arms) a.mesh.geometry.dispose();
+      e.lensDisc?.geometry.dispose();
+    }
+  }
+
   setItem(id, team, kind, optic, skin, wskin = 'std') {
-    for (const a of this.arms || []) { this.cam.remove(a.mesh); a.mesh.geometry.dispose(); }
+    this._stash();
     this.arms = [];
     this.clearDrops();
-    if (this.model) { const own = this.model.userData.ownMat; this.root.remove(this.model); this.model.traverse((o) => { o.geometry?.dispose(); const mt = o.material; if (mt && !Array.isArray(mt) && (own || (mt.userData.skinMat && !mt.userData.shared))) mt.dispose(); }); }      // setFade kopyaları + modele özel kaplama malzemesi
     this.id = id;
     this.raise = 1; this.slideT = 9; this.cylA = this.cylTo = 0; this.rk.K = this.rk.Kv = this.rk.S = this.rk.Sv = 0;
     this.raiseRate = 1 / Math.max(0.15, Math.min(0.35, WSTATS[id]?.equip ?? 0.3));
     if (kind === 'melee' && id !== 'claws') this.raiseRate = 1 / 0.42;      // 12.194: bıçak çekişi (görsel 0,42 sn; oyun hazır olma süresi equip aynen — savurma başlarsa çekiş hızla biter)
     this._swRef = null; this._swBlend = 0; this.strikeK = 0;
     this.boltT = 0;
+    const C = (this._cache ||= new Map()), key = id + '|' + team + '|' + kind + '|' + optic + '|' + (skin || '') + '|' + wskin + '|' + (id !== 'claws' && this.look ? JSON.stringify(this.look) : '');
+    const hit = C.get(key);
+    if (hit) {
+      C.delete(key); C.set(key, hit);                                           // en son kullanılan sona (LRU)
+      this.model = hit.g; this.flash = hit.flash; this.feel = hit.feel; this.zh = hit.zh; this.handR = hit.handR; this.handL = hit.handL;
+      this.hLfg = hit.hLfg; this.hRgrip = hit.hRgrip; this.arms = hit.arms; this.lensDisc = hit.lensDisc;
+      if (this.flash) this.flash.visible = false;
+      if (this.handL) this.handL.visible = !!this.hLfg;
+      if (this.lensDisc) { this.lensDisc.visible = false; this.root.add(this.lensDisc); }
+      for (const a of this.arms) this.cam.add(a.mesh);
+      this.root.add(this.model);
+      return;
+    }
+    this.lensDisc = null;
     const c = id !== 'claws' && this.look ? { ...TEAMS[team], ...this.look } : TEAMS[id === 'claws' ? 'zomb' : team];      // look: paintball forması (kol = boya rengi, eldiven koyu)
     const g = new THREE.Group();
     this.flash = null; this.feel = null;
@@ -343,7 +380,6 @@ export class ViewModel {
     g.traverse((o) => { if (o.isMesh) { o.castShadow = false; o.receiveShadow = false; } });
     this.model = g;
     this.root.add(g);
-    if (this.lensDisc) { this.root.remove(this.lensDisc); this.lensDisc.geometry.dispose(); this.lensDisc = null; }
     const L = g.userData.lens;                                                                // ACOG / PSO-1: göz merceğinde saydam disk (modelin dışında: setFade / atma döngüsü dokunmaz)
     if (L) {
       const geo = new THREE.CircleGeometry(L[0], 40);
@@ -352,6 +388,8 @@ export class ViewModel {
       d.add(t); d.position.set(L[1], L[2], L[3]); d.visible = false; d.frustumCulled = t.frustumCulled = false; d.userData.r = L[0];
       this.lensDisc = d; this.root.add(d);
     }
+    C.set(key, { g, flash: this.flash, feel: this.feel, zh: this.zh, handR: this.handR, handL: this.handL, hLfg: this.hLfg, hRgrip: this.hRgrip, arms: this.arms, lensDisc: this.lensDisc });
+    this._evict();
   }
 
   // Silah inceleme (Y): ~3,4 sn; ateş/nişan/yükleme/sprint/silah değişimi/savurma iptal eder
@@ -800,7 +838,7 @@ export class ViewModel {
     }
     this.drops = this.drops.filter((d) => { if (d.life > 0) return true; this.cam.remove(d.o); return false; });
   }
-  clearDrops() { for (const d of this.drops || []) this.cam.remove(d.o); this.drops = []; this._rlMag = this._rlItem = null; this._rlItems = null; this.rlOut = 0; this.rlLast = null; this._rlHL = null; this._rlEj = false; }
+  clearDrops() { for (const d of this.drops || []) this.cam.remove(d.o); this.drops = []; for (const m of Object.values(this._rlItems || {})) { m.removeFromParent(); m.traverse((o) => { o.geometry?.dispose(); o.material?.dispose(); }); } this._rlMag = this._rlItem = null; this._rlItems = null; this.rlOut = 0; this.rlLast = null; this._rlHL = null; this._rlEj = false; }      // 12.210: eldeki fişek / doldurucu önbellekteki sol elde kalmasın
   // boş kovanlar: M79 tek 40 mm kovan, revolver altı kovan (silindirin arkasından)
   ejectCases(mode, geo, mir) {
     const mat = new THREE.MeshStandardMaterial({ color: '#c99a3e', metalness: 0.85, roughness: 0.32 });
