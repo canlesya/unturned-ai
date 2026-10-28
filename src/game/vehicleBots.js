@@ -22,18 +22,19 @@ export const VBOT = {
   // humanNear2: bu bekleme sırasında / ayrılmış araçta insan takım arkadaşı bu kadar yakındaysa (yürüyerek geliyor) bot almaz ·
   // hold: takımda insan oyuncu varken her doğuş grubunun (aynı doğuş takımı + aynı tür) bir kısmı bu kadar sn insanlara ayrılır ·
   // share: ayrılan oran (yukarı yuvarlanır; en çok insan sayısı kadar). Değerler OYUN.md 12.200.
-  grab: { grace: 8, humanNear2: 45, hold: 40, share: 0.5 },
+  grab: { grace: 8, humanNear2: 30, hold: 40, share: 0.5 },
   park: { jip: 42, tank: 12 },                    // bayrak merkezine bu kadar kala durur
   speed: { jip: [17, 10], tank: [10, 7] },        // hedef hız: yolda / arazide (m/sn)
   clr: { jip: 1.6, tank: 2.3 },                   // rota açıklığı (m)
   wait: [1.2, 7],                                 // binince bekleme: en az / yolcu yürürken en çok (sn)
   stuck: { t: 1.6, rev: 1.4, max: 5, noProg: 35 },
   // tank topu (zorluk): ilk nişan hatası (rad, her atışta yeniden), hareketli hedefe öncü oranı, ek bekleme (dolumdan sonra), tepki (sn), menzil;
-  // inf: piyadeye karşı hata çarpanı / ek bekleme / menzil
+  // inf: piyadeye karşı hata çarpanı / ek bekleme / menzil · 12.200: piyadeye hata × 1,8 → 2,4 / ek bekleme 2 → 3 sn (normal; kolay / zor orantılı):
+  // başsız ölçümde öldürmelerin ~%22'si tek başına bot tank topundandı (tank ölümü başına ~6–10 leş)
   gun: {
-    easy: { err: 0.03, lead: 0.3, cd: 3.2, react: [1.6, 2.4], range: 150, inf: { err: 2.0, cd: 2.5, range: 110 } },
-    normal: { err: 0.017, lead: 0.6, cd: 1.7, react: [1.0, 1.6], range: 190, inf: { err: 1.8, cd: 2.0, range: 130 } },
-    hard: { err: 0.01, lead: 0.85, cd: 0.8, react: [0.6, 1.0], range: 220, inf: { err: 1.6, cd: 1.5, range: 150 } },
+    easy: { err: 0.03, lead: 0.3, cd: 3.2, react: [1.6, 2.4], range: 150, inf: { err: 2.6, cd: 3.5, range: 110 } },
+    normal: { err: 0.017, lead: 0.6, cd: 1.7, react: [1.0, 1.6], range: 190, inf: { err: 2.4, cd: 3.0, range: 130 } },
+    hard: { err: 0.01, lead: 0.85, cd: 0.8, react: [0.6, 1.0], range: 220, inf: { err: 2.0, cd: 2.2, range: 150 } },
   },
 };
 const _o = { x: 0, y: 0, z: 0 }, _d = { x: 0, y: 0, z: 0 }, _cp = { x: 0, y: 0, z: 0 }, _cd = { x: 0, y: 0, z: 0 }, _gs = {}, _e = new THREE.Vector3(), _t = new THREE.Vector3();
@@ -276,16 +277,17 @@ export function botAtLoadout(g, s) {
   if (!V || !s.brain || s.def.zombie || g.mode.fixed || !V.list.some((v) => v.def.armor)) return;
   let armor = 0;
   for (const v of V.list) if (v.alive && v.def.armor && V.teamOf(v) && V.teamOf(v) !== s.team) armor++;
-  const rpg = (e) => e.items?.[2]?.id === 'rpg';
+  const rpg = (e) => e.items?.[2]?.id === 'rpg' || (e.cls === 'engineer' && e.brain && armor);      // mühendis bot doğunca RPG alacak (henüz doğmamış olan da sayılır)
+  if (s._atCls && !armor) { const c = s._atCls; s._atCls = null; s.setClass(c); g.emit('botcls', s); return; }      // düşman zırhı kalmadı: eski sınıfına döner
   if (s.cls !== 'engineer') {
     if (!armor || !AT_KIT.from.includes(s.cls)) return;
     let n = 0, have = 0;
     for (const e of g.soldiers) if (e.team === s.team && !e.vacant && e !== s) { n++; if (rpg(e)) have++; }
     if (have >= AT_KIT.want(armor, n + 1)) return;
-    s.setClass('engineer');
+    s._atCls = s.cls; s.setClass('engineer');
     g.emit('botcls', s);
   } else if (!armor && Math.random() > AT_KIT.idle) return;
-  if (!rpg(s)) { const n = WSTATS.rpg.count || 1; s.items[2] = { id: 'rpg', mag: 1, reserve: n - 1 }; }
+  if (s.items[2]?.id !== 'rpg') { const n = WSTATS.rpg.count || 1; s.items[2] = { id: 'rpg', mag: 1, reserve: n - 1 }; }
 }
 
 // Mürettebat çağrısı: sürücü / pilot aracı ayırınca yakındaki boştaki takım arkadaşlarını (önce aynı mangal) koltuklara çağırır: helikopter 2 kapı

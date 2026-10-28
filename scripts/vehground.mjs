@@ -74,6 +74,7 @@ function driveable(id) {
   for (const v of V.list) if (!v.alive) V.trySpawn(v, true);
   for (let i = 0; i < 90; i++) V.update(1 / 30);                       // 3 sn boşta (oturma)
   console.log(`── ${g.map.name}: ${V.list.length} araç ──`);
+  { const ids = (g.map.vehicles || []).map((d) => d.id), dup = ids.filter((x, i) => ids.indexOf(x) !== i); ok(!dup.length, `${id}: araç doğuş kimlikleri benzersiz`, dup.join(', ') || `${ids.length}`); }
   let nb = 0;
   for (const v of V.list) {
     if (!v.alive) { ok(false, `${id} ${v.id}: doğmadı`); continue; }

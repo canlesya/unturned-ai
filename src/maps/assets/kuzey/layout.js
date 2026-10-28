@@ -102,12 +102,12 @@ export const VEHICLES = [
   // (jip ≥ 2,2 m), yol kenarında banket (yolun ortası değil); vehground.mjs her doğuşu ölçer.
   { id: 'B-J4', type: 'jip', team: 'blue', x: 182, z: 664, ry: Math.PI }, { id: 'B-J5', type: 'jip', team: 'blue', x: 190, z: 664, ry: Math.PI },
   { id: 'R-J4', type: 'jip', team: 'red', x: -174, z: -664, ry: 0 }, { id: 'R-J5', type: 'jip', team: 'red', x: -182, z: -664, ry: 0 },
-  { id: 'B-J2', type: 'jip', team: 'flag:B', x: -186.3, z: 219.7, ry: 2.49 },
-  { id: 'C-J1', type: 'jip', team: 'flag:C', x: 24.6, z: 42.6, ry: -3.12 }, { id: 'C-J2', type: 'jip', team: 'flag:C', x: -24, z: -25, ry: 3.07 },
-  { id: 'D-J2', type: 'jip', team: 'flag:D', x: 221.5, z: -262, ry: 2.36 },
-  { id: 'E-J2', type: 'jip', team: 'flag:E', x: 671.2, z: -162.4, ry: -2.65 },
-  { id: 'F-J2', type: 'jip', team: 'flag:F', x: 361.3, z: 400.4, ry: 0 },
-  { id: 'G-J2', type: 'jip', team: 'flag:G', x: -405.5, z: -480, ry: 0 },
+  { id: 'B-Jb', type: 'jip', team: 'flag:B', x: -186.3, z: 219.7, ry: 2.49 },
+  { id: 'C-Ja', type: 'jip', team: 'flag:C', x: 24.6, z: 42.6, ry: -3.12 }, { id: 'C-Jb', type: 'jip', team: 'flag:C', x: -24, z: -25, ry: 3.07 },
+  { id: 'D-Jb', type: 'jip', team: 'flag:D', x: 221.5, z: -262, ry: 2.36 },
+  { id: 'E-Jb', type: 'jip', team: 'flag:E', x: 671.2, z: -162.4, ry: -2.65 },
+  { id: 'F-Jb', type: 'jip', team: 'flag:F', x: 361.3, z: 400.4, ry: 0 },
+  { id: 'G-Jb', type: 'jip', team: 'flag:G', x: -405.5, z: -480, ry: 0 },
   { id: 'N-J1', type: 'jip', team: null, x: 53.5, z: 330, ry: -2.81 },          // Benzinlik (Vadi Yolu)
   { id: 'N-J2', type: 'jip', team: null, x: -35.5, z: -330, ry: 0.21 },         // Kuzey Yolu (Benzinlik'in aynası)
   { id: 'N-J3', type: 'jip', team: null, x: 324.6, z: -73.4, ry: -3.05 },       // Doğu Geçidi
