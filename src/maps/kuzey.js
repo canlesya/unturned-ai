@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { MapBuilder, makeRng } from './builder.js';
 import { KuzeyTerrain } from './assets/kuzey/terrain.js';
-import { KZ_BOUNDS, FLAGS, HQ, PADS, CALLOUTS, VEHICLES, HELIPADS, TDM_AREA, DAM } from './assets/kuzey/layout.js';
+import { KZ_BOUNDS, FLAGS, HQ, PADS, CALLOUTS, VEHICLES, HELIPADS, DAM } from './assets/kuzey/layout.js';
 import { KK, makeKuzeyMaterial } from './assets/kuzey/surface.js';
 import { ChunkSet } from './assets/kuzey/chunks.js';
 import { placeAll } from './assets/kuzey/blockout.js';
@@ -20,7 +20,7 @@ import { SURF } from './assets/kuzey/terrain.js';
 import { TOWERS, milTower, emplacementsFor } from './assets/kuzey/towers.js';      // 12.213 gözetleme kuleleri + sabit silah yuvaları
 import { KuzeyNav } from './kuzeyNav.js';
 
-// "Kuzey Vadisi" (12.172) — büyük harita (1600 × 1600 m oynanır, 5 km uzak manzara), Ele Geçirme 7 bayrak + Takım Çatışması (köy alt alanı).
+// "Kuzey Vadisi" (12.172) — büyük harita (1600 × 1600 m oynanır, 5 km uzak manzara), Ele Geçirme 7 bayrak + Takım Çatışması (12.219: bütün harita, araçlı; bayrak yerleri TDM'de çatışma bölgesi, game/bigTdm.js).
 // Arazi (2 m ızgara, yollar / köy sokakları / baraj gölü / alanlar; 12.182 ortadaki nehir yok), bölgelerde varlıklar (içine girilen binalar), orman + çalı çiti + kaya + devrik ağaç + buğday,
 // su, gök / bulut / pus, maç boyu değişen gün ışığı, hayvanlar, ortam sesi, gece ışıkları; araç doğuş / heliped / yol ağı / ganimet noktası VERİSİ.
 // Görsel katmanlar (arazi ağı, orman, su, atmosfer) yalnız tarayıcıda kurulur (MapBuilder.noVisual: sunucu yalnız arazi + çarpışma + yerleşim).
@@ -93,7 +93,7 @@ export function buildKuzey() {
     vehicles: VEHICLES, helipads: HELIPADS, towers, emplacements: emplacementsFor(towers, T),      // 12.213
     makeNav() { return new KuzeyNav(this.colliders, this.bounds, this.terrain, this.navCell, towers); },      // 12.213 kule merdiveni / tepesi: ikinci kat bağlantısı
     roadGraph: T.roads.map((r) => ({ id: r.id, t: r.t, w: r.w, pts: r.pts.filter((_, i) => i % 3 === 0 || i === r.pts.length - 1) })),
-    tdm: TDM_AREA, wires, veg: visual ? veg : null,
+    wires, veg: visual ? veg : null,
     env, visMul: 1,
     stats: { trees: veg.length, treesIn: veg.filter((t) => t.inside).length, colliders: colliders.length, sight: sight.length, wheatCover: nWheat, logs: veg.logs.length, loot: loot.length, doors: (ctx.doors || []).length, chunks: cs.list.length, buildMs: 0, terrainMs: T.tBuild },
   };

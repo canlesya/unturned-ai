@@ -10,7 +10,7 @@ export const MATCH_TYPES = {
   front: { get label() { return t('mode.front.label'); }, get desc() { return t('mode.front.desc'); } },        // Cephe: çekişmeli cephe hattı, 7 noktalık zincir (src/game/front.js, 12.161)
   pb: { label: 'Paintball', desc: 'Herkes tek, herkesin kendi boya rengi. Sabit boya silahları, Boya Kulesi\'nde üç kat: zemin siperleri, kaleler, kule tepesi. Kuyuya düşen elenir; ilk 30 elemeye ulaşan kazanır.' },
 };
-import { LIMITS, maxPerFor } from './balance.js';
+import { LIMITS, maxPerFor, BIG_MAPS } from './balance.js';
 import { t } from '../i18n/index.js';
 import '../i18n/payload.js';
 import '../i18n/space.js';
@@ -34,7 +34,9 @@ export const PRESETS = {
 };
 // Skor tabanlı modlarda (TDM) 'tickets' alanı skor sınırıdır; takım skorları 0'dan yukarı sayar
 export const isScoreType = (t) => t === 'tdm' || t === 'space';
-export function defaultScoreLimit(perTeam) { return Math.max(30, Math.min(150, perTeam * 10)); }
+// 12.219 büyük harita (Kuzey Vadisi TDM, bütün harita araçlı): tempo oyuncu sayısıyla doğrusal (başsız 900 sn: takım başına dakikada ~0,4 × perTeam
+// öldürme; 16v16 6,5 · 32v32 15,5 · 64v64 25,5) → eski sınır (en çok 150) 16v16'da 15 dk'da bitmiyor, 64v64'te 5 dk'da bitiyordu. ~10 dk: perTeam × 4.
+export function defaultScoreLimit(perTeam, map) { return BIG_MAPS.includes(map) ? Math.max(30, Math.min(600, Math.round(perTeam * 4 / 10) * 10)) : Math.max(30, Math.min(150, perTeam * 10)); }
 export function frontTickets(perTeam) { return Math.max(60, Math.round(perTeam * LIMITS.frTickets / 10) * 10); }   // Cephe: takım başına başlangıç bileti (iki taraf; oyuncu başına LIMITS.frTickets)
 export function defaultTickets(perTeam) { return Math.max(40, Math.round(perTeam * 20 / 10) * 10); }
 // Herkes-tek sıralaması (Ölüm Maçı / Silah Yarışı / boya): skor kutusu, skor tablosu, maç sonu ve süre bitiminde kazanan aynı ölçütü kullanır
@@ -59,7 +61,7 @@ export function makeMatch(o = {}) {
     fixed: gg || pb,                                                // sınıf / teçhizat seçimi yok (ölüm ekranında satır gizli)
     killLimit: gg ? GG_LEN : pb ? LIMITS.pbKills : dm ? LIMITS.dmKills : 0,
     perTeam,
-    tickets: pl ? 100 : fr ? (o.tickets || frontTickets(perTeam)) : o.tickets || (o.type === 'tdm' ? defaultScoreLimit(perTeam) : defaultTickets(perTeam)),
+    tickets: pl ? 100 : fr ? (o.tickets || frontTickets(perTeam)) : o.tickets || (o.type === 'tdm' ? defaultScoreLimit(perTeam, o.map) : defaultTickets(perTeam)),
     scoreBased: o.type === 'tdm',                                // true: tickets = skor sınırı, takım sayaçları yukarı sayar
     time: pl ? (o.time === 0 ? 0 : LIMITS.plTime) : o.time === undefined ? LIMITS.time : o.time,
     label: o.label || (dm ? `${perTeam} kişilik` : inf ? `${total} kişilik` : `${perTeam}v${perTeam}`),

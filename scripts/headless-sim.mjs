@@ -47,6 +47,8 @@ try {
     if (steps % 30 === 0 && game.mode.objectives.length) {      // 12.208 ele geçirilmiş bayrakta savunan (kendi takımından r + 30 m içinde canlı yaya) ortalaması
       for (const o of game.mode.objectives) if (o.owner) { let n = 0; for (const s of game.soldiers) if (s.alive && !s.veh && s.team === o.owner && Math.hypot(s.pos.x - o.x, s.pos.z - o.z) < o.r + 30) n++; DEF.n += n; DEF.k++; if (!n) DEF.empty++; }
     }
+    if (VS && steps % 30 === 0) for (const v of game.vehicles.list) if (!v.def.fixed && v.alive) { VS.vUp = (VS.vUp || 0) + 1; if (v.seats[0]) VS.vDrv = (VS.vDrv || 0) + 1; if (v.seats.some((o) => o && o.brain)) VS.vBot = (VS.vBot || 0) + 1; }      // 12.219 araç-sn (sahada / sürücülü)
+    if (steps % 30 === 0) { let n = 0, m = 0; for (const s of game.soldiers) if (s.alive && !s.vacant) { n++; if (s.veh && !s.veh.def.fixed) m++; } DEF.inV = (DEF.inV || 0) + m; DEF.alive = (DEF.alive || 0) + n; }      // 12.219 araçtaki asker payı
     if (VS && steps % 30 === 0) for (const v of game.vehicles.list) if (v.def.cannon && v.alive) { VS.tankUp = (VS.tankUp || 0) + 1; if (v.seats[0]) VS.tankDrv = (VS.tankDrv || 0) + 1; }      // tank-sn: sahada / sürücülü
   }
 } catch (e) { errors++; console.log('HATA:', e.stack); }
@@ -58,7 +60,9 @@ console.log(`harita: ${game.map.name} · ${per}v${per} · kurulum ${tBuild.toFix
 console.log(`simülasyon: ${(steps * dt).toFixed(0)} sn · adım ${(ms / steps).toFixed(2)} ms · biten: ${game.ended ? game.winner + ' (' + game.endReason + ')' : 'hayır'}`);
 console.log(`biletler: mavi ${Math.round(game.tickets.blue)} / kırmızı ${Math.round(game.tickets.red)} · hayatta ${S.filter((s) => s.alive).length}/${S.length} · bayrak değişimi ${flagEvents}`);
 console.log('hedefler: ' + game.mode.objectives.map((o) => `${o.name}:${o.owner || '-'}`).join(', '));
-console.log(`öldürme toplamı ${S.reduce((a, s) => a + s.kills, 0)} · geçersiz/yeraltı: ${bad.length}`);
+const KT = S.reduce((a, s) => a + s.kills, 0), simS = steps * dt;
+console.log(`öldürme toplamı ${KT} · geçersiz/yeraltı: ${bad.length}`);
+console.log(`tempo: ${(KT / (simS / 60)).toFixed(1)} öldürme/dk · maç süresi ${simS.toFixed(0)} sn${game.ended ? '' : ' (bitmedi)'} · askerin araçta olduğu pay %${(100 * (DEF.inV || 0) / Math.max(1, DEF.alive || 0)).toFixed(1)}` + (VS ? ` · araç: ${game.vehicles.list.filter((v) => !v.def.fixed).length} araç + ${game.vehicles.list.filter((v) => v.def.fixed).length} yuva, kullanım (sürücülü araç-sn / sahadaki) %${(100 * (VS.vDrv || 0) / Math.max(1, VS.vUp || 0)).toFixed(1)}` : '') + (game.bigStats?.tdmPhase ? ` · TDM evre ${game.bigStats.tdmPhase}, av ${game.bigStats.tdmHunt || 0}, manga doğuşu ${game.bigStats.tdmMateSpawn || 0}` : ''));
 if (VS) {
   const med = (a) => (a.length ? [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)] : NaN);
   console.log(`araçlar: tank doğuşu ${VS.tankLives} · tank ölümü ${VS.tankDeaths} · tank leşi ${VS.tankKills} (tank ömrü başına ${(VS.tankKills / Math.max(1, VS.tankLives)).toFixed(1)}) · jip ${VS.jeepKills} · helikopter ${VS.heliKills} · araçtan leş %${Math.round(100 * VS.vehKills / Math.max(1, VS.kills))} (araç silahıyla %${Math.round(100 * VS.vwKills / Math.max(1, VS.kills))} ${JSON.stringify(VS.vwBy)}) · patlayan araç ${VS.booms} · tank-sn sahada ${VS.tankUp || 0} / sürücülü ${VS.tankDrv || 0}`);

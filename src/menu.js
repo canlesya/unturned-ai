@@ -256,7 +256,7 @@ export function showMenu(onStart, onOnline) {
     const tq = tp === 'space' ? 'tdm' : tp;                                         // 12.157: Uzay = tdm kuralları (skor sınırı)
     const maps = mapsFor(tp), cm = c.map === 'random' ? null : MAPS[c.map] || maps[0];
     const ftod = cm && cm.forceTod;
-    const eff = c.tickets || (tq === 'tdm' ? defaultScoreLimit(c.perTeam) : defaultTickets(c.perTeam));
+    const eff = c.tickets || (tq === 'tdm' ? defaultScoreLimit(c.perTeam, tp === 'tdm' ? c.map : null) : defaultTickets(c.perTeam));
     const lk = tp === 'inf' || tp === 'gg' || tp === 'dm' || tp === 'pb' || tq === 'tdm' ? tq : 'conquest';
     const limitTitle = tp === 'payload' ? t('payload.limitTitle') : tp === 'front' ? t('front.limitTitle') : t('menu.limit.' + lk);
     const limitSum = tp === 'payload' ? t('payload.limitSum') : tp === 'front' ? t('front.limitSum', { n: c.tickets || frontTickets(c.perTeam) }) : t('menu.limitSum.' + lk, { n: eff, dm: LIMITS.dmKills, pb: LIMITS.pbKills });
@@ -271,7 +271,7 @@ export function showMenu(onStart, onOnline) {
     const mapCards = maps.map((m) => `<button class="mapc ${c.map === m.id ? 'on' : ''}" ${at('map', m.id)}><img src="${m.thumb}" alt="" loading="lazy">${m.mobile ? `<em class="mob">${t('menu.mobile')}</em>` : ''}<div class="t"><b>${mapNm(m.id)}</b><small>${mapTag(m.id)}</small></div></button>`).join('')
       + (maps.length > 1 ? `<button class="mapc rnd ${c.map === 'random' ? 'on' : ''}" ${at('map', 'random')}>${ico('dice')}<div class="t"><b>${t('menu.random')}</b></div></button>` : '');
     const mapNote = maps.length === 1 ? `<div class="hint">${t('menu.onlyMap', { m: mapNm(maps[0].id) })}</div>` : '';
-    const mapDs = cm ? `<div class="mapdesc"><b>${mapNm(cm.id)}.</b> ${mapDesc(cm.id)}</div>` : `<div class="mapdesc">${t('menu.randomMapDesc')}</div>`;
+    const mapDs = cm ? `<div class="mapdesc"><b>${mapNm(cm.id)}.</b> ${cm.id === 'kuzey' && tq === 'tdm' && tp === 'tdm' ? `<b class="tdmn">${t('map.kuzey.tdm')}</b> ` : ''}${mapDesc(cm.id)}</div>` : `<div class="mapdesc">${t('menu.randomMapDesc')}</div>`;
     const tods = ftod ? `<div class="hint">${t(ftod === 'day' ? 'space.todHint' : 'menu.nightOnly', { m: mapNm(cm.id) })}</div>`
       : `<div class="tods">${TODS_LIST.map(([k]) => `<button class="tod ${k} ${c.tod === k ? 'on' : ''}" ${at('tod', k)}><span>${todLabel(k)}</span></button>`).join('')}<button class="tod rnd ${c.tod === 'random' ? 'on' : ''}" ${at('tod', 'random')}><span>${t('menu.random')}</span></button></div>`;
     const limitBody = tp === 'payload' ? `<div class="hint">${t('payload.limitHint', { t: Math.round(LIMITS.plTime / 60), b: TUNE.plBonus, r: TUNE.plRadius, d: TUNE.plBackDelay })}</div>` : tp === 'front' ? `<div class="hint">${t('front.limitHint', { n: c.tickets || frontTickets(c.perTeam) })}</div>` : tp === 'inf' || tp === 'gg' || tp === 'dm' || tp === 'pb' ? `<div class="hint">${t('menu.limitHint.' + tp, { dm: LIMITS.dmKills, pb: LIMITS.pbKills })}</div>`

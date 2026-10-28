@@ -115,8 +115,8 @@ export const VEHICLES = [
   { id: 'N-J5', type: 'jip', team: null, x: -453.6, z: -16.3, ry: Math.PI },    // Değirmen
 ];
 
-// Takım Çatışması (tdm) alt alanı: Köy (dar sokaklar, araçsız). Doğuşlar köyün iki ucunda.
-export const TDM_AREA = { bounds: { minX: -370, maxX: -90, minZ: 130, maxZ: 370 }, blue: { x: -128, z: 300 }, red: { x: -340, z: 196 } };
+// 12.219: eski "TDM_AREA" (Köy alt alanı) verisi hiçbir yerde kullanılmıyordu (TDM zaten bütün haritadaydı, yalnız araçsız) → kaldırıldı.
+// Takım Çatışması bütün haritada, araçlı; bayrak yerleri çatışma bölgesi (game/bigTdm.js).
 
 // Bölge adları (mini harita / P tuşu). 4. değer: HUD'da adın görüneceği yarıçap (m; 12.184 — varsayılan 14 m 1,6 km'lik haritada neredeyse hiç görünmüyordu)
 export const CALLOUTS = [

@@ -66,7 +66,7 @@ function lodSink(T) {
 function driveable(id) {
   const M = MAPS[id];
   if (!M || (M.only && !M.only.includes('conquest'))) return;
-  const g = new Game(null, { headless: true, map: id, tod: 'day', weather: 'clear', diff: 'normal', match: { perTeam: +(process.env.PER || 16), type: 'conquest' } });
+  const g = new Game(null, { headless: true, map: id, tod: 'day', weather: 'clear', diff: 'normal', match: { perTeam: +(process.env.PER || 16), type: process.env.TYPE || 'conquest' } });
   const V = g.vehicles;
   if (!V) { console.log(`${id}: sürülen araç yok`); g.dispose?.(); return; }
   for (const s of g.soldiers) { s.vacant = true; s.alive = false; }

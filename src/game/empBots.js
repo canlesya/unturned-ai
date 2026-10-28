@@ -48,7 +48,8 @@ export function empBoard(b) {
     if (d > (tw ? EMPB.reachTower : EMPB.reach)) continue;
     let tank = false;
     if (v.def.atgm) for (const o of V.list) if (o.alive && o.st && o.def.armor && V.teamOf(o) && V.teamOf(o) !== s.team && Math.hypot(o.st.x - v.st.x, o.st.z - v.st.z) < EMPB.tankR) { tank = true; break; }
-    const own = g.mode.objectives.some((o) => o.owner === s.team && Math.hypot(o.x - v.st.x, o.z - v.st.z) < EMPB.defendR);
+    const zq = !g.mode.objectives.length ? g.squadGoal?.(s) : null;      // 12.219 Kuzey TDM: mangalın çatışma bölgesindeki yuva (bayrak yok)
+    const own = zq ? Math.hypot(zq.x - v.st.x, zq.z - v.st.z) < EMPB.defendR + zq.r : g.mode.objectives.some((o) => o.owner === s.team && Math.hypot(o.x - v.st.x, o.z - v.st.z) < EMPB.defendR);
     if (!tank && (!own || B.n >= B.cap || Math.random() > EMPB.chance)) continue;
     if (tank && B.n >= B.cap + 2) continue;
     if (v.def.atgm && !tank) continue;                                             // tanksavar yalnız zırhlı gelince (yoksa boşuna beklemez)
