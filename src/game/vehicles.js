@@ -72,7 +72,10 @@ export class Vehicles {
       const v = { idx: this.list.length, id: d.id, type: d.type, def: VT[d.type], spawn: { x: d.x, z: d.z, y: d.y, yaw, team: d.team, tower: d.tower, flag: d.flag },
         st: null, hp: 0, alive: false, wreck: false, seats: new Array(VT[d.type].seats).fill(null), team: null, paint: null,
         burn: false, deadT: 0, respawnT: 0, sunkT: 0, idleT: 0, lastHit: null, lastHitT: -99, lastDriver: null, lastDriverT: -99,
-        lights: false, horn: false, sleep: false, sig: '', ramT: new Map(), pred: false, buf: [], rl: 0 };
+        lights: false, horn: false, sleep: false, sig: '', ramT: new Map(), pred: false, buf: [], rl: 0,
+        // 12.211 sonradan eklenen alanlar baştan (sabit gizli sınıf: araç başına farklı ekleme sırası 9 biçim → Vehicles.update megamorfik; shapes.js)
+        dmgLog: undefined, rk: undefined, rkR: undefined, rkT: undefined, spawnN: undefined, spawnT: undefined, abT: undefined, botRes: undefined, botResT: undefined,
+        _lastZone: undefined, abBad: undefined, abWait: undefined, empRes: undefined, stuckT: undefined, botBad: undefined, yieldReq: undefined };
       this.list.push(v);
     }
     for (const v of this.list) if (!game.online) this.trySpawn(v, true);
@@ -498,9 +501,28 @@ export class Vehicles {
   // ── yayaya çarpma + askeri gövdeden dışarı itme ──
   // Yaya, gövdenin (OBB) içine girmişse en kısa yönden dışarı itilir (her taraf, her askerde; istemci yerel oyuncu için de). Hızlı araç düşmana
   // (sürücüsüz yuvarlanan araçta son sürücünün düşmanına) çarparsa hasar + savrulma (yetkili); takım arkadaşı yalnız itilir.
+  // 12.211 araç ızgarası (16 m; her adımda bir kez, ilk sorguda): yaya ↔ araç itmesi yalnız bulunduğu hücreye uzanan araçlarla (eskiden her yaya × 116 araç).
+  // Hücreye eklerken erişim + 2 m pay (adım içinde sürülen araç kayabilir); sıra listeyle aynı → sonuç aynı. Çevrim içi istemci eski döngüde.
+  vgrid() {
+    const t = this.g.time;
+    if (this._vgT === t && this._vg) return this._vg;
+    this._vgT = t;
+    const G = (this._vg ||= new Map()), U = (this._vgU ||= []);
+    for (const a of U) a.length = 0;
+    U.length = 0;
+    if (G.size > 4096) G.clear();
+    for (const v of this.list) {
+      if (!v.st || (!v.alive && !v.wreck)) continue;
+      const r = v.def.hl + 3.5, x0 = Math.floor((v.st.x - r) / 16), x1 = Math.floor((v.st.x + r) / 16), z0 = Math.floor((v.st.z - r) / 16), z1 = Math.floor((v.st.z + r) / 16);
+      for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) { const k = (x + 4096) * 8192 + z + 4096; let a = G.get(k); if (!a) G.set(k, (a = [])); if (!a.length) U.push(a); a.push(v); }
+    }
+    return G;
+  }
   pushSoldier(s) {
     if (!s.alive || s.veh || s.fly) return;
-    for (const v of this.list) {
+    const list = this.g.online ? this.list : this.vgrid().get((Math.floor(s.pos.x / 16) + 4096) * 8192 + Math.floor(s.pos.z / 16) + 4096);
+    if (!list) return;
+    for (const v of list) {
       if (!v.st || (!v.alive && !v.wreck)) continue;
       const st = v.st, d = v.def;
       if (Math.abs(s.pos.x - st.x) > d.hl + 1.5 || Math.abs(s.pos.z - st.z) > d.hl + 1.5) continue;
@@ -530,7 +552,14 @@ export class Vehicles {
       const sp = this.speed(v), d = v.def;
       if (sp < 2) continue;
       const st = v.st, drv = v.seats[0] || (now - v.lastDriverT < 4 ? v.lastDriver : null), team = drv ? drv.team : v.team;
-      for (const s of g.soldiers) {
+      // 12.211 asker ızgarasından (4 m hücre, bu adımın konumları) yalnız aracın çevresi; ızgara yoksa (çevrim içi istemci) hepsi
+      let near = g.soldiers;
+      if (g.crowd && !g.online) {
+        near = (this._rn ||= []); near.length = 0;
+        const r = d.hl + 1.3, x0 = Math.floor((st.x - r) / 4), x1 = Math.floor((st.x + r) / 4), z0 = Math.floor((st.z - r) / 4), z1 = Math.floor((st.z + r) / 4);
+        for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) { const a = g.crowd.bucket(x, z); if (a) for (let i = 0; i < a.length; i++) near.push(a[i]); }
+      }
+      for (const s of near) {
         if (!s.alive || s.veh || Math.abs(s.pos.x - st.x) > d.hl + 1.2 || Math.abs(s.pos.z - st.z) > d.hl + 1.2) continue;
         if (s.pos.y >= st.y + d.top || s.pos.y + s.height <= st.y + d.clear * 0.5) continue;
         const L = toLocal2(st, s.pos.x, s.pos.z);
@@ -690,12 +719,13 @@ export class Vehicles {
   // 12.188 nişan yakınsaması (Battlefield 3 / 4 gibi: "mermi artının ortasına gider"): kamera ışınının çarptığı nokta P (dünya, araç, düşman asker; yoksa
   // 700 m) → kulenin hedef yaw'ı (kule ekseninden P'ye) + topun hedef açısı (namlu ucundan P'ye düşük yay balistik çözümü; namlu boyu için 3 yineleme).
   // Sürücü girdisinde bakış yerine yollanır (gy / gp); kule bu hedefe sınırlı hızla döner. Menzil dışı → 45°'ye (top sınırına takılır).
-  gunAimFor(v, co, cd, by, out = {}) {
+  // 12.211 lim: bot nişanı (hedef noktası belli, görüyor): ışın yalnız oraya kadar, asker taraması yok (sonuç: engel ya da hedef noktası)
+  gunAimFor(v, co, cd, by, out = {}, lim = 0) {
     const g = this.g, W = g.world, tu = v.def.turret, c = v.def.cannon;
-    let t = 700;
+    let t = lim > 0 ? Math.min(lim, 700) : 700;
     const wh = W.raycast(co, cd, t, (this._ga ||= {})); if (wh) t = wh.t;
     const vr = this.raycast(co, cd, t, v); if (vr && vr.t < t) t = vr.t;
-    for (const e of g.soldiers) { if (!e.alive || e === by || (by && e.team === by.team) || e.veh === v) continue; const h = g.hitSoldier(e, co, cd, t); if (h && h.t < t) t = h.t; }
+    if (!(lim > 0)) for (const e of g.soldiers) { if (!e.alive || e === by || (by && e.team === by.team) || e.veh === v) continue; const h = g.hitSoldier(e, co, cd, t); if (h && h.t < t) t = h.t; }
     const P = { x: co.x + cd.x * t, y: co.y + cd.y * t, z: co.z + cd.z * t };
     const pv = toWorld(v.st, tu.f, 0, tu.pivot, (this._gp ||= {}));
     const dx = P.x - pv.x, dz = P.z - pv.z, D0 = Math.hypot(dx, dz), h0 = P.y - pv.y, v2 = c.speed * c.speed, G = c.grav;
@@ -705,7 +735,7 @@ export class Vehicles {
       const disc = v2 * v2 - G * (G * D * D + 2 * h * v2);
       th = disc < 0 ? Math.PI / 4 : Math.atan2(v2 - Math.sqrt(disc), G * D);
     }
-    out.y = Math.atan2(-dx, -dz); out.p = th; out.P = P; out.dist = D0; out.hit = !!(wh || vr) || t < 700;      // dist: kuleden yatay menzil (HUD)
+    out.y = Math.atan2(-dx, -dz); out.p = th; out.P = P; out.dist = D0; out.hit = !!(wh || vr) || t < 700 || lim > 0;      // dist: kuleden yatay menzil (HUD)
     return out;
   }
 

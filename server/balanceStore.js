@@ -26,6 +26,8 @@ export function loadBalance() {
 export const currentBalance = () => cur || loadBalance();
 export const balanceMeta = () => meta;
 export const balanceHistory = () => history;
+const subs = [];
+export const onBalance = (f) => subs.push(f);                // 12.211 kayıttan sonra (oda iş parçacıkları dosyadan yeniden okur)
 
 // Yeni sürüm: değişiklik listesi geçmişe yazılır. Dönüş: { version, changes }
 export function saveBalance(overrides, note = '', defaults = {}) {
@@ -42,5 +44,6 @@ export function saveBalance(overrides, note = '', defaults = {}) {
   history.unshift({ ...meta, overrides: next, changes });
   history = history.slice(0, HIST_MAX);
   writeJSON(HIST, history);
+  for (const f of subs) try { f(); } catch (e) { console.error('[denge]', e); }
   return { version: meta.version, changes };
 }

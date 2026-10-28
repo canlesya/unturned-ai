@@ -41,6 +41,7 @@ if (PROF) { wrap(BotBrain.prototype, 'update', 'brain'); wrap(NavGrid.prototype,
 const t0 = now();
 const game = new Game(null, { headless: true, map, tod: 'day', weather: 'clear', diff: 'normal', match: { perTeam: per, type, time: Math.max(secs + 60, 900) } });
 const tBuild = now() - t0;
+if (process.env.LOAD) game.loadLevel = +process.env.LOAD;      // 12.211 yük koruması seviyesi (server/room.js) denemesi
 if (PROF) {
   wrap(game, 'botSees', 'botSees');
   wrap(game, 'assignSquads', 'squads');
@@ -77,15 +78,16 @@ game.respawn = (s, first) => {
 };
 
 const dt = 1 / 60;                                                            // sunucu adımı (SIM_HZ 60)
-const steps = [], snapAll = [], snapIm = [], snapAllZ = [], snapImZ = [];
+const cpuSteps = [], steps = [], snapAll = [], snapIm = [], snapAllZ = [], snapImZ = [];
 let errors = 0, n = 0, pathWait = 0, pathWaitN = 0, squadObj = 0, squadN = 0, flankN = 0, evN = 0, evB = 0;
 const deflate = (str) => zlib.deflateRawSync(Buffer.from(str), { level: 1 }).length;
 const s0 = now();
 try {
   for (; n < secs * 60 && !game.ended; n++) {
-    const t = now();
+    const t = now(), cu = process.cpuUsage();
     game.step(dt);
     steps.push((now() - t) * 1000);
+    { const c = process.cpuUsage(cu); cpuSteps.push(c.user + c.system); }      // 12.211 işlemci süresi (makine paylaşılırken duvar saatinden güvenilir)
     if (game.netEvents.length) { evN += game.netEvents.length; if (n % 3 === 0) evB += JSON.stringify(game.netEvents).length * 3; game.netEvents.length = 0; }      // sunucunun herkese yolladığı olaylar (atış izi / ses / öldürme)
     if (n % 60 === 30) {                                                      // yol bekleyen bot (hedefi var, yolu yok)
       for (const b of game.brains) if (b.s.alive && !b.s.veh && b.goal && !b.path) pathWait++;
@@ -142,6 +144,7 @@ const res = {
   map: game.map.name, per, secs: +(n * dt).toFixed(0), seed: sd, build: Math.round(tBuild), bots: game.brains.length,
   stepUs: { avg: Math.round(avg(steps)), p50: Math.round(q(0.5)), p95: Math.round(q(0.95)), p99: Math.round(q(0.99)), max: Math.round(sorted[sorted.length - 1] || 0) },
   realtime: +((n * dt * 1000) / wall).toFixed(2),
+  cpuUs: (() => { const c = [...cpuSteps].sort((a, b) => a - b), Q = (p) => Math.round(c[Math.min(c.length - 1, Math.floor(c.length * p))] || 0); return { avg: Math.round(avg(cpuSteps)), p50: Q(0.5), p95: Q(0.95), p99: Q(0.99) }; })(),
   prof: Object.fromEntries(Object.entries(prof).map(([k, v]) => [k, { n: v.n, usPerStep: Math.round((v.ms * 1000) / Math.max(1, n)), usEach: +((v.ms * 1000) / Math.max(1, v.n)).toFixed(1) }])),
   pathWaitAvg: +(pathWait / Math.max(1, pathWaitN)).toFixed(1),
   squads: { objPerTeam: +(squadObj / Math.max(1, squadN)).toFixed(2), flankPerTeam: +(flankN / Math.max(1, squadN)).toFixed(2) },

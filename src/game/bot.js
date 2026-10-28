@@ -11,6 +11,7 @@ import { SWIM, waterYAt } from '../sim/swim.js';
 import { vbBoard, vbRelease, vbDrive, vbRideOk, vbCrew, vnavFree } from './vehicleBots.js';           // 12.189 bot sürücüler
 import { squadFollow } from './squad.js';                                            // 12.202 manga botu lideri izler
 import { frTick, frPickGoal, frArrive, frAnchored, frTargetBias, frCombatMove, frStuck, frDamaged } from './frontBots.js';     // 12.158 Cephe modu
+import { brainLate } from './shapes.js';
 import { empBoard, empRide } from './empBots.js';                                          // 12.213 sabit silah yuvaları
 import { flankVia, bigGuardGoal, guardCombatMove, guardLeash, bigTacGoal } from './bigBots.js';
 import { tdmHuntGoal } from './bigTdm.js';                                                                     // 12.219 Kuzey TDM: bölgede av                                                    // 12.203 büyük harita kanat mangalı
@@ -65,6 +66,7 @@ export class BotBrain {
     soldier.brain = this;
     soldier.dmgMul = this.d.dmgMul;
     this.reset();
+    brainLate(this);                                                 // 12.211 sabit gizli sınıf (shapes.js)
   }
 
   reset() {
@@ -366,10 +368,12 @@ export class BotBrain {
     let n = 0, foeD = 1e9;
     const vmg = !!(s.veh && mgAt(s.veh.def, s.seat));
     const vis = (g.night ? null : g.tod === 'sunset' ? TUNE.sightSunset : TUNE.sightDay), mul = (g.visMul || 1) * (big ? 1.35 : 1);
+    const vR = (vis ?? Math.max(TUNE.sightDay, TUNE.sightNight)) * mul + 2, vR2 = vR * vR;      // 12.211 ucuz uzaklık süzgeci (göz / gövde merkezi farkı için +2 m): sonuç aynı
     for (const e of g.soldiers) {
       if (!e.alive || e.team === s.team) continue;
-      { const fx = e.pos.x - s.pos.x, fz = e.pos.z - s.pos.z, d2 = fx * fx + fz * fz; if (d2 < foeD) foeD = d2; }      // 12.203 en yakın düşman (kademeli beyin)
-      if (e.protT > 0.5) continue;
+      const fx = e.pos.x - s.pos.x, fz = e.pos.z - s.pos.z, d2 = fx * fx + fz * fz;
+      if (d2 < foeD) foeD = d2;                                                     // 12.203 en yakın düşman (kademeli beyin)
+      if (d2 > vR2 || e.protT > 0.5) continue;
       if (e.def.zombie && g.graceLeft > 0) continue;
       if (g.vehicles && !at && g.vehicles.hiddenSeat(e)) continue;
       if (e.cloaked && Math.hypot(e.pos.x - s.pos.x, e.pos.z - s.pos.z) > 6) continue;
@@ -684,11 +688,21 @@ export class BotBrain {
   tick(dt, n) {
     const s = this.s, g = this.game;
     if (!s.alive) { this._tAcc = 0; this.update(dt); return; }
+    // 12.211 kademe: büyük haritada hedefsiz / uyarılmamış yaya bot 2 adımda bir (en yakın düşmanı 420 m ötedeyse 3), hedefsiz yolcu 2 (birikmiş süreyle).
+    // Sunucu yük koruması (g.loadLevel, server/room.js): 1 → boştakiler 2–4, yolcu ve uyarılmış 2 adımda bir · 2 → çatışmadaki bot da 2 adımda bir.
+    // Sürücü bot her adım (araç girdisi). Süre birikir: dönüş / ateş aralığı / zamanlayıcılar aynı hızda işler, yalnız karar sıklığı düşer.
     let k = 1;
-    if (g.map.big && !s.veh && !this.target && !s.def.zombie && this.foeD > 260 && g.time - this.alertT > 3) k = this.foeD > 420 ? 3 : 2;
+    const L = g.loadLevel | 0;
+    if ((g.map.big || L) && !s.def.zombie && !(s.veh && this.vd)) {
+      const idle = !s.veh && !this.target && g.time - this.alertT > 3;
+      if (idle && g.map.big) k = this.foeD > 420 ? 3 : 2;                  // 12.211 150 m içindeki boştaki de 2 adımda bir (görüş zaten 0,2–0,28 sn'de bir; tepki en çok +1 adım)
+      else if (s.veh && !this.target && g.map.big) k = 2;                    // 12.211 hedefsiz yolcu / nişancı (araç onu taşır; görüş 0,25 sn'de bir zaten)
+      if (L >= 1) { if (idle) k = Math.max(k + 1, 2); else if (s.veh || !this.target) k = Math.max(k, 2); }
+      if (L >= 2 && this.target) k = Math.max(k, 2);
+    }
     this._tAcc = (this._tAcc || 0) + dt;
     if (k > 1 && (n + s.id) % k) return;
-    const d = Math.min(this._tAcc, dt * 3); this._tAcc = 0;
+    const d = Math.min(this._tAcc, dt * 4); this._tAcc = 0;
     this.update(d);
   }
 

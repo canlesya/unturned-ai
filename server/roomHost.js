@@ -1,0 +1,164 @@
+// 12.211 Uzak oda (ana iş parçacığı tarafı): Room ile aynı yüzü (index.js / admin.js / moderation.js'in kullandığı kadarı) verir, asıl oda
+// server/roomWorker.js'te kendi iş parçacığında koşar. Ana iş parçacığında kalan: gerçek ws (ping / pong, sel sınırı), oda listesi / admin için
+// 500 ms'de bir gelen özet, oyuncu ↔ asker no aynası (moderatör komutları: /kick /ban /oyuncular).
+// Ana → iş parçacığı: enter · m (oda mesajı) · leave · bc · sys · official · bal · shutdown
+// İş parçacığı → ana: ops [['s', cid, metin] gönder · ['c', cid, id|-1|null, ad] ws.ctx · ['x', cid, kod, sebep] kapat · ['d', cid] bırak · ['st', özet]] · bye
+import { Worker } from 'node:worker_threads';
+import { sanitizeCfg } from './room.js';
+
+let nextCid = 1;
+const WORKER_URL = new URL('./roomWorker.js', import.meta.url);
+// Bellek tavanı: kaçak bir oda (sızıntı) bütün süreci değil yalnız kendi iş parçacığını düşürür (ERR_WORKER_OUT_OF_MEMORY → die). BF_WORKER_MB
+const LIMITS = { maxOldGenerationSizeMb: +process.env.BF_WORKER_MB || 1536 };
+// Bekçi: iş parçacığı 500 ms'de bir özet yollar; HANG_MS boyunca hiçbir mesaj gelmezse (sonsuz döngü / kilitlenme) sonlandırılır. BF_WORKER_HANG_MS
+const HANG_MS = +process.env.BF_WORKER_HANG_MS || 15000;
+const live = new Set();
+setInterval(() => {
+  const now = Date.now();
+  for (const r of live) if (now - r.lastMsg > HANG_MS) { console.error(`[iş parçacığı] ${r.code} ${Math.round((now - r.lastMsg) / 1000)} sn yanıt vermedi: sonlandırılıyor`); r.die('Sunucu odası yanıt vermedi, oda kapatıldı'); }
+}, 2000).unref?.();
+// Yedek iş parçacığı: haritaları önceden kurulmuş, bekler (yeni büyük oda soğuk başlangıç beklemez). Kullanılınca yenisi arka planda ısınır. BF_SPARE=0 kapalı.
+// Yedek sayısı BF_SPARES (varsayılan 1; test sunucusu BF_WORKER_MIN=0 iken çok oda aynı anda kurulur). Yedek ölürse 30 sn sonra yeniden
+// (art arda ölürse 5 dk'ya kadar uzayarak). Soğuk iş parçacığı (yedek yokken) oda kurulumu ~3–6 sn.
+const SPARES = process.env.BF_SPARE === '0' ? 0 : +process.env.BF_SPARES || 1;
+const spares = [];
+let spareFails = 0;
+export function prewarm() {
+  while (spares.length < SPARES) {
+    const w = new Worker(WORKER_URL, { workerData: { spare: true }, resourceLimits: LIMITS }), sp = { w, ready: false };
+    spares.push(sp);
+    w.on('message', (m) => { if (m.t === 'ready' && spares.includes(sp)) { sp.ready = true; spareFails = 0; console.log(`[iş parçacığı] yedek hazır (${m.ms} ms ısınma)`); } });
+    const lost = (why) => {
+      const i = spares.indexOf(sp); if (i < 0) return;
+      spares.splice(i, 1);
+      const wait = Math.min(300000, 30000 * 2 ** spareFails++);
+      console.error(`[iş parçacığı] yedek kayboldu (${why}); ${wait / 1000} sn sonra yeniden`);
+      setTimeout(prewarm, wait).unref?.();
+    };
+    w.on('error', (e) => lost(e?.message || e));
+    w.on('exit', (c) => lost('çıkış ' + c));
+  }
+}
+function takeWorker(data) {
+  const i = spares.findIndex((s) => s.ready);
+  if (i >= 0) { const sp = spares.splice(i, 1)[0]; sp.w.postMessage({ t: 'init', ...data }); setTimeout(prewarm, 3000).unref?.(); return sp.w; }
+  return new Worker(WORKER_URL, { workerData: data, resourceLimits: LIMITS });
+}
+export const workerRooms = () => [...live];
+
+export class RemoteRoom {
+  constructor(code, cfg, opts = {}) {
+    this.remote = true;
+    this.code = code;
+    this.official = opts.official || null;
+    this.owner = opts.owner || '';
+    this.onDead = opts.onDead || (() => {});
+    this.cfg = sanitizeCfg(cfg);
+    this.cfg.name = this.official ? this.official.name : this.cfg.name || 'Oda ' + code;
+    this.conns = new Map();                // cid → gerçek ws (iş parçacığında sahte karşılığı var)
+    this.clients = new Map();              // asker no → { id, name, ws } (moderation / admin)
+    this.pending = [];                     // maç sonu bekleme listesi { ws }
+    this.emptySince = Date.now();
+    this.st = null;                        // son özet
+    this.alive = true;
+    this.born = Date.now();
+    this.lastMsg = Date.now() + 10000;       // ilk özet: soğuk iş parçacığında harita kurulumu birkaç sn sürer (bekçiye ek pay)
+    this.worker = takeWorker({ code, cfg, opts: { official: this.official, owner: this.owner } });
+    live.add(this);
+    this.worker.on('message', (m) => { this.lastMsg = Date.now(); this.onMsg(m); });
+    this.worker.on('error', (e) => { console.error(`[iş parçacığı] ${code} çöktü:`, e?.stack || e); this.die('Sunucu odasında hata oluştu, oda kapatıldı'); });
+    this.worker.on('exit', (c) => { if (this.alive) { console.error(`[iş parçacığı] ${code} beklenmedik çıkış (${c})`); this.die('Sunucu odası kapandı'); } });
+  }
+
+  onMsg(m) {
+    if (m.t === 'bye') { this.alive = false; live.delete(this); this.worker.terminate(); return; }
+    if (m.t !== 'ops') return;
+    for (const o of m.l) {
+      const k = o[0];
+      if (k === 's') { const ws = this.conns.get(o[1]); if (ws && ws.readyState === 1) ws.send(o[2]); }
+      else if (k === 'c') this.setCtx(o[1], o[2], o[3]);
+      else if (k === 'x' || k === 'd') {
+        const ws = this.conns.get(o[1]); if (!ws) continue;
+        this.drop(ws);
+        if (k === 'x') try { ws.close(o[2], o[3]); } catch { /* yok say */ }
+      } else if (k === 'st') {
+        this.st = o[1]; this.cfg = o[1].cfg; this.balVer = o[1].balVer;
+        this.emptySince = this.conns.size ? 0 : o[1].emptySince || this.emptySince || Date.now();
+      }
+    }
+  }
+
+  unmirror(ws) {
+    for (const [id, c] of this.clients) if (c.ws === ws) this.clients.delete(id);
+    const i = this.pending.findIndex((p) => p.ws === ws); if (i >= 0) this.pending.splice(i, 1);
+  }
+  setCtx(cid, id, name) {
+    const ws = this.conns.get(cid); if (!ws) return;
+    this.unmirror(ws);
+    if (id === null) { ws.ctx = null; return; }
+    ws.ctx = { room: this, id };
+    if (id === -1) this.pending.push({ ws }); else if (id >= 0) this.clients.set(id, { id, name, ws });
+  }
+  drop(ws) { this.conns.delete(ws._cid); this.unmirror(ws); if (ws.ctx?.room === this) ws.ctx = null; }
+
+  post(m) { if (this.alive) try { this.worker.postMessage(m); } catch (e) { console.error(`[${this.code}] postMessage`, e.message); } }
+
+  // ── Room yüzü ──
+  activate() {}
+  enter(ws, p) {
+    const cid = nextCid++;
+    ws._cid = cid; this.conns.set(cid, ws);
+    ws.ctx = { room: this, id: -2 };       // iş parçacığı yanıtlayana dek: oda mesajları buraya gelir (asker no henüz yok)
+    this.emptySince = 0;
+    this.post({ t: 'enter', cid, p });
+    return true;
+  }
+  message(ws, m) { if (ws._cid && this.conns.get(ws._cid) === ws) this.post({ t: 'm', cid: ws._cid, m }); }
+  leave(id, ws, quiet = false) {
+    if (!ws || this.conns.get(ws._cid) !== ws) return;
+    this.post({ t: 'leave', cid: ws._cid, quiet });
+    this.drop(ws);
+  }
+  broadcast(msg) { this.post({ t: 'bc', msg }); }
+  sys(text) { this.post({ t: 'sys', text }); }
+  balance() { this.post({ t: 'bal' }); }
+  setOfficial(o) { this.official = o; this.post({ t: 'official', o }); }
+  idleTick() { return false; }             // boş resmi oda dönüşü iş parçacığında
+  shutdown(msg) { this.close(msg || ''); }
+  dispose() { this.close(''); }
+  close(msg) {
+    if (!this.alive) return;
+    this.post({ t: 'shutdown', msg });
+    setTimeout(() => { if (this.alive) { this.alive = false; live.delete(this); this.worker.terminate(); } }, 3000).unref?.();
+  }
+  // İş parçacığı öldü (hata / bellek / bekçi): ana süreç ayakta kalır. Oyunculara sistem mesajı + bağlantı 4001 ile kapanır (Room.shutdown ile aynı:
+  // istemci "bağlantı koptu" bitiş ekranı → ana menü; 'err' yollanmaz: oyundayken bağlanma hatası yoluna düşüp donuk ekranda kalıyordu).
+  // Oda listeden çıkar; resmi oda 2 sn sonra syncOfficial ile yeni iş parçacığında yeniden kurulur (index.js onDead).
+  die(msg) {
+    if (!this.alive) return;
+    this.alive = false; live.delete(this);
+    const n = this.conns.size, up = Math.round((Date.now() - this.born) / 1000);
+    const line = JSON.stringify({ t: 'chat', sys: 1, m: '⚠ ' + msg });
+    for (const ws of this.conns.values()) { ws.ctx = null; try { if (ws.readyState === 1) ws.send(line); ws.close(4001, 'closed'); } catch { /* yok say */ } }
+    this.conns.clear(); this.clients.clear(); this.pending.length = 0;
+    try { this.worker.terminate(); } catch { /* yok say */ }
+    console.error(`[başarım] ${this.code} oda iş parçacığı kaybedildi (${up} sn çalıştı, ${n} bağlantı kapatıldı${this.official ? ', resmi oda yeniden kurulacak' : ''})`);
+    try { this.onDead(this); } catch (e) { console.error('[iş parçacığı] onDead', e); }
+  }
+
+  info() {
+    if (this.st) return { ...this.st.info, humans: this.clients.size };
+    const c = this.cfg;      // ilk özet gelmeden (iş parçacığı oda kuruyor)
+    return { code: this.code, name: c.name, official: !!this.official, desc: this.official ? this.official.desc : '', map: c.map, tod: c.tod, weather: c.weather, type: c.type, perTeam: c.perTeam, humans: this.clients.size, cap: this.cap, bots: c.bots, diff: c.diff, third: !!c.third, locked: !!c.pw, ended: false, tl: -1, tk: [0, 0], by: this.owner };
+  }
+  perfStats() { return this.st?.perf || null; }
+  adminPlayers() { return this.st?.players || []; }
+  get game() { const s = this.st; return { soldiers: { length: s ? s.soldiers : (this.cfg.perTeam || 0) * 2 }, ended: !!s?.ended, timeLeft: s && s.tl >= 0 ? s.tl : Infinity }; }
+  get humanCount() { return this.clients.size; }
+  get cap() { const t = this.cfg.type; return t === 'dm' || t === 'gg' || t === 'inf' || t === 'pb' ? this.cfg.perTeam : this.cfg.perTeam * 2; }
+  canJoin(pw) {
+    if (this.cfg.pw && pw !== this.cfg.pw) return 'Şifre yanlış';
+    if (this.conns.size >= this.cap) return 'Oda dolu';
+    return null;
+  }
+}
