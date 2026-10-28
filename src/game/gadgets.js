@@ -217,8 +217,7 @@ function claymoreBlast(game, d) {
     e.takeDamage(st.dmg * (1 - (dist / R) ** 2), d.owner, 'body', pos, st.name);
     e.vel.x += dx / (dist + 0.5) * 2.5; e.vel.z += dz / (dist + 0.5) * 2.5;
   }
-  const dc = pos.distanceTo(game.camera.position);
-  game.effects.shake = Math.max(game.effects.shake, clamp(1 - dc / 30, 0, 1));
+  game.effects.boomShake?.(pos, 0.6, 25);      // 12.199d
   removeDeployable(game, d);
 }
 

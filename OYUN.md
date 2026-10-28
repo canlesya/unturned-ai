@@ -2157,3 +2157,8 @@ Kullanıcı: "bence oyundaki hologramlar yakınlaştırmalar için PUBG'yi refer
 - Kullanıcı (Kuzey Vadisi gece): yıldızlar haritanın ortasında, dağların önünde bir kubbe gibi duruyordu. Sebep: yıldız noktaları ve ay dünya merkezinde 480 m'lik sabit bir kürede kurulmuştu (küçük haritalara göre); kilometrelik haritada oyuncu kürenin dışından bakıyordu.
 - `src/maps/environment.js`: yıldızlar ve ay `onBeforeRender`'da kameranın konumuna taşınır (gök küresi gibi, yön değişmez), gök kubbesinden hemen sonra (`renderOrder -999`) derinlik yazmadan / sınamadan çizilir → dağ / ağaç / bina hep önünde, gök her yere yayılır. Uçarken de gök oyuncuyla gelir. Bulutlar aynı kaldı.
 - Ölçüm: `/tmp/wb-stars/after-tablo.png` (Kuzey 4 bakış + 120 m yukarıdan, Çöl Geçidi 4 bakış), `after-kuzey-9.png` (ay). Sayfa hatası 0.
+
+### 12.199d Patlama sarsıntısı mesafeyle söner
+- Kullanıcı: haritanın öbür ucundaki patlamada ekran sallanıyor, yanındayken de çok sallanıyor. Sebep: `effects.explosion()` mesafeye bakmadan 0,6, `heBlast()` 0,8 sarsıntı veriyordu (her patlama, her yerde); yakında da 1,1–1,6'ya çıkıyordu (kamera ±2,7° titriyordu). Vagon patlaması da haritanın her yerinde en az 0,35.
+- Yeni `Effects.boomShake(p, güç, menzil)`: sarsıntı = güç × (1 − d / menzil)², üst sınır 0,7. Roket / C4 / patlayıcı 0,6 / 28 m, tank HE 0,75 / 40 m, el bombası ve mayın 0,6 / 25 m, araç patlaması 0,7 / 35 m, tank topu ağzı 0,45 / 22 m, vagon 0,7 / 60 m. Mermi isabeti / bıçak / zombi yetenek sarsıntıları aynı.
+- Ölçüm (Kuzey, tarayıcı): roket 3 m 1,0 → 0,48, 10 m 0,79 → 0,25, 20 m 0,6 → 0,05, 35 m ve ötesi 0,6 → 0; tank HE 3 m 1,52 → 0,64, 20 m 0,8 → 0,19, 400 m 0,8 → 0.

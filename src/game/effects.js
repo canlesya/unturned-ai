@@ -64,6 +64,13 @@ export class Effects {
 
   // 12.146: isabet efektinin uzaklık çarpanı. 0,03-0,1 m'lik parçacık 50 m'de < 1 piksel kalıyordu → uzaktaki isabet / ıskalama hiç görünmüyordu
   // ("mermi gitmiyor" hissi). 18 m'den ötede boyut uzaklıkla büyür (ekrandaki açısal boyut 18 m'dekiyle aynı kalır), en çok 8 kat.
+  // 12.199d patlama sarsıntısı: mesafeyle karesel söner (range'in dışında hiç yok). Eskiden explosion() / heBlast() mesafeye bakmadan 0,6 / 0,8
+  // sarsıntı veriyordu → haritanın öbür ucundaki patlama da ekranı sallıyordu; yakın üst sınır da düşük (0,7)
+  boomShake(p, power, range) {
+    const c = this.cam; if (!c) return;
+    const d = Math.hypot(p.x - c.position.x, p.y - c.position.y, p.z - c.position.z), k = 1 - d / range;
+    if (k > 0) this.shake = Math.min(0.7, Math.max(this.shake, k * k * power));
+  }
   _far(p) { const c = this.cam; return c ? Math.min(8, Math.max(1, c.position.distanceTo(p) / 18)) : 1; }
 
   spark(p, n, normal, color = '#ffd27a', speed = 4) {
@@ -143,7 +150,6 @@ export class Effects {
     for (let i = 0; i < 26; i++) this._part(p, i % 3 ? '#ff8a2a' : '#ffd27a', rand(0.08, 0.2), null, 9, rand(0.4, 0.9), 6);
     for (let i = 0; i < 18; i++) this._part(p, i % 2 ? '#4a4a4a' : '#6b6b6b', rand(0.2, 0.45), null, 4, rand(0.8, 1.6), -1.5);
     for (let i = 0; i < 10; i++) this._part(p, '#6b5a40', rand(0.08, 0.16), null, 11, rand(0.6, 1.1), 14);
-    this.shake = Math.max(this.shake, 0.6);
   }
 
   // 12.188 tank topu (HE) ek efekti: yerden fışkıran toprak sütunu + iri toz bulutu (yavaş yükselir) + yere yayılan toz halkası + kıvılcım saçması.
@@ -155,7 +161,6 @@ export class Effects {
     for (let i = 0; i < 14; i++) { const a = (i / 14) * Math.PI * 2; this._part(p, '#9a8b73', rand(0.35, 0.6) * k, (this._hv ||= new THREE.Vector3()).set(Math.cos(a), 0.05, Math.sin(a)), rand(7, 10), rand(0.7, 1.1), 1); }
     if (n && n.y <= 0.4) for (let i = 0; i < 10; i++) this._part(p, '#ffd27a', rand(0.06, 0.12) * k, n, rand(8, 13), rand(0.3, 0.5), 9);
     this.boom.userData.life = this.boom.userData.max * 1.4;
-    this.shake = Math.max(this.shake, 0.8);
   }
 
   _remove(arr, i) {

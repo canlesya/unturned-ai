@@ -166,8 +166,7 @@ export function fragBlast(g, pos, st, owner, selfMul) {
   g.effects.explosion(pos, Math.min(7.5, st.radius));
   g.sfx.explosion(pos);
   g.alertNear?.(pos, owner.team, 90);
-  const dc = pos.distanceTo(g.camera.position);
-  g.effects.shake = Math.max(g.effects.shake || 0, Math.max(0, Math.min(1, 1 - dc / 35)) * 1.1);
+  g.effects.boomShake?.(pos, 0.6, 25);      // 12.199d
   if (!g.headless) { const gh = g.world.raycast(new THREE.Vector3(pos.x, pos.y + 1, pos.z), DOWN, 6, {}); if (gh) g.effects.decal(gh.point, gh.normal, true); }
   if (g.online) return;
   g.vehicles?.blast(pos, st.vehR ?? 5, st.vehDmg ?? 60, owner, st.name, 'blast');

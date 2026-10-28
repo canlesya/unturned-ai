@@ -169,7 +169,7 @@ export class Payload {
     const dp = this.def.door?.position; if (dp) at.set(dp.x, 1.8, dp.z + 0.6);
     for (const [dx, dy, r] of [[0, 0, 7], [-1.8, 1.2, 5], [1.9, 0.6, 5], [0, 2.6, 6]]) g.effects.explosion(new THREE.Vector3(at.x + dx, at.y + dy, at.z), r);
     g.sfx.explosion?.(at);
-    g.effects.shake = Math.max(g.effects.shake || 0, THREE.MathUtils.clamp(1 - at.distanceTo(g.camera.position) / 60, 0.25, 1) * 1.4);
+    g.effects.boomShake?.(at, 0.7, 60);      // 12.199d (eskiden haritanın her yerinde en az 0,35)
     if (this.def.door) this.def.door.visible = false;
     if (this.cart) this.cart.visible = false;
     if (this.ring) this.ring.visible = false;

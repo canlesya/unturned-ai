@@ -380,7 +380,7 @@ export class VehicleView {
     for (let i = 0; i < 14; i++) { const a = (i / 14) * Math.PI * 2; this.smoke.emit(o.x, o.y, o.z, d.x * 3 + Math.cos(a) * 2.2, d.y * 3 + Math.sin(a) * 1.5 + 0.4, d.z * 3 + Math.sin(a) * 2.2, 2.4, 0.6, 3.2, 0.62, 0.6, 0.56, 0.5, -0.1, 1.2); }
     for (let i = 0; i < 8; i++) this.smoke.emit(st.x + (Math.random() - 0.5) * 5, st.y + 0.3, st.z + (Math.random() - 0.5) * 5, (Math.random() - 0.5) * 3, 0.6, (Math.random() - 0.5) * 3, 1.6, 0.6, 2.4, 0.55, 0.49, 0.38, 0.35, -0.1, 1);
     const dc = Math.hypot(o.x - g.camera.position.x, o.y - g.camera.position.y, o.z - g.camera.position.z);
-    g.effects.shake = Math.max(g.effects.shake, Math.max(0, 1 - dc / 30) * 0.7);
+    g.effects.boomShake?.(o, 0.45, 22);      // 12.199d tank topu ağız patlaması
     const sfx = g.sfx;
     if (sfx?.ctx && sfx._voice) {
       const P = new THREE.Vector3(o.x, o.y, o.z), vv = sfx._voice(dc < 2.5 ? null : P, 1, { ref: 60, rv: 0.6 });

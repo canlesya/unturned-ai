@@ -2028,8 +2028,7 @@ export class Game {
     if (he) this.effects.heBlast?.(pos, opt.n);
     this.sfx.explosion(pos, he);
     this.alertNear(pos, owner.team, he ? 140 : 90);
-    const dc = pos.distanceTo(this.camera.position);
-    this.effects.shake = Math.max(this.effects.shake, he ? clamp(1 - dc / 60, 0, 1) * 1.6 : clamp(1 - dc / 35, 0, 1) * 1.1);
+    this.effects.boomShake?.(pos, he ? 0.75 : 0.6, he ? 40 : 28);      // 12.199d
     if (!this.headless) {
       const dn = new THREE.Vector3(0, -1, 0);
       const gh = this.world.raycast(new THREE.Vector3(pos.x, pos.y + 1, pos.z), dn, 6, {});

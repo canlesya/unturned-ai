@@ -311,7 +311,7 @@ export class Vehicles {
     v.dmgLog = null;
     // patlama: yakındaki askerler + araçlar (öldüren yoksa hasar yine de uygulanır, kimseye yazılmaz)
     const [R, D] = d.boom, o = { x: st.x, y: st.y + 0.8, z: st.z };
-    g.effects.explosion?.(o, R); g.sfx.explosion?.(o);
+    g.effects.explosion?.(o, R); g.sfx.explosion?.(o); g.effects.boomShake?.(o, 0.7, 35);      // 12.199d
     for (const s of g.soldiers) {
       if (!s.alive) continue;
       if (killer && s.team === killer.team && s !== killer) continue;
@@ -633,8 +633,7 @@ export class Vehicles {
     const p = { x: ev.p[0], y: ev.p[1], z: ev.p[2] };
     if (!ev.q) {
       g.effects.explosion(p, v.def.boom[0]); g.sfx.explosion(p);
-      const dc = Math.hypot(p.x - g.camera.position.x, p.y - g.camera.position.y, p.z - g.camera.position.z);
-      g.effects.shake = Math.max(g.effects.shake, Math.max(0, Math.min(1, 1 - dc / 40)) * 1.2);
+      g.effects.boomShake?.(p, 0.7, 35);      // 12.199d
     }
     g.emit('vehboom', { v, quiet: !!ev.q });
   }
