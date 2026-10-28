@@ -65,7 +65,10 @@ export class Vehicles {
       const v = { idx: this.list.length, id: d.id, type: d.type, def: VT[d.type], spawn: { x: d.x, z: d.z, y: d.y, yaw, team: d.team, tower: d.tower, flag: d.flag },
         st: null, hp: 0, alive: false, wreck: false, seats: new Array(VT[d.type].seats).fill(null), team: null, paint: null,
         burn: false, deadT: 0, respawnT: 0, sunkT: 0, idleT: 0, lastHit: null, lastHitT: -99, lastDriver: null, lastDriverT: -99,
-        lights: false, horn: false, sleep: false, sig: '', ramT: new Map(), pred: false, buf: [], rl: 0 };
+        lights: false, horn: false, sleep: false, sig: '', ramT: new Map(), pred: false, buf: [], rl: 0,
+        // 12.211 sonradan eklenen alanlar baştan (sabit gizli sınıf: araç başına farklı ekleme sırası 9 biçim → Vehicles.update megamorfik; shapes.js)
+        dmgLog: undefined, rk: undefined, rkR: undefined, rkT: undefined, spawnN: undefined, spawnT: undefined, abT: undefined, botRes: undefined, botResT: undefined,
+        _lastZone: undefined, abBad: undefined, abWait: undefined, empRes: undefined, stuckT: undefined, botBad: undefined, yieldReq: undefined };
       this.list.push(v);
     }
     for (const v of this.list) if (!game.online) this.trySpawn(v, true);
