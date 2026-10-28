@@ -958,6 +958,20 @@ export class Soldier {
     this._shield(this.protected);
     if (this.game.mode?.space) spaceTp(this, dt);                                      // 12.160: ray tüfeği şarj ışıması 3. şahısta
     if (this.cloaked && this.alive && !this.isPlayer && this.pos.distanceTo(this.game.camera.position) > 3) root.visible = false;   // görünmez zombi: yalnızca 3 m içinde seçilir
+    // 12.203 uzak asker LOD'u (farSoldiers.js): uzakta vekil, görüş dışında / orta uzaklıkta seyrek poz; alt ağacın matris güncellemesi de durur
+    const LV = this.game.farView;
+    if (LV) {
+      const tr = LV.tier(this);
+      if (tr >= 2) {
+        if (tr === 2 && root.visible) LV.push(this);
+        root.visible = false; root.matrixWorldAutoUpdate = false; this._lodDt = (this._lodDt || 0) + dt;
+        if (!this.alive || this.bodyYaw === undefined) this.bodyYaw = this.yaw; else this.bodyYaw += (((this.yaw - this.bodyYaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI) * Math.min(1, dt * 4);
+        return;
+      }
+      if (tr === 1 && (LV.frame + this.id) % 2 && root.matrixWorldAutoUpdate) { root.matrixWorldAutoUpdate = false; this._lodDt = (this._lodDt || 0) + dt; return; }      // orta uzaklık: poz 2 karede bir
+      root.matrixWorldAutoUpdate = true;
+      if (this._lodDt) { dt = Math.min(0.25, dt + this._lodDt); this._lodDt = 0; }
+    }
     root.position.set(this.pos.x, this.pos.y + (m.groundOffset ?? m.root.position.y), this.pos.z);
     // Bacaklar (root) bakış yönüne gecikmeli döner; gövde (silah) hep bakış yönünde kalır: yerinde dönerken ayaklar takip eder, koşarken hızla hizalanır
     const angDiff = (a, b) => ((a - b + Math.PI * 3) % (Math.PI * 2)) - Math.PI;

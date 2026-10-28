@@ -10,6 +10,7 @@ import { plTick, plPickGoal, plArrive, plAnchored, plTargetBias, plCombatMove, p
 import { SWIM, waterYAt } from '../sim/swim.js';
 import { vbBoard, vbRelease, vbDrive, vbRideOk, vbCrew } from './vehicleBots.js';           // 12.189 bot sürücüler
 import { frTick, frPickGoal, frArrive, frAnchored, frTargetBias, frCombatMove, frStuck, frDamaged } from './frontBots.js';     // 12.158 Cephe modu
+import { flankVia } from './bigBots.js';                                                    // 12.203 büyük harita kanat mangalı
 
 // silah rolleri (bot davranışı)
 const SNIPERS = new Set(['sniper', 'svd', 'barrett', 'ww_sniper']);
@@ -141,6 +142,8 @@ export class BotBrain {
     }
     const { x: gx, z: gz } = g.objPoint(obj, 0.8);                                   // 12.184 hedef kotunda (Baraj: tepe, alttaki kanyon değil)
     this.setGoal(gx, gz, g.map.big ? Math.max(rand(14, 28), Math.hypot(gx - s.pos.x, gz - s.pos.z) / 4.2 + 12) : rand(14, 28));   // 12.172 büyük harita: hedefe varacak kadar süre (yolun ortasında yeni hedef seçip gidip gelmesin)
+    // 12.203 büyük harita kanat mangalı (bigBots.flankVia): 70–130 m yandan dolanan ara nokta
+    if (g.map.big && sq) { const fv = flankVia(g, s, gx, gz); if (fv) { this.via = fv; return; } }
     // yan kol: bazen ara nokta üzerinden dolan (kanat manevrası)
     if (Math.hypot(gx - s.pos.x, gz - s.pos.z) > 40 && Math.random() < (this.role === 'rusher' ? 0.7 : 0.45)) {
       const mx = (gx + s.pos.x) / 2, mz = (gz + s.pos.z) / 2;
@@ -306,11 +309,13 @@ export class BotBrain {
   }
 
   senseNear(eye, fwd, alerted, at) {
-    const g = this.game, s = this.s, C = (SN.c ||= []);
-    let n = 0;
-    const vis = (g.night ? null : g.tod === 'sunset' ? TUNE.sightSunset : TUNE.sightDay), mul = (g.visMul || 1) * (g.map.big ? 1.35 : 1);
+    const g = this.game, s = this.s, C = (SN.c ||= []), big = !!g.map.big;
+    let n = 0, foeD = 1e9;
+    const vis = (g.night ? null : g.tod === 'sunset' ? TUNE.sightSunset : TUNE.sightDay), mul = (g.visMul || 1) * (big ? 1.35 : 1);
     for (const e of g.soldiers) {
-      if (!e.alive || e.team === s.team || e.protT > 0.5) continue;
+      if (!e.alive || e.team === s.team) continue;
+      { const fx = e.pos.x - s.pos.x, fz = e.pos.z - s.pos.z, d2 = fx * fx + fz * fz; if (d2 < foeD) foeD = d2; }      // 12.203 en yakın düşman (kademeli beyin)
+      if (e.protT > 0.5) continue;
       if (e.def.zombie && g.graceLeft > 0) continue;
       if (g.vehicles && !at && g.vehicles.hiddenSeat(e)) continue;
       if (e.cloaked && Math.hypot(e.pos.x - s.pos.x, e.pos.z - s.pos.z) > 6) continue;
@@ -322,10 +327,21 @@ export class BotBrain {
       if (n < C.length) { C[n].e = e; C[n].d = dist; } else C.push({ e, d: dist });
       n++;
     }
+    this.foeD = Math.sqrt(foeD);
     let best = null;
     if (n) {
       if (n > 1) { const A = C.slice(0, n).sort((a, b) => a.d - b.d); for (let i = 0; i < n; i++) C[i] = A[i]; }
-      for (let i = 0; i < n; i++) { const e = C[i].e; if (g.botSees(eye, e.center(tC))) { best = e; break; } }
+      // 12.203 büyük harita LOS önbelleği: 25 m ötesinde görüşü kapalı çıkan düşman 0,35–0,7 sn yeniden sınanmaz (vadide tepe / orman arkasındaki onlarca aday
+      // her duyuşta yeniden ışınlanıyordu: 128v128'de adımın ~%14'ü); duyuş başına en çok 8 görüş hattı (yakından uzağa). Mevcut hedef hep sınanır.
+      const NO = big ? (this._losNo ||= new Float64Array(g.soldiers.length + 8)) : null, now = g.time;
+      let checks = 0;
+      for (let i = 0; i < n; i++) {
+        const e = C[i].e, far = NO && C[i].d > 25 && e !== this.target;
+        if (far && (NO[e.id] > now || checks >= 8)) continue;
+        checks++;
+        if (g.botSees(eye, e.center(tC))) { best = e; break; }
+        if (far) NO[e.id] = now + 0.35 + Math.random() * 0.35;
+      }
     }
     this._bHead = false;
     this.senseDone(best);
@@ -596,6 +612,19 @@ export class BotBrain {
     const spd = s.swim ? SWIM.speed * (s.spd || 1) : TUNE.walkSpeed * 0.5, a = Math.min(1, dt * 4);
     s.vel.x = lerp(s.vel.x, mx * spd, a); s.vel.z = lerp(s.vel.z, mz * spd, a);
     return true;
+  }
+
+  // 12.203 kademeli beyin (yalnız büyük harita): düşmandan uzak (en yakın düşman 260 m / 420 m ötede), hedefsiz, uyarılmamış, yaya bot 2 / 3 adımda bir
+  // birikmiş süreyle düşünür (hareketi her adım sürer: hız / yön beyinden kalır). Çatışmadaki bot her adım. Sıra askerin kimliğiyle kaydırılır (yük eşit dağılır).
+  tick(dt, n) {
+    const s = this.s, g = this.game;
+    if (!s.alive) { this._tAcc = 0; this.update(dt); return; }
+    let k = 1;
+    if (g.map.big && !s.veh && !this.target && !s.def.zombie && this.foeD > 260 && g.time - this.alertT > 3) k = this.foeD > 420 ? 3 : 2;
+    this._tAcc = (this._tAcc || 0) + dt;
+    if (k > 1 && (n + s.id) % k) return;
+    const d = Math.min(this._tAcc, dt * 3); this._tAcc = 0;
+    this.update(d);
   }
 
   update(dt) {

@@ -342,6 +342,7 @@ function renderRooms(main) {
         · <span class="tag ${r.balVer !== v ? 'old' : ''}" title="Bu odanın maçı hangi denge sürümüyle oynanıyor">${r.balVer !== v ? `eski ayar v${r.balVer}` : `v${r.balVer}`}</span></div>
       <div style="display:flex;font-size:12px;color:var(--tx2)"><span style="flex:1">${r.humans} / ${r.cap} oyuncu</span>${r.bots ? 'botlar açık' : 'botsuz'}</div>
       <div class="bar"><s style="width:${Math.min(100, (r.humans / r.cap) * 100)}%"></s></div>
+      ${r.perf ? `<div style="font-size:12px;color:var(--tx2);margin-top:6px" title="12.203: son 10 sn; bütçe adım başına 16 700 µs (60 Hz, bütün odalar tek iş parçacığında)">${r.soldiers} asker · sim ${r.perf.simAvg} µs (p95 ${r.perf.simP95}) · ağ ${r.perf.netAvg} µs · ${r.perf.kbPerClient} KB/sn/oyuncu</div>` : ''}
       ${r.players.length ? r.players.map((p) => `<div class="pl"><i class="tm" style="background:${p.team === 'blue' ? 'var(--blue)' : 'var(--red)'}"></i><span class="n">${esc(p.name)} <span style="color:var(--tx3);font-size:12px">${esc(CLS(p.cls))}</span></span><span class="k" title="Öldürme / Asist / Ölüm">${p.kills}/${p.assists ?? 0}/${p.deaths}</span><button class="btn sm dan" data-kick="${esc(r.code)}:${p.id}" data-nm="${esc(p.name)}">At</button></div>`).join('') : '<div class="empty">Oyuncu yok</div>'}
       ${r.official ? '' : `<div style="margin-top:10px;text-align:right"><button class="btn sm dan" data-close="${esc(r.code)}">Odayı kapat</button></div>`}
     </div>`).join('') || '<div class="empty">Açık oda yok</div>'}</div></div>`;

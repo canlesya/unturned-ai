@@ -48,9 +48,10 @@ import { Payload } from './payload.js';
 import { ObjFx } from './objFx.js';                                  // 12.191 bayrak direği + zemin halkası (yalnız istemci)
 import { Front } from './front.js';                                  // Cephe modu (12.158)
 import { Vehicles } from './vehicles.js';                            // 12.177 araçlar (Kuzey Vadisi: jip)
-import { SoldierGrid } from './crowd.js';
-import { SpawnSet } from './spawnPoints.js';                               // 12.203 doğuş noktaları                                  // 12.203 asker ızgarası (kalabalık maç)
-import { assignSquadsBig, perchBig, spawnFlagBig } from './bigBots.js';           // 12.189 büyük harita bot çatışma akışı
+import { SoldierGrid } from './crowd.js';                                  // 12.203 asker ızgarası (kalabalık maç)
+import { SpawnSet } from './spawnPoints.js';                               // 12.203 doğuş noktaları
+import { FarSoldiers } from './farSoldiers.js';                              // 12.203 uzak asker LOD'u (istemci)
+import { assignSquadsBig, perchBig, spawnFlagBig, bigKill } from './bigBots.js';           // 12.189 büyük harita bot çatışma akışı
 import { vnav } from './vehicleBots.js';                                         // 12.189 bot sürücüler (araç ızgarası)
 import { VehicleView } from './vehicleView.js';
 import { VehicleHud } from './vehicleHud.js';
@@ -318,6 +319,7 @@ export class Game {
     }
     this.hud = new Hud(this);
     this.killfx = new KillFx(this);                                                // vuruş / öldürme hissi (kendi katmanı)
+    if (FarSoldiers.wanted(this) && opts.lod !== false && !/[?&]lod=0/.test(globalThis.location?.search || '')) this.farView = new FarSoldiers(this);      // 12.203 kalabalık / büyük harita: uzak asker vekili + seyrek poz (?lod=0 kapalı)
     this.objFx = this.mode.objectives.length && !opts.editor ? new ObjFx(this) : null;   // 12.191 bayrak direği (bez ilerlemeyle iner / çıkar) + alan sınırı halkası
     if (this.online) this.chat = new Chat(this);                                   // sohbet yalnızca çevrimiçi odalarda
     this.player = new Player(this, this.playerSoldier, this.settings);
@@ -1230,6 +1232,7 @@ export class Game {
     const dt = this.frameDt(now);
     this.last = now; this._rdt = dt;
     this.perfTick(now, dt);
+    this.farView?.begin();                                                          // 12.203 kare başı: kamera konisi + büyütme (syncModel kademeleri)
     if (this.online && !this.ended) {
       // çevrimiçi: sunucuyla aynı sabit adım (tahmin birebir tutsun)
       this._acc = Math.min(this._acc + dt, 0.1);
@@ -1356,7 +1359,7 @@ export class Game {
     this.pathBudget = Math.max(1, Math.ceil(this.brains.length / 80));        // 12.203 adım başına yol bulma: 80 bota 1 (128v128'de 4; eskiden hep 1 → ortalama 80 bot yol bekliyordu)
     // 12.197 bot beyinleri her adımda farklı bir botla başlar (döner sıra): eskiden hep Mavi botlar önce işleniyordu → adım başına 1'lik yol bütçesini
     // hep Mavi kapıyor, aynı karede karşılıklı atışta hep Mavi önce ateş ediyordu (takım modlarında Mavi lehine sistematik kayma)
-    { const B = this.brains, n = B.length, o = n ? (this._brainRot = ((this._brainRot || 0) + 1) % n) : 0; for (let i = 0; i < n; i++) B[(o + i) % n].update(dt); }
+    { const B = this.brains, n = B.length, o = n ? (this._brainRot = ((this._brainRot || 0) + 1) % n) : 0, k = (this._stepN = (this._stepN || 0) + 1); for (let i = 0; i < n; i++) B[(o + i) % n].tick(dt, k); }      // 12.203 tick: kademeli beyin (bot.js)
     for (const s of this.soldiers) if (!s.human && s !== this.playerSoldier) proneLook(s, dt);      // 12.199 yüzüstü bot: hedefe dönüş de gövde hızıyla (beyin yaw'ı ister, sınır uygular)
     V?.update(dt);                                // 12.177: sürücüsüz araç fiziği, hasar / yanma / batma, yeniden doğuş, yayaya çarpma, koltuk yerleşimi
     this.updateProjectiles(dt);
@@ -1607,6 +1610,7 @@ export class Game {
 
   render() {
     const r = this.renderer;
+    this.farView?.end();
     // gölge kamerası oyuncuyu izler, bakış yönüne kaydırılır (kayma olmaması için texel ızgarasına yuvarla)
     const p = this.playerSoldier.pos, S = this._shS || 55, F = this._shF || 0;
     const q = (2 * S) / this.sun.shadow.mapSize.x;
@@ -2193,7 +2197,8 @@ export class Game {
     const kev = { e: 'kill', k: killer ? killer.id : -1, v: victim.id, w: weapon || '', hs: hs ? 1 : 0 };
     if (pn) kev.pn = pn; if (pc > 1) kev.pc = pc;
     this.netEvent(kev);
-    if (!this.mode.infection) for (const b of this.brains) b.onMateDown?.(victim, killer);          // 12.152: yakındaki takım arkadaşları düştüğü yere bakar / araştırır
+    if (!this.mode.infection) for (const b of this.brains) b.onMateDown?.(victim, killer);
+    if (this.map.big && this.mode.objectives.length && killer && killer !== victim) bigKill(this, victim);      // 12.203 bayrak çatışma ısısı (yorgunluk: kanlı bayrak bir süre geriye düşer)          // 12.152: yakındaki takım arkadaşları düştüğü yere bakar / araştırır
     this.hud.killFeed(killer, victim, weapon, hs, pn);
     if (killer && killer.isPlayer && killer !== victim) this.killfx.kill(victim, weapon, hs, undefined, { pn, pc });
     if (victim.isPlayer) this.killfx.died();

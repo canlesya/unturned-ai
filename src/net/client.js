@@ -67,7 +67,7 @@ export class NetClient {
   // Oda yeni maça geçti (aynı bağlantıda yeni 'welcome'): tahmin / interpolasyon durumu sıfırlanır, yeni Game attach olana dek mesajlar biriktirilir
   resetMatch() {
     this.game = null; this.queued = null;
-    this.snaps = []; this.offset = null; this.seq = 0; this.hist = []; this.edges = {}; this.rt = 0; this.rs = null; this.pendingMe = null; this.roster = null; this.stats.snaps = 0; this.fallPred = null;
+    this.snaps = []; this.ps = []; this.offset = null; this.seq = 0; this.hist = []; this.edges = {}; this.rt = 0; this.rs = null; this.pendingMe = null; this.roster = null; this.stats.snaps = 0; this.fallPred = null;
     this.jit = 0; this.idelay = INTERP_MIN; this._snapAt = null; this._iAt = null;
   }
 
@@ -176,6 +176,9 @@ export class NetClient {
     this.stats.jit = this.jit;
     this.snaps.push({ k: m.k, s: m.s });
     if (this.snaps.length > 30) this.snaps.shift();
+    // 12.203 asker başına örnek tamponu (ilgi alanı: kalabalık odada uzak asker 10 / 5 Hz gelir; snapshot'ta olmayan asker son örneğinden sürer)
+    const PS = (this.ps ||= []);
+    for (const p of m.s) { const b = (PS[p.i] ||= []); b.push(m.k, p); if (b.length > 16) b.splice(0, 2); }
     this.stats.snaps++;
     const g = this.game;
     // skor alanları hemen: interpolate düşük FPS'te yavaş alanlı snapshot'ı atlayabiliyor → rakip öldürme/seviye 0'da kalıyor, LİDER kutusu yanlış
@@ -366,28 +369,31 @@ export class NetClient {
     this.stats.delay = this.idelay * TICK_MS;
     const rt = ((nowMs - this.offset) / 1000) * SIM_HZ - this.idelay;   // gösterilecek sunucu adımı
     this.rt = rt;
-    let a = S[0], b = S[0];
-    for (let i = 0; i < S.length; i++) { if (S[i].k <= rt) { a = S[i]; b = S[Math.min(i + 1, S.length - 1)]; } else break; }
-    if (S[0].k > rt) a = b = S[0];
-    const t = b.k > a.k ? Math.max(0, Math.min(1, (rt - a.k) / (b.k - a.k))) : 0;
     // tampon boşaldı (snapshot geç kaldı): son hızla en çok EXTRAP_MAX adım ileri tahmin; yerdeyken dikey tahmin yok
-    const last = S[S.length - 1], over = a === last ? rt - last.k : 0, ex = over > 0 ? Math.min(over, EXTRAP_MAX) / SIM_HZ : 0;
+    const last = S[S.length - 1], over = rt - last.k;
     if (over > EXTRAP_MAX) this.rt = last.k + EXTRAP_MAX;             // 12.187: bekleme anında ekranda görünen an (son + 100 ms ileri tahmin) atışta vt olarak gider; eski: rt ilerlemeye devam ediyordu → sunucu hedefi görünmeyen bir ana sarıyordu
     this.stats.frames++;
     if (over > 0) { this.stats.extrap++; if (over > EXTRAP_MAX) this.stats.hold++; }
-    const me = g.playerSoldier;
-    const bi = new Map(b.s.map((p) => [p.i, p]));
-    for (const pa of a.s) {
-      const s = g.soldiers[pa.i];
+    const me = g.playerSoldier, PS = this.ps || [];
+    // 12.203: her asker kendi örneklerinden (eskiden iki ortak snapshot arasında: snapshot'ta olmayan asker donardı). Her snapshot'ta gelen asker için sonuç aynı.
+    for (let id = 0; id < PS.length; id++) {
+      const B = PS[id]; if (!B || !B.length) continue;
+      const s = g.soldiers[id];
       if (!s || s === me) continue;
-      const pb = bi.get(pa.i) || pa;
+      let ia = 0;
+      for (let j = 0; j < B.length; j += 2) { if (B[j] <= rt) ia = j; else break; }
+      const ka = B[ia], pa = B[ia + 1], ib = Math.min(ia + 2, B.length - 2), kb = B[ib], pb = B[ib + 1];
+      const tt = kb > ka ? Math.max(0, Math.min(1, (rt - ka) / (kb - ka))) : 0;
+      // son örnek geride: aralığı kadar (en çok 14 adım), en az EXTRAP_MAX ileri tahmin; sonra bekler
+      const gap = ia >= 2 ? ka - B[ia - 2] : SNAP_EVERY, ov = ia === B.length - 2 ? rt - ka : 0;
+      const exs = ov > 0 ? Math.min(ov, Math.max(EXTRAP_MAX, Math.min(14, gap))) / SIM_HZ : 0;
       this.applyState(s, pa, false);
-      if (ex && pa.a) s.pos.set(pa.x + pa.vx * ex, pa.y + (pa.f & F_GROUND ? 0 : pa.vy * ex), pa.z + pa.vz * ex);
-      else s.pos.set(lerp(pa.x, pb.x, t), lerp(pa.y, pb.y, t), lerp(pa.z, pb.z, t));
+      if (exs && pa.a) s.pos.set(pa.x + pa.vx * exs, pa.y + (pa.f & F_GROUND ? 0 : pa.vy * exs), pa.z + pa.vz * exs);
+      else s.pos.set(lerp(pa.x, pb.x, tt), lerp(pa.y, pb.y, tt), lerp(pa.z, pb.z, tt));
       s.vel.set(pa.vx, pa.vy, pa.vz);
-      s.yaw = lerpAngle(pa.yw, pb.yw, t);
-      s.pitch = lerp(pa.pt, pb.pt, t);
-      s.pBody = pa.pb !== undefined ? lerpAngle(pa.pb, pb.pb ?? pa.pb, t) : s.yaw;     // 12.199 yüzüstü gövde yönü (yoksa bakış)
+      s.yaw = lerpAngle(pa.yw, pb.yw, tt);
+      s.pitch = lerp(pa.pt, pb.pt, tt);
+      s.pBody = pa.pb !== undefined ? lerpAngle(pa.pb, pb.pb ?? pa.pb, tt) : s.yaw;     // 12.199 yüzüstü gövde yönü (yoksa bakış)
     }
     if (g.vehicles) { g.vehicles.netInterp(rt, EXTRAP_MAX / SIM_HZ); g.vehicles.placeAll(); }      // 12.177: araçlar (kendi sürdüğüm hariç) + koltuktakiler
   }

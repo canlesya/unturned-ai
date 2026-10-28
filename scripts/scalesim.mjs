@@ -10,6 +10,8 @@ import { LIMITS } from '../src/game/balance.js';
 import { BotBrain } from '../src/game/bot.js';
 import { NavGrid } from '../src/game/nav.js';
 import { packSoldier } from '../src/net/protocol.js';
+let interestPick = null;
+try { ({ interestPick } = await import('../src/net/interest.js')); } catch { /* önce sürümü: ilgi alanı yok */ }
 import fs from 'node:fs';
 import zlib from 'node:zlib';
 
@@ -66,8 +68,9 @@ game.respawn = (s, first) => {
   if (md < 0.7) spawnQA.overlap++;
   spawnQA.minD.push(md);
   if (!game.nav.isFree(s.pos.x, s.pos.z)) spawnQA.blocked++;
-  const gy = game.world.heightAt(s.pos.x, s.pos.z);
-  if (s.pos.y > gy + 1.2) spawnQA.indoor++;
+  // bina içi / üstü kapalı: başın 1,6–14 m üstünde 0,3 m içinde kutu (çatı / kat / sundurma); araç hariç. (Kot farkı ölçüt değil: Baraj bayrağı tabliyede, 24 m)
+  { const W = game.world, L = W.query(s.pos.x - 0.6, s.pos.z - 0.6, s.pos.x + 0.6, s.pos.z + 0.6, []);
+    if (L.some((c) => c.tag !== 'veh' && s.pos.x > c.min[0] - 0.3 && s.pos.x < c.max[0] + 0.3 && s.pos.z > c.min[2] - 0.3 && s.pos.z < c.max[2] + 0.3 && c.min[1] > s.pos.y + 1.6 && c.min[1] < s.pos.y + 14)) { spawnQA.indoor++; spawnQA.indoorAt = (spawnQA.indoorAt || []).concat([[+s.pos.x.toFixed(1), +s.pos.z.toFixed(1)]]).slice(-6); } }
   return r;
 };
 
@@ -88,8 +91,8 @@ try {
     if (n % 300 === 150) {                                                    // snapshot boyutu: hepsi (eski) + ilgi alanı (game.snapPlan varsa, ilk insan yerine 1. Mavi asker)
       const all = JSON.stringify(S.map((s) => packSoldier(s, false)));
       snapAll.push(all.length); snapAllZ.push(deflate(all));
-      if (game.netInterest) {
-        const me = S[0], ids = game.netInterest(me, n / 3 | 0);
+      if (interestPick) {                                                     // sunucunun kuralı (src/net/interest.js), 1. Mavi askerin gözünden; 4 ardışık snapshot ortalaması
+        const me = S[0], ids = interestPick(S, me, (n / 3) | 0);
         const part = JSON.stringify(ids.map((i) => packSoldier(S[i], false)));
         snapIm.push(part.length); snapImZ.push(deflate(part));
       }
@@ -105,12 +108,16 @@ for (const k of kills) { const key = Math.floor(k[0] / G) + ',' + Math.floor(k[1
 const ent = (m) => { let H = 0, N = 0; for (const v of m.values()) N += v; for (const v of m.values()) { const p = v / N; H -= p * Math.log2(p); } return H; };
 const regs = new Map();
 const objs = game.mode.objectives, calls = game.map.callouts || [];
+// bölge: harita adlandırmalarından (callout; bayrak bölgeleri dahil: Kavşak = C) uzaklık / yarıçap oranı en küçük olan; hiçbirinin 1,6 katı içinde değilse
+// açık arazi ('arazi x,z', 200 m ızgara). Adlandırma yoksa en yakın bayrak (r + 40 m içinde).
 const regionOf = (x, z) => {
   let best = null, bd = 1e9;
+  if (calls.length) {
+    for (const c of calls) { const d = Math.hypot(c.x - x, c.z - z) / Math.max(30, c.r || 60); if (d < bd) { bd = d; best = c.name; } }
+    return bd <= 1.6 ? best : `arazi ${Math.floor(x / 200)},${Math.floor(z / 200)}`;
+  }
   for (const o of objs) { const d = Math.hypot(o.x - x, o.z - z); if (d < o.r + 40 && d < bd) { bd = d; best = 'bayrak ' + o.id; } }
-  if (best) return best;
-  for (const c of calls) { const d = Math.hypot(c.x - x, c.z - z) / Math.max(30, c.r || 60); if (d < bd) { bd = d; best = c.name; } }
-  return best || '?';
+  return best || `arazi ${Math.floor(x / 200)},${Math.floor(z / 200)}`;
 };
 for (const k of kills) { const r = regionOf(k[0], k[1]); regs.set(r, (regs.get(r) || 0) + 1); }
 const regList = [...regs.entries()].sort((a, b) => b[1] - a[1]);
@@ -134,7 +141,7 @@ const res = {
   pathWaitAvg: +(pathWait / Math.max(1, pathWaitN)).toFixed(1),
   kills: nk, kpm: +(nk / (n * dt / 60)).toFixed(1), vehKillPct: +(kills.filter((k) => k[4]).length / Math.max(1, nk) * 100).toFixed(0),
   dist: { cells50: cells.size, entropy50: +ent(cells).toFixed(2), regions: regs.size, regionEntropy: +ent(regs).toFixed(2), regions5, top3Pct: +(top * 100).toFixed(0), topRegions: regList.slice(0, 8), winTop },
-  spawn: { n: spawnQA.n, overlap: spawnQA.overlap, blocked: spawnQA.blocked, indoor: spawnQA.indoor, minDMed: +([...spawnQA.minD].sort((a, b) => a - b)[spawnQA.minD.length >> 1] || 0).toFixed(1), spawnKill, spawnKillPct: +(spawnKill / Math.max(1, nk) * 100).toFixed(1) },
+  spawn: { n: spawnQA.n, overlap: spawnQA.overlap, blocked: spawnQA.blocked, indoor: spawnQA.indoor, indoorAt: spawnQA.indoorAt, minDMed: +([...spawnQA.minD].sort((a, b) => a - b)[spawnQA.minD.length >> 1] || 0).toFixed(1), spawnKill, spawnKillPct: +(spawnKill / Math.max(1, nk) * 100).toFixed(1) },
   snap: { allB: Math.round(avg(snapAll)), allZ: Math.round(avg(snapAllZ)), imB: Math.round(avg(snapIm)), imZ: Math.round(avg(snapImZ)), allKBs: +(avg(snapAllZ) * 20 / 1024).toFixed(1), imKBs: snapImZ.length ? +(avg(snapImZ) * 20 / 1024).toFixed(1) : null },
   tickets: { blue: Math.round(game.tickets.blue), red: Math.round(game.tickets.red) },
   owners: objs.map((o) => `${o.id}:${o.owner ? o.owner[0] : '-'}`).join(' '),
