@@ -267,6 +267,7 @@ export const WEAPON_INFO = new Proxy({}, { get: (_, id) => WSTATS[id]?.desc || '
 
 // lod: true → uzaktan görünen savaşçı modeli için sadeleştirilmiş silah (köşe renkli / S3 LOD ≤ 600 üçgen, 2-3 çizim çağrısı). skin: S3 silah kaplaması (diğerlerinde yok sayılır)
 export function createWeapon(id, optic = 'reddot', lod = false, skin = 'std') {
+  if (id === 'law') { const g = createWeapon('rpg', optic, lod, skin); g.scale.set(0.9, 0.9, 0.85); return g; }      // 12.208 M72 LAW: RPG modeli (kısa tüp); ayrı model yapılmadı
   const fn = WEAPONS[id];
   if (!fn) throw new Error('Bilinmeyen silah: ' + id);
   const o = resolveOptic(id, optic);

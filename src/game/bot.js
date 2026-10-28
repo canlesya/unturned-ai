@@ -283,9 +283,9 @@ export class BotBrain {
   // 12.200 tanksavar nişanı: hedef araçtaysa ve botta roket varsa [yaw, pitch, aracın gövde ortasına uzaklık] (öncü: roket düz uçar), yoksa null
   atAim(tg, eye, dist) {
     const s = this.s, v = tg.veh, it = s.items[2];
-    if (!v?.alive || !v.st || s.veh || it?.id !== 'rpg' || it.mag + it.reserve <= 0 || dist > AT_BOT.range) return null;
+    if (!v?.alive || !v.st || s.veh || (it?.id !== 'rpg' && it?.id !== 'law') || it.mag + it.reserve <= 0 || dist > AT_BOT.range) return null;
     if (v.def.heli && v.st.air && dist > AT_BOT.heliAir) return null;
-    const st = v.st, sp = WSTATS.rpg.speed;
+    const st = v.st, sp = WSTATS[it.id].speed;
     let px = st.x, py = st.y + v.def.top * 0.45, pz = st.z;
     for (let k = 0; k < 2; k++) { const t = Math.hypot(px - eye.x, py - eye.y, pz - eye.z) / sp; px = st.x + st.vx * t; py = st.y + v.def.top * 0.45 + (st.vy || 0) * t; pz = st.z + st.vz * t; }
     if ((this.atErrT = (this.atErrT ?? 0) - 1) <= 0 || !this.atErr) { const e = AT_BOT.err[this.dk] ?? AT_BOT.err.normal; this.atErr = [rand(-e, e), rand(-e, e) * 0.6]; this.atErrT = 1e9; }
@@ -298,7 +298,7 @@ export class BotBrain {
     this.atCd = (this.atCd ?? 0) - dt;
     if (this.reactT > 0 || this.atCd > 0 || dist < AT_BOT.fire[0] || dist > AT_BOT.fire[1]) return;
     if (Math.abs(angleDiff(s.yaw, atm[0])) > 0.03 + 0.6 / (dist + 10) || Math.abs(s.pitch - atm[1]) > 0.04) return;
-    if (s.useGadget('rpg')) { const c = AT_BOT.cd[this.dk] || AT_BOT.cd.normal; this.atCd = rand(c[0], c[1]); this.atErr = null; const gs = (this.game.atStats ||= { shots: 0 }); gs.shots++; }
+    if (s.useGadget(s.items[2].id)) { const c = AT_BOT.cd[this.dk] || AT_BOT.cd.normal; this.atCd = rand(c[0], c[1]); this.atErr = null; const gs = (this.game.atStats ||= { shots: 0 }); gs.shots++; }
   }
 
   sense() {
@@ -306,7 +306,7 @@ export class BotBrain {
     const eye = s.eye(tA);
     const fwd = tB.set(-Math.sin(s.yaw), 0, -Math.cos(s.yaw));
     const alerted = g.time - this.alertT < 3;
-    const at = g.vehicles && (s.items[2]?.id === 'rpg' || s.items[2]?.id === 'm79') && s.items[2].mag > 0;      // 12.189 tanksavarı var
+    const at = g.vehicles && (s.items[2]?.id === 'rpg' || s.items[2]?.id === 'law' || s.items[2]?.id === 'm79') && s.items[2].mag > 0;      // 12.189 tanksavarı var
     let best = null, bd = 1e9;
     // 12.203 düz uzaklık puanı olan modlarda (Ele Geçirme / TDM / herkes-tek) adaylar önce ucuz süzgeçten geçer, yakından uzağa sıralanır, ilk GÖRÜLEN
     // seçilir (en yakın görünen = eskisiyle aynı sonuç). Eskiden menzildeki her aday için görüş hattı (dünya + duman + yaprak) sınanıyordu: 128v128'de
