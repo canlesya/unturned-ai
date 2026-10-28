@@ -321,10 +321,11 @@ async function online(chromium) {
   const ids2 = await A.evaluate(() => { const g = window.__game, r = g.soldiers.filter((s) => s.team === 'red' && s.alive); g.online.send({ t: 'dbg', tps: [r[0].id, 304.5, -393, 0, 100] }); g.online.send({ t: 'dbg', tps: [r[1].id, 305, -391, 0, 100] }); return [r[0].id, r[1].id]; });
   await A.waitForTimeout(900);
   await B.evaluate(() => { const g = window.__game, me = g.playerSoldier; me.yaw = Math.atan2(-(305 - me.pos.x), -(-392 - me.pos.z)); me.pitch = -0.12; });
-  await A.evaluate(() => { const g = window.__game, me = g.playerSoldier; me.yaw = -Math.PI / 2; me.pitch = -0.1; g.player.fireHeld = true; });
+  // 12.201 burun topu artının noktasına gider → artıyı (takip kamerası ışını; bakış − 0,16) yakındaki düşmanın gövdesine koy
+  await A.evaluate((ids) => { const g = window.__game, me = g.playerSoldier; const aim = () => { const T = ids.map((i) => g.soldiers[i]).filter((e) => e.alive).sort((a, b) => Math.hypot(a.pos.x - me.pos.x, a.pos.z - me.pos.z) - Math.hypot(b.pos.x - me.pos.x, b.pos.z - me.pos.z))[0]; if (!T) return; const c = g.camera.position, t = T.center(), dx = t.x - c.x, dz = t.z - c.z; me.yaw = Math.atan2(-dx, -dz); me.pitch = Math.atan2(t.y - c.y, Math.hypot(dx, dz)) + 0.16; }; aim(); window.__pa = setInterval(aim, 8); g.player.fireHeld = true; }, ids2);
   await A.waitForTimeout(700); await A.evaluate(() => { const g = window.__game; g.player.fireHeld = false; g.player.mmb = true; });      // 12.201 roket: orta tık (sağ tık = yakınlaştırma)
   await A.waitForTimeout(500); await Promise.all([A.screenshot({ path: `${OUT}/sonra/23-cevrimici-A-pilot-roket.png` }), B.screenshot({ path: `${OUT}/sonra/24-cevrimici-B-pilot-roket.png` })]);
-  await A.waitForTimeout(900); await A.evaluate(() => { window.__game.player.mmb = false; });
+  await A.waitForTimeout(900); await A.evaluate(() => { window.__game.player.mmb = false; clearInterval(window.__pa); });
   await A.waitForTimeout(800);
   const res2 = await Promise.all([A, B].map((P) => P.evaluate((ids) => { const g = window.__game; return { sh: g._sh, rk: g._rk, feed: g._feed2.filter((x) => ids.includes(x[1])) }; }, ids2)));
   ok(hseat[0] === 'B-H1' && hseat[1] === 0 && res2[1].sh > 3 && res2[1].rk >= 1, 'çevrim içi helikopter pilotu (tek kişi): burun topu izleri + roketler diğer istemcide görünür', JSON.stringify({ seat: hseat, B: { sh: res2[1].sh, rk: res2[1].rk } }));
