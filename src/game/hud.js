@@ -16,6 +16,7 @@ import { mapName, modeLabel, className } from '../i18n/data.js';
 import '../i18n/assist.js';                                              // sb.a (12.165 asist sütunu)
 import { wName, wLabel, classDesc, ztName, ztDesc, abilName, opticName, fireName, teamName, popText, mapText, dispName, placeName } from '../i18n/game.js';
 import { MOTO_ICON } from './motorbike.js';                                  // 12.204 öldürme akışında motor simgesi
+import { vehIconSvg } from './vehIcons.js';                                 // 12.205 doğuş listesinde araçtaki arkadaşın aracı
 
 const EN = (s) => String(s).replace(/Paintball/g, '<span lang="en">Paintball</span>');   // tr büyük harfte 'PAİNTBALL' olmasın (marka adı)
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -538,7 +539,7 @@ export class Hud {
   buildSpawnRow() {
     const g = this.game, row = this.$('spawnrow');
     const opts = g.spawnOptions();
-    const key = opts.map((o) => o.id + (o.ok ? 1 : 0) + (o.st ?? '')).join(',') + '|' + g.spawnChoice + '|' + lang();
+    const key = opts.map((o) => o.id + (o.ok ? 1 : 0) + (o.st ?? '') + (o.veh ? o.veh.idx + ':' + o.free : '')).join(',') + '|' + g.spawnChoice + '|' + lang();
     if (key === this._spKey) return;
     this._spKey = key;
     const kb = g.binds;
@@ -547,12 +548,16 @@ export class Hud {
     for (const o of opts) {
       const c = document.createElement('div');
       c.className = 'cc' + (o.ok ? '' : ' dis') + (g.spawnChoice === o.id ? ' on' : ''); c.dataset.k = o.id;
-      c.innerHTML = o.mate ? `<b style="color:#8dff8a">◆ ${esc(o.name)}</b><small>${o.ok ? t('sq.mateOk') : t('sq.st.' + o.st)}</small>`      // 12.202 manga arkadaşı
+      c.innerHTML = o.mate && o.veh ? `<b style="color:#8dff8a">◆ ${esc(o.name)}${vehIconSvg(o.veh)}<span class="vfree">${o.free ?? 0}</span></b><small>${o.ok ? `${t('sq.vehOk')} · ${o.free === 1 ? t('sq.seat1') : t('sq.seats', { n: o.free ?? 0 })}` : t('sq.st.' + o.st)}</small>`      // 12.205 araçtaki arkadaş: simge + boş koltuk
+        : o.mate ? `<b style="color:#8dff8a">◆ ${esc(o.name)}</b><small>${o.ok ? t('sq.mateOk') : t('sq.st.' + o.st)}</small>`      // 12.202 manga arkadaşı
         : `<b>${o.id === 'base' ? '⌂ ' + t('death.base') : '⚑ ' + placeName(o.name)}</b><small>${o.id === 'base' ? t('death.baseSafe') : o.ok ? t('death.flagOwned') : t('death.unavail')}</small>`;
       c.onclick = () => { g.requestSpawn(o.id); this._spKey = null; };
       row.appendChild(c);
     }
-    if (!opts.find((o) => o.id === g.spawnChoice && o.ok)) g.spawnChoice = 'base';
+    // seçili nokta kapandı → üs. 12.205: "Doğ"a basılmışken arkadaşın aracı dolduysa (durum 7) seçim kalır: yetkili taraf aracın yanına, olmazsa
+    // üsse doğurur. Çevrim içinde üsse dönüş sunucuya da gider (eskiden yalnız yerelde değişiyordu, sunucu eski seçimde kalıyordu)
+    const cur = opts.find((o) => o.id === g.spawnChoice);
+    if (!(cur && (cur.ok || (cur.st === 7 && g.deployArmed())))) { if (g.spawnChoice !== 'base' && g.online) g.requestSpawn('base'); else g.spawnChoice = 'base'; }
   }
 
   drawCompass() {

@@ -9,7 +9,7 @@ import { currentBalance, balanceMeta } from './balanceStore.js';
 import { MAPS } from '../src/maps/index.js';
 import { nextOptions, tallyVotes } from '../src/game/nextMatch.js';
 import { packVehState } from '../src/sim/vehicle.js';
-import { squadOn, squadMates, mateSpawnState } from '../src/game/squad.js';
+import { squadOn, squadMates, mateSpawnState, vehFreeSeats } from '../src/game/squad.js';
 
 const RESTART_ENV = +process.env.BF_RESTART_MS || 0, RESTART_MS = RESTART_ENV || 15000;      // maç sonu ekranı (resmi odada oylama) süresi; ortam değişkeni resmi sunucunun voteSec'ini de ezer (test)
 const EMPTY_ENV = +process.env.BF_EMPTY_ROTATE_MS || 0;                                    // boş resmi oda harita değişimi (test); yoksa sunucunun idleMin alanı
@@ -480,7 +480,7 @@ export class Room {
       const h = c.h, s = h.s;
       const me = { ack: h.ack, rs: s.spawnN, st: h.ackState || packSoldier(s), now: packSoldier(s), rt: +s.respawnT.toFixed(2), am: s.items.map((it) => [it.mag, it.reserve]), aa: h.ackAm, ab: [+s.abT.toFixed(1), +s.abActive.toFixed(1)] };
       if (h.ackVeh) me.vs = h.ackVeh;
-      if (!s.alive && h.hold && squadOn(g)) me.sp = squadMates(g, s).map((m) => [m.id, mateSpawnState(g, m)]);      // 12.202 ölüyken: manga arkadaşlarının yanında doğulabilir mi
+      if (!s.alive && h.hold && squadOn(g)) me.sp = squadMates(g, s).map((m) => m.veh ? [m.id, mateSpawnState(g, m), vehFreeSeats(m.veh)] : [m.id, mateSpawnState(g, m)]);      // 12.202 ölüyken: manga arkadaşlarının yanında doğulabilir mi · 12.205 araçtaysa boş koltuk sayısı
       c.ws.send(head + JSON.stringify(me) + '}');
     }
   }

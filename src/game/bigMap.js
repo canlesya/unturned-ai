@@ -5,17 +5,26 @@
 // · Ölünce aynı harita ölüm ekranının ortasında doğuş seçicidir: üs, takımın bayrakları, manga arkadaşları (uygunsa) tıklanır, "Doğ" ile doğulur
 //   (Boşluk da). Geri sayım bitmeden basılırsa hazır bekler; hiç basılmazsa süre bitiminden DEPLOY_AUTO sn sonra seçili noktada kendiliğinden doğulur.
 // · Mobil: dokunmatikte harita düğmesi / mini haritaya dokunma (touch.js), haritaya dokunmak işaret, ✕ kapatır.
+// · 12.205 yakınlaştırma: tekerlek imlecin altındaki nokta etrafında ×1 (tüm harita) … ×ZMAX; sol / sağ / orta tıkla sürükle = kaydır (DRAG_PX eşiğinden
+//   sonra; altında tık = işaret / doğuş seçimi), mobilde iki parmak yakınlaştırır, tek parmak sürükler. Fare kilitliyken sanal imleç aynı yolu kullanır
+//   (lockedDown / moveCursor / lockedUp, tekerlek imlecin altına). Simgeler / yazılar ekran pikseli boyunda kalır (ölçeklenmez). M haritası son
+//   yakınlığı hatırlar, her açılışta kendi konumuna ortalanır (ilk açılış: büyük haritada ×2, küçükte ×1); ölüm doğuş haritası her ölümde tüm harita.
+//   Zemin katmanı (arazi / yapılar / bölge adları) görünen bölge için yeniden çizilir; kaydırma / yakınlaştırma sürerken eski katman ölçeklenip kaydırılır.
+// · 12.205 araçtaki manga arkadaşı: araç simgesi + boş koltuk sayısı; uygunsa tıklanır → boş koltuğa doğuş (squad.js vehSpawnState).
 import { t, lang } from '../i18n/index.js';
 import '../i18n/squad.js';
 import { clamp } from './util.js';
 import { mapName } from '../i18n/data.js';
 import { mapText, placeName } from '../i18n/game.js';
 import { squadOn, squadMates, SP } from './squad.js';
+import { vehIconDraw, vehIconSvg } from './vehIcons.js';
 import { PCOL } from './pings.js';
 import { HEAT_SEC } from './heat.js';
 import { codeLabel } from '../core/keybinds.js';
 
 export const DEPLOY_AUTO = 10;                    // süre bitiminden sonra "Doğ"a basılmazsa kendiliğinden doğuş (sn; AFK koruması)
+export const ZMAX = 6;                            // 12.205 en çok yakınlaştırma (tüm haritaya göre)
+const DRAG_PX = 6, DRAG_TOUCH = 10, SETTLE_MS = 160;      // sürükleme eşiği (CSS px; altı tık) · zemin katmanı yakınlaştırma durunca yeniden çizilir
 const COL = { blue: '#4aa3ff', red: '#ff5a43' };
 const CSS = `
 #bmap{position:fixed;inset:0;z-index:24;display:none;align-items:center;justify-content:center;background:rgba(4,7,11,.72);font-family:Bahnschrift,'Rajdhani','Arial Narrow',system-ui,sans-serif;color:#e8edf5;user-select:none;-webkit-user-select:none;touch-action:none}
@@ -33,7 +42,15 @@ const CSS = `
 #bmap .bml i.d{border-radius:0;transform:rotate(45deg);width:8px;height:8px}
 #bmap .bml i.h{background:radial-gradient(circle,rgba(255,50,30,.9),rgba(255,50,30,0) 70%);width:14px;height:14px;vertical-align:-3px}
 .bmview{position:absolute;inset:0;overflow:hidden}
-.bmview canvas{position:absolute;left:0;top:0;width:100%;height:100%;display:block;cursor:crosshair}
+.bmview canvas{position:absolute;left:0;top:0;width:100%;height:100%;display:block;cursor:crosshair;touch-action:none}
+.bmview canvas.drag{cursor:grabbing}
+.bmzc{position:absolute;right:8px;bottom:8px;display:flex;flex-direction:column;align-items:center;gap:4px;z-index:2}
+.bmzc button{all:unset;box-sizing:border-box;cursor:pointer;width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:rgba(8,11,17,.82);border:1px solid rgba(255,255,255,.22);color:#e8edf5;font:800 18px Bahnschrift,'Arial Narrow',sans-serif;line-height:1}
+.bmzc button:hover{background:rgba(255,255,255,.14)}
+.bmzc .zl{font:700 11px Bahnschrift,'Arial Narrow',sans-serif;letter-spacing:1px;padding:2px 4px;background:rgba(8,11,17,.75);color:#ffd27a}
+.hsi.vi{width:20px;height:13px;vertical-align:-1px;margin-left:6px;color:#8dff8a}
+.vfree{display:inline-block;min-width:15px;margin-left:4px;padding:0 3px;border-radius:8px;background:#0b0f15;border:1px solid #62f06a;color:#fff;font-size:11px;line-height:14px;text-align:center;vertical-align:1px}
+.cc.dis .hsi.vi{color:#aaa}.cc.dis .vfree{border-color:#999}
 #bmcur{position:fixed;z-index:60;left:0;top:0;width:22px;height:22px;margin:-11px 0 0 -11px;pointer-events:none;display:none}
 #bmcur::before,#bmcur::after{content:'';position:absolute;background:#fff;box-shadow:0 0 0 1px #000}
 #bmcur::before{left:10px;top:0;width:2px;height:22px}#bmcur::after{top:10px;left:0;height:2px;width:22px}
@@ -67,6 +84,7 @@ const CSS = `
 #respawn.dmap .cspn{display:none}
 #respawn .cmap{padding:5px 6px}
 #respawn .cmap .dmb{margin-top:4px;gap:8px}
+.bmzc button{width:34px;height:34px}
 #respawn .cmap .dsel{font-size:12px;letter-spacing:1px}#respawn .cmap .dsel small{font-size:10px}
 #respawn .cmap .dgo{min-width:120px;padding:9px 14px;font-size:15px;letter-spacing:2px}
 }
@@ -91,10 +109,52 @@ export class BigMap {
     this.cur = document.createElement('div'); this.cur.id = 'bmcur'; document.body.appendChild(this.cur);
     this.tip = document.createElement('div'); this.tip.id = 'bmtip'; document.body.appendChild(this.tip);
     this.cx = innerWidth / 2; this.cy = innerHeight / 2;
-    this.cv.addEventListener('pointermove', (e) => { if (document.pointerLockElement) return; this.hoverAt(e.clientX, e.clientY); });
-    this.cv.addEventListener('pointerleave', () => { if (!document.pointerLockElement) { this.hover = null; this.tip.style.display = 'none'; } });
-    this.cv.addEventListener('pointerdown', (e) => { if (document.pointerLockElement) return; e.preventDefault(); e.stopPropagation(); this.clickAt(e.clientX, e.clientY, e.button); });
+    // 12.205 yakınlaştırma / kaydırma: görünüm (z: ×1…ZMAX, cx / cz: ortadaki dünya noktası) kip başına
+    this.views = { map: null, deploy: null };
+    const zc = (this.zc = document.createElement('div')); zc.className = 'bmzc';
+    zc.innerHTML = '<button class="zi">+</button><button class="zo">−</button><button class="zf">⤢</button><span class="zl"></span>';
+    this.view.appendChild(zc); this.zl = zc.querySelector('.zl');
+    zc.addEventListener('pointerdown', (e) => e.stopPropagation());
+    const zBtn = (f) => (e) => { e.stopPropagation(); const r = this.cv.getBoundingClientRect(); if (f) this.zoomAt(r.left + r.width / 2, r.top + r.height / 2, f); else this.zoomFit(); };
+    zc.querySelector('.zi').onclick = zBtn(1.6); zc.querySelector('.zo').onclick = zBtn(1 / 1.6); zc.querySelector('.zf').onclick = zBtn(0);
+    this.ptrs = new Map(); this.press = null; this.pinch = null;
+    this.cv.addEventListener('pointerdown', (e) => {
+      if (document.pointerLockElement) return;
+      e.preventDefault(); e.stopPropagation();
+      try { this.cv.setPointerCapture(e.pointerId); } catch {}
+      this.ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (this.ptrs.size === 1) this.press = { x: e.clientX, y: e.clientY, b: e.button, moved: false, thr: e.pointerType === 'touch' ? DRAG_TOUCH : DRAG_PX };
+      else if (this.ptrs.size === 2) { if (this.press) this.press.moved = true; this.pinch = this.pinchState(); this.tip.style.display = 'none'; }
+    });
+    this.cv.addEventListener('pointermove', (e) => {
+      if (document.pointerLockElement) return;
+      const p = this.ptrs.get(e.pointerId);
+      if (!p) { this.hoverAt(e.clientX, e.clientY); return; }
+      const dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
+      if (this.ptrs.size >= 2) { const q = this.pinchState(), o = this.pinch; if (o && o.d > 0) { this.zoomAt(q.x, q.y, q.d / o.d); this.panBy(q.x - o.x, q.y - o.y); } this.pinch = q; return; }
+      const pr = this.press;
+      if (pr && !pr.moved && Math.hypot(e.clientX - pr.x, e.clientY - pr.y) > pr.thr) { pr.moved = true; this.cv.classList.add('drag'); this.tip.style.display = 'none'; this.panBy(e.clientX - pr.x - dx, e.clientY - pr.y - dy); }
+      if (pr?.moved) this.panBy(dx, dy); else this.hoverAt(e.clientX, e.clientY);
+    });
+    const up = (e) => {
+      if (!this.ptrs.has(e.pointerId)) return;
+      this.ptrs.delete(e.pointerId);
+      if (this.ptrs.size < 2) this.pinch = null;
+      if (this.ptrs.size) return;
+      const pr = this.press; this.press = null; this.cv.classList.remove('drag');
+      if (pr && !pr.moved && e.type === 'pointerup') this.clickAt(pr.x, pr.y, pr.b);
+    };
+    this.cv.addEventListener('pointerup', up); this.cv.addEventListener('pointercancel', up);
+    this.cv.addEventListener('pointerleave', () => { if (!document.pointerLockElement && !this.ptrs.size) { this.hover = null; this.tip.style.display = 'none'; } });
     this.cv.addEventListener('contextmenu', (e) => e.preventDefault());
+    addEventListener('wheel', this._wh = (e) => {                      // tekerlek: imlecin (kilitliyse sanal imlecin) altındaki nokta etrafında
+      if (!this.open || this.g.chatOpen) return;
+      const lk = !!document.pointerLockElement, cx = lk ? this.cx : e.clientX, cy = lk ? this.cy : e.clientY, r = this.cv.getBoundingClientRect();
+      if (cx < r.left || cx > r.right || cy < r.top || cy > r.bottom || (!lk && e.target !== this.cv)) return;
+      e.preventDefault();
+      const dy = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY;
+      this.zoomAt(cx, cy, Math.exp(-clamp(dy, -240, 240) * 0.0018));      // ~100 px adım ×1,2 (mac Chrome 200 px: ×1,43)
+    }, { passive: false });
     addEventListener('keydown', this._kd = (e) => {
       if (e.repeat || this.mode !== 'deploy' || this.g.chatOpen) return;
       if (e.code === 'Space') { e.preventDefault(); this.g.requestDeploy(); }
@@ -115,11 +175,13 @@ export class BigMap {
     const g = this.g, ov = this.ov;
     ov.querySelector('.bmh b').textContent = mapName(g.mapDef?.id || g.opts.map);
     ov.querySelector('.tm').textContent = t('sq.teamBtn', { k: codeLabel(g.binds.codes('team')[0]) });
-    ov.querySelector('.hn').textContent = t(document.body.classList.contains('mob') ? 'sq.mapHintTouch' : 'sq.mapHint', { k: codeLabel(g.binds.codes('map')[0]) });
+    const mob = document.body.classList.contains('mob');
+    ov.querySelector('.hn').textContent = t(mob ? 'sq.mapHintTouch' : 'sq.mapHint', { k: codeLabel(g.binds.codes('map')[0]) }) + ' · ' + t(mob ? 'sq.zoomHintTouch' : 'sq.zoomHint');      // 12.205
+    this.zc.querySelector('.zf').title = t('sq.zoomFit');
     const on = squadOn(g);
     ov.querySelector('.bml').innerHTML = [`<span><i style="background:#ffd23a"></i>${t('sq.lg.me')}</span>`, on ? `<span><i style="background:${PCOL.sq}"></i>${t('sq.lg.squad')}</span>` : '', !g.ffa ? `<span><i style="background:${COL[g.playerSoldier?.team] || COL.blue}"></i>${t('sq.lg.team')}</span>` : '',
       `<span><i style="background:${COL.red};box-shadow:0 0 0 1px #fff"></i>${t('sq.lg.enemy')}</span>`, `<span><i class="d" style="background:${PCOL.me}"></i>${t('sq.lg.ping')}</span>`, `<span><i class="h"></i>${t('sq.lg.heat', { n: HEAT_SEC })}</span>`].join('');
-    if (this.card) { this.card.querySelector('.dmt').textContent = t('sq.deployTitle'); this.card.querySelector('.dmh').textContent = t(document.body.classList.contains('mob') ? 'sq.deployHintTouch' : 'sq.deployHint'); }
+    if (this.card) { this.card.querySelector('.dmt').textContent = t('sq.deployTitle'); this.card.querySelector('.dmh').textContent = t(mob ? 'sq.deployHintTouch' : 'sq.deployHint') + ' · ' + t(mob ? 'sq.zoomHintTouch' : 'sq.zoomHint'); }
     this._baseKey = null;
   }
 
@@ -130,7 +192,12 @@ export class BigMap {
     if (on && (g.ended || !g.running)) return;
     this.open = on; this.mode = on ? 'map' : null;
     this.ov.classList.toggle('on', on);
-    if (on) { this.ov.querySelector('.bmv').appendChild(this.view); this.cx = innerWidth / 2; this.cy = innerHeight / 2; this.applyLang(); g.player && (g.player.fireHeld = false); }
+    if (on) {
+      this.ov.querySelector('.bmv').appendChild(this.view); this.cx = innerWidth / 2; this.cy = innerHeight / 2; this.applyLang(); g.player && (g.player.fireHeld = false);
+      const v = (this.views.map ||= { z: g.map.big ? 2 : 1 }), me = g.playerSoldier;      // 12.205 son yakınlık, kendi konumuna ortalı
+      if (me) { v.cx = me.pos.x; v.cz = me.pos.z; }
+      this.endPress(); this._baseKey = null;
+    }
     this.cur.classList.toggle('on', on && !!document.pointerLockElement);
     if (!on) { this.tip.style.display = 'none'; this.hover = null; }
   }
@@ -141,29 +208,63 @@ export class BigMap {
     this.card.querySelector('.dmv').appendChild(this.view);
     this.g.hud.$('respawn').classList.add('dmap');
     this.cx = innerWidth / 2; this.cy = innerHeight / 2;
+    this.views.deploy = { z: 1 };                                         // 12.205 her ölümde tüm harita (doğuş noktaları haritanın her yerinde)
+    this.endPress();
     this._baseKey = null;
   }
   exitDeploy() {
-    this.mode = null; this.open = false;
+    this.mode = null; this.open = false; this.endPress();
     this.g.hud.$('respawn').classList.remove('dmap');
     this.cur.classList.remove('on'); this.tip.style.display = 'none'; this.hover = null;
   }
 
   // Player (fare kilitliyken): harita açık → fare sanal imleç
   moveCursor(dx, dy) {
+    const x0 = this.cx, y0 = this.cy;
     this.cx = clamp(this.cx + dx, 0, innerWidth - 1); this.cy = clamp(this.cy + dy, 0, innerHeight - 1);
     this.cur.style.left = this.cx + 'px'; this.cur.style.top = this.cy + 'px';
     this.cur.classList.add('on');
+    const pr = this.lpress;                                                 // 12.205 basılı sürükleme: harita imleçle birlikte kayar
+    if (pr && !pr.moved && Math.hypot(this.cx - pr.x, this.cy - pr.y) > DRAG_PX) { pr.moved = true; this.tip.style.display = 'none'; this.panBy(x0 - pr.x, y0 - pr.y); }
+    if (pr?.moved) { this.panBy(this.cx - x0, this.cy - y0); return; }
     this.hoverAt(this.cx, this.cy);
   }
-  // Fare kilitliyken tık: imlecin altındaki öğe (harita / sınıf kartı / Doğ / doğuş listesi / düğme)
-  lockedClick(button) {
+  // Fare kilitliyken bas / bırak: imlecin altındaki öğe (harita / sınıf kartı / Doğ / doğuş listesi / düğme). Haritada bırakınca tık (sürüklenmediyse)
+  lockedDown(button) {
     this.cur.style.display = 'none'; const el = document.elementFromPoint(this.cx, this.cy); this.cur.style.display = '';
     if (!el) return;
-    if (el === this.cv) { this.clickAt(this.cx, this.cy, button); return; }
+    if (el === this.cv) { this.lpress = { x: this.cx, y: this.cy, b: button, moved: false }; return; }
     const b = el.closest('button, .cc, [data-k]');
     if (b && button === 0) b.click();
   }
+  lockedUp(button) {
+    const pr = this.lpress;
+    if (!pr || pr.b !== button) return;
+    this.lpress = null;
+    if (!pr.moved) this.clickAt(pr.x, pr.y, button);
+  }
+  lockedClick(button) { this.lockedDown(button); this.lockedUp(button); }
+  endPress() { this.ptrs?.clear(); this.press = this.pinch = this.lpress = null; this.cv.classList.remove('drag'); }
+  pinchState() { const [a, b] = [...this.ptrs.values()]; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, d: Math.hypot(a.x - b.x, a.y - b.y) }; }
+
+  // ── 12.205 yakınlaştırma / kaydırma ──
+  get vw() { return this.mode === 'deploy' ? (this.views.deploy ||= { z: 1 }) : (this.views.map ||= { z: 1 }); }
+  // istemci noktası (CSS px) etrafında ×f: o noktadaki dünya noktası imlecin altında kalır
+  zoomAt(clientX, clientY, f) {
+    if (!this.X || !(f > 0)) return;
+    const v = this.vw, [px, py] = this.local(clientX, clientY), wx = this.IX(px), wz = this.IZ(py);
+    const z = clamp(v.z * f, 1, ZMAX); if (z === v.z) return;
+    const s = this.s0 * z, W = this.cv.width, H = this.cv.height;
+    v.z = z; v.cx = wx - (px - W / 2) / s; v.cz = wz - (py - H / 2) / s;
+    if (z <= 1.001) v.cx = v.cz = undefined;                              // tüm haritaya dönünce ortalı
+    this.fit(W, H); this._vt = performance.now(); this.hover = null;
+  }
+  panBy(dx, dy) {
+    if (!this.X || (!dx && !dy)) return;
+    const v = this.vw; v.cx -= dx * this.dpr / this.s; v.cz -= dy * this.dpr / this.s;
+    this.fit(this.cv.width, this.cv.height); this._vt = performance.now();
+  }
+  zoomFit() { const v = this.vw; v.z = 1; v.cx = v.cz = undefined; this._vt = 0; }
 
   // ── koordinat dönüşümü (CSS pikseli, canvas'a göre) ──
   area() {
@@ -172,11 +273,16 @@ export class BigMap {
     const mx = (A.maxX - A.minX) * 0.06, mz = (A.maxZ - A.minZ) * 0.06;
     return { minX: Math.max(b.minX, A.minX - mx), maxX: Math.min(b.maxX, A.maxX + mx), minZ: Math.max(b.minZ, A.minZ - mz), maxZ: Math.min(b.maxZ, A.maxZ + mz) };
   }
+  // ×1: tüm alan sığar (eski davranış); ×z: ortadaki dünya noktası (v.cx, v.cz), alanın dışı görünmeyecek biçimde sınırlı
   fit(W, H) {
-    const a = this.area(), pad = 12 * this.dpr, bw = a.maxX - a.minX, bh = a.maxZ - a.minZ;
-    const s = Math.min((W - pad * 2) / bw, (H - pad * 2) / bh);
-    const ox = (W - bw * s) / 2 - a.minX * s, oy = (H - bh * s) / 2 - a.minZ * s;
-    this.s = s; this.X = (x) => ox + x * s; this.Y = (z) => oy + z * s;
+    const a = this.area(), pad = 12 * (this.dpr || 1), bw = a.maxX - a.minX, bh = a.maxZ - a.minZ, v = this.vw;
+    const s0 = Math.min((W - pad * 2) / bw, (H - pad * 2) / bh), z = (v.z = clamp(v.z || 1, 1, ZMAX)), s = s0 * z;
+    // sınır: alan görünümden büyükse görünümü doldurur, küçükse (×1 yakınında, geniş eksen) tamamı görünür kalır ama imleç etrafında kayabilir
+    const hw = (W / 2 - pad) / s, hh = (H / 2 - pad) / s, acx = (a.minX + a.maxX) / 2, acz = (a.minZ + a.maxZ) / 2;
+    const lim = (c, lo, hi, h) => clamp(c, Math.min(lo + h, hi - h), Math.max(lo + h, hi - h));
+    const cx = (v.cx = lim(v.cx ?? acx, a.minX, a.maxX, hw)), cz = (v.cz = lim(v.cz ?? acz, a.minZ, a.maxZ, hh));
+    const ox = W / 2 - cx * s, oy = H / 2 - cz * s;
+    this.s0 = s0; this.s = s; this.ox = ox; this.oy = oy; this.X = (x) => ox + x * s; this.Y = (z) => oy + z * s;
     this.IX = (px) => (px - ox) / s; this.IZ = (py) => (py - oy) / s;
   }
   local(clientX, clientY) { const r = this.cv.getBoundingClientRect(); return [(clientX - r.left) * this.dpr, (clientY - r.top) * this.dpr, r]; }
@@ -189,7 +295,7 @@ export class BigMap {
     for (const o of g.spawnOptions()) {
       if (o.id === 'base') { const b = this.baseAt(me.team); if (b) out.push({ ...o, kind: 'base', x: b.x, z: b.z }); }
       else if (o.id === 'front') continue;                                  // ön hat: yalnız listede (bayraklar arasından sunucu seçer)
-      else if (o.mate) out.push({ ...o, kind: 'mate', x: o.mate.pos.x, z: o.mate.pos.z });
+      else if (o.mate) out.push({ ...o, kind: 'mate', x: o.veh?.st ? o.veh.st.x : o.mate.pos.x, z: o.veh?.st ? o.veh.st.z : o.mate.pos.z });
       else { const ob = g.mode.objectives.find((q) => q.id === o.id); if (ob) out.push({ ...o, kind: 'flag', x: ob.x, z: ob.z }); }
     }
     return out;
@@ -207,13 +313,16 @@ export class BigMap {
     this.hover = tg;
     if (!tg) { this.tip.style.display = 'none'; return; }
     this.tip.style.display = 'block'; this.tip.style.left = cx + 'px'; this.tip.style.top = cy + 'px';
-    this.tip.textContent = `${this.label(tg)} · ${tg.ok ? t('sq.canSpawn') : this.why(tg)}`;
+    this.tip.textContent = `${this.label(tg)} · ${tg.ok ? (tg.veh ? this.okTxt(tg) : t('sq.canSpawn')) : this.why(tg)}`;
   }
-  label(o) { return o.kind === 'base' || o.id === 'base' ? '⌂ ' + t('death.base') : o.mate || o.kind === 'mate' ? '◆ ' + o.name : o.id === 'front' ? '▲ ' + placeName(o.name) : '⚑ ' + placeName(o.name); }
+  label(o) { return o.kind === 'base' || o.id === 'base' ? '⌂ ' + t('death.base') : o.mate || o.kind === 'mate' ? '◆ ' + o.name + (o.veh ? ' · ' + t('veh.' + o.veh.type) : '') : o.id === 'front' ? '▲ ' + placeName(o.name) : '⚑ ' + placeName(o.name); }
   why(o) {
     if (o.mate) return t('sq.st.' + (o.st ?? SP.DEAD));
     return t('death.unavail');
   }
+  // 12.205 araçtaki arkadaş: "Koltuğa doğ · 2 boş koltuk"
+  seatsTxt(o) { return o.free === 1 ? t('sq.seat1') : t('sq.seats', { n: o.free ?? 0 }); }
+  okTxt(o) { return o.veh ? `${t('sq.vehOk')} · ${this.seatsTxt(o)}` : o.mate ? t('sq.mateOk') : o.id === 'base' ? t('death.baseSafe') : t('death.flagOwned'); }
   clickAt(cx, cy, button = 0) {
     const g = this.g;
     if (button === 2) return;
@@ -252,8 +361,8 @@ export class BigMap {
     const lbl = rt > 0 ? `${armed ? t('sq.ready') : t('sq.deploy')}<small>${n}</small>` : armed ? t('sq.deploying') : `${t('sq.deploy')}${auto > 0 ? `<small>${t('sq.autoIn', { n: auto })}</small>` : ''}`;
     if (this.goBtn._h !== lbl) { this.goBtn._h = lbl; this.goBtn.innerHTML = lbl; }
     this.goBtn.classList.toggle('arm', armed); this.goBtn.classList.toggle('dis', !ok);
-    const sub = sel ? (sel.ok ? (sel.mate ? t('sq.mateOk') : sel.id === 'base' ? t('death.baseSafe') : t('death.flagOwned')) : this.why(sel)) : '';
-    const h = sel ? `${esc(this.label(sel))}<small>${esc(sub)}</small>` : '';
+    const sub = sel ? (sel.ok ? this.okTxt(sel) : this.why(sel)) : '';
+    const h = sel ? `${esc(this.label(sel))}${sel.veh ? vehIconSvg(sel.veh) : ''}<small>${esc(sub)}</small>` : '';
     if (this.selEl._h !== h) { this.selEl._h = h; this.selEl.innerHTML = h; }
   }
 
@@ -265,22 +374,28 @@ export class BigMap {
     return [W, H];
   }
 
-  buildBase(W, H) {
-    const g = this.g, key = W + 'x' + H + '|' + lang();
+  // zemin katmanı anahtarı: boyut + dil + görünüm (12.205 yakınlık / orta nokta)
+  viewKey(W, H) { const v = this.vw; return W + 'x' + H + '|' + lang() + '|' + v.z.toFixed(3) + '|' + (v.cx ?? 0).toFixed(1) + '|' + (v.cz ?? 0).toFixed(1); }
+  buildBase(W, H, key = this.viewKey(W, H)) {
+    const g = this.g;
     if (this._baseKey === key) return;
     this._baseKey = key;
     this.fit(W, H);
+    this._bv = { s: this.s, ox: this.ox, oy: this.oy };
     const c = (this.base ||= document.createElement('canvas')); c.width = W; c.height = H;
     const x = c.getContext('2d'), a = this.area(), s = this.s, X = this.X, Y = this.Y, mini = g.map.mini;
     x.fillStyle = '#0b0f15'; x.fillRect(0, 0, W, H);
     const rx = X(a.minX), ry = Y(a.minZ), rw = (a.maxX - a.minX) * s, rh = (a.maxZ - a.minZ) * s;
     x.fillStyle = mini ? mini.bg : '#6d8a45'; x.fillRect(rx, ry, rw, rh);
-    if (g.terrain) {                                                            // arazi: düşük çözünürlükte gölgeli renk, büyütülerek
-      const T = g.terrain, gw = Math.max(40, Math.min(360, Math.round(rw / 2))), gh = Math.max(30, Math.round(gw * rh / rw));
+    // 12.205 görünen bölge (yakınlaşınca yalnız o kısım örneklenir / çizilir: arazi ayrıntısı yakınlıkla artar)
+    const V = { minX: Math.max(a.minX, this.IX(0)), maxX: Math.min(a.maxX, this.IX(W)), minZ: Math.max(a.minZ, this.IZ(0)), maxZ: Math.min(a.maxZ, this.IZ(H)) };
+    if (g.terrain && V.maxX > V.minX && V.maxZ > V.minZ) {                     // arazi: düşük çözünürlükte gölgeli renk, büyütülerek
+      const T = g.terrain, vw = (V.maxX - V.minX) * s, vh = (V.maxZ - V.minZ) * s;
+      const gw = Math.max(40, Math.min(360, Math.round(vw / 2))), gh = Math.max(30, Math.min(300, Math.round(gw * vh / vw)));
       const tc = document.createElement('canvas'); tc.width = gw; tc.height = gh;
-      const tx = tc.getContext('2d'), img = tx.createImageData(gw, gh), st = (a.maxX - a.minX) / gw;
+      const tx = tc.getContext('2d'), img = tx.createImageData(gw, gh), st = (V.maxX - V.minX) / gw;
       for (let py = 0; py < gh; py++) for (let px = 0; px < gw; px++) {
-        const wx = a.minX + (px + 0.5) * st, wz = a.minZ + (py + 0.5) / gh * (a.maxZ - a.minZ), h = T.heightAt(wx, wz), e = Math.max(1.2, st * 0.6);
+        const wx = V.minX + (px + 0.5) * st, wz = V.minZ + (py + 0.5) / gh * (V.maxZ - V.minZ), h = T.heightAt(wx, wz), e = Math.max(1.2, st * 0.6);
         const dx = T.heightAt(wx + e, wz) - T.heightAt(wx - e, wz), dz = T.heightAt(wx, wz + e) - T.heightAt(wx, wz - e);
         const sh = clamp(0.95 + (-dx - dz) * 0.09 * (1.2 / e), 0.55, 1.3);
         let r, gg, b;
@@ -290,13 +405,14 @@ export class BigMap {
         const o = (py * gw + px) * 4; img.data[o] = r; img.data[o + 1] = gg; img.data[o + 2] = b; img.data[o + 3] = 255;
       }
       tx.putImageData(img, 0, 0);
-      x.imageSmoothingEnabled = true; x.drawImage(tc, rx, ry, rw, rh);
+      x.imageSmoothingEnabled = true; x.drawImage(tc, X(V.minX), Y(V.minZ), vw, vh);
     }
+    const out = (x0, z0, x1, z1) => x1 < V.minX || x0 > V.maxX || z1 < V.minZ || z0 > V.maxZ;
     x.fillStyle = g.map.roadColor || '#4b4f57';
-    for (const r of g.map.roads || []) x.fillRect(X(r.x0), Y(r.z0), Math.max(1, (r.x1 - r.x0) * s), Math.max(1, (r.z1 - r.z0) * s));
+    for (const r of g.map.roads || []) if (!out(r.x0, r.z0, r.x1, r.z1)) x.fillRect(X(r.x0), Y(r.z0), Math.max(1, (r.x1 - r.x0) * s), Math.max(1, (r.z1 - r.z0) * s));
     for (const cl of g.map.colliders) {
       const w = cl.max[0] - cl.min[0], d = cl.max[2] - cl.min[2], h = cl.max[1] - cl.min[1];
-      if (cl.max[1] < 0.5 || w > 60 || d > 60) continue;
+      if (cl.max[1] < 0.5 || w > 60 || d > 60 || out(cl.min[0], cl.min[2], cl.max[0], cl.max[2])) continue;
       if (mini && cl.tag === 'roof') x.fillStyle = mini.roof;
       else x.fillStyle = mini ? (h > 4 && (w > 3 || d > 3) ? mini.wall : h > 1.5 ? mini.mid : mini.low) : h > 4 && (w > 3 || d > 3) ? '#d6cfba' : h > 1.5 ? '#9c9482' : '#7a7566';
       x.fillRect(X(cl.min[0]), Y(cl.min[2]), Math.max(1, w * s), Math.max(1, d * s));
@@ -309,14 +425,20 @@ export class BigMap {
     // bölge adları (tümü; ana bölgeler büyük)
     if (g.map.callouts) {
       x.textAlign = 'center'; x.textBaseline = 'middle'; x.lineJoin = 'round';
-      const D = this.dpr, big = Math.max(11, Math.min(15, s * 4)), sm = Math.max(9, Math.min(12, s * 3));
+      const D = this.dpr, s1 = this.s0, big = Math.max(11, Math.min(15, s1 * 4)) + Math.min(2, this.vw.z - 1), sm = Math.max(9, Math.min(12, s1 * 3)) + Math.min(1.5, (this.vw.z - 1) * 0.6);      // 12.205 yazı ekran pikseli (yakınlıkla büyümez; ×1'den en çok +2 px)
       const flagsAt = g.mode.objectives.map((o) => [X(o.x), Y(o.z)]);
       const basesAt = g.ffa || g.mode.infection ? [] : ['blue', 'red'].map((tm) => this.baseAt(tm)).filter(Boolean).map((b) => [X(b.x), Y(b.z)]);      // üs simgesinin altındaki ad ("Kırmızı Üs") simgede
-      for (const cl of g.map.callouts) {
+      const boxes = [];                                                     // 12.205 üst üste binen ad atlanır (ana bölgeler önce): ×1'de sıkışma azalır, yakınlaşınca hepsi açılır
+      for (const cl of [...g.map.callouts].sort((p, q) => (q.major ? 1 : 0) - (p.major ? 1 : 0))) {
         const px = X(cl.x), py = Y(cl.z), nm = mapText(cl.name);
+        if (px < -60 * D || px > W + 60 * D || py < -20 * D || py > H + 20 * D) continue;
         if (!cl.major && flagsAt.some(([fx, fy]) => Math.hypot(fx - px, fy - py) < 18 * D)) continue;
         if (basesAt.some(([fx, fy]) => Math.hypot(fx - px, fy - py) < 30 * D)) continue;       // bayrağın üstündeki ad bayrak etiketinde
-        x.font = `${cl.major ? 800 : 600} ${(cl.major ? big : sm) * D}px Bahnschrift, Arial Narrow, sans-serif`;
+        const fs = (cl.major ? big : sm) * D;
+        x.font = `${cl.major ? 800 : 600} ${fs}px Bahnschrift, Arial Narrow, sans-serif`;
+        const hw = x.measureText(nm).width / 2 + 2 * D, hh = fs * 0.55, bx = [px - hw, py - hh, px + hw, py + hh];
+        if (boxes.some((o) => bx[0] < o[2] && bx[2] > o[0] && bx[1] < o[3] && bx[3] > o[1])) continue;
+        boxes.push(bx);
         x.lineWidth = 3 * D; x.strokeStyle = 'rgba(12,10,6,.78)'; x.fillStyle = cl.major ? '#fff6dc' : 'rgba(255,248,226,.86)';
         x.strokeText(nm, px, py); x.fillText(nm, px, py);
       }
@@ -325,11 +447,19 @@ export class BigMap {
 
   draw() {
     const g = this.g, me = g.playerSoldier, [W, H] = this.resize();
-    this.buildBase(W, H);
     this.fit(W, H);
-    const x = this.x, X = this.X, Y = this.Y, D = this.dpr, now = performance.now();
+    const key = this.viewKey(W, H), now = performance.now(), moving = this.base && this._bv && this._baseKey !== key && now - (this._vt || 0) < SETTLE_MS && this.base.width === W && this.base.height === H;
+    if (!moving) this.buildBase(W, H, key);
+    this.fit(W, H);
+    const x = this.x, X = this.X, Y = this.Y, D = this.dpr;
     x.clearRect(0, 0, W, H);
-    x.drawImage(this.base, 0, 0);
+    if (moving) {                                                         // 12.205 yakınlaştırma / kaydırma sürerken: eski zemin katmanı yeni görünüme ölçeklenir (durunca yeniden çizilir)
+      const b = this._bv, k = this.s / b.s;
+      x.fillStyle = '#0b0f15'; x.fillRect(0, 0, W, H);
+      x.imageSmoothingEnabled = true; x.drawImage(this.base, this.ox - b.ox * k, this.oy - b.oy * k, W * k, H * k);
+    } else x.drawImage(this.base, 0, 0);
+    const zt = this.vw.z > 1.01 ? '×' + this.vw.z.toFixed(1) : '';
+    if (this.zl._t !== zt) { this.zl._t = zt; this.zl.textContent = zt; this.zl.style.display = zt ? '' : 'none'; }
     // çatışma yoğunluğu
     if (g.heat) {
       const R = Math.max(14 * D, 11 * this.s), spr = this.blob();
@@ -404,8 +534,20 @@ export class BigMap {
     const g = this.g, X = this.X, Y = this.Y, pul = 0.5 + 0.5 * Math.sin(now / 220);
     for (const tg of this.targets()) {
       const px = X(tg.x), py = Y(tg.z), sel = g.spawnChoice === tg.id, hov = this.hover?.id === tg.id;
-      const r = (tg.kind === 'mate' ? 9 : tg.kind === 'base' ? 17 : 19) * D;
-      if (tg.kind === 'mate') {
+      const r = (tg.kind === 'mate' ? (tg.veh ? 13 : 9) : tg.kind === 'base' ? 17 : 19) * D;
+      if (tg.kind === 'mate' && tg.veh) {                                   // 12.205 araçtaki arkadaş: araç simgesi + boş koltuk rozeti + ad
+        const bw = 34 * D, bh = 23 * D, k = 1.15 * D;
+        x.beginPath(); x.roundRect ? x.roundRect(px - bw / 2, py - bh / 2, bw, bh, 5 * D) : x.rect(px - bw / 2, py - bh / 2, bw, bh);
+        x.fillStyle = tg.ok ? PCOL.sq : 'rgba(120,120,120,.9)'; x.fill();
+        x.strokeStyle = sel ? '#ff8a1f' : hov ? '#fff' : 'rgba(255,255,255,.85)'; x.lineWidth = (sel ? 3 : 1.5) * D; x.stroke();
+        x.save(); x.translate(px - 12 * k, py - 7.5 * k); x.scale(k, k); x.fillStyle = x.strokeStyle = '#0c1a0c'; vehIconDraw(x, tg.veh); x.restore();
+        const bx = px + bw / 2 - 1 * D, by = py - bh / 2 + 1 * D;
+        x.beginPath(); x.arc(bx, by, 8 * D, 0, 6.3); x.fillStyle = tg.free > 0 ? '#0b0f15' : '#7a1d12'; x.fill(); x.strokeStyle = tg.ok ? PCOL.sq : '#bbb'; x.lineWidth = 1.5 * D; x.stroke();
+        x.font = `800 ${10.5 * D}px Bahnschrift, sans-serif`; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = '#fff'; x.fillText(String(tg.free ?? 0), bx, by + 0.5 * D);
+        x.font = `700 ${10.5 * D}px Bahnschrift, sans-serif`; x.lineWidth = 3 * D; x.strokeStyle = 'rgba(0,0,0,.8)'; x.fillStyle = tg.ok ? PCOL.sq : '#ccc';
+        x.strokeText(tg.name, px, py + bh / 2 + 9 * D); x.fillText(tg.name, px, py + bh / 2 + 9 * D);
+        if (!tg.ok) { x.font = `800 ${10 * D}px Bahnschrift, sans-serif`; x.fillStyle = '#ff9a80'; x.lineWidth = 3 * D; x.strokeStyle = 'rgba(0,0,0,.8)'; const s = t('sq.st.' + (tg.st ?? SP.DEAD)); x.strokeText(s, px, py - bh / 2 - 8 * D); x.fillText(s, px, py - bh / 2 - 8 * D); }
+      } else if (tg.kind === 'mate') {
         x.save(); x.translate(px, py); x.rotate(Math.PI / 4);
         x.fillStyle = tg.ok ? PCOL.sq : 'rgba(120,120,120,.85)'; x.strokeStyle = sel ? '#ff8a1f' : '#fff'; x.lineWidth = (sel ? 3 : 1.5) * D;
         x.fillRect(-r * 0.7, -r * 0.7, r * 1.4, r * 1.4); x.strokeRect(-r * 0.7, -r * 0.7, r * 1.4, r * 1.4); x.restore();
@@ -432,5 +574,5 @@ export class BigMap {
     return c;
   }
 
-  dispose() { removeEventListener('keydown', this._kd); this.ov.remove(); this.cur.remove(); this.tip.remove(); this.card?.remove(); }
+  dispose() { removeEventListener('keydown', this._kd); removeEventListener('wheel', this._wh); this.ov.remove(); this.cur.remove(); this.tip.remove(); this.card?.remove(); }
 }

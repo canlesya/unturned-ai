@@ -52,7 +52,7 @@ import { assignSquadsBig, perchBig, spawnFlagBig } from './bigBots.js';         
 import { vnav, botAtLoadout } from './vehicleBots.js';                                         // 12.189 bot sürücüler (araç ızgarası)
 import { VehicleView } from './vehicleView.js';
 import { VehicleHud } from './vehicleHud.js';
-import { squadOn, assignDefault, placeHuman, mateSpawnState, mateSpawnPoint, squadMates, SP } from './squad.js';     // 12.202 manga
+import { squadOn, assignDefault, placeHuman, mateSpawnState, mateSpawnPoint, squadMates, SP, spOk, vehSpawnSeat, vehFreeSeats, vehSidePoint, seatYaw } from './squad.js';     // 12.202 manga
 import { SquadHud } from './squadHud.js';
 import { Pings } from './pings.js';
 import { Heat } from './heat.js';
@@ -838,7 +838,11 @@ export class Game {
       for (const o of this.mode.objectives) out.push({ id: o.id, name: o.name, ok: this.canForwardSpawn(o, team), label: o.label || o.name[0] });
     }
     const me = this.playerSoldier;                                                  // 12.202 manga arkadaşları (Cephe / Vagon / TDM'de de)
-    if (me && me.team === team && squadOn(this)) for (const m of squadMates(this, me)) { const st = this.mateState(m); out.push({ id: 'sq:' + m.id, name: m.name, ok: st === SP.OK, mate: m, st }); }
+    if (me && me.team === team && squadOn(this)) for (const m of squadMates(this, me)) {
+      const st = this.mateState(m), o = { id: 'sq:' + m.id, name: m.name, ok: spOk(st), mate: m, st };
+      if (st >= SP.VOK && m.veh) { o.veh = m.veh; o.free = this.online ? this._sqNetF?.get(m.id) ?? vehFreeSeats(m.veh) : vehFreeSeats(m.veh); }      // 12.205 araçtaki arkadaş: simge + kalan koltuk
+      out.push(o);
+    }
     return out;
   }
   // 12.202 manga arkadaşının yanında doğuş durumu: çevrimdışında yerelde, çevrim içinde sunucunun me.sp'si (arkadaşın çatışma durumunu yalnız sunucu bilir)
@@ -846,7 +850,7 @@ export class Game {
     if (!this.online) return mateSpawnState(this, m);
     if (!m.alive) return SP.DEAD;
     const v = this._sqNet?.get(m.id);
-    return v ?? (m.veh ? SP.VEH : SP.OK);
+    return v ?? (m.veh ? SP.VFULL : SP.OK);
   }
   // 12.202 "Doğ" (ölüm ekranı / Boşluk): süre bitince seçili noktada doğulur (bitmediyse hazır bekler)
   requestDeploy() {
@@ -868,7 +872,8 @@ export class Game {
     const ch = c.spawnChoice;
     if (typeof ch === 'string' && ch.startsWith('sq:')) {
       const m = this.soldiers[+ch.slice(3)];
-      if (!m || m.team !== s.team || m.squad !== s.squad || mateSpawnState(this, m) !== SP.OK) { c.deployNow = false; return false; }      // arkadaş bu arada çatışmaya girdi: istemci yeniden seçer
+      const st = m && m.team === s.team && m.squad === s.squad ? mateSpawnState(this, m) : SP.DEAD;
+      if (!spOk(st) && st !== SP.VFULL) { c.deployNow = false; return false; }      // arkadaş bu arada çatışmaya girdi / araç yandı: istemci yeniden seçer · 12.205 koltuk doldu: yanına ya da üsse (pickSpawn)
     }
     return true;
   }
@@ -1040,7 +1045,14 @@ export class Game {
     const ctl = s ? this.ctlOf(s) : null;
     if (ctl && typeof ctl.spawnChoice === 'string' && ctl.spawnChoice.startsWith('sq:')) {      // 12.202 manga arkadaşının yanı (uygun değilse üs)
       const m = this.soldiers[+ctl.spawnChoice.slice(3)];
-      if (m && m !== s && m.team === team && m.squad === s.squad && mateSpawnState(this, m) === SP.OK) return mateSpawnPoint(this, s, m);
+      const st = m && m !== s && m.team === team && m.squad === s.squad ? mateSpawnState(this, m) : SP.DEAD;
+      if (st === SP.OK) return mateSpawnPoint(this, s, m);
+      if ((st === SP.VOK || st === SP.VFULL) && m.veh && this.vehicles) {          // 12.205 arkadaşın aracındaki boş koltuk (o an yeniden bakılır); doluysa aracın yanı, o da yoksa üs
+        const v = m.veh, seat = st === SP.VOK ? vehSpawnSeat(v) : -1;
+        if (seat >= 0) { const p = this.vehicles.seatPos(v, seat); return { x: p.x, z: p.z, y: p.y, ry: seatYaw(v, seat), veh: v, seat }; }
+        const side = vehSidePoint(this, s, v);
+        if (side) return side;
+      }
     } else if (ctl && ctl.spawnChoice === 'front') target = this.front ? null : this.frontFlag(team);
     else if (ctl && ctl.spawnChoice !== 'base') target = this.front ? null : this.mode.objectives.find((o) => o.id === ctl.spawnChoice);
     else if (s && !ctl && !this.front && Math.random() < (this.map.big ? 0.9 : 0.35)) {                 // 12.172 büyük harita: botlar çoğunlukla ön hattan doğar
@@ -1113,7 +1125,8 @@ export class Game {
     s.spawn(pt, first ? TUNE.firstProtect : TUNE.spawnProtect);
     if (s.brain && this.vehicles) botAtLoadout(this, s);              // 12.200 zırhlı araçlı haritada bot tanksavar donanımı (vehicleBots.js)
     this.world.settle(s);
-    if (pt.squad) s.pos.y = pt.y + 0.002;                              // 12.202 mangadan doğuş: arkadaşın katı (köprü altı / tünel / üst kat; settle tabliyeye çıkarmasın)
+    if (pt.veh && this.vehicles?.enter(s, pt.veh, pt.seat)) { s.yaw = s.pBody = pt.ry; s.pitch = 0; this.emit('vehspawnin', { s, v: pt.veh, seat: pt.seat }); }      // 12.205 koltuğa doğuş (enter → place: konum koltuktan)
+    else if (pt.squad) s.pos.y = pt.y + 0.002;                              // 12.202 mangadan doğuş: arkadaşın katı (köprü altı / tünel / üst kat; settle tabliyeye çıkarmasın)
     else if (pt.y > s.pos.y + 0.3) s.pos.y = pt.y;                          // kat doğuşu (kale güvertesi): settle yalnız zemine / alçak engele oturtur
     s.zoneT = 0;
     if (s.brain) s.brain.reset();

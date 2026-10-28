@@ -1020,7 +1020,7 @@ export class Player {
     });
     this.on(cv, 'mousedown', (e) => {
       if (this.wheel) { if (e.button === 0) this.wheelPick(); return; }                       // tekerlek açıkken tık = seçim (ateş değil)
-      if (this.game.bigMap?.open && document.pointerLockElement) { this.game.bigMap.lockedClick(e.button); return; }      // 12.202 harita açık: tık imlecin altındakine
+      if (this.game.bigMap?.open && document.pointerLockElement) { this.game.bigMap.lockedDown(e.button); return; }      // 12.202 harita açık: tık imlecin altındakine · 12.205 basılı sürükleme = kaydırma (bırakınca tık)
       if (e.button === 1 && !(this.s.veh && this.s.seat === 0 && this.s.veh.def.rockets)) { e.preventDefault(); if (this.locked && this.s.alive) this.game.pings?.spot(); return; }       // 12.202 orta tık: işaret (Battlefield spot); roketli araç sürücüsünde 12.201 roket (aşağıda)
       if (!this.locked) { this.game.requestLock(); return; }
       if (this.game.chatOpen) return;
@@ -1031,6 +1031,7 @@ export class Player {
       if (e.button === 2) this.s.ads = this.game.opts.adsToggle ? !this.s.ads : true;          // Ayarlar: basılı tut ya da bir kez bas (aç-kapa)
     });
     this.on(window, 'mouseup', (e) => {
+      if (this.game.bigMap?.open && document.pointerLockElement) this.game.bigMap.lockedUp(e.button);      // 12.205
       if (e.button === 0) this.fireHeld = false;
       if (e.button === 1) this.mmb = false;
       if (e.button === 2 && !this.game.opts.adsToggle) this.s.ads = false;

@@ -2247,3 +2247,56 @@ Kullanıcı: "bence oyundaki hologramlar yakınlaştırmalar için PUBG'yi refer
   16v16 300 sn: araçtan leş %21, sonuç OK.
 - **Testler**: yeni `vehground.mjs` (tüm haritalar: hepsi OK), `vehgrabtest.mjs` (8 OK), `vehlodshot.mjs` / `vehgroundshot.mjs` / `vehatshot.mjs` (gerçek GPU, `headless:false`, `--use-angle=metal`); `vehweapons` (yeni zırh tablosu: önden 4 / yandan 3 / arkadan 2) OK, `vehicletest` (başsız + tarayıcı + çevrim içi) 99 OK (kurulum denetimi 36 araca uyarlandı), `botvehtest` 29 OK + 1 HATA (helikopter burun topu dalışı — `online`'da da aynı kalıyor, bu işle ilgisi yok), `combattest`, `nettest`, `headless-sim kuzey` 10v10 / 16v16, `vite build` OK. `headless-sim.mjs` araçlı haritada tank / araç leşi / RPG özetini basar (OUT=dosya: JSON).
 - Bilinen / soru: helikopter eski düzene göre daha az uçuyor (takım başına tek bot pilot sınırı aynı; jipler bollaşınca nişancı adayı azaldı); bayrak değişimi biraz düştü (11,5 → 8,1 / 10 dk; tanklar artık bayrakta daha sık patlıyor, piyade bayrak yerine tanka dönüyor olabilir); ZPT / kamyon doğuşları hâlâ yer tutucu model (VT türü yok); yol kenarı tarafsız jiplerin rengi gri (takımsız). İnsan oyuncu varken ayrılan pay (%50, 40 sn) ve 8 sn bekleme tek sayılar (`VBOT.grab`).
+
+### 12.205 Manga arkadaşının aracındaki boş koltuğa doğuş (Battlefield) + büyük haritada yakınlaştırma / kaydırma
+- Kullanıcı istedi: ölünce açılan doğuş haritasında araçtaki manga arkadaşı seçilince boş koltuğa doğulsun. Eskiden araçtaki arkadaşın yanında doğuş kapalıydı ("Araçta"), Kuzey'de botlar sık sık jipe bindiği için arkadaşların çoğu seçilemiyordu. Ayrıca M haritası ve doğuş haritası fare tekerleğiyle yakınlaşsın, sürüklenerek kaydırılsın.
+- **Uygunluk** (`squad.js vehSpawnState`; yetkili taraf: çevrim dışında oyun, çevrim içinde sunucu):
+  - Uygun araçlar: helikopter, tank, jip, motor (yönetici `VT` türleri; araç simgesi `vehIcons.js`).
+  - Yeni durum kodları: 6 boş koltuğa doğulabilir · 7 araç dolu · 8 araç yanıyor (ya da enkaz) · 9 araç devrilmiş · 10 araç batmış. Ağda `me.sp = [[id, kod, boş koltuk]…]`; üçüncü alan yalnız araçtaki arkadaşta var. Eski istemci 6–10'u "uygun değil" görür, bozulmaz.
+  - Devrik sayılan: motor yere yatmışken (`st.fall > 0`), diğer kara araçları ve yerdeki helikopter gövde ~66°'den fazla yatıksa (cos(eğim) · cos(yatış) < 0,4). Uçan helikopterin yatışı manevra sayılır.
+  - **Çatışma kuralı araçta yok.** Battlefield'da (BF3 / BF4 / BF1 / BFV / 2042) araçtaki manga arkadaşının koltuğuna doğuş çatışmada da açıktır, çünkü yere düşmüyorsun, aracın içindesin. 12.202'deki "son 5 sn vurulmadı / 3 sn ateş etmedi / yakında düşman yok" kuralı bu yüzden yalnız yaya arkadaş için geçerli. Havada / suda kuralı da araçta yok: uçan helikopterin kapı nişancısına doğulabilir.
+- **Koltuk sırası** (`vehSpawnSeat`): önce silahlı boş koltuk (jip / tank makinelisi, helikopter kapı nişancısı), sonra yolcu (jip arka, helikopter kabini, motorun arka koltuğu), en son sürücü / pilot (arkadaş başka koltuktaysa).
+  - Doğan askerin bakışı aracın önüne, kapı nişancısında kapıdan dışarı (`seatYaw`, bot kuralıyla aynı).
+- **Doğuş** (`Game.pickSpawn` → `respawn`): nokta koltuğun konumu, `respawn` `Vehicles.enter` ile oturtur. Koltuğa her zamanki giriş yolu kullanıldığı için 12.201'deki nişan ve aracın yakınlaştırması sıfırlanır.
+  - Yarış: "Doğ"a basıldıktan sonra koltuklar dolduysa (`deployOk` 7'yi geçirir) asker aracın yanına doğar (`vehSidePoint`). Koşul: araç yerde, 3 m/sn'den yavaş, 20 m içinde düşman yok; nokta gövdeden 0,9–2,8 m dışarıda, aynı kotta, duvar arkası değil, başka aracın / askerin içi değil. Olmazsa üsse doğar.
+  - Yanma / batma / devrilme doğuş anında olursa eski kural geçerli: doğulmaz, seçim yeniden yapılır.
+  - Doğuş listesi (`hud.buildSpawnRow`): seçili nokta kapanınca üsse dönüyordu, ama yalnız yerelde. Artık çevrim içinde sunucuya da gider. "Doğ"a basılmışken araç dolarsa (7) seçim kalır, yetkili taraf aracın yanına doğurur.
+- **Çevrim içi**:
+  - Sunucu uygunluğu `me.sp` ile gönderir ve doğuşta yeniden denetler. `opt.spawn` doğrulaması değişmedi (`sq:<id>`, aynı takım).
+  - Oyuncu koltuğa sunucuda oturur. İstemci yeniden doğuşu gördüğü karede `vehSync` çağırır, yani ilk karede koltuktadır. Eskiden bir anlık görüntü boyunca yerde görünürdü. Kamera, HUD ve sürücü koltuğundaysa araç tahmini oradan kurulur.
+- **Harita / liste**:
+  - Doğuş haritasında araçtaki arkadaş yeşil (uygunsa) ya da gri bir rozet olarak görünür: araç simgesi, sağ üstte boş koltuk sayısı, altında ad, kapalıysa üstte sebep ("Araç dolu", "Araç yanıyor", "Araç devrilmiş", "Araç batmış").
+  - Sağdaki listede de aynı simge ve "Koltuğa doğ · 3 boş koltuk" yazısı var. Alt satırda: "◆ Ali · JİP".
+- **Büyük harita yakınlaştırma** (`bigMap.js`):
+  - Tekerlek imlecin altındaki nokta etrafında ×1 (tüm harita) ile ×6 arasında yakınlaştırır. 100 px'lik adım ×1,2 (mac Chrome 200 px: ×1,43). Sağ altta + / − / ⤢ (tüm harita) düğmeleri ve ×N göstergesi var.
+  - Sınır: harita görünümden büyükse görünümü doldurur, küçükse (×1 yakınında, geniş eksende) tamamı görünür kalır.
+  - Sürükleme: sol, sağ ya da orta tıkla basılı sürükle = kaydır. 6 px (dokunmatikte 10 px) eşiğin altında kalan hareket tık sayılır: işaret koyar ya da doğuş noktası seçer. Tık artık bırakınca işler, eskiden basınca işliyordu.
+  - Mobil: iki parmak orta nokta etrafında yakınlaştırır ve kaydırır, tek parmak sürükler, dokunma işaret / seçim.
+  - Fare kilitliyken sanal imleç aynı yolu kullanır (`lockedDown` → `moveCursor` sürükler → `lockedUp` tık). `Player` mouseup kancası eklendi. Tekerlek sanal imlecin altına yakınlaştırır.
+  - Simgeler ve yazılar ekran pikseli boyunda kalır, yakınlıkla büyümez (bölge adları ×1'e göre en çok +2 px). Üst üste binen bölge adı atlanır (ana bölgeler önce), böylece ×1'de sıkışma azalır, yakınlaşınca hepsi açılır.
+  - Zemin katmanı (arazi, yol, yapı, bölge adları) yalnız görünen bölge için çizilir, arazi ayrıntısı yakınlıkla artar. Yakınlaştırma / kaydırma sürerken eski katman yeni görünüme ölçeklenip kaydırılır, 160 ms durunca yeniden çizilir.
+  - **Açılış kararı**: M haritası son yakınlığı hatırlar ve her açılışta kendi konumuna ortalanır (alan sınırıyla). İlk açılış büyük haritada (Kuzey) ×2, küçük haritalarda ×1. Ölüm doğuş haritası her ölümde tüm haritayla açılır, çünkü seçenekler (üs, bayraklar, arkadaşlar) haritanın her yerinde ve Battlefield'da da doğuş ekranı geniş açılır.
+- **Testler** (Playwright `headless:false`, `--use-angle=metal`):
+  - `scripts/squadmap.mjs`: yeni bölümler `veh`, `zoom`, `mob` (`ONLY=…` ile tek tek).
+    - `veh` (Kuzey fetih): jipteki bot arkadaşa doğuş → makineli koltuk; nişan ve yakınlaştırma sıfır, bakış aracın önüne.
+      - Dolu jip kapalı (7); yanan / devrik / batmış jip 8 / 9 / 10.
+      - "Doğ" sonrası koltuk dolunca aracın 3,1 m yanında yere doğuş.
+      - Havadaki helikopter (28 m) → kapı nişancısı (bakış kapıdan 1,57 rad).
+      - Vurulan arkadaş + 8 m'de düşman varken araçta doğuş açık.
+      - Tank → makineli, motor → arka koltuk, devrik motor kapalı.
+    - `zoom`: ilk açılış ×2, ⤢ ×1. Tekerlek ×2 → ×5,9'da imlecin altındaki nokta 0,17 m kaydı. En çok ×6, en az ×1.
+      - Sol tık sürüklemesi 120 px = 98,5 m (beklenen 98,5), işaret yok. Sağ tıkla sürükleme de kaydırır, 3 px titreyen tık doğru yere işaret koyar.
+      - Kilitli sanal imleçle sürükleme: tutulan nokta imleçte 0 m; kısa tık işaret koyar.
+      - Yeniden açılışta yakınlık hatırlanır ve kendi konumuna ortalanır. Doğuş haritası ×1 ile açılır, tekerlek orada da çalışır.
+    - `mob` (Pixel 7 yatay, CDP dokunma): iki parmak 40 → 160 px = ×4, ortadaki nokta 0,7 m kaydı. Tek parmak kaydırır. Sıkıştırma / sürükleme işaret koymaz, dokunma koyar. Doğuş haritasında iki parmakla yakınlaşınca dokunma arkadaşı seçer.
+    - Eski oynak denetim düzeltildi: "manga arkadaşının yanında doğdu" artık arkadaşın **doğuş anındaki** konumuna göre ölçülür (< 4,5 m). Bot arada yürüdüğü için 4,9 m çıkabiliyordu. Doğuştan sonra ayrıca < 6 m.
+  - `scripts/squadnet.mjs` yeni `veh` bölümü (Kuzey, iki istemci):
+    - Ali jipi sürer, Veli ölür. Sunucunun `me.sp`'si `[Ali, 6]` ve 3 boş koltuk gönderir.
+    - Veli tıklayıp Doğ'a basınca ilk karede makineli koltuğunda: araca 0,38 m, kamera koltukta, JİP HUD'u, nişan / yakınlaştırma sıfır.
+    - Ali'nin istemcisinde (sunucu anlık görüntüsü) de Veli koltuk 1'de. Ali sürünce Veli jiple 27 m gitti.
+  - Ayrıca koşulanlar: `vite build`, `nettest`, `combattest`, `vehicletest`, `mototest` (sonuçlar raporda).
+- **Görseller** `/tmp/wb-vspawn/`: `01/02` doğuş haritasında jip simgesi (×1 / ×3), `04` jip makineli birinci şahıs, `05` dolu jip kapalı, `06` koltuk doldu → yanında, `07/08` helikopter + kapı nişancısı, `09-tank/motor-koltuk`, `10/11/12` M haritası ×1 / ×3 / ×6, `13` doğuş haritası yakın, `14/15/16` mobil iki parmak, `net-01…04` çevrim içi.
+- **Açık / sorulacak**:
+  - Botlar araçtaki arkadaşın koltuğuna doğmaz (yalnız insan oyuncu; istenirse `pickSpawn`'da bot için de açılabilir).
+  - Doğuş haritasında üsteki yan yana araçlar ×1'de üst üste biner (yakınlaşınca ayrılır).
+  - Yollar haritada kutu zinciri olduğu için ×6'da basamaklı görünür (yol verisi kutu).
