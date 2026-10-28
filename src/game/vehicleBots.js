@@ -232,7 +232,7 @@ export function vbBoard(b) {
     const d = Math.hypot(v.st.x - s.pos.x, v.st.z - s.pos.z);
     if (d > VBOT.reach || d > trip * 0.35) continue;
     if (g.soldiers.some((e) => e.alive && e.team === s.team && (e.human || e.isPlayer) && !e.veh && Math.hypot(e.pos.x - v.st.x, e.pos.z - v.st.z) < VBOT.humanNear)) continue;
-    const sc = d - (k === 'tank' ? 15 : 0);
+    const sc = d - (k === 'tank' ? 15 : k === 'heli' ? 30 : 0);                  // 12.200 helikopter önce (jip bol: eskiden yakındaki jipler kapılınca pilot / nişancı kalmıyordu)
     if (sc < bd) { bd = sc; best = v; }
   }
   if (!best) return false;
@@ -303,7 +303,10 @@ function recruit(b, v) {
   const cand = [];
   for (const o of g.brains) {
     const q = o.s;
-    if (o === b || !q.alive || q.team !== s.team || q.veh || o.vRes || o.vRide || o.target || o.vd || q.hp < 40) continue;
+    // 12.200 nişancısız kalkmayan araç (helikopter) önceliklidir: başka (jip / tank) koltuğuna çağrılmış ama henüz binmemiş botu da alır. Araç 20 → 36
+    // olunca üsteki boştaki botların hepsi jip yolcusu çağrılıyor, helikopter nişancı bulamayıp hiç kalkmıyordu ("nişancısız" iniş)
+    const steal = k === 'heli' && o.vRide && o.vRide.v !== v && kindOf(o.vRide.v) !== 'heli';
+    if (o === b || !q.alive || q.team !== s.team || q.veh || o.vRes || (o.vRide && !steal) || o.target || o.vd || q.hp < 40) continue;
     const d = Math.hypot(q.pos.x - v.st.x, q.pos.z - v.st.z);
     if (d > R) continue;
     const dest = tripDest(o); if (!dest || Math.hypot(dest.x - q.pos.x, dest.z - q.pos.z) < 140) continue;
@@ -608,6 +611,7 @@ function heliDrive(b, dt, inp) {
   const home = v.spawn, o = tripDest(b);
   if (vd.state === 'wait') {
     const coming = g.brains.some((q) => (q.rideGoal === v || q.vRide?.v === v) && q.s.alive), full = !v.seats.some((q, i) => i > 0 && !q), gun = v.seats[1] || v.seats[2];
+    if (!full && (vd.rcT = (vd.rcT ?? 2) - dt) <= 0) { vd.rcT = 2.5; recruit(b, v); }      // 12.200 beklerken boş kapı koltuğuna yeniden çağrı (yeni doğan / boşalan arkadaş)
     if (st.rpm > 0.95 && gun && (vd.t > HELI.wait[1] || (vd.t > HELI.wait[0] && (!coming || full)))) { vd.state = 'climb'; vd.tOff = vd.t; }
     else if (vd.t > HELI.wait[1] * (coming ? 2 : 1) && !gun) { v.botBad = g.time + 30; vbExit(b, 'nişancısız'); return; }      // kapı nişancısı yoksa kalkmaz (helikopterin işi nişancıyı taşımak)
     V.drive(v, inp, dt); return;

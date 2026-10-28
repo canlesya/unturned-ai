@@ -23,7 +23,10 @@ function headless() {
   console.log('── başsız ──');
   const mkG = (o = {}) => new Game(null, { headless: true, map: 'kuzey', tod: 'day', weather: 'clear', diff: 'normal', bots: false, match: { perTeam: 4, type: 'conquest' }, ...o });
   const g = mkG(), V = g.vehicles;
-  ok(V && V.list.length === 20 && V.list.filter((v) => v.alive).length === 14, 'kurulum: 12 jip (6 üs + 6 bayrak) + 4 tank + 4 helikopter (üs helipadleri), maç başında üslerdeki 6 jip + 4 tank + 4 helikopter hazır, bayrak jipleri bayrak alınınca', V ? `${V.list.length} / ${V.list.filter((v) => v.alive).length}` : 'yok');
+  { // 12.200: 36 araç — üs 10 jip + 4 tank + 4 helikopter, bayrak 13 jip (bayrak alınınca), yol kenarı 5 tarafsız jip (baştan)
+    const flagN = g.map.vehicles.filter((d) => VT[d.type] && String(d.team).startsWith('flag:')).length, all = g.map.vehicles.filter((d) => VT[d.type]).length;
+    ok(V && V.list.length === all && all >= 36 && V.list.filter((v) => v.alive).length === all - flagN, 'kurulum: üs jip / tank / helikopter + tarafsız yol jipleri maç başında hazır, bayrak jipleri bayrak alınınca (12.200: 36 araç)', V ? `${V.list.length} / ${V.list.filter((v) => v.alive).length} · bayrak ${flagN}` : 'yok');
+  }
   const others = [['kasaba', 'conquest'], ['colgecidi', 'tdm'], ['kuzey', 'tdm'], ['vadi', 'conquest']].map(([map, type]) => { const o = new Game(null, { headless: true, map, tod: 'day', weather: 'clear', diff: 'normal', bots: false, match: { perTeam: 2, type } }); return map + '/' + type + ':' + (o.vehicles ? 'VAR' : 'yok'); });
   ok(others.every((s) => s.endsWith('yok')), 'diğer haritalar / Kuzey TDM: araç yöneticisi yok (davranış aynı)', others.join(' '));
   const s = g.claimSlot('blue', 'Test', 'assault', {}), h = g.humans.get(s.id);
@@ -175,7 +178,7 @@ function headlessTank() {
   const P = (x, y, z) => new (s.pos.constructor)(x, y, z);
   g.explode(P(t2.st.x + 1.8, t2.st.y + 0.5, t2.st.z), 7.5, 130, s, 'El Bombası'); const dG = hp0 - t2.hp - dB;
   g.explode(P(t2.st.x, t2.st.y + 1.2, t2.st.z - 3.4), 6.5, 160, s, 'RPG-7', undefined, 'at'); const dR = hp0 - t2.hp - dB - dG;
-  ok(dB === 0 && dG > 0 && dG < 50 && dR > 150, 'zırh: tüfek mermisi 0 · el bombası az · RPG çok', `mermi ${f1(dB)} · el bombası ${f1(dG)} · RPG ${f1(dR)} (can ${D.hp} → ${Math.round(D.hp / dR + 0.5)} RPG)`);
+  ok(dB === 0 && dG > 0 && dG < 75 && dR > 150, 'zırh: tüfek mermisi 0 · el bombası az · RPG çok (12.200 yönlü zırh: yan × 1,35)', `mermi ${f1(dB)} · el bombası ${f1(dG)} · RPG ${f1(dR)} (can ${D.hp} → ${Math.round(D.hp / dR + 0.5)} RPG)`);
   // tank topu ↔ jip: tek atış
   const j = V.list.find((x) => x.id === 'R-J1'); g.explode(P(j.st.x, j.st.y + 0.8, j.st.z), D.cannon.radius, D.cannon.dmg, s, D.cannon.name, undefined, 'at');
   ok(!j.alive, 'tank topu jipi tek atışta patlatır');

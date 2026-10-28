@@ -670,7 +670,7 @@ export class BotBrain {
       let wantPitch = Math.atan2(dy, Math.hypot(adx, adz)) + (inf ? 0 : AO[1]);
       const atm = this.atAim(tg, eye, dist);                                  // 12.200 tanksavar: araca roket nişanı (öncülü)
       if (atm) { wantYaw = atm[0]; wantPitch = atm[1]; }
-      if (dist > 35) wantPitch += dist * 0.0004;
+      if (dist > 35 && !atm) wantPitch += dist * 0.0004;                        // 12.200 roket düz uçar: tanksavar nişanına yükseltme eklenmez (eskiden 70 m'de 2 m üstten geçiyordu)
       if (st.ball) wantPitch += ballLead(st, Math.hypot(dist, dy));                  // paintball: topun düşüşü kadar yukarı nişan
       const turn = this.d.turn * (0.7 + Math.min(Math.abs(angleDiff(s.yaw, wantYaw)), 1.5));
       const dyaw = angleDiff(s.yaw, wantYaw);
@@ -727,7 +727,10 @@ export class BotBrain {
       if (atm && !plm) {                                         // 12.200 tanksavar: menzile yaklaş (uzakta koşar), yakında yana kayarak dur, çok yakında (< 14 m) geri çekil
         const k = dist > AT_BOT.approach ? 0.95 : dist < 14 ? -0.7 : 0, st2 = dist > AT_BOT.approach ? 0.15 : 0.45;
         moveX = nx * k + (-nz) * this.strafeDir * st2; moveZ = nz * k + nx * this.strafeDir * st2; speed *= dist > AT_BOT.approach ? 0.9 : 0.55;
-        if (dist > AT_BOT.approach && g.nav.nearestNode) { const pm = this.followGoal(dt); if (pm && pm[2] > 0) { moveX = pm[0]; moveZ = pm[1]; } }
+        if (dist > AT_BOT.approach && g.nav.nearestNode) {                    // 12.200 uzaktaysa yol ızgarasıyla ARACA doğru (eskiden botun kendi hedefine yürüyüp tanktan uzaklaşıyordu)
+          if (!this.goal || Math.hypot(this.goal.x - tg.pos.x, this.goal.z - tg.pos.z) > 12) { this.setGoal(tg.pos.x, tg.pos.z, 10); this.via = null; this.perching = false; }
+          const pm = this.followGoal(dt); if (pm && pm[2] > 0) { moveX = pm[0]; moveZ = pm[1]; }
+        }
       } else if (plm) { moveX = plm[0]; moveZ = plm[1]; speed *= plm[2]; }
       else if (tcm) { moveX = nx * tcm[0] + (-nz) * this.strafeDir * tcm[1]; moveZ = nz * tcm[0] + nx * this.strafeDir * tcm[1]; speed *= tcm[2]; s.crouching = tcm[3]; }
       else if (kite) {                                           // zombiye karşı: yaklaşınca geri çekilerek ateş et, uzaktayken yerinde dur
