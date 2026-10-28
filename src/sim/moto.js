@@ -20,7 +20,7 @@ export const MOTO = {
   steerMax: 0.9, steerV: 3.5, steerRate: 4, grip: 11, gripHand: 2.4,      // dönüş: 10 m/sn'de ~1,7 rad/sn (jip 1,3), 25 m/sn'de ~1,9 (yan ivme ~4,7 g: arcade)
   slide: 0.62, climbK: 1.5,
   // koltuklar [ileri, sağ, sele yüksekliği]: 0 sürücü (silahsız; sol tık korna), 1 arka yolcu (kendi silahı)
-  seat: [[-0.02, 0, 0.86], [-0.56, 0, 0.93]], horn: true, seatKey: [null, 'veh.seat.moto1'],
+  seat: [[0.04, 0, 0.86], [-0.6, 0, 0.93]], horn: true, seatKey: [null, 'veh.seat.moto1'],
   blastMul: 1.7, bulletMul: 0.55, hmgMul: 0.9, atMul: 1.8, ramMin: 7, ramMul: 6,
   burnAt: 0.25, burnRate: 10, boom: [3.5, 60],
   respawn: 15, wreck: 5, idleRespawn: 60,                    // patlayınca ~20 sn'de (enkaz 5 + 15) yeniden doğar; boş bırakılınca 60 sn

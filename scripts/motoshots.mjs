@@ -12,7 +12,8 @@ const browser = await chromium.launch({ headless: false, args: ['--use-angle=met
 // ── masaüstü ──
 {
   const page = await (await browser.newContext({ viewport: { width: 1600, height: 900 }, locale: 'tr-TR' })).newPage();
-  const errs = []; page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (m.type() === 'error') errs.push(m.text()); });
+  const errs = []; page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errs.push(m.text()); });
+  page.on('response', (r) => { if (r.status() >= 400) console.log('  (yanıt ' + r.status() + ': ' + r.url() + ')'); });
   await page.goto(`${URL0}/?autostart=8v8&map=kuzey&type=conquest&tod=day&weather=clear&debug=1&nolock=1&nologin=1&devMode=0`);
   await page.waitForFunction('window.__game && window.__game.running', null, { timeout: 240000 });
   await page.waitForTimeout(1500);
@@ -22,6 +23,7 @@ const browser = await chromium.launch({ headless: false, args: ['--use-angle=met
   await ev(() => {
     const g = window.__game, c = g.camera, P = Object.getPrototypeOf(g), orig = P.render;
     g.brainsOff = g.brains.splice(0); g.devGod = true;
+    const vmR = g.player.vm.render.bind(g.player.vm); g.player.vm.render = (...a) => { if (!g._cam) vmR(...a); };      // serbest kamerada silah modeli çizilmez
     P.render = function () {
       const k = this._cam;
       if (k?.v?.st) {
@@ -52,13 +54,14 @@ const browser = await chromium.launch({ headless: false, args: ['--use-angle=met
   ok(r3.veh === 'B-M1' && r3.seat === 0 && r3.pas === 1, 'tarayıcı: oyuncu motoru sürer, bot arka koltukta', JSON.stringify(r3));
   await shot('03-binici-poz-yandan', 700);
   // 04 Mavi üs motorları (kapı yanı)
-  await ev(() => { const g = window.__game; g._cam = { p: [146, 12, 626], t: [133, 0.5, 642], fov: 45 }; });
+  await ev(() => { const g = window.__game, y = g.world.heightAt(132, 642); g._cam = { p: [118, y + 7, 628], t: [132, y + 0.4, 642], fov: 45 }; });
   await shot('04-us-motorlar', 600);
-  await ev(() => { const g = window.__game, y = g.world.heightAt(-134, -642); g._cam = { p: [-146, y + 12, -626], t: [-134, y + 0.5, -642], fov: 45 }; });
+  await ev(() => { const g = window.__game, y = g.world.heightAt(-132, -642); g._cam = { p: [-118, y + 7, -628], t: [-132, y + 0.4, -642], fov: 45 }; });
   await shot('04b-kirmizi-us-motorlar', 900);
   // 05–07 sürüş: takip kamerası (oyuncunun kendi kamerası) — düz yol, sonra dönüş (yatma)
   await camOff(); await hud(true);
-  await ev(() => { const g = window.__game, me = g.playerSoldier, v = me.veh; v.st.x = 120; v.st.z = 600; v.st.y = g.world.heightAt(120, 600); v.st.yaw = 0; me.yaw = 0; me.pitch = -0.12; });
+  // Kuzey'in en uzun düz yolu R13 (Kırmızı üs kapısı → Kavşak yönü)
+  await ev(() => { const g = window.__game, me = g.playerSoldier, v = me.veh, yaw = Math.atan2(-79, -359); v.st.x = -103; v.st.z = -606; v.st.y = g.world.heightAt(-103, -606); v.st.yaw = yaw; v.st.vx = v.st.vz = 0; me.yaw = yaw; me.pitch = -0.12; window._yaw = yaw; });
   await page.keyboard.down('KeyW'); await page.waitForTimeout(3200);
   await shot('05-surus-takip', 0);
   const sp5 = await ev(() => { const g = window.__game, v = g.playerSoldier.veh; return Math.hypot(v.st.vx, v.st.vz) * 3.6; });
@@ -74,9 +77,8 @@ const browser = await chromium.launch({ headless: false, args: ['--use-angle=met
   // 08–09 arka yolcu ateşi: oyuncu arka koltukta (2), bot sürücü (beyin donuk: koltukta kalır), düşman hedef
   const r8 = await ev(() => {
     const g = window.__game, V = g.vehicles, me = g.playerSoldier, v = me.veh, b = v.seats[1];
-    V.seatTo(b, 0) || (V.exit(b), V.enter(b, v, 0));
+    V.exit(b); V.seatTo(me, 1); V.enter(b, v, 0);
     b.brain.vd = { state: 'hold', kind: 'moto', t: 0, inp: {} };                  // donuk bot sürücü (koltukta kalsın)
-    V.seatTo(me, 1);
     const red = g.soldiers.find((s) => s.team === 'red'); red.spawn({ x: v.st.x + Math.cos(v.st.yaw) * 14, z: v.st.z - Math.sin(v.st.yaw) * 14, ry: 0 }, 0); g.world.settle(red); red.protT = 0; red.hp = 100;
     const dx = red.pos.x - me.pos.x, dz = red.pos.z - me.pos.z; me.yaw = Math.atan2(-dx, -dz); me.pitch = -0.02;
     window._red = red;
@@ -90,8 +92,18 @@ const browser = await chromium.launch({ headless: false, args: ['--use-angle=met
   const r9 = await ev(() => { const g = window.__game, me = g.playerSoldier; return { mag: me.item.mag, red: Math.round(window._red.hp), alive: window._red.alive }; });
   ok(r8.seat === 1 && r8.drv && r9.mag < mag0, 'tarayıcı: arka yolcu (2) kendi silahıyla ateş eder', `şarjör ${mag0} → ${r9.mag} · hedef ${r9.alive ? r9.red + ' can' : 'öldü'}`);
   await hud(false);
-  await ev(() => { const g = window.__game, v = g.playerSoldier.veh; g.showSelf = true; g._cam = { v, off: [1.8, -3.4, 1.7, 0], ly: 1.2, fov: 45 }; });
-  await page.mouse.down(); await page.waitForTimeout(200); await shot('09-arka-yolcu-disaridan', 0); await page.mouse.up();
+  // dışarıdan: oyuncu sürücü, bot arka yolcu düşmana kendi tüfeğiyle ateş eder
+  const r9b = await ev(() => {
+    const g = window.__game, V = g.vehicles, me = g.playerSoldier, v = me.veh, b = v.seats[0];
+    V.exit(b); b.brain.vd = null; V.seatTo(me, 0); V.enter(b, v, 1);
+    const red = window._red, dx = red.pos.x - b.pos.x, dz = red.pos.z - b.pos.z; b.yaw = Math.atan2(-dx, -dz); b.pitch = 0; b.reloadT = 0;
+    g._cam = { v, off: [1.6, -3.6, 1.6, -0.4], ly: 1.1, fov: 45 };
+    window._fireT = setInterval(() => { b.tryFire(); }, 50);
+    return { pas: b.seat, mag: b.item.mag };
+  });
+  await page.waitForTimeout(450); await shot('09-arka-yolcu-disaridan', 0);
+  const r9c = await ev(() => { clearInterval(window._fireT); const v = window.__game.playerSoldier.veh; return v.seats[1].item.mag; });
+  ok(r9b.pas === 1 && r9c < r9b.mag, 'tarayıcı: bot arka yolcu da kendi silahıyla ateş eder (dışarıdan görüntü)', `${r9b.mag} → ${r9c}`);
   // 10 devrilme (sert kaza): üs duvarına
   const r10 = await ev(() => {
     const g = window.__game, V = g.vehicles, me = g.playerSoldier, v = me.veh;
@@ -115,6 +127,24 @@ const browser = await chromium.launch({ headless: false, args: ['--use-angle=met
   }
   ok(!!bot, 'tarayıcı: bot motorla uzak bayrağa gidiyor', bot ? JSON.stringify(bot) : 'bulunamadı');
   if (bot) { await ev((i) => { const g = window.__game; g._cam = { v: g.vehicles.list[i], off: [6.5, 2.2, 2.6, 6], ly: 0.9, fov: 50 }; }, bot.i); await page.waitForTimeout(2500); await shot('11-bot-motorla', 0); }
+  // 14 öldürme akışı: motorla düşmana çarpma → akışta motor simgesi
+  const kf = await ev(async () => {
+    const g = window.__game, V = g.vehicles, me = g.playerSoldier;
+    g.brainsOff = g.brains.splice(0); g._cam = null; me.fly = false; g.hud.root.style.display = '';
+    const v = V.list.find((x) => x.id === 'B-M3' && x.alive) || V.list.find((x) => x.def.moto && x.alive && !x.seats.some(Boolean));
+    if (me.veh) V.exit(me);
+    for (const o of V.occupants(v)) V.exit(o);
+    const st = v.st, yaw = Math.atan2(-79, -359); st.x = -103; st.z = -606; st.y = g.world.heightAt(-103, -606); st.yaw = yaw; v.sleep = false;
+    me.pos.set(st.x + 1.2, st.y, st.z); V.enter(me, v, 0); me.yaw = yaw; me.pitch = -0.1;
+    st.vx = -Math.sin(yaw) * 24; st.vz = -Math.cos(yaw) * 24;
+    const red = g.soldiers.find((s) => s.team === 'red' && s.alive) || g.soldiers.find((s) => s.team === 'red'); red.spawn({ x: st.x - Math.sin(yaw) * 26, z: st.z - Math.cos(yaw) * 26, ry: 0 }, 0); g.world.settle(red); red.protT = 0; red.hp = 100;
+    window._kfRed = red;
+    return red.name;
+  });
+  await page.keyboard.down('KeyW'); await page.waitForTimeout(1600); await page.keyboard.up('KeyW');
+  const kfr = await ev(() => { const f = document.getElementById('killfeed'), last = f?.lastElementChild; return { dead: !window._kfRed.alive, html: last ? last.innerHTML : '', txt: last ? last.textContent : '' }; });
+  await page.screenshot({ path: `${OUT}/14-oldurme-akisi-motor.png`, clip: { x: 1100, y: 0, width: 500, height: 260 } });
+  ok(kfr.dead && /viewBox="0 0 16 16"><circle cx="3.6"/.test(kfr.html) && /Motor/.test(kfr.txt), 'tarayıcı: motorla çarpılan düşman ölür, öldürme akışında motor simgesi + "Motor"', kfr.txt);
   ok(!errs.length, 'tarayıcı (masaüstü): sayfa hatası yok', errs.slice(0, 3).join(' | '));
   await page.context().close();
 }
@@ -138,7 +168,7 @@ const browser = await chromium.launch({ headless: false, args: ['--use-angle=met
   const cdp = await ctx.newCDPSession(mp);
   const jz = await mp.evaluate(() => { const e = document.querySelector('#tc .jb'); if (e) { const r = e.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; } return { x: innerWidth * 0.16, y: innerHeight * 0.72 }; });
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: jz.x, y: jz.y, id: 1 }] });
-  for (let k = 1; k <= 6; k++) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: jz.x + k * 3, y: jz.y - k * 11, id: 1 }] }); await mp.waitForTimeout(30); }
+  for (let k = 1; k <= 6; k++) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: jz.x + k * 0.5, y: jz.y - k * 11, id: 1 }] }); await mp.waitForTimeout(30); }
   await mp.waitForTimeout(2600);
   const drv = await mp.evaluate(() => { const g = window.__game, v = g.playerSoldier.veh, T = g.player.touch; return v ? { sp: Math.round(Math.hypot(v.st.vx, v.st.vz) * 3.6), d: Math.round(Math.hypot(v.st.x - v.spawn.x, v.st.z - v.spawn.z)), f: T.f, r: T.r, hud: document.querySelector('#vhPanel .nm')?.textContent } : null; });
   await mp.screenshot({ path: `${OUT}/13-mobil-surus.png` });

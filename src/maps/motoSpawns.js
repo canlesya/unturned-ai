@@ -7,10 +7,11 @@
 const PI = Math.PI;
 export const MOTO_SPAWNS = {
   kuzey: [
-    { id: 'B-M1', type: 'moto', team: 'blue', x: 130, z: 642, ry: PI }, { id: 'B-M2', type: 'moto', team: 'blue', x: 132.6, z: 642, ry: PI },
-    { id: 'B-M3', type: 'moto', team: 'blue', x: 135.2, z: 642, ry: PI }, { id: 'B-M4', type: 'moto', team: 'blue', x: 137.8, z: 642, ry: PI },
-    { id: 'R-M1', type: 'moto', team: 'red', x: -130, z: -642, ry: 0 }, { id: 'R-M2', type: 'moto', team: 'red', x: -132.6, z: -642, ry: 0 },
-    { id: 'R-M3', type: 'moto', team: 'red', x: -135.2, z: -642, ry: 0 }, { id: 'R-M4', type: 'moto', team: 'red', x: -137.8, z: -642, ry: 0 },
+    // üs: kapı yolunun yanında yan yana (2,6 m ara), burun yola dönük (Mavi batıya, Kırmızı doğuya): binip sola / sağa kırınca kapıdan çıkar
+    { id: 'B-M1', type: 'moto', team: 'blue', x: 132, z: 638, ry: -PI / 2 }, { id: 'B-M2', type: 'moto', team: 'blue', x: 132, z: 640.6, ry: -PI / 2 },
+    { id: 'B-M3', type: 'moto', team: 'blue', x: 132, z: 643.2, ry: -PI / 2 }, { id: 'B-M4', type: 'moto', team: 'blue', x: 132, z: 645.8, ry: -PI / 2 },
+    { id: 'R-M1', type: 'moto', team: 'red', x: -132, z: -638, ry: PI / 2 }, { id: 'R-M2', type: 'moto', team: 'red', x: -132, z: -640.6, ry: PI / 2 },
+    { id: 'R-M3', type: 'moto', team: 'red', x: -132, z: -643.2, ry: PI / 2 }, { id: 'R-M4', type: 'moto', team: 'red', x: -132, z: -645.8, ry: PI / 2 },
     // bayraklar (bayrağın sahibine; bayrak alınınca doğar)
     { id: 'A-M', type: 'moto', team: 'flag:A', x: -542.5, z: 98.7, ry: -0.69 },
     { id: 'B-M', type: 'moto', team: 'flag:B', x: -255.5, z: 244.7, ry: 1.37 },

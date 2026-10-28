@@ -108,7 +108,7 @@ function headless() {
   const mR = roadRun(v), jR = roadRun(jeep);
   for (const o of V.occupants(jeep)) V.exit(o);
   ok(mR.mx > jR.mx * 1.2, 'Kuzey yolu R13 (370 m düz, 12 sn tam gaz): motor jipten hızlı', `motor ${kmh(mR.mx)} km/s (0–60 ${f2(mR.t60)} sn, ${Math.round(mR.d)} m) · jip ${kmh(jR.mx)} km/s (0–60 ${f2(jR.t60)} sn, ${Math.round(jR.d)} m)`);
-  fresh(v, 130, 642, Math.PI);
+  fresh(v, 150, 652, Math.PI);
   // sürücü ateş edemez
   const mag0 = s.item.mag; ok(!s.tryFire() && s.item.mag === mag0, 'sürücü ateş edemez (silah yok, sol tık korna)');
   // arka yolcu (bot) kendi silahıyla ateş eder
@@ -221,7 +221,7 @@ async function online() {
   const up = await new Promise((res) => { const w = new WebSocket(WS); w.on('open', () => { w.close(); res(true); }); w.on('error', () => res(false)); setTimeout(() => res(false), 2000); });
   if (!up) { console.log('  (sunucu yok: ' + WS + ' — atlandı)'); return; }
   const { chromium } = await import('playwright');
-  const URL0 = process.env.URL || 'http://127.0.0.1:5186';
+  const URL0 = process.env.URL || 'http://127.0.0.1:5196';
   const browser = await chromium.launch({ headless: false, args: ['--use-angle=metal', '--ignore-gpu-blocklist'] });
   const page = await (await browser.newContext({ viewport: { width: 1280, height: 720 }, locale: 'tr-TR' })).newPage();
   const errs = []; page.on('pageerror', (e) => errs.push(e.message));
@@ -231,7 +231,7 @@ async function online() {
   // motorun yanına ışınla (sunucuya: { tp } debug), bin, sür
   const r0 = await page.evaluate(async () => {
     const g = window.__game, V = g.vehicles, v = V.list.find((x) => x.id === 'B-M2');
-    g.online.send({ tp: [v.st.x + 1.2, v.st.y + 0.2, v.st.z] });
+    g.online.send({ t: 'dbg', bots: false }); g.online.send({ t: 'dbg', tp: [v.st.x + 1.6, v.st.z] });
     return { id: v.id, alive: v.alive };
   });
   await page.waitForTimeout(1200);
@@ -239,15 +239,15 @@ async function online() {
   await page.waitForTimeout(800);
   const r1 = await page.evaluate(() => { const g = window.__game, me = g.playerSoldier; return { veh: me.veh?.id, seat: me.seat }; });
   ok(r1.veh === 'B-M2' && r1.seat === 0, 'çevrim içi: sunucu motora bindirdi (sürücü)', JSON.stringify(r1));
-  // 6 sn tam gaz + dönüş: tahmin düzeltmesi
-  await page.keyboard.down('KeyW'); await page.waitForTimeout(3000); await page.keyboard.down('KeyD'); await page.waitForTimeout(1500); await page.keyboard.up('KeyD'); await page.waitForTimeout(1500);
-  const r2 = await page.evaluate(() => { const g = window.__game, me = g.playerSoldier, v = me.veh, st = g.online.stats; return { sp: v ? Math.hypot(v.st.vx, v.st.vz) : 0, fix: st.vehFix || 0, errMax: st.vehErrMax || 0, errAvg: (st.vehErrSum || 0) / Math.max(1, st.vehFix || 0), pred: !!v?.pred }; });
-  await page.keyboard.up('KeyW');
-  ok(r2.pred && r2.sp > 15, 'çevrim içi: kendi motorum tahminle sürülür', `hız ${Math.round(r2.sp * 3.6)} km/s`);
-  ok(r2.errMax < 1.0, 'çevrim içi: tahmin düzeltmesi küçük (sunucu = istemci fiziği)', `düzeltme ${r2.fix} · en büyük ${f2(r2.errMax)} · ort ${f2(r2.errAvg)}`);
+  // 2,6 sn tam gaz (batıya, açık çayır) + hafif sağ: tahmin düzeltmesi
+  await page.mouse.click(640, 360); await page.keyboard.down('KeyW'); await page.waitForTimeout(1600); await page.keyboard.down('KeyD'); await page.waitForTimeout(250); await page.keyboard.up('KeyD'); await page.waitForTimeout(750);
+  const r2 = await page.evaluate(() => { const g = window.__game, me = g.playerSoldier, v = me.veh, st = g.online.stats; return { sp: v ? Math.hypot(v.st.vx, v.st.vz) : 0, fix: st.vehFix || 0, errMax: st.vehErrMax || 0, errAvg: (st.vehErrSum || 0) / Math.max(1, st.vehFix || 0), pred: !!v?.pred, x: v?.st.x, z: v?.st.z }; });
   await page.screenshot({ path: '/tmp/wb-moto/cevrimici-surus.png' });
+  await page.keyboard.up('KeyW'); await page.keyboard.down('Space'); await page.waitForTimeout(1500); await page.keyboard.up('Space');
+  ok(r2.pred && r2.sp > 15, 'çevrim içi: kendi motorum tahminle sürülür', `hız ${Math.round(r2.sp * 3.6)} km/s · ${Math.round(r2.x)},${Math.round(r2.z)}`);
+  ok(r2.errMax < 1.0, 'çevrim içi: tahmin düzeltmesi küçük (sunucu = istemci fiziği)', `düzeltme ${r2.fix} · en büyük ${f2(r2.errMax)} · ort ${f2(r2.errAvg)}`);
   // sunucuda kaza: Mavi üs duvarına yönlendir (vtp ışınla) + gaz → sunucu sürücüyü atar, istemci aracından iner
-  await page.evaluate(() => { const g = window.__game; g.online.send({ vtp: [60, 640, 0] }); });
+  await page.evaluate(() => { const g = window.__game; const v = g.vehicles.list.find((x) => x.id === 'B-M2'); g.online.send({ t: 'dbg', vtp: [60, 650, 0, v.idx] }); });
   await page.waitForTimeout(600);
   await page.keyboard.down('KeyW'); await page.waitForTimeout(2600); await page.keyboard.up('KeyW');
   await page.waitForTimeout(800);
