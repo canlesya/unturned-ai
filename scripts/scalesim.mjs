@@ -41,6 +41,7 @@ if (PROF) { wrap(BotBrain.prototype, 'update', 'brain'); wrap(NavGrid.prototype,
 const t0 = now();
 const game = new Game(null, { headless: true, map, tod: 'day', weather: 'clear', diff: 'normal', match: { perTeam: per, type, time: Math.max(secs + 60, 900) } });
 const tBuild = now() - t0;
+if (process.env.LOAD) game.loadLevel = +process.env.LOAD;      // 12.211 yük koruması seviyesi (server/room.js) denemesi
 if (PROF) {
   wrap(game, 'botSees', 'botSees');
   wrap(game, 'assignSquads', 'squads');

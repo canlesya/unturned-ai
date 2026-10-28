@@ -429,12 +429,14 @@ export class Vehicles {
     const t = this.g.time;
     if (this._vgT === t && this._vg) return this._vg;
     this._vgT = t;
-    const G = (this._vg ||= new Map());
-    if (G.size > 4096) G.clear(); else for (const a of G.values()) a.length = 0;
+    const G = (this._vg ||= new Map()), U = (this._vgU ||= []);
+    for (const a of U) a.length = 0;
+    U.length = 0;
+    if (G.size > 4096) G.clear();
     for (const v of this.list) {
       if (!v.st || (!v.alive && !v.wreck)) continue;
       const r = v.def.hl + 3.5, x0 = Math.floor((v.st.x - r) / 16), x1 = Math.floor((v.st.x + r) / 16), z0 = Math.floor((v.st.z - r) / 16), z1 = Math.floor((v.st.z + r) / 16);
-      for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) { const k = (x + 4096) * 8192 + z + 4096; let a = G.get(k); if (!a) G.set(k, (a = [])); a.push(v); }
+      for (let x = x0; x <= x1; x++) for (let z = z0; z <= z1; z++) { const k = (x + 4096) * 8192 + z + 4096; let a = G.get(k); if (!a) G.set(k, (a = [])); if (!a.length) U.push(a); a.push(v); }
     }
     return G;
   }

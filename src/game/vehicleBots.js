@@ -232,6 +232,7 @@ export function vbBoard(b) {
   let best = null, bd = 1e9;
   for (const v of V.list) {
     if (!v.alive || !v.st || v.def.fixed || v.burn || v.st.sunk || v.seats.some(Boolean) || g.time < (v.botBad || 0)) continue;
+    { const d0 = Math.hypot(v.st.x - s.pos.x, v.st.z - s.pos.z); if (d0 > Math.max(VBOT.reach, VBOT.aband.reach) || d0 > trip * 0.6) continue; }      // 12.211 ucuz uzaklık süzgeci önce (asıl sınır aşağıda; sonuç aynı)
     const ab = abandoned(v);                                                      // 12.212 terk edilmiş (sürülmüş, doğuşundan uzakta, boş)
     if (v.team && v.team !== s.team && !(ab && v.idleT > VBOT.aband.foe)) continue;      // 12.200 tarafsız (yol kenarı) araç: herkes · 12.212 düşmanın terk ettiği araç: bir süre sonra herkes
     if (!botMayTake(g, v, s.team)) continue;                                      // 12.200 yeni doğan araç / insanlara ayrılan araç
@@ -516,6 +517,20 @@ export function vbExit(b, why = '?') {
   b.vd = null; b.goalT = 0; b.path = null; b.target = null;
 }
 
+// 12.211 adım başına bir kez: takım başına yayadaki canlı askerlerin konumu (düz dizi; rota izlemede 256 askerlik nesne taraması yerine)
+function footOf(g, team) {
+  const C = (g._foot ||= { t: -1, blue: { n: 0, x: new Float64Array(64), z: new Float64Array(64), s: [] }, red: { n: 0, x: new Float64Array(64), z: new Float64Array(64), s: [] } });
+  if (C.t !== g.time) {
+    C.t = g.time; C.blue.n = C.red.n = 0;
+    for (const e of g.soldiers) {
+      if (!e.alive || e.veh) continue;
+      const T = C[e.team]; if (!T) continue;
+      if (T.n >= T.x.length) { const nx = new Float64Array(T.x.length * 2), nz = new Float64Array(T.x.length * 2); nx.set(T.x); nz.set(T.z); T.x = nx; T.z = nz; }
+      T.x[T.n] = e.pos.x; T.z[T.n] = e.pos.z; T.s[T.n++] = e;
+    }
+  }
+  return C[team] || { n: 0 };
+}
 // rota izleme: ileri bakış noktası, viraja / sona göre hız, takım arkadaşı / araç önünde yavaşla / kaç, takılınca geri vites, ilerleme yoksa bırak
 function follow(b, dt, inp, sp) {
   const s = b.s, g = b.game, v = s.veh, st = v.st, vd = b.vd, d = v.def, R = vd.route, tank = vd.kind === 'tank';
@@ -542,9 +557,11 @@ function follow(b, dt, inp, sp) {
   // önündeki takım arkadaşı (yaya) / araç: yavaşla, korna, yana kaç
   let avoid = 0;
   const fR = d.hl + 4 + Math.abs(vF) * 1.1, rR = d.hw + 1.4, R2 = fR * fR + rR * rR;      // 12.211 ucuz ön süzgeç (takım + uzaklık): sonuç aynı, 256 askerde yerel dönüşüm yok
-  for (const e of g.soldiers) {
-    if (!e.alive || e.veh || e === s || e.team !== s.team) continue;
-    { const ex = e.pos.x - st.x, ez = e.pos.z - st.z; if (ex * ex + ez * ez > R2) continue; }
+  const F = footOf(g, s.team);
+  for (let i = 0; i < F.n; i++) {
+    { const ex = F.x[i] - st.x, ez = F.z[i] - st.z; if (ex * ex + ez * ez > R2) continue; }
+    const e = F.s[i];
+    if (!e.alive || e.veh || e === s) continue;
     const L = toLocal2(st, e.pos.x, e.pos.z);
     if (L.f < d.hl - 0.5 || L.f > d.hl + 4 + Math.abs(vF) * 1.1 || Math.abs(L.r) > d.hw + 1.4) continue;
     if (e.team !== s.team) continue;                                          // düşman: ezilebilir
