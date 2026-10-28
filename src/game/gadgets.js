@@ -149,7 +149,7 @@ export function placeDeployable(game, s, st) {
   const x = s.pos.x + fx * 0.9, z = s.pos.z + fz * 0.9;
   // önü duvarsa kurma
   const wall = game.world.raycast(new THREE.Vector3(s.pos.x, s.pos.y + 0.5, s.pos.z), new THREE.Vector3(fx, 0, fz), 1.0, {});
-  if (wall) return false;
+  if (wall && st.dep !== 'c4') return false;                                  // 12.208 C4 önündeki araca / duvara yapışır
   const y = groundAt(game, x, z, s.pos.y);
   if (st.dep === 'c4' || st.dep === 'atmine') return placeAT(game, s, st, x, y, z, fx, fz);
   if (st.kind === 'mine') {

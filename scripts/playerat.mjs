@@ -35,7 +35,7 @@ const results = [];
 for (const [cls, gad, side] of KITS) {
   const setup = await page.evaluate(({ cls, gad, side }) => {
     const g = window.__game, V = g.vehicles, me = g.playerSoldier;
-    g.devGod = true;
+    g.devGod = true; me.fly = false;
     const X = +(window.__ATX ?? 60), Z = +(window.__ATZ ?? 230);
     let tank = V.list.find((v) => v.id === 'R-T1');
     if (!tank.alive || !tank.st) { tank.respawnT = 0; tank.wreck = false; V.trySpawn(tank); }
@@ -85,7 +85,7 @@ for (const [cls, gad, side] of KITS) {
     if (gad === 'c4') {
       // tankın dibine (gövdeye 1,5 m) yürüt (konumu doğrudan), yapıştır, 15 m geri çekil
       await page.evaluate((side) => { const A = window.__at, g = window.__game, t = A.tank.st, m = A.me; const f = side === 'front' ? -1 : 1, L = A.tank.def.hl + 1.0; m.pos.set(t.x, g.world.heightAt(t.x, t.z + f * L), t.z + f * L); m.yaw = side === 'front' ? Math.PI : 0; m.pitch = -0.3; if (g.player) { g.player.yaw = m.yaw; g.player.pitch = m.pitch; } }, side);
-      await page.waitForTimeout(150);
+      await page.waitForTimeout(700);
       await page.mouse.down(); await page.waitForTimeout(120); await page.mouse.up();
       await page.waitForTimeout(1100);
       if (shot === 0) await page.screenshot({ path: `${OUT}/${tag}-yapisti.png` });
@@ -96,7 +96,7 @@ for (const [cls, gad, side] of KITS) {
     }
     if (gad === 'atmine') {
       await page.evaluate(() => { const A = window.__at, g = window.__game, t = A.tank.st, m = A.me; const z = t.z - A.tank.def.hl - 6 - (A.mineN || 0) * 0.0; m.pos.set(t.x + (A.mineN || 0) * 0.6, g.world.heightAt(t.x, z), z); m.yaw = 0; m.pitch = -0.5; if (g.player) { g.player.yaw = m.yaw; g.player.pitch = m.pitch; } A.mineN = (A.mineN || 0) + 1; });
-      await page.waitForTimeout(150);
+      await page.waitForTimeout(700);
       await page.mouse.down(); await page.waitForTimeout(120); await page.mouse.up();
       await page.waitForTimeout(1200);
       // oyuncu kenara çekilir, tank (sürücüsü) mayının üstünden 3 m/sn geçer
