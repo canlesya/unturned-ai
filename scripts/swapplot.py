@@ -55,12 +55,16 @@ def panel(y0, idx, label, vmax, lines):
     # olay grupları (etiket değişimi)
     prev = None
     for i, e in enumerate(A):
-        g = ' '.join(e[0].split(' ')[:2])
+        t, w = e[0].split(' ')[:2]
+        g = t + ' ' + ('J/K' if w in ('K', 'J') else '1-4' if w == 'slot' else 'tekerlek' if w == 'wheel' else w)
         if g != prev:
             x = x0 + i * bw
             d.line([x, y0, x, y1], fill='#999')
-            d.text((x + 3, y1 + 4), g.replace('slot', '1-4').replace(' K', ' J/K').replace(' J', ' J/K'), fill='#444', font=f)
+            d.text((x + 3, y1 + 4), g, fill='#444', font=f)
             prev = g
+    for v, c in lines:
+        y = y1 - (y1 - y0) * v / vmax
+        for xx in range(int(x0), int(x1), 12): d.line([xx, y, xx + 6, y], fill=c, width=2)
     d.line([x0, y1, x1, y1], fill='#333')
 
 vw = max(20, max([e[1] for e in A + B] + [0]) * 1.1)
