@@ -203,6 +203,7 @@ export class Soldier {
     this.vel.set(0, 0, 0);
     this.yaw = point.ry; this.pitch = 0; this.recoilP = 0; this.pBody = point.ry; this.pPend = 0;
     this.alive = true; this.deadT = 0; this.spawnN = (this.spawnN || 0) + 1;     // spawnN: ağ istemcisi yeniden doğmayı fark etsin
+    this.downed = false; this.bleedT = 0; this.rvP = 0; this.rvBy = null; this.rvWant = false; this.uyOut = false;      // 12.223 Uyku Modu
     if (this.def.zombie) { this.maxHp = this.zombieMaxHp(); this.abT = 2.5; this.abActive = 0; this.cloakNet = false; }    // türüne göre can; güç kısa bir bekleme ile başlar
     this.hp = this.maxHp;
     this.items = this.game.mode.gungame ? ggItems(this.ggLevel) : this.game.mode.paintball ? pbItems() : this.loadout();
@@ -306,7 +307,7 @@ export class Soldier {
 
   // Tetik: held = basılı, buf = yeni tık tamponu (>0). Dönen true → tampon tüketildi. Player ve sunucu (humanTick) aynı mantığı kullanır.
   triggerUpdate(held, buf) {
-    if (!this.alive) { this.burstLeft = 0; return false; }
+    if (!this.alive || this.downed) { this.burstLeft = 0; return false; }          // 12.223 Uyku Modu: uyuyan ateş edemez
     if (this.veh && this.seat === 0) { this.burstLeft = 0; return false; }          // 12.177: sürücü ateş etmez (sol tık korna)
     if (this.swim && !this.cook && !swimCanFire(this, this.stat)) { this.burstLeft = 0; return false; }     // 12.180 yüzerken: yüzeyde yalnız tabanca, su altında hiçbiri
     if (this.stat.kind === 'throwable') return this._nadeTrigger(held, buf);
@@ -370,7 +371,7 @@ export class Soldier {
   }
 
   tryFire(heavy = false) {
-    if (!this.alive || this.cd > 0 || this.switchT > 0 || this.useT > 0) return false;
+    if (!this.alive || this.downed || this.cd > 0 || this.switchT > 0 || this.useT > 0) return false;
     if (this.botCook && !this._botNade) return false;                                 // 12.193: bot elinde pişen bombayı tutuyor (ateş etmez)
     if (this.veh && (this.seat === 0 || this.stat.kind === 'mine' || this.stat.kind === 'ammobox' || this.stat.kind === 'medkit')) return false;     // 12.177: sürücü ateş etmez; araçtan mayın / kutu kurulmaz
     if (this.swim && !swimCanFire(this, this.stat)) return false;
@@ -662,6 +663,7 @@ export class Soldier {
 
   // Botlar: seçili silahı değiştirmeden gadget kullan
   useGadget(id) {
+    if (this.downed) return false;
     const it = this.items[2];
     if (!it || it.id !== id || it.mag <= 0 || this.cd > 0 || this.reloadT > 0 || this.useT > 0 || this.switchT > 0) return false;
     const prev = this.cur;
@@ -675,20 +677,21 @@ export class Soldier {
 
   // ── duruş değiştirme (ayakta ↔ çömel ↔ yat); yer yoksa reddedilir ──
   toggleCrouch() {
-    if (this.swim) return;                                             // 12.180 yüzerken çömel tuşu = dal (basılı); duruş değişmez
+    if (this.swim || this.downed) return;                                             // 12.180 yüzerken çömel tuşu = dal (basılı); duruş değişmez
     const w = this.game.world;
     if (this.prone) { if (w.canStand(this, H_CROUCH)) { this.prone = false; this.crouching = true; } }
     else if (this.crouching) { if (w.canStand(this, H_STAND)) this.crouching = false; }
     else this.crouching = true;
   }
   toggleProne() {
-    if (this.swim) return;
+    if (this.swim || this.downed) return;
     const w = this.game.world;
     if (!this.prone) { this.prone = true; this.crouching = false; this.sprinting = false; }
     else if (w.canStand(this, H_STAND)) this.prone = false;
     else if (w.canStand(this, H_CROUCH)) { this.prone = false; this.crouching = true; }
   }
   standUp() {
+    if (this.downed) return false;                                     // 12.223 uyuyan kalkamaz
     const w = this.game.world;
     if (this.prone) {
       if (w.canStand(this, H_STAND)) { this.prone = false; return true; }
@@ -728,7 +731,9 @@ export class Soldier {
   get infAmmo() { return !!((this.isPlayer && this.game.devGod) || this.devGod); }
 
   takeDamage(amount, attacker, zone, fromPos, weaponName) {
+    if (this.downed && this.alive) { this.game.uyku?.hitDowned(this, attacker, zone); return; }      // 12.223 Uyku Modu: uyuyanı düşman vurursa bitirir (raunt sonuna dek elenir)
     if (!this.alive || this.protT > 0) return;
+    if (this.game.uyku && !this.game.uyku.dmgOk) return;                            // hazırlık / raunt sonu afişi: hasar yok
     if ((this.isPlayer && this.game.devGod) || this.devGod) return;                 // geliştirici modu: ölümsüzlük (O) · 12.207 sunucuda BF_DEBUG { god }
     if (this.def.zombie && this.game.graceLeft > 0) return;                            // hazırlık süresinde zombiler dokunulmaz
     if (this.def.zombie) {
@@ -748,7 +753,7 @@ export class Soldier {
     const pn = this.game._pen && this.game._pen.by === attacker ? this.game._pen.idx : 0;       // 12.164: delip geçen merminin kaçıncı hedefi (0 = ilk)
     if (attacker && attacker !== this && attacker.isPlayer) this.game.emit('hitmark', { victim: this, zone, dead: this.hp <= 0, dmg: amount, pn });
     else if (attacker && attacker !== this && attacker.human) { const hm = { e: 'hm', by: attacker.id, dead: this.hp <= 0 ? 1 : 0, hd: zone === 'head' ? 1 : 0 }; if (pn) hm.pn = pn; this.game.netEvent(hm); }
-    if (this.hp <= 0) this.die(attacker, weaponName, zone === 'head');
+    if (this.hp <= 0) { if (this.game.uyku?.down(this, attacker, weaponName, zone === 'head')) return; this.die(attacker, weaponName, zone === 'head'); }      // 12.223: Uyku Modunda ölmez, uyur
   }
 
   // Flaşbang: kör/sağır
@@ -758,7 +763,7 @@ export class Soldier {
     if (this.brain) this.brain.onFlashed?.(t);
   }
 
-  heal(n) { this.hp = Math.min(this.maxHp, this.hp + n); this.game.assists?.healed(this); }      // tam iyileşme asist kaydını sıfırlar (12.165)
+  heal(n) { if (this.downed) return; this.hp = Math.min(this.maxHp, this.hp + n); this.game.assists?.healed(this); }      // tam iyileşme asist kaydını sıfırlar (12.165)
 
   die(killer, weaponName, headshot) {
     if (!this.alive) return;
@@ -767,7 +772,7 @@ export class Soldier {
     if (this.botCook) { this.cook = { t: this.botCook.t, id: this.botCook.gid, lit: true }; this.botCook = null; this._dropLit(); }      // 12.193: pişiren bot da
     this.nadeVis = null;
     if (this.veh) this.game.vehicles?.exit(this);                                  // 12.177: araçta ölen kapıdan düşer (koltuk boşalır, araç sürer)
-    this.alive = false; this.hp = 0;
+    this.alive = false; this.hp = 0; this.downed = false;
     this.deaths++;
     this.deadT = 0; this.deadDir = Math.random() > 0.5 ? 1 : -1;
     this.ads = false; this.reloadT = 0; this.useT = 0; this.swing = null; this.autoSwitchT = 0;
@@ -963,7 +968,7 @@ export class Soldier {
     const m = this.model, root = m.root, p = m.parts;
     if (this.isPlayer && !this.game.showSelf) { root.visible = false; return; }      // 1. şahıs: kendi gövdeni görmezsin
     if (this.isPlayer) this._syncWeaponModel();                                         // 3. şahıs: elindeki silah modeli güncel olsun
-    root.visible = this.alive || this.deadT < 5;
+    root.visible = (this.alive || this.deadT < 5) && this !== this.game._specHide;      // 12.223 Uyku Modu izleme: dar köşede arkadaşın gözünden bakılırken modeli gizli
     this._shield(this.protected);
     if (this.game.mode?.space) spaceTp(this, dt);                                      // 12.160: ray tüfeği şarj ışıması 3. şahısta
     if (this.cloaked && this.alive && !this.isPlayer && this.pos.distanceTo(this.game.camera.position) > 3) root.visible = false;   // görünmez zombi: yalnızca 3 m içinde seçilir

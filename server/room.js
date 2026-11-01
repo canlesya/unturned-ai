@@ -4,7 +4,7 @@ import { SIM_DT, SIM_HZ, SNAP_EVERY, packSoldier, slowSig, cleanName } from '../
 import { IM_ALL, interestWants, interestNear, aimOf } from '../src/net/interest.js';
 import { CLASS_DEFS, WSTATS, ZTYPES, ZT_ORDER, ZOMBIE, cleanSkins } from '../src/game/stats.js';
 import { cleanWear } from '../src/game/wearIds.js';
-import { defaultTickets } from '../src/game/match.js';
+import { defaultTickets, uykuMaps } from '../src/game/match.js';
 import { LIMITS, useBalance, maxPerFor } from '../src/game/balance.js';
 import { currentBalance, balanceMeta } from './balanceStore.js';
 import { MAPS } from '../src/maps/index.js';
@@ -16,7 +16,7 @@ import { BotBrain } from '../src/game/bot.js';
 const RESTART_ENV = +process.env.BF_RESTART_MS || 0, RESTART_MS = RESTART_ENV || 15000;      // maç sonu ekranı (resmi odada oylama) süresi; ortam değişkeni resmi sunucunun voteSec'ini de ezer (test)
 const EMPTY_ENV = +process.env.BF_EMPTY_ROTATE_MS || 0;                                    // boş resmi oda harita değişimi (test); yoksa sunucunun idleMin alanı
 export const SPACE_MAPS = ['yorunge'];                              // 12.157 Uzay modu haritaları (başka mod bunlarda oynanmaz)
-export const MAPS_FOR = (type) => (type === 'space' ? SPACE_MAPS : type === 'inf' ? ['newyork'] : type === 'pb' ? PB_MAPS : type === 'payload' ? ['maden'] : type === 'front' ? FRONT_MAPS : type === 'conquest' || type === 'tdm' ? ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman', 'kuzey'] : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman']);      // 12.172 Kuzey Vadisi yalnız Ele Geçirme / TDM
+export const MAPS_FOR = (type) => (type === 'uyku' ? uykuMaps(MAPS) : type === 'space' ? SPACE_MAPS : type === 'inf' ? ['newyork'] : type === 'pb' ? PB_MAPS : type === 'payload' ? ['maden'] : type === 'front' ? FRONT_MAPS : type === 'conquest' || type === 'tdm' ? ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman', 'kuzey'] : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman']);      // 12.172 Kuzey Vadisi yalnız Ele Geçirme / TDM
 
 // 12.211 yük koruması: odanın sim adımı 2 sn'lik pencerelerde ort. LOAD_HI ms'yi 4 sn üst üste aşarsa seviye bir artar (en çok 3), LOAD_LO'nun
 // altında 20 sn kalırsa bir iner. 1: boştaki / yolcu / uyarılmış botlar seyrek düşünür · 2: çatışmadaki botlar da 2 adımda bir (bot.js tick) ·
@@ -32,10 +32,11 @@ export const FRONT_MAPS = ['cephe'];                                  // Cephe m
 
 export function sanitizeCfg(c = {}) {
   const pick = (v, list, d) => (list.includes(v) ? v : d);
-  const type0 = pick(c.type, ['conquest', 'tdm', 'dm', 'gg', 'inf', 'pb', 'payload', 'space', 'front'], 'conquest');
+  const type0 = pick(c.type, ['conquest', 'tdm', 'dm', 'gg', 'inf', 'pb', 'payload', 'space', 'front', 'uyku'], 'conquest');
+  const uyMaps = type0 === 'uyku' ? uykuMaps(MAPS) : null;                       // 12.223 Uyku Modu: yalnız küçük haritalar (kurulu olanlar)
   const pbMap = c.map === 'random' ? PB_MAPS[Math.floor(Math.random() * PB_MAPS.length)] : pick(c.map, PB_MAPS, PB_MAPS[0]);
   const R = {
-    map: type0 === 'space' ? pick(c.map, SPACE_MAPS, SPACE_MAPS[0]) : type0 === 'inf' ? 'newyork' : type0 === 'pb' ? pbMap : type0 === 'payload' ? 'maden' : type0 === 'front' ? pick(c.map, FRONT_MAPS, FRONT_MAPS[0]) : pick(c.map, (type0 === 'conquest' || type0 === 'tdm') ? ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman', 'kuzey'] : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman'], 'kasaba'),                  // Enfekte yalnızca New York'ta, Paintball yalnızca paintball haritalarında
+    map: uyMaps ? pick(c.map, uyMaps, uyMaps[0]) : type0 === 'space' ? pick(c.map, SPACE_MAPS, SPACE_MAPS[0]) : type0 === 'inf' ? 'newyork' : type0 === 'pb' ? pbMap : type0 === 'payload' ? 'maden' : type0 === 'front' ? pick(c.map, FRONT_MAPS, FRONT_MAPS[0]) : pick(c.map, (type0 === 'conquest' || type0 === 'tdm') ? ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman', 'kuzey'] : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman'], 'kasaba'),                  // Enfekte yalnızca New York'ta, Paintball yalnızca paintball haritalarında
     tod: pick(c.tod, ['day', 'sunset', 'night'], 'day'),
     weather: type0 === 'space' ? 'clear' : pick(c.weather, ['clear', 'rain', 'fog'], 'clear'),
     type: type0,
@@ -48,7 +49,9 @@ export function sanitizeCfg(c = {}) {
     pw: typeof c.pw === 'string' ? c.pw.slice(0, 16) : '',
     listed: c.listed !== false,
     third: c.third === true,                   // 3. şahıs kamera (H) bu odada serbest mi
+    rounds: c.rounds === 10 || c.rounds === '10' ? 10 : 5,                       // 12.223 Uyku Modu maç uzunluğu: 5 (ilk 3) / 10 (ilk 6, 5. rauntan sonra taraf değişir)
   };
+  if (R.type === 'uyku') { R.perTeam = Math.round(num(c.perTeam, 1, LIMITS.uyMax, 5)); R.time = 0; }
   if (R.type === 'conquest' || R.type === 'tdm') R.perTeam = Math.round(num(c.perTeam, 1, maxPerFor(R.map, R.type), 5));      // 12.203: büyük harita (Kuzey Vadisi) 128v128 / TDM 64v64, diğerleri 32
   return R;
 }
@@ -118,14 +121,14 @@ export class Room {
       const o = this.official;
       if (!this._cur) { this._rotIdx = o.shuffle ? Math.floor(Math.random() * o.rotation.length) : 0; this._cur = o.rotation[this._rotIdx]; }     // ilk maç / ayar değişti: düzenin başı (rastgele düzende herhangi biri)
       const r = this._cur;
-      Object.assign(c, sanitizeCfg({ type: o.type, perTeam: o.perTeam, time: o.time, diff: o.diff, tickets: o.tickets, bots: o.bots, third: o.third, ...r }), { name: o.name, listed: true, pw: '' });
+      Object.assign(c, sanitizeCfg({ type: o.type, perTeam: o.perTeam, time: o.time, diff: o.diff, tickets: o.tickets, bots: o.bots, third: o.third, rounds: o.rounds, ...r }), { name: o.name, listed: true, pw: '' });
       if (o.type === 'inf') c.tod = r.tod;
     }
     this.swap = this._swapNext ?? Math.random() < 0.5;                  // asimetrik haritalarda bu maçın taraf dağılımı (sideSwap): ilki rastgele, sonraki maçlar sırayla yer değiştirir
     this._swapNext = !this.swap;
     this.game = new Game(null, {
       headless: true, swapSides: this.swap, map: c.map, tod: c.tod, weather: c.weather, diff: c.diff, bots: c.bots, third: c.third,
-      match: { perTeam: c.perTeam, type: c.type, tickets: c.tickets || undefined, time: c.time },
+      match: { perTeam: c.perTeam, type: c.type, tickets: c.tickets || undefined, time: c.time, rounds: c.rounds },
     });
     this.tick = 0;
     this.lg = null;                                                    // 12.211 yük koruması (yeni maç sakin başlar)
@@ -369,6 +372,7 @@ export class Room {
       gy: Number.isFinite(m.gy) ? num(m.gy, -1e4, 1e4) : null, gp: Number.isFinite(m.gp) ? num(m.gp, -1.5, 1.5) : null,      // 12.188 tank topu hedef yönü (yoksa bakış) · 12.201 helikopter burun / burun topu hedefi
       rk: m.rk ? 1 : 0,                                                              // 12.201 helikopter roketi (basılı)
       vw: m.vw ? 1 : 0,                                                              // 12.206 pilotun seçili silahı (1 roket)
+      rv: m.rv ? 1 : 0,                                                              // 12.223 Uyku Modu: sağ tık kaldırma (basılı)
       gP: Array.isArray(m.gP) && m.gP.length === 3 && m.gP.every(Number.isFinite) ? m.gP.map((v) => Math.max(-5000, Math.min(5000, v))) : null,      // 12.206 artının noktası (roket yakınsaması; vehTick uzaklığı sınırlar)
     });
   }
@@ -420,6 +424,7 @@ export class Room {
     if (typeof m.spawn === 'string') h.spawnChoice = m.spawn === 'base' || (m.spawn === 'front' && g.map.big) || g.mode.objectives.some((o) => o.id === m.spawn) || (/^sq:\d{1,3}$/.test(m.spawn) && g.soldiers[+m.spawn.slice(3)]?.team === h.s.team) ? m.spawn : 'base';      // 12.202 sq:<id> manga arkadaşı (uygunluk doğuşta)
     if (m.hold !== undefined) h.hold = !!m.hold && squadOn(g);                      // 12.202 doğuş seçici: "Doğ" beklenir (en çok süre + 10 sn)
     if (m.dep && !h.s.alive) h.deployNow = true;
+    g.uyku?.prepApply(h.s, h);                                                      // 12.223 Uyku Modu hazırlığı: sınıf / yükleme hemen geçerli
   }
 
   // 12.202 işaret: { t:'mk', p:[x,y,z], v? } → doğrulanır (Game.ping: harita içinde, düşmanı görüyor mu) → aynı takımdaki istemcilere { t:'mk', by, p, v, k }
@@ -469,6 +474,12 @@ export class Room {
     if (g.vehicles && Array.isArray(m.vtp) && m.vtp.length >= 2 && m.vtp.every(Number.isFinite)) { const v = s.veh || g.vehicles.list[m.vtp[3] | 0]; if (v?.st) { v.st.x = m.vtp[0]; v.st.z = m.vtp[1]; v.st.y = g.world.heightAt(m.vtp[0], m.vtp[1]); if (m.vtp.length > 2) v.st.yaw = m.vtp[2]; v.st.vx = v.st.vy = v.st.vz = 0; v.sleep = false; } }   // 12.177 { vtp:[x,z,yaw?,araç?] } aracı ışınla
     if (g.vehicles && Array.isArray(m.vdmg)) { const v = g.vehicles.list[m.vdmg[0] | 0]; if (v?.alive) g.vehicles.damage(v, +m.vdmg[1] || 0, null, m.vdmg[2] || 'impact'); }   // { vdmg:[araç, hasar, tür?] }
     if (g.vehicles && Array.isArray(m.vrs)) { const v = g.vehicles.list[m.vrs[0] | 0]; if (v && !v.def.fixed) { if (v.alive) { g.vehicles.destroy(v, null, !!m.vrs[1]); v.deadT = v.def.wreck; } else if (!v.wreck) v.respawnT = 0; } }   // 12.215 { vrs:[araç, sessiz?] } patlat / sessiz yok et (enkaz beklenmez); ölüyken: hemen yeniden doğsun (vehspawnview)
+    if (g.uyku && m.uy && typeof m.uy === 'object') {                                               // 12.223 Uyku Modu testi: { uy:{ t: raunt süresi, bl:[asker, kanama] , end:'blue'|'red'|'draw' } }
+      const U = g.uyku, u = m.uy;
+      if (Number.isFinite(u.t)) U.t = Math.max(0.01, +u.t);
+      if (Array.isArray(u.bl)) { const o = g.soldiers[u.bl[0] | 0]; if (o?.downed) o.bleedT = Math.max(0.01, +u.bl[1] || 0); }
+      if ((u.end === 'blue' || u.end === 'red' || u.end === 'draw') && U.live) U.endRound(u.end, 'elim');
+    }
     if (m.bots === false) { g.brainsOff = g.brains.splice(0); }
     if (m.bots === true && g.brainsOff) { g.brains.push(...g.brainsOff); g.brainsOff = null; }
     if (m.ask && c.ws.readyState === 1) c.ws.send(JSON.stringify({ t: 'dbg', optic: s.opticId, item: s.item.id, zb: !!s.def.zombie, ab: [+s.abT.toFixed(2), +s.abActive.toFixed(2)],
@@ -615,7 +626,8 @@ export class Room {
     const tl = g.timeLeft === Infinity ? -1 : Math.round(g.timeLeft * 10) / 10;
     const vh = g.vehicles ? g.vehicles.pack(force) : null;                    // 12.177: yalnız değişen araçlar (duran araç yollanmaz; katılımda / 2 sn'de bir hepsi)
     const pl = (g.payload ? `"pl":${JSON.stringify(g.payload.pack())},` : '') + (g.front ? `"fr":${JSON.stringify(g.front.pack())},` : '') + (vh && vh.length ? `"vh":${JSON.stringify(vh)},` : '');      // Cephe: [etkin nokta sırası, cephe değişimi, bitti]                                   // Vagon: [yol mesafesi, iten | durduran | durum | uzatma]
-    const head = `{"t":"snap","k":${this.tick},"tk":[${Math.round(g.tickets.blue)},${Math.round(g.tickets.red)}],"tl":${tl},"o":${o},${pl}"s":[`;
+    const uy = g.uyku ? `"uy":${JSON.stringify(g.uyku.pack())},` : '';      // 12.223 Uyku Modu: [raunt, evre, süre ×10, taraf değişti, son raunt, raunt sayısı] (skor = tk)
+    const head = `{"t":"snap","k":${this.tick},"tk":[${Math.round(g.tickets.blue)},${Math.round(g.tickets.red)}],"tl":${tl},"o":${o},${pl}${uy}"s":[`;
     let bytes = 0, sentN = 0;
     for (const c of this.clients.values()) {
       if (c.ws.readyState !== 1) continue;

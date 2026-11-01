@@ -409,6 +409,10 @@ export class TouchControls {
       }
       return;
     }
+    if (id === 'ads' && g.uyku) {                                               // 12.223 Uyku Modu: yanında uyuyan arkadaş varken nişan düğmesi basılı = kaldır (bırakınca biter; sağ tıkla aynı yol)
+      if (down && s.alive && g.uyku.candidate(s)) { p.rmb = true; this._rvPress = true; if (b) b.classList.add('on'); return; }
+      if (!down && this._rvPress) { p.rmb = false; this._rvPress = false; if (b) b.classList.remove('on'); return; }
+    }
     if (id === 'ads' && s.stat.kind === 'melee' && !s.veh) { s.ads = down && s.alive; if (b) b.classList.toggle('on', s.ads); return; }      // 12.194: yakın dövüşte nişan düğmesi = ağır vuruş (basılı tuttukça; CS2 sağ tık)
     if (id === 'breath') { this.breath = down; return; }                         // 12.156: basılı tutulduğu sürece nefes tut (Player → ScopeBreath)
     if (id === 'score') { g.hud.showScoreboard(down); return; }

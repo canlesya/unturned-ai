@@ -110,6 +110,7 @@ export class NetClient {
       dn: inp.dn ? 1 : undefined,                                                    // 12.179 helikopter: alçal (C / Ctrl basılı)
       co: s.shotOff ? [+s.shotOff.x.toFixed(2), +s.shotOff.y.toFixed(2), +s.shotOff.z.toFixed(2)] : undefined,
       gy: s.gunAim ? +s.gunAim.y.toFixed(4) : undefined, gp: s.gunAim ? +s.gunAim.p.toFixed(4) : undefined,      // 12.188 tank: topun hedef yönü (artının gösterdiği noktaya balistik çözüm) · 12.201 helikopter: burun / burun topu hedefi
+      rv: s.rvWant ? 1 : undefined,                                                 // 12.223 Uyku Modu: sağ tık kaldırma (nişan yerine; Player.update → uyku.gate)
       rk: s.rkHeld ? 1 : undefined,                                                  // 12.201 helikopter roketi basılı (12.206: seçili silah roket + sol tık)
       vw: s.vw ? 1 : undefined,                                                      // 12.206 pilotun seçili silahı (1 roket: sol tık burun topunu ateşlemez)
       gP: s.veh && s.seat === 0 && s.veh.def.rockets && s.gunAim?.P ? [+s.gunAim.P.x.toFixed(2), +s.gunAim.P.y.toFixed(2), +s.gunAim.P.z.toFixed(2)] : undefined,      // 12.206 artının noktası (roketler oraya yakınsar)
@@ -190,7 +191,8 @@ export class NetClient {
     g.tickets.blue = m.tk[0]; g.tickets.red = m.tk[1];
     g.timeLeft = m.tl < 0 ? Infinity : m.tl;
     if (m.pl && g.payload) g.payload.applyNet(m.pl);                           // Vagon: konum + durum (gösterim netFrame'de yumuşar)
-    if (m.fr && g.front) g.front.applyNet(m.fr);                               // Cephe: etkin sektör (doğuş aşaması + şerit)
+    if (m.fr && g.front) g.front.applyNet(m.fr);
+    if (m.uy && g.uyku) g.uyku.applyNet(m.uy);                                 // 12.223 Uyku Modu: raunt / evre / süre / taraf                               // Cephe: etkin sektör (doğuş aşaması + şerit)
     if (m.vh && g.vehicles) g.vehicles.netSnap(m.k, m.vh);                     // 12.177: değişen araçlar (araç başına tampon; gösterim interpolate'te)
     // 12.191 bayraklar: [sahip, ilerleme, alandaki Mavi, Kırmızı]; ilk snapshot (geç katılım) bildirim / ses çıkarmaz, yalnız durumu kurar
     const first = !this._oSeen, at = performance.now(); this._oSeen = true;
@@ -216,6 +218,7 @@ export class NetClient {
     if (p.a && !s.alive) s.spawn({ x: p.x, z: p.z, ry: p.yw }, 0);
     else if (!p.a && s.alive) { s.alive = false; s.hp = 0; s.deadT = 0; s.deadDir = Math.random() > 0.5 ? 1 : -1; s.ads = false; s.reloadT = 0; s.vel.set(0, 0, 0); }
     s.hp = p.hp;
+    if (this.game.uyku) this.game.uyku.netSoldier(s, p);                         // 12.223 uyuyor mu / kanama / kaldırma ilerlemesi / haklar
     if (p.it) {                                                                                    // yavaş alanlar (yalnızca değişince / periyodik gelir)
       if (p.mh) s.maxHp = p.mh; if (p.gl !== undefined) s.ggLevel = p.gl;
       if (p.zt || p.bs) {                                                                          // zombi türü / boss durumu değişti: model yenilenir
@@ -258,7 +261,8 @@ export class NetClient {
   reconcile(me) {
     const g = this.game, s = g.playerSoldier;
     if (!s) return;
-    if (me.ab) { s.abT = me.ab[0]; s.abActive = me.ab[1]; }          // zombi gücü: bekleme / etkin süre sunucudan (hız tahmini tutarlı kalsın)
+    if (me.ab) { s.abT = me.ab[0]; s.abActive = me.ab[1]; }
+    if (g.uyku && me.now) g.uyku.netSoldier(s, me.now);              // 12.223 Uyku Modu: yerel oyuncu uyuyor mu (donuk girdi / HUD) · sunucunun şu anki durumu          // zombi gücü: bekleme / etkin süre sunucudan (hız tahmini tutarlı kalsın)
     if (me.rs !== this.rs) {
       // ilk snapshot veya yeniden doğma: sunucunun şu anki durumuna geç
       this.rs = me.rs; this.hist.length = 0; this.fallPred = null;

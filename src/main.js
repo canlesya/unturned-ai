@@ -66,7 +66,7 @@ function beginOnline({ net, welcome, name: name0, pw }) {
   net.onWelcome = (w) => { const g = game; game = null; g?.dispose(true); net.resetMatch(); beginOnline({ net, welcome: w, name, pw }); };
   start({
     online: { net, id: welcome.id, roster: welcome.roster, deps: welcome.deps, pk: welcome.pk, room: welcome.room, cfg: c },
-    match: { perTeam: c.perTeam, type: c.type, tickets: c.tickets, time: c.time }, map: c.map, tod: c.tod, weather: c.weather, diff: c.diff,
+    match: { perTeam: c.perTeam, type: c.type, tickets: c.tickets, time: c.time, rounds: c.rounds }, map: c.map, tod: c.tod, weather: c.weather, diff: c.diff,
     optic: q.get('optic') || p.optic || 'reddot', team: me.team, cls, playerName: name,
     keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs,
     loadout, loadouts: p.loadouts || {}, frontLoadouts: p.frontLoadouts || {}, frontOptics: p.frontOptics || {}, skins: p.skins, wear: p.wear, onExit: () => { location.href = location.pathname; }, onRestart: () => location.reload(),
@@ -98,7 +98,7 @@ async function startOnline() {
   let pw = q.get('pw') || '';
   if (!pw && code.toLowerCase() !== 'new') { try { pw = sessionStorage.getItem('bf_pw_' + code.toUpperCase()) || ''; } catch (e) { /* yok say */ } }
   const hello = code.toLowerCase() === 'new'
-    ? { t: 'create', name, tok: acctTok(), cls, loadout, skins: p.skins, wear: p.wear, team: q.get('team') || undefined, cfg: { name: q.get('room') || undefined, pw, listed: q.get('listed') !== '0', bots: q.get('bots') !== '0', third: q.get('third') === '1', map: q.get('map') || 'kasaba', tod: q.get('tod') || 'day', weather: q.get('weather') || 'clear', type: q.get('type') || 'conquest', perTeam: +q.get('per') || 5, diff: q.get('diff') || 'normal', tickets: +q.get('tickets') || undefined, time: q.has('time') ? +q.get('time') : undefined } }
+    ? { t: 'create', name, tok: acctTok(), cls, loadout, skins: p.skins, wear: p.wear, team: q.get('team') || undefined, cfg: { name: q.get('room') || undefined, pw, listed: q.get('listed') !== '0', bots: q.get('bots') !== '0', third: q.get('third') === '1', map: q.get('map') || 'kasaba', tod: q.get('tod') || 'day', weather: q.get('weather') || 'clear', type: q.get('type') || 'conquest', perTeam: +q.get('per') || 5, diff: q.get('diff') || 'normal', tickets: +q.get('tickets') || undefined, time: q.has('time') ? +q.get('time') : undefined, rounds: +q.get('rounds') || undefined } }
     : { t: 'join', room: code, name, tok: acctTok(), cls, loadout, skins: p.skins, wear: p.wear, pw, team: q.get('team') || undefined };
   try {
     const { net, welcome } = await NetClient.connect(url, hello, { onWait: (ms) => { loading.querySelector('.lt').textContent = t('match.waitNext', { s: Math.ceil((ms || 0) / 1000) }); } });     // maç sonu ekranındaki odaya: yeni maçta otomatik katılım
@@ -127,7 +127,7 @@ else if (q.get('autostart')) {
   start({
     third: q.get('third') !== '0',
     devMode: q.get('dev') === '1',
-    match: { perTeam: (mm ? +mm[1] : 10) * (q.get('type') === 'inf' ? 2 : 1), type: q.get('type') || 'conquest', tickets: +q.get('tickets') || undefined, time: q.has('time') ? +q.get('time') : 900 }, map: q.get('map') || 'kasaba', tod: q.get('tod') || 'day', weather: q.get('weather') || 'clear', optic: q.get('optic') || 'reddot', team: q.get('team') || 'blue', cls: q.get('cls') || 'assault', diff: q.get('diff') || 'normal',
+    match: { perTeam: (mm ? +mm[1] : 10) * (q.get('type') === 'inf' ? 2 : 1), type: q.get('type') || 'conquest', tickets: +q.get('tickets') || undefined, time: q.has('time') ? +q.get('time') : 900, rounds: +q.get('rounds') || undefined }, map: q.get('map') || 'kasaba', tod: q.get('tod') || 'day', weather: q.get('weather') || 'clear', optic: q.get('optic') || 'reddot', team: q.get('team') || 'blue', cls: q.get('cls') || 'assault', diff: q.get('diff') || 'normal',
     keys: p.keys, leftHand: p.leftHand, adsToggle: p.adsToggle, onPref: patchPrefs,
     loadout: { primary: q.get('primary') || undefined, secondary: q.get('secondary') || undefined, gadget: q.get('gadget') || undefined, melee: q.get('melee') || undefined },
     frontOptics: q.get('fo') ? Object.fromEntries(q.get('fo').split(',').map((x) => x.split(':'))) : p.frontOptics || {},      // 12.174 test: &fo=ww_bolt:ww_scout

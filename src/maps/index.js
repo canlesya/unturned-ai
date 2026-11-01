@@ -13,6 +13,7 @@ import { buildCephe } from './cephe.js';
 import { buildYorunge } from './yorunge.js';
 import { buildKuzey } from './kuzey.js';
 import '../i18n/kuzey.js';
+import { uykuMaps } from '../game/match.js';
 
 // Harita kaydı. Her harita build() ile şunu döndürür:
 // { id, name, group, colliders, bounds, spawns:{blue,red}, objectives:[{id,name,x,z,r,core?}], roads?, terrain?, water?, env? }
@@ -87,4 +88,4 @@ MAPS.kuzey = {      // 12.172 büyük harita: yalnız Ele Geçirme + Takım Çat
 };
 export const DEFAULT_MAP = 'kasaba';
 // Bu moda uygun haritalar (only: yalnızca o modlarda listelenir; dev hiçbirinde)
-export const mapsFor = (type) => (type === 'space' ? [MAPS.yorunge] : type === 'inf' ? [MAPS.newyork] : type === 'pb' ? [MAPS.boyakulesi, MAPS.ormankale] : type === 'payload' ? [MAPS.maden] : type === 'front' ? [MAPS.cephe] : Object.values(MAPS).filter((m) => !m.dev && (!m.only || m.only.includes(type))));      // Enfekte yalnızca New York'ta, Paintball yalnızca paintball haritalarında (Boya Kulesi, Orman Kalesi)
+export const mapsFor = (type) => (type === 'uyku' ? uykuMaps(MAPS).map((id) => MAPS[id]) : type === 'space' ? [MAPS.yorunge] : type === 'inf' ? [MAPS.newyork] : type === 'pb' ? [MAPS.boyakulesi, MAPS.ormankale] : type === 'payload' ? [MAPS.maden] : type === 'front' ? [MAPS.cephe] : Object.values(MAPS).filter((m) => !m.dev && (!m.only || m.only.includes(type))));      // Enfekte yalnızca New York'ta, Paintball yalnızca paintball haritalarında (Boya Kulesi, Orman Kalesi)

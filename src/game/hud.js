@@ -713,7 +713,7 @@ export class Hud {
     const col = (team) => {
       const list = g.soldiers.filter((s) => s.team === team && !s.vacant).sort((a, b) => b.score - a.score);
       return `<div class="team ${team}"><h3 style="color:var(--c)"><span>${inf ? (team === 'blue' ? t('hud.humans') : t('hud.zombies')) : teamName(team)}</span><em>${Math.max(0, g.tickets[team])}</em></h3><table>${th('')}${
-        list.map((s) => `<tr class="${s.isPlayer ? 'me' : ''} ${s.alive ? '' : 'dead'}"><td>${dispName(s)}</td><td>${s.kills}</td><td>${s.assists || 0}</td><td>${s.deaths}</td><td>${s.score}</td></tr>`).join('')}</table></div>`;
+        list.map((s) => `<tr class="${s.isPlayer ? 'me' : ''} ${s.alive && !s.downed ? '' : 'dead'}"><td>${dispName(s)}${s.downed ? ' 💤' : ''}</td><td>${s.kills}</td><td>${s.assists || 0}</td><td>${s.deaths}</td><td>${s.score}</td></tr>`).join('')}</table></div>`;
     };
     if (g.ffa) {                                                         // tek tablo, öldürmeye göre
       const gg = g.mode.gungame;
@@ -960,7 +960,7 @@ export class Hud {
     if (this._sp) this._sp.update(dt);
     // ölüm ekranı
     const rs = $('respawn');
-    if (!p.alive && !g.ended && !(this._sp && this._sp.deathT > 0)) {
+    if (!p.alive && !g.ended && !g.uyku && !(this._sp && this._sp.deathT > 0)) {      // 12.223 Uyku Modu: ölüm ekranı yok (raunt sonuna dek izleme: uykuHud)
       rs.style.display = 'flex';
       this.drawDeath(p);
       let note = '';
@@ -985,6 +985,7 @@ export class Hud {
     if (this.sbShown) this.renderScoreboard();
     g.squadHud?.update(); g.pings?.update(); g.bigMap?.update();             // 12.202 manga, işaretler, büyük harita / doğuş seçici
     this.drawMinimap();
+    g.uyku?.uiFrame(dt);                                                      // 12.223 Uyku Modu arayüzü (uykuHud.js)
   }
 
   // Paintball halka nişangâhı: halka yarıçapı = o anki top sapması (ekran pikseli), düşüş çizgileri topun hızı / yerçekiminden (20 / 30 / 40 m'de top
@@ -1053,6 +1054,7 @@ export class Hud {
       x.fill();
       if (!friendly) { x.strokeStyle = '#fff'; x.lineWidth = 1; x.stroke(); }
     }
+    g.uyku?.ui?.drawMinimap(x, this.mmX, this.mmY);                          // 12.223 uyuyan takım arkadaşları (kanama yayı)
     g.pings?.drawMap(x, this.mmX, this.mmY, 0.8);                         // 12.202 işaretler
     if (p.alive) {
       x.save();
