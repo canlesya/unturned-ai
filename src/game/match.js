@@ -8,6 +8,7 @@ export const MATCH_TYPES = {
   payload: { get label() { return t('payload.label'); }, get desc() { return t('payload.desc'); } },     // Vagon: Mavi saldırır (vagonu iter), Kırmızı savunur (src/game/payload.js)
   space: { get label() { return t('space.label'); }, get desc() { return t('space.desc'); } },     // 12.157 Uzay: takım çatışması (tdm kuralları) + düşük yer çekimi + enerji silahları + uzay kıyafeti (src/game/space.js)
   front: { get label() { return t('mode.front.label'); }, get desc() { return t('mode.front.desc'); } },        // Cephe: çekişmeli cephe hattı, 7 noktalık zincir (src/game/front.js, 12.161)
+  uyku: { get label() { return t('mode.uyku.label'); }, get desc() { return t('mode.uyku.desc'); } },        // 12.223 Uyku Modu: raunt tabanlı, uyuyan asker kaldırılır (src/game/uyku.js)
   pb: { label: 'Paintball', desc: 'Herkes tek, herkesin kendi boya rengi. Sabit boya silahları, Boya Kulesi\'nde üç kat: zemin siperleri, kaleler, kule tepesi. Kuyuya düşen elenir; ilk 30 elemeye ulaşan kazanır.' },
 };
 import { LIMITS, maxPerFor, BIG_MAPS } from './balance.js';
@@ -15,8 +16,13 @@ import { t } from '../i18n/index.js';
 import '../i18n/payload.js';
 import '../i18n/space.js';
 import '../i18n/front.js';
+import '../i18n/uyku.js';
 import { WSTATS } from './stats.js';
 
+// 12.223 Uyku Modu haritaları: küçük haritalar (ilki varsayılan; listede olup kurulu olmayan harita atlanır: uykukoy ayrı dalda yapılıyor)
+export const UYKU_MAPS_ALL = ['uykukoy', 'depo', 'liman', 'kasaba', 'us', 'colgecidi'];
+export const uykuMaps = (MAPS) => UYKU_MAPS_ALL.filter((id) => MAPS[id] && !MAPS[id].dev && (!MAPS[id].only || MAPS[id].only.includes('uyku')));
+export const UYKU_ROUNDS = [5, 10];
 export const DM_KILLS = 40, DM_MAX = 10;                 // varsayılanlar; oyun LIMITS'i okur (admin paneli)
 export const GG_LEN = 15;                                    // stats.js → GG_LADDER.length (bağımlılık olmasın diye sabit; test eşitliği doğrular)
 export const INF_MAX = 24, INF_MIN = 4;                                  // Enfekte: toplam oyuncu (çift sayı)
@@ -43,6 +49,11 @@ export function defaultTickets(perTeam) { return Math.max(40, Math.round(perTeam
 export const ffaMetric = (s, gg) => (gg ? s.ggLevel + 1 : s.kills);          // gg: seviye (1..15), değilse öldürme
 export const ffaRanking = (soldiers, gg) => soldiers.filter((s) => !s.vacant).sort((a, b) => (gg ? b.ggLevel - a.ggLevel : 0) || b.kills - a.kills || b.score - a.score);
 export function makeMatch(o = {}) {
+  if (o.type === 'uyku') {                                          // 12.223 Uyku Modu: raunt sayısı (5 kısa / 10 uzun), raunt süresi uyku.js'te (LIMITS.uyRound), genel süre yok
+    const perTeam = Math.max(1, Math.min(LIMITS.uyMax, Math.round(o.perTeam || 5))), rounds = o.rounds === 10 ? 10 : 5;
+    return { type: 'uyku', uyku: true, rounds, front: false, payload: false, infection: false, total: 0, ffa: false, gungame: false, paintball: false, fixed: false, killLimit: 0,
+      perTeam, tickets: rounds === 10 ? 6 : 3, scoreBased: false, time: 0, label: o.label || `${perTeam}v${perTeam}`, allFlags: false };
+  }
   if (o.type === 'space') return { ...makeMatch({ ...o, type: 'tdm' }), type: 'space', space: true };      // 12.157 Uzay: tdm kuralları (skor sınırı / süre) + mode.space (yer çekimi, silahlar, kıyafet)
   const fr = o.type === 'front';                                    // Cephe (12.158): conquest bayrakları sektörlere kilitli, yalnız saldıranın bileti
   const pl = o.type === 'payload', pb = o.type === 'pb', dm = o.type === 'dm' || o.type === 'gg' || pb, inf = o.type === 'inf', gg = o.type === 'gg';

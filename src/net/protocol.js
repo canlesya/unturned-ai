@@ -10,12 +10,14 @@
 //        sd: 1 = 3. şahıs sol omuz duruşu (yalnızca görsel; diğer oyuncular aynalı duruşu görsün)
 //        co: [x,y,z] 3. şahıs kamerada kameranın gözden ofseti (nişan noktası; mermi yine gözden çıkar; odada izinliyse)
 //        ve: 1 = araca bin / in (E) · vs: koltuk 1–4 · vl: far aç / kapa (12.177; sürücüde f / r = gaz / direksiyon, j = fren, fh = korna)
+//        rv: 1 = 12.223 Uyku Modu: sağ tık yanındaki uyuyan arkadaşı kaldırmak için basılı (nişan yerine)
 //        ab: 1 = zombi özel gücü (F / sağ tık) tuşuna basıldı · w: seçili silah · fh: ateş basılı · fp: ateşe yeni basıldı · rl: şarjör · fm: atış modu · o: nişangâh · vt: görülen sunucu adımı (lag compensation)
 // Sunucu → istemci
 //   { t:'welcome', id, room, cfg, roster, st }        id = senin savaşçı numaran
 //   { t:'roster', roster }                            biri girip/çıkınca
 //   { t:'snap', k, ack, me, s:[...], tk, tl, o }      anlık durum (bkz. packSoldier)
-//   { t:'ev', l:[...] }                               olaylar (sh atış, hm isabet, dmg hasar, kill, rld, swg)
+//   { t:'ev', l:[...] }                               olaylar (sh atış, hm isabet, dmg hasar, kill, rld, swg; 12.223 Uyku Modu: uyd uyudu · uyv kaldırıldı · uyo elendi · uyr raunt başı · uyg başla · uye raunt sonu)
+//   snap.uy = [raunt, evre (0 hazırlık · 1 raunt · 2 raunt sonu · 3 bitti), süre ×10, taraf değişti, son raunt (1 mavi · 2 kırmızı · 3 berabere), raunt sayısı] (12.223, yalnız Uyku Modu)
 //   { t:'err', msg }
 
 import { ZT_ORDER, SKIN_IDS, OPTIC_IDS } from '../game/stats.js';
@@ -52,6 +54,8 @@ export function packSoldier(s, slow = true) {
   };
   if (s.veh) o.v = s.veh.idx * 4 + s.seat + 1;
   if (s.prone && Number.isFinite(s.pBody)) o.pb = q3(s.pBody);                // 12.199 yüzüstü gövde yönü (bakıştan ayrı; yalnız yatarken yazılır)                         // 12.177: araçta (araç sırası · 4 + koltuk + 1); yoksa alan yazılmaz → diğer haritalarda paket aynı
+  if (s.downed) o.dn = [Math.ceil((s.bleedT || 0) * 10), Math.round((s.rvP || 0) * 10), s.rvBy ? s.rvBy.id : -1];      // 12.223 Uyku Modu: uyuyor [kanama ×10 sn, kaldırma ilerlemesi ×10 sn, kaldıran] (yalnız uyurken; eski istemci yok sayar)
+  { const uq = (s.rvN | 0) + 4 * (s.rvdN | 0); if (uq) o.uq = uq; }                // 12.223 raunt içi kaldırma hakları: kaldırdığı + 4 × kaldırıldığı (0 ise yazılmaz)
   if (slow) {
     o.mh = s.maxHp; o.gl = s.ggLevel; o.zt = s.def.zombie ? ZT_ORDER.indexOf(s.ztype) + 1 : 0; o.bs = s.boss ? 1 : 0; o.zl = s.zLives;
     o.it = s.items.map((it) => it.id);

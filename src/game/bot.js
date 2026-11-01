@@ -14,6 +14,7 @@ import { frTick, frPickGoal, frArrive, frAnchored, frTargetBias, frCombatMove, f
 import { brainLate } from './shapes.js';
 import { empBoard, empRide } from './empBots.js';                                          // 12.213 sabit silah yuvaları
 import { flankVia, bigGuardGoal, guardCombatMove, guardLeash, bigTacGoal } from './bigBots.js';
+import { uyBrain, uyPickGoal, uyTargetBias, uyFinishOk } from './uykuBots.js';                     // 12.223 Uyku Modu: takımca ilerleme, uyuyan arkadaşı kaldırma, uyuyan düşmanı bitirme
 import { tdmHuntGoal } from './bigTdm.js';                                                                     // 12.219 Kuzey TDM: bölgede av                                                    // 12.203 büyük harita kanat mangalı
 
 // silah rolleri (bot davranışı)
@@ -133,6 +134,7 @@ export class BotBrain {
     const objs = g.mode.objectives;
     this.via = null;
     { const v = this.vRes || this.vRide?.v; if (v && v.alive && v.st) { this.setGoal(v.st.x, v.st.z, 20); return; } }      // 12.189: araca yürüyor (vbBoard / vbCrew kapıya yönlendirir)
+    if (g.uyku) { uyPickGoal(this); return; }            // 12.223 Uyku Modu: takımca ilerleme / süre azken önde olan savunur (uykuBots.js)
     if (g.mode.infection) { this.huddle(); return; }      // Enfekte: insan botlar zombiye koşmaz, birbirine yakın durup birlikte savunur
     if (g.front) { frPickGoal(this); return; }            // Cephe: rol planı (frontBots.js): mevzi / nokta savunması · nokta saldırısı / kanat / nişancı
     if (g.payload) { plPickGoal(this); return; }          // Vagon: rol planı (payloadBots.js): eskort / öncü / yan · durdurucu / siper / yan
@@ -335,9 +337,10 @@ export class BotBrain {
     // 12.203 düz uzaklık puanı olan modlarda (Ele Geçirme / TDM / herkes-tek) adaylar önce ucuz süzgeçten geçer, yakından uzağa sıralanır, ilk GÖRÜLEN
     // seçilir (en yakın görünen = eskisiyle aynı sonuç). Eskiden menzildeki her aday için görüş hattı (dünya + duman + yaprak) sınanıyordu: 128v128'de
     // adım başına ~8 bin hat. Enfekte / Vagon / Cephe kendi puanını kullanır (eski döngü).
-    if (!g.mode.infection && !g.payload && !g.front) { this.senseNear(eye, fwd, alerted, at); return; }
+    if (!g.mode.infection && !g.payload && !g.front && !g.uyku) { this.senseNear(eye, fwd, alerted, at); return; }
     for (const e of g.soldiers) {
       if (!e.alive || e.team === s.team || e.protT > 0.5) continue;
+      if (e.downed && !uyFinishOk(this, e)) continue;                                      // 12.223 Uyku Modu: uyuyan düşman ancak "güvenli"yse (uykuBots.js)
       if (e.def.zombie && g.graceLeft > 0) continue;                                        // 12.196 hazırlık süresinde donuk zombiye önceden nişan alınmaz (boss'un ilk canı serbest kalır kalmaz eriyordu)
       if (g.vehicles && !at && g.vehicles.hiddenSeat(e)) continue;                 // 12.189: zırhın içindeki tank sürücüsüne tüfekle ateş etmez (mermi işlemez; yanındaki piyadeyle savaşır)
       if (e.cloaked && Math.hypot(e.pos.x - s.pos.x, e.pos.z - s.pos.z) > 6) continue;       // görünmez zombi yakına gelmeden fark edilmez
@@ -357,6 +360,7 @@ export class BotBrain {
         head = true;
       }
       let sc = g.mode.infection ? dist + this.crowd(e) * 12 + Math.random() * 6 : g.payload ? dist + plTargetBias(this, e) : g.front ? dist + frTargetBias(this, e) : dist;
+      if (g.uyku) sc += uyTargetBias(this, e);                                     // 12.223: uyuyan düşman ayaktakilerden sonra (başka tehdit yokken bitirilir)
       if (at && e.veh?.alive && dist < AT_BOT.range) sc = sc * (e.veh.def.armor ? 0.4 : 0.7) - (e.veh.def.armor ? 30 : 10);      // 12.200 tanksavarlı bot önce aracı (tank) hedefler      // Vagon: vagonu iten / durduran düşman öne      // Enfekte: herkes aynı zombiyi seçmesin (yük dağılımı)
       if (sc < bd) { bd = sc; best = e; this._bHead = head; }
     }
@@ -409,6 +413,7 @@ export class BotBrain {
   // sense sonucu: yeni hedef / kaybedilen hedef (sense + senseNear ortak)
   senseDone(best) {
     const g = this.game;
+    if (best && g.uyku && !best.downed) this.uyFoeT = g.time;                     // 12.223: ayakta düşman gördü (bitirme "güvenli" değil)
     if (best) {
       this.frHead = !!this._bHead;
       if (best !== this.target) { this.target = best; this.reactT = rand(this.d.react[0], this.d.react[1]) * (this.atSpot && this.role === 'ambush' ? 0.7 : 1) + (g.mode.infection ? rand(0, INF_BOT.desync) : 0); this.aimFrac = rand(0.55, 0.85); this.ambWait = 0; }      // pusucu rotaya önceden nişanlı: daha çabuk
@@ -709,6 +714,7 @@ export class BotBrain {
   update(dt) {
     const s = this.s, g = this.game;
     if (!s.alive) return;
+    if (g.uyku && uyBrain(this, dt)) return;                                       // 12.223 Uyku Modu: uyuyor / hazırlık / arkadaşını kaldırıyor
     if ((s.swim || this.swimming) && this.swimOut(dt)) return;
     if (s.def.zombie) { this.updateZombie(dt); return; }
     if (s.veh) { if (s.veh.def.fixed) empRide(this, dt); else if (s.seat === 0 && this.vd) vbDrive(this, dt); else this.rideTick(dt); return; }      // 12.213 yuvadaki bot     // 12.177 yolcu bot: nişan + ateş · 12.189 sürücü bot: vehicleBots.js

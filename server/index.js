@@ -217,7 +217,7 @@ function enter(ws, room, m) {
 // Kapatmak: BF_WARM=0
 function warmMaps() {
   if (process.env.BF_WARM === '0') return;
-  const t0 = performance.now(), only = { newyork: 'inf', boyakulesi: 'pb', ormankale: 'pb', maden: 'payload', cephe: 'front', yorunge: 'space' };
+  const t0 = performance.now(), only = { newyork: 'inf', boyakulesi: 'pb', ormankale: 'pb', maden: 'payload', cephe: 'front', yorunge: 'space', uykukoy: 'uyku' };
   for (const [id, m] of Object.entries(MAPS)) {
     if (m.dev) continue;
     try { const g = new Game(null, { headless: true, map: id, tod: 'day', weather: 'clear', diff: 'normal', bots: true, match: { perTeam: 4, type: only[id] || 'conquest', time: 600 } }); g.step(1 / 60); g.dispose(); } catch (e) { console.error('[ısınma]', id, e.message); }

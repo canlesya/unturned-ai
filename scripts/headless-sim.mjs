@@ -10,7 +10,9 @@ const per = +(process.argv[3] || 10);
 const secs = +(process.argv[4] || 240);
 
 const t0 = performance.now();
-const game = new Game(null, { headless: true, map, tod: 'day', weather: 'clear', diff: 'normal', match: { perTeam: per, type } });
+const game = new Game(null, { headless: true, map, tod: 'day', weather: 'clear', diff: process.env.DIFF || 'normal', match: { perTeam: per, type, rounds: +process.env.ROUNDS || undefined } });      // 12.223 ROUNDS=10: Uyku Modu uzun maç
+const UYR = [];                                                                                                     // 12.223 Uyku Modu raunt kayıtları
+game.on('uyround', (r) => UYR.push(r));
 const tBuild = performance.now() - t0;
 
 let errors = 0, flagEvents = 0;
@@ -71,6 +73,11 @@ if (VS) {
   if (process.env.OUT) (await import('node:fs')).writeFileSync(process.env.OUT, JSON.stringify({ ...VS, flags: flagEvents, total: S.reduce((a, s) => a + s.kills, 0) }));
 }
 if (DEF.k) console.log(`savunma: ele geçirilmiş bayrakta ort. ${(DEF.n / DEF.k).toFixed(2)} kendi askeri (r + 30 m) · boş bayrak oranı %${Math.round(100 * DEF.empty / DEF.k)}` + (game.vbStats ? ` · heli saldırı turu ${game.vbStats.strikes || 0} · heli kaçış ${game.vbStats.evade || 0} · tank mevzi ${game.vbStats.tankPost || 0} / eşlik ${game.vbStats.tankEsc || 0}` : '') + (VS ? ` · tanka isabet: ${JSON.stringify(VS.tankHits)}` : ''));
+if (game.uyku) {                                                                                                     // 12.223 Uyku Modu özeti
+  const U = game.uyku, st = U.stats;
+  console.log(`uyku: ${UYR.length} raunt · ${UYR.map((r) => `R${r.n} ${r.w}/${r.why} ${r.t.toFixed(0)}sn (${r.b.up}-${r.r.up})`).join(' · ')}`);
+  console.log(`uyku: uyuma ${st.downs} · kaldırma ${st.revives} · elenme ${st.outs} (bitirme ${st.fins}, kanama ${st.bleeds}) · taraf değişti: ${U.swapped ? 'evet' : 'hayır'} · en uzun raunt ${Math.max(0, ...UYR.map((r) => r.t)).toFixed(0)} sn`);
+}
 const ok = errors === 0 && bad.length === 0 && (type !== 'conquest' || flagEvents > 0);
 console.log(ok ? 'sonuç: OK' : 'sonuç: HATA');
 process.exit(ok ? 0 : 1);

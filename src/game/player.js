@@ -1011,6 +1011,7 @@ export class Player {
       if (s.alive && !s.veh && kb.is('crouch', code)) { s.toggleCrouch(); this.game.online?.edge('c'); }
       if (s.alive && !s.veh && kb.is('prone', code)) { s.toggleProne(); this.game.online?.edge('p'); }
       if (s.alive && kb.is('optic', code)) { this.game.online?.edge('o'); const o = s.cycleOptic(); if (o) { this.game.hud.toast($t('hud.t.optic', { o: opticName(s.opticId) }), '#cfe6ff'); this.saveEraOptic(); } }
+      if (this.game.uyku?.prepKey(s, code)) return;                                 // 12.223 Uyku Modu hazırlığı: 1–5 = sınıf seçimi (hemen geçerli)
       const slot = kb.slotOf(code);                                                 // tuş konumu (1 ana, 2 yedek, 3 bıçak, 4 ekipman) → items indeksi
       if (s.veh) { const n = /^Digit[1-4]$/.test(code) ? +code[5] - 1 : -1; if (n >= 0 && s.alive) seatPress(this.game, s, n); }      // araçta 1–4 = koltuk (silah: fare tekerleği) · 12.218 botlu koltuk = yer değiştir, insanlı = "koltuk dolu" 
       else if (slot >= 0) { const i = slotOrder(s.items.length)[slot]; if (i !== undefined) s.switchTo(i); }
@@ -1034,7 +1035,7 @@ export class Player {
         if (step) this.game.cycleSpawn(step);
       }
     });
-    this.on(window, 'blur', () => { this.keys.clear(); this.fireHeld = false; this.mmb = false; this.s.ads = false; this.game.hud.showScoreboard(false); this.closeWheel(); });     // pencere odağı gidince takılı tuş kalmasın
+    this.on(window, 'blur', () => { this.keys.clear(); this.fireHeld = false; this.rmb = false; this.mmb = false; this.s.ads = false; this.game.hud.showScoreboard(false); this.closeWheel(); });     // pencere odağı gidince takılı tuş kalmasın
     this.on(window, 'keyup', (e) => {
       const code = norm(e.code), kb = this.kb;
       if (kb.is('wheel', code)) this.closeWheel();
@@ -1064,7 +1065,9 @@ export class Player {
       if (e.button === 1) { e.preventDefault(); if (this.locked && this.s.alive) this.game.pings?.spot(); return; }       // 12.202 orta tık: işaret (Battlefield spot) · 12.206: helikopter pilotunda da (roket artık seçili silah: Q / tekerlek + sol tık)
       if (!this.locked) { this.game.requestLock(); return; }
       if (this.game.chatOpen) return;
+      if (this.game.uyku && !this.s.alive) { this.game.uyku.specCycle(e.button === 2 ? -1 : 1); return; }      // 12.223 Uyku Modu: elenmişken tık = izlenen takım arkadaşını değiştir
       if (e.button === 0) { this.fireHeld = true; this.fireBuf = 0.15; this.game.online?.edge('fp'); }
+      if (e.button === 2 && this.game.uyku) { this.rmb = true; if (this.game.uyku.candidate(this.s)) return; }      // 12.223: yanında uyuyan arkadaş varsa sağ tık kaldırmadır (nişan açılmaz; Player.update → uyku.gate)
       if (e.button === 2 && this.s.def.zombie) { this.zAbility(); return; }                  // zombi: sağ tık = özel güç
       if (e.button === 2 && this.s.stat.kind === 'throwable') { this.nadeModeReq = true; this.game.online?.edge('nu'); return; }      // 12.193 PUBG: bombada sağ tık = üstten ↔ alttan
       if (e.button === 2) this.s.ads = this.game.opts.adsToggle ? !this.s.ads : true;          // Ayarlar: basılı tut ya da bir kez bas (aç-kapa)
@@ -1074,6 +1077,7 @@ export class Player {
       if (e.button === 0) this.fireHeld = false;
       if (e.button === 1) this.mmb = false;
       if (e.button === 2 && !this.game.opts.adsToggle) this.s.ads = false;
+      if (e.button === 2) this.rmb = false;
     });
     this.on(document, 'contextmenu', (e) => e.preventDefault());                      // sağ tık menüsü oyunda hiç çıkmasın (nişan alırken takılıyordu)
     this.on(window, 'wheel', (e) => {
@@ -1386,12 +1390,15 @@ export class Player {
       const st = s.stat;
       const lean = (kb.held('leanRight', k) && !this.vehLatch ? 1 : 0) - (kb.held('leanLeft', k) ? 1 : 0);                 // 3. şahısta da Q/E yatar (ve omuzu değiştirir) · 12.177: araca binme / inme E'si basılıyken eğilmez
       const inp = { f, r, lean, sprint: kb.held('sprint', k) || !!(T && T.sprint), jump: (kb.held('jump', k) && !this.spaceLatch) || !!(T && T.jump), dive: kb.held('crouch', k) || !!(T && T.dive) };      // 12.180 dive: çömel BASILI (yüzerken dal)
+      const U = g.uyku, frz = !!U && U.frozen(s);                                    // 12.223 Uyku Modu: hazırlıkta / uyurken donuk (sunucu humanTick aynı kural)
+      if (frz) { inp.f = 0; inp.r = 0; inp.lean = 0; inp.sprint = false; inp.jump = false; inp.dive = false; }
+      if (U) U.gate(s, !!this.rmb && (this.locked || !!g.opts.nolock));                // sağ tık + yanında kaldırılabilir arkadaş → kaldırma (nişan kapanır)
       if (s.swim !== !!this._swimWas) this.swimEdge(s);
       proneLook(s, dt, { pend: true });                                                // 12.199 yüzüstü: gövde ≤ 90°/sn döner, bakış sınırda (sunucu humanTick aynı sıra)
       if (s.fly) this.flyMove(f, r, k, dt); else applyInput(s, inp, dt);
       // 12.193 bomba: hızlı atış (G / dokunmatik bomba düğmesi) = çek + hazırla + bırakınca at; R (pişir) ve sağ tık (atış şekli) girdinin adımında (sunucu: humanTick aynı sıra)
       const qn = this.nadeTick(dt);
-      const fHeld = this.fireHeld || qn.held, fBuf = Math.max(this.fireBuf, qn.buf);
+      const fHeld = !frz && (this.fireHeld || qn.held), fBuf = frz ? 0 : Math.max(this.fireBuf, qn.buf);
       if (qn.buf > 0) g.online?.edge('fp');
       if (g.online) g.online.pushInput(inp, s, fHeld);
       if (!kb.held('jump', k)) this.spaceLatch = false;
@@ -1399,7 +1406,7 @@ export class Player {
       // ateş
       if (this.cookReq) { this.cookReq = false; if (s.stat.kind === 'throwable') s.startReload(); }
       if (this.nadeModeReq) { this.nadeModeReq = false; s.toggleNadeMode(); }
-      if (this.locked || qn.held || qn.buf) {
+      if (!frz && (this.locked || qn.held || qn.buf)) {
         if (st.kind === 'melee') { if (s.meleeInput(this.fireHeld, this.fireBuf)) this.meleeStarted(s); }
         else if (s.triggerUpdate(fHeld, fBuf)) this.fireBuf = 0;
       } else if (s.cook) { this.fireHeld = false; s.triggerUpdate(false, 0); }                                    // kilit gitti (Esc): pişirilen bomba bırakılır (sunucu da tetiği bırakılmış görür)
@@ -1457,7 +1464,8 @@ export class Player {
       this._bobK = lerp(this._bobK || 0, s.swim && !s.under ? 1 : 0, Math.min(1, dt * 4));
       if (this._bobK > 0.01) cam.position.y += Math.sin(g.time * 1.7) * 0.03 * this._bobK;
       this.camPos.copy(cam.position);
-    } else {
+    } else if (g.uyku?.specCamera(cam, dt)) { s.shotOff = null; this._cs = null; this.bodyVisible = false; }      // 12.223 Uyku Modu: elenince takım arkadaşını izle
+    else {
       s.shotOff = null; this._cs = null; this.bodyVisible = false;
       this.deathCamT += dt;
       const t = Math.min(1, this.deathCamT * 2.5);

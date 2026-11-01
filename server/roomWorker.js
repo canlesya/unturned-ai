@@ -45,7 +45,7 @@ function state() {
 // Yedek iş parçacığı (workerData.spare): modüller yüklü + her harita bir kez kurulmuş (ilk kurulum / JIT pahalı: Kuzey soğukken 3–5 sn) bekler;
 // oda kurulunca 'init' ile hemen odaya dönüşür (server/roomHost.js takeSpare).
 function warm() {
-  const t0 = performance.now(), only = { newyork: 'inf', boyakulesi: 'pb', ormankale: 'pb', maden: 'payload', cephe: 'front', yorunge: 'space' };
+  const t0 = performance.now(), only = { newyork: 'inf', boyakulesi: 'pb', ormankale: 'pb', maden: 'payload', cephe: 'front', yorunge: 'space', uykukoy: 'uyku' };
   for (const [id, mp] of Object.entries(MAPS)) {
     if (mp.dev) continue;
     try { const g = new Game(null, { headless: true, map: id, tod: 'day', weather: 'clear', diff: 'normal', bots: true, match: { perTeam: 4, type: only[id] || 'conquest', time: 600 } }); g.step(1 / 60); g.dispose(); } catch (e) { console.error('[ısınma]', id, e.message); }
