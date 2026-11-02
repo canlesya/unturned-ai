@@ -1,13 +1,17 @@
 // Çöl Geçidi v2 (12.171): plan.js → hücre ızgarası. Hücre türü (zemin / bina kütlesi / dış), zemin kotu fonksiyonu (düz ya da eksen hizalı doğrusal
 // rampa: aynı rampanın hücreleri ve rampa ucundaki düz kat köşelerde birebir aynı kotu verir), kütle no + tepe, kütle altı taban kotu.
 // Hem sunucu (çarpışma / yol bulma) hem istemci (ağ) aynı veriyi kullanır; rastgelelik yok.
-import { GRID, FLOORS, MASSES, OUTSIDE } from './plan.js';
+import * as CG_PLAN from './plan.js';
 
 export const T_FLOOR = 0, T_MASS = 1, T_OUT = 2;
-let _cache = null;
+const _cache = new Map();
 
-export function cgLayout() {
-  if (_cache) return _cache;
+export function cgLayout() { return makeLayout(CG_PLAN); }
+
+// 12.224 genel: herhangi bir plan ({ GRID, FLOORS, MASSES, OUTSIDE }) → hücre ızgarası (Kum Köyü de aynı yolu kullanır). Plan başına önbellek.
+export function makeLayout(plan) {
+  if (_cache.has(plan)) return _cache.get(plan);
+  const { GRID, FLOORS, MASSES, OUTSIDE } = plan;
   const { x0, z0, cell: C, nx, nz } = GRID, N = nx * nz;
   const type = new Uint8Array(N).fill(T_OUT), spec = new Int16Array(N).fill(-1), mass = new Int32Array(N).fill(-1), top = new Float32Array(N);
   const specs = [], skey = new Map();
@@ -49,5 +53,6 @@ export function cgLayout() {
     cellOf(x, z) { const i = Math.floor((x - x0) / C), j = Math.floor((z - z0) / C); return i < 0 || j < 0 || i >= nx || j >= nz ? -1 : j * nx + i; },
     isFloor(x, z) { const k = this.cellOf(x, z); return k >= 0 && type[k] === T_FLOOR; },
   };
-  return (_cache = L);
+  _cache.set(plan, L);
+  return L;
 }

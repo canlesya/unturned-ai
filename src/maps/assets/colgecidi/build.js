@@ -243,7 +243,7 @@ export function floorMin(T, x, z, w, d) {
   return m;
 }
 // köşe altındaki zemin (gölgelendirici aGnd): kütle / duvar kenarında komşu en alçak zemin hücresi
-function groundBelow(T, L, x, z) {
+export function groundBelow(T, L, x, z) {
   const i = Math.round((x - L.x0) / L.C), j = Math.round((z - L.z0) / L.C);
   let m = 1e9;
   for (const [a, c] of [[i - 1, j - 1], [i, j - 1], [i - 1, j], [i, j]]) { const k = L.at(a, c); if (k >= 0 && L.type[k] === T_FLOOR) m = Math.min(m, T.cellH(k, Math.min(L.x0 + (a + 1) * L.C, Math.max(L.x0 + a * L.C, x)), Math.min(L.z0 + (c + 1) * L.C, Math.max(L.z0 + c * L.C, z)))); }
@@ -251,7 +251,7 @@ function groundBelow(T, L, x, z) {
 }
 
 // AO dokusu: R duvar dibi (zemin hücresinin dikey yüze / kütleye uzaklığı), G çatı altı, B kum birikintisi
-function makeAO(T, L, roofs, br) {
+export function makeAO(T, L, roofs, br) {
   const W = L.nx, H = L.nz, data = new Uint8Array(W * H * 4), dist = new Float32Array(W * H).fill(99);
   const q = [];
   for (let k = 0; k < L.N; k++) {

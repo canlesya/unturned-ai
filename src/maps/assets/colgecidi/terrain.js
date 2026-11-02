@@ -10,8 +10,10 @@ export const BEVEL = 1.1, WALL_D = 0.55;
 const SIDES = [[1, 0], [-1, 0], [0, 1], [0, -1]];        // +x, −x, +z, −z
 
 export class CgTerrain {
-  constructor() {
-    const L = (this.L = cgLayout());
+  // L: makeLayout(plan) (varsayılan Çöl Geçidi); exempt(x, z): yol bulmada dik sayılmayan kenar (köprü ağzı) — 12.224 Kum Köyü kendi planıyla kullanır
+  constructor(L = cgLayout(), exempt = null) {
+    this.L = L;
+    if (exempt) this.exempt = exempt;
     this.minX = L.x0; this.minZ = L.z0; this.maxX = L.x0 + L.nx * L.C; this.maxZ = L.z0 + L.nz * L.C; this.cell = L.C;
     this.deepWater = -1e9; this.navMin = -9;
     const N = L.N;

@@ -16,7 +16,7 @@ import { BotBrain } from '../src/game/bot.js';
 const RESTART_ENV = +process.env.BF_RESTART_MS || 0, RESTART_MS = RESTART_ENV || 15000;      // maç sonu ekranı (resmi odada oylama) süresi; ortam değişkeni resmi sunucunun voteSec'ini de ezer (test)
 const EMPTY_ENV = +process.env.BF_EMPTY_ROTATE_MS || 0;                                    // boş resmi oda harita değişimi (test); yoksa sunucunun idleMin alanı
 export const SPACE_MAPS = ['yorunge'];                              // 12.157 Uzay modu haritaları (başka mod bunlarda oynanmaz)
-export const MAPS_FOR = (type) => (type === 'uyku' ? uykuMaps(MAPS) : type === 'space' ? SPACE_MAPS : type === 'inf' ? ['newyork'] : type === 'pb' ? PB_MAPS : type === 'payload' ? ['maden'] : type === 'front' ? FRONT_MAPS : type === 'conquest' || type === 'tdm' ? ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman', 'kuzey'] : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman']);      // 12.172 Kuzey Vadisi yalnız Ele Geçirme / TDM
+export const MAPS_FOR = (type) => (type === 'uyku' ? uykuMaps(MAPS) : type === 'space' ? SPACE_MAPS : type === 'inf' ? ['newyork'] : type === 'pb' ? PB_MAPS : type === 'payload' ? ['maden'] : type === 'front' ? FRONT_MAPS : type === 'conquest' || type === 'tdm' ? ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman', 'uykukoy', 'kuzey'] : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman', 'uykukoy']);      // 12.172 Kuzey Vadisi yalnız Ele Geçirme / TDM
 
 // 12.211 yük koruması: odanın sim adımı 2 sn'lik pencerelerde ort. LOAD_HI ms'yi 4 sn üst üste aşarsa seviye bir artar (en çok 3), LOAD_LO'nun
 // altında 20 sn kalırsa bir iner. 1: boştaki / yolcu / uyarılmış botlar seyrek düşünür · 2: çatışmadaki botlar da 2 adımda bir (bot.js tick) ·
@@ -36,7 +36,7 @@ export function sanitizeCfg(c = {}) {
   const uyMaps = type0 === 'uyku' ? uykuMaps(MAPS) : null;                       // 12.223 Uyku Modu: yalnız küçük haritalar (kurulu olanlar)
   const pbMap = c.map === 'random' ? PB_MAPS[Math.floor(Math.random() * PB_MAPS.length)] : pick(c.map, PB_MAPS, PB_MAPS[0]);
   const R = {
-    map: uyMaps ? pick(c.map, uyMaps, uyMaps[0]) : type0 === 'space' ? pick(c.map, SPACE_MAPS, SPACE_MAPS[0]) : type0 === 'inf' ? 'newyork' : type0 === 'pb' ? pbMap : type0 === 'payload' ? 'maden' : type0 === 'front' ? pick(c.map, FRONT_MAPS, FRONT_MAPS[0]) : pick(c.map, (type0 === 'conquest' || type0 === 'tdm') ? ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman', 'kuzey'] : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman'], 'kasaba'),                  // Enfekte yalnızca New York'ta, Paintball yalnızca paintball haritalarında
+    map: uyMaps ? pick(c.map, uyMaps, uyMaps[0]) : type0 === 'space' ? pick(c.map, SPACE_MAPS, SPACE_MAPS[0]) : type0 === 'inf' ? 'newyork' : type0 === 'pb' ? pbMap : type0 === 'payload' ? 'maden' : type0 === 'front' ? pick(c.map, FRONT_MAPS, FRONT_MAPS[0]) : pick(c.map, (type0 === 'conquest' || type0 === 'tdm') ? ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman', 'uykukoy', 'kuzey'] : ['kasaba', 'vadi', 'us', 'colgecidi', 'depo', 'liman', 'uykukoy'], 'kasaba'),                  // Enfekte yalnızca New York'ta, Paintball yalnızca paintball haritalarında
     tod: pick(c.tod, ['day', 'sunset', 'night'], 'day'),
     weather: type0 === 'space' ? 'clear' : pick(c.weather, ['clear', 'rain', 'fog'], 'clear'),
     type: type0,
