@@ -554,8 +554,9 @@ export class Game {
     this.humans.set(s.id, { s, queue: [], last: null, stale: 0, ack: 0, tickAck: false, fireBuf: 0, pendingClass: null, pendingLoadout: null, spawnChoice: 'base' });
     placeHuman(this, s);                                                         // 12.202: aynı takımdaki başka insanın mangasına (yer varsa)
     if (this.uyku && !this.uyku.prep) {                                          // 12.223 Uyku Modu raunt içinde: botun yerini olduğu gibi alır (ayakta / uyuyor; canı korunur), elenmiş yuvaya gelen raunt sonuna dek izler
-      if (alive0) { s.hp = Math.min(s.maxHp, hp0); if (s.downed) s.hp = 0; }
-      else { s.alive = false; s.hp = 0; s.deadT = 99; this.uyku.onDeath(s); }
+      if (alive0) { s.hp = Math.min(s.maxHp, hp0); if (s.downed) s.hp = 0; return s; }
+      if (this.uyku.joined(s)) return s;                                         // boş takıma ilk gelen (rakipsiz raunt): raunt baştan, herkes doğdu
+      s.alive = false; s.hp = 0; s.deadT = 99; this.uyku.onDeath(s);
       return s;
     }
     this.respawn(s, true);

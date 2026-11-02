@@ -474,11 +474,12 @@ export class Room {
     if (g.vehicles && Array.isArray(m.vtp) && m.vtp.length >= 2 && m.vtp.every(Number.isFinite)) { const v = s.veh || g.vehicles.list[m.vtp[3] | 0]; if (v?.st) { v.st.x = m.vtp[0]; v.st.z = m.vtp[1]; v.st.y = g.world.heightAt(m.vtp[0], m.vtp[1]); if (m.vtp.length > 2) v.st.yaw = m.vtp[2]; v.st.vx = v.st.vy = v.st.vz = 0; v.sleep = false; } }   // 12.177 { vtp:[x,z,yaw?,araç?] } aracı ışınla
     if (g.vehicles && Array.isArray(m.vdmg)) { const v = g.vehicles.list[m.vdmg[0] | 0]; if (v?.alive) g.vehicles.damage(v, +m.vdmg[1] || 0, null, m.vdmg[2] || 'impact'); }   // { vdmg:[araç, hasar, tür?] }
     if (g.vehicles && Array.isArray(m.vrs)) { const v = g.vehicles.list[m.vrs[0] | 0]; if (v && !v.def.fixed) { if (v.alive) { g.vehicles.destroy(v, null, !!m.vrs[1]); v.deadT = v.def.wreck; } else if (!v.wreck) v.respawnT = 0; } }   // 12.215 { vrs:[araç, sessiz?] } patlat / sessiz yok et (enkaz beklenmez); ölüyken: hemen yeniden doğsun (vehspawnview)
-    if (g.uyku && m.uy && typeof m.uy === 'object') {                                               // 12.223 Uyku Modu testi: { uy:{ t: raunt süresi, bl:[asker, kanama] , end:'blue'|'red'|'draw' } }
+    if (g.uyku && m.uy && typeof m.uy === 'object') {                                               // 12.223 Uyku Modu testi: { uy:{ t: raunt süresi, bl:[asker, kanama] , end:'blue'|'red'|'draw', restart:1 } }
       const U = g.uyku, u = m.uy;
       if (Number.isFinite(u.t)) U.t = Math.max(0.01, +u.t);
       if (Array.isArray(u.bl)) { const o = g.soldiers[u.bl[0] | 0]; if (o?.downed) o.bleedT = Math.max(0.01, +u.bl[1] || 0); }
       if ((u.end === 'blue' || u.end === 'red' || u.end === 'draw') && U.live) U.endRound(u.end, 'elim');
+      if (u.restart && U.phase !== 'over') U.startRound(true);                                       // aynı raunt baştan (test)
     }
     if (m.bots === false) { g.brainsOff = g.brains.splice(0); }
     if (m.bots === true && g.brainsOff) { g.brains.push(...g.brainsOff); g.brainsOff = null; }

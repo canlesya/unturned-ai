@@ -346,23 +346,33 @@ async function online() {
     const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
     const errs = []; page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => { if (m.type() === 'error' && !/WebSocket|favicon|Failed to load/.test(m.text())) errs.push(m.text()); });
     await page.goto(code ? `${BASE}/?online=${code}&debug=1&nolock=1&server=${WS}&name=${name}&team=${team}` : `${BASE}/?online=new&type=uyku&per=3&map=${MAP}&bots=0&debug=1&nolock=1&server=${WS}&name=${name}&team=${team}`);
-    await page.waitForFunction('window.__game && window.__game.running && window.__game.uyku && window.__game.playerSoldier.alive', null, { timeout: 300000 });
+    await page.waitForFunction('window.__game && window.__game.running && window.__game.uyku && window.__game.online && window.__game.playerSoldier', null, { timeout: 300000 });      // raunt sürerken gelen (takımında arkadaşı varsa) raunt sonuna dek izler: canlı beklenmez
     await page.evaluate(HELP);
     page.errs = errs;
     return page;
   };
   const A = await open('Ali', 'blue');
   const code = await A.evaluate(() => window.__game.opts.online.room);
-  const B = await open('Bora', 'blue', code), C = await open('Cem', 'red', code);
+  const dbg = (p, m) => p.evaluate((m) => __U.g.online.send({ t: 'dbg', ...m }), m);
+  const until = (p, fn, ms = 15000) => p.waitForFunction(fn, null, { timeout: ms, polling: 50 });
+  const B = await open('Bora', 'blue', code);
+  await dbg(A, { uy: { restart: 1 } }); await until(B, `__U.U.phase === 'prep' && __U.g.playerSoldier.alive`);      // yavaş makinede B hazırlıktan sonra gelmiş olabilir (izliyordur): raunt baştan
+  // rakipsiz raunt: Kırmızı boşken raunt başlar (sayılmaz, bitmez); Kırmızı'ya ilk gelen katılınca raunt baştan (12.223 düzeltmesi:
+  // eskiden geç gelen elenmiş sayılıyor, Kırmızı'da ayakta kimse yok → Mavi raundu anında alıyordu)
+  await dbg(A, { uy: { t: 0.01 } }); await until(A, `__U.U.phase === 'live'`);
+  await wait(1500);
+  const solo = await A.evaluate(() => ({ round: __U.U.round, ph: __U.U.phase, tk: [__U.g.tickets.blue, __U.g.tickets.red] }));
+  check(solo.round === 1 && solo.ph === 'live' && solo.tk[0] === 0, 'rakipsiz raunt (Kırmızı boş): bitmiyor, sayılmıyor', solo);
+  const C = await open('Cem', 'red', code);
   await wait(800);
   const ids = await A.evaluate(() => { const g = __U.g; return Object.fromEntries(g.soldiers.filter((s) => !s.vacant).map((s) => [s.name, [s.id, s.team]])); });
   check(ids.Ali?.[1] === 'blue' && ids.Bora?.[1] === 'blue' && ids.Cem?.[1] === 'red', 'çevrim içi: Uyku Modu odası, 2 Mavi + 1 Kırmızı insan', ids);
   const [ia, ib, ic] = [ids.Ali[0], ids.Bora[0], ids.Cem[0]];
-  const dbg = (p, m) => p.evaluate((m) => __U.g.online.send({ t: 'dbg', ...m }), m);
-  const ph = await A.evaluate(() => ({ ph: __U.U.phase, round: __U.U.round, pips: document.querySelectorAll('#uypips .p').length }));
-  check(ph.ph === 'prep' && ph.round === 1 && ph.pips === 3, 'istemci: 1. raunt hazırlığı (anlık görüntüden), 3 nokta', ph);
-  await dbg(A, { uy: { t: 0.01 } });
-  await wait(500);
+  const ph = await C.evaluate(() => ({ ph: __U.U.phase, round: __U.U.round, tk: [__U.g.tickets.blue, __U.g.tickets.red], me: __U.st(__U.g.playerSoldier), pips: document.querySelectorAll('#uypips .p').length }));
+  check(ph.round === 1 && ph.tk[0] === 0 && ph.tk[1] === 0 && ph.me.alive && !ph.me.out && ph.pips === 3, 'Kırmızı\'ya ilk gelen: 1. raunt baştan, skor 0–0, C doğdu (elenmiş değil), 3 nokta', ph);
+  // sağlam başlangıç: (yavaş makinede katılım uzun sürebilir) raundu baştan al, hazırlığı atla
+  await dbg(A, { uy: { restart: 1 } }); await until(A, `__U.U.round === 1 && __U.U.phase === 'prep'`);
+  await dbg(A, { uy: { t: 0.01 } }); await until(A, `__U.U.phase === 'live'`); await until(B, `__U.U.phase === 'live'`); await until(C, `__U.U.phase === 'live'`);
   // yerleştir: A ve B yan yana, C 10 m ötede
   const P = await A.evaluate(() => __U.spot());
   await dbg(A, { tp: [P.x, P.z] }); await dbg(B, { tp: [P.x + 1.3, P.z] }); await dbg(C, { tp: [P.x + 10, P.z + 6] });
@@ -414,10 +424,9 @@ async function online() {
   const ra = await A.evaluate(() => __U.txt('uyban'));
   check(/KAYBETTİNİZ/.test(ra), 'A afişi: RAUNDU KAYBETTİNİZ', ra);
   await shot(C, 'uyku-online-round-banner');
-  const until = (p, fn, ms = 12000) => p.waitForFunction(fn, null, { timeout: ms, polling: 50 });
-  const startLive = async (n) => { await until(A, `__U.U.round === ${n} && __U.U.phase === 'prep'`); await dbg(A, { uy: { t: 0.01 } }); await until(A, `__U.U.phase === 'live'`); };
+  const startLive = async (n) => { await until(A, `__U.U.round === ${n} && __U.U.phase === 'prep' && __U.g.playerSoldier.alive`); await dbg(A, { uy: { t: 0.01 } }); await until(A, `__U.U.phase === 'live'`); };
   // 2. raunt: herkes doğdu, haklar sıfır
-  await until(A, `__U.U.round === 2 && __U.U.phase === 'prep'`);
+  await until(A, `__U.U.round === 2 && __U.U.phase === 'prep' && __U.g.playerSoldier.alive`);
   const r2 = await A.evaluate(() => ({ round: __U.U.round, ph: __U.U.phase, me: __U.st(__U.g.playerSoldier), ban: __U.txt('uyban') }));
   check(r2.round === 2 && r2.me.alive && !r2.me.downed && r2.me.rvN === 0 && r2.me.rvdN === 0 && /RAUNT 2/.test(r2.ban), 'çevrim içi 2. raunt: A doğdu, haklar sıfır, afiş', r2);
   await startLive(2);

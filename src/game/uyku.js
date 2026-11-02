@@ -84,11 +84,12 @@ export class Uyku {
 
   roundResult() {
     const B = this.count('blue'), R = this.count('red');
-    if (B.n && R.n) {
-      if (!B.up && !R.up) return ['draw', 'both'];
-      if (!B.up) return ['red', 'elim'];
-      if (!R.up) return ['blue', 'elim'];
-    }
+    // rakipsiz raunt (bir takımda hiç asker yok: botsuz odada ilk oyuncu, karşı takıma kimse gelmedi): raunt sayılmaz, bitmez;
+    // süre dolarsa yeniden başlar. Karşı takıma biri katılınca raunt baştan (Game.claimSlot → uyku.joined)
+    if (!B.n || !R.n) { if (this.t <= 0) this.t = LIMITS.uyRound; return null; }
+    if (!B.up && !R.up) return ['draw', 'both'];
+    if (!B.up) return ['red', 'elim'];
+    if (!R.up) return ['blue', 'elim'];
     if (this.t > 0) return null;
     if (B.up !== R.up) return [B.up > R.up ? 'blue' : 'red', 'count'];
     if (Math.round(B.hp) !== Math.round(R.hp)) return [B.hp > R.hp ? 'blue' : 'red', 'hp'];
@@ -121,10 +122,11 @@ export class Uyku {
     this.over = [w, w === 'draw' ? t('uy.endDraw', { b, r }) : t('uy.endWin', { b: Math.max(b, r), r: Math.min(b, r) })];
   }
 
-  startRound() {
+  // again: aynı raunt baştan (rakipsiz rauntta karşı takıma oyuncu geldi / test); skor ve raunt sayısı değişmez
+  startRound(again = false) {
     const g = this.g;
-    this.round++;
-    if (this.half && this.round === this.half + 1) this.swap();
+    if (!again) this.round++;
+    if (!again && this.half && this.round === this.half + 1) this.swap();
     this.phase = 'prep'; this.t = LIMITS.uyPrep; this.last = null; this.contact = false;
     for (const d of [...g.deployables]) removeDeployable(g, d);                      // mayın / cephane kutusu raunt arasında kalmaz
     for (const p of g.projectiles) if (p.mesh) g.scene.remove(p.mesh);
@@ -137,6 +139,17 @@ export class Uyku {
     }
     const ev = { e: 'uyr', n: this.round, sw: this.swapped ? 1 : 0 };
     g.netEvent(ev); this.fx(ev);
+  }
+
+  // Game.claimSlot: raunt sürerken insan katıldı. Takımı o ana dek boştaysa (rakipsiz raunt) raunt baştan başlar: herkes doğar, katılan da oynar.
+  // true: raunt yeniden başladı (katılan doğdu). Takımında başkası varsa raunt sonuna dek izler (çağıran elenmiş yapar)
+  joined(s) {
+    if (this.net || this.phase === 'over') return false;
+    let mates = 0;
+    for (const o of this.g.soldiers) if (o !== s && !o.vacant && o.team === s.team) mates++;
+    if (mates) return false;
+    this.startRound(true);
+    return true;
   }
 
   // uzun maç devre arası: doğuş tarafları yer değiştirir (yeniden doğuşu startRound yapar). net: istemci aynı değişimi uygular
