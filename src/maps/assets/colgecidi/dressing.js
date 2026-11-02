@@ -7,12 +7,13 @@ import { NC, shade } from '../common/cgKit.js';
 const rng = (seed) => { let t = seed >>> 0; return () => { t = (t + 0x6D2B79F5) >>> 0; let r = Math.imul(t ^ (t >>> 15), 1 | t); r = (r + Math.imul(r ^ (r >>> 7), 61 | r)) ^ r; return ((r ^ (r >>> 14)) >>> 0) / 4294967296; }; };
 const k = (kind, o = {}) => ({ collide: false, ...o, kind });
 
-export function buildSurround(b) {
-  const r = rng(20241005), SAND = ['#dcc08a', '#cfae72', '#e3cc9a', '#c7a46a', '#d7b97f'], pick = (a) => a[Math.floor(r() * a.length)];
+// 12.224 o: { rx, rz, drx, drz (siluet halkası), dx, dz (kum tepeleri), seed, n } — varsayılanlar Çöl Geçidi
+export function buildSurround(b, o = {}) {
+  const { rx: RX = 84, rz: RZ = 92, drx = 22, drz = 22, dx: DX = 125, dz: DZ = 135, seed = 20241005, n: N = 52 } = o;
+  const r = rng(seed), SAND = ['#dcc08a', '#cfae72', '#e3cc9a', '#c7a46a', '#d7b97f'], pick = (a) => a[Math.floor(r() * a.length)];
   b.box(0, -9, 0, 3200, 6.4, 3200, '#d6be8a', k(CK.SAND));                     // sınır dışı kum düzlemi (tepesi −2,6: haritadaki en alçak zeminin altında)
-  const N = 52;
   for (let i = 0; i < N; i++) {
-    const th = (i / N) * Math.PI * 2 + (r() - 0.5) * 0.06, rx = 84 + r() * 22, rz = 92 + r() * 22, x = Math.cos(th) * rx, z = Math.sin(th) * rz, q = r();
+    const th = (i / N) * Math.PI * 2 + (r() - 0.5) * 0.06, rx = RX + r() * drx, rz = RZ + r() * drz, x = Math.cos(th) * rx, z = Math.sin(th) * rz, q = r();
     const col = pick(SAND), dk = shade(col, 0.82), ry = Math.round((th + Math.PI / 2) / (Math.PI / 2)) * (Math.PI / 2);
     if (q < 0.55) {                                                              // kare ev: pencere sıraları, çatı korkuluğu, su deposu
       const w = 10 + r() * 14, d = 9 + r() * 10, h = 11 + r() * 13;
@@ -36,7 +37,7 @@ export function buildSurround(b) {
       for (let p = 0; p < 3; p++) { const px = x + (r() - 0.5) * 6, pz = z + (r() - 0.5) * 6, h = 7 + r() * 3; b.cyl(px, -2.6, pz, 0.25, 0.35, h + 2.6, '#7a5c3c', { seg: 6, collide: false, kind: CK.WOOD }); b.ico(px, h, pz, 2.2, '#5d8f42', { detail: 0, scale: [1.4, 0.45, 1.4] }); }
     }
   }
-  for (let i = 0; i < 24; i++) { const th = r() * Math.PI * 2, rx = 125 + r() * 40, rz = 135 + r() * 36, rr = 24 + r() * 22; b.ico(Math.cos(th) * rx, -rr * 0.55, Math.sin(th) * rz, rr, pick(['#dcc08a', '#d2b57b', '#e5cd98']), { detail: 1, scale: [1.5, 0.5, 1.2], ry: r() * 3 }); }
+  for (let i = 0; i < 24; i++) { const th = r() * Math.PI * 2, rx = DX + r() * 40, rz = DZ + r() * 36, rr = 24 + r() * 22; b.ico(Math.cos(th) * rx, -rr * 0.55, Math.sin(th) * rz, rr, pick(['#dcc08a', '#d2b57b', '#e5cd98']), { detail: 1, scale: [1.5, 0.5, 1.2], ry: r() * 3 }); }
 }
 
 // çatı eşyası: büyük çatıların iç kısmında (korkuluk şeridinden ≥ 1 m içeride) havalandırma, baca, klima, su deposu, çanak anten, merdiven kulübesi
@@ -92,11 +93,11 @@ export function groundClutter(b, T, L, busy) {
 }
 
 // dar sokak üstü (iki bina arası 3–9 m) kablo / çamaşır ipi: ≥ 4,6 m (zıplayan oyuncunun başı 2,7 m), iki uç da bina yüzünde
-export function hangings(b, T, L, roofed) {
+export function hangings(b, T, L, roofed, area = [-62, -66, 124, 132], maxN = 18) {           // area: [x0, z0, en, boy] (12.224 Kum Köyü kendi alanı)
   const r = rng(9091), FL = ['#b5402e', '#2d6fa8', '#d9a52b', '#2f7a6e', '#e8dcc0', '#8e3a6a'];
   let n = 0; const placed = [];
-  for (let t = 0; t < 900 && n < 18; t++) {
-    const x = -62 + r() * 124, z = -66 + r() * 132;
+  for (let t = 0; t < 900 && n < maxN; t++) {
+    const x = area[0] + r() * area[2], z = area[1] + r() * area[3];
     if (!L.isFloor(x, z) || roofed(x, z) || placed.some(([px, pz]) => Math.hypot(px - x, pz - z) < 14)) continue;
     for (const ax of [0, 1]) {
       let a = 0, c = 0; while (L.isFloor(ax ? x : x - a - 0.25, ax ? z - a - 0.25 : z) && a < 10) a += 0.25; while (L.isFloor(ax ? x : x + c + 0.25, ax ? z + c + 0.25 : z) && c < 10) c += 0.25;

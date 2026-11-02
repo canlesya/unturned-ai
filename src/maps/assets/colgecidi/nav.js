@@ -8,16 +8,19 @@ import { NavGrid, Heap } from '../../../game/nav.js';
 const CELL = 0.5, INFL = 0.35;
 
 export class CgNav extends NavGrid {
-  constructor(colliders, bounds, terrain, under) {
+  // under: alt katın olabileceği dikdörtgen [x0, z0, x1, z1] ya da bunların listesi (12.224 Kum Köyü: ev içleri — zemin kat alt, üst kat / dam üst).
+  // opt.platLow: 'plat' kutusu (merdiven basamağı) alt kattaki gövde yüksekliğine giriyorsa alt düğümü kapatır (merdiven altı dolu); Çöl Geçidi'nde kapalı.
+  constructor(colliders, bounds, terrain, under, opt = {}) {
     super(colliders, bounds, terrain, true);
     const W = this.w, H = this.h, N = W * H;
     this.N = N;
     this.uIx = new Int32Array(N).fill(-1);
     const cells = [], lowF = [], lowB = [];
-    const [x0, z0, x1, z1] = under;
+    const U = Array.isArray(under[0]) ? under : [under];
+    const inU = (wx, wz) => U.some(([x0, z0, x1, z1]) => wx >= x0 && wx <= x1 && wz >= z0 && wz <= z1);
     for (let z = 0; z < H; z++) for (let x = 0; x < W; x++) {
       const wx = this.minX + (x + 0.5) * CELL, wz = this.minZ + (z + 0.5) * CELL, i = z * W + x;
-      if (wx < x0 || wx > x1 || wz < z0 || wz > z1) continue;
+      if (!inU(wx, wz)) continue;
       const g = terrain.heightAt(wx, wz);
       if (this.floor[i] - g < 1.6) continue;                                   // tabliye yok / alçak
       this.uIx[i] = cells.length; cells.push(i); lowF.push(g); lowB.push(terrain.slopeAt(wx, wz, 0.6) > 0.95 ? 1 : 0);
@@ -25,8 +28,8 @@ export class CgNav extends NavGrid {
     this.uCell = Int32Array.from(cells); this.uFloor = Float32Array.from(lowF); this.uBlk = Uint8Array.from(lowB);
     const cellRange = (lo, hi, min, n) => [Math.max(0, Math.ceil((lo - min) / CELL - 0.5)), Math.min(n - 1, Math.floor((hi - min) / CELL - 0.5))];
     for (const c of colliders) {                                               // alt katın engelleri (ayak, kemer duvarı, çerçeve dikmesi …)
-      if (c.tag === 'deck' || c.tag === 'plat') continue;
-      if (c.max[0] < x0 - 1 || c.min[0] > x1 + 1 || c.max[2] < z0 - 1 || c.min[2] > z1 + 1) continue;
+      if (c.tag === 'deck' || (c.tag === 'plat' && !opt.platLow)) continue;
+      if (!U.some(([x0, z0, x1, z1]) => !(c.max[0] < x0 - 1 || c.min[0] > x1 + 1 || c.max[2] < z0 - 1 || c.min[2] > z1 + 1))) continue;
       const [a0, a1] = cellRange(c.min[0] - INFL, c.max[0] + INFL, this.minX, W), [b0, b1] = cellRange(c.min[2] - INFL, c.max[2] + INFL, this.minZ, H);
       for (let z = b0; z <= b1; z++) for (let x = a0; x <= a1; x++) { const u = this.uIx[z * W + x]; if (u < 0) continue; const f = this.uFloor[u]; if (c.min[1] - f > 1.6 || c.max[1] - f < 0.45) continue; this.uBlk[u] = 1; }
     }

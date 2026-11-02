@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { T_FLOOR, T_MASS, T_OUT } from './layout.js';
 import { CK } from '../common/cgSurface.js';
-import { MASSES, OUTSIDE } from './plan.js';
+import * as CG_PLAN from './plan.js';
 
 // Bina kütleleri (12.171): plan hücrelerinden. Çarpışma = plan dikdörtgenleri (tabandan tepeye); görsel = yalnız DIŞA bakan yüzler (aynı düzlemde
 // kesintisiz koşular) + çatı + çatı korkuluğu. İç (bitişik kütleler arası) yüz yok → iç içe / üst üste binen duvar yüzü, ışık sızıntısı yok.
@@ -18,15 +18,16 @@ function geo(pos) {
 }
 
 // colorOf(id) → duvar rengi; roofOf(id) → çatı rengi. Döner: { faces: [{id, s, a, b, y0, y1, street}] } (cephe süsü için sokak yüzleri)
-export function buildMasses(b, T, { colorOf, roofOf, rimSkip = () => false }) {
-  const L = T.L, C = L.C, nx = L.nx;
+// 12.224: plan (MASSES / OUTSIDE; varsayılan Çöl Geçidi), outTop (dış dolgu tepesi), nameOf (kütle kimliği) başka haritalar için seçenek
+export function buildMasses(b, T, { colorOf, roofOf, rimSkip = () => false, plan = CG_PLAN, outTop = OUT_TOP, nameOf = null }) {
+  const L = T.L, C = L.C, nx = L.nx, { MASSES, OUTSIDE } = plan;
   const idOf = (k) => (k < 0 ? -2 : L.type[k] === T_MASS ? L.mass[k] : L.type[k] === T_OUT ? -2 : -1);       // −1 zemin, −2 dış
-  const topOf = (k) => (k < 0 || L.type[k] === T_OUT ? OUT_TOP : L.type[k] === T_MASS ? L.top[k] : -1e9);
-  const name = (id) => (id === -2 ? 'çevre' : id === 900 ? 'titanic-duvarı' : id === 901 ? 'B-penceresi' : 'bina:' + id);
+  const topOf = (k) => (k < 0 || L.type[k] === T_OUT ? outTop : L.type[k] === T_MASS ? L.top[k] : -1e9);
+  const name = nameOf || ((id) => (id === -2 ? 'çevre' : id === 900 ? 'titanic-duvarı' : id === 901 ? 'B-penceresi' : 'bina:' + id));
   // ── çarpışma: plan dikdörtgenleri ──
   const baseOf = (x0, z0, x1, z1) => { let m = 1e9; for (let z = z0 + C / 2; z < z1; z += C) for (let x = x0 + C / 2; x < x1; x += C) m = Math.min(m, L.ground[L.cellOf(x, z)]); return m - 0.5; };
   for (const [id, top, x0, z0, x1, z1] of MASSES) { if (id === 901) continue; const y0 = baseOf(x0, z0, x1, z1); b.obj(name(id), () => b.collide((x0 + x1) / 2, y0, (z0 + z1) / 2, x1 - x0, top - y0, z1 - z0, 'wall')); }
-  for (const [x0, z0, x1, z1] of OUTSIDE) { const y0 = baseOf(x0, z0, x1, z1); b.obj('çevre', () => b.collide((x0 + x1) / 2, y0, (z0 + z1) / 2, x1 - x0, OUT_TOP - y0, z1 - z0, 'wall')); }
+  for (const [x0, z0, x1, z1] of OUTSIDE) { const y0 = baseOf(x0, z0, x1, z1); b.obj('çevre', () => b.collide((x0 + x1) / 2, y0, (z0 + z1) / 2, x1 - x0, outTop - y0, z1 - z0, 'wall')); }
   // ── yüzler: her hücre kenarı; komşu zeminse tabandan tepeye, komşu alçak kütleyse onun tepesinden ──
   const faces = [];
   const done = new Uint8Array(L.N * 4);

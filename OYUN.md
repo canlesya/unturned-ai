@@ -2666,3 +2666,52 @@ Bu makinede (donanım GPU) kare hızı sağlam: 12.199–12.221 arasında kare s
 **Bakılıp temiz çıkanlar:** kare başına program derlemesi yok (renderer.info.programs maç boyunca sabit: Kuzey 114, Çöl Geçidi 67), geometri / doku sayısı zamanla artmıyor, yığın testere dişi normal (GC), DOM düğümü sabit, menüye dönüşte rAF geri çağrısı kare başı 1,00 (eski döngü kalmıyor), setInterval sayısı sabit (3), uzun görev yok.
 
 **Testler:** `framestat` (menü / Kuzey / Çöl Geçidi / çevrim içi, önce-sonra), `lobbycycle` (5 döngü: bağlam 1 → 1, menü 16,67 ms sabit), `softgl` (SwiftShader: uyarı var + maçta gölge / son işleme yok, çözünürlük 0,75; Metal: uyarı yok — GEÇTİ), `netvisual`, `combattest` OK, `cgmodes` OK, `nettest` OK, `captest` (çevrimdışı + çevrim içi, sunucu `BF_DEBUG=1`) OK.
+
+
+### 12.224 Yeni harita: Kum Köyü (`uykukoy`) — Uyku Modu (5v5 tur) için küçük rekabetçi çöl köyü
+
+**İstek.** Uyku Modu (5v5, turda yeniden doğuş yok, tur 2:30, yerdeki takım arkadaşı sağ tık 3 sn ile kaldırılır; mod ayrı işte) için küçük, simetrik, kapalı bir harita: ~70×70 m, iki doğuş, üç hat (açık-sayılır meydan + dar sokak + girilen evler), bol bel / tam siper (kaldırma mümkün ama riskli), 45 m'den uzun görüş yok, botların gidemediği yer yok. Görsel dil Çöl Geçidi ile aynı.
+
+**Yerleşim** (oynanış alanı 66 × 74 m, x −33…33, z −37…37; z → −z aynası: güney yarısı yazılır, kuzey aynı; Mavi güney Han'da, Kırmızı kuzey Han'da doğar):
+```
+ kuzey (Kırmızı)   [ Kuzey Han: revak altı doğuş ]
+   Dar Sokak ─ Kıvrım      Han Arkası ─ Han Önü (ada)     Evler Sokağı ─ Damlı Ev (dam) ─ Avlu
+        └─ Kemer ──────────────┐                     ┌──── Doğu Geçidi (kemerli)
+ Fırın Avlusu ─ Batı Geçidi ─ MEYDAN (Sebil, kamyon) ─ Konak Önü ─ KONAK (2 kat) ─ Arka Geçit     ← orta çizgi z = 0
+        ┌─ Kemer ──────────────┘                     └──── Doğu Geçidi
+   Dar Sokak ─ Kıvrım      Han Arkası ─ Han Önü (ada)     Evler Sokağı ─ Damlı Ev (dam) ─ Avlu
+ güney (Mavi)      [ Güney Han: revak altı doğuş ]
+```
+- **Han (doğuş)**: 26 × 8 m avlu (0,45 m set), arka duvar boyunca revak (çatı 3,8 m): ilk 6 doğuş noktası revak altında, toplam 16. Han'ın kuzey duvarında kapı YOK; çıkış yalnız batı ve doğu kapısı → Han Sokağı / doğu Han sokağı. Avluyu boydan boya gören çizgiyi üç sandık yığını keser (1,6 m: revak çatısına sıçranmaz). İki Han birbirini hiçbir yerden görmez.
+- **Batı hattı — Dar Sokak**: Han Sokağı → 3 m'lik kıvrımlı sokak (Dar Sokak → Kıvrım → Dar Sokak 2) → **Fırın Avlusu** (orta çizgide; kerpiç fırın iki Dar Sokak'ı birbirine bağlayan düz görüşü keser, kuyu, el arabaları, hurma). Kemer (iki binayı bağlayan taş kemer) Dar Sokak'tan Meydan'a kısa kavşak; Batı Geçidi Fırın Avlusu ↔ Meydan.
+- **Orta hat — Meydan**: Han Arkası (Han'ın kuzeyinde doğu-batı geçit, iki yandan kıvrımla) → Han Önü (ortada ada bina: Han'dan Meydan'a düz görüşü keser) → 24 × 26 m Meydan: ortada set üstünde Sebil (2,5 m tam siper, dört yanında yalak = bel siperi, kubbe), orta çizgide x boyunca yanmış kamyon enkazı, iki yanda yıkık duvarlar (tam siper, dış uçları bel hizası), taş setler, pazar tezgâhları, sandık yığınları.
+- **Doğu hattı — Evler**: doğu Han sokağı → Evler Sokağı → **Damlı Ev** (girilir: iki kapı, iki pencere; avlu tarafındaki dış merdivenle 3,45 m'lik yürünür dama çıkılır, 0,9 m korkuluk) → Avlu (kuyu, hurma) → **Konak** (orta çizgide, iki katlı: zemin katta güney / kuzey sokak kapısı, Konak Önü'ne iki kapı, Arka Geçit'e kapı, batı yarısında bölme duvarı; güney ve kuzey duvarı boyunca iki iç merdiven; üst kat tek oda, dört yöne pencere, merdiven boşluğu korkuluklu). Doğu Geçidi (Meydan ↔ Evler) üstünde kemer.
+
+**Tasarım gerekçeleri**
+- Simetri z aynası (dönme değil): iki takımın Dar Sokak'ı da batıda, Evler'i doğuda — hatlar karakterini korur, her yarı birebir aynı (ölçüm: Konak 42,8 / 43,3 m, Kemer 44,8 / 44,8 m iki doğuştan).
+- **İlk temas**: ilk tasarımda Han'ın kuzey kapısı Han Önü'ne açılıyordu → botlar 2,2 sn'de birbirini gördü, 4,9 sn'de vurdu. Kapı kaldırıldı, Han Önü'ne yalnız yan kapılardan kıvrımlı geçitle gidilir: doğuştan Meydan / Fırın / Konak yürüyerek ~43–47 m (≈ 8 sn); botlarla ölçülen ilk görüş 6,0 sn, **ilk isabet 8,2 sn, ilk öldürme 8,7 sn** (koşarak gelirler). 70 m'lik haritada 10–15 sn yürüme mesafesi ~110 m'lik yol isterdi; bu harita için ulaşılan üst sınır bu.
+- Uzun görüş: 1,5 m ızgarada 866 nokta, göz → göğüs çiftleri: > 45 m açık yalnız 3 çift (en uzun 46,6 m: Kuzey Kemer → Konak doğu kapısı → Arka Geçit, iki kapıdan geçen çapraz). Bunun için Meydan'a orta çizgiye simetrik yığınlar, Evler Sokağı'nda Doğu Geçidi çıkışına yığın, Doğu Geçidi'ne kemer (damdan Fırın Avlusu'na 60 m'lik çapraz), Konak üst kat batı yüzünün orta penceresi kaldırıldı (Batı Geçidi'ne 50 m).
+- Kaldırma (3 sn) için her çatışma noktasında bel + tam siper yan yana: Sebil + yalaklar, yıkık duvarın yüksek / kırık ucu, kamyon, tezgâh, sandık yığınları, ev içi masa / sandık, dam korkuluğu.
+- Kapalılık görünür geometriyle: dış halka köy duvarı (6,5 m), tüm ev kütleleri ≥ 6 m (dam korkuluğundan sıçrayan 4,35 + 1,45 = 5,8 m'ye erişemez); görünmez duvar yok. Han revak çatısı 4,1 m (sandık üstünden de erişilmez), Sebil 2,95 m, fırın 2,2 m (yanında basamak olacak eşya yok).
+- Botlar: yükseklik farkları yalnız 0,45 m'lik pah basamağı (Han seti, Sebil seti); Çöl Geçidi kuralı basamağın üst hücresini "duvar dibi" sayıp kapatıyordu (botlar Han'dan çıkamıyordu) → `CgTerrain` muafiyeti (haritada dikey istinat duvarı yok). Ev içleri iki katlı yol ızgarası (CgNav alt kat), merdiven basamağı alt kattaki düğümü kapatır (`platLow`), Konak merdiven başı sahanlığının altı dolu (botun sıkıştığı çıkmaz cep vardı). `nav.towerAt` / `nav.towers`: bot `setGoal` üst kat hedefini kotuyla tutar (Kuzey Vadisi gözetleme kulesi arayüzü) → botlar Konak üst katına ve dama gider. Dolaşma noktalarında üst kat / dam ([x, z, y]).
+
+**Dosyalar**
+- `src/maps/uykukoy.js` (harita tanımı: sınırlar, bölge adları, doğuşlar, üs bölgeleri, bayraklar Fırın Avlusu / Meydan / Konak, dolaşma noktaları, gökyüzü, `makeNav`).
+- `src/maps/assets/uykukoy/plan.js` (güney yarısı: BLOCKS / OPEN / ISLANDS, 0,5 m ızgara, ayna + dikdörtgen birleştirme → GRID / FLOORS / MASSES / OUTSIDE), `houses.js` (Konak, Damlı Ev: duvarlar ayak izinin içinde, boşluklar gerçek delik; söve / lento / kepenk çarpışmasız ve yüze yapışık), `build.js` (kütleler, evler, Han revakları, Sebil, fırın, yıkık duvarlar, setler, kamyon, tezgâhlar, kuyular, arabalar, kemerler, hurmalar, zemin türleri, AO, cephe süsü, çevre).
+- Çöl Geçidi modülleri genelleştirildi (davranış AYNI; kurulum özeti — çarpışma, tüm köşeler, aKind, doğuş, yol ızgarası — SHA-1 önce / sonra birebir): `layout.js` `makeLayout(plan)`, `terrain.js` `CgTerrain(L, exempt)`, `masses.js` `plan / outTop / nameOf`, `nav.js` `under` dikdörtgen listesi + `opt.platLow`, `dressing.js` `buildSurround(b, o)` / `hangings(…, area, maxN)`, `build.js` `groundBelow` / `makeAO` dışa açıldı.
+- Kayıt: `src/maps/index.js` (`MAPS.uykukoy`, `mobile`), `src/i18n/data.js` (ad / etiket / açıklama tr + en: "Sand Village"), `src/i18n/game.js` (bölge adı kelimeleri: Han → Caravanserai, Dar Sokak → Narrow Alley …), `server/room.js` (`MAPS_FOR` + `sanitizeCfg` listeleri: tdm / conquest / dm / gg), `admin/main.js` (ad, küçük resim, mod listeleri), `public/img/uykukoy.jpg`. Isınma (`warmMaps` / iş parçacığı `warm`) MAPS'i dolaştığı için kendiliğinden. Resmi sunucu dönüşlerine (`server/official.js`) EKLENMEDİ.
+- Betikler: `scripts/koyqa.mjs` (geo = `cgqa` MAP=uykukoy · statik = yol ızgarası bileşeni / cep / sızıntı / önemli noktalara yol + kat / komşu bölge oranları / > 45 m görüş · bot = başsız 5v5 ilk görüş-isabet-öldürme, gezilen alan, gidilmeyen bölge, takılma, üst kat / dam kullanımı, adım süresi · ag = sunucuda oda + doğuş + yürüme), `scripts/koyshots.mjs` (kuşbakışı + 21 bakış, gündüz / gün batımı / gece), `scripts/koymatch.mjs` (tarayıcıda botlu maç: zamanlama, kare süresi, çatışma görüntüleri), `scripts/koythumb.mjs` (menü kartı), `scripts/koysheet.py` (etiketli tablo). `scripts/cgqa.mjs` `MAP=` ile başka haritada çalışır.
+
+**Testler / ölçümler** (Mac, vite :5241 + sunucu :8998 `BF_DEBUG=1`)
+- `koyqa geo`: iç içe çarpışma 0, görünmez çarpışma 0 m², görsel-ama-çarpışmasız 0,29 m² (kuyu makarası), havada 0, gömülü 0, z-fighting 6 çift / 0,01 m² (yalnız zemin süsü), kurulum ~0,4–0,5 sn, 101 bin üçgen, 612 çarpışma kutusu.
+- `koyqa statik`: serbest düğümlerin %100'ü iki doğuştan erişilir (8094, alt kat dahil), sızıntı 0, erişilmez cep 0, 46 komşu bölge çifti OK, önemli noktalar (Konak zemin / üst kat, iki Damlı Ev içi ve damı, tüm bölge adları) iki doğuştan doğru katta.
+- `koyqa bot` (4 × 75 sn, 5v5 TDM): ilk görüş 6,0 sn · ilk isabet 8,2 sn · ilk öldürme 8,7 sn, tur başı 29–33 öldürme, skorlar dengeli (14-18, 20-13, 11-18, 13-16), gezilen alan %69, gidilmeyen bölge yok, takılan bot 0, Konak üst katında 55 bot·sn, ev içlerinde 202 bot·sn; Ele Geçirme 2 × 90 sn: botlar üç bayrakta, öldürme 39 / tur.
+- Tarayıcı: `koymatch` (gündüz / gece, oyuncu da bot): ilk görüş 6,7 / 8,2 sn, ilk isabet 9,3 / 9,0 sn, hata 0. `framestat` 5v5 TDM (Metal, 1600×900): ort 16,67 ms, p99 16,8, > 33 ms kare 0 (Çöl Geçidi aynı ayarda 16,67 / 16,8); çevrim içi (sunucu odası) aynı. `koyqa ag`: sunucu odası `uykukoy` ile kuruluyor, doğuş Han'da, 0,5 sn'de 2,56 m yürüme.
+- `cgmodes` (Çöl Geçidi, varsayılan) OK; `MAP=uykukoy cgmodes` (tdm 3 / 16, conquest 3 / 16, dm 8, gg 6) OK.
+- Görüntüler: `/tmp/wb-koy/` (gündüz / gece tabloları `tablo-gündüz.jpg`, `tablo-gece.jpg`, `tablo-günbatımı.jpg`; maç `day-maç-*.png`).
+
+**Bilinen / açık**
+- İlk temas hedefi 10–15 sn'nin altında (bot ilk isabet ~8 sn): 66 × 74 m'de daha uzun yol için ya harita büyümeli ya da mod tur başında kısa bekleme vermeli.
+- Botlar dama nadiren çıkar (dolaşma noktasının 2 / 28'i; 4 turluk ölçümlerde 0–17 bot·sn); dam yolu ve hedefi çalışıyor.
+- Uyku Modu (canlandırma, tur) ayrı işte; bu harita TDM / Ele Geçirme / Ölüm Maçı / Silah Oyunu'nda seçilebilir, mod gelince listesine `uykukoy` eklenmeli.
+- Resmi sunucu dönüşüne eklemek kullanıcının kararı.

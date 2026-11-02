@@ -1,4 +1,4 @@
-// Çöl Geçidi harita hata taraması (12.171; önce / sonra aynı ölçüt):  node scripts/cgqa.mjs [depo kökü = bu depo] [çıktı.json]
+// Çöl Geçidi harita hata taraması (12.171; önce / sonra aynı ölçüt):  [MAP=uykukoy] node scripts/cgqa.mjs [depo kökü = bu depo] [çıktı.json]
 // Haritayı görsel geometrisiyle kurar (tarayıcıdaki gibi zfix açık) ve ölçer:
 //  1 iç içe       — farklı nesnelerin çarpışma kutuları üç eksende de > 2 cm iç içe (aynı nesnenin kendi kutuları ayrıca)
 //  2 z-fighting   — aynı yöne bakan, ≤ 5 mm aralıklı, örtüşen (> 1 cm²) iki üçgen; rengi / sınıfı farklıysa titrer
@@ -17,7 +17,8 @@ MapBuilder.zfix = true;
 const { buildColGecidi } = await imp('src/maps/colgecidi.js');
 const { NavGrid } = await imp('src/game/nav.js');
 const t0 = performance.now();
-const m = buildColGecidi();
+// 12.224: MAP=<kimlik> aynı taramayı başka bir haritada çalıştırır (Kum Köyü: scripts/koyqa.mjs); varsayılan Çöl Geçidi
+const m = process.env.MAP ? (await imp('src/maps/index.js')).MAPS[process.env.MAP].build() : buildColGecidi();
 const buildMs = performance.now() - t0;
 const T = m.terrain, C = m.colliders;
 const R = {};

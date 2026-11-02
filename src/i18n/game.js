@@ -45,6 +45,7 @@ const PW = { kuzey: 'North', güney: 'South', doğu: 'East', batı: 'West', k: '
   rampası: 'Ramp', yığınları: 'Piles', cevher: 'Ore', kırma: 'Crusher', tesisi: 'Plant', kömür: 'Coal', bunkeri: 'Bunker', kayası: 'Rock', muhtarlık: "Mayor's Office",
   ağzı: 'Mouth', iç: 'inner', anten: 'Antenna', istasyonu: 'Station', iniş: 'Landing', pisti: 'Strip', kontrol: 'Control', noktası: 'Point', ölüm: 'Death', bölgesi: 'Zone',
   vadi: 'Valley', baraj: 'Dam',
+  han: 'Caravanserai', önü: 'Front', dar: 'Narrow', sokak: 'Alley', kıvrım: 'Bend', kemer: 'Arch', fırın: 'Bakery', meydan: 'Square', sebil: 'Fountain', konak: 'Mansion', damlı: 'Rooftop', arka: 'Back',      // 12.224 Kum Köyü
   anıt: 'Monument', karakol: 'Outpost', cadde: 'Avenue', çökmüş: 'Collapsed', bina: 'Building', metro: 'Subway', otopark: 'Parking Garage', inşaat: 'Construction Site' };      // 12.185 New York bölgeleri
 const PF = { 'Asma kat': 'Mezzanine', 'Maden Ocağı': 'Mine', 'Taş Ocağı': 'Quarry', 'Geliştirici Atölyesi': 'Dev Workshop', 'Askeri Üs': 'Military Base', 'Yörünge Üssü': 'Orbital Station', 'Çöl Geçidi': 'Desert Pass' };
 export function placeName(str) {

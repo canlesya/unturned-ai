@@ -12,6 +12,7 @@ import { buildMaden } from './maden.js';
 import { buildCephe } from './cephe.js';
 import { buildYorunge } from './yorunge.js';
 import { buildKuzey } from './kuzey.js';
+import { buildUykuKoy } from './uykukoy.js';
 import '../i18n/kuzey.js';
 
 // Harita kaydı. Her harita build() ile şunu döndürür:
@@ -84,6 +85,11 @@ MAPS.kuzey = {      // 12.172 büyük harita: yalnız Ele Geçirme + Takım Çat
   id: 'kuzey', name: 'Kuzey Vadisi', tag: 'Dev · 1,6 km · 7 bayrak · 128v128', thumb: '/img/kuzey.jpg', only: ['conquest', 'tdm'],
   desc: '1,6 km\'lik DEV harita (Vadi\'den ayrı): Alplere benzer dağlarla çevrili, mezralar, çiftlikler ve korularla dolu vadi; güneyde Mavi, kuzeyde Kırmızı üs. Yedi bayrak: Radar Tepesi, Köy, Kavşak, Fabrika, Baraj, Çiftlik, Kereste Kampı. Ele geçirilen bayraktan / ön hattan doğulur. Orman, çalılık, çalı çiti, yıkık ev, kum torbası mevzisi ve buğday tarlalarında saklan; barajın gölünde yüzülür. Takım Çatışması da bütün haritada ve araçlı oynanır (bayrak araçları tarafsız).',
   build: () => buildKuzey(),
+};
+MAPS.uykukoy = {     // 12.224 küçük rekabetçi harita (Uyku Modu 5v5 için; diğer takım modlarında da)
+  id: 'uykukoy', name: 'Kum Köyü', tag: 'Küçük · üç hat · 5v5', thumb: '/img/uykukoy.jpg', mobile: true,
+  desc: 'Terk edilmiş çöl köyü: iki takım karşılıklı hanların revak altında doğar. Ortada sebilli meydan ve kamyon enkazı, batıda kıvrımlı dar sokak ve fırın avlusu, doğuda damına çıkılan ev ve iki katlı konak. Her köşede bel ve tam siper; kısa-orta mesafe, kapalı ve dengeli.',
+  build: () => buildUykuKoy(),
 };
 export const DEFAULT_MAP = 'kasaba';
 // Bu moda uygun haritalar (only: yalnızca o modlarda listelenir; dev hiçbirinde)
