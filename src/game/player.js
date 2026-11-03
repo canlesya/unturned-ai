@@ -986,6 +986,11 @@ export class Player {
       if (!this.game.running) return;
       if (kb.is('chat', code) && this.game.chat && this.locked && !this.wheel) { e.preventDefault(); this.game.chat.open(e.shiftKey); return; }      // sohbet (çevrimiçi): Enter herkese, Shift+Enter takıma
       if (kb.is('map', code) && this.game.bigMap && !this.wheel) { e.preventDefault(); this.game.bigMap.toggle(); }      // 12.202 büyük harita (M)
+      if (this.game.uyku && s.downed) {                                              // 12.227 Uyku Modu baygın: hiçbir oyun tuşu işlemez (hareket / silah / bomba / ekipman / araç / sınıf); yalnız skor tablosu, harita, sohbet, Esc
+        if (kb.is('scoreboard', code)) { e.preventDefault(); this.game.hud.showScoreboard(true); }
+        if (code === 'Escape' && this.game.noPointerLock) this.game.togglePause();
+        return;
+      }
       if (kb.is('ping', code) && s.alive && this.locked && !this.wheel) this.game.pings?.spot();                         // 12.202 işaret / düşman işaretle
       if (kb.is('wheel', code) && s.alive && !this.wheel && !s.veh) this.openWheel();
       // 12.177 araç: E bin / in (yanında ya da içindeyken; değilse E sağa eğilmedir), V kamera (sürücü), 1–4 koltuk
@@ -1054,7 +1059,7 @@ export class Player {
       if (this.wheel) { this.wheelMove(mx, my); return; }                                      // T basılıyken fare seçim imlecidir
       const bm = this.game.bigMap;
       if (bm?.open) { if (document.pointerLockElement) bm.moveCursor(mx, my); return; }       // 12.202 büyük harita / doğuş ekranı: fare haritada imleç (bakış dönmez)
-      if (!this.locked) return;
+      if (!this.locked || this.s.downed) return;                                             // 12.227 Uyku Modu: baygınken bakış donar (kamera arkadaşı izler)
       const k = this.set.sens / Math.pow(this.zoomCur(), 0.8);      // 12.127: hassasiyet o anki büyütmeyle sürekli (eski adsT 0,5'te basamak)
       this.look(mx * k, my * k);
       this.lookDX += mx; this.lookDY += my;
@@ -1062,10 +1067,10 @@ export class Player {
     this.on(cv, 'mousedown', (e) => {
       if (this.wheel) { if (e.button === 0) this.wheelPick(); return; }                       // tekerlek açıkken tık = seçim (ateş değil)
       if (this.game.bigMap?.open && document.pointerLockElement) { this.game.bigMap.lockedDown(e.button); return; }      // 12.202 harita açık: tık imlecin altındakine · 12.205 basılı sürükleme = kaydırma (bırakınca tık)
-      if (e.button === 1) { e.preventDefault(); if (this.locked && this.s.alive) this.game.pings?.spot(); return; }       // 12.202 orta tık: işaret (Battlefield spot) · 12.206: helikopter pilotunda da (roket artık seçili silah: Q / tekerlek + sol tık)
+      if (e.button === 1) { e.preventDefault(); if (this.locked && this.s.alive && !this.s.downed) this.game.pings?.spot(); return; }       // 12.202 orta tık: işaret (Battlefield spot) · 12.206: helikopter pilotunda da (roket artık seçili silah: Q / tekerlek + sol tık)
       if (!this.locked) { this.game.requestLock(); return; }
       if (this.game.chatOpen) return;
-      if (this.game.uyku && !this.s.alive) { this.game.uyku.specCycle(e.button === 2 ? -1 : 1); return; }      // 12.223 Uyku Modu: elenmişken tık = izlenen takım arkadaşını değiştir
+      if (this.game.uyku && (!this.s.alive || this.s.downed)) { this.game.uyku.specCycle(e.button === 2 ? -1 : 1); return; }      // 12.223 Uyku Modu: elenmişken (12.227: baygınken de) tık = izlenen takım arkadaşını değiştir
       if (e.button === 0) { this.fireHeld = true; this.fireBuf = 0.15; this.game.online?.edge('fp'); }
       if (e.button === 2 && this.game.uyku) { this.rmb = true; if (this.game.uyku.candidate(this.s)) return; }      // 12.223: yanında uyuyan arkadaş varsa sağ tık kaldırmadır (nişan açılmaz; Player.update → uyku.gate)
       if (e.button === 2 && this.s.def.zombie) { this.zAbility(); return; }                  // zombi: sağ tık = özel güç
@@ -1081,7 +1086,7 @@ export class Player {
     });
     this.on(document, 'contextmenu', (e) => e.preventDefault());                      // sağ tık menüsü oyunda hiç çıkmasın (nişan alırken takılıyordu)
     this.on(window, 'wheel', (e) => {
-      if (!this.locked || !this.s.alive || this.game.bigMap?.open) return;
+      if (!this.locked || !this.s.alive || this.s.downed || this.game.bigMap?.open) return;      // 12.227 baygın: tekerlek silah değiştirmez
       const dir = e.deltaY > 0 ? 1 : -1, s = this.s;
       if (s.fly && this.devTools()) { this.flySpeed = Math.max(3, Math.min(120, (this.flySpeed || 13) * (dir > 0 ? 0.8 : 1.25))); this.game.hud.toast($t('hud.t.flySpeed', { n: this.flySpeed.toFixed(0) }), '#cfe6ff'); return; }       // uçarken tekerlek hız ayarlar
       if (this.pilotArmed()) { const t = performance.now(); if (t - (this._vwT || 0) > 220) { this._vwT = t; this.vehWeapon(); } return; }      // 12.206 helikopter pilotu: tekerlek = burun topu ↔ roket (bir tekerlek hareketi = bir değişim)
@@ -1444,7 +1449,8 @@ export class Player {
     this.thirdT += Math.sign(wantThird - this.thirdT) * Math.min(Math.abs(wantThird - this.thirdT), dt * 4.5);
     this.sideT += (this.side - this.sideT) * (1 - Math.exp(-9 * dt));
     s.stanceLeft = this.third && this.thirdT > 0.3 && this.side < 0;          // karakter modeli sol omuz duruşuna geçsin (aynalı)
-    if (s.alive && s.veh && vehCamera(this, dt)) { this.deathCamT = 0; this.camPos.copy(cam.position); }      // 12.177 araç kamerası (sürücü: içeriden / takip; yolcu takipte)
+    if (s.alive && s.downed && g.uyku?.specCamera(cam, dt)) { s.shotOff = null; this._cs = null; this.bodyVisible = true; this.deathCamT = 0; }      // 12.227 Uyku Modu: bayılınca hemen ayakta bir takım arkadaşını izle (kendi yatan gövden görünür); kaldırılınca aşağıdaki dal 1. şahsa döner
+    else if (s.alive && s.veh && vehCamera(this, dt)) { this.deathCamT = 0; this.camPos.copy(cam.position); }      // 12.177 araç kamerası (sürücü: içeriden / takip; yolcu takipte)
     else if (s.alive) {
       this.deathCamT = 0;
       if (this._vcam) { this._vcam = null; this.bodyVisible = false; }

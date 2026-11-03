@@ -713,7 +713,7 @@ export class Hud {
     const col = (team) => {
       const list = g.soldiers.filter((s) => s.team === team && !s.vacant).sort((a, b) => b.score - a.score);
       return `<div class="team ${team}"><h3 style="color:var(--c)"><span>${inf ? (team === 'blue' ? t('hud.humans') : t('hud.zombies')) : teamName(team)}</span><em>${Math.max(0, g.tickets[team])}</em></h3><table>${th('')}${
-        list.map((s) => `<tr class="${s.isPlayer ? 'me' : ''} ${s.alive && !s.downed ? '' : 'dead'}"><td>${dispName(s)}${s.downed ? ' 💤' : ''}</td><td>${s.kills}</td><td>${s.assists || 0}</td><td>${s.deaths}</td><td>${s.score}</td></tr>`).join('')}</table></div>`;
+        list.map((s) => `<tr class="${s.isPlayer ? 'me' : ''} ${s.alive && !s.downed ? '' : 'dead'}"><td>${dispName(s)}${s.downed ? ' ✚' : ''}</td><td>${s.kills}</td><td>${s.assists || 0}</td><td>${s.deaths}</td><td>${s.score}</td></tr>`).join('')}</table></div>`;
     };
     if (g.ffa) {                                                         // tek tablo, öldürmeye göre
       const gg = g.mode.gungame;

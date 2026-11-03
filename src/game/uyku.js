@@ -338,13 +338,19 @@ export class Uyku {
     if (!this.g.online) this.prepApply(s, this.g);
     return true;
   }
-  // elenmişken izlenen takım arkadaşı (yaşayanlar arasında döner)
-  specList() { const me = this.g.playerSoldier; return this.g.soldiers.filter((s) => s !== me && s.alive && !s.vacant && s.team === me.team); }
+  // elenmişken / baygınken izlenen takım arkadaşı: ayaktakiler arasında döner (ayakta kimse yoksa baygın arkadaşlar; o da yoksa izleme yok → kendi görüşün)
+  specList() {
+    const me = this.g.playerSoldier, L = this.g.soldiers.filter((s) => s !== me && s.alive && !s.vacant && s.team === me.team), up = L.filter((s) => !s.downed);
+    return up.length ? up : L;
+  }
   specTarget() {
     const L = this.specList();
     if (!L.length) return null;
     let s = L.find((e) => e.id === this.specId);
-    if (!s) { s = L.find((e) => !e.downed) || L[0]; this.specId = s.id; }
+    if (!s) {                                                                       // ilk seçim: en yakın ayaktaki arkadaş (bayılınca yanındaki)
+      const me = this.g.playerSoldier, d = (e) => (e.downed ? 1e6 : 0) + Math.hypot(e.pos.x - me.pos.x, e.pos.z - me.pos.z);
+      s = L.reduce((a, e) => (d(e) < d(a) ? e : a), L[0]); this.specId = s.id;
+    }
     return s;
   }
   specCycle(d) {
@@ -357,7 +363,7 @@ export class Uyku {
   specCamera(cam, dt) {
     const me = this.g.playerSoldier, W = this.g.world;
     this.g._specHide = null;
-    if (me.alive || this.g.ended) return false;
+    if ((me.alive && !me.downed) || this.g.ended) return false;                     // 12.227: baygınken de (bayılınca hemen arkadaşı izler)
     const tg = this.specTarget();
     if (!tg) return false;
     // aday ofsetler (arkadan, arkadan-yukarı, sol / sağ omuz, tepeden): duvara en az giren seçilir; arkası duvarsa kafanın içine girmesin

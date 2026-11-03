@@ -76,7 +76,7 @@ if (DEF.k) console.log(`savunma: ele geçirilmiş bayrakta ort. ${(DEF.n / DEF.k
 if (game.uyku) {                                                                                                     // 12.223 Uyku Modu özeti
   const U = game.uyku, st = U.stats;
   console.log(`uyku: ${UYR.length} raunt · ${UYR.map((r) => `R${r.n} ${r.w}/${r.why} ${r.t.toFixed(0)}sn (${r.b.up}-${r.r.up})`).join(' · ')}`);
-  console.log(`uyku: uyuma ${st.downs} · kaldırma ${st.revives} · elenme ${st.outs} (bitirme ${st.fins}, kanama ${st.bleeds}) · taraf değişti: ${U.swapped ? 'evet' : 'hayır'} · en uzun raunt ${Math.max(0, ...UYR.map((r) => r.t)).toFixed(0)} sn`);
+  console.log(`uyku: bayılma ${st.downs} · kaldırma ${st.revives} · elenme ${st.outs} (bitirme ${st.fins}, kanama ${st.bleeds}) · taraf değişti: ${U.swapped ? 'evet' : 'hayır'} · en uzun raunt ${Math.max(0, ...UYR.map((r) => r.t)).toFixed(0)} sn`);
 }
 const ok = errors === 0 && bad.length === 0 && (type !== 'conquest' || flagEvents > 0);
 console.log(ok ? 'sonuç: OK' : 'sonuç: HATA');

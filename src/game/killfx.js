@@ -103,7 +103,7 @@ export class KillFx {
     else if ([3, 5, 7, 10].includes(this.streak) || (this.streak > 10 && this.streak % 5 === 0)) { call = t('fx.spree' + (this.streak > 10 ? 10 : this.streak)); hot = this.streak >= 5; }
     else if (this.streak >= 2) { call = t('fx.spree'); sm = true; }
     const cls = g.ffa ? 'r' : victim?.team === 'blue' ? 'b' : 'r';
-    const lbl = (pen.pn ? `<span class="pb">${t('fx.pierce')}</span>` : '') + (hs ? `<span class="hb">${t('fx.head')}</span>` : melee ? t('fx.melee') : pen.pn ? '' : pen.lbl || t('fx.elim'));      // lbl: 12.223 Uyku Modu "UYUTTUN"
+    const lbl = (pen.pn ? `<span class="pb">${t('fx.pierce')}</span>` : '') + (hs ? `<span class="hb">${t('fx.head')}</span>` : melee ? t('fx.melee') : pen.pn ? '' : pen.lbl || t('fx.elim'));      // lbl: 12.223 Uyku Modu "BAYILTTIN" (12.227)
     this.nt.innerHTML = (call ? `<div class="sk${hot ? ' hot' : ''}${sm ? ' sm' : ''}"></div>` : '') +
       `<div class="cd${hs ? ' hs' : ''}">${hs ? HEAD : SKULL}<div class="tx"><div class="lb">${lbl}</div><div class="nm ${cls}"></div><div class="wp"></div></div><div class="pt"></div></div>`;
     this.nt.querySelector('.nm').textContent = victim?.name || '';

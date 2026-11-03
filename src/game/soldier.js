@@ -249,7 +249,7 @@ export class Soldier {
   }
 
   switchTo(i) {
-    if (i === this.cur || !this.items[i] || !this.alive || !this.canEquip(i)) return;
+    if (i === this.cur || !this.items[i] || !this.alive || this.downed || !this.canEquip(i)) return;      // 12.227 baygın silah değiştiremez
     const eq = Math.min(0.35, WSTATS[this.items[i].id].equip ?? 0.3);
     if (this.cook?.lit) this._dropLit();                                           // 12.193: pimi çekilmiş bomba geri takılmaz → ayağının dibine düşer (PUBG)
     this.cook = null; this.backT = 0; this.nadeUnder = false;                      // hazırlanan (pimi çekilmemiş) bomba cebe döner; atış şekli her çekişte üstten
@@ -264,6 +264,7 @@ export class Soldier {
   // 12.166: reload az önce bittiyse ve o zamandan beri atış yoksa (rlDoneT, RL_GAP sn) yeniden başlamaz: dolu şarjör ancak bayat bir düzeltmeyle
   // 0 görünebilir → çift reload / animasyon olmasın. Tek yer: otomatik (autoReload), boş tetik (tryFire) ve R aynı kuralı izler; sunucu = istemci = çevrimdışı
   startReload() {
+    if (this.downed) return false;                                                 // 12.227 baygın: şarjör / pim yok
     const it = this.item, st = this.stat;
     if (st.kind === 'throwable') return this.cookNade();                          // 12.193 PUBG: bomba eldeyken R = pimi çek (pişir)
     if (this.reloadT > 0 || this.rlDoneT > 0 || this.swing || this.useT > 0 || !(st.kind === 'gun' || st.kind === 'launcher') || it.mag >= st.mag || it.reserve <= 0) return false;
@@ -293,6 +294,7 @@ export class Soldier {
 
   // Ateş modu (yalnızca otomatik silahlarda): semi = tek tek (her tık 1 mermi) → burst = seri (tek tık ya da basılı tutma 3-5 mermi, sonra tetik bırakılıp yeniden çekilmeli) → auto = basılı tutunca sürekli
   toggleFireMode() {
+    if (this.downed) return null;                                                  // 12.227
     const it = this.item, st = this.stat;
     if (st.kind !== 'gun' || !st.auto) return null;
     it.mode = this.fireModeNow === 'semi' ? 'burst' : this.fireModeNow === 'burst' ? 'auto' : 'semi';
@@ -513,7 +515,7 @@ export class Soldier {
 
   // Sağ tık (PUBG): üstten atış ↔ alttan yuvarlama (bomba eldeyken; hazırlanırken de)
   toggleNadeMode() {
-    if (this.stat.kind !== 'throwable' || !this.alive) return false;
+    if (this.stat.kind !== 'throwable' || !this.alive || this.downed) return false;
     this.nadeUnder = !this.nadeUnder;
     this.game.emit('nademode', this);
     return true;
@@ -703,6 +705,7 @@ export class Soldier {
   }
   // Belirli bir nişangâhı seç (T tekerleği). Silaha uygun değilse reddedilir. Dönen: nişangâh tanımı ya da null
   setOptic(id) {
+    if (this.downed) return null;                                                  // 12.227
     const allowed = OPTIC_ALLOWED[this.item.id] || [];
     if (!allowed.includes(id) || !OPTICS[id]) return null;
     this.optics[this.item.id] = id;      // 12.190: her silah kendi nişangâhı (12.174'te yalnız dönem silahı; modern genel tercih `optic` seçilmemiş silahların varsayılanı olarak kalır)
@@ -714,6 +717,7 @@ export class Soldier {
 
   // Nişangâh değiştir (B): silaha uygun olanlar arasında döner
   cycleOptic() {
+    if (this.downed) return null;                                                  // 12.227
     const allowed = OPTIC_ALLOWED[this.item.id] || [];
     const list = allowed.filter((o) => OPTICS[o]);      // izin listesi sırası (modern listeler OPTIC_ORDER sırasında; 12.174 dönem nişangâhları kendi sırasında)
     if (list.length < 2) return null;
