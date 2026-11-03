@@ -2741,3 +2741,8 @@ Bu makinede (donanım GPU) kare hızı sağlam: 12.199–12.221 arasında kare s
 - Botlar dama nadiren çıkar (dolaşma noktasının 2 / 28'i; 4 turluk ölçümlerde 0–17 bot·sn); dam yolu ve hedefi çalışıyor.
 - Uyku Modu (canlandırma, tur) ayrı işte; bu harita TDM / Ele Geçirme / Ölüm Maçı / Silah Oyunu'nda seçilebilir, mod gelince listesine `uykukoy` eklenmeli.
 - Resmi sunucu dönüşüne eklemek kullanıcının kararı.
+
+### 12.225 Resmi sunucu: Uyku Modu · Kum Köyü (OFC12)
+- `server/official.js`: yeni resmi oda `OFC12` "Uyku Modu · Kum Köyü" — 5v5 raunt, bot destekli; dönüş Kum Köyü (gündüz / gün batımı / gece), Depo, Kasaba.
+- Var olan `data/official.json`'a eklenmesi için hazır-mod geçişi sürümlü oldu: `MODE_ADDED = { uyku: 2 }`; `official-meta.json` `modes` 1 ise yalnız Uyku odası eklenir (diğer modlar önceki geçişte ele alındı, admin sildiyse geri gelmez), sonra `modes: 2` yazılır. Canlının `official.json` kopyasıyla denendi: ilk açılışta OFC12 eklendi, ikinci açılışta tekrar eklenmedi.
+- `scripts/liveprobe.mjs`: tek bağlantıyla bir odanın snapshot aralığını / boyutunu ölçer (`WS=… ROOM=OFC1 DUR=20000`); sunucu tarafı takılma şüphesinde ilk bakılacak ölçüm.

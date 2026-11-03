@@ -44,6 +44,13 @@ export const OFFICIAL = [
     type: 'pb', perTeam: 10, time: 600, diff: 'normal',
     rotation: [R('boyakulesi'), R('ormankale'), R('boyakulesi', 'sunset'), R('ormankale', 'sunset')],
   },
+  {
+    code: 'OFC12', name: 'Uyku Modu · Kum Köyü', desc: 'Uyku Modu · 5v5 raunt · arkadaşını kaldır · bot destekli',      // 12.225
+    type: 'uyku', perTeam: 5, time: 900, diff: 'normal',
+    rotation: [R('uykukoy'), R('uykukoy', 'sunset'), R('depo'), R('uykukoy', 'night'), R('kasaba')],
+  },
 ];
 // Mevcut data/official.json'da hiç odası olmayan moda eklenecek hazır kayıt (her moddan bir oda; admin düzenlemelerine dokunulmaz)
-export const MODE_DEFAULTS = { conquest: 'OFC1', tdm: 'OFC3', dm: 'OFC4', gg: 'OFC6', inf: 'OFC7', pb: 'OFC8' };
+export const MODE_DEFAULTS = { conquest: 'OFC1', tdm: 'OFC3', dm: 'OFC4', gg: 'OFC6', inf: 'OFC7', pb: 'OFC8', uyku: 'OFC12' };
+// Sonradan gelen modlar: meta.modes bu sürümden küçükse yalnız o sürümün modu eklenir (12.225 Uyku Modu → 2)
+export const MODE_ADDED = { uyku: 2 };

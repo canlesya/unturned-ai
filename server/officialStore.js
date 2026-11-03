@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { DATA } from './balanceStore.js';
-import { OFFICIAL, MODE_DEFAULTS } from './official.js';
+import { OFFICIAL, MODE_DEFAULTS, MODE_ADDED } from './official.js';
 import { sanitizeCfg, MAPS_FOR } from './room.js';
 
 const FILE = path.join(DATA, 'official.json'), META = path.join(DATA, 'official-meta.json');
@@ -49,9 +49,11 @@ export function officialList() {
 function migrateModes() {
   let meta = {};
   try { meta = JSON.parse(fs.readFileSync(META, 'utf8')) || {}; } catch { /* ilk kez */ }
-  if (meta.modes >= 1) return;
+  const ver = Math.max(1, ...Object.values(MODE_ADDED)), done = meta.modes || 0;
+  if (done >= ver) return;
   const added = [];
   for (const [type, code0] of Object.entries(MODE_DEFAULTS)) {
+    if ((MODE_ADDED[type] || 1) <= done) continue;                                  // bu mod önceki geçişte zaten ele alındı (admin sildiyse geri gelmez)
     if (list.some((o) => o.type === type) || list.length >= OFFICIAL_MAX) continue;
     const def = OFFICIAL.find((o) => o.code === code0);
     let code = code0;
@@ -65,7 +67,7 @@ function migrateModes() {
 // Liste + "geçiş yapıldı" işareti (admin'in kaydettiği liste zaten niyetidir: sildiği mod sonraki açılışta geri eklenmez)
 function persist() {
   const tmp = FILE + '.tmp'; fs.writeFileSync(tmp, JSON.stringify(list, null, 1)); fs.renameSync(tmp, FILE);
-  try { fs.writeFileSync(META, JSON.stringify({ modes: 1 })); } catch { /* yok say */ }
+  try { fs.writeFileSync(META, JSON.stringify({ modes: Math.max(1, ...Object.values(MODE_ADDED)) })); } catch { /* yok say */ }
 }
 
 // Ekle / güncelle (code yoksa yeni). taken: oyuncu odalarının kodları (çakışma olmasın)
