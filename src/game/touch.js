@@ -385,6 +385,7 @@ export class TouchControls {
   press(id, down, t) {
     const p = this.p, g = this.g, s = p.s;
     const b = this.b[id];
+    if (down && g.uyku && s.downed && id !== 'score' && id !== 'map' && id !== 'pause') { if (id === 'fire' || id === 'fire2') g.uyku.specCycle(1); return; }      // 12.227 Uyku Modu baygın: düğmeler işlemez (ateş = izlenen arkadaşı değiştir)
     if (b) b.classList.toggle('on', down && id !== 'ads' && id !== 'crouch');
     if (id === 'fire' || id === 'fire2') {
       if (down) {

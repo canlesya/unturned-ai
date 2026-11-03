@@ -146,7 +146,7 @@ export function balanceSections() {
         f('tune.plSpeed', 'Vagon taban hızı (1 kişi)', 0.2, 4, 0.05, 'm/sn'), f('tune.plCrowd', 'Ek iten başına hız', 0, 1, 0.05, '×'), f('tune.plRadius', 'İtme yarıçapı', 1.5, 8, 0.1, 'm'),
         f('tune.plBackDelay', 'Geri kayma bekleme', 0, 60, 1, 'sn'), f('tune.plBackSpeed', 'Geri kayma hızı', 0, 3, 0.05, 'm/sn'), f('tune.plOverGrace', 'Uzatma payı', 0, 10, 0.5, 'sn'), f('tune.plSupply', 'Vagon yanı ikmal (2 sn)', 0, 1, 0.01, '×'), f('tune.plAtkRespawn', 'Saldıran doğma süresi çarpanı', 0.2, 3, 0.05, '×'), f('tune.plDefRespawn', 'Savunan doğma süresi çarpanı', 0.2, 3, 0.05, '×'), f('tune.plSpawnEq', 'Doğuş uzaklık dengesi (0 kapalı; küçük = güçlü)', 0, 200, 5, 'm')] },
       { id: 'uyku', name: 'Uyku Modu', preview: { kind: 'icon', icon: 'flag' }, fields: [      // 12.223
-        f('mode.uyRound', 'Raunt süresi', 30, 600, 10, 'sn'), f('mode.uyPrep', 'Hazırlık', 0, 20, 1, 'sn'), f('mode.uyBleed', 'Uyku (kanama) süresi', 3, 60, 1, 'sn'), f('mode.uyRevive', 'Kaldırma süresi', 0.5, 10, 0.5, 'sn'),
+        f('mode.uyRound', 'Raunt süresi', 30, 600, 10, 'sn'), f('mode.uyPrep', 'Hazırlık', 0, 20, 1, 'sn'), f('mode.uyBleed', 'Baygınlık (kanama) süresi', 3, 60, 1, 'sn'), f('mode.uyRevive', 'Kaldırma süresi', 0.5, 10, 0.5, 'sn'),
         f('mode.uyReviveHp', 'Kaldırılanın canı', 0.05, 1, 0.05, '×'), f('mode.uyRevMax', 'Raunt başı kaldırma hakkı', 1, 3), f('mode.uyMax', 'Takım başına en çok', 2, 16)] },
       { id: 'space', name: 'Uzay', preview: { kind: 'icon', icon: 'planet' }, fields: [      // 12.157
         f('tune.spaceGrav', 'Yer çekimi çarpanı', 0.1, 1, 0.01, '×'), f('tune.spaceJump', 'Zıplama hızı çarpanı', 0.5, 1.5, 0.01, '×'), f('tune.spaceAir', 'Havada yön denetimi', 0.5, 10, 0.1)] },

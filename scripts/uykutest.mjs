@@ -7,7 +7,7 @@
 import { chromium } from 'playwright';
 import fs from 'node:fs';
 const BASE = process.env.URL || 'http://127.0.0.1:5196', WS = process.env.WS || 'ws://127.0.0.1:8996', MAP = process.env.MAP || 'depo';
-const PARTS = (process.env.PARTS || 'off,swap,bots,menu,on').split(','), OUT = '/tmp/wb-uyku';
+const PARTS = (process.env.PARTS || 'off,swap,bots,menu,on').split(','), OUT = process.env.OUT || '/tmp/wb-uyku';
 fs.mkdirSync(OUT, { recursive: true });
 const browser = await chromium.launch(process.env.SOFT ? { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] } : { headless: false, args: ['--use-angle=metal', '--ignore-gpu-blocklist'] });
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -37,8 +37,39 @@ const HELP = () => {
     vis(id) { const e = document.getElementById(id); return !!e && getComputedStyle(e).display !== 'none' && e.offsetParent !== null; },
     txt(id) { return (document.getElementById(id)?.textContent || '').replace(/\s+/g, ' ').trim(); },
     feed() { return [...document.querySelectorAll('#killfeed .kf')].map((e) => e.textContent.replace(/\s+/g, ' ').replace(/\s+/g, ' ')).join(' | '); },
+    // 12.227 baygın oyuncunun durumu (girdi kilidi denetimi) + kamera kimi izliyor
+    lk() {
+      const me = g.playerSoldier, c = g.camera.position, e = me.eye(), tg = U.specTarget?.(), te = tg?.eye();
+      return { full: me.stat.mag, cur: me.cur, x: +me.pos.x.toFixed(3), z: +me.pos.z.toFixed(3), mag: me.item.mag, res: me.item.reserve, rl: +me.reloadT.toFixed(2), sw: +me.switchT.toFixed(2), prone: me.prone, cr: me.crouching, ads: !!me.ads,
+        proj: g.projectiles.length, cook: !!me.cook, fm: me.fireModeNow, op: me.opticId, cls: me.cls, pcls: g.pendingClass || null, veh: !!me.veh, third: !!g.player.third,
+        downed: !!me.downed, alive: me.alive, tg: tg ? tg.name : null, tgUp: tg ? tg.alive && !tg.downed : null, dTg: te ? +Math.hypot(c.x - te.x, c.y - te.y, c.z - te.z).toFixed(2) : -1, dMe: +Math.hypot(c.x - e.x, c.y - e.y, c.z - e.z).toFixed(2) };
+    },
+    // ekrandaki mod metinleri (istem / akış / afiş / bildirim / izleme): uyku sözcüğü olmamalı
+    texts() { return ['uydn', 'uyrv', 'uyban', 'uysp', 'uymk', 'uyprep', 'killfeed', 'toasts', 'pops'].map((id) => document.getElementById(id)?.textContent || '').join(' ¦ ') + ' ¦ ' + (g.killfx?.nt?.textContent || '') + ' ¦ ' + [...document.querySelectorAll('#uypips .p')].map((e) => e.title).join(' '); },
   };
 };
+const SLEEPY = /uyu|uyan|uyut|sleep|asleep/i;
+// 12.227 baygınken gerçek klavye / fare girdisi: silah (1–4, tekerlek), hareket (WASD, boşluk, Ctrl, Shift), duruş (C, Z), şarjör (R), bomba (G), ateş modu (X),
+// nişangâh (B, T), araç / ikmal (E), bıçak (V), 3. şahıs (H), ateş (sol tık = izlenen arkadaşı değiştirir), nişan (sağ tık), sınıf isteği
+async function pressAll(page) {
+  await page.mouse.move(640, 360);
+  for (const k of ['Digit2', 'Digit3', 'Digit4', 'Digit1', 'KeyR', 'KeyG', 'KeyX', 'KeyB', 'KeyT', 'KeyC', 'KeyZ', 'KeyE', 'KeyV', 'KeyH', 'KeyF', 'KeyY']) { await page.keyboard.press(k); await wait(40); }
+  await page.mouse.wheel(0, 120); await wait(150); await page.mouse.wheel(0, -240); await wait(150);
+  for (const k of ['KeyW', 'KeyA', 'ShiftLeft', 'Space']) await page.keyboard.down(k);
+  await wait(600);
+  for (const k of ['KeyW', 'KeyA', 'ShiftLeft', 'Space']) await page.keyboard.up(k);
+  for (const k of ['KeyS', 'KeyD']) await page.keyboard.down(k);
+  await wait(400);
+  for (const k of ['KeyS', 'KeyD']) await page.keyboard.up(k);
+  await page.keyboard.down('ControlLeft'); await wait(250); await page.keyboard.up('ControlLeft');
+  await page.mouse.down({ button: 'right' }); await wait(200); await page.mouse.up({ button: 'right' });
+  const tg0 = await page.evaluate(() => __U.lk().tg);
+  await page.mouse.down(); await wait(350); await page.mouse.up();
+  await page.evaluate(() => { const g = __U.g, k = Object.keys(g.classDefs).find((c) => c !== g.playerSoldier.cls && !g.classDefs[c].zombie); g.requestClass(k); });
+  return tg0;
+}
+const sameLk = (a, b) => a.cur === b.cur && Math.hypot(a.x - b.x, a.z - b.z) < 0.05 && a.mag === b.mag && a.res === b.res && b.rl === 0 && b.sw === 0 && b.prone && !b.cr && !b.ads
+  && a.proj === b.proj && !b.cook && a.fm === b.fm && a.op === b.op && a.cls === b.cls && a.pcls === b.pcls && !b.veh && !b.third && b.downed;
 // sağ tık basılı (gerçek fare olayı, kanvas ortası)
 const rmb = async (page, down) => { const v = page.viewportSize(); await page.mouse.move(v.width / 2, v.height / 2); if (down) await page.mouse.down({ button: 'right' }); else await page.mouse.up({ button: 'right' }); };
 
@@ -73,20 +104,47 @@ async function offline() {
   await wait(300);
   const live = await page.evaluate(() => ({ ph: __U.U.phase, t: +__U.U.t.toFixed(1), tl: __U.txt('tm') }));
   check(live.ph === 'live' && live.t > 145 && /2:(2|3)/.test(live.tl), 'hazırlık bitti → raunt 2:30', live);
-  // 1) uyuma: düşman vurur → ölmez, uyur (yatar, yürüyemez, ateş edemez, ekran kararır)
+  // 1) bayılma: düşman vurur → ölmez, bayılır (yatar); 12.227: hiçbir girdi işlemez, kamera hemen ayaktaki arkadaşı izler
+  // kontrol: ayaktayken aynı tuşlar gerçekten işliyor (2 tuşu ve tekerlek silah değiştirir)
+  const ctl = await page.evaluate(() => { const g = __U.g, me = g.playerSoldier, P = __U.spot(); __U.put(me, P.x, P.z, 0); for (const [i, M] of __U.mates().entries()) __U.put(M, P.x - 3 - i * 2, P.z - 2, 0); return me.cur; });
+  await page.mouse.move(640, 360);
+  await page.keyboard.press('Digit2'); await wait(450); const k2 = await page.evaluate(() => __U.g.playerSoldier.cur);
+  await page.keyboard.press('Digit1'); await wait(450);
+  await page.mouse.wheel(0, 120); await wait(450); const cw = await page.evaluate(() => __U.g.playerSoldier.cur);
+  await page.keyboard.press('Digit1'); await wait(450);
+  check(k2 !== ctl && cw !== ctl, 'kontrol: ayaktayken 2 tuşu ve tekerlek silah değiştiriyor', { c0: ctl, k2, cw });
   const d1 = await page.evaluate(async () => {
     const g = __U.g, me = g.playerSoldier, E = __U.foes()[0], P = __U.spot();
     __U.put(me, P.x, P.z, 0); __U.put(E, P.x + 6, P.z, 0);
+    me.item.mag = Math.max(1, me.item.mag - 6);                                          // şarjör eksik: R gerçekten şarjör değiştirebilirdi
     me.takeDamage(999, E, 'body', E.pos, 'AK-47');
-    const st = __U.st(me), p0 = me.pos.clone(), mag0 = me.item.mag;
-    g.player.keys.add('KeyW'); g.player.fireHeld = true; await new Promise((r) => setTimeout(r, 700)); g.player.keys.delete('KeyW'); g.player.fireHeld = false;
-    return { st, moved: +Math.hypot(me.pos.x - p0.x, me.pos.z - p0.z).toFixed(2), shots: mag0 - me.item.mag, dn: __U.vis('uydn'), txt: __U.txt('uydn'), eye: +(g.camera.position.y - me.pos.y).toFixed(2), feed: __U.feed(), kills: E.kills };
+    await new Promise((r) => setTimeout(r, 250));
+    return { st: __U.st(me), lk: __U.lk(), dn: __U.vis('uydn'), txt: __U.txt('uydn'), feed: __U.feed(), kills: E.kills, texts: __U.texts() };
   });
-  check(d1.st.alive && d1.st.downed && d1.st.hp === 0 && d1.st.prone, 'can 0 → ölmedi, uyudu (yüzüstü)', d1.st);
-  check(d1.moved < 0.05 && d1.shots === 0, 'uyurken yürüyemez / ateş edemez', { moved: d1.moved, shots: d1.shots });
-  check(d1.dn && /UYUDUN/.test(d1.txt) && d1.eye < 0.7, 'ekran karardı + kanama sayacı, kamera yerde', d1.txt + ' · göz ' + d1.eye);
-  check(/uyuttu/i.test(d1.feed) && d1.kills === 1, 'akış: "uyuttu" + uyutan öldürme aldı', d1.feed);
-  await shot(page, 'uyku-downed');
+  check(d1.st.alive && d1.st.downed && d1.st.hp === 0 && d1.st.prone, 'can 0 → ölmedi, bayıldı (yüzüstü)', d1.st);
+  check(d1.lk.tg && d1.lk.tgUp && d1.lk.dTg < 4 && d1.lk.dMe > 1, 'bayılınca kamera HEMEN ayaktaki arkadaşı izliyor (250 ms)', d1.lk);
+  check(d1.dn && /BAYILDIN · \d+/.test(d1.txt) && /İzlenen:/.test(d1.txt), 'altta kanama halkası "BAYILDIN · N" + izlenen arkadaş', d1.txt);
+  check(/AK-47 · BAYILTTI/.test(d1.feed) && d1.kills === 1, 'akış: "AK-47 · BAYILTTI" + bayıltan öldürme aldı', d1.feed);
+  await shot(page, 'uyfix-downed-spectate');
+  { const kf = await page.$('#killfeed'); const bb = await kf?.boundingBox(); if (bb) { const p = `${OUT}/uyfix-feed.png`; await page.screenshot({ path: p, clip: { x: Math.max(0, bb.x - 200), y: Math.max(0, bb.y - 10), width: Math.min(1280 - Math.max(0, bb.x - 200), bb.width + 220), height: bb.height + 40 } }); shots.push(p); } }
+  const lk0 = d1.lk, tgA = await pressAll(page);
+  await wait(250);
+  const lk1 = await page.evaluate(() => __U.lk());
+  check(sameLk(lk0, lk1), 'baygın: 1–4 / tekerlek / WASD / boşluk / Ctrl / Shift / C / Z / R / G / X / B / T / E / V / H / sol-sağ tık / sınıf isteği hiçbiri işlemedi', { lk0, lk1 });
+  check(lk1.tg && lk1.tg !== tgA && lk1.tgUp, 'baygın: sol tık izlenen arkadaşı değiştirdi (ateş etmedi)', `${tgA} → ${lk1.tg}`);
+  // kaldırılıyor: arkadaş yanında sağ tık tutuyor (bot donuk: istek elle) → "X seni kaldırıyor" + ilerleme; kalkınca kamera hemen kendi gözüne
+  const rv0 = await page.evaluate(async () => {
+    const g = __U.g, me = g.playerSoldier, M = __U.mates().find((s) => s.alive && !s.downed);
+    __U.put(M, me.pos.x - 1.3, me.pos.z, Math.PI / 2); M.rvWant = true; M.sinceShot = 9;
+    const keep = setInterval(() => { M.rvWant = true; }, 20); window.__keepRv = keep;
+    await new Promise((r) => setTimeout(r, 1500));
+    return { txt: __U.txt('uydn'), rvP: +me.rvP.toFixed(2), by: me.rvBy?.name, M: M.name };
+  });
+  check(rv0.rvP > 0.8 && rv0.by === rv0.M && new RegExp(`${rv0.M} seni kaldırıyor`).test(rv0.txt), 'baygın: "X seni kaldırıyor" + ilerleme', rv0);
+  await shot(page, 'uyfix-being-revived');
+  const rv1 = await page.evaluate(() => new Promise((res) => { const g = __U.g, me = g.playerSoldier; const f = () => { if (!me.downed) { requestAnimationFrame(() => requestAnimationFrame(() => { clearInterval(window.__keepRv); for (const s of g.soldiers) s.rvWant = false; const r = { lk: __U.lk(), dn: __U.vis('uydn'), hp: Math.round(me.hp) }; me.rvdN = 0; for (const s of g.soldiers) s.rvN = 0; res(r); })); } else setTimeout(f, 20); }; f(); }));
+  check(!rv1.lk.downed && rv1.lk.dMe < 0.3 && !rv1.dn && rv1.hp === 30, 'kaldırılınca kamera hemen kendi 1. şahsına döndü, baygın paneli kapandı', rv1);
+  check(!SLEEPY.test(d1.texts), 'ekran metinlerinde uyku sözcüğü yok (bayılma)', d1.texts.slice(0, 300));
   // 2) oyuncu arkadaşını kaldırır: sağ tık basılı 3 sn → %30 can; istem + ilerleme halkası
   await page.evaluate(() => { const g = __U.g, me = g.playerSoldier; me.downed = false; me.hp = me.maxHp; me.prone = false; me.spawnN++; for (const s of __U.foes()) { __U.put(s, s.pos.x, s.pos.z); } });
   const r0 = await page.evaluate(() => {
@@ -159,7 +217,7 @@ async function offline() {
   const b1 = await page.evaluate(() => new Promise((res) => { const g = __U.g, M3 = __U.mates()[2]; const f = () => (M3.alive ? setTimeout(f, 50) : res({ t: g.time, st: __U.st(M3), feed: __U.feed(), pips: document.querySelectorAll('#uypips .p.out').length })); f(); }));
   const bl = b1.t - b0.down;
   check(bl > 19.5 && bl < 20.6 && b1.st.out, `kanama: ${bl.toFixed(2)} sn sonra elendi (20 sn)`, b1.st);
-  check(/uyanamadı/i.test(b1.feed) && b1.pips >= 1, 'akış "uyanamadı" + nokta ✕', b1.feed);
+  check(/kan kaybından öldü/i.test(b1.feed) && b1.pips >= 1 && !SLEEPY.test(b1.feed), 'akış "kan kaybından öldü" + nokta ✕', b1.feed);
   // 6) bitirme: uyuyan düşmanı vurmak raunt boyunca eler
   const f1 = await page.evaluate(() => {
     const g = __U.g, me = g.playerSoldier, E = __U.foes()[1], sc0 = me.score;
@@ -175,14 +233,14 @@ async function offline() {
   const ff = await page.evaluate(() => { const me = __U.g.playerSoldier, E = __U.foes()[2], E2 = __U.foes()[3]; E.takeDamage(999, me, 'body', me.pos, 'x'); E.takeDamage(50, E2, 'body', E2.pos, 'x'); const r = __U.st(E); E.downed = false; E.hp = 100; E.prone = false; return r; });
   check(ff.downed && ff.alive, 'dost hasarı uyuyanı bitirmez', ff);
   await shot(page, 'uyku-pips');
-  // 7) raunt sonu: eleme (kırmızının hepsi uyudu / elendi) → Mavi alır, afiş
+  // 7) raunt sonu: eleme (kırmızının hepsi baygın / elendi) → Mavi alır, afiş
   const e1 = await page.evaluate(async () => {
     const g = __U.g, me = g.playerSoldier;
     for (const e of __U.foes()) if (e.alive && !e.downed) e.takeDamage(999, me, 'body', me.pos, 'M4A1');
     await new Promise((r) => setTimeout(r, 250));
     return { ph: __U.U.phase, last: __U.U.last, why: __U.U.why, tk: [g.tickets.blue, g.tickets.red], ban: __U.txt('uyban'), op: getComputedStyle(document.getElementById('uyban')).opacity };
   });
-  check(e1.ph === 'post' && e1.last === 'blue' && e1.why === 'elim' && e1.tk[0] === 1, 'raunt sonu: rakibin hepsi uyudu/elendi → Mavi 1–0', e1);
+  check(e1.ph === 'post' && e1.last === 'blue' && e1.why === 'elim' && e1.tk[0] === 1, 'raunt sonu: rakibin hepsi baygın/elendi → Mavi 1–0', e1);
   check(/RAUNDU ALDINIZ/.test(e1.ban), 'afiş: RAUNDU ALDINIZ', e1.ban);
   await shot(page, 'uyku-round-win');
   // raunt 2: herkes doğuşta, haklar sıfır, hazırlık
@@ -328,6 +386,9 @@ async function menu() {
   const st = await page.evaluate(() => ({ maps: [...document.querySelectorAll('.mapc[data-a="map"]')].map((e) => e.dataset.v), on: document.querySelector('.mapc.on')?.dataset.v, rounds: [...document.querySelectorAll('[data-a="rounds"]')].map((e) => e.dataset.v + (e.classList.contains('on') ? '*' : '')), card: document.querySelector('[data-a="type"][data-v="uyku"]')?.textContent.replace(/\s+/g, ' ').slice(0, 90), size: document.getElementById('vSize')?.textContent }));
   check(st.maps.length >= 3 && !st.maps.includes('kuzey') && !st.maps.includes('vadi') && st.maps.includes('depo') && st.maps.includes(st.on), 'menü: yalnız küçük haritalar (Kuzey / Vadi yok)', st.maps.join(',') + ' · seçili ' + st.on);
   check(st.rounds.join() === '5*,10' && /5\s*vs\s*5/.test(st.size || ''), 'menü: maç uzunluğu 5 (varsayılan) / 10, 5v5', st);
+  const desc = await page.evaluate(() => document.querySelector('[data-a="type"][data-v="uyku"] small')?.textContent || '');
+  check(/BAYILIR/.test(desc) && /3 sn/.test(desc) && /kan kaybından/.test(desc) && !SLEEPY.test(desc), 'menü: mod açıklaması bayılma / kaldırma anlatıyor, uyku sözcüğü yok', desc);
+  { const el = await page.$('[data-a="type"][data-v="uyku"]'); await el?.scrollIntoViewIfNeeded(); const bb = await el?.boundingBox(); if (bb) { const p = `${OUT}/uyfix-menu-desc.png`; await page.screenshot({ path: p, clip: { x: Math.max(0, bb.x - 30), y: Math.max(0, bb.y - 30), width: Math.min(1280, bb.width + 60), height: Math.min(720, bb.height + 60) } }); shots.push(p); } }
   await page.click('[data-a="rounds"][data-v="10"]'); await page.waitForTimeout(400);
   await page.evaluate(() => document.querySelector('#bs3')?.scrollIntoView());
   await page.waitForTimeout(300);
@@ -354,6 +415,7 @@ async function online() {
   const A = await open('Ali', 'blue');
   const code = await A.evaluate(() => window.__game.opts.online.room);
   const dbg = (p, m) => p.evaluate((m) => __U.g.online.send({ t: 'dbg', ...m }), m);
+  const ask = (p) => p.evaluate(() => new Promise((r) => { const n = window.__game.online; const f = (e) => { try { const m = JSON.parse(e.data); if (m.t === 'dbg') { n.ws.removeEventListener('message', f); r(m); } } catch (x) { /* ikili */ } }; n.ws.addEventListener('message', f); n.send({ t: 'dbg', ask: 1 }); }));
   const until = (p, fn, ms = 15000) => p.waitForFunction(fn, null, { timeout: ms, polling: 50 });
   const B = await open('Bora', 'blue', code);
   await dbg(A, { uy: { restart: 1 } }); await until(B, `__U.U.phase === 'prep' && __U.g.playerSoldier.alive`);      // yavaş makinede B hazırlıktan sonra gelmiş olabilir (izliyordur): raunt baştan
@@ -379,32 +441,53 @@ async function online() {
   await wait(700);
   const live = await B.evaluate(() => ({ ph: __U.U.phase, t: __U.U.t }));
   check(live.ph === 'live' && live.t > 140, 'istemci: raunt başladı (2:30)', live);
-  // C, A'yı uyutur (sunucu: C vurmuş gibi)
+  // A şarjörünü biraz boşaltır (havaya): baygınken R gerçekten şarjör değiştirebilirdi
+  await A.evaluate(() => { __U.g.playerSoldier.pitch = 1.3; });
+  await A.mouse.move(640, 360); await A.mouse.down(); await wait(300); await A.mouse.up(); await wait(500);
+  // C, A'yı bayıltır (sunucu: C vurmuş gibi)
   await dbg(C, { dmg: [ia, 9999] });
-  await wait(500);
-  const a1 = await A.evaluate(async () => {
-    const g = __U.g, me = g.playerSoldier, p0 = me.pos.clone();
-    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW' })); await new Promise((r) => setTimeout(r, 900)); window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW' }));
-    await new Promise((r) => setTimeout(r, 300));
-    return { st: __U.st(me), moved: +Math.hypot(me.pos.x - p0.x, me.pos.z - p0.z).toFixed(2), dn: __U.vis('uydn'), txt: __U.txt('uydn'), corr: g.online.stats.corrections };
+  await wait(600);
+  const s0 = await ask(A), l0 = await A.evaluate(() => __U.lk());
+  const a1 = await A.evaluate(() => ({ st: __U.st(__U.g.playerSoldier), dn: __U.vis('uydn'), txt: __U.txt('uydn'), feed: __U.feed() }));
+  check(a1.st.alive && a1.st.downed && a1.st.bleed > 17, 'A (çevrim içi): bayıldı, kanama sayacı sunucudan', a1.st);
+  check(l0.tg === 'Bora' && l0.dTg < 4 && l0.dMe > 1 && a1.dn && /BAYILDIN · \d+/.test(a1.txt), 'A: kamera hemen Bora\'yı izliyor, altta "BAYILDIN · N"', { l0, txt: a1.txt });
+  await shot(A, 'uyfix-online-downed-spectate');
+  const tgOn = await pressAll(A);
+  await wait(300);
+  // sunucu da yok sayıyor: istemci sahte girdi yollar (yürü / koş / zıpla / silah değiştir / duruş / şarjör / ateş / nişan / araç) + sınıf / nişangâh isteği
+  await A.evaluate(async () => {
+    const g = __U.g, n = g.online, me = g.playerSoldier, o = n.send, other = (me.cur + 1) % me.items.length;
+    n.send = (m) => { if (m.t === 'in') Object.assign(m, { f: 1, r: 1, s: 1, j: 1, w: other, c: 1, p: 1, u: 1, rl: 1, fm: 1, o: 1, fh: 1, fp: 1, ve: 1, a: 1, rv: 1 }); return o.call(n, m); };
+    o.call(n, { t: 'opt', cls: Object.keys(g.classDefs).find((c) => c !== me.cls && !g.classDefs[c].zombie), optic: 'reflex' });
+    await new Promise((r) => setTimeout(r, 900));
+    n.send = o;
   });
-  check(a1.st.alive && a1.st.downed && a1.st.bleed > 17, 'A (çevrim içi): uyudu, kanama sayacı sunucudan', a1.st);
-  check(a1.moved < 0.05 && a1.dn, 'A uyurken W ile yürüyemez (tahmin + sunucu), ekran karardı', a1);
-  await shot(A, 'uyku-online-downed');
+  await wait(500);
+  const s1 = await ask(A), l1 = await A.evaluate(() => __U.lk());
+  const sv0 = s0.sv, sv1 = s1.sv;
+  check(sameLk(l0, l1) && l1.tg === 'Bora', 'A baygın (istemci): tuşlar / tekerlek / tıklar / sınıf isteği hiçbiri işlemedi', { l0, l1, tgOn });
+  check(sv1.alive && sv1.cur === sv0.cur && Math.hypot(sv1.pos[0] - sv0.pos[0], sv1.pos[1] - sv0.pos[1]) < 0.05 && sv1.st === 'p' && sv1.mag === sv0.mag && sv1.rl === 0 && sv1.sw === 0 && sv1.fm === sv0.fm && s1.optic === s0.optic && sv0.mag < l0.full,
+    'sunucu: baygının sahte girdileri (yürü / silah / duruş / şarjör / ateş / ateş modu / nişangâh) yok sayıldı', { sv0, sv1, op: [s0.optic, s1.optic] });
+  const clsA0 = l0.cls;
   const b1 = await B.evaluate(() => ({ cand: __U.U.candidate(__U.g.playerSoldier)?.name, txt: __U.txt('uyrv'), feed: __U.feed(), mk: document.querySelectorAll('#uymk .m').length }));
-  check(b1.cand === 'Ali' && /Sağ tık/i.test(b1.txt) && /uyuttu/i.test(b1.feed), 'B: istem "Sağ tık basılı tut: Kaldır" + akış', b1);
+  check(b1.cand === 'Ali' && /Sağ tık/i.test(b1.txt) && /BAYILTTI/.test(b1.feed) && !SLEEPY.test(b1.feed), 'B: istem "Sağ tık basılı tut: Kaldır" + akış "BAYILTTI"', b1);
   // B sağ tık basılı tutar (gerçek fare olayı → girdi rv → sunucu)
   const tb0 = Date.now();
   await rmb(B, true);
   await wait(1600);
   await shot(B, 'uyku-online-revive-progress');
+  const arv = await A.evaluate(() => ({ txt: __U.txt('uydn'), lk: __U.lk(), texts: __U.texts() }));
+  check(/Bora seni kaldırıyor/.test(arv.txt) && arv.lk.tg === 'Bora', 'A (izlerken): "Bora seni kaldırıyor" + ilerleme', arv.txt);
+  check(!SLEEPY.test(arv.texts), 'A ekran metinlerinde uyku sözcüğü yok', arv.texts.slice(0, 300));
+  await shot(A, 'uyfix-online-being-revived');
   const bm = await B.evaluate(() => { const g = __U.g, a = g.soldiers.find((s) => s.name === 'Ali'); return { rvP: a.rvP, by: a.rvBy?.name, ads: g.playerSoldier.adsT }; });
   check(bm.rvP > 0.8 && bm.rvP < 2.4 && bm.by === 'Bora' && bm.ads < 0.05, 'çevrim içi kaldırma ilerliyor (sunucu → anlık görüntü), nişan yok', bm);
-  const ar = await A.evaluate(() => new Promise((res) => { const g = __U.g, me = g.playerSoldier; const f = () => (!me.downed ? res({ t: Date.now(), st: __U.st(me), feed: __U.feed() }) : setTimeout(f, 30)); f(); setTimeout(() => res({ t: 0, st: __U.st(me) }), 6000); }));
+  const ar = await A.evaluate(() => new Promise((res) => { const g = __U.g, me = g.playerSoldier; const f = () => (!me.downed ? (() => { const t = Date.now(); requestAnimationFrame(() => requestAnimationFrame(() => res({ t, st: __U.st(me), feed: __U.feed(), lk: __U.lk(), dn: __U.vis('uydn') }))); })() : setTimeout(f, 30)); f(); setTimeout(() => res({ t: 0, st: __U.st(me) }), 6000); }));
   await rmb(B, false);
   const odur = (ar.t - tb0) / 1000;
   check(ar.st.alive && !ar.st.downed && ar.st.hp === 30 && odur > 2.8 && odur < 3.8, `çevrim içi: A kaldırıldı ${odur.toFixed(2)} sn, can 30`, ar.st);
   check(/kaldırdı/i.test(ar.feed || ''), 'A akış: "kaldırdı"', ar.feed);
+  check(ar.lk && ar.lk.dMe < 0.3 && !ar.dn, 'çevrim içi: kalkınca kamera hemen A\'nın 1. şahsına döndü', ar.lk);
   const a2 = await A.evaluate(async () => { const g = __U.g, me = g.playerSoldier, p0 = me.pos.clone(); window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyW' })); await new Promise((r) => setTimeout(r, 600)); window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyW' })); return +Math.hypot(me.pos.x - p0.x, me.pos.z - p0.z).toFixed(2); });
   check(a2 > 1, 'kaldırılan A yeniden yürüyor', a2);
   // kanama: B uzakta (ayakta), C A'yı uyutur, kimse kaldırmaz → 20 sn sonra A elenir (raunt sürer: B ayakta)
@@ -415,12 +498,12 @@ async function online() {
   check(ao.out && bt > 19.3 && bt < 20.8 && ao.ph === 'live', `çevrim içi kanama: A ${bt.toFixed(2)} sn sonra elendi (raunt sürüyor)`, ao);
   await wait(600);
   const a3 = await A.evaluate(() => ({ st: __U.st(__U.g.playerSoldier), sp: __U.vis('uysp'), txt: __U.txt('uysp'), feed: __U.feed() }));
-  check(!a3.st.alive && a3.sp && /İzlenen: Bora/.test(a3.txt) && /uyanamadı/i.test(a3.feed), 'A elendi: Bora\'yı izliyor, akış "uyanamadı"', a3);
+  check(!a3.st.alive && a3.sp && /İzlenen: Bora/.test(a3.txt) && /kan kaybından öldü/i.test(a3.feed), 'A elendi: Bora\'yı izliyor, akış "kan kaybından öldü"', a3);
   await shot(A, 'uyku-online-spectate');
   // C, B'yi uyutur → Mavi'de ayakta kimse yok (A elendi, B uyuyor) → Kırmızı raundu alır (uyuyanlar da sayılır)
   await dbg(C, { dmg: [ib, 9999] }); await wait(500);
   const rr = await C.evaluate(() => ({ last: __U.U.last, ph: __U.U.phase, tk: [__U.g.tickets.blue, __U.g.tickets.red], ban: __U.txt('uyban') }));
-  check(rr.last === 'red' && rr.ph === 'post' && rr.tk[1] === 1 && /RAUNDU ALDINIZ/.test(rr.ban), 'Mavi\'nin hepsi uyudu / elendi → Kırmızı 1. raundu aldı (C afişi)', rr);
+  check(rr.last === 'red' && rr.ph === 'post' && rr.tk[1] === 1 && /RAUNDU ALDINIZ/.test(rr.ban), 'Mavi\'nin hepsi baygın / elendi → Kırmızı 1. raundu aldı (C afişi)', rr);
   const ra = await A.evaluate(() => __U.txt('uyban'));
   check(/KAYBETTİNİZ/.test(ra), 'A afişi: RAUNDU KAYBETTİNİZ', ra);
   await shot(C, 'uyku-online-round-banner');
@@ -429,6 +512,8 @@ async function online() {
   await until(A, `__U.U.round === 2 && __U.U.phase === 'prep' && __U.g.playerSoldier.alive`);
   const r2 = await A.evaluate(() => ({ round: __U.U.round, ph: __U.U.phase, me: __U.st(__U.g.playerSoldier), ban: __U.txt('uyban') }));
   check(r2.round === 2 && r2.me.alive && !r2.me.downed && r2.me.rvN === 0 && r2.me.rvdN === 0 && /RAUNT 2/.test(r2.ban), 'çevrim içi 2. raunt: A doğdu, haklar sıfır, afiş', r2);
+  const cls2 = await A.evaluate(() => __U.g.playerSoldier.cls);
+  check(cls2 === clsA0, 'sunucu: baygınken istenen sınıf değişimi uygulanmadı (2. rauntta aynı sınıf)', `${clsA0} → ${cls2}`);
   await startLive(2);
   // bitirme: C, B'yi uyutup (A ayakta) bir kez daha vurur → B raunt sonuna dek elenir
   await dbg(C, { dmg: [ib, 9999] }); await wait(300); await dbg(C, { dmg: [ib, 10] }); await wait(500);

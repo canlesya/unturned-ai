@@ -410,6 +410,7 @@ export class Room {
     const c = this.clients.get(id);
     if (!c) return;
     const h = c.h, g = this.game, str = (v) => (typeof v === 'string' ? v.slice(0, 24) : undefined);
+    if (g.uyku && h.s.downed && (m.optic !== undefined || m.fo || m.cls !== undefined || m.loadout)) return;      // 12.227 Uyku Modu: baygınken nişangâh / sınıf / yükleme değişmez
     if (typeof m.optic === 'string' && h.s.alive) h.s.setOptic(m.optic);             // T tekerleği: nişangâh seçimi hemen geçerli
     if (m.fo && typeof m.fo === 'object' && !m.loadout) applyOpticPrefs(h.s, { fo: m.fo });   // 12.174: doğuş ekranında dönem nişangâhı (yalnız o silaha izinli dönem nişangâhı)
     if (typeof m.cls === 'string' && CLASS_DEFS[m.cls] && m.cls !== 'zombie') h.pendingClass = c.pref.cls = m.cls;

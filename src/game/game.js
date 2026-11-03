@@ -591,6 +591,7 @@ export class Game {
     const s = h.s, V = this.vehicles;
     if (this.uyku) {                                                  // 12.223 Uyku Modu: hazırlıkta / uyurken donuk (hareket / ateş yok); sağ tık yanında uyuyan arkadaş varsa kaldırma (nişan değil)
       if (this.uyku.frozen(s)) inp = { ...inp, f: 0, r: 0, l: 0, s: 0, j: 0, dn: 0, fh: 0, fp: 0, a: 0, ab: 0, ve: 0, nu: 0 };
+      if (s.downed) inp = { ...inp, w: s.cur, vs: 0, u: 0, c: 0, p: 0, rl: 0, fm: 0, o: 0, rv: 0 };      // 12.227 baygın: silah / duruş / şarjör / nişangâh / koltuk / kaldırma girdisi de yok sayılır
     }
     s.ads = !!inp.a;                                                  // 12.145: nişan isteği adsT güncellemesinden ÖNCE (istemcide fare olayı karenin s.update'inden önce gelir; eski sıra sunucu adsT'sini bir adım geride bırakıp nişandan koşuya dönüşte ~5 cm tahmin düzeltmesi yaptırıyordu)
     if (this.uyku) this.uyku.gate(s, !!inp.rv);                       // sağ tık kaldırmaysa nişan kapanır (istemci aynı kapıdan geçer)
@@ -821,6 +822,7 @@ export class Game {
 
   respawnReady() { return !this.playerSoldier.alive && !this.ended; }
   requestClass(k) {
+    if (this.uyku && this.playerSoldier?.downed) return;                             // 12.227 Uyku Modu: baygınken sınıf / yükleme değişmez
     this.pendingClass = k; this.hud.markClass(k); this.online?.send({ t: 'opt', cls: k });
     const lo = this.opts.loadouts?.[k], fl = this.opts.frontLoadouts?.[k];      // menüde o sınıf için kaydedilen silah/gadget seçimi (12.174: Cephe donanımı ayrı)
     this.requestLoadout({ ...(lo || {}), ...(fl ? { front: { ...fl } } : {}) });      // (kayıt yoksa sınıfın varsayılanı)
@@ -861,7 +863,7 @@ export class Game {
     if (s.pos.distanceTo(cam) < 45) this.sfx.zombie(s.pos, true);
   }
   // Ölüm ekranında yükleme değiştir: { primary, secondary, gadget, melee } → bir sonraki doğuşta geçerli (sınıfa uymazsa varsayılan)
-  requestLoadout(choice) { const me = this.playerSoldier; this.pendingLoadout = { ...choice }; this.online?.send({ t: 'opt', loadout: { ...choice, op: me?.optic, fo: me?.optics }, skins: me?.skins || null, wear: me?.wear || null }); }      // 12.174: op / fo = nişangâh tercihleri (sunucu doğrular)      // kaplamalar yükleme değişiminde yeniden gider (tek mesaj)
+  requestLoadout(choice) { const me = this.playerSoldier; if (this.uyku && me?.downed) return; this.pendingLoadout = { ...choice }; this.online?.send({ t: 'opt', loadout: { ...choice, op: me?.optic, fo: me?.optics }, skins: me?.skins || null, wear: me?.wear || null }); }      // 12.174: op / fo = nişangâh tercihleri (sunucu doğrular)      // kaplamalar yükleme değişiminde yeniden gider (tek mesaj)
 
   // ───── doğma ─────
   // Oyuncu doğma noktası seçimi: 'base' ya da sahip olunan hedefin id'si

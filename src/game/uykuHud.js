@@ -1,8 +1,8 @@
 // 12.223 Uyku Modu arayüzü (hud.js'e dokunmadan, kendi modülü; çevrimdışı oyun + çevrim içi istemci aynı):
-// · üst çubuk: skor kutuları = kazanılan raunt (hud.js), altında iki takımın 5'er askerlik durum noktaları (ayakta / uyuyor + kanama dilimi / elendi) + "RAUNT 2/5 · İLK 3"
+// · üst çubuk: skor kutuları = kazanılan raunt (hud.js), altında iki takımın 5'er askerlik durum noktaları (ayakta / baygın + kanama dilimi / elendi) + "RAUNT 2/5 · İLK 3"
 // · ortada afiş: raunt başı (hazırlık, maç raundu, taraf değişti), BAŞLA!, raunt sonu (aldınız / kaybettiniz / berabere + neden)
-// · hazırlıkta sınıf şeridi (1–5), uyurken ekran kararır + kanama halkası, uyuyan arkadaşın yanında "Sağ tık basılı tut: Kaldır" + ilerleme halkası
-// · dünyada ve mini haritada uyuyan takım arkadaşları (kalan kanama süresiyle), akışta "uyuttu / kaldırdı / bitirdi / uyanamadı", elenince izleme çubuğu
+// · hazırlıkta sınıf şeridi (1–5), baygınken (12.227) kamera ayaktaki arkadaşı izler + altta kanama halkası / "X seni kaldırıyor", baygın arkadaşın yanında "Sağ tık basılı tut: Kaldır" + ilerleme halkası
+// · dünyada ve mini haritada baygın takım arkadaşları (kalan kanama süresiyle), akışta "BAYILTTI / kaldırdı / bitirdi / kan kaybından öldü", elenince izleme çubuğu
 import * as THREE from 'three';
 import { t } from '../i18n/index.js';
 import { className } from '../i18n/data.js';
@@ -16,7 +16,7 @@ const CSS = `
 #uypips .p{position:relative;width:15px;height:15px;border-radius:50%;box-sizing:border-box;border:2px solid var(--c);background:var(--c)}
 #uypips .blue .p{--c:#4aa3ff}#uypips .red .p{--c:#ff5a43}
 #uypips .p.dn{background:conic-gradient(var(--c) var(--k,100%),rgba(0,0,0,.55) 0);border-color:#ffd36a;animation:uypulse 1s infinite}
-#uypips .p.dn::after{content:'z';position:absolute;inset:0;font-size:9px;line-height:11px;text-align:center;color:#ffd36a;text-shadow:0 0 2px #000}
+#uypips .p.dn::after{content:'+';position:absolute;inset:0;font-size:9px;line-height:11px;text-align:center;color:#ffd36a;text-shadow:0 0 2px #000}
 #uypips .p.out{background:rgba(0,0,0,.5);border-color:rgba(255,255,255,.22)}
 #uypips .p.out::after{content:'✕';position:absolute;inset:0;font-size:9px;line-height:11px;text-align:center;color:rgba(255,255,255,.55)}
 #uypips .p.me{outline:2px solid #fff;outline-offset:1px}
@@ -31,11 +31,14 @@ const CSS = `
 #uyprep .row{display:flex;gap:6px}
 #uyprep .c{padding:5px 11px;font-size:13px;font-weight:800;letter-spacing:1px;background:rgba(9,13,19,.75);border:1px solid rgba(255,255,255,.16);white-space:nowrap}
 #uyprep .c b{color:#ffb347;margin-right:6px}#uyprep .c.on{border-color:#ffd36a;background:rgba(80,60,12,.82)}
-#uydn{position:absolute;inset:0;display:none;pointer-events:none;background:radial-gradient(ellipse at center,rgba(20,24,44,.25) 0%,rgba(6,8,18,.82) 78%);-webkit-backdrop-filter:grayscale(.75) brightness(.72);backdrop-filter:grayscale(.75) brightness(.72)}
-#uydn .bx{position:absolute;left:50%;top:56%;transform:translateX(-50%);text-align:center}
-#uydn h2{margin:0;font-size:38px;letter-spacing:8px;font-weight:800;color:#cfd8ff;text-shadow:0 2px 12px #000}
-#uydn p{margin:6px 0 0;font-size:14px;letter-spacing:1.5px;font-weight:700;opacity:.9;text-shadow:0 1px 4px #000}
+#uydn{position:absolute;inset:0;display:none;pointer-events:none;background:radial-gradient(ellipse at center,rgba(0,0,0,0) 58%,rgba(70,6,6,.5) 100%)}
+#uydn .bx{position:absolute;left:50%;bottom:112px;transform:translateX(-50%);display:flex;align-items:center;gap:14px;padding:8px 20px 8px 12px;background:rgba(9,13,19,.8);border:1px solid rgba(255,255,255,.14);border-top:3px solid #ffd36a;text-align:left;white-space:nowrap}
+#uydn .bx.rv{border-top-color:#7be06f}
+#uydn h2{margin:0;font-size:24px;letter-spacing:5px;font-weight:800;color:#ffd36a;text-shadow:0 2px 8px #000;font-variant-numeric:tabular-nums}
+#uydn p{margin:3px 0 0;font-size:14px;letter-spacing:1px;font-weight:700;opacity:.92;text-shadow:0 1px 4px #000}
 #uydn p.rv{color:#9be07f}#uydn p.no{color:#ff9a88}
+#uydn small{display:block;margin-top:3px;font-size:11px;letter-spacing:1.5px;font-weight:700;opacity:.7}
+#uydn .uyring{width:60px;height:60px;margin:0;flex:none}#uydn .uyring b{font-size:17px}
 .uyring{position:relative;width:76px;height:76px;margin:10px auto 0}
 .uyring svg{position:absolute;inset:0;transform:rotate(-90deg)}
 .uyring b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;font-variant-numeric:tabular-nums}
@@ -51,7 +54,7 @@ const CSS = `
 #uysp{position:absolute;left:50%;bottom:120px;transform:translateX(-50%);display:none;flex-direction:column;align-items:center;padding:7px 22px;background:rgba(9,13,19,.78);border:1px solid rgba(255,255,255,.14);border-top:3px solid #ff7b6b;font-weight:800;letter-spacing:2px;text-align:center;pointer-events:none}
 #uysp b{font-size:20px;color:#ff9a88;letter-spacing:5px}#uysp span{font-size:14px;margin-top:2px}#uysp small{font-size:11px;opacity:.7;letter-spacing:1.5px;margin-top:2px}
 .kf .w.uy{color:#ffd36a;border-color:rgba(255,211,106,.4)}.kf .w.uv{color:#9be07f;border-color:rgba(155,224,127,.4)}.kf .w.uo{color:#ff9a88;border-color:rgba(255,154,136,.45)}
-@media (max-height:520px){#uyban{font-size:26px}#uyban small{font-size:12px}#uydn h2{font-size:26px}#uypips .p{width:11px;height:11px}#uysp{bottom:80px}}
+@media (max-height:520px){#uyban{font-size:26px}#uyban small{font-size:12px}#uydn h2{font-size:18px}#uydn .bx{bottom:72px}#uypips .p{width:11px;height:11px}#uysp{bottom:80px}}
 `;
 const RING = (r, w) => { const C = 2 * Math.PI * r; return { C, svg: (col) => `<svg viewBox="0 0 ${2 * r + w} ${2 * r + w}"><circle cx="${r + w / 2}" cy="${r + w / 2}" r="${r}" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="${w}"/><circle class="fg" cx="${r + w / 2}" cy="${r + w / 2}" r="${r}" fill="none" stroke="${col}" stroke-width="${w}" stroke-linecap="round" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="0"/></svg>` }; };
 const R1 = RING(34, 6), R2 = RING(23, 5);
@@ -66,7 +69,7 @@ export class UykuHud {
     this.pips = mk('uypips'); top.insertBefore(this.pips, top.querySelector('#flags'));
     const lim = g.hud.$('lim'); if (lim) lim.style.display = 'none';                // raunt yazısı noktaların ortasında
     this.ban = mk('uyban'); this.prepEl = mk('uyprep'); this.mk = mk('uymk');
-    this.dn = mk('uydn', `<div class="bx"><h2></h2><div class="uyring">${R1.svg('#ffd36a')}<b></b></div><p></p></div>`);
+    this.dn = mk('uydn', `<div class="bx"><div class="uyring">${R1.svg('#ffd36a')}<b></b></div><div><h2></h2><p></p><small></small></div></div>`);
     this.rv = mk('uyrv', `<div class="t"></div><div class="uyring">${R2.svg('#7be06f')}<b></b></div>`);
     this.sp = mk('uysp', '<b></b><span></span><small></small>');
     root.prepend(this.dn);                                                          // HUD'un altında (sayılar / akış görünür kalır)
@@ -85,7 +88,7 @@ export class UykuHud {
         if (k) this.feed(k, `${esc(wLabel(ev.w))} · ${t('uy.kf.down')}`, v, 'uy'); else this.feed(v, t('uy.kf.downSelf'), null, 'uy');
         g.heat?.add(v.pos.x, v.pos.z, 3, g.time);
         if (k === me && v !== me) g.killfx.kill(v, ev.w, !!ev.hs, undefined, { pn: 0, pc: 0, lbl: t('uy.fx.down') });
-        if (v === me) { g.killfx.died?.(); g.sfx.hurt?.(); }
+        if (v === me) { g.killfx.died?.(); g.sfx.hurt?.(); U.specId = -1; }          // 12.227: bayılınca en yakın ayaktaki arkadaşı izle
         else if (v.team === me.team) g.hud.toast(t('uy.t.down', { n: dispName(v) }), '#ffd36a');
         return;
       }
@@ -165,7 +168,7 @@ export class UykuHud {
     const B = one('blue'), R = one('red');
     const key = JSON.stringify([B, R, U.round, U.rounds, U.phase, U.need]);
     if (!this.setK('pips', key)) return;
-    const html = (L) => L.map(([st, k, m]) => `<i class="p ${st === 'up' ? '' : st}${m ? ' me' : ''}" style="--k:${k}%"></i>`).join('');
+    const html = (L) => L.map(([st, k, m]) => `<i class="p ${st === 'up' ? '' : st}${m ? ' me' : ''}" style="--k:${k}%" title="${t('uy.pip.' + st)}"></i>`).join('');      // 12.227 açıklama: ayakta / baygın / elendi
     this.pips.innerHTML = `<div class="tm blue">${html(B)}</div><div class="rd">${t('uy.round', { n: U.round, m: U.rounds })}<small>${U.phase === 'prep' ? t('uy.prep') : t('uy.first', { k: U.need })}</small></div><div class="tm red">${html(R)}</div>`;
   }
 
@@ -178,6 +181,7 @@ export class UykuHud {
     this.prepEl.innerHTML = `<div class="h">${t('uy.prep')} · ${s}</div><div class="row">${keys.map((k, i) => `<div class="c ${k === cur ? 'on' : ''}"><b>${i + 1}</b>${esc(className(k))}</div>`).join('')}</div><div class="h" style="color:#cfd8e6;font-size:11px">${t('uy.prepSub', { s })}</div>`;
   }
 
+  // 12.227 baygın: kamera ayaktaki arkadaşı izler (uyku.specCamera); altta kanama halkası + "BAYILDIN · 14", kaldırılıyorsa "X seni kaldırıyor" + ilerleme, izlenen arkadaş
   drawDown(me) {
     const on = !!me.downed && !this.g.ended;
     if (this.setK('dnOn', on)) this.dn.style.display = on ? 'block' : 'none';
@@ -187,12 +191,15 @@ export class UykuHud {
     const fg = this.dn.querySelector('.fg');
     fg.setAttribute('stroke', rv ? '#7be06f' : bl < 6 ? '#ff7b6b' : '#ffd36a');
     fg.setAttribute('stroke-dashoffset', (R1.C * (1 - frac)).toFixed(1));
-    if (this.setK('dn', [Math.ceil(bl), rv ? me.rvBy.id : -1, no].join('|'))) {
-      this.dn.querySelector('h2').textContent = t('uy.downTitle');
-      this.dn.querySelector('b').textContent = Math.ceil(bl);
+    const tg = this.U.specTarget(), rl = rv ? Math.max(0, LIMITS.uyRevive - me.rvP).toFixed(1) : '';
+    if (this.setK('dn', [Math.ceil(bl), rv ? me.rvBy.id : -1, rl, no, tg ? tg.id : -1].join('|'))) {
+      this.dn.querySelector('.bx').className = 'bx' + (rv ? ' rv' : '');
+      this.dn.querySelector('h2').textContent = `${t('uy.downTitle')} · ${Math.ceil(bl)}`;
+      this.dn.querySelector('b').textContent = rv ? rl : Math.ceil(bl);
       const p = this.dn.querySelector('p');
       p.className = rv ? 'rv' : no ? 'no' : '';
       p.textContent = rv ? t('uy.beingRev', { n: dispName(me.rvBy) }) : no ? t('uy.downNoRev') : t('uy.downSub');
+      this.dn.querySelector('small').textContent = tg ? `${t('uy.spec', { n: dispName(tg) })} · ${t('uy.specKeys')}` : '';
     }
   }
 
@@ -222,7 +229,7 @@ export class UykuHud {
       const v = this.v.set(s.pos.x, s.pos.y + 0.9, s.pos.z).project(cam);
       if (v.z > 1 || v.x < -1.2 || v.x > 1.2 || v.y < -1.2 || v.y > 1.2) continue;
       let m = this.marks[n];
-      if (!m) { m = document.createElement('div'); m.className = 'm'; m.innerHTML = '<i>z</i><span></span>'; this.mk.appendChild(m); this.marks.push(m); m._k = ''; }
+      if (!m) { m = document.createElement('div'); m.className = 'm'; m.innerHTML = '<i>+</i><span></span>'; this.mk.appendChild(m); this.marks.push(m); m._k = ''; }
       n++;
       m.style.display = 'flex';
       m.style.left = ((v.x + 1) / 2 * W).toFixed(0) + 'px'; m.style.top = ((1 - v.y) / 2 * H).toFixed(0) + 'px';
@@ -259,7 +266,7 @@ export class UykuHud {
       const px = X(s.pos.x), py = Y(s.pos.z), rv = s.rvP > 0, f = rv ? Math.min(1, s.rvP / LIMITS.uyRevive) : Math.max(0, (s.bleedT || 0) / LIMITS.uyBleed);
       x.beginPath(); x.arc(px, py, 5.5, 0, 6.3); x.fillStyle = 'rgba(0,0,0,.55)'; x.fill();
       x.beginPath(); x.arc(px, py, 5.5, -Math.PI / 2, -Math.PI / 2 + f * 6.283); x.strokeStyle = rv ? '#7be06f' : '#ffd36a'; x.lineWidth = 2.4; x.stroke();
-      x.fillStyle = rv ? '#7be06f' : '#ffd36a'; x.font = 'bold 8px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('z', px, py + 0.5);
+      x.fillStyle = rv ? '#7be06f' : '#ffd36a'; x.font = 'bold 8px sans-serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('+', px, py + 0.5);
     }
   }
 
