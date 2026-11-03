@@ -609,6 +609,8 @@ async function onlineHeli(chromium) {
   const mg = await B.evaluate(async (id) => {
     const g = window.__game, me = g.playerSoldier, T = g.soldiers[id];
     const aim = () => { const e = me.eye(), c = T.center(), dx = c.x - e.x, dz = c.z - e.z; me.yaw = Math.atan2(-dx, -dz); me.pitch = Math.atan2(c.y - e.y, Math.hypot(dx, dz)); };
+    g.player.vehCam = 'first';      // 12.228: nişan gözden hedefe (aim); takip kamerasında artı kamera ışınıdır (bakış ≠ gözden hedef)
+    await new Promise((r) => setTimeout(r, 300));
     const i2 = setInterval(aim, 8); aim(); g.player.fireHeld = true;
     await new Promise((r) => setTimeout(r, 2000)); g.player.fireHeld = false; clearInterval(i2);
     await new Promise((r) => setTimeout(r, 500));

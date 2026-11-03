@@ -31,7 +31,7 @@ const LAYOUT = {
   ads: { x: 0.93, y: 0.36, s: 0.16 }, jump: { x: 0.93, y: 0.61, s: 0.18 }, crouch: { x: 0.93, y: 0.86, s: 0.16 },
   reload: { x: 0.655, y: 0.86, s: 0.15 }, swap: { x: 0.79, y: 0.89, s: 0.15 }, nade: { x: 0.655, y: 0.58, s: 0.15 }, abil: { x: 0.655, y: 0.6, s: 0.19 },
   third: { x: 0.655, y: 0.34, s: 0.12 }, optic: { x: 0.81, y: 0.36, s: 0.12 }, breath: { x: 0.72, y: 0.4, s: 0.12 }, pause: { x: 0.22, y: 0.075, s: 0.11 }, score: { x: 0.285, y: 0.075, s: 0.11 }, map: { x: 0.345, y: 0.075, s: 0.11 },      // 12.202 büyük harita
-  veh: { x: 0.53, y: 0.62, s: 0.14 }, vcam: { x: 0.53, y: 0.4, s: 0.11 }, seat: { x: 0.53, y: 0.84, s: 0.11 },      // 12.177 araç: bin / in (yalnız yakında / içindeyken), kamera (sürücü), koltuk değiştir
+  veh: { x: 0.53, y: 0.62, s: 0.14 }, vcam: { x: 0.53, y: 0.4, s: 0.11 }, seat: { x: 0.53, y: 0.84, s: 0.11 },      // 12.177 araç: bin / in (yalnız yakında / içindeyken), kamera (12.228: her koltukta), koltuk değiştir
   rk: { x: 0.655, y: 0.58, s: 0.15 },                                              // 12.201 helikopter pilotu (araçta gizli bomba düğmesinin yeri) · 12.206: SİLAH (dokun = burun topu ↔ roket; ATEŞ seçili silahı atar)
 };
 const NAME = (id) => t('tc.n.' + id);                                            // düzenleyicideki buton adları (src/i18n/touch.js)
@@ -620,7 +620,7 @@ export class TouchControls {
       if (key !== this._vk) {
         this._vk = key;
         this.b.veh.classList.toggle('hid', !inV && !near); this.b.veh.classList.toggle('on', inV);
-        this.b.vcam.classList.toggle('hid', !drv); this.b.seat.classList.toggle('hid', !inV);
+        this.b.vcam.classList.toggle('hid', !inV);      // 12.228 kamera her koltukta (takip / içeriden) this.b.seat.classList.toggle('hid', !inV);
         const hp = inV && drv && s.veh.def.heli;
         for (const k of ['nade', 'third']) this.b[k].classList.toggle('vh', inV);
         this.b.crouch.classList.toggle('vh', inV && !hp);                                  // helikopter pilotunda çömel = alçal, zıpla = yüksel

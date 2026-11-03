@@ -256,7 +256,7 @@ export class Vehicles {
     const v = s.veh; if (!v) return;
     if (v.seats[s.seat] === s) v.seats[s.seat] = null;
     if (s.seat === 0) { v.horn = false; v.sleep = false; }
-    s.veh = null; s.seat = -1; s.height = 1.78; s.eyeY = 1.62; s.gunAim = null; s.ads = false; s.adsT = 0;      // 12.201: inince nişan temiz (aç-kapa nişan açık kalmasın)
+    s.veh = null; s.seat = -1; s.height = 1.78; s.eyeY = 1.62; s.gunAim = null; s.mgAim = null; s.ads = false; s.adsT = 0;      // 12.201: inince nişan temiz (aç-kapa nişan açık kalmasın)
   }
 
   // İn: yan kapıdan (koltuğun tarafı), olmazsa öbür yan / arka / ön / üst. Hız aracın hızının yarısı, ilk iniş hasarsız
@@ -766,6 +766,19 @@ export class Vehicles {
     for (const e of g.soldiers) { if (!e.alive || e === by || (by && e.team === by.team) || e.veh === v) continue; const h = g.hitSoldier(e, co, cd, t); if (h && h.t < t) t = h.t; }
     return this.noseAimAt(v, { x: co.x + cd.x * t, y: co.y + cd.y * t, z: co.z + cd.z * t }, out, t < 600);
   }
+  // 12.228 sürücü dışı koltuğun takip kamerası: kamera ışınının çarptığı nokta (dünya, kendi aracı hariç araçlar, düşman) → gözden o noktaya yaw / pitch
+  // (makineli s.mgAim). Çevrim içinde istemci gy / gp olarak yollar, sunucu aynı açıyla ateşler (mgFire).
+  mgSeat(v, seat) { return seat > 0 && !!mgAt(v.def, seat); }
+  seatAimFor(v, co, cd, s, out = {}) {
+    const g = this.g, W = g.world;
+    let t = 500;
+    const wh = W.raycast(co, cd, t, (this._sa ||= {})); if (wh) t = wh.t;
+    const vr = this.raycast(co, cd, t, v); if (vr && vr.t < t) t = vr.t;
+    for (const e of g.soldiers) { if (!e.alive || e === s || e.team === s.team || e.veh === v) continue; const h = g.hitSoldier(e, co, cd, t); if (h && h.t < t) t = h.t; }
+    const e = s.eye(), dx = co.x + cd.x * t - e.x, dy = co.y + cd.y * t - e.y, dz = co.z + cd.z * t - e.z;
+    out.y = Math.atan2(-dx, -dz); out.p = Math.atan2(dy, Math.hypot(dx, dz)); out.dist = Math.hypot(dx, dy, dz);
+    return out;
+  }
   noseAimAt(v, P, out = {}, hit = true) {
     const M = v.def.nose, o = toWorld(v.st, M.f, 0, M.u, (this._nm ||= {})), dx = P.x - o.x, dy = P.y - o.y, dz = P.z - o.z;
     out.y = Math.atan2(-dx, -dz); out.p = Math.atan2(dy, Math.hypot(dx, dz)); out.P = P; out.dist = Math.hypot(dx, dy, dz); out.hit = hit;
@@ -806,7 +819,7 @@ export class Vehicles {
     const v = s.veh, M = v ? seatGun(v.def, s.seat) : null;
     if (!M) return '';
     if (s.vhot) return 'hot';
-    if (M.arc) { const side = M.arc[s.seat], dy = ((s.yaw - (v.st.yaw - side * Math.PI / 2) + Math.PI * 3) % (Math.PI * 2)) - Math.PI; if (Math.abs(dy) > M.arcW) return 'arc'; }      // 12.179 kapı makinelisi: kapının yönünde yay (sol kapı −1 = yaw + 90°)
+    if (M.arc) { const side = M.arc[s.seat], dy = (((s.mgAim?.y ?? s.yaw) - (v.st.yaw - side * Math.PI / 2) + Math.PI * 3) % (Math.PI * 2)) - Math.PI; if (Math.abs(dy) > M.arcW) return 'arc'; }      // 12.179 kapı makinelisi: kapının yönünde yay (sol kapı −1 = yaw + 90°)
     return '';
   }
 
@@ -827,7 +840,8 @@ export class Vehicles {
       const st = v.st, nd = noseDir(st, M, s.gunAim, (this._nd2 ||= {})); o = new THREE.Vector3(); toWorld(st, M.f, 0, M.u, o);
       yaw = nd.y; base = dirFromAngles(nd.y, nd.p);
     } else {
-      o = s.eye(); yaw = v.def.fixed ? arcYaw(v.st, s.yaw) : s.yaw; base = dirFromAngles(yaw, mgPitch(v.st, M, yaw, s.pitch));      // 12.201 rel: sınır gövdeye göre (yokuşta aşağı) · 12.213 sabit yuva: yay içinde
+      const ma = s.seat > 0 ? s.mgAim : null;                          // 12.228 takip kamerasındaki nişancı: gözden artının noktasına (seatAimFor)
+      o = s.eye(); yaw = v.def.fixed ? arcYaw(v.st, s.yaw) : ma ? ma.y : s.yaw; base = dirFromAngles(yaw, mgPitch(v.st, M, yaw, ma ? ma.p : s.pitch));      // 12.201 rel: sınır gövdeye göre (yokuşta aşağı) · 12.213 sabit yuva: yay içinde
     }
     const sp = M.hip + Math.min(this.speed(v) * 0.0008, 0.01) + (s.brain ? s.botExtraSpread : 0), a = rnd() * Math.PI * 2, rr = Math.sqrt(rnd()) * sp;
     const right = { x: Math.cos(yaw), z: -Math.sin(yaw) };
