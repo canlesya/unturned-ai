@@ -173,7 +173,7 @@ export function bmBrain(b, dt) {
   if (tx !== null) {
     const dx = tx - s.pos.x, dz = tz - s.pos.z, d = Math.hypot(dx, dz);
     if (d > BM_BOT.near || Math.abs((bm.y ?? s.pos.y) - s.pos.y) > 1.5) return false;      // yol ızgarasıyla yaklaş (pickGoal hedefi)
-    const reach = bm.st === 'planted' ? BM_REACH - 0.6 : 0.6;
+    const reach = bm.st === 'planted' ? 0.75 : 0.6;                                 // 12.229 imha: bombanın dibine (diz çöküp elleri bombaya yetişsin; menzil BM_REACH 1,7)
     if (d > reach) {
       const sp = TUNE.walkSpeed * s.spd * 0.6, k = Math.min(1, dt * 10);
       s.vel.x = lerp(s.vel.x, (dx / (d + 1e-6)) * sp, k); s.vel.z = lerp(s.vel.z, (dz / (d + 1e-6)) * sp, k);

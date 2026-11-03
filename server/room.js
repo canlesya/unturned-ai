@@ -375,6 +375,7 @@ export class Room {
       vw: m.vw ? 1 : 0,                                                              // 12.206 pilotun seçili silahı (1 roket)
       rv: m.rv ? 1 : 0,                                                              // 12.223 Uyku Modu: sağ tık kaldırma (basılı)
       bu: m.bu ? 1 : 0,                                                              // 12.226 Bomba: kullanma tuşu (basılı)
+      bh: m.bh ? 1 : 0, bt: m.bt ? 1 : 0,                                            // 12.229 Bomba: elde tutuyor · attı (bomba.js throwBomb doğrular)
       gP: Array.isArray(m.gP) && m.gP.length === 3 && m.gP.every(Number.isFinite) ? m.gP.map((v) => Math.max(-5000, Math.min(5000, v))) : null,      // 12.206 artının noktası (roket yakınsaması; vehTick uzaklığı sınırlar)
     });
   }
@@ -495,7 +496,7 @@ export class Room {
       if ((u.end === 'blue' || u.end === 'red' || u.end === 'draw') && U.live) U.endRound(u.end, 'elim');
       if (u.restart && U.phase !== 'over') U.startRound(true);                                       // aynı raunt baştan (test)
     }
-    if (g.bomba && m.bm && typeof m.bm === 'object') {                                              // 12.226 Bomba testi: { bm:{ t, give:asker, drop:1, plant:bölge, kit:[asker,0|1], end, restart, round:[n] } }
+    if (g.bomba && m.bm && typeof m.bm === 'object') {                                              // 12.226 Bomba testi: { bm:{ t, give:asker, drop:1, plant:bölge, kit:[asker,0|1], end, restart, round:[n], ask:1 (12.229 bomba durumu) } }
       const B = g.bomba, u = m.bm, b = B.bomb;
       if (Number.isFinite(u.t)) B.t = Math.max(0.01, +u.t);
       if (Number.isInteger(u.give)) { const o = g.soldiers[u.give]; if (o?.alive && o.team === B.att) { b.st = 'carried'; b.carrier = o; b.prog = 0; b.who = null; } }
@@ -506,6 +507,7 @@ export class Room {
       if (u.restart && B.phase !== 'over') B.startRound(true);
       if (Array.isArray(u.sc)) { g.tickets.blue = +u.sc[0] | 0; g.tickets.red = +u.sc[1] | 0; }
       if (Number.isInteger(u.round)) B.round = Math.max(1, u.round);
+      if (u.ask && c.ws.readyState === 1) c.ws.send(JSON.stringify({ t: 'dbg', bm: { st: b.st, car: b.carrier ? b.carrier.id : -1, p: [+b.x.toFixed(2), +b.y.toFixed(2), +b.z.toFixed(2)], hand: g.soldiers.filter((e) => e.bmHand).map((e) => e.id), throws: B.stats.throws, landT: +(b.landT - g.time).toFixed(2) } }));      // 12.229 test
     }
     if (m.bots === false) { g.brainsOff = g.brains.splice(0); }
     if (m.bots === true && g.brainsOff) { g.brains.push(...g.brainsOff); g.brainsOff = null; }

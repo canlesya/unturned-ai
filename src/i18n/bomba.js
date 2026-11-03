@@ -75,6 +75,15 @@ addStrings('tr', {
   'bm.pop.round': '+50 RAUNT',
   'tc.n.bomb': 'Kur / imha et',
   'set.act.use': 'Bomba kur / imha et (basılı tut)',
+  // 12.229 bombayı eline al / at
+  'bm.handHint': '{k}: eline al · sol tık: at',
+  'bm.handOn': 'Sol tık: at · {k}: silaha dön',
+  'bm.handHintT': 'BOMBA düğmesi: eline al · ATEŞ: at',
+  'bm.handOnT': 'ATEŞ: at · BOMBA: silaha dön',
+  'bm.kf.throw': 'bombayı attı',
+  'bm.t.throw': '{n} bombayı attı: üstünden geçip al',
+  'tc.n.bmh': 'Bombayı eline al / bırak',
+  'set.act.bombHand': 'Bombayı eline al (Bomba modu · sol tık: at)',
 });
 
 addStrings('en', {
@@ -151,4 +160,13 @@ addStrings('en', {
   'bm.pop.round': '+50 ROUND',
   'tc.n.bomb': 'Plant / defuse',
   'set.act.use': 'Plant / defuse bomb (hold)',
+  // 12.229 hold / throw the bomb
+  'bm.handHint': '{k}: take in hand · left click: throw',
+  'bm.handOn': 'Left click: throw · {k}: back to weapon',
+  'bm.handHintT': 'BOMB button: take in hand · FIRE: throw',
+  'bm.handOnT': 'FIRE: throw · BOMB: back to weapon',
+  'bm.kf.throw': 'threw the bomb',
+  'bm.t.throw': '{n} threw the bomb: walk over it to pick it up',
+  'tc.n.bmh': 'Take / put away bomb',
+  'set.act.bombHand': 'Take the bomb in hand (Bomb mode · left click: throw)',
 });

@@ -9,12 +9,19 @@
 // · Maç: kısa ilk 7 (en çok 12 raunt, 6. rauntan sonra taraf değişir), uzun ilk 13 (en çok 24, 12. rauntan sonra). Son raunt eşitse berabere.
 // YETKİLİ taraf (çevrimdışı oyun / sunucu) kuralları uygular; çevrim içi istemci durumu anlık görüntüden alır (snapshot 'bm') ve olaylarla
 // (bmr / bmg / bme / bmk / bmd / bmp / bmx / bmb) afiş / akış / patlama çizer. Uyku Modu (uyku.js) raunt akışının ayrı kopyası: iki mod birbirine dokunmaz.
+// 12.229 Bombayı eline al / at: taşıyan 5 ile bombayı eline alır (s.bmHand; silah ateşlenmez, nişan yok), sol tık atar. Atış el bombasının yolunu izler
+// (grenade.js throwState + simulateNade: aynı sabit adımlı fizik, sekme / yuvarlanma); YETKİLİ taraf yolu sonuna dek hesaplar, bomba iniş noktasında 'dropped'
+// olur (uçarken alınmaz, atan 0,6 sn daha alamaz). İniş geçersizse (25 m'den uzak, yol ızgarası dışı / çatı, haritadan düştü) ayağının dibine düşer.
+// Çevrim içi: istemci girdiye bt (atış) + bh (elde) yazar; sunucu doğrular (taşıyan, canlı, saldıran, raunt sürüyor, elinde), 'bmd' olayı başlangıç
+// noktası (f) + hızla (u) yayılır → herkes aynı yolu kendi dünyasında canlandırır. Kurulan bomba kuranın önüne-sağına (bombaAnim BM_SPOT) konur.
 import * as THREE from 'three';
 import { LIMITS } from './balance.js';
 import { removeDeployable } from './gadgets.js';
 import { t } from '../i18n/index.js';
 import '../i18n/bomba.js';
 import { BombaHud } from './bombaHud.js';
+import { throwState, simulateNade, NADE } from './grenade.js';
+import { BM_SPOT } from './bombaAnim.js';
 
 export const BM_REACH = 1.7;                      // imha menzili (yatay m)
 export const BM_PICK = 1.4;                       // yerdeki bombayı alma menzili
@@ -22,30 +29,35 @@ const PHASES = ['prep', 'live', 'post', 'over'];
 const WIN_CODE = { blue: 1, red: 2, draw: 3 }, WIN_OF = [null, 'blue', 'red', 'draw'];
 export const BM_WHY = ['elim', 'time', 'boom', 'defuse', 'tie'];
 export const BST = ['none', 'carried', 'dropped', 'planted', 'defused', 'exploded'];
+// 12.229 atış: hız (m/sn; el bombası 18–20), en çok yatay uzaklık, uçuş sınırı (sn), atan bu kadar sn daha alamaz
+export const BM_THROW = { speed: 11, max: 25, fly: 6, self: 0.6 };
+const THROW_ST = { speed: BM_THROW.speed };
 const other = (tm) => (tm === 'blue' ? 'red' : 'blue');
 
 export class Bomba {
   constructor(g) {
     this.g = g;
-    this.net = !!g.online;                         // çevrim içi istemci: kural işletmez, anlık görüntüyü uygular
     this.rounds = g.mode.rounds === 24 ? 24 : 12;
     this.need = this.rounds / 2 + 1;                 // kazanmak için gereken raunt (7 / 13)
     this.half = this.rounds / 2;                     // bu rauntan sonra taraf değişir
     this.round = 1; this.phase = 'prep'; this.t = LIMITS.bmPrep;
     this.swapped = false; this.last = null; this.why = ''; this.final = false; this.over = null; this.endT = 0;
     this.hist = [];
-    this.stats = { plants: 0, defuses: 0, booms: 0, drops: 0, pickups: 0, siteN: [0, 0] };
+    this.stats = { plants: 0, defuses: 0, booms: 0, drops: 0, pickups: 0, throws: 0, siteN: [0, 0] };
     this.ui = null; this.pend = []; this.specId = -1;
     // bölgeler: daire { name, x, z, r } ya da kutu { name, box:[x0, z0, x1, z1] } (kutunun merkezi / yarıçapı işaret ve botlar için)
     this.sites = (g.map.bombSites || []).map((s, i) => (s.box ? { ...s, i, x: s.x ?? (s.box[0] + s.box[2]) / 2, z: s.z ?? (s.box[1] + s.box[3]) / 2, r: s.r ?? Math.hypot(s.box[2] - s.box[0], s.box[3] - s.box[1]) / 2 } : { ...s, i }));
     this._rk = 1;                                  // raunt kurulum sayacı (aynı raunt baştan alınınca da artar: bot planı yenilenir)
-    this.bomb = { st: 'none', carrier: null, x: 0, y: 0, z: 0, site: -1, prog: 0, who: null, planter: null, plantT: 0 };
+    this.bomb = { st: 'none', carrier: null, x: 0, y: 0, z: 0, site: -1, prog: 0, who: null, planter: null, plantT: 0, ry: 0, landT: 0, thrower: null };
     this.att = this.calcAtt();
     g.tickets.blue = 0; g.tickets.red = 0;
     g.timeLeft = this.t;
     this._init = false;                            // ilk raunt: kit + bomba ilk yetkili adımda (askerler kurucudan sonra doğar)
   }
 
+  // çevrim içi istemci: kural işletmez, anlık görüntüyü uygular. 12.229: alıcı (Game kurucusunda bomba, g.online'dan ÖNCE kuruluyor: eski
+  // this.net = !!g.online istemcide hep false kalıyordu → istemcide raunt süresi anlık görüntüler arasında akmıyor, ölümde yerel düşürme deneniyordu)
+  get net() { return !!this.g.online; }
   get live() { return this.phase === 'live'; }
   get prep() { return this.phase === 'prep'; }
   get dmgOk() { return this.phase === 'live'; }
@@ -97,6 +109,7 @@ export class Bomba {
     if (this.net || this.phase === 'over') return;
     if (!this._init) { this._init = true; this._r0 = g.time; this.att = this.calcAtt(); this.giveKits(); this.assign(); }
     this.t -= dt;
+    for (const s of g.soldiers) if (s.bmHand && !this.canHand(s)) this.setHand(s, false);      // 12.229 bombayı elinde tutan artık taşımıyor (ölüm / raunt sonu / araç)
     if (this.phase === 'prep') { if (this.t <= 0) this.goLive(); }
     else if (this.phase === 'live') {
       const A = this.count(this.att), D = this.count(this.def);
@@ -142,9 +155,11 @@ export class Bomba {
       b.prog += dt;
       if (b.prog >= LIMITS.bmPlant) this.plant(c, site);
     } else if (b.st === 'dropped') {
+      if (g.time < b.landT) return;                                                  // 12.229 atılan bomba havada: alınmaz
       let best = null, bd = BM_PICK;
       for (const s of g.soldiers) {
         if (!s.alive || s.vacant || s.team !== this.att || s.veh) continue;
+        if (s === b.thrower && g.time < b.landT + BM_THROW.self) continue;             // atan hemen geri almasın
         const d = Math.hypot(s.pos.x - b.x, s.pos.z - b.z);
         if (d < bd && Math.abs(s.pos.y - b.y) < 1.8) { bd = d; best = s; }
       }
@@ -173,7 +188,7 @@ export class Bomba {
   assign() {
     const L = this.g.soldiers.filter((s) => !s.vacant && s.alive && s.team === this.att);
     const b = this.bomb;
-    b.st = 'none'; b.carrier = null; b.prog = 0; b.who = null; b.site = -1; b.planter = null;
+    b.st = 'none'; b.carrier = null; b.prog = 0; b.who = null; b.site = -1; b.planter = null; b.landT = 0; b.thrower = null;
     if (!L.length) return;
     const c = L[Math.floor(Math.random() * L.length)];
     b.st = 'carried'; b.carrier = c; b.x = c.pos.x; b.y = c.pos.y; b.z = c.pos.z;
@@ -189,7 +204,8 @@ export class Bomba {
   }
   drop(c) {
     const b = this.bomb;
-    b.st = 'dropped'; b.carrier = null; b.prog = 0; b.who = null;
+    if (c?.bmHand) this.setHand(c, false);
+    b.st = 'dropped'; b.carrier = null; b.prog = 0; b.who = null; b.landT = 0; b.thrower = null;
     if (c) { b.x = c.pos.x; b.y = c.pos.y; b.z = c.pos.z; }
     const W = this.g.world;
     if (W?.heightAt && !this.g.map.layered) b.y = Math.min(b.y, W.heightAt(b.x, b.z) + 0.05);
@@ -204,13 +220,14 @@ export class Bomba {
   }
   plant(c, site) {
     const g = this.g, b = this.bomb;
+    if (c.bmHand) this.setHand(c, false);
     b.st = 'planted'; b.carrier = null; b.site = site; b.prog = 0; b.who = null; b.planter = c; b.plantT = g.time;
-    b.x = c.pos.x; b.y = c.pos.y; b.z = c.pos.z;
+    this.spot(c, b);
     this.t = LIMITS.bmTimer;
     c.score += 100;
     this.stats.plants++; this.stats.siteN[site] = (this.stats.siteN[site] || 0) + 1;
     for (const br of g.brains) br.goalT = Math.min(br.goalT, 0.2);                 // botlar hemen yeni hedef seçer (savunan: geri al / imha, saldıran: bombayı koru)
-    this.ev({ e: 'bmp', v: c.id, s: site, p: [+b.x.toFixed(2), +b.y.toFixed(2), +b.z.toFixed(2)] });
+    this.ev({ e: 'bmp', v: c.id, s: site, p: [+b.x.toFixed(2), +b.y.toFixed(2), +b.z.toFixed(2)], r: +b.ry.toFixed(2) });
     g.emit('bmplant', { s: c, site });
   }
   defuse(d) {
@@ -238,6 +255,85 @@ export class Bomba {
       s.takeDamage(dmg, s.team === this.att ? null : pl, 'body', P, 'C4');
     }
     g.emit('bmboom', { b });
+  }
+
+  // 12.229 kurulan bombanın yeri: kuranın önü-sağı (3. şahıs diz çökme animasyonunda bombayı koyduğu nokta, BM_SPOT); arada duvar varsa ayağının dibi.
+  // Kot: o noktadan aşağı ışın (rampa / basamak), bulamazsa kuranın kotu
+  spot(c, b) {
+    const W = this.g.world, cy = Math.cos(c.yaw), sy = Math.sin(c.yaw);
+    const x = c.pos.x + BM_SPOT.x * cy + BM_SPOT.z * sy, z = c.pos.z - BM_SPOT.x * sy + BM_SPOT.z * cy;
+    b.x = c.pos.x; b.y = c.pos.y; b.z = c.pos.z; b.ry = c.yaw + BM_SPOT.ry;
+    const a = (this._sa ||= new THREE.Vector3()).set(c.pos.x, c.pos.y + 0.3, c.pos.z), e = (this._se ||= new THREE.Vector3()).set(x, c.pos.y + 0.3, z);
+    if (W?.clear && !W.clear(a, e)) return;
+    const h = W?.raycast?.(e.set(x, c.pos.y + 0.6, z), (this._dn ||= new THREE.Vector3(0, -1, 0)), 1.4, (this._sh ||= {}));
+    b.x = x; b.z = z; b.y = h && Math.abs(h.point.y - c.pos.y) < 0.6 ? h.point.y : c.pos.y;
+  }
+
+  // ───── 12.229 bombayı eline al / at ─────
+  canHand(s) { const b = this.bomb; return !!s && s.alive && !s.veh && !s.downed && b.st === 'carried' && b.carrier === s && (this.phase === 'live' || this.phase === 'prep'); }
+  // elde ↔ silah (sunucu her girdide bh ile; çevrimdışı / istemci tuşla). Silaha dönüş 0,3 sn hazırlık (silah çekme), iki tarafta aynı
+  setHand(s, on) {
+    on = !!on && this.canHand(s);
+    if (s.bmHand && !on) s.switchT = Math.max(s.switchT, 0.3);
+    if (on && !s.bmHand) { s.ads = false; s.reloadT = 0; s.cook = null; s.swing = null; s.burstLeft = 0; }
+    s.bmHand = on;
+  }
+  // tuş (5) / dokunmatik düğme: yerel oyuncu (çevrim içinde tahmin; sunucu girdideki bh'yi doğrular)
+  toggleHand(s) {
+    if (!s.bmHand && !this.canHand(s)) return false;
+    this.setHand(s, !s.bmHand);
+    if (!s.bmHand) this.g.emit('switch', s);                                         // silah yeniden çekilir (birinci şahıs çekme animasyonu)
+    return true;
+  }
+  // Player.update (girdi adımı, ateşten önce): bomba eldeyse sol tık atar, silah ateşlenmez. Dönüş true: bu adımda silah tetiği yok
+  inputTick(pl, s, buf, frz) {
+    if (s.bmHand && !this.canHand(s)) this.setHand(s, false);
+    if (!s.bmHand) return false;
+    s.ads = false;
+    if (!frz && buf > 0 && this.live) { pl.fireBuf = 0; pl.fireHeld = false; this.reqThrow(s); }
+    return true;
+  }
+  reqThrow(s) {
+    const g = this.g;
+    if (!this.net) return this.throwBomb(s);
+    g.online.edge('bt');                                                             // sunucu yolu yeniden hesaplar (bh bu girdide 0: atış önceki girdideki elden)
+    const p = new THREE.Vector3(), v = new THREE.Vector3();
+    throwState(s, THROW_ST, false, p, v, g.world);
+    s._bmThrowT = g.time; this.setHand(s, false);
+    g.sfx?.shot?.('throw', s.pos);
+    this.ui?.fly(p, v, g.time, s.id);                                                // tahmin: sunucunun 'bmd'si gelince aynı yola oturur
+    return true;
+  }
+  // yetkili: atış → yolun sonu (geçersizse ayağın dibi) → 'dropped'
+  throwBomb(s) {
+    const g = this.g, b = this.bomb;
+    if (this.net || !this.live || !s || !s.alive || s.vacant || s.veh || s.team !== this.att || b.st !== 'carried' || b.carrier !== s || !s.bmHand) return false;
+    const p = new THREE.Vector3(), v = new THREE.Vector3();
+    throwState(s, THROW_ST, false, p, v, g.world);
+    const L = this.flight(s, p, v);
+    this.setHand(s, false);
+    s._bmThrowT = g.time; s.protT = 0;
+    b.st = 'dropped'; b.carrier = null; b.prog = 0; b.who = null; b.thrower = s;
+    this.stats.drops++; this.stats.throws++;
+    const r2 = (x) => +x.toFixed(2);
+    if (L) { b.x = L.x; b.y = L.y; b.z = L.z; b.landT = g.time + L.t; }
+    else { b.x = s.pos.x; b.y = s.pos.y; b.z = s.pos.z; b.landT = 0; const W = g.world; if (W?.heightAt && !g.map.layered) b.y = Math.min(b.y, W.heightAt(b.x, b.z) + 0.05); }
+    if (!g.headless) g.sfx?.shot?.('throw', s.pos);
+    this.ev(L ? { e: 'bmd', v: s.id, th: 1, p: [r2(b.x), r2(b.y), r2(b.z)], f: [r2(p.x), r2(p.y), r2(p.z)], u: [r2(v.x), r2(v.y), r2(v.z)], ft: r2(L.t) } : { e: 'bmd', v: s.id, th: 1, p: [r2(b.x), r2(b.y), r2(b.z)] });
+    return true;
+  }
+  // atış yolu (el bombası fiziği). Geçerli iniş: duruyor, ≤ BM_THROW.max yatay, yol ızgarasında yürünebilir hücre, zeminden / katın kotundan ≤ 1,2 m (çatı / kasa üstü değil)
+  flight(s, p, v) {
+    const g = this.g, W = g.world, N = g.nav, max = Math.ceil(BM_THROW.fly / NADE.h);
+    const r = simulateNade(W, p, v, BM_THROW.fly, (this._fl ||= {}), max + 2);
+    const e = r.end;
+    if (!(Number.isFinite(e.x) && Number.isFinite(e.y) && Number.isFinite(e.z)) || r.n >= max) return null;
+    if (Math.hypot(e.x - s.pos.x, e.z - s.pos.z) > BM_THROW.max) return null;
+    const y = e.y - NADE.r;
+    if (N?.isFree && !N.isFree(e.x, e.z)) return null;
+    const fl = N?.floor ? N.floorAt(e.x, e.z) : W.groundAt ? W.groundAt(e.x, e.z) : W.heightAt(e.x, e.z);
+    if (y - fl > 1.2 || fl - y > 1.5) return null;
+    return { x: e.x, y, z: e.z, t: Math.max(NADE.h, (r.n - 1) * NADE.h) };
   }
 
   goLive() {
@@ -275,10 +371,10 @@ export class Bomba {
     for (const d of [...g.deployables]) removeDeployable(g, d);
     for (const p of g.projectiles) if (p.mesh) g.scene.remove(p.mesh);
     g.projectiles.length = 0;
-    const b = this.bomb; b.st = 'none'; b.carrier = null; b.planter = null; b.plantT = 0; b.site = -1; b.prog = 0; b.who = null;
+    const b = this.bomb; b.st = 'none'; b.carrier = null; b.planter = null; b.plantT = 0; b.site = -1; b.prog = 0; b.who = null; b.landT = 0; b.thrower = null;
     this.att = this.calcAtt();
     for (const s of g.soldiers) {
-      s.bmUse = false;
+      s.bmUse = false; s.bmHand = false; s._bmThrowT = null;
       if (s.vacant) continue;
       g.respawn(s, true);
     }
@@ -335,14 +431,15 @@ export class Bomba {
 
   // ───── çevrim içi ─────
   // [raunt, evre, süre ×10, taraf değişti, son raunt, raunt sayısı, saldıran (1 mavi · 2 kırmızı), bomba durumu (BST), taşıyan (savunana -1), x ×10, y ×10, z ×10,
-  //  bölge, ilerleme ×10, kuran / imha eden, kitli askerler]. mine: istemci saldıran takımda mı (taşıyan yalnız saldırana)
+  //  bölge, ilerleme ×10, kuran / imha eden, kitli askerler, bombayı ELİNDE tutan (12.229; herkese: elde bomba 3. şahısta görünür)]. mine: istemci saldıran takımda mı (taşıyan yalnız saldırana)
   pack(mine) {
     const b = this.bomb, kits = [];
     for (const s of this.g.soldiers) if (s.bmKit && !s.vacant) kits.push(s.id);
     const car = b.st === 'carried' && b.carrier ? (mine ? b.carrier.id : -1) : -1;
     const hidePos = b.st === 'carried' && !mine;
+    const hand = b.st === 'carried' && b.carrier?.bmHand ? b.carrier.id : -1;
     return [this.round, PHASES.indexOf(this.phase), Math.round(this.t * 10), this.swapped ? 1 : 0, WIN_CODE[this.last] || 0, this.rounds, WIN_CODE[this.att], BST.indexOf(b.st), car,
-      hidePos ? 0 : Math.round(b.x * 10), hidePos ? 0 : Math.round(b.y * 10), hidePos ? 0 : Math.round(b.z * 10), b.site, Math.round(b.prog * 10), b.who ? b.who.id : -1, kits];
+      hidePos ? 0 : Math.round(b.x * 10), hidePos ? 0 : Math.round(b.y * 10), hidePos ? 0 : Math.round(b.z * 10), b.site, Math.round(b.prog * 10), b.who ? b.who.id : -1, kits, hand];
   }
   applyNet(a) {
     if (!Array.isArray(a)) return;
@@ -358,15 +455,21 @@ export class Bomba {
     b.site = a[12] ?? -1; b.prog = (a[13] || 0) / 10; b.who = a[14] >= 0 ? S[a[14]] || null : null;
     const K = new Set(Array.isArray(a[15]) ? a[15] : []);
     for (const s of S) s.bmKit = K.has(s.id);
+    const me = this.g.playerSoldier, hid = Number.isInteger(a[16]) ? a[16] : -1;     // 12.229 elde bomba (yerel oyuncu kendi tahminini tutar; inputTick doğrular)
+    for (const s of S) if (s !== me) s.bmHand = s.id === hid;
   }
   onNet(ev) {
     const g = this.g, b = this.bomb;
     if (ev.e === 'bmr') { this.round = ev.n; this.phase = 'prep'; this.t = LIMITS.bmPrep; this.swapped = !!ev.sw; if (ev.a) this.att = WIN_OF[ev.a]; b.st = 'none'; b.carrier = null; b.prog = 0; b.who = null; }
     else if (ev.e === 'bmg') { this.phase = 'live'; this.t = LIMITS.bmRound; }
-    else if (ev.e === 'bmp') { this.stats.plants++; b.st = 'planted'; b.site = ev.s; [b.x, b.y, b.z] = ev.p; this.t = LIMITS.bmTimer; b.planter = g.soldiers[ev.v] || null; }
+    else if (ev.e === 'bmp') { this.stats.plants++; b.st = 'planted'; b.site = ev.s; [b.x, b.y, b.z] = ev.p; b.ry = ev.r || 0; this.t = LIMITS.bmTimer; b.planter = g.soldiers[ev.v] || null; }
     else if (ev.e === 'bmx') { this.stats.defuses++; b.st = 'defused'; }
     else if (ev.e === 'bmb') { this.stats.booms++; b.st = 'exploded'; [b.x, b.y, b.z] = ev.p; }
-    else if (ev.e === 'bmd') { b.st = 'dropped'; b.carrier = null; [b.x, b.y, b.z] = ev.p; }
+    else if (ev.e === 'bmd') {
+      b.st = 'dropped'; b.carrier = null; [b.x, b.y, b.z] = ev.p;
+      const v = g.soldiers[ev.v];
+      if (ev.th) { this.stats.throws++; b.landT = g.time + (ev.ft || 0); if (v) { v.bmHand = false; if (v !== g.playerSoldier || !(v._bmThrowT > g.time - 1.5)) v._bmThrowT = g.time; } }
+    }
     else if (ev.e === 'bme') { this.hist.push(WIN_OF[ev.w] || 'draw'); this.phase = 'post'; this.last = WIN_OF[ev.w]; this.why = BM_WHY[ev.y] || ''; this.endT = g.timeLeft === Infinity ? 0 : g.timeLeft; }
     this.fx(ev);
   }

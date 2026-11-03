@@ -31,6 +31,7 @@ import { mgAt, seatGun, seatZoom, vehSeatArmed } from '../sim/vehicle.js';
 import { arcYaw, arcPitch } from '../sim/emplacement.js';                             // 12.213 sabit yuva yayı                   // 12.177 araç kamerası (sürücü içeriden / takip)
 import { wName, opticName, fireName } from '../i18n/game.js';
 import { opticSvg } from './opticIcons.js';
+import { FpBomb } from './bombaAnim.js';                                          // 12.229 Bomba: birinci şahıs bomba elleri (kurma / imha / elde / atış)
 
 const VM_SCALE = 0.92;
 const _q = new THREE.Quaternion(), _eu = new THREE.Euler(), _sp = new THREE.Vector3(), _sp2 = new THREE.Vector3();
@@ -736,6 +737,16 @@ export class ViewModel {
       ls.x = (_sp.x * W) / 2; ls.y = (-_sp.y * H) / 2; ls.r = Math.hypot(((_sp2.x - _sp.x) * W) / 2, ((_sp2.y - _sp.y) * H) / 2); ls.on = _sp.z < 1;
     }
     this.setFade(fk * 0.5, (s.overlay === 'dot' || s.overlay === 'holo' || (s.overlay === 'lens' && s.opticDef?.reticle === 'dot')) && ads > ADS_HUD && !this.noFade ? 0 : 1);      // 12.174: öncü dürbünün siyah retikülü 3B kalır (HUD'a geçmez)      // noFade: adsalign 3B retikülü ölçer
+    // 12.229 Bomba: kurma / imha / bomba elde / atışta silah aşağı iner (eller bombayı tutar: bombaAnim.js FpBomb); bırakınca aynı yoldan geri gelir
+    if (this.game.bomba) {
+      const L = (this.bmv ||= new FpBomb(this)).update(dt, p, s), e = Math.min(1, L * 1.6), k = e * e * (3 - 2 * e);
+      this.bmLower = k;
+      if (k > 0.001) {
+        this.root.position.y -= k * 0.5; this.root.position.z += k * 0.08; this.root.position.x += k * 0.05 * mir;
+        this.root.rotateX(-k * 0.75);
+        if (k > 0.97) { this.root.visible = false; this.mLight.intensity = 0; }
+      }
+    }
   }
 
   // ── 12.195 yükleme pozu: sol / sağ el plan noktalarında, şarjör ele bağlı (elin tutma noktasında; havada süzülmez), cep ve dirsek kamera uzayında ──
@@ -1018,6 +1029,7 @@ export class Player {
       if (s.alive && kb.is('optic', code)) { this.game.online?.edge('o'); const o = s.cycleOptic(); if (o) { this.game.hud.toast($t('hud.t.optic', { o: opticName(s.opticId) }), '#cfe6ff'); this.saveEraOptic(); } }
       if (this.game.uyku?.prepKey(s, code)) return;                                 // 12.223 Uyku Modu hazırlığı: 1–5 = sınıf seçimi (hemen geçerli)
       if (this.game.bomba?.prepKey(s, code)) return;                                // 12.226 Bomba hazırlığı: 1–5 = sınıf seçimi
+      if (this.game.bomba && kb.is('bombHand', code) && s.alive && !s.veh) { this.game.bomba.toggleHand(s); return; }      // 12.229 bombayı eline al / silaha dön
       const slot = kb.slotOf(code);                                                 // tuş konumu (1 ana, 2 yedek, 3 bıçak, 4 ekipman) → items indeksi
       if (s.veh) { const n = /^Digit[1-4]$/.test(code) ? +code[5] - 1 : -1; if (n >= 0 && s.alive) seatPress(this.game, s, n); }      // araçta 1–4 = koltuk (silah: fare tekerleği) · 12.218 botlu koltuk = yer değiştir, insanlı = "koltuk dolu" 
       else if (slot >= 0) { const i = slotOrder(s.items.length)[slot]; if (i !== undefined) s.switchTo(i); }
@@ -1407,7 +1419,8 @@ export class Player {
       if (s.fly) this.flyMove(f, r, k, dt); else applyInput(s, inp, dt);
       // 12.193 bomba: hızlı atış (G / dokunmatik bomba düğmesi) = çek + hazırla + bırakınca at; R (pişir) ve sağ tık (atış şekli) girdinin adımında (sunucu: humanTick aynı sıra)
       const qn = this.nadeTick(dt);
-      const fHeld = !frz && (this.fireHeld || qn.held), fBuf = frz ? 0 : Math.max(this.fireBuf, qn.buf);
+      let fHeld = !frz && (this.fireHeld || qn.held), fBuf = frz ? 0 : Math.max(this.fireBuf, qn.buf);
+      if (g.bomba?.inputTick(this, s, fBuf, frz || !(this.locked || !!g.opts.nolock || !!T))) { fHeld = false; fBuf = 0; }      // 12.229 bomba elde: sol tık atar (çevrim içinde girdiye bt), silah ateşlenmez
       if (qn.buf > 0) g.online?.edge('fp');
       if (g.online) g.online.pushInput(inp, s, fHeld);
       if (!kb.held('jump', k)) this.spaceLatch = false;
@@ -1465,6 +1478,8 @@ export class Player {
         s.yaw + (Math.random() - 0.5) * sh * 0.06,
         -s.leanK * LEAN_ROLL * (1 - 0.6 * this.thirdT) + this.vm.camRoll + this.vm.punchR * (1 - this.thirdT) + (Math.random() - 0.5) * sh * 0.03,
       );
+      const bd = this.vm.bmDip || 0;                                              // 12.229 kurma / imha: göz biraz alçalır, bakış hafif aşağı (yalnız görsel; nişan / mermi gözden)
+      if (bd > 0.001) { const e = bd * bd * (3 - 2 * bd); cam.position.y -= e * 0.36; cam.rotation.x -= e * 0.2; }
       if (this.thirdT > 0.002) this.thirdCamera(dt, this.thirdT); else { this._cs = null; s.shotOff = null; this.bodyVisible = false; }
       const vo = g.online && g.online.viewOff;                      // çevrimiçi: tahmin düzeltmesi kamerada yumuşatılır (bkz. NetClient.reconcile)
       if (vo) { const k = Math.exp(-dt * 11); vo.x *= k; vo.y *= k; vo.z *= k; cam.position.x += vo.x; cam.position.y += vo.y; cam.position.z += vo.z; }

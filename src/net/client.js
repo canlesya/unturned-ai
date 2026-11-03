@@ -112,6 +112,7 @@ export class NetClient {
       gy: s.gunAim ? +s.gunAim.y.toFixed(4) : s.mgAim ? +s.mgAim.y.toFixed(4) : undefined, gp: s.gunAim ? +s.gunAim.p.toFixed(4) : s.mgAim ? +s.mgAim.p.toFixed(4) : undefined,      // 12.228 makineli koltuğunda takip kamerası: gözden artının noktasına      // 12.188 tank: topun hedef yönü (artının gösterdiği noktaya balistik çözüm) · 12.201 helikopter: burun / burun topu hedefi
       rv: s.rvWant ? 1 : undefined,                                                 // 12.223 Uyku Modu: sağ tık kaldırma (nişan yerine; Player.update → uyku.gate)
       bu: s.bmUse ? 1 : undefined,                                                  // 12.226 Bomba: kullanma tuşu basılı (bölgede kur / bombanın yanında imha; Player.update → bomba.gate)
+      bh: s.bmHand ? 1 : undefined, bt: e.bt ? 1 : undefined,                       // 12.229 Bomba: elde tutuyor · bu adımda attı (sunucu: taşıyan, canlı, saldıran, raunt sürüyor, önceki girdide elinde)
       rk: s.rkHeld ? 1 : undefined,                                                  // 12.201 helikopter roketi basılı (12.206: seçili silah roket + sol tık)
       vw: s.vw ? 1 : undefined,                                                      // 12.206 pilotun seçili silahı (1 roket: sol tık burun topunu ateşlemez)
       gP: s.veh && s.seat === 0 && s.veh.def.rockets && s.gunAim?.P ? [+s.gunAim.P.x.toFixed(2), +s.gunAim.P.y.toFixed(2), +s.gunAim.P.z.toFixed(2)] : undefined,      // 12.206 artının noktası (roketler oraya yakınsar)
