@@ -258,7 +258,9 @@ export function buildKoyMap(b, T, L) {
 
   // ── 7) doğuş: Han revakı altı (ilk 6: tur başı, çatı altında) + Han avlusu (10); kırmızı = ayna ──
   const SP = [[-10, 35.6], [-6, 35.6], [-2, 35.6], [2, 35.6], [6, 35.6], [10, 35.6], [-8.5, 31.0], [-5, 32.2], [5, 32.2], [8.5, 31.0], [-2.6, 30.0], [2.6, 30.0], [-6.4, 30.0], [6.4, 30.0], [-2.6, 33.0], [2.6, 33.0]];
-  const spawns = { blue: SP.map(([x, z]) => ({ x, z, ry: 0, y: T.heightAt(x, z) })), red: SP.map(([x, z]) => ({ x, z: -z, ry: PI, y: T.heightAt(x, -z) })) };
+  const GATE_X = 14, GATE_Z = 31.5;                                              // Han batı / doğu kapısı (plan.js); kuzey duvarı kapısız → doğan yüzünü en yakın kapıya döner (12.225)
+  const face = (x, z, gz) => { const gx = x < 0 ? -GATE_X : GATE_X; return Math.atan2(-(gx - x), -(gz - z)); };
+  const spawns = { blue: SP.map(([x, z]) => ({ x, z, ry: face(x, z, GATE_Z), y: T.heightAt(x, z) })), red: SP.map(([x, z]) => ({ x, z: -z, ry: face(x, -z, -GATE_Z), y: T.heightAt(x, -z) })) };
   stats.props = propBoxes.length;
   return { spawns, stats, propBoxes, roofs, dams: [damS, damN] };
 }
