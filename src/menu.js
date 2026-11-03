@@ -6,7 +6,7 @@ import './i18n/skins.js';
 import './i18n/wear.js';
 import { WEAR_SLOTS, WEAR_ITEMS, WEAR_PALS, GLOW_ITEMS, CLASS_WEAR, cleanWear, wearDecode, wearEncode } from './game/wearIds.js';      // 12.167 kıyafet kaplamaları
 import { PALETTES as WEAR_PAL } from './models/wear.js';
-import { MATCH_TYPES, TODS_LIST, defaultTickets, defaultScoreLimit, isTotalType as tot, totalMin as totMin, totalMax as totMax, uykuMaps } from './game/match.js';
+import { MATCH_TYPES, TODS_LIST, defaultTickets, defaultScoreLimit, isTotalType as tot, totalMin as totMin, totalMax as totMax, uykuMaps, bombaMaps } from './game/match.js';
 import { LIMITS, TUNE, maxPerFor } from './game/balance.js';
 import { frontTickets } from './game/match.js';                          // Cephe (12.158): saldıranın otomatik bileti
 import { MENU_CSS } from './menuStyle.js';
@@ -260,6 +260,7 @@ export function showMenu(onStart, onOnline) {
   // ───── Maç kurucu (Özel Oyun + Oda Kur ortak): 1 Mod → 2 Harita → 3 Ayarlar; sağda canlı özet + Oyna ─────
   const MODE_ICON = { conquest: '⚑', tdm: '⚔', dm: '☠', gg: '🔫', inf: '🧟', pb: '🎨', payload: '🚃', front: '🪖', uyku: '💤' };      // 12.223 Uyku Modu
   MODE_ICON.space = '🚀';                                                              // 12.157 Uzay (tdm kuralları: skor sınırı kartı tdm gibi)
+  MODE_ICON.bomba = '💣';                                                              // 12.226 Bomba
   function builderHTML(c, online) {
     const LOCAL = { map: 'map', type: 'type', tod: 'tod', weather: 'weather', third: 'third', diff: 'diff', time: 'time', tickets: 'tickets', perTeam: 'size', team: 'team', rounds: 'rounds' };
     const at = (k, v) => (online ? `data-a="olset" data-k="${k}" data-v="${v}"` : `data-a="${LOCAL[k]}" data-v="${k === 'third' ? (v ? '1' : '0') : v}"`);
@@ -271,8 +272,9 @@ export function showMenu(onStart, onOnline) {
     const eff = c.tickets || (tq === 'tdm' ? defaultScoreLimit(c.perTeam, tp === 'tdm' ? c.map : null) : defaultTickets(c.perTeam));
     const lk = tp === 'inf' || tp === 'gg' || tp === 'dm' || tp === 'pb' || tq === 'tdm' ? tq : 'conquest';
     const uy = tp === 'uyku', rnd = c.rounds === 10 ? 10 : 5;                     // 12.223 Uyku Modu: maç uzunluğu (raunt)
-    const limitTitle = uy ? t('uy.limitTitle') : tp === 'payload' ? t('payload.limitTitle') : tp === 'front' ? t('front.limitTitle') : t('menu.limit.' + lk);
-    const limitSum = uy ? t('uy.limitSum', { n: rnd, k: rnd === 10 ? 6 : 3 }) : tp === 'payload' ? t('payload.limitSum') : tp === 'front' ? t('front.limitSum', { n: c.tickets || frontTickets(c.perTeam) }) : t('menu.limitSum.' + lk, { n: eff, dm: LIMITS.dmKills, pb: LIMITS.pbKills });
+    const bmd = tp === 'bomba', brnd = c.rounds === 24 ? 24 : 12;                 // 12.226 Bomba: kısa 12 (ilk 7) / uzun 24 (ilk 13)
+    const limitTitle = bmd ? t('bm.limitTitle') : uy ? t('uy.limitTitle') : tp === 'payload' ? t('payload.limitTitle') : tp === 'front' ? t('front.limitTitle') : t('menu.limit.' + lk);
+    const limitSum = bmd ? t('bm.limitSum', { n: brnd, k: brnd / 2 + 1 }) : uy ? t('uy.limitSum', { n: rnd, k: rnd === 10 ? 6 : 3 }) : tp === 'payload' ? t('payload.limitSum') : tp === 'front' ? t('front.limitSum', { n: c.tickets || frontTickets(c.perTeam) }) : t('menu.limitSum.' + lk, { n: eff, dm: LIMITS.dmKills, pb: LIMITS.pbKills });
     const n = c.perTeam, sizeTxt = tot(tp) ? t('menu.nPeople', { n }) : `${n} vs ${n}`;
     const diffKey = tp === 'inf' ? 'hard' : c.diff, botsOn = online ? c.bots : true;
     const todLbl = ftod === 'day' ? t('space.todLbl') : ftod ? t('menu.nightMap') : c.tod === 'random' ? t('menu.random') : todLabel(c.tod);
@@ -287,7 +289,7 @@ export function showMenu(onStart, onOnline) {
     const mapDs = cm ? `<div class="mapdesc"><b>${mapNm(cm.id)}.</b> ${cm.id === 'kuzey' && tq === 'tdm' && tp === 'tdm' ? `<b class="tdmn">${t('map.kuzey.tdm')}</b> ` : ''}${mapDesc(cm.id)}</div>` : `<div class="mapdesc">${t('menu.randomMapDesc')}</div>`;
     const tods = ftod ? `<div class="hint">${t(ftod === 'day' ? 'space.todHint' : 'menu.nightOnly', { m: mapNm(cm.id) })}</div>`
       : `<div class="tods">${TODS_LIST.map(([k]) => `<button class="tod ${k} ${c.tod === k ? 'on' : ''}" ${at('tod', k)}><span>${todLabel(k)}</span></button>`).join('')}<button class="tod rnd ${c.tod === 'random' ? 'on' : ''}" ${at('tod', 'random')}><span>${t('menu.random')}</span></button></div>`;
-    const limitBody = uy ? `<div class="row">${[[5, t('uy.short'), t('uy.shortSub')], [10, t('uy.long'), t('uy.longSub')]].map(([v, l, sm]) => `<button class="chip ${rnd === v ? 'on' : ''}" ${at('rounds', v)}>${l}<small>${sm}</small></button>`).join('')}</div>` : tp === 'payload' ? `<div class="hint">${t('payload.limitHint', { t: Math.round(LIMITS.plTime / 60), b: TUNE.plBonus, r: TUNE.plRadius, d: TUNE.plBackDelay })}</div>` : tp === 'front' ? `<div class="hint">${t('front.limitHint', { n: c.tickets || frontTickets(c.perTeam) })}</div>` : tp === 'inf' || tp === 'gg' || tp === 'dm' || tp === 'pb' ? `<div class="hint">${t('menu.limitHint.' + tp, { dm: LIMITS.dmKills, pb: LIMITS.pbKills })}</div>`
+    const limitBody = bmd ? `<div class="row">${[[12, t('bm.short'), t('bm.shortSub')], [24, t('bm.long'), t('bm.longSub')]].map(([v, l, sm]) => `<button class="chip ${brnd === v ? 'on' : ''}" ${at('rounds', v)}>${l}<small>${sm}</small></button>`).join('')}</div>` : uy ? `<div class="row">${[[5, t('uy.short'), t('uy.shortSub')], [10, t('uy.long'), t('uy.longSub')]].map(([v, l, sm]) => `<button class="chip ${rnd === v ? 'on' : ''}" ${at('rounds', v)}>${l}<small>${sm}</small></button>`).join('')}</div>` : tp === 'payload' ? `<div class="hint">${t('payload.limitHint', { t: Math.round(LIMITS.plTime / 60), b: TUNE.plBonus, r: TUNE.plRadius, d: TUNE.plBackDelay })}</div>` : tp === 'front' ? `<div class="hint">${t('front.limitHint', { n: c.tickets || frontTickets(c.perTeam) })}</div>` : tp === 'inf' || tp === 'gg' || tp === 'dm' || tp === 'pb' ? `<div class="hint">${t('menu.limitHint.' + tp, { dm: LIMITS.dmKills, pb: LIMITS.pbKills })}</div>`
       : `<div class="row">${(tq === 'tdm' ? SCORE_OPTS : TICKET_OPTS).map((v) => `<button class="chip ${c.tickets === v ? 'on' : ''}" ${at('tickets', v)}>${v || t('menu.auto')}</button>`).join('')}</div><div class="hint">${t('menu.now')}: <b>${eff}</b></div>`;
     const sizeAttrs = online ? { id: 'ocSize', num: 'ocSizeV' } : { id: 'rSize', num: 'vSize' };
     const sizeCard = `<div class="sc wide"><h4>${t('menu.size')} <em>${tot(tp) ? t('menu.sizeTot', { n: hi(tp) }) : t('menu.sizeTeam')}${!tot(tp) && hi(tp, c.map) > 32 ? ' · ' + t('menu.sizeBig', { n: hi(tp, c.map) }) : ''}${botsOn ? t('menu.sizeBots') : t('menu.sizeNoBots')}</em></h4>
@@ -298,7 +300,7 @@ export function showMenu(onStart, onOnline) {
         ${botsOn ? (tp === 'inf' ? `<div class="row"><button class="chip on">${diffLabel('hard')}</button></div><div class="hint">${t('menu.infHard')}</div>` : `<div class="row">${Object.keys(DIFFICULTY).map((k) => chip('diff', k, diffLabel(k))).join('')}</div>`) : ''}</div>`;
     const teamCard = !online && !tot(tp) ? `<div class="sc"><h4>${t('menu.yourTeam')}</h4><div class="row">${[['blue', 'blue'], ['red', 'red'], ['random', '']].map(([k, cl]) => `<button class="chip ${cl} ${c.team === k ? 'on' : ''}" ${at('team', k)}>${t('menu.team.' + k)}</button>`).join('')}</div></div>` : '';
     const limitCard = `<div class="sc"><h4>${limitTitle}</h4>${limitBody}</div>`;
-    const timeCard = uy ? `<div class="sc"><h4>${t('menu.time')}</h4><div class="hint">${t('uy.timeHint')}</div></div>` : `<div class="sc"><h4>${t('menu.time')}</h4>${tp === 'payload' ? `<div class="hint">${t('payload.timeHint', { t: Math.round(LIMITS.plTime / 60), b: TUNE.plBonus })}</div>` : ''}<div class="row">${TIME_OPTS.map((v) => `<button class="chip ${c.time === v ? 'on' : ''}" ${at('time', v)}>${timeLabel(v)}</button>`).join('')}</div></div>`;
+    const timeCard = bmd ? `<div class="sc"><h4>${t('menu.time')}</h4><div class="hint">${t('bm.timeHint')}</div></div>` : uy ? `<div class="sc"><h4>${t('menu.time')}</h4><div class="hint">${t('uy.timeHint')}</div></div>` : `<div class="sc"><h4>${t('menu.time')}</h4>${tp === 'payload' ? `<div class="hint">${t('payload.timeHint', { t: Math.round(LIMITS.plTime / 60), b: TUNE.plBonus })}</div>` : ''}<div class="row">${TIME_OPTS.map((v) => `<button class="chip ${c.time === v ? 'on' : ''}" ${at('time', v)}>${timeLabel(v)}</button>`).join('')}</div></div>`;
     const todCard = `<div class="sc wide"><h4>${t('menu.tod')}</h4>${tods}</div>`;
     const devCard = online ? '' : `<div class="sc wide"><h4>${t('menu.devMode')} <em>${t('menu.devModeSub')}</em></h4><div class="row">${[[false, t('menu.off'), ''], [true, t('menu.on'), t('menu.devOnSub')]].map(([v, l, sm]) => `<button class="chip ${!!p.devMode === v ? 'on' : ''}" data-a="devmode" data-v="${v ? '1' : '0'}">${l}${sm ? `<small>${sm}</small>` : ''}</button>`).join('')}</div>${p.devMode ? `<div class="hint" style="margin-top:8px">${t('menu.devKeys')}</div>` : ''}</div>`;
     const weatherCard = cm?.noWeather ? `<div class="sc"><h4>${t('menu.weather')}</h4><div class="hint">${t('space.weatherHint')}</div></div>` : `<div class="sc"><h4>${t('menu.weather')}</h4><div class="row">${[...WEATHERS.map((w) => w[0]), 'random'].map((k) => `<button class="chip ${c.weather === k ? 'on' : ''}" ${at('weather', k)}>${k === 'random' ? t('menu.random') : weatherLabel(k)}</button>`).join('')}</div></div>`;
@@ -312,7 +314,7 @@ export function showMenu(onStart, onOnline) {
     const steps = (online ? [['bs0', t('menu.oc.room')]] : []).concat([['bs1', t('menu.step.mode')], ['bs2', t('menu.step.map')], ['bs3', t('menu.step.settings')]]).map(([id, s], i) => `<button class="${i === 0 ? 'on' : ''}" data-a="jump" data-v="${id}"><i>${i + 1}</i>${s}</button>`).join('<span></span>');
     const msg = online && ol.msg ? `<div class="olmsg ${ol.err ? 'err' : ''}">${esc(ol.msg)}</div>` : '';
 
-    const rows = [[t('menu.row.mode'), `${icon} ${modeLabel(tp)}`], [t('menu.row.players'), `${sizeTxt}${online && !c.bots ? ' · ' + t('menu.noBots') : ''}`], [t('menu.time'), uy ? '2:30 × ' + rnd : timeLabel(c.time)], [limitTitle, limitSum],
+    const rows = [[t('menu.row.mode'), `${icon} ${modeLabel(tp)}`], [t('menu.row.players'), `${sizeTxt}${online && !c.bots ? ' · ' + t('menu.noBots') : ''}`], [t('menu.time'), bmd ? '1:55 × ≤' + brnd : uy ? '2:30 × ' + rnd : timeLabel(c.time)], [limitTitle, limitSum],
       [t('menu.bots'), botsOn ? diffLabel(diffKey) : t('menu.off')], [t('menu.tod'), todLbl], [t('menu.row.weather'), weaLbl], [t('menu.row.cam'), c.third ? t('menu.third') : t('menu.first')]].concat(online || !p.devMode ? [] : [[t('menu.dev'), t('menu.on')]]);
     const startBtn = online
       ? `<button class="play" data-a="olcreate" ${ol.busy ? 'disabled' : ''}>${ico('play')}<span>${t('menu.oc.create')}</span></button><button class="chip back" data-a="oview" data-v="online">‹ ${t('menu.back')}</button>`
@@ -686,13 +688,13 @@ export function showMenu(onStart, onOnline) {
       case 'edmap': p.edMap = v; break;
       case 'edopen': launchEditor(); return;
       case 'edclear': if (confirm(t('menu.ed.confirm', { m: mapNm(p.edMap) }))) { clearEdits(p.edMap); } break;
-      case 'type': if (p.type !== v) adv = 'bs2'; p.type = v; if (tot(v)) p.perTeam = Math.max(lo(v), Math.min(hi(v), p.perTeam)); if (v === 'inf') p.map = 'newyork'; else if (v === 'pb') { if (!MAPS[p.map]?.only?.includes('pb') && p.map !== 'random') p.map = 'boyakulesi'; } else if (v === 'payload') p.map = 'maden'; else if (v === 'front') p.map = 'cephe'; else if (v === 'space') p.map = 'yorunge'; else if (v === 'uyku') { const um = uykuMaps(MAPS); if (!um.includes(p.map) && p.map !== 'random') p.map = um[0]; p.perTeam = 5; } else if (MAPS[p.map]?.only && !MAPS[p.map].only.includes(v)) p.map = DEFAULT_MAP; fitSize(p); break;
+      case 'type': if (p.type !== v) adv = 'bs2'; p.type = v; if (tot(v)) p.perTeam = Math.max(lo(v), Math.min(hi(v), p.perTeam)); if (v === 'inf') p.map = 'newyork'; else if (v === 'pb') { if (!MAPS[p.map]?.only?.includes('pb') && p.map !== 'random') p.map = 'boyakulesi'; } else if (v === 'payload') p.map = 'maden'; else if (v === 'front') p.map = 'cephe'; else if (v === 'space') p.map = 'yorunge'; else if (v === 'uyku') { const um = uykuMaps(MAPS); if (!um.includes(p.map) && p.map !== 'random') p.map = um[0]; p.perTeam = 5; } else if (v === 'bomba') { const bm = bombaMaps(MAPS); if (!bm.includes(p.map) && p.map !== 'random') p.map = bm[0]; p.perTeam = 5; } else if (MAPS[p.map]?.only && !MAPS[p.map].only.includes(v)) p.map = DEFAULT_MAP; fitSize(p); break;
       case 'team': p.team = v; break;
       case 'diff': p.diff = v; break;
       case 'size': p.perTeam = +v; break;
       case 'tickets': p.tickets = +v; break;
       case 'time': p.time = +v; break;
-      case 'rounds': p.rounds = +v === 10 ? 10 : 5; break;                                // 12.223 Uyku Modu maç uzunluğu
+      case 'rounds': p.rounds = [5, 10, 12, 24].includes(+v) ? +v : 5; break;            // 12.226 Bomba: 12 / 24                                // 12.223 Uyku Modu maç uzunluğu
       case 'oltm': p.olTeam = v; break;
       case 'oview': screen = v; ol = { ...ol, msg: '', err: false }; break;
       case 'olset': {
@@ -700,7 +702,7 @@ export function showMenu(onStart, onOnline) {
         if ((k === 'type' || k === 'map') && c[k] !== v) adv = k === 'type' ? 'bs2' : 'bs3';
         c[k] = v === 'true' ? true : v === 'false' ? false : (k === 'perTeam' || k === 'tickets' || k === 'time' || k === 'rounds') ? +v : v;
         if (k === 'type' && tot(v)) c.perTeam = Math.max(lo(v), Math.min(hi(v), c.perTeam));
-        if (k === 'type' && v === 'inf') c.map = 'newyork'; else if (k === 'type' && v === 'pb') { if (!MAPS[c.map]?.only?.includes('pb') && c.map !== 'random') c.map = 'boyakulesi'; } else if (k === 'type' && v === 'payload') c.map = 'maden'; else if (k === 'type' && v === 'front') c.map = 'cephe'; else if (k === 'type' && v === 'space') c.map = 'yorunge'; else if (k === 'type' && v === 'uyku') { const um = uykuMaps(MAPS); if (!um.includes(c.map) && c.map !== 'random') c.map = um[0]; c.perTeam = 5; } else if (k === 'type' && MAPS[c.map]?.only && !MAPS[c.map].only.includes(v)) c.map = DEFAULT_MAP;
+        if (k === 'type' && v === 'inf') c.map = 'newyork'; else if (k === 'type' && v === 'pb') { if (!MAPS[c.map]?.only?.includes('pb') && c.map !== 'random') c.map = 'boyakulesi'; } else if (k === 'type' && v === 'payload') c.map = 'maden'; else if (k === 'type' && v === 'front') c.map = 'cephe'; else if (k === 'type' && v === 'space') c.map = 'yorunge'; else if (k === 'type' && v === 'uyku') { const um = uykuMaps(MAPS); if (!um.includes(c.map) && c.map !== 'random') c.map = um[0]; c.perTeam = 5; } else if (k === 'type' && v === 'bomba') { const bm = bombaMaps(MAPS); if (!bm.includes(c.map) && c.map !== 'random') c.map = bm[0]; c.perTeam = 5; } else if (k === 'type' && MAPS[c.map]?.only && !MAPS[c.map].only.includes(v)) c.map = DEFAULT_MAP;
         if (k === 'type' || k === 'map') fitSize(c);
         break;
       }

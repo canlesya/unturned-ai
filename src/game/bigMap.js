@@ -520,6 +520,7 @@ export class BigMap {
     x.font = `700 ${10.5 * D}px Bahnschrift, sans-serif`; x.textAlign = 'left'; x.textBaseline = 'middle'; x.lineWidth = 3 * D; x.strokeStyle = 'rgba(0,0,0,.8)'; x.fillStyle = PCOL.sq;
     for (const [nm, px, py] of labels) { x.strokeText(nm, px + 7 * D, py); x.fillText(nm, px + 7 * D, py); }
     g.pings?.drawMap(x, X, Y, 1.3 * D);
+    g.bomba?.ui?.drawMap(x, X, Y, D);                                     // 12.226 Bomba: A / B bölgeleri, bomba
     // doğuş hedefleri
     if (this.mode === 'deploy') this.drawTargets(x, D, now);
     // ben: bakış konisi + ok

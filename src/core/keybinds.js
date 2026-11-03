@@ -38,6 +38,7 @@ export const ACTIONS = [
   ['scoreboard', 'Skor tablosu (basılı tut)', 3, ['Tab']],
   // 12.177 araçlar: E (sağa eğilmeyle ortak; araç yanında / içindeyken binme-inme), V (bıçakla ortak; araçtayken kamera), koltuk = 1–4, far = Fener tuşu, korna = sol tık (sürücü)
   ['vehicle', 'Araca bin / in', 4, ['KeyE']],
+  ['use', 'Bomba kur / imha et (basılı tut)', 4, ['KeyE']],                           // 12.226 Bomba modu: E (sağa eğilme / araçla ortak; bölgede / bombanın yanındayken basılı = kur / imha, eğilmez)
   ['vehCam', 'Araç kamerası (içeriden / takip)', 4, ['KeyV']],
   ['vehAlt', 'Helikopter silahı: burun topu ↔ roket · fare tekerleği de', 4, ['KeyQ']],      // 12.201: sağ tık araçta yakınlaştırma; Q araçta eğilmez (sola eğilmeyle ortak) · 12.206: Q seçer, sol tık ateşler (kimlik aynı: kayıtlı tuş korunur)
 ].map(([id, label, group, def]) => ({ id, label, group, def }));

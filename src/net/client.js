@@ -111,6 +111,7 @@ export class NetClient {
       co: s.shotOff ? [+s.shotOff.x.toFixed(2), +s.shotOff.y.toFixed(2), +s.shotOff.z.toFixed(2)] : undefined,
       gy: s.gunAim ? +s.gunAim.y.toFixed(4) : s.mgAim ? +s.mgAim.y.toFixed(4) : undefined, gp: s.gunAim ? +s.gunAim.p.toFixed(4) : s.mgAim ? +s.mgAim.p.toFixed(4) : undefined,      // 12.228 makineli koltuğunda takip kamerası: gözden artının noktasına      // 12.188 tank: topun hedef yönü (artının gösterdiği noktaya balistik çözüm) · 12.201 helikopter: burun / burun topu hedefi
       rv: s.rvWant ? 1 : undefined,                                                 // 12.223 Uyku Modu: sağ tık kaldırma (nişan yerine; Player.update → uyku.gate)
+      bu: s.bmUse ? 1 : undefined,                                                  // 12.226 Bomba: kullanma tuşu basılı (bölgede kur / bombanın yanında imha; Player.update → bomba.gate)
       rk: s.rkHeld ? 1 : undefined,                                                  // 12.201 helikopter roketi basılı (12.206: seçili silah roket + sol tık)
       vw: s.vw ? 1 : undefined,                                                      // 12.206 pilotun seçili silahı (1 roket: sol tık burun topunu ateşlemez)
       gP: s.veh && s.seat === 0 && s.veh.def.rockets && s.gunAim?.P ? [+s.gunAim.P.x.toFixed(2), +s.gunAim.P.y.toFixed(2), +s.gunAim.P.z.toFixed(2)] : undefined,      // 12.206 artının noktası (roketler oraya yakınsar)
@@ -192,6 +193,7 @@ export class NetClient {
     g.timeLeft = m.tl < 0 ? Infinity : m.tl;
     if (m.pl && g.payload) g.payload.applyNet(m.pl);                           // Vagon: konum + durum (gösterim netFrame'de yumuşar)
     if (m.fr && g.front) g.front.applyNet(m.fr);
+    if (m.bm && g.bomba) g.bomba.applyNet(m.bm);                               // 12.226 Bomba: raunt / evre / süre / saldıran / bomba durumu / ilerleme / kitler
     if (m.uy && g.uyku) g.uyku.applyNet(m.uy);                                 // 12.223 Uyku Modu: raunt / evre / süre / taraf                               // Cephe: etkin sektör (doğuş aşaması + şerit)
     if (m.vh && g.vehicles) g.vehicles.netSnap(m.k, m.vh);                     // 12.177: değişen araçlar (araç başına tampon; gösterim interpolate'te)
     // 12.191 bayraklar: [sahip, ilerleme, alandaki Mavi, Kırmızı]; ilk snapshot (geç katılım) bildirim / ses çıkarmaz, yalnız durumu kurar

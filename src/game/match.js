@@ -9,6 +9,7 @@ export const MATCH_TYPES = {
   space: { get label() { return t('space.label'); }, get desc() { return t('space.desc'); } },     // 12.157 Uzay: takım çatışması (tdm kuralları) + düşük yer çekimi + enerji silahları + uzay kıyafeti (src/game/space.js)
   front: { get label() { return t('mode.front.label'); }, get desc() { return t('mode.front.desc'); } },        // Cephe: çekişmeli cephe hattı, 7 noktalık zincir (src/game/front.js, 12.161)
   uyku: { get label() { return t('mode.uyku.label'); }, get desc() { return t('mode.uyku.desc'); } },        // 12.223 Uyku Modu: raunt tabanlı, uyuyan asker kaldırılır (src/game/uyku.js)
+  bomba: { get label() { return t('mode.bomba.label'); }, get desc() { return t('mode.bomba.desc'); } },     // 12.226 Bomba: saldıran kurar, savunan imha eder (src/game/bomba.js)
   pb: { label: 'Paintball', desc: 'Herkes tek, herkesin kendi boya rengi. Sabit boya silahları, Boya Kulesi\'nde üç kat: zemin siperleri, kaleler, kule tepesi. Kuyuya düşen elenir; ilk 30 elemeye ulaşan kazanır.' },
 };
 import { LIMITS, maxPerFor, BIG_MAPS } from './balance.js';
@@ -17,12 +18,18 @@ import '../i18n/payload.js';
 import '../i18n/space.js';
 import '../i18n/front.js';
 import '../i18n/uyku.js';
+import '../i18n/bomba.js';
 import { WSTATS } from './stats.js';
 
 // 12.223 Uyku Modu haritaları: küçük haritalar (ilki varsayılan; listede olup kurulu olmayan harita atlanır: uykukoy ayrı dalda yapılıyor)
 export const UYKU_MAPS_ALL = ['uykukoy', 'depo', 'liman', 'kasaba', 'us', 'colgecidi'];
 export const uykuMaps = (MAPS) => UYKU_MAPS_ALL.filter((id) => MAPS[id] && !MAPS[id].dev && (!MAPS[id].only || MAPS[id].only.includes('uyku')));
 export const UYKU_ROUNDS = [5, 10];
+// 12.226 Bomba haritaları: kayıtta bomb: true olan (harita kurulumunda map.bombSites A / B tanımlı); sıra kayıttaki sıra (Çöl Geçidi ilk: varsayılan)
+export const BOMBA_MAPS_ALL = ['colgecidi', 'uykukoy'];
+export const bombaMaps = (MAPS) => [...BOMBA_MAPS_ALL, ...Object.keys(MAPS)].filter((id, i, a) => a.indexOf(id) === i && MAPS[id] && MAPS[id].bomb && !MAPS[id].dev);
+// maç uzunluğu: kısa 12 raunt (ilk 7, 6. rauntan sonra taraf değişir), uzun 24 (ilk 13, 12. rauntan sonra)
+export const bombaRounds = (r) => (+r === 24 ? 24 : 12);
 export const DM_KILLS = 40, DM_MAX = 10;                 // varsayılanlar; oyun LIMITS'i okur (admin paneli)
 export const GG_LEN = 15;                                    // stats.js → GG_LADDER.length (bağımlılık olmasın diye sabit; test eşitliği doğrular)
 export const INF_MAX = 24, INF_MIN = 4;                                  // Enfekte: toplam oyuncu (çift sayı)
@@ -53,6 +60,11 @@ export function makeMatch(o = {}) {
     const perTeam = Math.max(1, Math.min(LIMITS.uyMax, Math.round(o.perTeam || 5))), rounds = o.rounds === 10 ? 10 : 5;
     return { type: 'uyku', uyku: true, rounds, front: false, payload: false, infection: false, total: 0, ffa: false, gungame: false, paintball: false, fixed: false, killLimit: 0,
       perTeam, tickets: rounds === 10 ? 6 : 3, scoreBased: false, time: 0, label: o.label || `${perTeam}v${perTeam}`, allFlags: false };
+  }
+  if (o.type === 'bomba') {                                         // 12.226 Bomba: raunt sayısı (12 kısa / 24 uzun), raunt süresi bomba.js'te (LIMITS.bmRound), genel süre yok
+    const perTeam = Math.max(1, Math.min(LIMITS.bmMax, Math.round(o.perTeam || 5))), rounds = bombaRounds(o.rounds);
+    return { type: 'bomba', bomba: true, rounds, front: false, payload: false, infection: false, total: 0, ffa: false, gungame: false, paintball: false, fixed: false, killLimit: 0,
+      perTeam, tickets: rounds / 2 + 1, scoreBased: false, time: 0, label: o.label || `${perTeam}v${perTeam}`, allFlags: false };
   }
   if (o.type === 'space') return { ...makeMatch({ ...o, type: 'tdm' }), type: 'space', space: true };      // 12.157 Uzay: tdm kuralları (skor sınırı / süre) + mode.space (yer çekimi, silahlar, kıyafet)
   const fr = o.type === 'front';                                    // Cephe (12.158): conquest bayrakları sektörlere kilitli, yalnız saldıranın bileti

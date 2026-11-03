@@ -49,6 +49,7 @@ import { Payload } from './payload.js';
 import { ObjFx } from './objFx.js';                                  // 12.191 bayrak direği + zemin halkası (yalnız istemci)
 import { Front } from './front.js';                                  // Cephe modu (12.158)
 import { Uyku } from './uyku.js';                                    // 12.223 Uyku Modu (raunt, uyuma / kaldırma)
+import { Bomba } from './bomba.js';                                   // 12.226 Bomba (kur / imha et, raunt)
 import { Vehicles } from './vehicles.js';                            // 12.177 araçlar (Kuzey Vadisi: jip)
 import { SoldierGrid } from './crowd.js';                                  // 12.203 asker ızgarası (kalabalık maç)
 import { SpawnSet } from './spawnPoints.js';                               // 12.203 doğuş noktaları
@@ -239,6 +240,8 @@ export class Game {
     this.front = this.mode.front && this.map.front ? new Front(this) : null;           // Cephe modu: sektörler + aşamalı doğuşlar (front.js)
     this.uyku = this.mode.uyku ? new Uyku(this) : null;                               // 12.223 Uyku Modu: raunt / uyuma / kaldırma (uyku.js)
     if (this.uyku) this.map.baseZones = null;                                       // üs cezası yok (taraflar raunt raunt doğuşta; son kalan üste saklanabilir)
+    this.bomba = this.mode.bomba && this.map.bombSites?.length ? new Bomba(this) : null;      // 12.226 Bomba: raunt / bomba / kur / imha (bomba.js); bölgesi olmayan haritada kurulmaz
+    if (this.bomba) this.map.baseZones = null;
     this.vehicles = Vehicles.wanted(this) ? new Vehicles(this) : null;              // 12.177: araç doğuşu olan haritada (Ele Geçirme) araçlar; diğer haritalarda null → davranış aynı
     initSupply(this);                                                              // 12.208 ikmal kutuları (araçlı büyük harita)
     if (this.vehicles && !opts.online && opts.bots !== false && !opts.editor) vnav(this);   // 12.189 bot sürücü araç ızgarası: kurulumda (harita başına bir kez, ~0,3 sn; maç ortasında sunucu takılmasın)
@@ -559,6 +562,12 @@ export class Game {
       s.alive = false; s.hp = 0; s.deadT = 99; this.uyku.onDeath(s);
       return s;
     }
+    if (this.bomba && !this.bomba.prep) {                                        // 12.226 Bomba raunt içinde: botun yerini olduğu gibi alır (bombası / canı korunur), ölü yuvaya gelen raunt sonuna dek izler
+      if (alive0) { s.hp = Math.min(s.maxHp, hp0); return s; }
+      if (this.bomba.joined(s)) return s;                                        // boş takıma ilk gelen (rakipsiz raunt): raunt baştan
+      s.alive = false; s.hp = 0; s.deadT = 99; this.bomba.onDeath(s);
+      return s;
+    }
     this.respawn(s, true);
     return s;
   }
@@ -595,6 +604,10 @@ export class Game {
     }
     s.ads = !!inp.a;                                                  // 12.145: nişan isteği adsT güncellemesinden ÖNCE (istemcide fare olayı karenin s.update'inden önce gelir; eski sıra sunucu adsT'sini bir adım geride bırakıp nişandan koşuya dönüşte ~5 cm tahmin düzeltmesi yaptırıyordu)
     if (this.uyku) this.uyku.gate(s, !!inp.rv);                       // sağ tık kaldırmaysa nişan kapanır (istemci aynı kapıdan geçer)
+    if (this.bomba) {                                                 // 12.226 Bomba: hazırlıkta donuk; kullanma tuşu (bu) bölgede / bombanın yanındaysa kur / imha et (ilerleme bomba.js)
+      if (this.bomba.frozen(s)) { inp = { ...inp, f: 0, r: 0, l: 0, s: 0, j: 0, dn: 0, fh: 0, fp: 0, a: 0, ab: 0, ve: 0, nu: 0 }; s.ads = false; }
+      s.bmUse = this.bomba.gate(s, !!inp.bu);
+    }
     s.update(dt);
     if (s.veh) V.place(s);
     else if (s.alive) { this.world.move(s, dt); V?.pushSoldier(s); this.fallCheck(s); this.swimCheck(s, dt); }
@@ -1471,6 +1484,7 @@ export class Game {
     updateGadgets(this, dt, this.time);
     this.payload?.netFrame(dt);
     this.uyku?.frame(dt);                                                                         // 12.223 raunt / kanama süresi (gösterim)
+    this.bomba?.frame(dt);                                                                        // 12.226 raunt / bomba süresi (gösterim)
     this.effects.update(dt);
     this.hud.update(dt);
     this.payload?.frame(dt);
@@ -1612,6 +1626,7 @@ export class Game {
         case 'swg': if (by && by !== me) { by.swing = { t: 0, dur: ev.d, kind: ev.k, idx: 0, done: true, hv: !!ev.h }; by.comboT = ev.d + 0.38; } break;
         case 'half': if (!!ev.s !== this.swapSides) this.halfSwap(true); break;          // 12.197 devre arası: taraflar yer değiştirdi
         case 'uyd': case 'uyv': case 'uyo': case 'uyr': case 'uyg': case 'uye': this.uyku?.onNet(ev); break;      // 12.223 Uyku Modu: uyudu / kaldırıldı / elendi / raunt başı / başla / raunt sonu
+        case 'bmr': case 'bmg': case 'bme': case 'bmk': case 'bmd': case 'bmp': case 'bmx': case 'bmb': this.bomba?.onNet(ev); break;      // 12.226 Bomba: raunt başı / başla / raunt sonu / bomba alındı / düştü / kuruldu / imha / patladı
         case 'as': if (ev.to === me.id) { assistPop(this, this.soldiers[ev.v], ev.p); this.emit('assist', { by: me, victim: this.soldiers[ev.v], pts: ev.p }); } break;     // 12.165: kişisel asist bildirimi (sunucu yalnız ilgiliye yollar)
       }
     }
@@ -2222,6 +2237,7 @@ export class Game {
   updateMode(dt) {
     if (this.timeLeft !== Infinity) this.timeLeft -= dt;
     if (this.uyku) this.uyku.update(dt);                                          // 12.223 Uyku Modu: raunt akışı, kanama, kaldırma (timeLeft = raunt süresi)
+    if (this.bomba) this.bomba.update(dt);                                        // 12.226 Bomba: raunt akışı, bomba (timeLeft = raunt / bomba süresi)
     if (this.payload) this.payload.update(dt);                                     // vagon: itme / çekişme / geri kayma, kontrol noktası, uzatma
     if (this.mode.infection) {
       const c = this.infCounts(); this.tickets.blue = c.h; this.tickets.red = c.z;
@@ -2359,7 +2375,7 @@ export class Game {
       else this.ggAdvance(killer);
       if (knife && victim.ggLevel > 0) this.ggDemote(victim);                                       // bıçakla öldürülen bir seviye geriler
     }
-    if (this.uyku) { /* 12.223 skor = raunt (uyku.js) */ }
+    if (this.uyku || this.bomba) { /* 12.223 / 12.226 skor = raunt (uyku.js / bomba.js) */ }
     else if (this.mode.scoreBased) { if (killer && killer.team !== victim.team) this.tickets[killer.team] += 1; }      // TDM: öldürmek takıma 1 skor
     else if (!this.ffa) this.tickets[victim.team] -= 1;                                                  // Cephe dahil (12.161: iki tarafa simetrik bilet)
     const P = this._pen && this._pen.by === killer ? this._pen : null;                              // 12.164: tek mermiyle birden çok öldürme (delip geçme)
@@ -2386,6 +2402,7 @@ export class Game {
     if (this.front) victim.respawnT *= this.front.respawnMul(victim.team);                                  // Cephe: doğma süresi çarpanı (admin)     // Vagon: saldıran daha çabuk, savunan biraz geç doğar (dalga dengesi)
     if (victim.isPlayer && this.player) this.player.camPos.copy(victim.eye());
     if (this.uyku) this.uyku.onDeath(victim);                                         // 12.223 intihar / düşme / boğulma: raunt sonuna dek elenir
+    if (this.bomba) this.bomba.onDeath(victim);                                       // 12.226 raunt sonuna dek ölü (izler); taşıdığı bomba yere düşer
   }
 
   checkEnd() {
@@ -2405,6 +2422,8 @@ export class Game {
     } else if (this.payload) {
       const r = this.payload.result();
       if (r) [w, why] = r;
+    } else if (this.bomba) {
+      if (this.bomba.over) [w, why] = this.bomba.over;                          // 12.226 son raundun afişinden sonra
     } else if (this.uyku) {
       if (this.uyku.over) [w, why] = this.uyku.over;                            // 12.223 son raundun afişinden sonra
     } else if (this.mode.infection) {
@@ -2440,7 +2459,7 @@ export class Game {
     const wname = this.ffa ? (this.soldiers.find((s) => s.team === w)?.name || '') : inf ? (w === 'red' ? t('match.zombies') : t('match.humans')) : TEAMS[w]?.name || '';
     const gg = this.mode.gungame, best = list[0] ? t('match.teamBest', { name: list[0].name, score: list[0].score }) : '';
     const tb = Math.max(0, Math.round(this.tickets.blue)), tr = Math.max(0, Math.round(this.tickets.red));
-    const sub = this.uyku ? t('uy.endSub', { b: tb, r: tr, n: this.uyku.hist.length || this.uyku.round, rv: this.uyku.stats.revives, best: list[0]?.name || '', score: list[0]?.score || 0 }) : this.front ? t('front.endSub', { b: this.front.owned('blue'), r: this.front.owned('red'), n: this.front.n, sh: this.front.shifts, tb, tr, best: list[0].name, score: list[0].score }) : this.payload ? t('payload.endSub', { pct: Math.round(this.payload.progress * 100), cp: this.payload.reached, best: list[0].name, score: list[0].score }) : this.ffa ? `${t('match.rank')}: ${ffaRanking(this.soldiers, gg).slice(0, 3).map((s, i) => `${i + 1}. ${s.name} (${gg ? t('match.lvl') : ''}${ffaMetric(s, gg)})`).join(' · ')}` : `${t(inf ? 'match.humZom' : 'match.blueRed', { b: tb, r: tr })} · ${best}`;
+    const sub = this.bomba ? t('bm.endSub', { b: tb, r: tr, n: this.bomba.hist.length || this.bomba.round, p: this.bomba.stats.plants, d: this.bomba.stats.defuses, x: this.bomba.stats.booms, best: list[0]?.name || '', score: list[0]?.score || 0 }) : this.uyku ? t('uy.endSub', { b: tb, r: tr, n: this.uyku.hist.length || this.uyku.round, rv: this.uyku.stats.revives, best: list[0]?.name || '', score: list[0]?.score || 0 }) : this.front ? t('front.endSub', { b: this.front.owned('blue'), r: this.front.owned('red'), n: this.front.n, sh: this.front.shifts, tb, tr, best: list[0].name, score: list[0].score }) : this.payload ? t('payload.endSub', { pct: Math.round(this.payload.progress * 100), cp: this.payload.reached, best: list[0].name, score: list[0].score }) : this.ffa ? `${t('match.rank')}: ${ffaRanking(this.soldiers, gg).slice(0, 3).map((s, i) => `${i + 1}. ${s.name} (${gg ? t('match.lvl') : ''}${ffaMetric(s, gg)})`).join(' · ')}` : `${t(inf ? 'match.humZom' : 'match.blueRed', { b: tb, r: tr })} · ${best}`;
     const rows = `<div class="mvp"><div class="st"><b>${me.kills}</b><small>${t('match.kills')}</small></div><div class="st"><b>${me.assists || 0}</b><small>${t('match.assists')}</small></div><div class="st"><b>${me.deaths}</b><small>${t('match.deaths')}</small></div><div class="st"><b>${me.score}</b><small>${t('match.score')}</small></div><div class="st"><b>+${xp}</b><small>${t('match.xp')}</small></div></div><small style="opacity:.75">${sub}</small>`;
     this.opts.onMatchEnd?.({ score: me.score, kills: me.kills, assists: me.assists || 0, deaths: me.deaths, win });
     this.hud.showEnd(draw ? null : win, draw ? t('match.draw') : win ? t('match.victory') : t('match.defeat'), this.ffa ? t('match.wonFfa', { why }) : draw ? t('match.drawWhy', { why }) : t('match.won', { why, team: wname }), rows);
@@ -2464,6 +2483,7 @@ export class Game {
     this.payload?.dispose();
     this.front?.dispose();
     this.uyku?.dispose();
+    this.bomba?.dispose();
     this.vehView?.dispose(); this.vehHud?.dispose();
     this._badge?.remove(); this._tm?.remove();
     if (this._km) document.removeEventListener('keydown', this._km);
