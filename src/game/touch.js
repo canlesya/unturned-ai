@@ -32,6 +32,7 @@ const LAYOUT = {
   reload: { x: 0.655, y: 0.86, s: 0.15 }, swap: { x: 0.79, y: 0.89, s: 0.15 }, nade: { x: 0.655, y: 0.58, s: 0.15 }, abil: { x: 0.655, y: 0.6, s: 0.19 },
   third: { x: 0.655, y: 0.34, s: 0.12 }, optic: { x: 0.81, y: 0.36, s: 0.12 }, breath: { x: 0.72, y: 0.4, s: 0.12 }, pause: { x: 0.22, y: 0.075, s: 0.11 }, score: { x: 0.285, y: 0.075, s: 0.11 }, map: { x: 0.345, y: 0.075, s: 0.11 },      // 12.202 büyük harita
   veh: { x: 0.53, y: 0.62, s: 0.14 }, vcam: { x: 0.53, y: 0.4, s: 0.11 }, seat: { x: 0.53, y: 0.84, s: 0.11 },      // 12.177 araç: bin / in (yalnız yakında / içindeyken), kamera (sürücü), koltuk değiştir
+  bomb: { x: 0.53, y: 0.5, s: 0.16 },                                              // 12.226 Bomba: kur / imha (yalnız bölgede taşıyorken / kurulu bombanın yanında görünür; basılı tut)
   rk: { x: 0.655, y: 0.58, s: 0.15 },                                              // 12.201 helikopter pilotu (araçta gizli bomba düğmesinin yeri) · 12.206: SİLAH (dokun = burun topu ↔ roket; ATEŞ seçili silahı atar)
 };
 const NAME = (id) => t('tc.n.' + id);                                            // düzenleyicideki buton adları (src/i18n/touch.js)
@@ -49,6 +50,7 @@ const I = {
   pause: '<path d="M8 5v14M16 5v14"/>', score: '<path d="M4 6h16M4 12h16M4 18h16"/>',
   map: '<path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/>',
   veh: '<path d="M4 15l2-6h12l2 6v4H4z"/><circle cx="8" cy="18" r="2"/><circle cx="16" cy="18" r="2"/><path d="M7 9l1.5-3h7L17 9"/>',
+  bomb: '<rect x="3" y="8" width="18" height="11" rx="1.5"/><path d="M7 8V5h10v3"/><circle cx="12" cy="13.5" r="2"/>',
   vcam: '<rect x="3" y="7" width="13" height="10" rx="2"/><path d="M16 11l5-3v8l-5-3"/>',
   seat: '<path d="M7 4v9h9l2 7M7 13l-2 7M10 4h-3"/><path d="M14 4l3 3-3 3"/>',
   rk: '<path d="M5 19l3-1 8-8a4 4 0 001-5 4 4 0 00-5 1l-8 8-1 3z"/><path d="M8 13l3 3M5 15l-2 2M9 19l-2 2M14 7l1 1"/>',      // 12.201 roket
@@ -414,6 +416,7 @@ export class TouchControls {
       if (!down && this._rvPress) { p.rmb = false; this._rvPress = false; if (b) b.classList.remove('on'); return; }
     }
     if (id === 'ads' && s.stat.kind === 'melee' && !s.veh) { s.ads = down && s.alive; if (b) b.classList.toggle('on', s.ads); return; }      // 12.194: yakın dövüşte nişan düğmesi = ağır vuruş (basılı tuttukça; CS2 sağ tık)
+    if (id === 'bomb') { this.bmHold = down && s.alive; return; }                 // 12.226 Bomba: basılı tuttukça kullanma tuşu (Player.update → bomba.gate)
     if (id === 'breath') { this.breath = down; return; }                         // 12.156: basılı tutulduğu sürece nefes tut (Player → ScopeBreath)
     if (id === 'score') { g.hud.showScoreboard(down); return; }
     if (id === 'map') { if (down) g.bigMap?.toggle(); return; }                  // 12.202
@@ -614,6 +617,7 @@ export class TouchControls {
       this.b.reload.classList.toggle('on', !!(nm && s.cook?.lit));
     }
     this.b.third.classList.toggle('on', !!p.third);
+    { const bk = g.bomba ? g.bomba.useKind(s) || '' : ''; if (bk !== this._bmk) { this._bmk = bk; this.b.bomb.classList.toggle('hid', !bk); if (!bk) { this.bmHold = false; this.b.bomb.classList.remove('on'); } } }      // 12.226
     {                                                                                      // 12.177 araç butonları: bin / in yalnız araç yanında ya da içindeyken; kamera sürücüde; koltuk araçta
       const V = g.vehicles, inV = !!s.veh, near = !inV && V ? !!(V.near(s) || nearCrate(g, s)) : false, drv = inV && s.seat === 0;      // 12.216 ikmal kutusu yanında da (dokun = RPG al / ikmal)
       const key = (inV ? 1 : 0) | (near ? 2 : 0) | (drv ? 4 : 0) | (inV && s.veh.def.heli ? 8 : 0) | (inV && (s.veh.def.cannon || s.veh.def.rockets) ? 16 : 0);

@@ -50,6 +50,11 @@ export function buildColGecidi() {
       red: { minX: 0, maxX: 32, minZ: -58, maxZ: -28 },
     },
     objectives: out.objectives,
+    // 12.226 Bomba modu: kurma bölgeleri (A: Goose / Ramp arası yükseltilmiş saha, kot 4,6 · B: B Site avlusu, kot 1,9). Saldıran = T avlusundan doğan takım (bomba.js calcAtt)
+    bombSites: [
+      { name: 'A', x: 42, z: -56, r: 8 },
+      { name: 'B', x: -47, z: -51, r: 7.5 },
+    ],
     roads: [],
     roadColor: '#b8a074',
     env: out.env,

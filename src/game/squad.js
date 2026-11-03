@@ -15,7 +15,7 @@ const COMBAT_HIT = 5, COMBAT_FIRE = 3, ENEMY_NEAR = 20, ENEMY_SEE = 55;
 
 // Manga / doğuş seçici hangi modlarda: takım modları (Ele Geçirme, Kuzey Vadisi fetih, TDM, Vagon, Cephe, Uzay). Herkes-tek (ölüm maçı / silah
 // yarışı / paintball) ve Enfekte'de kapalı (takım yok ya da takımlar maç içinde değişiyor)
-export const squadOn = (g) => !g.ffa && !g.mode.infection && !g.mode.fixed && !g.mode.uyku && !g.opts?.editor;      // 12.223 Uyku Modu: manga doğuşu yok (raunt)
+export const squadOn = (g) => !g.ffa && !g.mode.infection && !g.mode.fixed && !g.mode.uyku && !g.mode.bomba && !g.opts?.editor;      // 12.223 Uyku Modu: manga doğuşu yok (raunt)
 export const isHuman = (s) => !!(s && (s.human || s.isPlayer || s.netHuman));
 
 export function squadMembers(g, team, sq) { return g.soldiers.filter((e) => e.team === team && e.squad === sq && !e.vacant); }

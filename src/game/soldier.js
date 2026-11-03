@@ -734,6 +734,7 @@ export class Soldier {
     if (this.downed && this.alive) { this.game.uyku?.hitDowned(this, attacker, zone); return; }      // 12.223 Uyku Modu: uyuyanı düşman vurursa bitirir (raunt sonuna dek elenir)
     if (!this.alive || this.protT > 0) return;
     if (this.game.uyku && !this.game.uyku.dmgOk) return;                            // hazırlık / raunt sonu afişi: hasar yok
+    if (this.game.bomba && !this.game.bomba.dmgOk) return;                          // 12.226 Bomba: hazırlık / raunt sonu afişi: hasar yok
     if ((this.isPlayer && this.game.devGod) || this.devGod) return;                 // geliştirici modu: ölümsüzlük (O) · 12.207 sunucuda BF_DEBUG { god }
     if (this.def.zombie && this.game.graceLeft > 0) return;                            // hazırlık süresinde zombiler dokunulmaz
     if (this.def.zombie) {

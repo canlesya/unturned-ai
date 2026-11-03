@@ -14,7 +14,7 @@ import { buildYorunge } from './yorunge.js';
 import { buildKuzey } from './kuzey.js';
 import { buildUykuKoy } from './uykukoy.js';
 import '../i18n/kuzey.js';
-import { uykuMaps } from '../game/match.js';
+import { uykuMaps, bombaMaps } from '../game/match.js';
 
 // Harita kaydı. Her harita build() ile şunu döndürür:
 // { id, name, group, colliders, bounds, spawns:{blue,red}, objectives:[{id,name,x,z,r,core?}], roads?, terrain?, water?, env? }
@@ -92,6 +92,7 @@ MAPS.uykukoy = {     // 12.224 küçük rekabetçi harita (Uyku Modu 5v5 için; 
   desc: 'Terk edilmiş çöl köyü: iki takım karşılıklı hanların revak altında doğar. Ortada sebilli meydan ve kamyon enkazı, batıda kıvrımlı dar sokak ve fırın avlusu, doğuda damına çıkılan ev ve iki katlı konak. Her köşede bel ve tam siper; kısa-orta mesafe, kapalı ve dengeli.',
   build: () => buildUykuKoy(),
 };
+MAPS.colgecidi.bomb = true; MAPS.uykukoy.bomb = true;                  // 12.226 Bomba modu: A / B bölgeli haritalar (harita kurulumunda bombSites)
 export const DEFAULT_MAP = 'kasaba';
 // Bu moda uygun haritalar (only: yalnızca o modlarda listelenir; dev hiçbirinde)
-export const mapsFor = (type) => (type === 'uyku' ? uykuMaps(MAPS).map((id) => MAPS[id]) : type === 'space' ? [MAPS.yorunge] : type === 'inf' ? [MAPS.newyork] : type === 'pb' ? [MAPS.boyakulesi, MAPS.ormankale] : type === 'payload' ? [MAPS.maden] : type === 'front' ? [MAPS.cephe] : Object.values(MAPS).filter((m) => !m.dev && (!m.only || m.only.includes(type))));      // Enfekte yalnızca New York'ta, Paintball yalnızca paintball haritalarında (Boya Kulesi, Orman Kalesi)
+export const mapsFor = (type) => (type === 'uyku' ? uykuMaps(MAPS).map((id) => MAPS[id]) : type === 'bomba' ? bombaMaps(MAPS).map((id) => MAPS[id]) : type === 'space' ? [MAPS.yorunge] : type === 'inf' ? [MAPS.newyork] : type === 'pb' ? [MAPS.boyakulesi, MAPS.ormankale] : type === 'payload' ? [MAPS.maden] : type === 'front' ? [MAPS.cephe] : Object.values(MAPS).filter((m) => !m.dev && (!m.only || m.only.includes(type))));      // Enfekte yalnızca New York'ta, Paintball yalnızca paintball haritalarında (Boya Kulesi, Orman Kalesi)

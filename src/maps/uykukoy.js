@@ -65,6 +65,12 @@ export function buildUykuKoy() {
       { id: 'meydan', name: 'Meydan', label: 'B', x: 0, z: 0, r: 9, core: true },
       { id: 'konak', name: 'Konak', label: 'C', x: 21.5, z: 0, r: 6, core: true },
     ],
+    // 12.226 Bomba modu: iki bölge de kuzey yarıda (savunan kuzey Han'dan doğar, saldıran güneyden ilerler; devre arasında doğuşlar yer değiştirir).
+    // A: Fırın Avlusu'nun kuzey yarısı (batı hattı) · B: Kuzey Avlu (Konak ile Kuzey Damlı Ev arası, doğu hattı)
+    bombSites: [
+      { name: 'A', box: [-30, -5.5, -21.5, 1], x: -25.5, z: -2.5 },
+      { name: 'B', box: [23.5, -11, 32.5, -5.5], x: 28, z: -8.25 },
+    ],
     roads: [],
     roadColor: '#b8a074',
     env: {

@@ -13,6 +13,8 @@ const t0 = performance.now();
 const game = new Game(null, { headless: true, map, tod: 'day', weather: 'clear', diff: process.env.DIFF || 'normal', match: { perTeam: per, type, rounds: +process.env.ROUNDS || undefined } });      // 12.223 ROUNDS=10: Uyku Modu uzun maç
 const UYR = [];                                                                                                     // 12.223 Uyku Modu raunt kayıtları
 game.on('uyround', (r) => UYR.push(r));
+const BMR = [];                                                                                                     // 12.226 Bomba raunt kayıtları
+game.on('bmround', (r) => BMR.push(r));
 const tBuild = performance.now() - t0;
 
 let errors = 0, flagEvents = 0;
@@ -77,6 +79,16 @@ if (game.uyku) {                                                                
   const U = game.uyku, st = U.stats;
   console.log(`uyku: ${UYR.length} raunt · ${UYR.map((r) => `R${r.n} ${r.w}/${r.why} ${r.t.toFixed(0)}sn (${r.b.up}-${r.r.up})`).join(' · ')}`);
   console.log(`uyku: uyuma ${st.downs} · kaldırma ${st.revives} · elenme ${st.outs} (bitirme ${st.fins}, kanama ${st.bleeds}) · taraf değişti: ${U.swapped ? 'evet' : 'hayır'} · en uzun raunt ${Math.max(0, ...UYR.map((r) => r.t)).toFixed(0)} sn`);
+}
+if (game.bomba) {                                                                                                    // 12.226 Bomba özeti: kurma / imha / patlama oranı, raunt süresi, taraf başına galibiyet
+  const B = game.bomba, st = B.stats, n = BMR.length || 1, pct = (k) => Math.round((100 * k) / n);
+  const att = BMR.filter((r) => r.side === 'att').length, def = BMR.filter((r) => r.side === 'def').length, why = {};
+  for (const r of BMR) why[r.why] = (why[r.why] || 0) + 1;
+  const durs = BMR.map((r) => r.dur).sort((a, b) => a - b);
+  console.log(`bomba: ${BMR.length} raunt · ${BMR.map((r) => `R${r.n} ${r.side}/${r.why}${r.planted ? '@' + B.siteName(r.site) : ''} ${r.dur.toFixed(0)}sn`).join(' · ')}`);
+  console.log(`bomba: kurma %${pct(BMR.filter((r) => r.planted).length)} (${st.plants}; A ${st.siteN[0] || 0} / B ${st.siteN[1] || 0}) · imha %${pct(st.defuses)} · patlama %${pct(st.booms)} · düşme ${st.drops} / alma ${st.pickups} · nedenler ${JSON.stringify(why)}`);
+  console.log(`bomba: galibiyet saldıran %${pct(att)} / savunan %${pct(def)} · raunt süresi ort ${(durs.reduce((a, b) => a + b, 0) / n).toFixed(0)} sn, medyan ${(durs[Math.floor(durs.length / 2)] || 0).toFixed(0)} sn, en uzun ${(durs[durs.length - 1] || 0).toFixed(0)} sn · skor ${game.tickets.blue}-${game.tickets.red} · taraf değişti: ${B.swapped ? 'evet' : 'hayır'}`);
+  if (process.env.OUT) (await import('node:fs')).writeFileSync(process.env.OUT, JSON.stringify({ rounds: BMR, stats: st, score: [game.tickets.blue, game.tickets.red] }));
 }
 const ok = errors === 0 && bad.length === 0 && (type !== 'conquest' || flagEvents > 0);
 console.log(ok ? 'sonuç: OK' : 'sonuç: HATA');

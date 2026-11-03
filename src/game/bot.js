@@ -15,6 +15,7 @@ import { brainLate } from './shapes.js';
 import { empBoard, empRide } from './empBots.js';                                          // 12.213 sabit silah yuvaları
 import { flankVia, bigGuardGoal, guardCombatMove, guardLeash, bigTacGoal } from './bigBots.js';
 import { uyBrain, uyPickGoal, uyTargetBias, uyFinishOk } from './uykuBots.js';                     // 12.223 Uyku Modu: takımca ilerleme, uyuyan arkadaşı kaldırma, uyuyan düşmanı bitirme
+import { bmBrain, bmPickGoal } from './bombaBots.js';                                  // 12.226 Bomba: bölge seçimi, toplanma, kurma / imha, savunma dağılımı
 import { tdmHuntGoal } from './bigTdm.js';                                                                     // 12.219 Kuzey TDM: bölgede av                                                    // 12.203 büyük harita kanat mangalı
 
 // silah rolleri (bot davranışı)
@@ -135,6 +136,7 @@ export class BotBrain {
     this.via = null;
     { const v = this.vRes || this.vRide?.v; if (v && v.alive && v.st) { this.setGoal(v.st.x, v.st.z, 20); return; } }      // 12.189: araca yürüyor (vbBoard / vbCrew kapıya yönlendirir)
     if (g.uyku) { uyPickGoal(this); return; }            // 12.223 Uyku Modu: takımca ilerleme / süre azken önde olan savunur (uykuBots.js)
+    if (g.bomba) { bmPickGoal(this); return; }           // 12.226 Bomba (bombaBots.js)
     if (g.mode.infection) { this.huddle(); return; }      // Enfekte: insan botlar zombiye koşmaz, birbirine yakın durup birlikte savunur
     if (g.front) { frPickGoal(this); return; }            // Cephe: rol planı (frontBots.js): mevzi / nokta savunması · nokta saldırısı / kanat / nişancı
     if (g.payload) { plPickGoal(this); return; }          // Vagon: rol planı (payloadBots.js): eskort / öncü / yan · durdurucu / siper / yan
@@ -715,6 +717,7 @@ export class BotBrain {
     const s = this.s, g = this.game;
     if (!s.alive) return;
     if (g.uyku && uyBrain(this, dt)) return;                                       // 12.223 Uyku Modu: uyuyor / hazırlık / arkadaşını kaldırıyor
+    if (g.bomba && bmBrain(this, dt)) return;                                      // 12.226 Bomba: hazırlık / kurma / imha / yerdeki bombayı alma
     if ((s.swim || this.swimming) && this.swimOut(dt)) return;
     if (s.def.zombie) { this.updateZombie(dt); return; }
     if (s.veh) { if (s.veh.def.fixed) empRide(this, dt); else if (s.seat === 0 && this.vd) vbDrive(this, dt); else this.rideTick(dt); return; }      // 12.213 yuvadaki bot     // 12.177 yolcu bot: nişan + ateş · 12.189 sürücü bot: vehicleBots.js

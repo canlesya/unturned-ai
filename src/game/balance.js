@@ -25,9 +25,12 @@ export const LIMITS = { maxPerTeam: 32, dmMax: 10, dmKills: 40, infMin: 4, infMa
 LIMITS.maxPerTeamBig = 128; LIMITS.maxPerTeamBigTdm = 64;
 // 12.223 Uyku Modu: raunt süresi, hazırlık, raunt sonu afişi (sn), kanama (uyuma) süresi, kaldırma süresi, kaldırılanın canı (oran), raunt başı kaldırma hakkı, takım başına en çok
 Object.assign(LIMITS, { uyRound: 150, uyPrep: 5, uyPost: 4, uyBleed: 20, uyRevive: 3, uyReviveHp: 0.3, uyRevMax: 2, uyMax: 8 });
+// 12.226 Bomba: raunt süresi, hazırlık, raunt sonu afişi, bomba sayacı, kurma / imha (kitsiz / kitli) süresi (sn), patlama öldürme / hasar yarıçapı (m), raunt başı rastgele kit sayısı, takım başına en çok
+Object.assign(LIMITS, { bmRound: 115, bmPrep: 5, bmPost: 5, bmTimer: 40, bmPlant: 3, bmDefuse: 10, bmDefuseKit: 5, bmKill: 12.5, bmBlast: 18, bmKits: 2, bmMax: 8 });
 export const BIG_MAPS = ['kuzey'];
 export function maxPerFor(map, type) {
   if (type === 'uyku') return LIMITS.uyMax;                             // 12.223 Uyku Modu: küçük haritada en çok 8v8 (varsayılan 5v5)
+  if (type === 'bomba') return LIMITS.bmMax;                            // 12.226 Bomba: en çok 8v8 (varsayılan 5v5)
   if (!BIG_MAPS.includes(map) || (type && type !== 'conquest' && type !== 'tdm')) return LIMITS.maxPerTeam;
   return Math.max(LIMITS.maxPerTeam, type === 'tdm' ? Math.min(LIMITS.maxPerTeamBig, LIMITS.maxPerTeamBigTdm) : LIMITS.maxPerTeamBig);
 }
@@ -148,6 +151,10 @@ export function balanceSections() {
       { id: 'uyku', name: 'Uyku Modu', preview: { kind: 'icon', icon: 'flag' }, fields: [      // 12.223
         f('mode.uyRound', 'Raunt süresi', 30, 600, 10, 'sn'), f('mode.uyPrep', 'Hazırlık', 0, 20, 1, 'sn'), f('mode.uyBleed', 'Uyku (kanama) süresi', 3, 60, 1, 'sn'), f('mode.uyRevive', 'Kaldırma süresi', 0.5, 10, 0.5, 'sn'),
         f('mode.uyReviveHp', 'Kaldırılanın canı', 0.05, 1, 0.05, '×'), f('mode.uyRevMax', 'Raunt başı kaldırma hakkı', 1, 3), f('mode.uyMax', 'Takım başına en çok', 2, 16)] },
+      { id: 'bomba', name: 'Bomba', preview: { kind: 'icon', icon: 'flag' }, fields: [      // 12.226
+        f('mode.bmRound', 'Raunt süresi', 30, 600, 5, 'sn'), f('mode.bmPrep', 'Hazırlık', 0, 20, 1, 'sn'), f('mode.bmPost', 'Raunt sonu afişi', 2, 15, 1, 'sn'), f('mode.bmTimer', 'Bomba sayacı', 10, 120, 5, 'sn'),
+        f('mode.bmPlant', 'Kurma süresi', 0.5, 10, 0.5, 'sn'), f('mode.bmDefuse', 'İmha süresi (kitsiz)', 1, 20, 0.5, 'sn'), f('mode.bmDefuseKit', 'İmha süresi (kitli)', 1, 20, 0.5, 'sn'),
+        f('mode.bmKill', 'Patlama öldürme yarıçapı', 2, 30, 0.5, 'm'), f('mode.bmBlast', 'Patlama hasar yarıçapı', 4, 40, 0.5, 'm'), f('mode.bmKits', 'Raunt başı rastgele kit', 0, 8), f('mode.bmMax', 'Takım başına en çok', 2, 16)] },
       { id: 'space', name: 'Uzay', preview: { kind: 'icon', icon: 'planet' }, fields: [      // 12.157
         f('tune.spaceGrav', 'Yer çekimi çarpanı', 0.1, 1, 0.01, '×'), f('tune.spaceJump', 'Zıplama hızı çarpanı', 0.5, 1.5, 0.01, '×'), f('tune.spaceAir', 'Havada yön denetimi', 0.5, 10, 0.1)] },
       { id: 'front', name: 'Cephe', preview: { kind: 'icon', icon: 'flag' }, fields: [

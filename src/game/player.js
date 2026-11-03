@@ -1012,6 +1012,7 @@ export class Player {
       if (s.alive && !s.veh && kb.is('prone', code)) { s.toggleProne(); this.game.online?.edge('p'); }
       if (s.alive && kb.is('optic', code)) { this.game.online?.edge('o'); const o = s.cycleOptic(); if (o) { this.game.hud.toast($t('hud.t.optic', { o: opticName(s.opticId) }), '#cfe6ff'); this.saveEraOptic(); } }
       if (this.game.uyku?.prepKey(s, code)) return;                                 // 12.223 Uyku Modu hazırlığı: 1–5 = sınıf seçimi (hemen geçerli)
+      if (this.game.bomba?.prepKey(s, code)) return;                                // 12.226 Bomba hazırlığı: 1–5 = sınıf seçimi
       const slot = kb.slotOf(code);                                                 // tuş konumu (1 ana, 2 yedek, 3 bıçak, 4 ekipman) → items indeksi
       if (s.veh) { const n = /^Digit[1-4]$/.test(code) ? +code[5] - 1 : -1; if (n >= 0 && s.alive) seatPress(this.game, s, n); }      // araçta 1–4 = koltuk (silah: fare tekerleği) · 12.218 botlu koltuk = yer değiştir, insanlı = "koltuk dolu" 
       else if (slot >= 0) { const i = slotOrder(s.items.length)[slot]; if (i !== undefined) s.switchTo(i); }
@@ -1066,6 +1067,7 @@ export class Player {
       if (!this.locked) { this.game.requestLock(); return; }
       if (this.game.chatOpen) return;
       if (this.game.uyku && !this.s.alive) { this.game.uyku.specCycle(e.button === 2 ? -1 : 1); return; }      // 12.223 Uyku Modu: elenmişken tık = izlenen takım arkadaşını değiştir
+      if (this.game.bomba && !this.s.alive) { this.game.bomba.specCycle(e.button === 2 ? -1 : 1); return; }      // 12.226 Bomba: ölünce tık = izlenen arkadaşı değiştir
       if (e.button === 0) { this.fireHeld = true; this.fireBuf = 0.15; this.game.online?.edge('fp'); }
       if (e.button === 2 && this.game.uyku) { this.rmb = true; if (this.game.uyku.candidate(this.s)) return; }      // 12.223: yanında uyuyan arkadaş varsa sağ tık kaldırmadır (nişan açılmaz; Player.update → uyku.gate)
       if (e.button === 2 && this.s.def.zombie) { this.zAbility(); return; }                  // zombi: sağ tık = özel güç
@@ -1390,9 +1392,10 @@ export class Player {
       const st = s.stat;
       const lean = (kb.held('leanRight', k) && !this.vehLatch ? 1 : 0) - (kb.held('leanLeft', k) ? 1 : 0);                 // 3. şahısta da Q/E yatar (ve omuzu değiştirir) · 12.177: araca binme / inme E'si basılıyken eğilmez
       const inp = { f, r, lean, sprint: kb.held('sprint', k) || !!(T && T.sprint), jump: (kb.held('jump', k) && !this.spaceLatch) || !!(T && T.jump), dive: kb.held('crouch', k) || !!(T && T.dive) };      // 12.180 dive: çömel BASILI (yüzerken dal)
-      const U = g.uyku, frz = !!U && U.frozen(s);                                    // 12.223 Uyku Modu: hazırlıkta / uyurken donuk (sunucu humanTick aynı kural)
+      const U = g.uyku, frz = (!!U && U.frozen(s)) || !!g.bomba?.frozen(s);      // 12.226 Bomba hazırlığı da                                    // 12.223 Uyku Modu: hazırlıkta / uyurken donuk (sunucu humanTick aynı kural)
       if (frz) { inp.f = 0; inp.r = 0; inp.lean = 0; inp.sprint = false; inp.jump = false; inp.dive = false; }
       if (U) U.gate(s, !!this.rmb && (this.locked || !!g.opts.nolock));                // sağ tık + yanında kaldırılabilir arkadaş → kaldırma (nişan kapanır)
+      if (g.bomba) { s.bmUse = g.bomba.gate(s, (kb.held('use', k) || !!T?.bmHold) && (this.locked || !!g.opts.nolock || !!T)); if (s.bmUse) inp.lean = 0; }      // 12.226 Bomba: kullanma tuşu (E) bölgede / bombanın yanında = kur / imha (eğilme yok; ilerleme yetkili tarafta)
       if (s.swim !== !!this._swimWas) this.swimEdge(s);
       proneLook(s, dt, { pend: true });                                                // 12.199 yüzüstü: gövde ≤ 90°/sn döner, bakış sınırda (sunucu humanTick aynı sıra)
       if (s.fly) this.flyMove(f, r, k, dt); else applyInput(s, inp, dt);
@@ -1465,6 +1468,7 @@ export class Player {
       if (this._bobK > 0.01) cam.position.y += Math.sin(g.time * 1.7) * 0.03 * this._bobK;
       this.camPos.copy(cam.position);
     } else if (g.uyku?.specCamera(cam, dt)) { s.shotOff = null; this._cs = null; this.bodyVisible = false; }      // 12.223 Uyku Modu: elenince takım arkadaşını izle
+    else if (g.bomba?.specCamera(cam, dt)) { s.shotOff = null; this._cs = null; this.bodyVisible = false; }      // 12.226 Bomba: ölünce takım arkadaşını izle
     else {
       s.shotOff = null; this._cs = null; this.bodyVisible = false;
       this.deathCamT += dt;

@@ -960,7 +960,7 @@ export class Hud {
     if (this._sp) this._sp.update(dt);
     // ölüm ekranı
     const rs = $('respawn');
-    if (!p.alive && !g.ended && !g.uyku && !(this._sp && this._sp.deathT > 0)) {      // 12.223 Uyku Modu: ölüm ekranı yok (raunt sonuna dek izleme: uykuHud)
+    if (!p.alive && !g.ended && !g.uyku && !g.bomba && !(this._sp && this._sp.deathT > 0)) {      // 12.223 Uyku Modu: ölüm ekranı yok (raunt sonuna dek izleme: uykuHud)
       rs.style.display = 'flex';
       this.drawDeath(p);
       let note = '';
@@ -986,6 +986,7 @@ export class Hud {
     g.squadHud?.update(); g.pings?.update(); g.bigMap?.update();             // 12.202 manga, işaretler, büyük harita / doğuş seçici
     this.drawMinimap();
     g.uyku?.uiFrame(dt);                                                      // 12.223 Uyku Modu arayüzü (uykuHud.js)
+    g.bomba?.uiFrame(dt);                                                     // 12.226 Bomba arayüzü (bombaHud.js)
   }
 
   // Paintball halka nişangâhı: halka yarıçapı = o anki top sapması (ekran pikseli), düşüş çizgileri topun hızı / yerçekiminden (20 / 30 / 40 m'de top
@@ -1055,6 +1056,7 @@ export class Hud {
       if (!friendly) { x.strokeStyle = '#fff'; x.lineWidth = 1; x.stroke(); }
     }
     g.uyku?.ui?.drawMinimap(x, this.mmX, this.mmY);                          // 12.223 uyuyan takım arkadaşları (kanama yayı)
+    g.bomba?.ui?.drawMinimap(x, this.mmX, this.mmY);                         // 12.226 bölge harfleri / bomba
     g.pings?.drawMap(x, this.mmX, this.mmY, 0.8);                         // 12.202 işaretler
     if (p.alive) {
       x.save();
