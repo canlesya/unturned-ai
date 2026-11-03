@@ -19,7 +19,8 @@
 //   { t:'ev', l:[...] }                               olaylar (sh atış, hm isabet, dmg hasar, kill, rld, swg; 12.223 Uyku Modu: uyd uyudu · uyv kaldırıldı · uyo elendi · uyr raunt başı · uyg başla · uye raunt sonu)
 //   snap.uy = [raunt, evre (0 hazırlık · 1 raunt · 2 raunt sonu · 3 bitti), süre ×10, taraf değişti, son raunt (1 mavi · 2 kırmızı · 3 berabere), raunt sayısı] (12.223, yalnız Uyku Modu)
 //   snap.bm = [raunt, evre, süre ×10, taraf değişti, son raunt, raunt sayısı, saldıran (1 mavi · 2 kırmızı), bomba (0 yok · 1 taşınıyor · 2 yerde · 3 kurulu · 4 imha · 5 patladı),
-//              taşıyan (savunana -1), x ×10, y ×10, z ×10, bölge, kurma / imha ilerlemesi ×10, kuran / imha eden, kitli askerler] (12.226, yalnız Bomba; girdi bu: kullanma tuşu basılı)
+//              taşıyan (savunana -1), x ×10, y ×10, z ×10, bölge, kurma / imha ilerlemesi ×10, kuran / imha eden, kitli askerler, bombayı elinde tutan] (12.226, yalnız Bomba; girdi bu: kullanma tuşu basılı)
+//   12.229 girdi bh: bomba elde · bt: bombayı at (tek adım) → olay bmd { v, p, th:1, f: çıkış noktası, u: hız, ft: uçuş sn } (herkes aynı el bombası fiziğiyle canlandırır)
 //   { t:'err', msg }
 
 import { ZT_ORDER, SKIN_IDS, OPTIC_IDS } from '../game/stats.js';

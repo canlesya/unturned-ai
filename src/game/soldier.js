@@ -18,6 +18,7 @@ import { spaceTp } from './space.js';
 import { SWIM, swimCanFire, waterYAt } from '../sim/swim.js';
 import { bodyYawOf, PRONE_LOOK } from '../sim/prone.js';
 import { preShape, SOLDIER_LATE } from './shapes.js';
+import { bmTp } from './bombaAnim.js';                                         // 12.229 Bomba 3. şahıs duruşları
 
 const _v = new THREE.Vector3();
 const _d = new THREE.Vector3();
@@ -210,6 +211,7 @@ export class Soldier {
     this.cur = 0;
     this.cd = 0; this.reloadT = 0; this.switchT = 0; this.useT = 0; this.swing = null; this.comboT = 0; this.autoSwitchT = 0; this.blindT = 0; this.burstLeft = 0;
     this.cook = null; this.backT = 0; this.backTo = -1; this.nadeUnder = false; this.botCook = null; this.throwT = 0; this.nadeVis = null;
+    this.bmHand = false; this._bmThrowT = null;                                    // 12.229 Bomba
     this.protT = protect; this.protNet = false;
     this.crouching = false; this.prone = false; this.proneT = 0; this.crouchT = 0; this.leanDir = 0; this.leanT = 0; this.leanK = 0; this.leanOff.set(0, 0, 0); this._leanRoom = LEAN_OFF;
     this.height = H_STAND; this.ads = false; this.adsT = 0;
@@ -249,6 +251,10 @@ export class Soldier {
   }
 
   switchTo(i) {
+    if (this.bmHand && this.alive) {                                               // 12.229 Bomba elde: herhangi bir silah tuşu bombayı bırakır (aynı silahın tuşu = silaha dön)
+      this.bmHand = false;
+      if (i === this.cur) { this.switchT = Math.max(this.switchT, 0.3); this.game.emit('switch', this); return; }
+    }
     if (i === this.cur || !this.items[i] || !this.alive || this.downed || !this.canEquip(i)) return;      // 12.227 baygın silah değiştiremez
     const eq = Math.min(0.35, WSTATS[this.items[i].id].equip ?? 0.3);
     if (this.cook?.lit) this._dropLit();                                           // 12.193: pimi çekilmiş bomba geri takılmaz → ayağının dibine düşer (PUBG)
@@ -264,7 +270,7 @@ export class Soldier {
   // 12.166: reload az önce bittiyse ve o zamandan beri atış yoksa (rlDoneT, RL_GAP sn) yeniden başlamaz: dolu şarjör ancak bayat bir düzeltmeyle
   // 0 görünebilir → çift reload / animasyon olmasın. Tek yer: otomatik (autoReload), boş tetik (tryFire) ve R aynı kuralı izler; sunucu = istemci = çevrimdışı
   startReload() {
-    if (this.downed) return false;                                                 // 12.227 baygın: şarjör / pim yok
+    if (this.downed || this.bmHand) return false;                                  // 12.227 baygın: şarjör / pim yok · 12.229 Bomba elde: şarjör değişmez
     const it = this.item, st = this.stat;
     if (st.kind === 'throwable') return this.cookNade();                          // 12.193 PUBG: bomba eldeyken R = pimi çek (pişir)
     if (this.reloadT > 0 || this.rlDoneT > 0 || this.swing || this.useT > 0 || !(st.kind === 'gun' || st.kind === 'launcher') || it.mag >= st.mag || it.reserve <= 0) return false;
@@ -309,7 +315,7 @@ export class Soldier {
 
   // Tetik: held = basılı, buf = yeni tık tamponu (>0). Dönen true → tampon tüketildi. Player ve sunucu (humanTick) aynı mantığı kullanır.
   triggerUpdate(held, buf) {
-    if (!this.alive || this.downed) { this.burstLeft = 0; return false; }          // 12.223 Uyku Modu: uyuyan ateş edemez
+    if (!this.alive || this.downed || this.bmHand || this.bmUse) { this.burstLeft = 0; return false; }      // 12.223 Uyku Modu: uyuyan ateş edemez · 12.229 Bomba elde / kurarken / imha ederken silah ateşlenmez (sol tık bombayı atar; silah indirilmiş)
     if (this.veh && this.seat === 0) { this.burstLeft = 0; return false; }          // 12.177: sürücü ateş etmez (sol tık korna)
     if (this.swim && !this.cook && !swimCanFire(this, this.stat)) { this.burstLeft = 0; return false; }     // 12.180 yüzerken: yüzeyde yalnız tabanca, su altında hiçbiri
     if (this.stat.kind === 'throwable') return this._nadeTrigger(held, buf);
@@ -368,6 +374,7 @@ export class Soldier {
 
   // 12.194 yakın dövüş girdisi (oyuncu, sunucu, istemci tahmini aynı): sol tık / tampon = hızlı kombo, sağ tık (nişan bayrağı s.ads) = ağır vuruş (CS2 / Valorant)
   meleeInput(fire, buf) {
+    if (this.bmHand || this.bmUse) return false;                                   // 12.229 Bomba elde / kurarken / imha ederken
     if (fire || buf > 0) return this.tryFire();
     return !!(this.ads && this.stat.heavy) && this.tryFire(true);
   }
@@ -859,7 +866,7 @@ export class Soldier {
     }
     // hedef nişan geçişi
     // 12.201: araç silahı koltuğunda (sürücü / pilot / makineli) piyade nişanı yok — sağ tık aracın kendi yakınlaştırması (Player.vehZoom); kendi silahıyla ateş eden yolcu normal
-    const wantAds = this.ads && this.reloadT <= 0 && this.switchT <= 0 && this.zoomNow && !this.sprinting && !this.swim && !(this.veh && vehSeatArmed(this.veh.def, this.seat));      // 12.180 yüzerken nişan yok
+    const wantAds = this.ads && !this.bmHand && this.reloadT <= 0 && this.switchT <= 0 && this.zoomNow && !this.sprinting && !this.swim && !(this.veh && vehSeatArmed(this.veh.def, this.seat));      // 12.180 yüzerken nişan yok
     if (wantAds || this.adsT > 0) this.adsT = clamp(this.adsT + (wantAds ? 1 : -1) * dt * this.adsRate, 0, 1);      // 12.211 nişan dışı ve sıfırken adsRate getter'ı çağrılmaz      // 12.153: adsTime (sn) silaha özgü dürbün süresi (12.174: dönem dürbününün kendi süresi)
     if (this.swim) { this.crouching = false; this.prone = false; }
     if (this.prone) this.crouching = false;
@@ -1134,7 +1141,8 @@ export class Soldier {
     this.nadePrepK = lerp(this.nadePrepK || 0, prepOn ? 1 : 0, Math.min(1, dt * 12));
     const nUnder = !!(this.nadeUnder || net & 4 || (this.throwT > 0 && this.throwUnder) || this.botCook?.under);
     const nade = this.nadePrepK > 0.01 || this.throwT > 0 ? { prep: this.nadePrepK, swing: this.throwT > 0 ? 1 - this.throwT / 0.45 : 0, under: nUnder } : null;
-    m.refreshHold({ sprint: Math.max(this.sprintT, swK) * (1 - pr), kick: clamp(this.flashT / 0.06, 0, 1), twist: (twist + twistY) * (1 - pr), swing, side: this.stanceT, prone: pr, pLook: (1 - PL_TORSO) * pLook, aimP: clamp(this.pitch + this.recoilP, -0.8, 0.8), reload, melee, nade });
+    const bomb = this.game.bomba ? bmTp(this, m, p, dt) : null;                    // 12.229 Bomba: kurma / imha diz çökme, elde bomba, atış, sırttaki bomba (bombaAnim.js)
+    m.refreshHold({ sprint: Math.max(this.sprintT, swK) * (1 - pr), kick: clamp(this.flashT / 0.06, 0, 1), twist: (twist + twistY) * (1 - pr), swing, side: this.stanceT, prone: pr, pLook: (1 - PL_TORSO) * pLook, aimP: clamp(this.pitch + this.recoilP, -0.8, 0.8), reload, melee, nade, bomb });
     if (m.zshape && pr < 0.5) this._zombiePose(m, p, root, T, ph, moveAmt, run);
   }
 }

@@ -10,7 +10,7 @@ export const SOLDIER_LATE = ['_modelWeapon', 'brain', 'squad', 'spawnN', 'burstL
   'dmgLog', '_ga', 'vw', '_botNade', 'rlSeated', 'rlSeatK', 'useItem', 'throwUnder', 'reviveTarget', 'humanCls', 'humanChoice', 'infectNext', 'flashOn',
   'human', 'vacant', '_parked', 'devGod', 'suicideT',
   'downed', 'bleedT', 'rvP', 'rvBy', 'rvWant', 'rvN', 'rvdN', 'uyOut', 'uyRvT0', 'uyBy', 'uyDownT'];      // 12.223 Uyku Modu
-SOLDIER_LATE.push('bmUse', 'bmKit', 'bmKitR', 'bmT0', '_bmDeadR');      // 12.226 Bomba
+SOLDIER_LATE.push('bmUse', 'bmKit', 'bmKitR', 'bmT0', '_bmDeadR', 'bmHand', '_bmThrowT', '_bmP');      // 12.226 Bomba · 12.229 elde bomba / atış / animasyon durumu
 // nesnede (ya da prototipinde: getter / yöntem) olmayan anahtarları sırayla undefined açar (asker: bu yolla hızlı kalıyor, ölçüldü)
 export function preShape(o, keys) {
   for (let i = 0; i < keys.length; i++) if (!(keys[i] in o)) o[keys[i]] = undefined;

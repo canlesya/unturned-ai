@@ -607,6 +607,7 @@ export class Game {
     if (this.bomba) {                                                 // 12.226 Bomba: hazırlıkta donuk; kullanma tuşu (bu) bölgede / bombanın yanındaysa kur / imha et (ilerleme bomba.js)
       if (this.bomba.frozen(s)) { inp = { ...inp, f: 0, r: 0, l: 0, s: 0, j: 0, dn: 0, fh: 0, fp: 0, a: 0, ab: 0, ve: 0, nu: 0 }; s.ads = false; }
       s.bmUse = this.bomba.gate(s, !!inp.bu);
+      this.bomba.setHand(s, !!inp.bh || (!!inp.bt && s.bmHand));                   // 12.229 elde bomba (atış girdisinde bh 0 gelir: önceki girdideki el geçerli)
     }
     s.update(dt);
     if (s.veh) V.place(s);
@@ -627,6 +628,7 @@ export class Game {
     if (inp.o) s.cycleOptic();
     if (inp.nu) s.toggleNadeMode();                                   // 12.193: bomba atış şekli (sağ tık; üstten ↔ alttan)
     applyInput(s, { f: inp.f, r: inp.r, lean: inp.l, sprint: !!inp.s, jump: !!inp.j, dive: !!inp.dn }, dt);
+    if (inp.bt && this.bomba) this.bomba.throwBomb(s);                              // 12.229 bombayı at (Player.update ile aynı an: hareketten sonra, ateşten önce)
     // ateş: Player.update ile aynı mantık
     if (inp.fp) h.fireBuf = 0.15;
     h.fireBuf = Math.max(0, h.fireBuf - dt);
@@ -741,7 +743,7 @@ export class Game {
     if ((h.qWin = (h.qWin || 0) + 1) >= 30) { h.backlog = Math.max(0, h.qMin - 2); h.qMin = 99; h.qWin = 0; }
     if (!(h.backlog > 0) || q.length <= 2) return;
     const inp = q[0];
-    if (inp.c || inp.p || inp.u || inp.fp || inp.rl || inp.fm || inp.o || inp.ab || inp.ve || inp.vs || inp.vl || inp.nu || inp.w !== h.s.cur) return;
+    if (inp.c || inp.p || inp.u || inp.fp || inp.rl || inp.fm || inp.o || inp.ab || inp.ve || inp.vs || inp.vl || inp.nu || inp.bt || inp.w !== h.s.cur) return;      // 12.229 bt: bomba atışı da atlanmaz
     const idle = !inp.f && !inp.r && !inp.j;
     if (!idle && this.tick % 3) return;
     q.shift(); h.backlog--; h.dropped = (h.dropped || 0) + 1;

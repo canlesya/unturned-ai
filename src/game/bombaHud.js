@@ -4,6 +4,8 @@
 // · bomba sayacı (kurulunca, belirgin), bomba sende / imha kiti rozetleri, kurma / imha istemi + ilerleme halkası, A / B bölge harfleri (ekranda + mini / büyük harita)
 // · bombayı taşıyanın üstünde simge (saldırana), yerdeki bomba (model + işaret), kurulu bomba (yanıp sönen ışık + konumlu bip; son 10 sn hızlanır), patlama
 // · akışta "kurdu / imha etti / düşürdü / aldı", ölünce izleme çubuğu, hazırlıkta sınıf şeridi
+// · 12.229 tek bomba modeli (models/bombModel.js: elde / sırtta / yerde aynı), atılan bombanın uçuşu (sunucunun / yetkilinin yolu: 'bmd' f + u → aynı fizik),
+//   rozette "5: eline al · sol tık: at", akışta "bombayı attı"
 import * as THREE from 'three';
 import { t } from '../i18n/index.js';
 import { className } from '../i18n/data.js';
@@ -11,6 +13,8 @@ import { dispName } from '../i18n/game.js';
 import { LIMITS } from './balance.js';
 import { CLASS_DEFS } from './stats.js';
 import { codeLabel } from '../core/keybinds.js';
+import { makeBomb } from '../models/bombModel.js';
+import { simulateNade, NADE } from './grenade.js';
 
 const CSS = `
 #bmpips{display:flex;align-items:center;gap:10px;margin-top:-2px;padding:3px 10px;background:rgba(9,13,19,.62);border:1px solid rgba(255,255,255,.1);font-weight:800;filter:drop-shadow(0 2px 6px rgba(0,0,0,.4))}
@@ -95,21 +99,29 @@ export class BombaHud {
     for (const ev of B.pend.splice(0)) this.onEvent(ev);
   }
 
-  // dünyadaki bomba: koyu gövde + sarı bant + kırmızı lamba (yerde / kurulu); kurulunca lamba + nokta ışık yanıp söner
+  // dünyadaki bomba (12.229: ortak C4 modeli, elde / sırtta görünenle aynı); kurulunca lamba + nokta ışık yanıp söner
   buildModel() {
-    const G = new THREE.Group();
-    const box = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.16, 0.28), new THREE.MeshStandardMaterial({ color: '#2b2d2a', roughness: 0.7, metalness: 0.2 }));
-    box.position.y = 0.08; G.add(box);
-    const band = new THREE.Mesh(new THREE.BoxGeometry(0.43, 0.05, 0.1), new THREE.MeshStandardMaterial({ color: '#c9a23a', roughness: 0.6 }));
-    band.position.set(0, 0.1, 0.05); G.add(band);
-    const pad = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.02, 0.1), new THREE.MeshStandardMaterial({ color: '#13241a', emissive: '#1f5a2a', emissiveIntensity: 0.6 }));
-    pad.position.set(-0.08, 0.17, -0.06); G.add(pad);
-    this.lampMat = new THREE.MeshBasicMaterial({ color: '#ff2a1a' });
-    const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), this.lampMat);
-    lamp.position.set(0.13, 0.18, -0.06); G.add(lamp);
-    this.light = new THREE.PointLight('#ff3020', 0, 5, 2); this.light.position.set(0.13, 0.4, -0.06); G.add(this.light);
+    const G = makeBomb();
+    this.lampMat = G.userData.lampMat;
+    this.light = new THREE.PointLight('#ff3020', 0, 5, 2); this.light.position.set(0.075, 0.4, -0.03); G.add(this.light);
     G.visible = false;
     this.model = G; this.g.scene.add(G);
+    this.fl = null;
+  }
+
+  // 12.229 atılan bombanın uçuşu: başlangıç f + hız u → el bombası fiziğiyle (yetkili tarafla aynı yol) noktalar; t0 = atış anı (oyun saati).
+  // Atanın kendi tahmini (çevrim içi) sunucunun 'bmd'si gelince aynı t0 ile sunucunun yoluna geçer (sıçrama yok: iki yol aynı)
+  fly(f, u, t0, id, end = null) {
+    const g = this.g, o = (this._fo ||= {});
+    const r = simulateNade(g.world, f, u, 6, o, 400);
+    const pts = r.pts.slice(0, r.n).map((q) => q.clone());
+    this.fl = { pts, n: r.n, t0, id, end: end ? new THREE.Vector3(end[0], end[1], end[2]) : null, spin: (Math.random() < 0.5 ? -1 : 1) * (7 + Math.random() * 4) };
+  }
+  flyPos(out) {
+    const F = this.fl; if (!F) return null;
+    const el = this.g.time - F.t0, i = el / NADE.h, i0 = Math.floor(i);
+    if (i0 >= F.n - 1 || el < 0) return null;
+    return out.copy(F.pts[i0]).lerp(F.pts[i0 + 1], i - i0);
   }
 
   // ───── olaylar (bomba.js fx) ─────
@@ -127,7 +139,11 @@ export class BombaHud {
       }
       case 'bmd': {
         const v = S[ev.v];
-        if (v && amAtt) { this.feed(v, t('bm.kf.drop'), null, 'bmd'); g.hud.toast(t('bm.t.drop'), '#ffd36a'); }
+        if (ev.th && Array.isArray(ev.f) && Array.isArray(ev.u)) {                  // 12.229 atış: yolu canlandır (atanın tahmini sürüyorsa aynı t0)
+          const own = this.fl && this.fl.id === ev.v && g.time - this.fl.t0 < 1.5 && !this.fl.end;
+          this.fly(new THREE.Vector3(...ev.f), new THREE.Vector3(...ev.u), own ? this.fl.t0 : g.time, ev.v, ev.p);
+        } else if (ev.th && this.fl?.id === ev.v) this.fl = null;                   // geçersiz atış: ayağın dibine düştü
+        if (v && amAtt) { this.feed(v, t(ev.th ? 'bm.kf.throw' : 'bm.kf.drop'), null, 'bmd'); if (v !== me) g.hud.toast(t(ev.th ? 'bm.t.throw' : 'bm.t.drop', { n: dispName(v) }), '#ffd36a'); }
         return;
       }
       case 'bmp': {
@@ -165,7 +181,7 @@ export class BombaHud {
         const side = me.team === B.att ? t('bm.att') : t('bm.def');
         this.banner(`${half ? `<em>${t('bm.half')}</em><br>` : mp ? `<em>${t('bm.matchPoint')}</em><br>` : ''}${t('bm.roundN', { n: ev.n })}`, `${side} · ${t('bm.score', { b: g.tickets.blue, r: g.tickets.red })}`, '#ffffff', 2.6);
         g.sfx.capture?.();
-        this.model.visible = false;
+        this.model.visible = false; this.fl = null;
         return;
       }
       case 'bmg': {
@@ -264,7 +280,8 @@ export class BombaHud {
     const B = this.B, bomb = me.alive && B.bomb.st === 'carried' && B.bomb.carrier === me, kit = me.alive && !!me.bmKit && me.team === B.def;
     if (this.setK('bdB', bomb)) this.badge.children[0].style.display = bomb ? 'flex' : 'none';
     if (this.setK('bdK', kit)) this.badge.children[1].style.display = kit ? 'flex' : 'none';
-    if (bomb && this.setK('bdBk', this.key())) this.badge.querySelector('.bomb small').textContent = t('bm.carrySub', { k: this.key() });
+    const hk = codeLabel(this.g.binds?.codes('bombHand')?.[0]) || '5', touch = !!this.g.player?.touch;
+    if (bomb && this.setK('bdBk', this.key() + hk + (me.bmHand ? 1 : 0) + touch)) this.badge.querySelector('.bomb small').textContent = `${t('bm.carrySub', { k: this.key() })} · ${t(me.bmHand ? (touch ? 'bm.handOnT' : 'bm.handOn') : touch ? 'bm.handHintT' : 'bm.handHint', { k: hk })}`;      // 12.229
   }
 
   // kurma / imha istemi + ilerleme (ilerleme yetkili taraftan: çevrim içinde anlık görüntüden)
@@ -299,7 +316,8 @@ export class BombaHud {
         list.push({ x: s.x, y: (s.y ?? me.pos.y) + 2.2, z: s.z, cls: 'site' + (hot ? ' hot' : inside ? ' on' : ''), ic: s.name, lb: inside ? t('bm.inSite', { s: s.name }) : `${Math.round(d)} m` });
       }
       if (att && b.st === 'carried' && b.carrier && b.carrier !== me && b.carrier.alive) list.push({ x: b.carrier.pos.x, y: b.carrier.pos.y + b.carrier.height + 0.55, z: b.carrier.pos.z, cls: 'car', ic: '▣', lb: '' });
-      if (att && b.st === 'dropped') list.push({ x: b.x, y: b.y + 0.6, z: b.z, cls: '', ic: '▣', lb: `${t('bm.dropped')} · ${Math.round(Math.hypot(b.x - cam.position.x, b.z - cam.position.z))} m` });
+      const fp = this.flyPos(this.v2 ||= new THREE.Vector3());                   // 12.229 uçarken işaret bombayla gider
+      if (att && (b.st === 'dropped' || fp)) { const q = fp || b; list.push({ x: q.x, y: q.y + 0.6, z: q.z, cls: '', ic: '▣', lb: `${t('bm.dropped')} · ${Math.round(Math.hypot(q.x - cam.position.x, q.z - cam.position.z))} m` }); }
       if (b.st === 'planted') list.push({ x: b.x, y: b.y + 0.7, z: b.z, cls: 'pl', ic: '▣', lb: `${t('bm.bombLbl')} · ${Math.round(Math.hypot(b.x - cam.position.x, b.z - cam.position.z))} m` });
     }
     // bölgenin içindeyken sabit etiket ("A BÖLGESİ"; bomba oradaysa kırmızı)
@@ -334,12 +352,22 @@ export class BombaHud {
   // dünyadaki bomba modeli + kurulu bombanın ışığı / bipi (aralık: 1 sn → son 10 sn'de 0,12 sn'ye hızlanır)
   drawWorld(dt) {
     const B = this.B, b = B.bomb, m = this.model;
+    const fp = this.flyPos(this.v3 ||= new THREE.Vector3());
+    if (!fp && this.fl) { this.fl = null; m.rotation.set(0, m.rotation.y, 0); }
+    if (fp && (b.st === 'planted' || b.st === 'defused' || b.st === 'exploded' || B.phase === 'prep')) this.fl = null;
+    if (this.fl) {                                                                  // 12.229 uçuş: yolda takla atarak (yere değince yuvarlanır)
+      m.visible = true; this.light.intensity = 0; this.lampMat.color.set('#5a1410');
+      m.position.set(fp.x, fp.y - NADE.r, fp.z);
+      m.rotation.x += dt * this.fl.spin; m.rotation.z += dt * this.fl.spin * 0.35;
+      return;
+    }
     const show = (b.st === 'dropped' || b.st === 'planted' || b.st === 'defused') && B.phase !== 'prep';
     m.visible = show;
     this.blink = Math.max(0, this.blink - dt);
     if (!show) { this.light.intensity = 0; return; }
     m.position.set(b.x, b.y + 0.01, b.z);
-    if (b.st === 'dropped') { m.rotation.y += dt * 0.8; this.lampMat.color.set('#5a1410'); this.light.intensity = 0; return; }
+    if (b.st === 'dropped') { m.rotation.x = 0; m.rotation.z = 0; m.rotation.y += dt * 0.8; this.lampMat.color.set('#5a1410'); this.light.intensity = 0; return; }
+    m.rotation.set(0, b.ry || 0, 0);                                                 // 12.229 kurulu: kuranın koyduğu yönde (tuş takımı ona dönük)
     if (b.st === 'defused') { this.lampMat.color.set('#2bd94a'); this.light.color.set('#2bd94a'); this.light.intensity = 0.6; return; }
     this.light.color.set('#ff3020');
     if (B.live) {
