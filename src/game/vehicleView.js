@@ -455,11 +455,22 @@ const fxk = (v) => (v.def.heli ? 'heli' : v.type);
 
 // ── araç kamerası (Player.update'ten; ele alındıysa true) ──
 // Sürücü: 'third' (varsayılan, takip: aracın arkasında, bakışla döner, duvara girmez) ya da 'first' (koltukta, aracın eğim / yatışıyla, içi görünür).
-// Yolcu: normal asker kamerası (koltuktaki göz; silahla nişan) → false.
+// Yolcu / nişancı (12.228): aynı V tercihi. 'first' = normal asker kamerası (koltuktaki göz; silahla nişan) → false. 'third' = sürücüyle aynı
+// takip kamerası (seatThird): artı kameranın ışını; makineli s.mgAim (gözden artının noktasına), kendi silahı s.shotOff (3. şahıs iki aşamalı atış).
+// Eskiden takip yalnız sürücüdeydi: koltuğa doğan (12.205: doğuş önce silahlı / yolcu koltuğunu seçer) ya da sürücü dışı koltuğa geçen asker
+// piyade kamerasında kalıyor, V "takip" yazıp hiçbir şey yapmıyordu.
 export function vehCamera(P, dt) {
   const s = P.s, g = P.game, v = s.veh, cam = g.camera;
-  if (!v?.st || s.seat !== 0) { P._vcam = null; return false; }
-  const view = g.vehView, st = view ? view.pose(v) : v.st, mode = P.vehCam || 'third';
+  if (!v?.st) { P._vcam = null; return false; }
+  const view = g.vehView, st = view ? view.pose(v) : v.st;
+  let mode = P.vehCam || 'third';
+  if (s.seat !== 0) {
+    // kendi silahıyla dürbün / büyüten mercekle nişan: birinci şahıs (yaya 3. şahıstaki kural)
+    const optic = s.adsT > 0.35 && (s.overlay === 'scope' || (s.overlay === 'lens' && (s.opticDef?.zoom || 1) >= 2));
+    if (mode === 'first' || optic || v.def.fixed) { P._vcam = null; s.mgAim = null; return false; }
+    seatThird(P, v, st, dt);
+    return true;
+  }
   const sh = g.effects.shake || 0, jx = (Math.random() - 0.5) * sh * 0.05, jy = (Math.random() - 0.5) * sh * 0.05;
   const tk = !!v.def.turret;
   if (v.def.fixed) {                                                   // 12.213 sabit yuva: nişancının gözünden (silah yayında), sağ tık yakınlaştırır
@@ -515,4 +526,34 @@ export function vehCamera(P, dt) {
   P._vcam = mode;
   s.shotOff = null;
   return true;
+}
+
+// 12.228 sürücü dışı koltukta takip kamerası: sürücünün takip kamerasıyla aynı yer (aracın üstü, bakış yönünde geride; helikopterde bakışa dik
+// yukarı), bakış = koltuktaki askerin bakışı (yaw / pitch, kırpılmış: Player.vehInput aynı sınırı uygular → artı ile atış yönü aynı).
+// Atış: makineli → s.mgAim (gözden kamera ışınının çarptığı noktaya, Vehicles.seatAimFor), kendi silahı → s.shotOff (kamera − göz).
+export const SEAT_PITCH = [-0.75, 0.55], SEAT_PITCH_HELI = [-1.45, 0.55];      // helikopter kapı nişancısı dik aşağı da nişan alır (12.201: −1,4 rad)
+export const seatPitchLim = (d) => (d.heli ? SEAT_PITCH_HELI : SEAT_PITCH);
+const _se = new THREE.Vector3(), _sd = new THREE.Vector3();
+function seatThird(P, v, st, dt) {
+  const s = P.s, g = P.game, cam = g.camera, d = v.def, tk = !!d.turret, hl = !!d.heli;
+  const sh = g.effects.shake || 0, jx = (Math.random() - 0.5) * sh * 0.05, jy = (Math.random() - 0.5) * sh * 0.05;
+  toWorld({ ...st, pitch: 0, roll: 0 }, tk ? d.turret.f : 0, 0, tk ? 3.0 : hl ? 2.6 : d.moto ? 1.5 : 1.7, _p);
+  const lim = seatPitchLim(d), pv = _w.set(_p.x, _p.y, _p.z), pit = Math.max(lim[0], Math.min(lim[1], s.pitch));
+  const dx = -Math.sin(s.yaw) * Math.cos(pit), dy = Math.sin(pit), dz = -Math.cos(s.yaw) * Math.cos(pit);
+  const D = tk ? 10.5 : hl ? 14 : d.moto ? 5.2 : 7.2, des = _v.set(pv.x - dx * D, pv.y - dy * D + (tk ? 1.0 : hl ? 0 : 0.8), pv.z - dz * D);
+  if (hl) { const sp = Math.sin(pit), cp = Math.cos(pit); des.x += Math.sin(s.yaw) * sp * 3.0; des.y += cp * 3.0 - Math.max(0, sp) * 0.8; des.z += Math.cos(s.yaw) * sp * 3.0; }
+  const dir = des.clone().sub(pv), len = dir.length(); dir.multiplyScalar(1 / len);
+  const h = g.world.raycast(pv, dir, len + 0.3, _h);
+  if (h) des.copy(pv).addScaledVector(dir, Math.max(1.2, h.t - 0.3));
+  des.y = Math.max(des.y, g.world.heightAt(des.x, des.z) + 0.4);
+  if (!P._vcs || P._vcam !== 'third') P._vcs = des.clone(); else P._vcs.lerp(des, 1 - Math.exp(-14 * dt));
+  cam.position.copy(P._vcs);
+  const vo = g.online && g.online.viewOff;
+  if (vo) { const k = Math.exp(-dt * 11); vo.x *= k; vo.y *= k; vo.z *= k; }
+  _e.set(pit + jy, s.yaw + jx, 0, 'YXZ'); cam.quaternion.setFromEuler(_e);
+  cam.fov = P.baseFov() / P.zoomCur(); cam.updateProjectionMatrix();      // makineli: sağ tık aracın yakınlaştırması · yolcu: kendi silahının nişanı (Player.zoomCur)
+  P.bodyVisible = true; P._vcam = 'third';
+  const e = s.eye(_se), cd = _sd.set(dx, dy, dz);
+  if (g.vehicles.mgSeat(v, s.seat)) { s.mgAim = g.vehicles.seatAimFor(v, cam.position, cd, s, (s._mga ||= {})); s.shotOff = null; }
+  else { s.mgAim = null; s.shotOff = (s.shotOff || new THREE.Vector3()).subVectors(cam.position, e); }
 }

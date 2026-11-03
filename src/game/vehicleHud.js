@@ -59,8 +59,14 @@ const CSS = `
 #vhRk::after{content:'';position:absolute;left:50%;top:50%;width:3px;height:3px;margin:-1.5px 0 0 -1.5px;background:#ffb04a;border-radius:50%;display:none}#vhRk.sel::after{display:block}
 #vhPanel .wsel{display:none;gap:6px;margin-bottom:6px}#vhPanel .wsel b{flex:1;padding:3px 6px;font-size:11px;letter-spacing:1.5px;font-weight:700;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.16);opacity:.6;white-space:nowrap}
 #vhPanel .wsel b.on{opacity:1;border-color:#ff8a1f;background:rgba(255,138,31,.22)}#vhPanel .wsel b small{float:right;opacity:.7;font-size:10px}
-#vhSight{position:absolute;inset:0;pointer-events:none;display:none;background:radial-gradient(circle at 50% 50%,rgba(0,0,0,0) 0,rgba(0,0,0,0) 30vh,rgba(4,6,8,.9) 31vh,rgba(4,6,8,.96) 100%)}
-#vhSight i{position:absolute;background:rgba(20,24,20,.85)}
+/* 12.228 tank nişancı görüşü (1. şahıs): yakınlaşmadan açık görüş + ince açık renkli artı çizgileri (eskiden her zaman ekranın dışı %90 kara dürbün vinyeti:
+   "çevre keskin nişancı dürbünü gibi karanlık"); sağ tıkla yakınlaşınca (.z) dürbün örtüsü */
+#vhSight{position:absolute;inset:0;pointer-events:none;display:none}
+#vhSight.z{background:radial-gradient(circle at 50% 50%,rgba(0,0,0,0) 0,rgba(0,0,0,0) 30vh,rgba(4,6,8,.9) 31vh,rgba(4,6,8,.96) 100%)}
+#vhSight i{position:absolute;background:rgba(235,242,232,.55);box-shadow:0 0 1px rgba(0,0,0,.5)}
+#vhSight.z i{background:rgba(20,24,20,.85);box-shadow:none}
+#vhSight:not(.z) .h,#vhSight:not(.z) .h2,#vhSight:not(.z) .v{height:1px;margin-top:0}#vhSight:not(.z) .v{width:1px;height:calc(16vh - 44px);margin-left:0}
+#vhSight:not(.z) .h{left:calc(50% - 16vh);width:calc(16vh - 44px)}#vhSight:not(.z) .h2{width:calc(16vh - 44px)}#vhSight:not(.z) b{bottom:calc(50% - 16vh - 18px);opacity:.8}
 #vhSight .h{left:calc(50% - 30vh);width:calc(30vh - 44px);top:50%;height:2px;margin-top:-1px}#vhSight .h2{left:calc(50% + 44px);width:calc(30vh - 44px);top:50%;height:2px;margin-top:-1px}
 #vhSight .v{left:50%;width:2px;margin-left:-1px;top:calc(50% + 44px);height:calc(30vh - 44px)}
 #vhSight b{position:absolute;left:50%;transform:translateX(-50%);bottom:calc(50% - 30vh + 10px);font:700 11px Bahnschrift,Rajdhani,sans-serif;letter-spacing:2px;color:#cfe8c8;text-shadow:0 1px 2px #000}
@@ -208,6 +214,7 @@ export class VehicleHud {
     const tank = !!(v && seat === 0 && d.cannon), G = v ? seatGun(d, seat) : null, pilot = !!(G && G.fixed);
     this.set(this.aim.style, 'aimd', tank ? 'block' : 'none', 'display');
     this.set(this.sight.style, 'sgd', tank && P?._vcam === 'first' ? 'block' : 'none', 'display');
+    this.set(this.sight, 'sgc', tank && P?._vcam === 'first' && (P._vehK || 0) > 0.3 ? 'z' : '', 'className');      // 12.228 koyu dürbün örtüsü yalnız sağ tıkla yakınlaşınca (yakınlaşmadan açık görüş + ince artı)
     const rkSel = pilot && !!d.rockets && me.vw === 1;                  // 12.206 roket seçili: roket artısı ana artı, burun artısı gizli
     this.set(this.nose.style, 'nsd', pilot && !rkSel ? 'block' : 'none', 'display');
     const stt = v && G && !pilot ? g.vehicles.gunState(me) : (pilot && me.vhot ? 'hot' : '');
@@ -218,10 +225,10 @@ export class VehicleHud {
     if (!tank && !(G && !pilot)) { this.set(this.gunEl.style, 'gvd', 'none', 'display'); }
     if (!pilot) this.set(this.rkEl.style, 'rkd', 'none', 'display');
     if (G && !pilot) {                                                  // 12.201 makineli: bakış yükseliş sınırını aşınca mermi artıya gitmez → gerçek isabet noktası (turuncu halka)
-      const pt = mgPitch(v.st, G, me.yaw, me.pitch);
+      const ma = me.mgAim, yw = ma ? ma.y : me.yaw, pp = ma ? ma.p : me.pitch, pt = mgPitch(v.st, G, yw, pp);      // 12.228 takip kamerasında nişan gözden artının noktasına (mgAim)
       let show = false;
-      if (Math.abs(pt - me.pitch) > 0.01) {
-        const o = me.eye(), dd = dirFromAngles(me.yaw, pt, (this._md ||= new THREE.Vector3())), h = g.world.raycast(o, dd, 300, (this._mh ||= {})), L = h ? h.t : 200;
+      if (Math.abs(pt - pp) > 0.01) {
+        const o = me.eye(), dd = dirFromAngles(yw, pt, (this._md ||= new THREE.Vector3())), h = g.world.raycast(o, dd, 300, (this._mh ||= {})), L = h ? h.t : 200;
         show = this.place(this.gunEl, o.x + dd.x * L, o.y + dd.y * L, o.z + dd.z * L);
       }
       this.set(this.gunEl.style, 'gvd', show ? 'block' : 'none', 'display');

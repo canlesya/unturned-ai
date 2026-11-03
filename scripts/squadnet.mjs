@@ -144,13 +144,13 @@ if (part('veh')) {
   await B.page.waitForTimeout(150);
   const rb0 = await B.page.evaluate(() => { const g = window.__game, p = g.playerSoldier; return { veh: p.veh?.idx ?? null, seat: p.seat }; });
   await B.page.waitForTimeout(900);
-  const rb = await B.page.evaluate(() => { const g = window.__game, p = g.playerSoldier, P = g.player, v = p.veh; return { alive: p.alive, veh: v?.idx ?? null, seat: p.seat, ads: p.ads, adsT: p.adsT, vehK: +(P._vehK || 0).toFixed(2), zoom: +(P.baseFov() / g.camera.fov).toFixed(2), d: v ? +Math.hypot(p.pos.x - v.st.x, p.pos.z - v.st.z).toFixed(2) : null, cam: v ? +Math.hypot(g.camera.position.x - v.st.x, g.camera.position.z - v.st.z).toFixed(2) : null, hud: document.querySelector('#vhPanel .nm')?.textContent || '' }; });
+  const rb = await B.page.evaluate(() => { const g = window.__game, p = g.playerSoldier, P = g.player, v = p.veh; return { alive: p.alive, veh: v?.idx ?? null, seat: p.seat, ads: p.ads, adsT: p.adsT, vehK: +(P._vehK || 0).toFixed(2), zoom: +(P.baseFov() / g.camera.fov).toFixed(2), d: v ? +Math.hypot(p.pos.x - v.st.x, p.pos.z - v.st.z).toFixed(2) : null, cam: v ? +Math.hypot(g.camera.position.x - v.st.x, g.camera.position.z - v.st.z).toFixed(2) : null, hud: document.querySelector('#vhPanel .nm')?.textContent || '', vcam: P._vcam || null, body: !!P.bodyVisible }; });
   const ra = await A.page.evaluate((bid) => { const g = window.__game, s = g.soldiers[bid]; return { veh: s.veh?.idx ?? null, seat: s.seat, alive: s.alive }; }, ids[1].id);
   console.log('      Veli:', JSON.stringify(rb), 'Ali\'de Veli:', JSON.stringify(ra));
   check(rb0.veh === jeep.i && rb0.seat === 1, `veh: Veli doğduğu ilk karede koltukta (${JSON.stringify(rb0)})`);
   check(rb.alive && rb.veh === jeep.i && rb.seat === 1 && rb.d < 2.5, `veh: Veli Ali'nin jipinin makineli koltuğunda (koltuk ${rb.seat}, araca ${rb.d} m)`);
   check(ra.alive && ra.veh === jeep.i && ra.seat === 1, `veh: sunucuda (Ali'nin anlık görüntüsü) Veli koltuk 1'de (${JSON.stringify(ra)})`);
-  check(!rb.ads && rb.adsT === 0 && rb.vehK === 0 && Math.abs(rb.zoom - 1) < 0.03 && rb.cam < 3 && /J[İI]P|JEEP/i.test(rb.hud), `veh: Veli'de nişan / yakınlaştırma sıfır, kamera koltukta, araç HUD'u (${rb.hud}, ×${rb.zoom}, kamera ${rb.cam} m)`);
+  check(!rb.ads && rb.adsT === 0 && rb.vehK === 0 && Math.abs(rb.zoom - 1) < 0.03 && (rb.vcam === 'third' ? rb.cam > 4 && rb.cam < 12 && rb.body : rb.cam < 3) && /J[İI]P|JEEP/i.test(rb.hud), `veh: Veli'de nişan / yakınlaştırma sıfır, araç kamerası (12.228: V tercihi, varsayılan takip; ${rb.vcam || 'göz'}), araç HUD'u (${rb.hud}, ×${rb.zoom}, kamera ${rb.cam} m)`);
   await B.page.screenshot({ path: `${VOUT}/net-02-veli-jip-makineli-1sahis.png` });
   // Ali sürer → Veli koltukta onunla gider
   const p0 = await B.page.evaluate(() => { const v = window.__game.playerSoldier.veh; return v ? [v.st.x, v.st.z] : null; });

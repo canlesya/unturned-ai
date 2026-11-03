@@ -109,7 +109,7 @@ export class NetClient {
       ve: e.ve ? 1 : undefined, vs: e.vs || undefined, vl: e.vl ? 1 : undefined,    // 12.177 araç kenar olayları (yalnız basılınca)
       dn: inp.dn ? 1 : undefined,                                                    // 12.179 helikopter: alçal (C / Ctrl basılı)
       co: s.shotOff ? [+s.shotOff.x.toFixed(2), +s.shotOff.y.toFixed(2), +s.shotOff.z.toFixed(2)] : undefined,
-      gy: s.gunAim ? +s.gunAim.y.toFixed(4) : undefined, gp: s.gunAim ? +s.gunAim.p.toFixed(4) : undefined,      // 12.188 tank: topun hedef yönü (artının gösterdiği noktaya balistik çözüm) · 12.201 helikopter: burun / burun topu hedefi
+      gy: s.gunAim ? +s.gunAim.y.toFixed(4) : s.mgAim ? +s.mgAim.y.toFixed(4) : undefined, gp: s.gunAim ? +s.gunAim.p.toFixed(4) : s.mgAim ? +s.mgAim.p.toFixed(4) : undefined,      // 12.228 makineli koltuğunda takip kamerası: gözden artının noktasına      // 12.188 tank: topun hedef yönü (artının gösterdiği noktaya balistik çözüm) · 12.201 helikopter: burun / burun topu hedefi
       rv: s.rvWant ? 1 : undefined,                                                 // 12.223 Uyku Modu: sağ tık kaldırma (nişan yerine; Player.update → uyku.gate)
       rk: s.rkHeld ? 1 : undefined,                                                  // 12.201 helikopter roketi basılı (12.206: seçili silah roket + sol tık)
       vw: s.vw ? 1 : undefined,                                                      // 12.206 pilotun seçili silahı (1 roket: sol tık burun topunu ateşlemez)

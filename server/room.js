@@ -475,6 +475,16 @@ export class Room {
     if (g.vehicles && Array.isArray(m.vtp) && m.vtp.length >= 2 && m.vtp.every(Number.isFinite)) { const v = s.veh || g.vehicles.list[m.vtp[3] | 0]; if (v?.st) { v.st.x = m.vtp[0]; v.st.z = m.vtp[1]; v.st.y = g.world.heightAt(m.vtp[0], m.vtp[1]); if (m.vtp.length > 2) v.st.yaw = m.vtp[2]; v.st.vx = v.st.vy = v.st.vz = 0; v.sleep = false; } }   // 12.177 { vtp:[x,z,yaw?,araç?] } aracı ışınla
     if (g.vehicles && Array.isArray(m.vdmg)) { const v = g.vehicles.list[m.vdmg[0] | 0]; if (v?.alive) g.vehicles.damage(v, +m.vdmg[1] || 0, null, m.vdmg[2] || 'impact'); }   // { vdmg:[araç, hasar, tür?] }
     if (g.vehicles && Array.isArray(m.vrs)) { const v = g.vehicles.list[m.vrs[0] | 0]; if (v && !v.def.fixed) { if (v.alive) { g.vehicles.destroy(v, null, !!m.vrs[1]); v.deadT = v.def.wreck; } else if (!v.wreck) v.respawnT = 0; } }   // 12.215 { vrs:[araç, sessiz?] } patlat / sessiz yok et (enkaz beklenmez); ölüyken: hemen yeniden doğsun (vehspawnview)
+    if (g.vehicles && Array.isArray(m.ven) && m.ven.length >= 3 && m.ven.every(Number.isFinite)) {      // 12.228 { ven:[asker, araç, koltuk, dy?, boşalt?] } botu araç koltuğuna oturt (dy: aracı havaya kaldır, boşalt: önce araçtaki botlar iner; vehspawncam)
+      const o = g.soldiers[m.ven[0] | 0], v = g.vehicles.list[m.ven[1] | 0], k = m.ven[2] | 0;
+      if (o?.alive && v?.alive && v.st && !o.human) {
+        if (m.ven[4]) for (const x of [...v.seats]) if (x && !x.human) g.vehicles.exit(x);
+        if (o.veh) g.vehicles.exit(o);
+        v.burn = false; v.hp = v.def.hp; v.st.roll = v.st.pitch = 0; if (v.st.fall) v.st.fall = 0;
+        if (m.ven[3]) { v.st.y += +m.ven[3]; v.st.air = true; v.st.rpm = 1; }
+        g.vehicles.enter(o, v, k); if (k === 0 && o.brain) o.brain.vd = { v, test: 1 };
+      }
+    }
     if (g.uyku && m.uy && typeof m.uy === 'object') {                                               // 12.223 Uyku Modu testi: { uy:{ t: raunt süresi, bl:[asker, kanama] , end:'blue'|'red'|'draw', restart:1 } }
       const U = g.uyku, u = m.uy;
       if (Number.isFinite(u.t)) U.t = Math.max(0.01, +u.t);

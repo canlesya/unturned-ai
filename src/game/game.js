@@ -662,6 +662,12 @@ export class Game {
       return;
     }
     V.place(s);
+    // 12.228 sürücü dışı koltukta takip kamerası: makineli artının noktasına (gy / gp: gözden), kendi silahı kamera ışınıyla (co ≤ 24 m, göz → kamera açık)
+    s.mgAim = mgAt(v.def, s.seat) && Number.isFinite(inp.gy) && Number.isFinite(inp.gp) ? Object.assign((s._mga ||= {}), { y: inp.gy, p: inp.gp }) : null;
+    if (!mgAt(v.def, s.seat) && Array.isArray(inp.co) && inp.co.length === 3 && inp.co.every(Number.isFinite)) {
+      const o = new THREE.Vector3(inp.co[0], inp.co[1], inp.co[2]);
+      if (o.length() <= 24) { const e = s.eye(), to = e.clone().add(o); if (this.world.clear(e, to)) s.shotOff = o; }
+    }
     if (inp.fp) h.fireBuf = 0.15;
     h.fireBuf = Math.max(0, h.fireBuf - dt);
     s.rewindTick = Number.isFinite(inp.vt) ? inp.vt : null;

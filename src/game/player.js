@@ -26,7 +26,7 @@ import { seatPress } from './vehicleHud.js';                        // 12.218 ko
 import { ScopeBreath } from './breath.js';
 import { norm, codeLabel, slotOrder } from '../core/keybinds.js';
 import { t as $t } from '../i18n/index.js';
-import { vehCamera } from './vehicleView.js';
+import { vehCamera, seatPitchLim } from './vehicleView.js';
 import { mgAt, seatGun, seatZoom, vehSeatArmed } from '../sim/vehicle.js';
 import { arcYaw, arcPitch } from '../sim/emplacement.js';                             // 12.213 sabit yuva yayı                   // 12.177 araç kamerası (sürücü içeriden / takip)
 import { wName, opticName, fireName } from '../i18n/game.js';
@@ -1290,6 +1290,7 @@ export class Player {
       const cam = g.camera.position, pc = this.vehCam === 'first' ? Math.max(-1.2, Math.min(1.0, s.pitch)) : Math.max(-0.75, Math.min(0.55, s.pitch)) - 0.16;      // vehCamera ile aynı bakış
       s.gunAim = V.noseAimFor(v, cam, dirFromAngles(s.yaw, pc), s, (s._ga ||= {}));
     } else s.gunAim = null;
+    if (!drv && this._vcam === 'third') { const L = seatPitchLim(v.def); s.pitch = clamp(s.pitch, L[0], L[1]); }      // 12.228 sürücü dışı koltukta takip kamerası: bakış kameranın sınırında (artı = atış yönü)
     if (!(drv && v.def.rockets)) s.vw = 0;
     s.rkHeld = !!(drv && v.def.rockets && this.locked && s.vw === 1 && this.fireHeld);      // 12.206 roket: seçili silah roketken sol tık (telefonda ATEŞ); Q / tekerlek / SİLAH değiştirir
     if (drv) {
