@@ -21,6 +21,12 @@ function unlock() {
   if (c.state !== 'running') c.resume?.().then(done, () => {}); else done();
 }
 if (globalThis.addEventListener) for (const ev of ['pointerdown', 'keydown', 'touchend']) addEventListener(ev, unlock, { capture: true, passive: true });
+// 12.234: bağlamı kurmak (new AudioContext) ses aygıtını açtığı için ~100 ms eşzamanlı iş (ölçüm: masaüstü 96 ms, başsız Chromium 115 ms) — menüdeki
+// İLK tıklama bu yüzden bekliyordu. Bağlam sayfa açılınca boşta (askıda) kurulur; ilk harekette yalnız resume() (0,1 ms) yapılır.
+if (typeof document !== 'undefined' && globalThis.AudioContext) {
+  const pre = () => { try { getCtx(); } catch (e) { /* yok say */ } };
+  if (globalThis.requestIdleCallback) requestIdleCallback(pre, { timeout: 3000 }); else setTimeout(pre, 1500);
+}
 
 // beyaz gürültü tamponu (bağlam başına bir kez; 1,5 sn döngü)
 export function noiseBuf(c) {

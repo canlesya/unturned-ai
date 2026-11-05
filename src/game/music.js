@@ -4,6 +4,7 @@
 // Yeni bir kanal/ad eklemek için TRACKS'e yaz; çalmak için music.play('ad'). Sesi Ayarlar → Müzik ve Ana ses belirler (setVolume = Ana × Müzik).
 // Ses ilk kullanıcı hareketinden sonra başlar (actx.js onUnlock); açılışta yavaşça yükselir, durunca söner; sekme gizlenince susar.
 import { getCtx, onUnlock, isMobile } from './actx.js';
+import { isHidden, onPaceChange } from '../framePace.js';
 const TRACKS = {
   lobby: ['lobby'],
   match: ['match1', 'match2', 'match3'],
@@ -111,9 +112,16 @@ class LobbySynth {
 class Music {
   constructor() {
     this.vol = 0.3; this.audio = null; this.group = null; this.token = 0; this.synth = new LobbySynth();
-    if (globalThis.document) document.addEventListener('visibilitychange', () => {   // gizli sekmede zamanlayıcı kısılır: sustur, dönünce sürdür
+    // gizli sekmede zamanlayıcı kısılır: sustur, dönünce sürdür. 12.234: framePace durumu — masaüstünde simge durumundaki pencere de (document.hidden
+    // orada değişmiyor; ses iş parçacığı küçültülmüş menüde sayfa sürecinin ~%5 CPU'suydu)
+    if (globalThis.document) onPaceChange(() => {
       if (this.group !== 'lobby' || this.audio) return;
-      if (document.hidden) this.synth.stop(0.2); else onUnlock(() => { if (this.group === 'lobby' && !document.hidden) this.synth.start(); });
+      const c = getCtx();
+      if (isHidden()) { if (this.synth.on) this.synth.stop(0.2); if (c?.state === 'running') { this._susp = true; setTimeout(() => { if (isHidden() && this.group === 'lobby') c.suspend?.(); }, 300); } }   // ses aygıtı da dursun (sönme bitince)
+      else {
+        const go = () => { if (!this.synth.on) onUnlock(() => { if (this.group === 'lobby' && !isHidden()) this.synth.start(); }); };
+        if (this._susp && c?.resume) { this._susp = false; c.resume().then(go, go); } else go();
+      }
     });
   }
 
@@ -131,7 +139,7 @@ class Music {
     for (const n of names) for (const e of EXT) { const u = `${BASE}${n}.${e}`; if (await probe(u)) { found.push(u); break; } if (tok !== this.token) return; }
     if (tok !== this.token) return;
     if (!found.length) {
-      if (group === 'lobby') onUnlock(() => { if (tok === this.token && !document.hidden) this.synth.start(); });
+      if (group === 'lobby') onUnlock(() => { if (tok === this.token && !isHidden()) this.synth.start(); });
       return;
     }
     let i = 0;

@@ -14,7 +14,7 @@ try {
   // sayfa içi yardımcılar: ad'lı pacer'ın t ms'deki çizilen kare hızı; ham rAF hızı; gizli / odak taklidi
   await ctx.addInitScript(() => {
     window.__pt = {
-      rate: async (name, ms = 1500) => { const p = () => window.__pace.list().find((x) => x.name === name); const a = p(), t0 = performance.now(); await new Promise((r) => setTimeout(r, ms)); const b = p(); const s = (performance.now() - t0) / 1000; return { fps: (b.drawn - a.drawn) / s, hidden: (b.hidden - a.hidden) / s, target: b.fps }; },
+      rate: async (name, ms = 1500) => { const p = async () => (name === 'menu' ? (await window.__menuScene.stats()).pace : window.__pace.list().find((x) => x.name === name)); const a = await p(), t0 = performance.now(); await new Promise((r) => setTimeout(r, ms)); const b = await p(); const s = (performance.now() - t0) / 1000; return { fps: (b.drawn - a.drawn) / s, hidden: (b.hidden - a.hidden) / s, target: b.fps }; },
       raf: async (ms = 1000) => { let n = 0; const t0 = performance.now(); await new Promise((r) => { const f = () => { n++; if (performance.now() - t0 < ms) requestAnimationFrame(f); else r(); }; requestAnimationFrame(f); }); return n / ((performance.now() - t0) / 1000); },
       hide: (v) => { Object.defineProperty(document, 'hidden', { configurable: true, get: () => v }); Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => (v ? 'hidden' : 'visible') }); document.dispatchEvent(new Event('visibilitychange')); },
       // yürüyüş: kamera yatay konumu her çizilen karede (rAF zaman damgasıyla) → kare başına hız
@@ -37,12 +37,12 @@ try {
     };
   });
 
-  // ── 1) ana menü: 3B arka plan 30 FPS (ekran 60 Hz), gizliyken 0 ──
+  // ── 1) ana menü: 3B arka plan ekran hızında (12.234; iş parçacığında, sayaçlar __menuScene.stats().pace), gizliyken 0, odaksız 10 ──
   await page.goto(`${URL}/?nolock=1`);
-  await page.waitForFunction(() => window.__pace?.list().some((p) => p.name === 'menu' && p.drawn > 20), null, { timeout: 30000 });
+  await page.waitForFunction(async () => (await window.__menuScene?.stats())?.pace?.drawn > 20, null, { timeout: 30000, polling: 300 });
   const raf = await page.evaluate(() => window.__pt.raf());
   const m1 = await page.evaluate(() => window.__pt.rate('menu'));
-  check(m1.fps >= 24 && m1.fps <= 33 && raf > 50, `menü sahnesi ${m1.fps.toFixed(1)} FPS (ekran rAF ${raf.toFixed(0)} / sn, hedef ${m1.target})`);
+  check(m1.fps >= 55 && raf > 50, `menü sahnesi ${m1.fps.toFixed(1)} FPS (ekran rAF ${raf.toFixed(0)} / sn, hedef ${m1.target})`);
   await page.evaluate(() => window.__pt.hide(true));
   const m2 = await page.evaluate(() => window.__pt.rate('menu', 1000));
   check(m2.fps === 0, `menü gizliyken çizim yok (${m2.fps.toFixed(1)} FPS)`);

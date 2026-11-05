@@ -123,7 +123,7 @@ function weaponBars(id) {
   return { dmg: Math.min(100, Math.round((st.dmg || 20) * (st.pellets || 1) / 1.3)), range: Math.min(100, Math.round(r / 1.6)), rate: Math.min(100, Math.round((st.rpm || 300) / 9)), control: 60, mobility: Math.round(((st.move || 1) - 0.8) * 250) };
 }
 
-let styleEl = null;
+let styleEl = null, preThumbs = null;
 function ensureStyle() {
   if (styleEl) return;
   styleEl = document.createElement('style'); styleEl.textContent = MENU_CSS; document.head.appendChild(styleEl);
@@ -215,21 +215,25 @@ export function showMenu(onStart, onOnline) {
   // Oyuncu kartı: hesaplıda ad sabit + HESAP rozeti + Çıkış; misafirde ad düzenlenir + MİSAFİR rozeti + Hesap (giriş kartını açar, ad korunur)
   const acctBtns = (s) => (s?.kind === 'acct' ? `<em class="ub">${t('acct.badge')}</em><button class="ua" data-a="acctout">${t('acct.logout')}</button>`
     : `<em class="ub g">${t('acct.guest')}</em><button class="ua" data-a="acctopen" title="${t('acct.openT')}">${t('acct.open')}</button>`);
+  // 12.234 yalnız değişince yaz: her tıklamada sol menü + oyuncu kartı + oda listesi aynı HTML ile yeniden kuruluyordu (yerleşim / görsel yeniden çözme)
+  const setHTML = (e, h) => { if (!e || e._h === h) return false; e.innerHTML = h; e._h = h; return true; };
   function renderUser() {
     const lv = levelOf(p.xp), l0 = (lv - 1) ** 2 * 120, l1 = lv ** 2 * 120;
     const s = p.stats, ss = getSession(), acct = ss?.kind === 'acct';
-    q('#mnUser').innerHTML = `<div class="mn-lv"><small>${t('menu.user.lv')}</small>${lv}</div><div class="mn-ub"><div class="nmrow"><div class="nm" data-raw>${acct ? `<span class="nmv" id="mnAcctName">${esc(ss.name)}</span>` : `<input id="mnName" maxlength="16" value="${esc(p.name)}" spellcheck="false" aria-label="${t('menu.user.name')}" title="${t('menu.user.name')}">`}</div>${acctBtns(ss)}</div>
+    const fresh = setHTML(q('#mnUser'), `<div class="mn-lv"><small>${t('menu.user.lv')}</small>${lv}</div><div class="mn-ub"><div class="nmrow"><div class="nm" data-raw>${acct ? `<span class="nmv" id="mnAcctName">${esc(ss.name)}</span>` : `<input id="mnName" maxlength="16" value="${esc(p.name)}" spellcheck="false" aria-label="${t('menu.user.name')}" title="${t('menu.user.name')}">`}</div>${acctBtns(ss)}</div>
       <div class="xp"><i style="width:${Math.round(((p.xp - l0) / (l1 - l0)) * 100)}%"></i></div>
-      <small>${t('menu.user.stats', { m: s.matches, w: s.wins, a: s.assists || 0, kd: s.deaths ? (s.kills / s.deaths).toFixed(2) : s.kills })}</small></div>`;
-    q('#mnName')?.addEventListener('input', (e) => { p.name = e.target.value.trim() || DEFAULTS.name; save(); });
-    q('#mnName')?.addEventListener('keydown', (e) => e.stopPropagation());
+      <small>${t('menu.user.stats', { m: s.matches, w: s.wins, a: s.assists || 0, kd: s.deaths ? (s.kills / s.deaths).toFixed(2) : s.kills })}</small></div>`);
+    if (fresh) {
+      q('#mnName')?.addEventListener('input', (e) => { p.name = e.target.value.trim() || DEFAULTS.name; save(); });
+      q('#mnName')?.addEventListener('keydown', (e) => e.stopPropagation());
+    }
     const pa = nav.querySelector('.mn-acct');                                 // telefon: üst kart gizli, hesap satırı sol menünün en üstünde
-    if (pa) pa.innerHTML = `<button class="mn-nav pa" data-a="${acct ? 'acctout' : 'acctopen'}">${ico('user')}<span class="tx"><span data-raw>${esc(acct ? ss.name : p.name)}</span><small>${acct ? t('acct.badge') + ' · ' + t('acct.logout') : t('acct.guest') + ' · ' + t('acct.open')}</small></span></button>`;
+    if (pa) setHTML(pa, `<button class="mn-nav pa" data-a="${acct ? 'acctout' : 'acctopen'}">${ico('user')}<span class="tx"><span data-raw>${esc(acct ? ss.name : p.name)}</span><small>${acct ? t('acct.badge') + ' · ' + t('acct.logout') : t('acct.guest') + ' · ' + t('acct.open')}</small></span></button>`);
   }
 
   function renderNav() {
-    nav.innerHTML = NAV.map((k) => `<button class="mn-nav ${screen === k || (k === 'online' && screen === 'ocreate') ? 'on' : ''}" data-a="go" data-v="${k}">${ico(k)}<span class="tx">${t('menu.nav.' + k)}<small>${t('menu.nav.' + k + '.sub')}</small></span></button>`).join('')
-      + '<div class="mn-spacer"></div><div class="mn-acct"></div>';
+    setHTML(nav, NAV.map((k) => `<button class="mn-nav ${screen === k || (k === 'online' && screen === 'ocreate') ? 'on' : ''}" data-a="go" data-v="${k}">${ico(k)}<span class="tx">${t('menu.nav.' + k)}<small>${t('menu.nav.' + k + '.sub')}</small></span></button>`).join('')
+      + '<div class="mn-spacer"></div><div class="mn-acct"></div>');
   }
   // ekran başlığı (Ana Menü dışında): büyük başlık + kısa açıklama
   const head = (k, extra = '') => `<header class="mn-head"><h1>${t('menu.nav.' + (k === 'ocreate' ? 'ocreate' : k))}</h1><p>${t('menu.head.' + k)}</p>${extra}</header>`;
@@ -388,7 +392,7 @@ export function showMenu(onStart, onOnline) {
       ol.rooms = await r.json();
       const n = ol.rooms.reduce((a, x) => a + x.humans, 0);
       set('ok', t('menu.ol.ready', { n }));
-      const box = q('#olRooms'); if (box && !ol.busy) box.innerHTML = roomListHTML();
+      const box = q('#olRooms'); if (box && !ol.busy) setHTML(box, roomListHTML());      // 2,5 sn'de bir: liste aynıysa dokunulmaz
     } catch (e) { ol.rooms = null; set('bad', t('menu.ol.unreach')); const box = q('#olRooms'); if (box) box.innerHTML = `<div class="hint">${t('menu.ol.unreachHint')}</div>`; }
   }
   const roomPoll = setInterval(() => { if (screen === 'online' && !ol.busy && !ol.pwFor) checkServer(); }, 2500);
@@ -846,6 +850,13 @@ export function showMenu(onStart, onOnline) {
   authEl.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Escape' && auth?.closable) closeAuth(); });
 
   render();
+  // 12.234 harita küçük resimleri boşta önceden indirilip çözülür: Özel Oyun / Oda Kur / oda listesi ilk açılışta kartlar boş gelip sonradan dolmasın
+  if (!preThumbs) {
+    preThumbs = [];
+    const urls = [...new Set(Object.values(MAPS).map((m) => m.thumb).filter(Boolean))];
+    const one = () => { const u = urls.shift(); if (!u) return; const im = new Image(); im.decoding = 'async'; im.src = u; preThumbs.push(im); (im.decode ? im.decode().catch(() => {}) : Promise.resolve()).then(() => (window.requestIdleCallback || setTimeout)(one)); };
+    (window.requestIdleCallback || setTimeout)(one);
+  }
   if (!getSession() && new URLSearchParams(location.search).get('nologin') !== '1') openAuth('guest');     // ?nologin=1: eski test betikleri kartı atlar
   else syncAcct();
   scene?.prefetch([...new Set([DEFAULT_MAP, ...Object.values(MAPS).filter((m) => m.only).map((m) => mapsFor(m.only[0])[0].id)])]);   // mod değişiminin zorladığı haritalar boşta hazırlanır (modun ilk haritası: New York, Boya Kulesi)
