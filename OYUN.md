@@ -2979,3 +2979,61 @@ Ayrıca doğrulandı (Electron): v1 `{ uncapped: true }` → `{ v: 2, fps: 'vsyn
 **Test.** Yeni `scripts/killfeel.mjs` (başsız, ~17 sn, 30 denetim; qa-map `killfeel`, alan `silah`): çevrimdışı Çöl Geçidi'nde açık düz yerde bot önden kafadan (kod kafa / geri, iri kırmızı X, kafadan öldürme sesi sayacı, "KAFADAN" bildirimi, artı kırmızı, kask kafadan ayrıldı + 3,3 m öteye düştü, silah yere oturdu), önden gövdeden koşarken (düz geri; ortada baş 1,36 m yukarıda), arkadan (öne), bombayla (2,2 m savruldu), arkası duvarken (dizüstü öne; baş duvarda değil) — her birinde gövdenin en alt noktası zeminde (1,0–1,2 cm), baş itiş yönünde 1,56–3,84 m; doğunca silah elde + kask başta; yeni program 0; oyuncu önden vurulunca kamera 1 sn'de 1,16 m iner, 1,13 rad yukarı bakar. Çevrim içi (BF_DEBUG sunucu, iki tarayıcı aynı odada): `{dmg}` ile kafadan öldürme → `da=10784` (kafa / kafadan / geri), iki istemci aynı kodu ve aynı düşüşü oynar (baş atıcıdan 1,56 m uzakta), ikisinde de kask uçar. Görüntüler `/tmp/wb-killfeel/` (1 geriye düşüş ortası, 2 kask uçuşu, 3 patlamayla savrulma, 4 kafadan işaret + bildirim, 5 son poz + düşen silah, 6 çevrim içi bildirim). `qa.mjs --changed` (22 test) OK; uykutest paralel yükte bir kez 6. raunt doğuş mesafesinden düştü, tek başına 88/88 OK.
 
 **Sınırlar.** Gerçek fizik / ragdoll değil (yöntemsel anahtar pozlar): eğimli zeminde gövde yalnız boyuna eğilir, enine eğim yok; yerdeki gövde sonradan yaklaşan araç / patlamayla kıpırdamaz. Uçan kask yalnız v2 kıyafetli askerlerde (Cephe / Uzay / paintball / zombi: yalnız kafa bulutu). Düşen silah / kask yalnız zemine bakar (uçarken duvara çarpmaz; kısa mesafe). Uzak asker vekili (12.203, büyük haritalar) eski basit devrilmeyi sürdürür (yön artık koddan).
+
+### 12.234 "Ana menüde arkada dönen harita takıla takıla gidiyor, mod / harita seçince bekletiyor": menü arka planı ayrı iş parçacığında, ekran hızının tam böleninde; menü beklemeleri
+
+**Şikâyet.** Ana menüdeki dönen harita akıcı değil (12.232 menüyü 30 FPS'e sınırlamıştı); menüde bazı tıklamalar bekletiyor: mod seçimi, harita seçimi vb.
+
+**Nedenler (ölçüldü)**
+1. **30 FPS + bölünmeyen tempo.** Dönen kamera 30 FPS'te kesik görünüyor; ayrıca 30, 144 Hz ekranın tam böleni değil (4,8 karede bir): kareler 4 / 5 ekran karesi dönüşümlü (benzetimde 139 karede 28 düzensiz, aralık sapması 2,8 ms, kamera adımı CV 0,084). Masaüstü 120 Hz'de gerçek ölçüm: 30 FPS ama aralık sapması 2,5–2,8 ms, p99 42 ms (5 ekran karesi). Kamera adımı ham rAF süresiyle ilerliyordu (zaman damgası oynadıkça adım da oynuyor).
+2. **Harita / mod seçimi = ana iş parçacığında harita kurulumu.** Menü arka planı için haritanın tamamı (`MAPS[id].build()`, tek parça eşzamanlı iş) tıklamadan sonraki karede kuruluyordu: Kasaba 310–334 ms, Çöl Geçidi 307–326, Vadi 244, Askeri Üs 175–194, Kum Köyü 157–181 (Uyku modu), Batı Cephesi 384–389 (Cephe modu), New York 161, **Kuzey Vadisi 1,1–1,2 sn**. O sırada arayüz donuyor, arka plan duruyor, sonraki adıma kaydırma takılıyor; boşta önceden kurulan haritalar da (`prefetch`) aynı uzun görevi rastgele bir anda yapıyordu (ilk ölçümde ayrıca ilk kullanılan program için `getProgramInfoLog` 185–550 ms).
+3. **İlk tıklama: ses bağlamı.** Menüdeki ilk tıklama (hangisi olursa) `new AudioContext()` kuruyordu: ses aygıtını açmak eşzamanlı **96 ms** (masaüstü), 115 ms (başsız Chromium) → "Özel Oyun"a ilk geçiş 125 ms uzun görev, tık → boya 160 ms.
+4. **Menü GPU maliyetinin yarısı iki küçük kutu.** Masaüstünde (60 FPS deneyi) üst sağdaki dil kutusu (`.mn-langs`) + oyuncu kartı (`.mn-user`, `clip-path`) birlikte `backdrop-filter: blur` ile GPU sürecini ~%14 → ~%27 çıkarıyordu (ikisinden biri tek başına kaldırılınca etkisiz; diğer bütün bulanık paneller — `.pan`, `.card`, `.sc`, `.pv` — kalınca da ~%14). Çözünürlük (×0,7 / ×1 / ×1,5) ve gölgenin her karede çizilmesi GPU süreci CPU'sunu yalnız ±%1,5 değiştiriyor: maliyet karenin bileşimi.
+
+**Düzeltmeler**
+- **Menü arka planı ayrı iş parçacığında** (yeni `src/menuBg.js` çekirdek + `src/menuBg.worker.js`): tuval `transferControlToOffscreen()` ile iş parçacığına verilir; harita kurulumu, ortam, gölgelendirici derleme (`compileAsync`) ve çizim orada. Ana iş parçacığı yalnız ileti yollar (`world` / `mode` / `size` / `state` / `prefetch` / `stats`). Haritaların tabela / yazı dokuları için kurulum süresince `document.createElement('canvas')` → `OffscreenCanvas` yer tutucusu (modüllerin açılıştaki `document` denetimlerini etkilemez). Geçiş: kurulmamış haritada tuval önce 160 ms'de soluklaşır (CSS geçişi, bileşikleyicide akar), eski harita bu sırada döner; kurulum + derleme, sonra 450 ms'de açılır. Kuzey Vadisi'nde soluk ara 1,1 sn sürer ama arayüz hiç beklemez.
+- **Yedek yol** (iş parçacığında rAF yok — Safari —, tek dosyalık sürüm, iş parçacığı yüklenemedi, `?menubg=main`): aynı `MenuBg` ana iş parçacığında, aktarılmış tuvalin yerine yenisiyle; harita kurulumu kullanıcı 0,4 sn boşta kalınca (tık / tuş / tekerlek / kaydırma; en çok 2,5 sn bekler), önceden kurulum yalnız 1,5 sn boştayken. İş parçacığı yolunda önceden kurulum yalnız arka plan görünmezken (Cephanelik).
+- **Kare temposu: ekran hızının tam böleni** (`FramePacer` `snap` kipi): hedef ≈60 → 60 Hz'de 60, 120 Hz'de 60 (her 2. kare), 144 Hz'de 72, 240 Hz'de 60 (her 4.); karar ekran karesi sayılarak verilir (zaman damgası oynasa da her k. kare), aradaki kareler rAF'le geçilir. Kamera adımı `dtFix`: çizilen kare aralığı ekran karesinin tam katına yuvarlanır (ekran karesi ayrıca yavaş ortalanır) → her karede aynı açı. Odaksız pencere 10 FPS (yine bölen), gizli / simge durumu çizim yok. Sınırsız Chromium'da (masaüstü "Sınırsız") zamanlayıcıyla `hz / k`. `?mfps=0` her ekran karesi (deneme). Neden 120 değil 60: masaüstü 120 Hz'de her ekran karesi GPU süreci %25–26 (= 12.232'nin düzensiz 30'u kadar), düzenli 60 %15,8; yavaş dönen kamera için düzenli 60 akıcı.
+- **Ucuz çizim:** iç çözünürlük CSS pikseli × en çok 1 (Retina'da 1,5 idi: 2,25 kat az piksel), toplam en çok ~2,1 MP (`?mpr=`); gölge haritası harita değişince **bir kez** çizilir (güneş sabit, sahne durağan; `?mshadow=live|off`); harita ağlarının matrisi bir kez (`matrixAutoUpdate = false`); `checkShaderErrors` kapalı (ilk çizimde derleme durumu eşzamanlı sorulmaz). Menü haritaları zaten birleştirilmiş: Kasaba 5 çizim çağrısı.
+- **Vitrin (Cephanelik) + silah ikonları** ana iş parçacığında ayrı tuvalde (`#mnShow`) ve ikinci bağlamda; bağlam + ortam dokusu menü açıldıktan ~1,5 sn sonra boşta önceden açılır, yeni model önce `compileAsync` ile derlenir sonra çizilir; vitrin yalnız Cephanelik'te çizer (≈60, bölen). İlk denemede bağlamı Cephanelik'e girişte açmak 735 ms'ye çıkarmıştı → bu iki adımla 0.
+- **Ses bağlamı boşta** (`src/game/actx.js`): sayfa açılınca `requestIdleCallback` ile (askıda) kurulur; ilk tıklamada yalnız `resume()` (0,1 ms). Lobi müziği (`src/game/music.js`) artık `framePace` görünürlüğünü dinler: masaüstünde simge durumundaki pencerede de susar ve ses bağlamı askıya alınır (Electron'da `document.hidden` değişmiyordu; müzik sayfa sürecinin ~%5 CPU'sunu yiyordu), görünür olunca sürer. Not: Electron'un kendiliğinden oynatma kuralı yüzünden masaüstünde lobi müziği artık ilk tıklamayı beklemeden başlıyor.
+- **CSS:** `.mn-langs` / `.mn-user` `backdrop-filter` kaldırıldı, zemin `rgba(10,14,21,.86)` (görünüş neredeyse aynı: zaten %80 opaktı).
+- **DOM:** sol menü, oyuncu kartı, telefon hesap satırı ve oda listesi (2,5 sn'de bir) yalnız HTML değişince yazılır (`setHTML`); harita küçük resimleri boşta önceden indirilip çözülür.
+- `framePace.js`: iş parçacığında da çalışır (document yoksa görünürlük / odak `setPaceState` ile gelir), `onPaceChange` dinleyicileri, `snap` kipi, `dtFix`; `__pace.list()` `k` (kaç ekran karesinde bir) da yazar. Betikler: `await __menuScene.stats()` (son 600 çizimin damgası + kamera açısı, geçişler: kurulum / derleme ms, çizim çağrısı, çözünürlük, tempo).
+
+**Ölçümler**
+
+Masaüstü (Electron `--inactive`, M4 Pro, 120 Hz, 1440×810; süreç CPU'su `ps` 12–20 sn; önce = `online` e2737a2, sonra = bu dal, derlenmiş):
+
+| Menü | GPU süreci | Sayfa süreci | kare | aralık sapması / p99 | kamera adımı CV |
+|---|---|---|---|---|---|
+| Ana menü, **önce** | **24,7–25,1 %** | 8,8–9,3 % (müzik yok) | 30 FPS | 2,5–2,8 ms / 42 ms (4–5 ekran karesi) | — |
+| Ana menü, **sonra** | **15,9 %** | 8,7 % (müzik çalıyor) | 60 (her 2. kare) | 0,9–1,0 ms / 18,6 ms (2 ekran karesi; sapma iş parçacığı rAF damgasının oynaması) | 0,001–0,02 |
+| Özel Oyun, önce / sonra | 21,0 / 15,7 % | 15,0 / 12,6 % | 30 / 60 | | |
+| Sonra, her ekran karesi (`?mfps=0`) | 25,0–25,8 % | 12–17 % | 120 | 0,9 ms / 10,3 ms | 0,002 |
+| Sonra, yedek yol (ana iş parçacığı, 60) | ~28 % (geliştirme sunucusu) | 7,6 % | 60 | 0,8 ms / 18,4 ms | 0,009 |
+| Simge durumunda, önce / sonra | 0,3 / 0,2 % | 0,1 / 0,1 % (müzik düzeltmesinden önce 5,2) | 0 | | |
+
+Kare temposu benzetimi (`scripts/lib/pacesim.mjs`: `FramePacer` sanal saatte, rAF 0–1,5 ms geç + oynak damga): önce (30, bölen yok) 144 Hz → aralıklar 4 / 5 ekran karesi (28 / 139 düzensiz), sapma 2,79 ms, adım CV 0,084. Sonra: 60 Hz → 60, 120 → 60 (her 2.), 144 → 72 (her 2.), 240 → 60 (her 4.): düzensiz kare **0**, adım CV 0,0006–0,0033; odaksız 144 Hz → 10,3 FPS her 14. kare, düzensiz 0. Başsız Metal (60 Hz): 60,0 FPS, sapma 0,06 ms, adım CV 0,0001.
+
+Menü beklemeleri (başsız Metal, 1440×810, tıklamadan sonraki en uzun ana iş parçacığı görevi; ms):
+
+| Tıklama | önce | sonra |
+|---|---|---|
+| Ana menü → Özel Oyun (ilk tık: ses bağlamı) | 125 (tık → boya 160) | **0** (tık → boya 80) |
+| Mod: Cephe (Batı Cephesi kurulur) | 384 | **0** |
+| Mod: Uyku (Kum Köyü) | 181 | **0** |
+| Mod: Enfekte (New York; 12.232'de boşta önceden kuruluyordu) | 0 (bir ölçümde 572: program bekleme) | 0 |
+| Harita: Vadi / Askeri Üs / Çöl Geçidi / Kasaba | 244 / 194 / 326 / 334 | **0 / 0 / 0 / 0** |
+| Harita: Kuzey Vadisi | **1178** (ana kare 1167 ms donuk) | **0** (ana kare 17 ms) |
+| Cephanelik'e giriş | 55 | **0** |
+| Gün saati, hava, boyut, Çevrimiçi (oda listesi), Oda Kur + mod / harita, sınıf / yuva / silah / Görünüm, Ayarlar, Kontroller, Harita Editörü, dil, hesap kartı | 0 | 0 (tık → boya 16–24) |
+| Maç → menü | 333 + 178 (menü haritası ana iş parçacığında) | **0** (arka plan 446–512 ms'de dönüyor) |
+| Hızlı Oyun → yükleme ekranı | 58 | 36 |
+| Yükleme ekranı arkasında maç kurulumu (`new Game`, değişmedi) | 523 | 530 |
+
+İş parçacığındaki kurulum (arayüzü bekletmeyen): Kasaba 310, New York 161, Batı Cephesi 389, Kum Köyü 157, Vadi 247, Askeri Üs 175, Çöl Geçidi 307, Kuzey Vadisi 1122 ms; ilk harita sayfa açılışından 0,6–0,8 sn sonra dönüyor.
+
+**Test.** Yeni `scripts/menuperf.mjs` (başsız, ~57 sn; qa-map `menuperf`, alan `menu`; `src/{framePace,menuScene,menuBg,menuBg.worker,menu,menuStyle}.js`, `src/game/actx.js`): tempo benzetimi (60 / 120 / 144 / 240 Hz bölen, düzensiz 0, adım CV < 0,01; odaksız 10), arka plan iş parçacığında, ≥ 55 FPS, sapma < 2 ms, kamera CV < 0,02; 39 tıklamada uzun görev ≤ 100 ms (RAIL tepki bütçesi), tık → boya ≤ 200 ms (INP "iyi"); Hızlı Oyun → yükleme ekranı < 300 ms; maç → menü arka plan < 5 sn, uzun görev ≤ 200 ms; sayfa hatası yok. `pacetest` menü kısmı yeni beklentiye (≥ 55 FPS, sayaçlar `__menuScene.stats()`), gizli 0 / odaksız 10 aynı. Elle: iş parçacığı yüklenemeyince (istek engellendi) yedek yol: menü + Cephanelik vitrini + ikonlar çalışıyor; lobi müziği gizlenince susuyor + bağlam askıda, görünür olunca sürüyor.
+
+**Sınırlar.** Safari / iOS'ta (iş parçacığında rAF yok) yedek yol: harita kurulumu yine ana iş parçacığında (kullanıcı boştayken), menü 60 FPS'te ana iş parçacığında çizilir (masaüstü ölçümünde GPU süreci ~%28). Tek dosyalık sürüm (`npm run single`) iş parçacığı dosyasını gömmüyor → yedek yol. Harita kurulumunun kendisi bölünmedi (haritaların kurucuları tek parça; iş parçacığı bunu arayüzden ayırdı), Kuzey Vadisi geçişinde arka plan ~1,1 sn soluk bekler. İş parçacığı three + harita kodunun ikinci kopyasını yükler (derlenmiş 2,0 MB; menüde ek bellek, maç başlarken kapanır). 120 / 144 Hz ekranda menü ekran hızında değil ≈60 / 72 (bilerek; `?mfps=0` ile her kare). Windows'ta ölçülmedi.

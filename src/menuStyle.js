@@ -20,11 +20,11 @@ export const MENU_CSS = `
 #menu .mn-logo b{color:var(--acc);font-weight:800}
 #menu .mn-logo small{display:block;font-size:11px;letter-spacing:6px;color:var(--dim);font-style:normal;font-weight:600;margin-top:9px}
 #menu .mn-topr{display:flex;gap:10px;align-items:stretch}
-#menu .mn-langs{display:flex;background:var(--pan);border:1px solid var(--line);backdrop-filter:blur(8px)}
+/* 12.234: dil + oyuncu kutusunda backdrop-filter yok (ikisi birlikte menüde GPU sürecini ~%14 → ~%27 çıkarıyordu, masaüstü ölçümü); zemin biraz daha koyu */#menu .mn-langs{display:flex;background:rgba(10,14,21,.86);border:1px solid var(--line)}
 #menu .mn-langs .lg{min-width:44px;padding:0 10px;font-size:13px;font-weight:700;letter-spacing:2px;color:var(--dim);transition:color .15s,background .15s}
 #menu .mn-langs .lg:hover{color:#fff;background:#ffffff10}
 #menu .mn-langs .lg.on{color:#160a02;background:var(--acc)}
-#menu .mn-user{display:flex;gap:14px;align-items:center;background:var(--pan);border:1px solid var(--line);padding:8px 16px 8px 10px;backdrop-filter:blur(8px);clip-path:polygon(0 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%)}
+#menu .mn-user{display:flex;gap:14px;align-items:center;background:rgba(10,14,21,.86);border:1px solid var(--line);padding:8px 16px 8px 10px;clip-path:polygon(0 0,100% 0,100% calc(100% - 10px),calc(100% - 10px) 100%,0 100%)}
 #menu .mn-lv{width:48px;height:52px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:23px;line-height:1;font-weight:800;background:linear-gradient(135deg,var(--acc2),var(--acc3));color:#160a02;clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%)}
 #menu .mn-lv small{font-size:8px;letter-spacing:1.5px;font-weight:800;opacity:.85;margin-bottom:1px;color:#3a1800}
 #menu .mn-user .nm{font-size:18px;font-weight:700;letter-spacing:1px;text-transform:uppercase}
