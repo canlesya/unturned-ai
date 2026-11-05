@@ -6,6 +6,7 @@ import { WSTATS, ZT_ORDER } from '../game/stats.js';
 import { sanitizeBalance, useBalance, TUNE } from '../game/balance.js';
 import { banText } from '../i18n/game.js';
 import { fallHeight } from '../sim/fall.js';
+import { deadDirOf } from '../game/deathAnim.js';                                // 12.233
 import { packVehState, applyVehState, stepVehicle } from '../sim/vehicle.js';
 
 // Diğer oyuncuların gösterim gecikmesi (interpolasyon tamponu) ağın titremesine göre uyarlanır (12.137):
@@ -219,7 +220,10 @@ export class NetClient {
   // Sunucu durumunu bir savaşçıya uygula (uzaktakiler ve doğma/ölüm geçişleri)
   applyState(s, p, local) {
     if (p.a && !s.alive) s.spawn({ x: p.x, z: p.z, ry: p.yw }, 0);
-    else if (!p.a && s.alive) { s.alive = false; s.hp = 0; s.deadT = 0; s.deadDir = Math.random() > 0.5 ? 1 : -1; s.ads = false; s.reloadT = 0; s.vel.set(0, 0, 0); }
+    else if (!p.a && s.alive) {
+      s.alive = false; s.hp = 0; s.deadT = 0; s.ads = false; s.reloadT = 0; s.vel.set(0, 0, 0);
+      s.dCode = s._pendD ?? 0; s._pendD = undefined; s.dSeq = (s.dSeq | 0) + 1; s.deadDir = s.dCode ? deadDirOf(s.dCode) : Math.random() > 0.5 ? 1 : -1;      // 12.233 'kill' olayı (da) çoğu zaman snapshot'tan önce gelir: sunucunun seçtiği düşüş
+    }
     s.hp = p.hp;
     if (this.game.uyku) this.game.uyku.netSoldier(s, p);                         // 12.223 uyuyor mu / kanama / kaldırma ilerlemesi / haklar
     if (p.it) {                                                                                    // yavaş alanlar (yalnızca değişince / periyodik gelir)

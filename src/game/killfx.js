@@ -4,7 +4,8 @@
 //   • Çoklu öldürme (4,5 sn içinde): ÇİFT / ÜÇLÜ / DÖRTLÜ / KATLİAM; ölmeden seri: 3 / 5 / 7 / 10'da çağrı · öldürme sesi katmanları (notalar yükselir)
 //   • Seri sesi (streakSfx.js, 12.148): seri ≥ 2'de her öldürmede yükselen kısa "başarı" sesi (Ayarlar → Ses → Seri sesleri); takım arkadaşı / kendi ölümü sayılmaz
 //   • 12.164 delip geçme: 2. / 3. hedefe isabette artının altında "DELİP GEÇTİ" etiketi + ayrı (boğuk, çift) isabet sesi; tek mermiyle 2+ öldürmede çağrı "ÇİFTE · TEK MERMİ" (çoklu öldürme çağrısının yerine), kartta DELİP GEÇTİ rozeti
-//   • Hafif ekran sarsıntısı + kenar parlaması, öldürme akışında kendi öldürmelerin altın vurgulu; telefonda (body.mob) küçük ve ortadan biraz yukarıda
+//   • Kenar parlaması, öldürme akışında kendi öldürmelerin altın vurgulu; telefonda (body.mob) küçük ve ortadan biraz yukarıda
+//   • 12.233: öldürmede ekran sarsıntısı yok (yalnız ses + işaret); artı kısa an kırmızı yanar; kafadan öldürmede iri kalın kırmızı X + dışa açılan halka
 import { t } from '../i18n/index.js';
 import '../i18n/fx.js';
 import { playStreak } from './streakSfx.js';
@@ -14,6 +15,9 @@ const CSS = `
 #kfx .hm{position:absolute;left:50%;top:50%;width:0;height:0;opacity:0;color:#fff}
 #kfx .hm i{position:absolute;left:-1.5px;top:-15px;width:3px;height:9px;background:currentColor;border-radius:1px;box-shadow:0 0 3px rgba(0,0,0,.85);transform-origin:1.5px 15px}
 #kfx .hm i:nth-child(1){transform:rotate(45deg)}#kfx .hm i:nth-child(2){transform:rotate(135deg)}#kfx .hm i:nth-child(3){transform:rotate(225deg)}#kfx .hm i:nth-child(4){transform:rotate(315deg)}
+#kfx .hm.hs i{left:-2px;top:-18px;width:4px;height:11px;transform-origin:2px 18px}
+#kfx .hr{position:absolute;left:50%;top:50%;width:34px;height:34px;margin:-17px 0 0 -17px;border:2px solid #ff3b2f;border-radius:50%;opacity:0;box-shadow:0 0 6px rgba(255,59,47,.55)}
+#cross.kfl span{background:#ff3b2f!important;box-shadow:0 0 4px rgba(255,59,47,.85)}
 #kfx .fl{position:absolute;inset:0;opacity:0;background:radial-gradient(ellipse at center,transparent 58%,rgba(255,170,90,.32) 100%)}
 #kfx .fl.hs{background:radial-gradient(ellipse at center,transparent 58%,rgba(255,70,40,.36) 100%)}
 #kfx .nt{position:absolute;left:50%;top:61%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:6px}
@@ -50,9 +54,9 @@ export class KillFx {
     this.st = document.createElement('style'); this.st.textContent = CSS; document.head.appendChild(this.st);
     const el = (this.root = document.createElement('div'));
     el.id = 'kfx';
-    el.innerHTML = '<div class="fl"></div><div class="nt"></div><div class="hm"><i></i><i></i><i></i><i></i></div><div class="pnt"></div>';
+    el.innerHTML = '<div class="fl"></div><div class="nt"></div><div class="hr"></div><div class="hm"><i></i><i></i><i></i><i></i></div><div class="pnt"></div>';
     (game.hud.root || document.body).appendChild(el);
-    this.hm = el.querySelector('.hm'); this.pnt = el.querySelector('.pnt'); this.fl = el.querySelector('.fl'); this.nt = el.querySelector('.nt');
+    this.hm = el.querySelector('.hm'); this.hr = el.querySelector('.hr'); this.pnt = el.querySelector('.pnt'); this.fl = el.querySelector('.fl'); this.nt = el.querySelector('.nt');
     this.multi = 0; this.lastKill = -99; this.streak = 0; this.killT = 0;
     this.streakSfxN = 0; this.lastStreakSfx = null;                       // test: çalınan seri sesi sayısı / son çağrı
   }
@@ -61,18 +65,27 @@ export class KillFx {
 
   // isabet: e = { zone, dead, dmg?, pn? } (çevrimiçide dmg gelmez → orta boy) · pn: delip geçen merminin kaçıncı hedefi (12.164; 0 = ilk)
   hit(e) {
-    const head = e.zone === 'head', dead = !!e.dead, dmg = e.dmg ?? 34;
-    const s = dead ? 1.55 : 0.8 + Math.min(1, dmg / 100) * 0.55 + (head ? 0.15 : 0);
+    const head = e.zone === 'head', dead = !!e.dead, dmg = e.dmg ?? 34, hsk = dead && head;
+    const s = hsk ? 1.95 : dead ? 1.55 : 0.8 + Math.min(1, dmg / 100) * 0.55 + (head ? 0.22 : 0);
     if (e.pn) this.pierced();
     if (!dead && this.now() - this.killT < 0.3) { if (e.pn) this.g.sfx.hitPen?.(); return; }     // öldürme X'i ekrandayken sıradan isabet onu ezmesin (delip geçen 2. isabet sesini yine çalar)
     this.hm.style.color = dead ? '#ff3b2f' : head ? '#ffcf3a' : '#ffffff';
+    this.hm.classList.toggle('hs', hsk);
+    this.lastHm = { head, dead, hs: hsk, s, at: this.now() };                 // test
     this.hm.getAnimations?.().forEach((a) => a.cancel());
     this.hm.animate(dead
-      ? [{ opacity: 1, transform: `scale(${s * 1.35}) rotate(-12deg)` }, { opacity: 1, transform: `scale(${s}) rotate(0deg)`, offset: 0.18 }, { opacity: 1, transform: `scale(${s})`, offset: 0.7 }, { opacity: 0, transform: `scale(${s * 1.1})` }]
+      ? [{ opacity: 1, transform: `scale(${s * (hsk ? 1.5 : 1.35)}) rotate(${hsk ? -18 : -12}deg)` }, { opacity: 1, transform: `scale(${s}) rotate(0deg)`, offset: 0.18 }, { opacity: 1, transform: `scale(${s})`, offset: 0.7 }, { opacity: 0, transform: `scale(${s * 1.1})` }]
+      : head ? [{ opacity: 1, transform: `scale(${s * 1.45})` }, { opacity: 1, transform: `scale(${s})`, offset: 0.22 }, { opacity: 0, transform: `scale(${s * 0.95})` }]
       : [{ opacity: 1, transform: `scale(${s * 1.25})` }, { opacity: 1, transform: `scale(${s})`, offset: 0.25 }, { opacity: 0, transform: `scale(${s * 0.92})` }],
-    { duration: dead ? 520 : head ? 260 : 190, easing: 'ease-out' });
-    if (dead) this.killT = this.now();
+    { duration: hsk ? 620 : dead ? 520 : head ? 280 : 190, easing: 'ease-out' });
+    if (hsk) { this.hr.getAnimations?.().forEach((a) => a.cancel()); this.hr.animate([{ opacity: 0.95, transform: 'scale(.45)' }, { opacity: 0, transform: 'scale(1.7)' }], { duration: 420, easing: 'ease-out' }); }
+    if (dead) { this.killT = this.now(); this.crossFlash(); }
     else if (head) this.g.sfx.headshot(); else if (e.pn) this.g.sfx.hitPen?.(); else this.g.sfx.hit(dmg);
+  }
+  // 12.233 öldürme anında artı ~0,22 sn kırmızı yanar
+  crossFlash() {
+    const c = this.g.hud.$?.('cross'); if (!c) return;
+    c.classList.add('kfl'); clearTimeout(this._cfT); this._cfT = setTimeout(() => c.classList.remove('kfl'), 220);
   }
   // 12.164: artının altında kısa "DELİP GEÇTİ" etiketi
   pierced() {
@@ -82,7 +95,7 @@ export class KillFx {
     this.pnt.animate([{ opacity: 0, transform: 'translateX(-50%) scale(1.25)' }, { opacity: 1, transform: 'translateX(-50%) scale(1)', offset: 0.12 }, { opacity: 1, offset: 0.7 }, { opacity: 0, transform: 'translateX(-50%) translateY(-4px)' }], { duration: 900, easing: 'ease-out', fill: 'forwards' });
   }
 
-  // oyuncu birini öldürdü: bildirim + çağrı + ses + sarsıntı
+  // oyuncu birini öldürdü: bildirim + çağrı + ses (12.233: ekran sarsıntısı kaldırıldı)
   kill(victim, weapon, hs, pts, pen = {}) {
     const now = this.now(), g = this.g, me = g.playerSoldier;
     const mate = !g.ffa && !!victim && !!me && victim !== me && victim.team === me.team;    // takım arkadaşı: seriye / çoklu öldürmeye sayılmaz
@@ -91,7 +104,6 @@ export class KillFx {
     const ss = !mate && g.settings?.streakSound !== false && this.streak >= 2;             // seri sesi: öldürme onayı sabit kalır, yükselen kısım seri sesinde
     g.sfx.kill(hs, g.settings?.streakSound !== false ? 1 : this.multi);                         // kapalıysa eski davranış: çoklu öldürmede onay notaları yükselir
     if (ss && playStreak(g.sfx, this.streak, { multi: this.multi })) { this.streakSfxN++; this.lastStreakSfx = { n: this.streak, multi: this.multi, at: now }; }
-    g.effects.shake = Math.max(g.effects.shake || 0, hs ? 0.34 : 0.24);
     this.fl.className = 'fl' + (hs ? ' hs' : '');
     this.fl.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 420, easing: 'ease-out' });
     // çağrı: çoklu öldürme önce, yoksa seri dönüm noktası (3 / 5 / 7 / 10 / 15 …), yoksa küçük "SERİ ×n" (seri ≥ 2)

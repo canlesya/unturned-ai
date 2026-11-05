@@ -42,6 +42,7 @@ export class Sfx {
     this.mix = { sfx: 1, amb: 1, rain: true };      // kanal seviyeleri: efekt / ortam; rain: yağmur sesi (Ayarlar'dan)
     this.listener = { pos: new THREE.Vector3(), right: new THREE.Vector3(1, 0, 0) };
     this.live = 0;                                  // çalan kaynak sayısı (test / sızıntı denetimi)
+    this.evN = { hit: 0, hs: 0, kill: 0, killHs: 0 };      // 12.233 test: çalınan isabet / kafa / öldürme onayı sayısı (bağlam yokken de sayar)
     this.world = null;                              // game.js verir: kapalı alan yoklaması (tavan var mı → daha çok yankı)
     this.indoor = 0; this._envT = 0;
     let q = null; try { q = new URLSearchParams(globalThis.location?.search || '').get('sfx'); } catch (e) { /* yok */ }
@@ -221,6 +222,7 @@ export class Sfx {
   }
   // İsabet geri bildirimi (konumsuz, kuru): gövde = kısa "tık", kafa = metalik çan; dmg ile tok / parlak
   hit(dmg = 30) {
+    this.evN.hit++;
     if (!this.ctx) return;
     const v = this._voice(null, 1), k = Math.min(1.3, 0.75 + dmg / 90);
     this._tone({ v, gain: 0.2 * k, dur: 0.045, f0: 2300, f1: 1800, type: 'triangle', att: 0.001 });
@@ -234,24 +236,35 @@ export class Sfx {
     this._tone({ v, gain: 0.13, dur: 0.06, f0: 1250, f1: 900, type: 'triangle', delay: 0.055, att: 0.001 });
     this._noise({ v, gain: 0.1, dur: 0.03, f0: 2600, f1: 1200, type: 'bandpass', q: 1.2, att: 0.001, delay: 0.05 });
   }
+  // 12.233 kafa isabeti: tok "thock" (kafatası / kask darbesi) + kısa metalik "tink" (kask) — gövdenin kuru tıkından belirgin farklı, çan gibi uzamaz
   headshot() {
+    this.evN.hs++;
     if (!this.ctx) return;
-    const v = this._voice(null, 1);
-    this._tone({ v, gain: 0.2, dur: 0.38, f0: 2650, f1: 2600, att: 0.001 });
-    this._tone({ v, gain: 0.09, dur: 0.26, f0: 3990, f1: 3950, att: 0.001 });
-    this._tone({ v, gain: 0.05, dur: 0.15, f0: 6120, f1: 6100, att: 0.001 });
-    this._noise({ v, gain: 0.14, dur: 0.02, f0: 6000, f1: 3500, type: 'bandpass', q: 1.5, att: 0.001 });
+    this._tink(this._voice(null, 1), 1, 0);
   }
-  // Öldürme onayı: tok "küt" + parlak iki notalı onay; çoklu öldürmede notalar yükselir, kafadansa çan eklenir
+  _tink(v, k, delay) {
+    this._tone({ v, gain: 0.26 * k, dur: 0.06, f0: 540, f1: 210, att: 0.001, delay });
+    this._noise({ v, gain: 0.16 * k, dur: 0.035, f0: 1900, f1: 700, type: 'bandpass', q: 1.6, att: 0.001, delay });
+    this._tone({ v, gain: 0.17 * k, dur: 0.15, f0: 3350, f1: 3120, type: 'triangle', att: 0.001, delay: delay + 0.004 });
+    this._tone({ v, gain: 0.07 * k, dur: 0.1, f0: 5020, f1: 4880, att: 0.001, delay: delay + 0.004 });
+    this._noise({ v, gain: 0.1 * k, dur: 0.015, f0: 7000, f1: 4500, type: 'highpass', att: 0.0008, delay });
+  }
+  // Öldürme onayı (12.233): tok "küt" + kısa temiz "ding" (sinüs + üst ton); kafadan öldürmede daha güçlü: tiz ikinci ding + kask tınısı.
+  // Çoklu öldürmede notalar yükselir (seri sesi kapalıyken)
   kill(hs = false, n = 1) {
+    this.evN[hs ? 'killHs' : 'kill']++;
     if (!this.ctx) return;
-    const v = this._voice(null, 1), up = Math.pow(2, Math.min(4, n - 1) * 2 / 12);
-    this._tone({ v, gain: 0.42, dur: 0.14, f0: 150, f1: 52, att: 0.002 });
-    this._noise({ v, gain: 0.22, dur: 0.07, f0: 1400, f1: 200, att: 0.002 });
-    this._tone({ v, gain: 0.13, dur: 0.11, f0: 1046 * up, f1: 1040 * up, type: 'triangle', delay: 0.03, att: 0.002 });
-    this._tone({ v, gain: 0.15, dur: 0.24, f0: 1568 * up, f1: 1560 * up, type: 'triangle', delay: 0.1, att: 0.002 });
+    const v = this._voice(null, 1), up = Math.pow(2, Math.min(4, n - 1) * 2 / 12), f = 1568 * up;
+    this._tone({ v, gain: hs ? 0.5 : 0.4, dur: 0.14, f0: 150, f1: 52, att: 0.002 });
+    this._noise({ v, gain: 0.2, dur: 0.065, f0: 1400, f1: 200, att: 0.002 });
+    this._tone({ v, gain: 0.16, dur: 0.3, f0: f, f1: f * 0.998, att: 0.002, delay: 0.035 });
+    this._tone({ v, gain: 0.05, dur: 0.2, f0: f * 2.01, f1: f * 2, type: 'triangle', att: 0.002, delay: 0.035 });
     if (n >= 2) this._tone({ v, gain: 0.11, dur: 0.3, f0: 2093 * up, f1: 2090 * up, type: 'triangle', delay: 0.17, att: 0.002 });
-    if (hs) this.headshot();
+    if (hs) {
+      this._tone({ v, gain: 0.17, dur: 0.42, f0: 2349 * up, f1: 2345 * up, att: 0.002, delay: 0.11 });
+      this._tone({ v, gain: 0.06, dur: 0.3, f0: 4698 * up, f1: 4690 * up, type: 'triangle', att: 0.002, delay: 0.11 });
+      this._tink(v, 0.8, 0);
+    }
   }
   // Asist onayı (12.165): öldürme onayından kısa ve kısık, tek parlak "tık-tın" (hasar verdiğin düşmanı başkası öldürdü)
   assist() {

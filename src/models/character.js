@@ -460,13 +460,14 @@ export function createCharacter({ team = 'blue', cls = 'assault', skinIndex = 0,
   const api = {
     root, wear: wearOut,
     parts: { torso, head, legs, armR, armL, mount, mountL },
+    hatMeshes: head.children.filter((o) => o.isMesh && o.userData.hatStart != null),      // 12.233 kafadan öldürmede uçan kask / şapka (deathAnim.popHat)
     weaponL: null,
     team,
     cls,
     weapon: null,
     setWeapon(id, opt, skin = 'std') {
       if (opt) api.optic = opt;
-      if (api.weapon) { mount.remove(api.weapon); api.weapon.traverse((o) => o.geometry?.dispose()); }
+      if (api.weapon) { api.weapon.removeFromParent(); api.weapon.traverse((o) => o.geometry?.dispose()); }      // 12.233 removeFromParent: ölünce elden düşüp sahnede yatan silah da
       if (api.weaponL) { mountL.remove(api.weaponL); api.weaponL.traverse((o) => o.geometry?.dispose()); api.weaponL = null; }
       const w = id ? createWeapon(id, api.optic, true, skin) : null;      // skin: S3 silah kaplaması (paylaşılan LOD malzemesi)
       api.weapon = w;
@@ -501,7 +502,7 @@ function createZombie({ root, team, skinIndex, weapon, ztype }) {
     weaponL: null, weapon: null, blade: 0.06, optic: 'reddot',
     setWeapon(id, opt, skin = 'std') {
       if (opt) api.optic = opt;
-      if (api.weapon) { mount.remove(api.weapon); api.weapon.traverse((o) => o.geometry?.dispose()); }
+      if (api.weapon) { api.weapon.removeFromParent(); api.weapon.traverse((o) => o.geometry?.dispose()); }      // 12.233 removeFromParent: ölünce elden düşüp sahnede yatan silah da
       if (api.weaponL) { mountL.remove(api.weaponL); api.weaponL.traverse((o) => o.geometry?.dispose()); api.weaponL = null; }
       const w = id ? createWeapon(id, api.optic, true, skin) : null;      // skin: S3 silah kaplaması (paylaşılan LOD malzemesi)
       api.weapon = w;

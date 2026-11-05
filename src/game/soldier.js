@@ -19,6 +19,7 @@ import { SWIM, swimCanFire, waterYAt } from '../sim/swim.js';
 import { bodyYawOf, PRONE_LOOK } from '../sim/prone.js';
 import { preShape, SOLDIER_LATE } from './shapes.js';
 import { bmTp } from './bombaAnim.js';                                         // 12.229 Bomba 3. şahıs duruşları
+import { deathCode, deadDirOf } from './deathAnim.js';                         // 12.233 ölüm animasyonu kodu (yön / biçim)
 
 const _v = new THREE.Vector3();
 const _d = new THREE.Vector3();
@@ -185,7 +186,7 @@ export class Soldier {
   _buildModel() {
     const def = this.def, cls = this.cls;
     // görünüm: sınıf teçhizatı değişir → modeli yeniden kur
-    if (this.model) { this.game.scene.remove(this.model.root); if (this.model.root) releaseCapeSway(this.model.root); }
+    if (this.model) { this.game.deathFx?.restore(this); this.game.scene.remove(this.model.root); if (this.model.root) releaseCapeSway(this.model.root); }      // 12.233 yerde yatan silah / uçan kask eski modelle gider
     const pb = this.game.mode?.paintball && !def.zombie;            // paintball modu: herkes paintball oyuncusu kıyafetinde (kişisel boya rengi + forma no)
     this.model = createCharacter({ team: def.zombie ? 'zomb' : this.team, cls, ztype: this.boss ? 'boss' : this.ztype, skinIndex: this.id, weapon: this.items[0].id, optic: this.opticFor(this.items[0].id), outfit: pb ? 'paintball' : this.game.mode?.space && !def.zombie ? 'space' : this.game.mode?.front && !def.zombie ? 'ww2' : null, paint: pb ? paintColorOf(this) : undefined, num: ((this.id * 7 + 11) % 90) + 10, wear: def.zombie ? null : this.wearSpec() });      // 12.167 kıyafet · forma no: 10–99, savaşçıya göre sabit · 12.158 Cephe: 1940'lar üniforması
     this.model.root.visible = this.alive;
@@ -200,6 +201,8 @@ export class Soldier {
 
   spawn(point, protect = 2) {
     if (this.veh) this.game.vehicles?.release(this);                              // 12.177: koltuk kaydı kalmasın
+    this.game.deathFx?.restore(this);                                              // 12.233 düşen silah eline, kask başına
+    this._pendD = undefined;
     this.pos.set(point.x, 0, point.z);
     this.vel.set(0, 0, 0);
     this.yaw = point.ry; this.pitch = 0; this.recoilP = 0; this.pBody = point.ry; this.pPend = 0;
@@ -765,7 +768,10 @@ export class Soldier {
     const pn = this.game._pen && this.game._pen.by === attacker ? this.game._pen.idx : 0;       // 12.164: delip geçen merminin kaçıncı hedefi (0 = ilk)
     if (attacker && attacker !== this && attacker.isPlayer) this.game.emit('hitmark', { victim: this, zone, dead: this.hp <= 0, dmg: amount, pn });
     else if (attacker && attacker !== this && attacker.human) { const hm = { e: 'hm', by: attacker.id, dead: this.hp <= 0 ? 1 : 0, hd: zone === 'head' ? 1 : 0 }; if (pn) hm.pn = pn; this.game.netEvent(hm); }
-    if (this.hp <= 0) { if (this.game.uyku?.down(this, attacker, weaponName, zone === 'head')) return; this.die(attacker, weaponName, zone === 'head'); }      // 12.223: Uyku Modunda ölmez, uyur
+    if (this.hp <= 0) {
+      this._dfx = fromPos ? fromPos.x : NaN; this._dfz = fromPos ? fromPos.z : NaN; this._dzn = zone;      // 12.233 ölüm animasyonu: vuruşun geldiği yer + bölge (die → deathCode)
+      if (this.game.uyku?.down(this, attacker, weaponName, zone === 'head')) return; this.die(attacker, weaponName, zone === 'head');      // 12.223: Uyku Modunda ölmez, uyur
+    }
   }
 
   // Flaşbang: kör/sağır
@@ -779,6 +785,8 @@ export class Soldier {
 
   die(killer, weaponName, headshot) {
     if (!this.alive) return;
+    this.dCode = deathCode(this, this._dfx, this._dfz, this._dzn, weaponName);     // 12.233 düşüş yönü / biçimi (sunucu seçer, 'kill' olayıyla herkese)
+    this.dSeq = (this.dSeq | 0) + 1; this._dfx = NaN; this._dzn = null;
     if (this.cook?.lit) this._dropLit();                                            // pimi çekili bomba elden düşer (kalan fünyeyle); çekilmemişse düşmez
     this.cook = null;
     if (this.botCook) { this.cook = { t: this.botCook.t, id: this.botCook.gid, lit: true }; this.botCook = null; this._dropLit(); }      // 12.193: pişiren bot da
@@ -786,7 +794,7 @@ export class Soldier {
     if (this.veh) this.game.vehicles?.exit(this);                                  // 12.177: araçta ölen kapıdan düşer (koltuk boşalır, araç sürer)
     this.alive = false; this.hp = 0; this.downed = false;
     this.deaths++;
-    this.deadT = 0; this.deadDir = Math.random() > 0.5 ? 1 : -1;
+    this.deadT = 0; this.deadDir = deadDirOf(this.dCode);
     this.ads = false; this.reloadT = 0; this.useT = 0; this.swing = null; this.autoSwitchT = 0;
     this.vel.set(0, 0, 0);
     this.revivable = !/RPG|Bomba|Claymore|M79|üssü|Tank topu/i.test(weaponName || '');
@@ -978,7 +986,7 @@ export class Soldier {
     if (this.game.headless) return;                                                     // görsel animasyon: sunucuda gerekmez
     this._waterFx(dt);
     const m = this.model, root = m.root, p = m.parts;
-    if (this.isPlayer && !this.game.showSelf) { root.visible = false; return; }      // 1. şahıs: kendi gövdeni görmezsin
+    if (this.isPlayer && !this.game.showSelf) { if (!this.alive && this.game.deathFx) this.game.deathFx.pose(this, dt); root.visible = false; return; }      // 1. şahıs: kendi gövdeni görmezsin (12.233 ölünce yine de devrilir: elden düşen silah / uçan kask görünür)
     if (this.isPlayer) this._syncWeaponModel();                                         // 3. şahıs: elindeki silah modeli güncel olsun
     root.visible = (this.alive || this.deadT < 5) && this !== this.game._specHide;      // 12.223 Uyku Modu izleme: dar köşede arkadaşın gözünden bakılırken modeli gizli
     this._shield(this.protected);
@@ -1021,6 +1029,7 @@ export class Soldier {
     root.rotation.order = 'YXZ';
     root.rotation.set(0, this.bodyYaw, 0);
     if (!this.alive) {
+      if (this.game.deathFx) { this.game.deathFx.pose(this, dt); return; }        // 12.233 yöntemsel ölüm animasyonu (deathAnim.js)
       const k = Math.min(1, this.deadT * 3.2);
       root.rotation.x = this.deadDir * k * (Math.PI / 2) * 0.96;
       root.position.y += k * 0.14;

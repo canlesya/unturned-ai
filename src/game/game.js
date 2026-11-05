@@ -68,6 +68,7 @@ import { squadOn, assignDefault, placeHuman, mateSpawnState, mateSpawnPoint, squ
 import { SquadHud } from './squadHud.js';
 import { Pings } from './pings.js';
 import { Heat } from './heat.js';
+import { DeathFx } from './deathAnim.js';                                        // 12.233 ölüm animasyonu / düşen silah / uçan kask (yalnız istemci)
 import { BigMap, DEPLOY_AUTO } from './bigMap.js';
 import { VT, mgAt, seatGun, heFalloff } from '../sim/vehicle.js';
 import { spaceSetup } from './space.js';
@@ -340,6 +341,7 @@ export class Game {
     this.hud = new Hud(this);
     this.perfHud = new PerfPanel(this);                                            // 12.230 F3 performans paneli (kapalıyken yalnız kare süresi halka tampona)
     this.killfx = new KillFx(this);                                                // vuruş / öldürme hissi (kendi katmanı)
+    this.deathFx = new DeathFx(this);
     if (FarSoldiers.wanted(this) && opts.lod !== false && !globalThis.__noLod) this.farView = new FarSoldiers(this);      // 12.203 kalabalık / büyük harita: uzak asker vekili + seyrek poz (?lod=0 kapalı)
     this.objFx = this.mode.objectives.length && !opts.editor ? new ObjFx(this) : null;   // 12.191 bayrak direği (bez ilerlemeyle iner / çıkar) + alan sınırı halkası
     if (this.online) this.chat = new Chat(this);                                   // sohbet yalnızca çevrimiçi odalarda
@@ -1421,7 +1423,7 @@ export class Game {
       }
       this.lerpCamera(alpha);
     } else if (this.simulate && !this.ended) this.step(this.cine ? dt * this.cine.timeScale : dt);      // 12.217 sinema: yavaş çekim
-    else if (this.ended) { this.effects.update(dt); for (const s of this.soldiers) s.syncModel(dt); }
+    else if (this.ended) { this.effects.update(dt); this.deathFx?.update(dt); for (const s of this.soldiers) s.syncModel(dt); }
     this.cine?.update(dt);
     this.perfHud?.gpuBegin();
     this.render();
@@ -1518,6 +1520,7 @@ export class Game {
     this.uyku?.frame(dt);                                                                         // 12.223 raunt / kanama süresi (gösterim)
     this.bomba?.frame(dt);                                                                        // 12.226 raunt / bomba süresi (gösterim)
     this.effects.update(dt);
+    this.deathFx?.update(dt);
     this.hud.update(dt);
     this.payload?.frame(dt);
     this.front?.frame(dt);
@@ -1561,6 +1564,7 @@ export class Game {
       }
     }
     this.effects.update(dt);
+    this.deathFx?.update(dt);
     for (const s of this.soldiers) s.syncModel(dt);
     this.hud.update(dt);
     this.payload?.frame(dt);
@@ -1619,6 +1623,7 @@ export class Game {
           if (killer === me && victim !== me) this.killfx.kill(victim, ev.w, !!ev.hs, undefined, { pn: ev.pn || 0, pc: ev.pc || 0 });
           if (victim === me) this.killfx.died();
           if (victim === me) me.lastHit = killer;
+          if (ev.da) { if (victim.alive) victim._pendD = ev.da; else if (victim.deadT < 0.4 && victim.dCode !== ev.da) { victim.dCode = ev.da; victim.dSeq = (victim.dSeq | 0) + 1; } }      // 12.233 snapshot'tan önce geldiyse ölünce, sonra geldiyse hemen
           break;
         }
         case 'gr': if (by) this.netGrenade(ev, by); break;
@@ -2414,6 +2419,7 @@ export class Game {
     const pn = P ? P.idx : 0, pc = P ? ++P.kills : 0;
     const kev = { e: 'kill', k: killer ? killer.id : -1, v: victim.id, w: weapon || '', hs: hs ? 1 : 0 };
     if (pn) kev.pn = pn; if (pc > 1) kev.pc = pc;
+    if (victim.dCode) kev.da = victim.dCode;                                       // 12.233 düşüş yönü / biçimi / bölge (eski istemci yok sayar)
     this.netEvent(kev);
     if (!this.mode.infection) for (const b of this.brains) b.onMateDown?.(victim, killer);
     if (this.map.big && this.mode.objectives.length && killer && killer !== victim) bigKill(this, victim);
