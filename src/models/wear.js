@@ -194,6 +194,12 @@ function headItem(id, head, K, team, c, S, skin, cls) {
   const [w, h, d] = S, top = h / 2, fz = -d / 2, A = c.accent, D = K.dark;
   const noHair = id !== 'cap' && id !== 'beanie';
   face(head, skin, S, { noHair: id === 'helmet' || id === 'neonhelm' || id === 'heavyhelm' || id === 'hood' || id === 'gasmask' });
+  const n0 = head.children.length;
+  try { headGear(id, head, K, S, A, D, w, h, d, top, fz); } finally { if (HAT_IDS.has(id)) for (const o of head.children.slice(n0)) o.userData.hat = 1; }      // 12.233 kafadan öldürmede uçan parçalar (geo.mergeVC sona dizer)
+  void noHair; void cls; void team;
+}
+const HAT_IDS = new Set(['helmet', 'neonhelm', 'heavyhelm', 'beanie', 'cap']);      // başlık / şapka (kapüşon, gaz maskesi yüze geçik: uçmaz)
+function headGear(id, head, K, S, A, D, w, h, d, top, fz) {
   if (id === 'helmet' || id === 'neonhelm') {
     fab(head, K.helm, 'bev', [w + 0.065, 0.17, d + 0.07], [0, top - 0.035, 0.008], [0, 0, 0], 0.045, [0.78, 0.82], [1, 1]);
     box(head, [w + 0.07, 0.028, d + 0.075], D, [0, top - 0.115, 0.008]);                         // kenar
@@ -249,7 +255,6 @@ function headItem(id, head, K, team, c, S, skin, cls) {
     box(head, [0.11, 0.016, 0.012], A, [0, -0.09, fz - 0.128]);                                               // takım şeridi (filtre)
     box(head, [0.07, 0.022, d * 0.8], A, [0, top + 0.037, 0.02]);
   }
-  void noHair; void cls;
 }
 
 // ── Üst parçaları (gövde yerelinde) ──

@@ -192,7 +192,7 @@ export class Uyku {
   // uyuyan asker raunt sonuna dek elenir. why: 'fin' (düşman bitirdi) · 'bleed' (kanama bitti)
   out(s, by, why) {
     const g = this.g;
-    s.downed = false; s.alive = false; s.hp = 0; s.deadT = 0; s.deadDir = Math.random() > 0.5 ? 1 : -1;
+    s.downed = false; s.alive = false; s.hp = 0; s.deadT = 0; s.deadDir = -1; s.dCode = 0; s.dSeq = (s.dSeq | 0) + 1;      // 12.233 yerde yatan bitirilir: yüzüstü ölüm biçimi (deathAnim)
     s.vel.set(0, 0, 0); s.ads = false; s.revivable = false; s.respawnT = 1e9; s.uyOut = true; s.rvP = 0; s.rvBy = null; s.rvWant = false;
     if (by && by !== s && by.team !== s.team) by.score += 50;
     this.stats.outs++; if (why === 'fin') this.stats.fins++; else this.stats.bleeds++;

@@ -92,6 +92,7 @@ export function mergeVC(group, metals = false, plainMat = null) {
     const g = ch.geometry.index ? ch.geometry.toNonIndexed() : ch.geometry.clone();
     g.applyMatrix4(ch.matrix);
     g.deleteAttribute('uv');
+    if (ch.userData.hat) g.userData.hat = 1;                                  // 12.233 kask / şapka parçası: birleşik ağın sonuna dizilir (kafadan öldürmede ayrılıp uçar)
     if (plain(ch.material) || (metals && metal(ch.material))) {
       const c = ch.material.color, n = g.attributes.position.count, arr = new Float32Array(n * 3), off = ch.userData.vcOff || 0;
       for (let i = 0; i < n; i++) { arr[i * 3] = c.r + off; arr[i * 3 + 1] = c.g + off; arr[i * 3 + 2] = c.b + off; }
@@ -105,12 +106,28 @@ export function mergeVC(group, metals = false, plainMat = null) {
     rm.push(ch);
   }
   for (const m of rm) { group.remove(m); m.geometry.dispose(); }
-  const emit = (geos, material) => { const mesh = new THREE.Mesh(mergeGeometries(geos, false), material); mesh.castShadow = true; mesh.receiveShadow = true; group.add(mesh); };
+  const emit = (geos, material) => {
+    const base = geos.filter((g) => !g.userData.hat), hats = geos.filter((g) => g.userData.hat);
+    const mesh = new THREE.Mesh(mergeGeometries(hats.length ? [...base, ...hats] : geos, false), material); mesh.castShadow = true; mesh.receiveShadow = true; group.add(mesh);
+    if (hats.length) hatView(mesh, base.reduce((n, g) => n + g.attributes.position.count, 0));
+  };
   if (plainGeos.length) emit(plainGeos, plainMat || VC_MAT);
   if (metalGeos.length) emit(metalGeos, VC_METAL);
   for (const [material, geos] of other) emit(geos, material);
   for (const ch of [...group.children]) if (ch.isGroup) mergeVC(ch, metals, plainMat);
   return group;
+}
+// 12.233: birleşik ağda kask köşeleri [hatStart, son): kafadan ayrılınca kafa ağı drawRange ile kısalır, uçan parça aynı köşe tamponlarını paylaşan
+// ikinci bir geometriyle çizilir (yeni tampon / malzeme / gölgelendirici yok). hatC: kaskın merkezi (grup yerelinde)
+function hatView(mesh, start) {
+  const geo = mesh.geometry, pa = geo.attributes.position, n = pa.count, c = new THREE.Vector3();
+  const mn = new THREE.Vector3(Infinity, Infinity, Infinity), mx = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
+  for (let i = start; i < n; i++) { c.set(pa.getX(i), pa.getY(i), pa.getZ(i)); mn.min(c); mx.max(c); }
+  const view = new THREE.BufferGeometry();
+  for (const k in geo.attributes) view.setAttribute(k, geo.attributes[k]);
+  view.setDrawRange(start, n - start);
+  view.boundingSphere = new THREE.Sphere(mn.clone().add(mx).multiplyScalar(0.5), mn.distanceTo(mx) / 2 + 0.01);
+  mesh.userData.hatStart = start; mesh.userData.hatGeo = view; mesh.userData.hatC = mn.add(mx).multiplyScalar(0.5);
 }
 
 export function mergeStatic(group) {

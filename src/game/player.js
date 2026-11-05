@@ -1495,14 +1495,17 @@ export class Player {
       s.shotOff = null; this._cs = null; this.bodyVisible = false;
       this.deathCamT += dt;
       const t = Math.min(1, this.deathCamT * 2.5);
-      cam.position.set(this.camPos.x, Math.max(0.35, this.camPos.y - t * 1.1), this.camPos.z);
       const killer = s.lastHit && s.lastHit !== s ? s.lastHit : null;
+      if (g.deathFx?.eye(s, cam, dt, killer)) { this.camPos.copy(cam.position); }      // 12.233 göz gövdeyle devrilir (geri: gökyüzü, ileri: yer, yana: yatık), sonra öldürene döner
+      else {
+      cam.position.set(this.camPos.x, Math.max(0.35, this.camPos.y - t * 1.1), this.camPos.z);
       if (killer) {
         const dx = killer.pos.x - cam.position.x, dz = killer.pos.z - cam.position.z;
         const ty = Math.atan2(-dx, -dz);
         s.yaw += clamp(((ty - s.yaw + Math.PI * 3) % (Math.PI * 2)) - Math.PI, -2 * dt, 2 * dt);
       }
       cam.rotation.set(Math.max(-0.2, s.pitch * (1 - t) - t * 0.15), s.yaw, t * 0.5);
+      }
     }
     g.sfx.setListener(cam);
     // ekran örtüleri
