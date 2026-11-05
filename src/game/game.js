@@ -61,6 +61,7 @@ import { towerPerch } from './empBots.js';                                      
 import { vnav, botAtLoadout } from './vehicleBots.js';                                         // 12.189 bot sürücüler (araç ızgarası)
 import { VehicleView } from './vehicleView.js';
 import { VehicleHud } from './vehicleHud.js';
+import { PerfPanel } from './perfPanel.js';                                         // 12.230 performans paneli (F3 · ?perf=1)
 import { Cine } from './cine.js';                                         // 12.217 sinema kamerası (?cine=1; yalnız açıkken)
 import { squadOn, assignDefault, placeHuman, mateSpawnState, mateSpawnPoint, squadMates, SP, spOk, vehSpawnSeat, vehFreeSeats, vehSidePoint, seatYaw } from './squad.js';     // 12.202 manga
 import { SquadHud } from './squadHud.js';
@@ -336,6 +337,7 @@ export class Game {
       return;     // sunucu: DOM, döngü ve girdi yok — step(dt) dışarıdan çağrılır
     }
     this.hud = new Hud(this);
+    this.perfHud = new PerfPanel(this);                                            // 12.230 F3 performans paneli (kapalıyken yalnız kare süresi halka tampona)
     this.killfx = new KillFx(this);                                                // vuruş / öldürme hissi (kendi katmanı)
     if (FarSoldiers.wanted(this) && opts.lod !== false && !globalThis.__noLod) this.farView = new FarSoldiers(this);      // 12.203 kalabalık / büyük harita: uzak asker vekili + seyrek poz (?lod=0 kapalı)
     this.objFx = this.mode.objectives.length && !opts.editor ? new ObjFx(this) : null;   // 12.191 bayrak direği (bez ilerlemeyle iner / çıkar) + alan sınırı halkası
@@ -1375,6 +1377,8 @@ export class Game {
   // ───── ana döngü ─────
   loop(now) {
     this.raf = requestAnimationFrame(this.loop);
+    const t0 = performance.now(), rawDt = (now - this.last) / 1000;                  // 12.230 performans paneli: döngü işi + ham kare aralığı
+    this.perfHud?.begin();
     const dt = this.frameDt(now);
     this.last = now; this._rdt = dt;
     this.perfTick(now, dt);
@@ -1399,7 +1403,10 @@ export class Game {
     } else if (this.simulate && !this.ended) this.step(this.cine ? dt * this.cine.timeScale : dt);      // 12.217 sinema: yavaş çekim
     else if (this.ended) { this.effects.update(dt); for (const s of this.soldiers) s.syncModel(dt); }
     this.cine?.update(dt);
+    this.perfHud?.gpuBegin();
     this.render();
+    this.perfHud?.gpuEnd();
+    this.perfHud?.end(rawDt, t0);
   }
 
   // Kamera, son iki sim adımı arasında ara değerlenir (alpha = adım içindeki ilerleme)
@@ -2504,7 +2511,7 @@ export class Game {
     this.chat?.dispose();
     this.killfx.dispose();
     this.bigMap?.dispose(); this.pings?.dispose(); this.squadHud?.dispose();      // 12.202
-    this.hud.dispose(); this.objFx?.dispose();
+    this.hud.dispose(); this.objFx?.dispose(); this.perfHud?.dispose();
     this.sfx.dispose?.();
     this.post?.dispose();
     this.renderer.dispose();

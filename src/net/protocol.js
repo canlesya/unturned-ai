@@ -93,6 +93,7 @@ export function applyFlags(s, f) {
 export function defaultServerUrl() {
   const loc = globalThis.location;
   if (!loc) return `ws://127.0.0.1:${DEFAULT_PORT}`;
+  if (globalThis.__desktop?.server) return globalThis.__desktop.server;              // 12.230 masaüstü gömülü mod (warbyte://app): canlı sunucu wss://ws.warbyte.io/ws
   if (loc.protocol === 'https:') return `wss://${loc.host}/ws`;                       // TLS ters vekilin arkasında
   const dev = ['5173', '5180', '4173'].includes(loc.port);                            // Vite geliştirme/önizleme sunucusu
   if (!dev && loc.port) return `ws://${loc.host}`;                                    // oyun sunucunun kendi portundan servis ediliyor
