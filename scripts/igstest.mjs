@@ -3,7 +3,7 @@ import { chromium } from 'playwright';
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const errs = []; page.on('pageerror', (e) => errs.push(e.message));
-await page.goto('http://127.0.0.1:5180/?autostart=3v3&map=colgecidi&type=tdm&debug=1&nolock=1');
+await page.goto((process.env.BASE || 'http://127.0.0.1:5180') + '/?autostart=3v3&map=colgecidi&type=tdm&debug=1&nolock=1');
 await page.waitForFunction('window.__game && window.__game.running', null, { timeout: 120000 });
 await page.waitForTimeout(1500);
 let fail = 0; const ok = (c, m) => { console.log((c ? 'OK   ' : 'HATA ') + m); if (!c) fail++; };
