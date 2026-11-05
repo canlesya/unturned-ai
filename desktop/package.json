@@ -1,0 +1,23 @@
+{
+  "name": "warbyte-desktop",
+  "productName": "WarByte",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WarByte masaüstü (Electron) deneme sürümü: sınırsız FPS ve performans karşılaştırması",
+  "main": "main.js",
+  "author": "WarByte",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "start:local": "electron . --local",
+    "start:vsync": "electron . --vsync",
+    "build:web": "cd .. && npx vite build",
+    "pack:win": "node build.mjs win",
+    "pack:mac": "node build.mjs mac",
+    "pack": "node build.mjs win mac"
+  },
+  "devDependencies": {
+    "@electron/packager": "20.3.0",
+    "electron": "44.9.3"
+  }
+}
