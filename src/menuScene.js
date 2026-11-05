@@ -7,6 +7,7 @@ import { createWeapon, WEAPONS } from './models/weapons.js';
 import { applySkin } from './models/skins.js';
 import { createItem, ITEMS } from './models/items.js';
 import { gpuInfo } from './gpuCheck.js';
+import { FramePacer, IDLE_FPS, unfocused } from './framePace.js';
 
 // Menü arka planı: seçili haritanın canlı dönen kuş bakışı + sınıf/silah vitrini + silah ikonları.
 // Tek WebGL tuvali kullanır; oyun başlarken dispose() edilmelidir.
@@ -47,7 +48,10 @@ export class MenuScene {
     this._rs = () => { r.setSize(innerWidth, innerHeight, false); this.cam.aspect = this.show.cam.aspect = innerWidth / innerHeight; this.cam.updateProjectionMatrix(); this.show.cam.updateProjectionMatrix(); this._offset(); };
     addEventListener('resize', this._rs);
     this.loop = this.loop.bind(this);
-    this.raf = requestAnimationFrame(this.loop);
+    // 12.232 menü arka planı yavaş dönen bir sahne: 30 FPS yeter (eskiden ekran hızında, masaüstünde VSync kapalıyken 500–600 FPS → GPU %100, fan).
+    // Pencere odaksızken 10, gizliyken (simge durumu / sekme arkada / örtülü) hiç çizilmez.
+    this.pacer = new FramePacer(this, (now) => this.loop(now), () => (unfocused() ? 10 : IDLE_FPS), { name: 'menu' });
+    this.pacer.start();
   }
 
   // ───── harita arka planı ─────
@@ -221,9 +225,7 @@ export class MenuScene {
   // ───── döngü ─────
   loop(now) {
     if (!this.running) return;
-    this.raf = requestAnimationFrame(this.loop);
-    if (this.soft && now - this._last < 30) return;                                 // 12.222 yazılım WebGL: ~30 FPS yeter
-    const dt = Math.min(0.05, (now - this._last) / 1000); this._last = now;
+    const dt = Math.min(0.12, (now - this._last) / 1000); this._last = now;          // 12.222 yazılım WebGL ~30 FPS: artık her durumda (FramePacer)
     this.t += dt;
     const r = this.renderer;
     if (this.mode !== 'showroom' && !this.world) { /* ilk harita henüz kuruluyor: boş kare (vitrin sahnesi araya girmesin) */ }
@@ -242,7 +244,7 @@ export class MenuScene {
 
   dispose() {
     this.running = false;
-    cancelAnimationFrame(this.raf);
+    this.pacer.dispose(); cancelAnimationFrame(this.raf);
     removeEventListener('resize', this._rs);
     if (this.world) this._disposeEnv(this.world.scene, null);
     for (const m of this._maps.values()) this._disposeMap(m);

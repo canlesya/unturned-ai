@@ -2879,3 +2879,69 @@ Sonuç: bu makinede oyunun kare tavanı ~600 FPS (CPU ~1,4 ms, GPU ~1,5 ms / kar
 4. Ana oturum birleştirince yeniden tam test koşmaz: ajan `--changed`'i aynı kodda koştuysa yalnız `qa.mjs --smoke` (25 sn), çakışma çözüldüyse `--changed <eski uç>..HEAD`. `--all` gece / büyük canlıya alma öncesi (119 test, seri ≈ 75 dk, paralel tahmini ≈ 35 dk).
 
 **Açık / sonraki.** Çevrimdışı tarayıcı maçında oyun zamanını hızlandıran `?debug=1` kancası (ör. `__game.timeScale`; şu an yalnız sinema kamerasında var) → bot / raunt bekleyen bölümler 4–8× kısalır. Ortak tarayıcı yardımcısı (`scripts/lib/web.mjs`: launch, sayfa aç, check, until, HATA özeti; her test bunu 30–60 satırla yeniden yazıyor) → yeni test yazma süresi kısalır. Bilinen eski düşüşlerin düzeltilmesi (bindtest, officialmigrate, menuflow beklentileri güncellenmeli; depotest / limantest eşikleri ya da bot takılması incelenmeli). Rastgele yerleşimli testlere sabit tohum. bombatest'in bot bölümü başsıza taşınabilir. Ajanların bıraktığı eski vite / sunucu süreçleri temizlenebilir (kullanıcıya sorulmalı).
+
+### 12.232 "VSync kapalıyken menü donuyor, yürürken titriyor, fan dönüyor": masaüstü varsayılanı VSync, boşta / arka planda kare sınırı, maç içi 35–135 ms takılmaların nedeni (gölgelendirici ilk kullanımı)
+
+**Şikâyet.** Mac (M4 Pro) ve Windows'ta masaüstü sürümde VSync kapalıyken menü takılıp donuyor; maçta sayaç ~600 FPS gösteriyor ama yürürken görüntü titriyor, kareler düzensiz. VSync açınca geçiyor. Uygulama 2 saat menüde açık kalınca MacBook'un fanı döndü: GPU süreci ~%137 CPU + sayfa %62. "Bu kadar basit oyun neden fanı çalıştırıyor?" Ayrıca 12.230 ölçümündeki tek tük 90–180 ms'lik kareler (VSync açık / kapalı, tarayıcıda da).
+
+**Neden basit oyun fanı döndürüyor (düz anlatım).** Kare sınırı yoksa ekran kartı bir kareyi bitirir bitirmez sonrakine başlar: sahne ne kadar basit olursa olsun ekran kartı **hep %100 meşgul** olur, yalnız saniyede çizdiği kare sayısı artar (basit sahne → 600 kare, ağır sahne → 100 kare; ikisinde de GPU tam yükte). Ekran zaten saniyede 60 / 120 kez yenilenir: fazladan çizilen 480 kare hiç görünmez, yalnız ısı ve fan olur. VSync (ya da FPS sınırı) "ekran ne kadar gösterebiliyorsa o kadar çiz" demektir; GPU kareler arasında dinlenir.
+
+**Neden VSync kapalıyken takılıyor.** `disable-gpu-vsync` + `disable-frame-rate-limit` ile Chromium kareleri ekranla eşzamansız sunar; GPU kuyruğu hep dolu olduğundan bileşikleyici (HUD / menü DOM'unu da çizen) ekran yenilemesine geç kalır, ekrana hangi karenin düştüğü kareden kareye değişir → sayaç 600 derken akış düzensiz. rAF seli ana iş parçacığını da doldurur (menüde 409 rAF / sn). Ölçüm (yürürken rAF zaman damgaları): VSync kapalıyken kareler çift çift geliyor (0,3 ms + 2,7 ms), VSync açıkken 8,3 ± 1 ms. Sınırsız kip düzgün hale getirilemez (sunum ekrana kilitli değil); yalnız ayrıntılı seçenek olarak, uyarıyla kaldı.
+
+**1. Masaüstü: varsayılan VSync, FPS sınırı seçeneği** (`desktop/main.js`, `preload.js`)
+- `ayarlar.json` v2: `{ v: 2, fps: 'vsync' | '60' | '144' | '240' | 'uncapped', hz }`. v1 dosyası (`{ uncapped }`, 12.230'un varsayılanı sınırsızdı) ilk açılışta **VSync'e taşınır** (`from: 'v1:…'` notuyla). Dosya yoksa VSync.
+- **F9** (menüde de) ya da F3 panelindeki **"FPS sınırı… (F9)"**: Ekran hızı (VSync, önerilen) / 60 / 144 / 240 / Sınırsız (önerilmez). Sınırsız ayrıca uyarır (GPU %100, fan, düzensiz akış). VSync anahtarı değişecekse onay + yeniden başlatma, değişmeyecekse (VSync ↔ 60) anında. Tek açılışlık `--fps=…` (`--vsync` / `--uncapped` kısa yol).
+- Sınır ekran hızından düşükse VSync açık kalır, oyun döngüsü kare atlar (120 Hz'de 60 = her ikinci kare). Ekran hızından yüksekse (120 Hz ekranda 144 / 240) VSync kapanır, döngü zamanlayıcıyla sınırlar. Ekran hızı her açılışta pencerenin ekranından ölçülür, `hz` olarak saklanır (anahtarlar uygulama hazır olmadan seçilmeli).
+- **Pilde** (`powerMonitor`) Sınırsız / ekrandan yüksek sınır → döngü ekran hızına sınırlar (Chromium VSync anahtarı açılışta belirlendiği için döngüde).
+- Kaldırılan anahtarlar: `disable-renderer-backgrounding`, `disable-backgrounding-occluded-windows` (yalnız `--inactive` test kipinde kalır), `backgroundThrottling: false`. `disable-background-timer-throttling` kalır (gizliyken çevrim içi sim 10 Hz). Electron'da simge durumundaki / gizli pencerede `document.hidden` değişmiyor, rAF 30 FPS sürüyordu (ölçüldü) → ana süreç `minimize / hide / restore / show / focus / blur` olaylarını sayfaya yollar (`__desktop.onState`).
+- Test için: `--data=…` (ayrı kullanıcı verisi; gerçek ayarlara dokunmaz), `--occlusion`.
+
+**2. Boşta / arka planda kare sınırı (tarayıcı + masaüstü)** — yeni `src/framePace.js` (`FramePacer`): rAF zincirini tek yerden yönetir; her karede hedef: 0 = ekran hızı, > 0 = en çok o kadar (zamanı gelmeyen kare atlanır, sonraki hedef `next += aralık`: kayma birikmez), gizli = çizim yok. Hedefe çok varsa `setTimeout` ile uyur (boş rAF seli yok); sınırsız Chromium'da zamanlayıcıdan sonraki ilk rAF 5–15 ms geç geldiği için (144 sınırında 76 FPS ölçüldü) bu kipte kare doğrudan zamanlayıcıdan çizilir, 4 ms'den kısa beklemeler ileti kanalından kurulur (iç içe zamanlayıcı 4 ms'ye yuvarlanıyordu: 240 sınırı 202'de kalıyordu).
+- **Menü 3B arka planı** (`src/menuScene.js`): 30 FPS (eskiden ekran hızı, sınırsızda 400–600), pencere odaksızken 10, gizliyken 0. Odalar listesi (lobi) de menüde.
+- **Maç** (`game.paceFps()`): oynarken ekran hızı (masaüstü sınırı varsa o); duraklatma menüsü, "tıkla devam", çevrim içi kilitsiz bekleme, maç sonu ekranları ve odaksız pencere **30**; gizliyken çizim yok. Otomatik çözünürlük 30 FPS'i yavaş GPU sanmasın diye boşta ölçüm yapmaz.
+- **Çevrim içi gizliyken** (`loop(now, false)`): çizim / model eşitleme yok, sabit 60 Hz adım gerçek geçen süreyle sürer (her 100 ms, en çok 0,5 sn birikir) → girdi akışı ve sunucuyla eşitlik kopmaz. Çevrimdışı gizliyken zaman durur (eskiden de rAF durunca duruyordu).
+- Betikler için `window.__pace.list()` (ad, hedef, çizilen / atlanan / gizli kare, ölçülen ekran karesi). Eski betiklerin `cancelAnimationFrame(game.raf)` / `game.loop = …` yolları çalışmaya devam eder (döngü `this.loop`'u her karede okur; sinema `manual()` döngüyü durdurur).
+
+**3. Takılma avı** (`scripts/hitchprobe.mjs`: başsız Metal, Çöl Geçidi 5v5 TDM; her rAF karesi + döngü bölümleri + yeni / geç program + yığın + o karedeki olaylar + LoAF; `GLT=1` her WebGL çağrısını zamanlar, `DETAIL=1` bot / HUD alt işlevleri, `UNCAP=1` sınırsız Chromium — takılmaları en iyi bu gösterir, 60 Hz VSync'te 16,7 ms bütçe küçük sıçramaları gizliyor):
+- **Bulunan ana neden: gölgelendiricinin geç ilk kullanımı.** Her takılmada süren çağrı `getProgramInfoLog` (three `onFirstUse`: bağlama durumunu soran, GPU sürecini bekleyen eşzamanlı çağrı): 35–95 ms. Ön ısıtma (12.151) programları `r.compile()` ile oluşturuyor ama yalnız 64×64 hedefe çiziyordu → **ekran varyantı** (ton eşlemeli / sRGB çıktı) hiç çizilmiyor, ilk kullanım maçta oluyordu: ilk **namlu alevi** (birinci şahıs saydam + toplamalı `MeshBasicMaterial`), ilk **nişan solması** (saydam `MeshStandardMaterial`). Ayrıca **efekt parçacıkları** (kıvılcım / kan, `effects._part`) sahnede yoktu → ilk isabette yeni program derlemesi **55–135 ms**.
+- Düzeltme (`warmup.js`, `effects.js` `warmSamples`): her efekt türünden bir örnek (kıvılcım, kan, iki iz mermisi, iz lekesi + yanık, namlu alevi, bıçak izi, patlama, flaş) ön ısıtmada kameranın önüne konur, sonra kaldırılır; her şey hedefe **ve ekrana** bir kez çizilir; sonunda her programın bağlantısı yükleme ekranındayken tamamlatılır (`getUniforms()`). Maç açılışı +5–15 ms (ön ısıtma 200 → 205–215 ms, 66 → 68 program).
+- **Yol bulma yığını** (`nav.js` `Heap`): her `push` bir `[n, f]` dizisi ayırıyordu (uzun aramada tek adımda 8–15 MB çöp, 10–17 ms adım). Tipli dizilere geçti, karşılaştırmalar birebir aynı (aynı yol; 50 × 3000 işlemlik rastgele denemede eski yığınla aynı sıra). Ayırma 15 → 11–12 MB / sn, GC yığın düşüşü 33 → 25–27 / dk.
+- Bakılıp neden çıkmayanlar: GC (küçük toplama 1–3 ms; > 33 ms'lik karelerin hiçbiri yığın düşüşüyle çakışmadı), doku yükleme (doku sayısı maç boyunca sabit), DOM / HUD (12.222'den beri yalnız değişince yazıyor), ağ (çevrim içi `onSnap` / `interpolate` < 1 ms), ses. Kalan: bot hedef seçimi + yol bulma tek adımda 8–12 ms (5v5'te dakikada birkaç kez; 60 Hz bütçesine sığıyor, 120 Hz'de en çok bir kare kaçırır) ve bir kez görülen 28 ms'lik HUD adımı (+15 MB, yeniden üretilemedi, büyük olasılıkla tam GC).
+
+| Senaryo (60 sn) | > 33 ms / dk | > 50 ms / dk | en uzun | 1% düşük | geç program |
+|---|---|---|---|---|---|
+| Çevrimdışı 5v5, sınırsız Chromium, **önce** (3 koşu) | 3 – 4,5 | 1 – 3 | 53,7 / 87,9 / 124,7 ms | 4,4–4,8 ms | 3 (44–95 ms) |
+| aynı, **sonra** (4 koşu) | **0** | **0** | 16,6–19,3 ms | 3,7–3,9 ms | 0 |
+| Çevrim içi (yerel oda), sınırsız, önce | 1 | 0 | 39,4 ms | 4,0 ms | 1 (50 ms, parçacık) |
+| aynı, sonra (2 koşu) | **0** | **0** | 18,8–21,2 ms | 3,8 ms | 0 |
+| Çevrimdışı, VSync 60 Hz, önce / sonra | 1 / 0–1 | 0 / 0 | 33,3 / 16,8–33,3 ms | 17,3 / 16,8–17,3 ms | 1 / 0 |
+| Masaüstü 120 Hz VSync, 12 sn, önce | 5 (1 kare) | 5 | **116,6 ms** | — | — |
+| Masaüstü sınırsız, 12 sn, önce | 15 (3 kare) | 10 | **135,3 ms** | — | — |
+| Masaüstü 120 Hz VSync, 12 + 60 sn, sonra | **0** | **0** | 10,5 / 18,3 ms | — | — |
+
+**4. Yürüyüş titremesi / ara değerleme.** Çevrimdışı: değişken adım (her karede `step(dt)`, kamera doğrudan simden; sabit adım yok → ara değerleme gerekmez). Çevrim içi: sunucuyla aynı sabit 60 Hz adım, kamera + yerel model iki adım arasında `alpha = acc / SIM_DT` ile ara değerleniyordu (doğru). Değişen: uzak askerlerin ara değerleme zamanı artık karenin rAF zaman damgası (eskiden `performance.now()`: geri çağrının geç başlamasına göre ±1–3 ms oynuyordu, kamerayla aynı saatte değildi). Ölçüm (`pacetest`, düz yürüyüş, kare başına kamera hızı sapması CV): çevrimdışı **0,003**, çevrim içi **0,003** (60 Hz). Masaüstü 120 Hz VSync: rAF damgası kareden kareye 6,7–10,3 ms oynuyor, 12.151'in kare adımı yumuşatması adımı 8,0–8,5 ms'de tutuyor → kare başına kamera adımı düzgün (ekran her karede bir yenileme gösterir). VSync kapalıyken damgalar çift çift (0,3 / 2,7 ms) geldiği için damgaya göre sapma büyük görünür (CV 0,6–0,9); simdeki adım yine düzgün (yerel kamera kare başına 7–11 mm, adım × hız), düzensizlik sunumda — bu kipin kendi sorunu.
+
+**5. Masaüstü ölçümü** (`scripts/pacedesk.mjs`: paketlenmiş uygulama `--inactive`, ayrı veri klasörü; süreç CPU'su `ps` cputime farkı / duvar saati, 20 sn; "önce" = aynı Electron'a `online` kodu konmuş kopya):
+
+| Durum (M4 Pro, 120 Hz, 1440×810) | GPU süreci CPU | Sayfa (renderer) CPU | uygulama içi kare |
+|---|---|---|---|
+| Menü, **önce** (varsayılan sınırsız) | **116,7 %** | 18,6 % | rAF 409 / sn |
+| Menü, önce, simge durumunda | 116,5 % | 17,6 % | (çizmeye devam) |
+| Menü, önce, VSync açık | 50,2 % | 9,6 % | 120 |
+| Menü, **sonra** (VSync, varsayılan) | **25,7 %** | 9,5 % | menü sahnesi 30 FPS |
+| Menü, sonra, Sınırsız seçili | 25,9 % | 8,7 % | 30 FPS (zamanlayıcı kipi) |
+| Menü, sonra, simge durumunda | **2,9 %** | 1,1 % | 0 (çizim yok) |
+| Maç, önce, sınırsız | 159,6 % | 64,7 % | 561 FPS, kare sd 2,4 ms, en uzun 135 ms |
+| Maç, sonra, VSync | 35,5 % | 35,6 % | 120 FPS, sd 0,96 ms, p99 10,4 |
+| Maç, sonra, 60 sınırı (VSync + atlama) | 21,5 % | 24,9 % | 60,1 FPS, sd 0,99 ms, p99 18,7 |
+| Maç, sonra, 144 sınırı (VSync kapalı + zamanlayıcı) | 35,8 % | 32,6 % | 144,0 FPS, sd 0,71 ms, p99 8,2 |
+| Maç, sonra, 240 sınırı | 78,4 % | 65,2 % | 238,6 FPS, sd 0,87 ms, p99 5,8 |
+| Maç, sonra, Sınırsız | 158,4 % | 61,5 % | 573 FPS, sd 1,0 ms |
+
+Ayrıca doğrulandı (Electron): v1 `{ uncapped: true }` → `{ v: 2, fps: 'vsync', from: 'v1:uncapped', hz: 120 }`; `setFps('60')` anında 60 FPS + dosyaya yazılır, `setFps('vsync')` 120'ye döner; Sınırsız açılışta 603 FPS, pil durumu gelince 120,7 FPS (ekran hızı); F3 paneli "açık · sınır 60 FPS", "tempo en çok 60 FPS", "ekran 120 Hz". Not: macOS'ta örtülü (başka pencerenin arkasında) pencereyi Chromium kendisi de gizli sayabilir; test penceresi hep arkada açıldığı için `--inactive`'de örtülme kapalı, simge durumu ana süreç olayıyla ölçüldü.
+
+**Paketler** (`cd desktop && npm install && npm run pack`): `desktop/out/WarByte-darwin-arm64.zip` (124 MB, `WarByte.app` geçici imzalı), `desktop/out/WarByte-win32-x64.zip` (154 MB, kurulumsuz `WarByte.exe`).
+
+**Test.** Yeni `scripts/pacetest.mjs` (başsız, ~24 sn, 16 denetim; qa-map `pacetest`, alan `menu`; `src/{framePace,menuScene}.js`, `src/game/{game,warmup,effects,perfPanel}.js`): menü 30 FPS (ekran rAF 60), gizli 0, görünür olunca 30, odaksız 10; maçta 60, ön ısıtma efekt örnekleri kaldırılmış, çevrimdışı yürüyüş CV 0,003, duraklatma 30 FPS + oyun zamanı durur, odaksız 30 → odakla 60, otomatik çözünürlük düşmez; çevrim içi 61 FPS, yürüyüş CV 0,003, gizliyken çizim 0 + gizli adım 10 / sn + girdi 59 / sn + oyun zamanı 0,98 sn/sn + anlık görüntü akıyor, görünür olunca 60. `qa.mjs --changed` OK (bilinen: menuflow). Ölçüm sondaları (kayıtsız): `hitchprobe`, `pacedesk`.
+
+**Sınırlar.** Windows paketi bu Mac'te çalıştırılamadı (aynı kod; Windows'ta ANGLE D3D11 gölgelendiriciyi ilk çizimde tamamladığı için ekrana da çizen ön ısıtma orada daha da önemli, elle denenmeli). Odaksız pencere 30 FPS kuralı çevrim içi maçta ikinci ekranda izlerken de geçerli (bilerek). Sınırsız kipte sunum düzensizliği giderilemez (VSync'siz Chromium); 144 / 240 sınırı ekran hızından yüksekse yırtılma olabilir. Bot hedef seçimi / yol bulma adımı (8–12 ms) bölünmedi (bot davranışına dokunmadan yapılamaz; ayrı iş). Menü 30 FPS'te GPU süreci hâlâ ~%26 (gölgeli harita sahnesi 1,5× çözünürlük); daha da düşürmek için menü sahnesinin çözünürlüğü / gölgesi azaltılabilir (sorulmadı).

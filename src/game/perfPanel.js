@@ -3,6 +3,7 @@
 // pahalı kısımlar (GPU zaman sorgusu, renderer.info biriktirme, sıralama, DOM) yalnız panel açıkken. DOM en çok 4 kez / sn ve yalnız metin değişince yazılır
 // Yer: sağ kenar ortası (sol üst mini harita, sağ üst öldürme akışı). (12.222: aynı metni her karede yazmak bile stil + yerleşim hesabı demek). window.__perf betikler için aynı sayıları taşır; "Raporu kopyala" JSON özeti verir.
 import { gpuInfo } from '../gpuCheck.js';
+import { paceState } from '../framePace.js';
 
 const N = 8192;                    // halka tampon (5 sn × ~1600 FPS'e kadar yeter; fazlası en eski örneği ezer)
 const WIN = 5000;                  // 1% düşük / en uzun takılma penceresi (ms)
@@ -48,7 +49,8 @@ export class PerfPanel {
       const bar = document.createElement('div'); bar.style.cssText = 'margin-top:5px;display:flex;gap:6px;pointer-events:auto';
       const btn = (label, fn) => { const b = document.createElement('button'); b.textContent = label; b.style.cssText = 'font:11px ui-monospace,Menlo,Consolas,monospace;color:#0b0f14;background:#9be07f;border:0;border-radius:4px;padding:2px 7px;cursor:pointer'; b.onclick = (e) => { e.stopPropagation(); fn(b); }; bar.appendChild(b); return b; };
       btn('Raporu kopyala', () => this.copy());
-      if (this.desk?.setUncapped) btn(this.desk.uncapped ? 'VSync aç (yeniden başlat)' : 'VSync kapat (yeniden başlat)', () => this.desk.setUncapped(!this.desk.uncapped));
+      if (this.desk?.chooseFps) btn('FPS sınırı… (F9)', () => this.desk.chooseFps());                       // 12.232 Ekran hızı (VSync) / 60 / 144 / 240 / Sınırsız
+      else if (this.desk?.setUncapped) btn(this.desk.uncapped ? 'VSync aç (yeniden başlat)' : 'VSync kapat (yeniden başlat)', () => this.desk.setUncapped(!this.desk.uncapped));
       el.append(this.pre, bar);
       document.body.appendChild(el);
       this._txt = '';
@@ -135,8 +137,12 @@ export class PerfPanel {
     st.css = [innerWidth, innerHeight]; st.dpr = devicePixelRatio;
     st.adaptive = this.g.settings?.adaptive !== false;
     st.gpu = gpuInfo().renderer || '';
-    st.desktop = this.desk ? { version: this.desk.version, electron: this.desk.electron, chrome: this.desk.chrome, uncapped: !!this.desk.uncapped, mode: this.desk.mode } : null;
-    st.vsync = this.desk ? (this.desk.uncapped ? 'kapalı (sınırsız)' : 'açık') : 'açık (tarayıcı: ekran hızına kilitli)';
+
+    const cap = +paceState.fpsCap || 0;
+    st.vsync = this.desk ? (this.desk.uncapped ? (cap ? `kapalı · sınır ${cap} FPS` : 'kapalı (sınırsız)') : (cap ? `açık · sınır ${cap} FPS` : 'açık (ekran hızı)')) : 'açık (tarayıcı: ekran hızına kilitli)';
+    st.paceFps = this.g.paceFps?.() ?? null; st.battery = !!paceState.battery; st.hz = paceState.hz || null;      // 12.232 o anki hedef (0 = sınır yok; boşta / odaksız 30)
+    st.desktop = this.desk ? { version: this.desk.version, electron: this.desk.electron, chrome: this.desk.chrome, uncapped: !!this.desk.uncapped, fps: paceState.fps || this.desk.fps, fpsCap: cap, mode: this.desk.mode } : null;
+    st.pacer = this.g.pacer ? { ...this.g.pacer.stats, displayMs: +(this.g.pacer.P || 0).toFixed(2) } : null;
     st.build = typeof __BUILD__ !== 'undefined' ? __BUILD__ : 'dev';
     st.map = this.g.map?.id || this.g.opts?.map; st.online = !!this.g.online; st.soldiers = this.g.soldiers?.length || 0;
   }
@@ -151,7 +157,8 @@ export class PerfPanel {
       `çizim ${s.calls ?? '—'}   üçgen ${s.triangles != null ? (s.triangles / 1000).toFixed(0) + 'k' : '—'}   doku ${s.textures ?? '—'}   program ${s.programs ?? '—'}`,
       `yığın ${s.heapMB != null ? s.heapMB.toFixed(0) + ' MB' : '—'}   piksel oranı ${f2(s.pixelRatio)}${s.adaptive ? ' (otomatik)' : ''}   ${s.buffer ? s.buffer[0] + '×' + s.buffer[1] : ''}`,
       `GPU ${s.gpu.slice(0, 64) || '—'}`,
-      `F3 kapat · Shift+F3 raporu kopyala`,
+      `tempo ${s.paceFps ? 'en çok ' + s.paceFps + ' FPS' : 'sınır yok'}${s.battery && this.desk?.uncapped ? ' (pil: ekran hızı)' : ''}${s.hz ? '   ekran ' + s.hz + ' Hz' : ''}`,
+      `F3 kapat · Shift+F3 raporu kopyala${this.desk?.chooseFps ? ' · F9 FPS sınırı' : ''}`,
     ];
     const txt = lines.join('\n');
     if (txt !== this._txt) { this._txt = txt; this.pre.textContent = txt; }
@@ -165,7 +172,7 @@ export class PerfPanel {
       ua: navigator.userAgent, gpu: s.gpu, map: s.map, online: s.online, soldiers: s.soldiers,
       fps: r(s.fps, 1), avgMs: r(s.avgMs), low1Fps: r(s.low1Fps, 1), low1Ms: r(s.low1Ms), p99Ms: r(s.p99Ms), maxMs: r(s.maxMs), cpuMs: r(s.cpuMs), gpuMs: r(s.gpuMs), gpuTimer: s.gpuTimer,
       calls: s.calls, triangles: s.triangles, textures: s.textures, programs: s.programs, heapMB: r(s.heapMB, 0),
-      pixelRatio: r(s.pixelRatio), dpr: s.dpr, buffer: s.buffer, css: s.css, adaptive: s.adaptive,
+      pixelRatio: r(s.pixelRatio), dpr: s.dpr, buffer: s.buffer, css: s.css, adaptive: s.adaptive, paceFps: s.paceFps, battery: s.battery, hz: s.hz,
     };
   }
 

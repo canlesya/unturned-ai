@@ -171,6 +171,25 @@ export class Effects {
     this.boom.userData.life = this.boom.userData.max * 1.4;
   }
 
+  // 12.232 ön ısıtma: her efekt türünden bir örnek kameranın önüne konur (warmup derler + çizer), dönen işlev hepsini kaldırır.
+  // Maçta ilk isabet / patlama / bıçak izinde yeni program derlemesi (55–135 ms donma) olmasın.
+  warmSamples(cam) {
+    if (!cam) return null;
+    const lists = [this.tracers, this.parts, this.decals, this.flashes, this.explosions], n0 = lists.map((a) => a.length), ns = this.slashes.length;
+    const boom = this.boom.userData.life;
+    const d = cam.getWorldDirection(new THREE.Vector3()), p = cam.position.clone().addScaledVector(d, 3), q = p.clone().addScaledVector(d, 4);
+    try {
+      this.spark(p, 1, d); this.blood(p, 1, d); this.tracer(p, q); this.tracer(p, q, '#ff6a5a'); this.decal(q, d.clone().negate()); this.decal(q, d.clone().negate(), true);
+      this.muzzle(p, d); this.slash(cam.position, d, 'rl', 1.2); this.explosion(q, 4); this.flashBurst(q);
+    } catch (e) { console.warn('[ön ısıtma] efekt', e); }
+    return () => {
+      lists.forEach((a, k) => { while (a.length > n0[k]) this._remove(a, a.length - 1); });
+      for (const m of this.slashes.splice(ns))                          // bıçak izi: ortak yay geometrisi atılmaz (yalnız kendi malzemesi)
+        { this.scene.remove(m); m.material.dispose(); }
+      this.boom.userData.life = boom; this.shake = 0;
+    };
+  }
+
   _remove(arr, i) {
     const m = arr[i];
     this.scene.remove(m);

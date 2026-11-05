@@ -9,17 +9,23 @@ import { WSTATS } from './stats.js';
 //   2) Birinci şahıs silah sahnesi: donanımdaki her eşya (+ ana silahın takılabilir nişangâhları), opak ve saydam (nişan alma solması) hâliyle
 //   3) Sürücü düzeyi gecikmeli derleme (macOS GL / ANGLE D3D11 programı ilk çizimde tamamlar) için küçük bir hedefe gerçekten bir kez çizilir
 // Hiçbiri görünmez: yükleme ekranı kanvasın üstünde, ilk gerçek kare tamponu temizler. Mevcut silah / nişangâh sonunda geri yüklenir.
+// 12.232 takılma avı (Chromium / Electron, Metal): maç içi 35–135 ms'lik kareler üç nedenden: (a) r.compile() programı yalnız oluşturur; three bağlama
+// durumunu İLK ÇİZİMDE sorar (onFirstUse → getProgramInfoLog = GPU sürecini bekleyen eşzamanlı çağrı) ve ekran varyantı (ton eşlemeli, sRGB çıktı) ön
+// ısıtmada hiç çizilmiyordu (yalnız hedef varyantı) → ilk namlu alevi / ilk nişan solmasında 40–95 ms. (b) efekt malzemeleri (kıvılcım / kan
+// parçacığı, iz mermisi, patlama, flaş) sahnede yoktu → ilk isabette yeni program 55–135 ms. Şimdi: efekt örnekleri geçici olarak sahneye konur,
+// her şey ekrana da bir kez çizilir ve sonunda her programın bağlantısı yükleme ekranındayken tamamlatılır (getUniforms).
 export function warmup(game) {
   const r = game.renderer, p = game.player, s = game.playerSoldier;
   if (!r || !p || !s) return null;
   const t0 = performance.now(), n0 = r.info.programs.length;
   const rt = new THREE.WebGLRenderTarget(64, 64, { type: THREE.HalfFloatType, samples: Math.min(4, r.capabilities.maxSamples || 0) });
   const prevRT = r.getRenderTarget(), vm = p.vm;
-  const both = (scene, cam) => {                                    // ekran (null hedef) + render hedefi varyantları; derle, sonra hedefe bir kez çiz
+  const both = (scene, cam) => {                                    // ekran (null hedef) + render hedefi varyantları; derle, ikisine de bir kez çiz
     r.compile(scene, cam);
     r.setRenderTarget(rt); r.compile(scene, cam); r.clear(); r.render(scene, cam);
-    r.setRenderTarget(prevRT);
+    r.setRenderTarget(prevRT); r.render(scene, cam);                 // 12.232 ekran varyantı da gerçekten çizilir (sürücü ardışık düzen durumu + three ilk kullanım)
   };
+  const fx = game.effects?.warmSamples?.(game.camera);              // 12.232 efekt malzemeleri (parçacık / iz / patlama / flaş / iz lekesi) geçici olarak kameranın önünde
   try {
     game.scene.updateMatrixWorld(true);
     both(game.scene, game.camera);
@@ -66,8 +72,11 @@ export function warmup(game) {
   } catch (e) {
     console.warn('[ön ısıtma]', e);
   } finally {
+    fx?.();                                                          // efekt örnekleri kaldırılır (malzemeler önbellekte kalır)
     r.setRenderTarget(prevRT);
     rt.dispose();
+    // 12.232 derlenmiş ama hiç çizilmemiş programlar (gizli parçalar, kırpılan nesneler): bağlantı durumunu şimdi sor → bekleme yükleme ekranında olur, maçta değil
+    for (const pr of r.info.programs) { try { pr.getUniforms(); } catch { /* yok say */ } }
   }
   return { ms: Math.round(performance.now() - t0), programs: r.info.programs.length - n0 };
 }
