@@ -392,7 +392,7 @@ export class Cine {
   }
 
   // ── kayıt: döngüyü durdur, kare kare ilerlet ──
-  manual() { cancelAnimationFrame(this.g.raf); this.g.raf = 0; this.g.loop = () => {}; this.isManual = true; }
+  manual() { this.g.pacer?.stop(); cancelAnimationFrame(this.g.raf); this.g.raf = 0; this.g.loop = () => {}; this.isManual = true; }
   // dt: çıktı karesinin süresi; oyun timeScale ile ilerler (yavaş çekim). sim false: yalnız kamera + çizim
   frame(dt = 1 / 60, sim = true) {
     const g = this.g;

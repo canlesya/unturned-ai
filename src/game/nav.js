@@ -5,27 +5,35 @@ import { DEEP_WATER } from '../maps/terrain.js';
 const CELL0 = 0.5;
 const INFL = 0.35;
 
+// 12.232: düğüm / öncelik ayrı tipli dizilerde (eskiden her push bir [n, f] dizisi ayırıyordu: uzun yol aramasında tek adımda 8–15 MB çöp,
+// 10–17 ms'lik adım → 60 Hz'de kare kaçırma). Karşılaştırmalar birebir aynı (aynı sıra, aynı yol).
 export class Heap {
-  constructor() { this.a = []; }
-  get size() { return this.a.length; }
-  push(n, f) {
-    const a = this.a; a.push([n, f]);
-    let i = a.length - 1;
-    while (i > 0) { const p = (i - 1) >> 1; if (a[p][1] <= a[i][1]) break; [a[p], a[i]] = [a[i], a[p]]; i = p; }
+  constructor(cap = 1024) { this.n = new Int32Array(cap); this.f = new Float64Array(cap); this.len = 0; }
+  get size() { return this.len; }
+  push(node, pri) {
+    if (this.len === this.n.length) { const n = new Int32Array(this.len * 2), f = new Float64Array(this.len * 2); n.set(this.n); f.set(this.f); this.n = n; this.f = f; }
+    const N = this.n, F = this.f;
+    let i = this.len++;
+    N[i] = node; F[i] = pri;
+    while (i > 0) {
+      const p = (i - 1) >> 1;
+      if (F[p] <= F[i]) break;
+      const tn = N[p], tf = F[p]; N[p] = N[i]; F[p] = F[i]; N[i] = tn; F[i] = tf; i = p;
+    }
   }
   pop() {
-    const a = this.a, top = a[0], last = a.pop();
-    if (a.length) {
-      a[0] = last; let i = 0;
+    const N = this.n, F = this.f, top = N[0], len = --this.len;
+    if (len) {
+      N[0] = N[len]; F[0] = F[len]; let i = 0;
       for (;;) {
         const l = 2 * i + 1, r = l + 1; let m = i;
-        if (l < a.length && a[l][1] < a[m][1]) m = l;
-        if (r < a.length && a[r][1] < a[m][1]) m = r;
+        if (l < len && F[l] < F[m]) m = l;
+        if (r < len && F[r] < F[m]) m = r;
         if (m === i) break;
-        [a[m], a[i]] = [a[i], a[m]]; i = m;
+        const tn = N[m], tf = F[m]; N[m] = N[i]; F[m] = F[i]; N[i] = tn; F[i] = tf; i = m;
       }
     }
-    return top[0];
+    return top;
   }
 }
 

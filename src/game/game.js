@@ -3,6 +3,7 @@ import { SightMap } from './sight.js';
 import { MapEditor, loadEdits } from './mapEditor.js';
 import * as THREE from 'three';
 import { warmup } from './warmup.js';
+import { FramePacer, IDLE_FPS, playCap, unfocused } from '../framePace.js';
 import { gpuInfo } from '../gpuCheck.js';
 import { RemoteTorches } from './remoteTorch.js';
 import { setupEnvironment } from '../maps/environment.js';
@@ -441,7 +442,10 @@ export class Game {
     this.hud.setPaused(!opts.nolock);
     this.last = performance.now();
     this.loop = this.loop.bind(this);
-    this.raf = requestAnimationFrame(this.loop);
+    // 12.232 kare temposu: oynarken ekran hızı (masaüstünde seçilen FPS sınırı), duraklatma / maç sonu / odaksız pencere 30 FPS, gizliyken çizim yok
+    // (çevrim içi sim + ağ her 100 ms'de gerçek süreyle sürer). this.loop her karede yeniden okunur (betikler / sinema kaydı onu değiştirebiliyor).
+    this.pacer = new FramePacer(this, (now, draw) => this.loop(now, draw), () => this.paceFps(), { hiddenTicks: true, name: 'game' });
+    this.pacer.start();
     if (opts.debug) window.__game = this;
   }
 
@@ -1374,10 +1378,24 @@ export class Game {
     return best;
   }
 
+  // 12.232 hedef kare hızı (FramePacer): 0 = ekran hızı / sınırsız (masaüstü sınırı varsa o). Boşta (duraklatma menüsü, "tıkla devam", maç sonu,
+  // çevrim içi kilitsiz bekleme) ve pencere odaksızken 30: sahne arkada dönüyor ama kimse oynamıyor → GPU / fan boşuna çalışmasın.
+  paceFps() {
+    const cap = playCap();
+    const idle = this.ended || (this.online ? !this.player?.locked : !this.simulate) || unfocused();
+    return idle ? (cap ? Math.min(cap, IDLE_FPS) : IDLE_FPS) : cap;
+  }
+
   // ───── ana döngü ─────
-  loop(now) {
-    this.raf = requestAnimationFrame(this.loop);
+  // draw = false: pencere gizli (FramePacer) → çizim / model eşitleme yok; çevrim içinde sabit adım gerçek geçen süreyle sürer (en çok 0,5 sn birikir:
+  // tarayıcı gizli sekmede zamanlayıcıyı 1 sn'ye kısar; sunucu girdi kuyruğu taşmasın). Çevrimdışı gizliyken zaman durur (eskiden de rAF durunca duruyordu).
+  loop(now, draw = true) {
     const t0 = performance.now(), rawDt = (now - this.last) / 1000;                  // 12.230 performans paneli: döngü işi + ham kare aralığı
+    if (!draw) {
+      this.last = now; this._ema = 0;                                               // görünür olunca ilk kare adımı sıfırdan ölçülür (frameDt)
+      if (this.online && !this.ended) { this._acc = Math.min(this._acc + Math.max(0, rawDt), 0.5); while (this._acc >= SIM_DT) { this._acc -= SIM_DT; this.stepOnline(SIM_DT); } }
+      return;
+    }
     this.perfHud?.begin();
     const dt = this.frameDt(now);
     this.last = now; this._rdt = dt;
@@ -1389,7 +1407,9 @@ export class Game {
       while (this._acc >= SIM_DT) { this._acc -= SIM_DT; this.stepOnline(SIM_DT); }
       // Görüntü her karede yeniden hesaplanır (adım sayısı kareden kareye 0/1/2 oynasa da akıcı kalsın):
       // diğer oyuncular o anki zamana göre interpolasyonla, yerel kamera iki sim adımı arasında ara değerlenir.
-      this.online.interpolate(performance.now());
+      // 12.232: görüntü zamanı = karenin rAF zaman damgası (ekran yenilemesine hizalı); performance.now() geri çağrının ne kadar geç başladığına göre
+      // kareden kareye ±1–3 ms oynuyor, uzak askerler kameradan bağımsız titriyordu. Gizli kare / betik çağrısında (now yok) eski yol.
+      this.online.interpolate(now > 0 && now <= performance.now() + 1 ? now : performance.now());
       const alpha = this._acc / SIM_DT, me = this.playerSoldier, a = this._p0, b = this._p1, vo = this.online.viewOff;
       for (const s of this.soldiers) {
         if (s === me && a && me.alive && this.modelLerp !== false) {                               // yerel karakter modeli de kamerayla aynı ara değerleme + düzeltme yumuşatmasıyla çizilir
@@ -1420,6 +1440,8 @@ export class Game {
   // 12.151: kare adımı yumuşatma. Firefox'ta rAF zaman damgası ~1 ms (parmak izi direnci / LibreWolf / Mullvad'da 16,7 ms) kuantalı: 60 Hz'de
   // 16,7 / 33,3 / 0 ms dizisi kamerayı ve modelleri bir kare iki adım, bir kare hiç ilerletir (titreme = "donma" hissi). Adım, ortalama kare süresine
   // yakın tutulur; gerçek zamanla fark (borç) her karede %15 kapatılır (uzun vadede toplam süre aynı). Gerçek takılmada (> 100 ms) eski davranış.
+  // 12.232 ölçüm: VSync açıkken (Electron, 120 Hz) rAF damgası kareden kareye 6,7–10,3 ms oynuyor, bu yumuşatma adımı 8,0–8,5 ms'de tutuyor → yürürken
+  // kare başına kamera adımı düzgün (sunum ekran yenilemesinde). VSync kapalıyken damgalar çift çift geliyor (0,3 / 2,7 ms): yumuşatılmış adım yine düzgün.
   frameDt(now) {
     const raw = (now - this.last) / 1000;
     if (!(raw > 0) || raw > 0.1 || !this._ema) { if (raw > 0 && raw <= 0.1) this._ema = raw; this._debt = 0; return clamp(raw || 0.016, 0, 0.05); }
@@ -1439,7 +1461,8 @@ export class Game {
   // FPS ölçümü + uyarlanabilir çözünürlük: ortalama kare süresi uzun sürerse çözünürlük kademeli düşer, rahatlayınca geri yükselir (en çok seçilen kaliteye kadar)
   perfTick(now, dt) {
     const p = (this._perf ||= { n: 0, t: 0, fps: 0, ratio: null, max: 0, cool: 0 });
-    if (dt > 0.2 || document.visibilityState !== 'visible') { p.n = 0; p.t = 0; return; }       // duraklatma/sekme değişimi sayılmaz
+    const pf = this.paceFps();                                                                   // 12.232 boşta 30 FPS sınırı: yavaş GPU sanılıp çözünürlük düşmesin
+    if (dt > 0.2 || document.visibilityState !== 'visible' || (pf > 0 && pf <= IDLE_FPS)) { p.n = 0; p.t = 0; return; }       // duraklatma/sekme değişimi sayılmaz
     p.n++; p.t += dt;
     if (p.t < 1.2) return;
     p.fps = p.n / p.t; const ms = (p.t / p.n) * 1000; p.n = 0; p.t = 0;
@@ -2496,7 +2519,7 @@ export class Game {
     this.vehView?.dispose(); this.vehHud?.dispose();
     this._badge?.remove(); this._tm?.remove();
     if (this._km) document.removeEventListener('keydown', this._km);
-    cancelAnimationFrame(this.raf);
+    this.pacer?.dispose(); cancelAnimationFrame(this.raf);
     this.weather?.dispose();
     document.exitPointerLock?.();
     document.removeEventListener('pointerlockchange', this._plc);
